@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {PluginRegistryContext} from './PluginRegistryContext';
+import {seedConnectionCatalogue} from '@/hooks/useConnectionCatalogue';
 import {useSettings} from '@/hooks/useSettings';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import type {RegistryPluginWithStatus} from '@/types/plugins';
@@ -13,6 +14,7 @@ export function PluginRegistryProvider({children}: {children: ReactNode}) {
     const [plugins, setPlugins] = useState<RegistryPluginWithStatus[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const registryUrl = settings.tabulariumRegistryUrl;
     const requestId = useRef(0);
 
     const refresh = useCallback(() => {
@@ -24,14 +26,19 @@ export function PluginRegistryProvider({children}: {children: ReactNode}) {
             setError(null);
             try {
                 const result = await client.call('fetch_plugin_registry', undefined);
-                if (request === requestId.current) setPlugins(result);
+                if (request === requestId.current) {
+                    setPlugins(result);
+                    // The connection picker caches the same registry; keep it current
+                    // for every install path (Settings, deep link, activation).
+                    seedConnectionCatalogue(client, registryUrl, result);
+                }
             } catch (err) {
                 if (request === requestId.current) setError(toErrorMessage(err));
             } finally {
                 if (request === requestId.current) setLoading(false);
             }
         });
-    }, [client]);
+    }, [client, registryUrl]);
 
     useEffect(() => {
         if (settingsLoading) return;
@@ -39,7 +46,7 @@ export function PluginRegistryProvider({children}: {children: ReactNode}) {
         return () => {
             requestId.current += 1;
         };
-    }, [refresh, settingsLoading, settings.tabulariumRegistryUrl]);
+    }, [refresh, settingsLoading]);
 
     useEffect(() => {
         let mounted = true;

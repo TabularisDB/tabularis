@@ -2,6 +2,8 @@
 
 export type ProxyProtocol = 'http' | 'socks5';
 export type ProxyMode = 'inherit' | 'custom' | 'disabled';
+export type HttpProxyMode = 'system' | 'custom' | 'disabled';
+export type TcpProxyMode = 'custom' | 'disabled';
 
 export type ProxyScopeId = 'app_http' | 'database' | 'ai' | 'ssh_tunnel';
 
@@ -17,11 +19,16 @@ export interface ProxyOverride {
     endpoint?: ProxyEndpoint;
 }
 
+export interface ProxyScopeModes {
+    app_http: HttpProxyMode;
+    ai: HttpProxyMode;
+    database: TcpProxyMode;
+    ssh_tunnel: TcpProxyMode;
+}
+
 export interface GlobalProxySettings {
-    enabled: boolean;
     endpoint?: ProxyEndpoint;
-    /** Missing key ⇒ false (opt-in per scope). */
-    scopes: Partial<Record<ProxyScopeId, boolean>>;
+    modes: ProxyScopeModes;
 }
 
 export interface ProxyScopeMeta {
@@ -70,10 +77,16 @@ export const DEFAULT_PROXY_ENDPOINT: ProxyEndpoint = {
     port: 7890,
 };
 
+export const DEFAULT_PROXY_MODES: ProxyScopeModes = {
+    app_http: 'system',
+    ai: 'system',
+    database: 'disabled',
+    ssh_tunnel: 'disabled',
+};
+
 export const DEFAULT_GLOBAL_PROXY: GlobalProxySettings = {
-    enabled: false,
     endpoint: {...DEFAULT_PROXY_ENDPOINT},
-    scopes: {},
+    modes: {...DEFAULT_PROXY_MODES},
 };
 
 /** Clamp UI/persisted proxy ports to integers in 0..=65535 (0 = unset). */

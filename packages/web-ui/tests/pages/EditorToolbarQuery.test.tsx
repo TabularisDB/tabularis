@@ -628,7 +628,7 @@ describe('column statistics from plugin drivers (#1137)', () => {
                 error = e;
             });
         });
-        expect(String(error)).toContain("doesn't provide column statistics");
+        expect(String(error)).toContain('dataGrid.columnStats.unavailable');
         expect(executeQueryCalls()).toHaveLength(0);
     });
 

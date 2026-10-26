@@ -21,6 +21,7 @@ import {
     applyPickedValues,
     getPickedValues,
     splitInList,
+    supportsMatchCaseToggle,
     VALUE_PICKER_LIMIT,
 } from '@/utils/filterBar';
 import type {TableColumn} from '@/types/editor';
@@ -1357,5 +1358,94 @@ describe('filterBar utils', () => {
                 expect(splitInList('')).toEqual([]);
             });
         });
+    });
+});
+
+describe('match case for text filters (issue #1164)', () => {
+    const f = (
+        value: string,
+        operator: StructuredFilter['operator'],
+        matchCase?: boolean,
+    ): StructuredFilter => ({id: 'f', column: 'name', operator, value, matchCase});
+
+    const pluginPostgres = {
+        identifier_quote: '"',
+        sql_dialect: 'postgres',
+    } as DriverCapabilities;
+    const pluginMysql = {identifier_quote: '`', sql_dialect: 'mysql'} as DriverCapabilities;
+    const pluginSqlite = {identifier_quote: '"', sql_dialect: 'sqlite'} as DriverCapabilities;
+
+    it('keeps LIKE by default and when match case is on', () => {
+        for (const mc of [undefined, true]) {
+            expect(buildSingleFilterClause(f('ab', 'contains', mc), 'postgres', 'always')).toBe(
+                `"name" LIKE '%ab%' ESCAPE '!'`,
+            );
+        }
+    });
+
+    it('generates ILIKE on built-in PostgreSQL when match case is off', () => {
+        expect(buildSingleFilterClause(f('ab', 'contains', false), 'postgres', 'always')).toBe(
+            `"name" ILIKE '%ab%' ESCAPE '!'`,
+        );
+        expect(buildSingleFilterClause(f('ab', 'starts with', false), 'postgres', 'always')).toBe(
+            `"name" ILIKE 'ab%' ESCAPE '!'`,
+        );
+        expect(buildSingleFilterClause(f('ab', 'ends with', false), 'postgres', 'always')).toBe(
+            `"name" ILIKE '%ab' ESCAPE '!'`,
+        );
+    });
+
+    it('generates ILIKE for a plugin declaring sql_dialect postgres', () => {
+        expect(buildSingleFilterClause(f('ab', 'contains', false), pluginPostgres, 'always')).toBe(
+            `"name" ILIKE '%ab%' ESCAPE '!'`,
+        );
+        expect(buildSingleFilterClause(f('ab', 'contains'), pluginPostgres, 'always')).toBe(
+            `"name" LIKE '%ab%' ESCAPE '!'`,
+        );
+    });
+
+    it('escapes %, _, quotes and the escape character the same in both modes', () => {
+        const value = "50%_a!b'c";
+        const expected = `'%50!%!_a!!b''c%' ESCAPE '!'`;
+        expect(buildSingleFilterClause(f(value, 'contains', true), 'postgres', 'always')).toBe(
+            `"name" LIKE ${expected}`,
+        );
+        expect(buildSingleFilterClause(f(value, 'contains', false), 'postgres', 'always')).toBe(
+            `"name" ILIKE ${expected}`,
+        );
+    });
+
+    it('does not change other dialects, even if the flag is set', () => {
+        for (const driver of ['mysql', 'sqlite', 'mssql', pluginMysql, pluginSqlite]) {
+            expect(buildSingleFilterClause(f('a_b', 'contains', false), driver, 'always')).toBe(
+                buildSingleFilterClause(f('a_b', 'contains'), driver, 'always'),
+            );
+            expect(
+                buildSingleFilterClause(f('a_b', 'contains', false), driver, 'always'),
+            ).not.toContain('ILIKE');
+        }
+    });
+
+    it('leaves raw LIKE / NOT LIKE operators untouched', () => {
+        expect(buildSingleFilterClause(f('a%', 'LIKE', false), 'postgres', 'always')).toBe(
+            `"name" LIKE 'a%'`,
+        );
+    });
+
+    it('applies per filter through buildStructuredFilterClause', () => {
+        const filters = [f('a', 'contains', false), f('b', 'contains')];
+        expect(buildStructuredFilterClause(filters, 'postgres', 'AND', 'always')).toBe(
+            `"name" ILIKE '%a%' ESCAPE '!' AND "name" LIKE '%b%' ESCAPE '!'`,
+        );
+    });
+
+    it('supportsMatchCaseToggle follows the declared dialect, not the driver id', () => {
+        expect(supportsMatchCaseToggle('postgres')).toBe(true);
+        expect(supportsMatchCaseToggle(pluginPostgres)).toBe(true);
+        expect(supportsMatchCaseToggle({identifier_quote: '"'} as DriverCapabilities)).toBe(true);
+        expect(supportsMatchCaseToggle('mysql')).toBe(false);
+        expect(supportsMatchCaseToggle(pluginMysql)).toBe(false);
+        expect(supportsMatchCaseToggle(pluginSqlite)).toBe(false);
+        expect(supportsMatchCaseToggle(null)).toBe(false);
     });
 });

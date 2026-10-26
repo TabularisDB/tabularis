@@ -31,6 +31,37 @@ function ymdToNum({y, m, d}: Ymd): number {
 }
 
 /**
+ * Parses a `YYYY-MM-DD` calendar date into the same timezone-independent day
+ * number used for grouping. Returns `null` for anything that is not a real
+ * calendar date: empty, malformed, or a day that does not exist (e.g. Feb 30,
+ * which `Date.UTC` would otherwise normalise into March).
+ */
+export function parseCalendarDay(value: string): number | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (!match) return null;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const timestamp = Date.UTC(year, month - 1, day);
+    const roundTrip = new Date(timestamp);
+
+    if (
+        roundTrip.getUTCFullYear() !== year ||
+        roundTrip.getUTCMonth() !== month - 1 ||
+        roundTrip.getUTCDate() !== day
+    ) {
+        return null;
+    }
+    return timestamp;
+}
+
+/** Day number of the calendar day an instant falls in, as seen in `timeZone`. */
+export function calendarDayNumber(date: Date, timeZone?: string): number {
+    return ymdToNum(zonedYmd(date, resolveZone(timeZone)));
+}
+
+/**
  * Groups items by date category: Today, Yesterday, This Week, This Month, Older.
  * Returns an array of [groupKey, items[]] tuples in chronological group order.
  * `timeZone` is an optional IANA name (e.g. "Asia/Tokyo"); when omitted, "auto",

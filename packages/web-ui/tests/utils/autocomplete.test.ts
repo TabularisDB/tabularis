@@ -2,13 +2,14 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {
     applyKeywordCase,
     clearAutocompleteCache,
+    findOpenIdentifierQuote,
     needsKeywordCaseRetrigger,
     registerSqlAutocomplete as registerSqlAutocompleteImpl,
     resolveKeywordCase,
     type AutocompleteKeywordCase,
 } from '@/utils/autocomplete';
 import type {TableInfo} from '@/contexts/DatabaseContext';
-import type {PluginManifest} from '@/types/plugins';
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import type {TypedCommandCaller} from '@/api/contract';
 
 // Mock @tauri-apps/api/core
@@ -1498,5 +1499,380 @@ describe('CTE and derived table completion integration', () => {
             'get_columns',
             expect.objectContaining({tableName: 'inner_t'}),
         );
+    });
+});
+
+describe('findOpenIdentifierQuote', () => {
+    it('should find an unclosed opening quote', () => {
+        expect(findOpenIdentifierQuote('select * from `glo', '`')).toBe(14);
+        expect(findOpenIdentifierQuote('SELECT * FROM "order it', '"')).toBe(14);
+        expect(findOpenIdentifierQuote('SELECT * FROM "', '"')).toBe(14);
+    });
+
+    it('should ignore closed quoted identifiers', () => {
+        expect(findOpenIdentifierQuote('select * from `global-conf_modulos` ', '`')).toBe(-1);
+        expect(findOpenIdentifierQuote('select * from `a` join `b', '`')).toBe(23);
+    });
+
+    it('should treat a doubled quote as an escaped quote inside the name', () => {
+        expect(findOpenIdentifierQuote('select * from `it``s', '`')).toBe(14);
+    });
+
+    it('should ignore quote characters inside string literals', () => {
+        expect(findOpenIdentifierQuote("select * from t where a = '`' and ", '`')).toBe(-1);
+        expect(findOpenIdentifierQuote("where a = 'x' and \"Na", '"')).toBe(18);
+    });
+
+    it('should pair brackets for a bracket-quoting driver', () => {
+        expect(findOpenIdentifierQuote('select * from [my table] join [ord', '[')).toBe(30);
+        expect(findOpenIdentifierQuote('select * from [my table] ', '[')).toBe(-1);
+    });
+
+    describe('MySQL string literals', () => {
+        const mysqlCaps = {
+            schemas: false,
+            views: true,
+            routines: false,
+            file_based: false,
+            folder_based: false,
+            identifier_quote: '`',
+            alter_primary_key: false,
+            sql_dialect: 'mysql',
+        } satisfies DriverCapabilities;
+
+        it.each<[string, string]>([
+            ['a double-quoted string with an apostrophe', `WHERE a = "it's" AND \`co`],
+            ['a backslash-escaped quote', "WHERE a = 'it\\'s' AND `co"],
+            ['a backslash-escaped double quote', 'WHERE a = "say \\"hi\\"" AND `co'],
+            ['a doubled double quote', 'WHERE a = "say ""hi""" AND `co'],
+        ])('should find the backtick after %s', (_case, text) => {
+            const backtick = text.lastIndexOf('`');
+            expect(findOpenIdentifierQuote(text, '`', 'mysql')).toBe(backtick);
+            expect(findOpenIdentifierQuote(text, '`', 'mariadb')).toBe(backtick);
+            expect(findOpenIdentifierQuote(text, '`', mysqlCaps)).toBe(backtick);
+        });
+
+        it('should ignore a backtick inside a double-quoted string', () => {
+            expect(findOpenIdentifierQuote('WHERE a = "`" AND ', '`', 'mysql')).toBe(-1);
+            expect(findOpenIdentifierQuote('WHERE a = "x\\"`" AND ', '`', 'mysql')).toBe(-1);
+        });
+
+        it('should read " as the identifier quote when a MySQL-dialect plugin quotes with it', () => {
+            const ansiQuotes = {...mysqlCaps, identifier_quote: '"'};
+            const text = "WHERE a = 'it\\'s' AND \"co";
+            expect(findOpenIdentifierQuote(text, '"', ansiQuotes)).toBe(text.lastIndexOf('"'));
+        });
+
+        it('should keep backslashes as plain text on other dialects', () => {
+            // `'C:\'` is a complete string on PostgreSQL and SQLite.
+            const text = "WHERE path = 'C:\\' AND \"Na";
+            expect(findOpenIdentifierQuote(text, '"', 'postgres')).toBe(text.lastIndexOf('"'));
+            expect(findOpenIdentifierQuote(text, '"', 'sqlite')).toBe(text.lastIndexOf('"'));
+        });
+    });
+});
+
+describe('quoting identifiers that need it (issue #1260)', () => {
+    type Suggestion = {
+        label: string;
+        insertText: string;
+        filterText?: string;
+        sortText?: string;
+        range: {startColumn: number; endColumn: number};
+    };
+    type Driver = string | PluginManifest | DriverCapabilities;
+
+    const pluginCapabilities = (overrides: Partial<DriverCapabilities>): DriverCapabilities => ({
+        schemas: false,
+        views: true,
+        routines: false,
+        file_based: false,
+        folder_based: false,
+        identifier_quote: '"',
+        alter_primary_key: false,
+        ...overrides,
+    });
+    // A MySQL-compatible plugin registered under its own id, and a plugin that
+    // declares the generic dialect with ANSI double quotes.
+    const mysqlPlugin = pluginCapabilities({identifier_quote: '`', sql_dialect: 'mysql'});
+    const genericPlugin = pluginCapabilities({identifier_quote: '"', sql_dialect: 'generic'});
+
+    /** A single-line model whose cursor sits between `before` and `after`, with
+     * Monaco's word range (word characters only, so a hyphen ends the word). */
+    const createCursorModel = (before: string, after = '') => {
+        const word = before.match(/[A-Za-z0-9_]*$/)?.[0] ?? '';
+        return {
+            ...createMockModel(before + after),
+            getWordUntilPosition: vi.fn(() => ({
+                word,
+                startColumn: before.length - word.length + 1,
+                endColumn: before.length + 1,
+            })),
+        };
+    };
+
+    const complete = async (
+        driver: Driver,
+        tables: TableInfo[],
+        before: string,
+        after = '',
+    ): Promise<Suggestion[]> => {
+        const monaco = createMockMonaco();
+        registerSqlAutocomplete(
+            monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+            'conn1',
+            tables,
+            null,
+            driver,
+        );
+        const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+        const result = await provider.provideCompletionItems(createCursorModel(before, after), {
+            lineNumber: 1,
+            column: before.length + 1,
+        });
+        return result.suggestions;
+    };
+
+    const byLabel = (suggestions: Suggestion[], label: string): Suggestion | undefined =>
+        suggestions.find((s) => s.label === label);
+
+    beforeEach(async () => {
+        clearAutocompleteCache();
+        vi.clearAllMocks();
+        const {parseTablesFromQuery} = await import('@/utils/sqlAnalysis');
+        (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockReturnValue(new Map());
+    });
+
+    it('inserts `global-conf_modulos` with backticks after `select * from glo` on MariaDB', async () => {
+        const suggestions = await complete(
+            'mariadb',
+            [{name: 'global-conf_modulos'}, {name: 'users'}],
+            'select * from glo',
+        );
+
+        const table = byLabel(suggestions, 'global-conf_modulos');
+        expect(table?.insertText).toBe('`global-conf_modulos`');
+        // Label and filter text stay unquoted, so typing `glo` keeps matching.
+        expect(table?.filterText).toBe('global-conf_modulos');
+        // Only the typed `glo` is replaced: `select * from \`global-conf_modulos\``.
+        expect(table?.range.startColumn).toBe(15);
+        expect(table?.range.endColumn).toBe(18);
+        expect(byLabel(suggestions, 'users')?.insertText).toBe('users');
+    });
+
+    describe.each<[string, Driver, string]>([
+        ['mysql', 'mysql', '`'],
+        ['mariadb', 'mariadb', '`'],
+        ['postgres', 'postgres', '"'],
+        ['sqlite', 'sqlite', '"'],
+        ['a mysql-dialect plugin', mysqlPlugin, '`'],
+        ['a generic-dialect plugin', genericPlugin, '"'],
+    ])('on %s', (_name, driver, q) => {
+        it.each([
+            ['a hyphen', 'global-conf_modulos'],
+            ['a space', 'order items'],
+            ['a reserved word', 'order'],
+            ['a leading digit', '2fa_codes'],
+        ])('quotes a table name with %s', async (_case, name) => {
+            const suggestions = await complete(driver, [{name}], 'SELECT * FROM ');
+            expect(byLabel(suggestions, name)?.insertText).toBe(`${q}${name}${q}`);
+            expect(byLabel(suggestions, name)?.filterText).toBe(name);
+        });
+
+        it('leaves plain names unchanged', async () => {
+            const suggestions = await complete(
+                driver,
+                [{name: 'users'}, {name: 'order_items'}],
+                'SELECT * FROM ',
+            );
+            expect(byLabel(suggestions, 'users')?.insertText).toBe('users');
+            expect(byLabel(suggestions, 'order_items')?.insertText).toBe('order_items');
+            expect(byLabel(suggestions, 'users')?.filterText).toBeUndefined();
+        });
+
+        it('quotes column names that need it after a table alias', async () => {
+            const {parseTablesFromQuery} = await import('@/utils/sqlAnalysis');
+            (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockReturnValue(
+                new Map([['g', {name: 'global-conf_modulos'}]]),
+            );
+            (invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+                {name: 'id', data_type: 'int'},
+                {name: 'nombre-modulo', data_type: 'varchar'},
+                {name: 'order', data_type: 'int'},
+            ]);
+
+            const suggestions = await complete(
+                driver,
+                [{name: 'global-conf_modulos'}],
+                'SELECT g.',
+            );
+            expect(byLabel(suggestions, 'id')?.insertText).toBe('id');
+            expect(byLabel(suggestions, 'nombre-modulo')?.insertText).toBe(`${q}nombre-modulo${q}`);
+            expect(byLabel(suggestions, 'order')?.insertText).toBe(`${q}order${q}`);
+        });
+    });
+
+    it.each<[string, Driver, string]>([
+        ['a double-quoted string with an apostrophe', 'mysql', `"it's"`],
+        ['a backslash-escaped quote', 'mysql', "'it\\'s'"],
+        ['a double-quoted string with an apostrophe', mysqlPlugin, `"it's"`],
+        ['a backslash-escaped quote', mysqlPlugin, "'it\\'s'"],
+    ])('completes a backtick-quoted column after %s (%#)', async (_case, driver, literal) => {
+        const {parseTablesFromQuery} = await import('@/utils/sqlAnalysis');
+        (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockReturnValue(
+            new Map([['t', {name: 't'}]]),
+        );
+        (invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+            {name: 'col', data_type: 'int'},
+        ]);
+
+        const before = `SELECT * FROM t WHERE note = ${literal} AND \`co`;
+        const suggestions = await complete(driver, [{name: 't'}], before, '`');
+
+        const column = byLabel(suggestions, 'col');
+        expect(column?.insertText).toBe('`col`');
+        // The typed backtick and the auto-closed one are both replaced.
+        expect(column?.range.startColumn).toBe(before.lastIndexOf('`') + 1);
+        expect(column?.range.endColumn).toBe(before.length + 2);
+    });
+
+    it('pairs [ with ] for a plugin that quotes with brackets', async () => {
+        const brackets = pluginCapabilities({identifier_quote: '[', sql_dialect: 'mssql'});
+        const tables = [{name: 'order items'}, {name: 'users'}];
+
+        const bare = await complete(brackets, tables, 'SELECT * FROM ');
+        expect(byLabel(bare, 'order items')?.insertText).toBe('[order items]');
+        expect(byLabel(bare, 'users')?.insertText).toBe('users');
+
+        const typed = await complete(brackets, tables, 'SELECT * FROM [ord', ']');
+        expect(byLabel(typed, 'order items')?.insertText).toBe('[order items]');
+        expect(byLabel(typed, 'order items')?.range.startColumn).toBe(15);
+        expect(byLabel(typed, 'order items')?.range.endColumn).toBe(20);
+    });
+
+    it('quotes mixed-case names on postgres only', async () => {
+        const tables = [{name: 'AccountEventLog'}];
+        const pg = await complete('postgres', tables, 'SELECT * FROM ');
+        const mysql = await complete('mysql', tables, 'SELECT * FROM ');
+        const sqlite = await complete('sqlite', tables, 'SELECT * FROM ');
+
+        expect(byLabel(pg, 'AccountEventLog')?.insertText).toBe('"AccountEventLog"');
+        expect(byLabel(mysql, 'AccountEventLog')?.insertText).toBe('AccountEventLog');
+        expect(byLabel(sqlite, 'AccountEventLog')?.insertText).toBe('AccountEventLog');
+    });
+
+    it('does not double the backtick the user already typed', async () => {
+        const suggestions = await complete(
+            'mysql',
+            [{name: 'global-conf_modulos'}, {name: 'users'}],
+            'select * from `glo',
+        );
+
+        const table = byLabel(suggestions, 'global-conf_modulos');
+        expect(table?.insertText).toBe('`global-conf_modulos`');
+        // The range starts at the typed backtick, so the result has one pair only.
+        expect(table?.range.startColumn).toBe(15);
+        expect(table?.range.endColumn).toBe(19);
+        expect(table?.filterText).toBe('`global-conf_modulos`');
+        // Plain names typed inside a quote are completed quoted as well.
+        expect(byLabel(suggestions, 'users')?.insertText).toBe('`users`');
+        // Keywords make no sense inside a quoted identifier.
+        expect(suggestions.every((s) => s.sortText?.startsWith('1_'))).toBe(true);
+    });
+
+    it('swallows the auto-closed backtick after the cursor', async () => {
+        const suggestions = await complete(
+            'mysql',
+            [{name: 'global-conf_modulos'}],
+            'select * from `glo',
+            '`',
+        );
+
+        const table = byLabel(suggestions, 'global-conf_modulos');
+        expect(table?.insertText).toBe('`global-conf_modulos`');
+        expect(table?.range.startColumn).toBe(15);
+        expect(table?.range.endColumn).toBe(20);
+    });
+
+    it('replaces the whole quoted fragment when it spans a hyphen or a space', async () => {
+        const hyphen = await complete(
+            'mysql',
+            [{name: 'global-conf_modulos'}],
+            'select * from `global-co',
+        );
+        expect(byLabel(hyphen, 'global-conf_modulos')?.range.startColumn).toBe(15);
+
+        const space = await complete(
+            'postgres',
+            [{name: 'order items'}],
+            'SELECT * FROM "order it',
+        );
+        expect(byLabel(space, 'order items')?.insertText).toBe('"order items"');
+        expect(byLabel(space, 'order items')?.range.startColumn).toBe(15);
+    });
+
+    it('replaces an unquoted hyphenated prefix the user typed', async () => {
+        const suggestions = await complete(
+            'mariadb',
+            [{name: 'global-conf_modulos'}],
+            'select * from global-co',
+        );
+
+        const table = byLabel(suggestions, 'global-conf_modulos');
+        expect(table?.insertText).toBe('`global-conf_modulos`');
+        // Monaco's word is only `co`; the range reaches back over `global-`.
+        expect(table?.range.startColumn).toBe(15);
+        expect(table?.range.endColumn).toBe(24);
+    });
+
+    it('keeps the range on the word when the text before a hyphen is not part of the name', async () => {
+        const suggestions = await complete(
+            'mysql',
+            [{name: 'global-conf_modulos'}],
+            'select * from other-glo',
+        );
+
+        expect(byLabel(suggestions, 'global-conf_modulos')?.range.startColumn).toBe(21);
+    });
+
+    it('quotes the table part after a schema qualifier on its own', async () => {
+        const tables = [
+            {name: 'order-items', schema: 'sales'},
+            {name: 'orders', schema: 'sales'},
+        ];
+        const suggestions = await complete('postgres', tables, 'SELECT * FROM sales.ord');
+
+        expect(byLabel(suggestions, 'order-items')?.insertText).toBe('"order-items"');
+        expect(byLabel(suggestions, 'orders')?.insertText).toBe('orders');
+        // Only `ord` after the dot is replaced; the typed schema stays as-is.
+        expect(byLabel(suggestions, 'order-items')?.range.startColumn).toBe(21);
+    });
+
+    it('completes tables after a quoted schema qualifier', async () => {
+        const tables = [{name: 'global-conf_modulos', schema: 'my-db'}];
+        const backticked = await complete('mysql', tables, 'select * from `my-db`.glo');
+        const table = byLabel(backticked, 'global-conf_modulos');
+        expect(table?.insertText).toBe('`global-conf_modulos`');
+        expect(table?.range.startColumn).toBe(23);
+
+        const opened = await complete(
+            'postgres',
+            [{name: 'Order Items', schema: 'Sales'}],
+            'SELECT * FROM "Sales"."Ord',
+        );
+        expect(byLabel(opened, 'Order Items')?.insertText).toBe('"Order Items"');
+        expect(byLabel(opened, 'Order Items')?.range.startColumn).toBe(23);
+    });
+
+    it('quotes table names for an oracle-dialect plugin unless they are upper case', async () => {
+        const oracle = pluginCapabilities({identifier_quote: '"', sql_dialect: 'oracle'});
+        const suggestions = await complete(
+            oracle,
+            [{name: 'EMPLOYEES'}, {name: 'audit_log'}],
+            'SELECT * FROM ',
+        );
+
+        expect(byLabel(suggestions, 'EMPLOYEES')?.insertText).toBe('EMPLOYEES');
+        expect(byLabel(suggestions, 'audit_log')?.insertText).toBe('"audit_log"');
     });
 });

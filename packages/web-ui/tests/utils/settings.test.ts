@@ -510,7 +510,7 @@ describe('settings', () => {
         });
 
         it('should apply font CSS variables to document', () => {
-            applyFontToDocument('Roboto', 16);
+            applyFontToDocument(FONT_MAP['Roboto'], 16);
 
             expect(document.documentElement.style.setProperty).toHaveBeenCalledWith(
                 '--font-base',
@@ -523,20 +523,22 @@ describe('settings', () => {
         });
 
         it('should apply an explicit font directly to body', () => {
-            applyFontToDocument('Roboto', 14);
+            applyFontToDocument(FONT_MAP['Roboto'], 14);
 
             expect(document.body.style.fontFamily).toBe(FONT_MAP['Roboto']);
             expect(document.body.style.fontSize).toBe('14px');
         });
 
-        it('should leave the base font to the theme for the default choice', () => {
-            applyFontToDocument('System', 14);
+        it('should replace the previous font with a resolved theme font', () => {
+            const themeFont = 'Theme UI, sans-serif';
+            applyFontToDocument(FONT_MAP.Hack, 14);
+            applyFontToDocument(themeFont, 14);
 
-            expect(document.documentElement.style.setProperty).not.toHaveBeenCalledWith(
+            expect(document.documentElement.style.setProperty).toHaveBeenCalledWith(
                 '--font-base',
-                expect.anything(),
+                themeFont,
             );
-            expect(document.body.style.removeProperty).toHaveBeenCalledWith('font-family');
+            expect(document.body.style.fontFamily).toBe(themeFont);
             expect(document.body.style.fontSize).toBe('14px');
         });
 
@@ -547,7 +549,7 @@ describe('settings', () => {
             });
 
             // Should not throw
-            expect(() => applyFontToDocument('System', 14)).not.toThrow();
+            expect(() => applyFontToDocument(FONT_MAP['System'], 14)).not.toThrow();
         });
     });
 

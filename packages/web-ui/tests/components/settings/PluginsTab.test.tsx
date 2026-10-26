@@ -20,9 +20,13 @@ vi.mock('react-i18next', () => ({useTranslation: () => ({t: i18n.t.bind(i18n)})}
 vi.mock('lucide-react', async () => await vi.importActual('lucide-react'));
 vi.mock('@tauri-apps/api/event', () => ({listen: vi.fn().mockResolvedValue(() => {})}));
 vi.mock('@/hooks/usePluginRegistry', () => ({usePluginRegistry: vi.fn()}));
+vi.mock('@/hooks/useConnectionCatalogue', () => ({
+    useConnectionCatalogue: () => ({refresh: mocks.refreshCatalogue}),
+}));
 const mocks = vi.hoisted(() => ({
     refreshDrivers: vi.fn(),
     refreshRegistry: vi.fn(),
+    refreshCatalogue: vi.fn(),
     updateSetting: vi.fn().mockResolvedValue(undefined),
     refreshCatalog: vi.fn().mockResolvedValue(undefined),
     catalog: {themes: [], issues: []} as ResolvedThemeCatalog,
@@ -171,6 +175,15 @@ describe('PluginsTab filters and version controls', () => {
             if (command === 'install_plugin' || command === 'cancel_plugin_install') return;
             throw new Error(`Unexpected command: ${command}`);
         });
+    });
+
+    it('refreshes the connection catalogue after installing a driver', async () => {
+        renderTab('all');
+        fireEvent.click(card('PostgreSQL').getByRole('button', {name: 'Older versions'}));
+        fireEvent.click(screen.getByRole('option', {name: /^v1.0.0/}));
+        fireEvent.click(card('PostgreSQL').getByRole('button', {name: 'Downgrade to v1.0.0'}));
+        await waitFor(() => expect(mocks.refreshRegistry).toHaveBeenCalled());
+        await waitFor(() => expect(mocks.refreshCatalogue).toHaveBeenCalled());
     });
 
     it.each(['installed', 'all'])(

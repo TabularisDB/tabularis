@@ -11,7 +11,7 @@ import {
     formatRatio,
     formatRows,
     formatTime,
-    getRowEstimateRatio,
+    getExplainTableRow,
 } from '../plan';
 import {ExplainDiagnosticChips} from './ExplainDiagnosticChips';
 import {ExplainNodeDetails} from './ExplainNodeDetails';
@@ -173,28 +173,20 @@ function TreeRows({
     const nodeMetrics: ExplainNodeMetrics | undefined = metrics.byId.get(node.id);
     const nodeDiagnostics = diagnostics.get(node.id) ?? [];
 
+    const row = getExplainTableRow(node, hasAnalyzeData, nodeMetrics);
+
     const costStr =
-        node.startup_cost != null && node.total_cost != null
-            ? `${formatCost(node.startup_cost)} - ${formatCost(node.total_cost)}`
-            : node.total_cost != null
-              ? formatCost(node.total_cost)
+        row.startupCost != null && row.totalCost != null
+            ? `${formatCost(row.startupCost)} - ${formatCost(row.totalCost)}`
+            : row.totalCost != null
+              ? formatCost(row.totalCost)
               : '-';
 
-    const timeStr =
-        hasAnalyzeData && nodeMetrics?.exclusiveTimeMs != null
-            ? formatTime(nodeMetrics.exclusiveTimeMs)
-            : '-';
+    const timeStr = row.exclusiveTimeMs != null ? formatTime(row.exclusiveTimeMs) : '-';
 
-    const rowsStr = node.plan_rows != null ? formatRows(node.plan_rows) : '-';
-    const actualRowsStr =
-        hasAnalyzeData && node.actual_rows != null ? formatRows(node.actual_rows) : '-';
-    const rowRatio = getRowEstimateRatio(node);
-    const ratioStr =
-        rowRatio != null
-            ? rowRatio >= 1
-                ? formatRatio(rowRatio)
-                : formatRatio(1 / rowRatio)
-            : '-';
+    const rowsStr = row.planRows != null ? formatRows(row.planRows) : '-';
+    const actualRowsStr = row.actualRows != null ? formatRows(row.actualRows) : '-';
+    const ratioStr = row.estimateGap != null ? formatRatio(row.estimateGap) : '-';
 
     return (
         <>
@@ -237,7 +229,7 @@ function TreeRows({
                     </div>
                 </td>
                 <td className="px-3 py-1.5 text-secondary whitespace-nowrap">
-                    {node.relation ?? ''}
+                    {row.relation ?? ''}
                 </td>
                 <td className="px-3 py-1.5 text-right text-secondary font-mono whitespace-nowrap">
                     {costStr}
@@ -257,18 +249,16 @@ function TreeRows({
                     <span
                         className={clsx(
                             'font-mono',
-                            rowRatio == null
-                                ? 'text-secondary'
-                                : rowRatio >= 4 || rowRatio <= 0.25
-                                  ? 'text-amber-300'
-                                  : 'text-secondary',
+                            row.estimateGap != null && row.estimateGap >= 4
+                                ? 'text-amber-300'
+                                : 'text-secondary',
                         )}
                     >
                         {ratioStr}
                     </span>
                 </td>
                 <td className="px-3 py-1.5 text-muted truncate max-w-[200px]">
-                    {node.filter ?? ''}
+                    {row.filter ?? ''}
                 </td>
             </tr>
             {isExpanded &&

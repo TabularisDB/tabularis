@@ -1,6 +1,7 @@
 import {formatCellValue} from './dataGrid';
 import {writeActiveClipboard} from '@/platform/activeCapabilities';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import {quoteIdentifier} from './identifiers';
 import {quoteSqlString, sqlBooleanLiteral, stringEscapeStyle} from './sqlLiteral';
 import {escapeHtml} from './escape';
 
@@ -226,9 +227,11 @@ function rowToSqlInsert(
     tableName: string,
     driver?: CopyDriver,
 ): string {
-    const cols = columns.map((c) => `\`${c}\``).join(', ');
+    // Quote with the driver's own character; keep backticks when no driver is given.
+    const quoteName = (name: string) => (driver ? quoteIdentifier(name, driver) : `\`${name}\``);
+    const cols = columns.map(quoteName).join(', ');
     const vals = row.map((cell) => sqlValue(cell, driver)).join(', ');
-    return `INSERT INTO \`${tableName}\` (${cols}) VALUES (${vals});`;
+    return `INSERT INTO ${quoteName(tableName)} (${cols}) VALUES (${vals});`;
 }
 
 export function rowsToSqlInsert(

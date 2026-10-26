@@ -25,7 +25,7 @@ use client::{
 pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{
-    enum_data_type, escape_identifier, extract_base_type, is_implicit_cast_compatible,
+    escape_identifier, extract_base_type, is_implicit_cast_compatible, postgres_column_types,
     quote_qualified_type,
 };
 use tokio_postgres::types::{ToSql, Type};
@@ -152,6 +152,7 @@ pub async fn get_columns(
              JOIN pg_type t ON t.oid = e.enumtypid
              JOIN pg_namespace tn ON tn.oid = t.typnamespace
              WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
+            format_type(a.atttypid, a.atttypmod) AS full_type,
             {}
         FROM information_schema.columns c
         JOIN pg_namespace n ON n.nspname = c.table_schema
@@ -206,10 +207,15 @@ pub async fn get_columns(
             };
 
             let enum_values: Option<String> = r.try_get("enum_values").ok().flatten();
+            let (data_type, full_type) = postgres_column_types(
+                r.try_get("data_type").unwrap_or_default(),
+                enum_values,
+                r.try_get("full_type").ok().flatten(),
+            );
 
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: enum_data_type(r.try_get("data_type").unwrap_or_default(), enum_values),
+                data_type,
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
@@ -219,6 +225,7 @@ pub async fn get_columns(
                 numeric_precision,
                 numeric_scale,
                 comment: r.try_get("comment").ok(),
+                full_type,
             }
         })
         .collect())
@@ -331,6 +338,7 @@ pub async fn get_all_columns_batch(
              JOIN pg_type t ON t.oid = e.enumtypid
              JOIN pg_namespace tn ON tn.oid = t.typnamespace
              WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
+            format_type(a.atttypid, a.atttypmod) AS full_type,
             {}
         FROM information_schema.columns c
         JOIN pg_namespace n ON n.nspname = c.table_schema
@@ -385,10 +393,15 @@ pub async fn get_all_columns_batch(
         };
 
         let enum_values: Option<String> = row.try_get("enum_values").ok().flatten();
+        let (data_type, full_type) = postgres_column_types(
+            row.try_get("data_type").unwrap_or_default(),
+            enum_values,
+            row.try_get("full_type").ok().flatten(),
+        );
 
         let column = TableColumn {
             name: row.try_get("column_name").unwrap_or_default(),
-            data_type: enum_data_type(row.try_get("data_type").unwrap_or_default(), enum_values),
+            data_type,
             is_pk,
             is_nullable: null_str == "YES",
             is_auto_increment: is_auto,
@@ -398,6 +411,7 @@ pub async fn get_all_columns_batch(
             numeric_precision,
             numeric_scale,
             comment: row.try_get("comment").ok(),
+            full_type,
         };
 
         result
@@ -1511,8 +1525,12 @@ pub async fn get_view_columns(
              JOIN pg_type t ON t.oid = e.enumtypid
              JOIN pg_namespace tn ON tn.oid = t.typnamespace
              WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
+            format_type(a.atttypid, a.atttypmod) AS full_type,
             {}
         FROM information_schema.columns c
+        JOIN pg_namespace n ON n.nspname = c.table_schema
+        JOIN pg_class pc ON pc.relnamespace = n.oid AND pc.relname = c.table_name
+        JOIN pg_attribute a ON a.attrelid = pc.oid AND a.attname = c.column_name
         WHERE c.table_schema = $1 AND c.table_name = $2
         ORDER BY c.ordinal_position
     "#,
@@ -1557,10 +1575,15 @@ pub async fn get_view_columns(
             };
 
             let enum_values: Option<String> = r.try_get("enum_values").ok().flatten();
+            let (data_type, full_type) = postgres_column_types(
+                r.try_get("data_type").unwrap_or_default(),
+                enum_values,
+                r.try_get("full_type").ok().flatten(),
+            );
 
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: enum_data_type(r.try_get("data_type").unwrap_or_default(), enum_values),
+                data_type,
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
@@ -1570,6 +1593,7 @@ pub async fn get_view_columns(
                 numeric_precision,
                 numeric_scale,
                 comment: None,
+                full_type,
             }
         })
         .collect())
@@ -1639,6 +1663,8 @@ pub async fn get_materialized_view_columns(
             numeric_precision: None,
             numeric_scale: None,
             comment: None,
+            // `data_type` is already `format_type(...)` here.
+            full_type: None,
         })
         .collect())
 }

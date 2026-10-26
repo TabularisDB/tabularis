@@ -56,12 +56,10 @@ function csvValue(value: unknown, delimiter: string): string {
     return csvField(text, delimiter);
 }
 
-function resultToCsv(result: QueryResult, delimiter: string): string {
-    const header = result.columns.map((column) => csvValue(column, delimiter)).join(delimiter);
-    const rows = result.rows.map((row) =>
-        row.map((value) => csvValue(value, delimiter)).join(delimiter),
-    );
-    return toLineFile([header, ...rows]);
+function rowsToCsvExport(rows: unknown[][], columns: string[], delimiter: string): string {
+    const header = columns.map((column) => csvValue(column, delimiter)).join(delimiter);
+    const body = rows.map((row) => row.map((value) => csvValue(value, delimiter)).join(delimiter));
+    return toLineFile([header, ...body]);
 }
 
 /**
@@ -84,8 +82,8 @@ const HTML_DOCUMENT_STYLE = [
  * Standalone UTF-8 document around the same escaped HTML table used for
  * clipboard copy. Callers pass the rows already loaded in the grid.
  */
-function resultToHtmlDocument(result: QueryResult): string {
-    const table = rowsToHtmlTable(result.rows, result.columns);
+function rowsToHtmlDocument(rows: unknown[][], columns: string[]): string {
+    const table = rowsToHtmlTable(rows, columns);
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -103,29 +101,42 @@ ${table}
 `;
 }
 
+/**
+ * Serialises already-loaded rows: the whole result, or just the rows a
+ * context-menu action acts on (#1154). Every format lives here so a selected
+ * row is byte-identical to the same row exported with the full result.
+ */
+export function formatRowsForExport(
+    rows: unknown[][],
+    columns: string[],
+    format: ResultExportFormat,
+    csvDelimiter = ',',
+): string {
+    if (format === 'json') {
+        const objects = rows.map((row) => rowToResultObject(columns, row));
+        return JSON.stringify(objects, null, 2);
+    }
+
+    if (format === 'ndjson') {
+        return toLineFile(rows.map((row) => JSON.stringify(rowToResultObject(columns, row))));
+    }
+
+    if (format === 'markdown') {
+        return rowsToMarkdown(rows, columns);
+    }
+
+    if (format === 'html') {
+        return rowsToHtmlDocument(rows, columns);
+    }
+
+    return rowsToCsvExport(rows, columns, csvDelimiter);
+}
+
+/** The same serialisation applied to every row of a query result. */
 export function formatResultForExport(
     result: QueryResult,
     format: ResultExportFormat,
     csvDelimiter = ',',
 ): string {
-    if (format === 'json') {
-        const rows = result.rows.map((row) => rowToResultObject(result.columns, row));
-        return JSON.stringify(rows, null, 2);
-    }
-
-    if (format === 'ndjson') {
-        return toLineFile(
-            result.rows.map((row) => JSON.stringify(rowToResultObject(result.columns, row))),
-        );
-    }
-
-    if (format === 'markdown') {
-        return rowsToMarkdown(result.rows, result.columns);
-    }
-
-    if (format === 'html') {
-        return resultToHtmlDocument(result);
-    }
-
-    return resultToCsv(result, csvDelimiter);
+    return formatRowsForExport(result.rows, result.columns, format, csvDelimiter);
 }

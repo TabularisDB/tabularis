@@ -323,6 +323,52 @@ describe('speaksGenericSql', () => {
         expect(speaksGenericSql(makeCapabilities())).toBe(false);
         expect(speaksGenericSql(null)).toBe(false);
     });
+
+    it('counts sql_syntax.extends as an explicit dialect declaration', () => {
+        for (const extendsDialect of ['postgres', 'mysql', 'sqlite'] as const) {
+            expect(
+                speaksGenericSql(makeCapabilities({sql_syntax: {extends: extendsDialect}})),
+            ).toBe(true);
+        }
+        for (const extendsDialect of ['mssql', 'oracle', 'generic'] as const) {
+            expect(
+                speaksGenericSql(makeCapabilities({sql_syntax: {extends: extendsDialect}})),
+            ).toBe(false);
+        }
+    });
+
+    it('lets a valid sql_syntax.extends win over sql_dialect', () => {
+        expect(
+            speaksGenericSql(
+                makeCapabilities({sql_dialect: 'mssql', sql_syntax: {extends: 'mysql'}}),
+            ),
+        ).toBe(true);
+        expect(
+            speaksGenericSql(
+                makeCapabilities({sql_dialect: 'mysql', sql_syntax: {extends: 'oracle'}}),
+            ),
+        ).toBe(false);
+    });
+
+    it('falls back to sql_dialect when extends is missing or not a valid dialect, like sqlSyntax', () => {
+        expect(
+            speaksGenericSql(
+                makeCapabilities({sql_dialect: 'mysql', sql_syntax: {hash_comments: true}}),
+            ),
+        ).toBe(true);
+        expect(
+            speaksGenericSql(
+                makeCapabilities({
+                    sql_dialect: 'mysql',
+                    sql_syntax: {extends: 'bogus' as never},
+                }),
+            ),
+        ).toBe(true);
+        expect(speaksGenericSql(makeCapabilities({sql_syntax: {extends: 'bogus' as never}}))).toBe(
+            false,
+        );
+        expect(speaksGenericSql(makeCapabilities({sql_syntax: {hash_comments: true}}))).toBe(false);
+    });
 });
 
 describe('supportsColumnStatsRpc', () => {

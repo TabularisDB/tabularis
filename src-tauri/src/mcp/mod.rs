@@ -12,7 +12,8 @@ use crate::drivers::registry as driver_registry;
 #[cfg(test)]
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::heartbeat;
-use crate::models::{ConnectionParams, DatabaseSelection, K8sConnection, SshConnection};
+use crate::keychain_utils;
+use crate::models::{ConnectionParams, K8sConnection, SshConnection};
 use crate::paths;
 use crate::persistence;
 use crate::plugins;
@@ -22,14 +23,21 @@ use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
 mod cooldown;
+mod database_scope;
 pub mod install;
+mod keychain;
 mod output;
 pub mod preflight;
 pub mod protocol;
+mod termination;
 use cooldown::{DISABLE_CHECK_COOLDOWN, RELOAD_COOLDOWN};
+use database_scope::apply_database_override;
+use keychain::{read_stored_secret, StoredSecret};
 use output::{OutputFormatError, ToolOutputFormat};
 use protocol::*;
 
+#[cfg(test)]
+mod keychain_tests;
 #[cfg(test)]
 mod output_tests;
 #[cfg(test)]
@@ -134,11 +142,10 @@ async fn expand_ssh_params_for_mcp(
     }
 
     if ssh.save_in_keychain.unwrap_or(false) {
-        let cache = std::sync::Arc::new(credential_cache::CredentialCache::default());
         let id = ssh.id.clone();
         let (pwd_r, pass_r) = tokio::task::spawn_blocking(move || {
-            let pwd = credential_cache::get_ssh_password_cached(&cache, &id);
-            let pass = credential_cache::get_ssh_key_passphrase_cached(&cache, &id);
+            let pwd = keychain_utils::find_ssh_password(&id);
+            let pass = keychain_utils::find_ssh_key_passphrase(&id);
             (pwd, pass)
         })
         .await
@@ -148,12 +155,19 @@ async fn expand_ssh_params_for_mcp(
             data: None,
         })?;
 
-        if let Ok(v) = pwd_r {
+        // Only password auth can't do without its secret. A key may not be
+        // encrypted, so a failed passphrase read is left to the SSH layer.
+        let owner = format!("SSH connection \"{}\"", ssh.name);
+        let password_auth = ssh.auth_type.as_deref() == Some("password");
+        if let Some(v) =
+            read_stored_secret(pwd_r, StoredSecret::SshPassword, &owner, password_auth)?
+        {
             if !v.trim().is_empty() {
                 ssh.password = Some(v);
             }
         }
-        if let Ok(v) = pass_r {
+        if let Some(v) = read_stored_secret(pass_r, StoredSecret::SshKeyPassphrase, &owner, false)?
+        {
             if !v.trim().is_empty() {
                 ssh.key_passphrase = Some(v);
             }
@@ -260,19 +274,19 @@ async fn resolve_db_params(
     // connect — never from the keychain, where a stale token would survive.
     let iam_auth = conn.params.use_iam_auth.unwrap_or(false);
     if !iam_auth && conn.params.save_in_keychain.unwrap_or(false) {
-        let cache = std::sync::Arc::new(credential_cache::CredentialCache::default());
         let id = conn.id.clone();
-        let pwd = tokio::task::spawn_blocking(move || {
-            credential_cache::get_db_password_cached(&cache, &id)
-        })
-        .await
-        .map_err(|e| JsonRpcError {
-            code: -32000,
-            message: e.to_string(),
-            data: None,
-        })?;
+        let pwd = tokio::task::spawn_blocking(move || keychain_utils::find_db_password(&id))
+            .await
+            .map_err(|e| JsonRpcError {
+                code: -32000,
+                message: e.to_string(),
+                data: None,
+            })?;
 
-        if let Ok(p) = pwd {
+        // A missing entry keeps the password unset as before, but a keychain
+        // failure must not reach the driver as an empty password.
+        let owner = format!("connection \"{}\"", conn.name);
+        if let Some(p) = read_stored_secret(pwd, StoredSecret::Password, &owner, true)? {
             if !p.trim().is_empty() {
                 conn.params.password = Some(p);
             }
@@ -291,18 +305,16 @@ async fn resolve_db_params(
     // password branches above: the URI has its own keychain entry and its own
     // marker, so it must not depend on how the password happens to be stored.
     if conn.params.connection_uri_in_keychain.unwrap_or(false) {
-        let cache = std::sync::Arc::new(credential_cache::CredentialCache::default());
         let id = conn.id.clone();
-        let uri = tokio::task::spawn_blocking(move || {
-            credential_cache::get_connection_uri_cached(&cache, &id, true)
-        })
-        .await
-        .map_err(|e| JsonRpcError {
-            code: -32000,
-            message: e.to_string(),
-            data: None,
-        })?;
-        if let Ok(Some(value)) = uri {
+        let uri = tokio::task::spawn_blocking(move || keychain_utils::find_connection_uri(&id))
+            .await
+            .map_err(|e| JsonRpcError {
+                code: -32000,
+                message: e.to_string(),
+                data: None,
+            })?;
+        let owner = format!("connection \"{}\"", conn.name);
+        if let Some(value) = read_stored_secret(uri, StoredSecret::ConnectionUri, &owner, true)? {
             conn.params.connection_uri = Some(value);
         }
     }
@@ -470,6 +482,7 @@ fn resolve_default_schema<'a>(
 pub async fn run_mcp_server() {
     eprintln!("[MCP] Starting Tabularis MCP Server...");
 
+    termination::stop_plugins_on_termination_signal();
     register_drivers_for_mcp().await;
 
     let stdin = io::stdin();
@@ -1006,15 +1019,6 @@ fn database_arg(args: &serde_json::Map<String, Value>) -> Option<&str> {
         .filter(|d| !d.is_empty())
 }
 
-/// Point `params` at `database` when the caller names one, the same way the
-/// GUI's query commands apply their `database` argument. Without it a
-/// connection with several databases selected always runs against the first.
-fn apply_database_override(params: &mut ConnectionParams, database: Option<&str>) {
-    if let Some(db) = database {
-        params.database = DatabaseSelection::Single(db.to_string());
-    }
-}
-
 async fn tool_list_tables(
     args: &serde_json::Map<String, Value>,
     config: &AppConfig,
@@ -1038,7 +1042,7 @@ async fn tool_list_tables(
     audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
-    apply_database_override(&mut db_params, database);
+    apply_database_override(&mut db_params, database, &driver.manifest().capabilities)?;
 
     let effective_schema = resolve_default_schema(&driver, schema);
     let tables = driver
@@ -1120,7 +1124,7 @@ async fn tool_describe_table(
     audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
-    apply_database_override(&mut db_params, database);
+    apply_database_override(&mut db_params, database, &driver.manifest().capabilities)?;
 
     let effective_schema = resolve_default_schema(&driver, schema);
     // Run the three metadata fetches concurrently so a slow driver costs one
@@ -1186,7 +1190,7 @@ async fn tool_run_query(
     audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
-    apply_database_override(&mut db_params, database);
+    apply_database_override(&mut db_params, database, &capabilities)?;
 
     // Read-only enforcement (fail-closed: unknown counts as write).
     if config::is_connection_readonly(config, &conn.id) && kind != "select" {

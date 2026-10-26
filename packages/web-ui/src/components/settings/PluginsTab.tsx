@@ -37,6 +37,7 @@ import {PluginCallTimeoutSection} from './PluginCallTimeoutSection';
 import {useDrivers} from '@/hooks/useDrivers';
 import {useTheme} from '@/hooks/useTheme';
 import {usePluginRegistry} from '@/hooks/usePluginRegistry';
+import {useConnectionCatalogue} from '@/hooks/useConnectionCatalogue';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {toErrorMessage} from '@/utils/errors';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
@@ -627,8 +628,14 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
         plugins: remotePlugins,
         loading: registryLoading,
         error: registryError,
-        refresh: refreshRegistry,
+        refresh: refreshPluginRegistry,
     } = usePluginRegistry();
+    // The connection picker keeps its own registry cache; keep it in step.
+    const {refresh: refreshConnectionCatalogue} = useConnectionCatalogue(false);
+    const refreshRegistry = useCallback(() => {
+        void refreshConnectionCatalogue();
+        return refreshPluginRegistry();
+    }, [refreshPluginRegistry, refreshConnectionCatalogue]);
     const registryPlugins = useMemo(
         () =>
             mergeLocalThemePlugins(

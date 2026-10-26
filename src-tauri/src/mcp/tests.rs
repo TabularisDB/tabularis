@@ -2,6 +2,7 @@
 //! connection-resolution error paths.
 
 use super::*;
+use crate::models::DatabaseSelection;
 use serde_json::{json, Map, Value};
 
 #[test]
@@ -283,7 +284,12 @@ fn database_override_replaces_a_multi_database_selection() {
         ..Default::default()
     };
 
-    apply_database_override(&mut params, Some("analytics"));
+    apply_database_override(
+        &mut params,
+        Some("analytics"),
+        &postgres::PostgresDriver::new().manifest().capabilities,
+    )
+    .unwrap();
 
     assert!(matches!(params.database, DatabaseSelection::Single(ref db) if db == "analytics"));
 }
@@ -296,7 +302,175 @@ fn database_override_keeps_the_saved_selection_without_a_database() {
         ..Default::default()
     };
 
-    apply_database_override(&mut params, None);
+    apply_database_override(
+        &mut params,
+        None,
+        &postgres::PostgresDriver::new().manifest().capabilities,
+    )
+    .unwrap();
 
     assert_eq!(params.database.as_vec(), vec!["main", "analytics"]);
+}
+
+/// Run dispatch in a child test process: MCP resolves saved connections from
+/// a process-global storage location, which must never point at real user data.
+#[tokio::test]
+async fn database_scope_is_enforced_before_driver_access() {
+    const CHILD_ENV: &str = "TABULARIS_MCP_DATABASE_SCOPE_TEST_CHILD";
+    if std::env::var_os(CHILD_ENV).is_none() {
+        let fixture = tempfile::tempdir().unwrap();
+        let config_dir = fixture.path().join("config");
+        std::fs::create_dir(&config_dir).unwrap();
+        let saved_path = config_dir.join("sandbox.sqlite");
+        let private_path = fixture.path().join("private.sqlite");
+        for (path, table, value) in [
+            (&saved_path, "visible", "public-data"),
+            (&private_path, "secret_records", "private-data"),
+        ] {
+            let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                .connect_with(
+                    sqlx::sqlite::SqliteConnectOptions::new()
+                        .filename(path)
+                        .create_if_missing(true),
+                )
+                .await
+                .unwrap();
+            sqlx::query(&format!("CREATE TABLE {table} (value TEXT)"))
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query(&format!("INSERT INTO {table} VALUES (?)"))
+                .bind(value)
+                .execute(&pool)
+                .await
+                .unwrap();
+            pool.close().await;
+        }
+
+        let mut connections = vec![];
+        for (id, driver, database) in [
+            (
+                "saved-file",
+                "sqlite",
+                DatabaseSelection::Single(saved_path.to_str().unwrap().to_string()),
+            ),
+            (
+                "saved-single",
+                "postgres",
+                DatabaseSelection::Single("sandbox".to_string()),
+            ),
+            (
+                "saved-multiple",
+                "mysql",
+                DatabaseSelection::Multiple(vec!["sandbox".to_string(), "analytics".to_string()]),
+            ),
+            ("saved-empty", "postgres", DatabaseSelection::default()),
+        ] {
+            connections.push(json!({
+                "id": id,
+                "name": id,
+                "params": ConnectionParams {
+                    driver: driver.to_string(),
+                    host: Some("127.0.0.1".to_string()),
+                    port: Some(9),
+                    database,
+                    ..Default::default()
+                }
+            }));
+        }
+        std::fs::write(
+            config_dir.join("connections.json"),
+            serde_json::to_vec(&connections).unwrap(),
+        )
+        .unwrap();
+
+        let output = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            tokio::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "mcp::tests::database_scope_is_enforced_before_driver_access",
+                    "--nocapture",
+                ])
+                .env(CHILD_ENV, "1")
+                .env(crate::storage_location::ENV_VAR, &config_dir)
+                .current_dir(&config_dir)
+                .kill_on_drop(true)
+                .output(),
+        )
+        .await
+        .expect("isolated MCP dispatch test must finish promptly")
+        .unwrap();
+        assert!(
+            output.status.success(),
+            "isolated MCP dispatch failed:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+            "the child process must execute the dispatch test",
+        );
+        return;
+    }
+
+    driver_registry::register_driver(sqlite::SqliteDriver::new()).await;
+    driver_registry::register_driver(postgres::PostgresDriver::new()).await;
+    driver_registry::register_driver(mysql::MysqlDriver::new()).await;
+    let private_path = paths::get_app_config_dir()
+        .parent()
+        .unwrap()
+        .join("private.sqlite");
+
+    for readonly in [true, false] {
+        let config = AppConfig {
+            mcp_readonly_default: Some(readonly),
+            mcp_approval_mode: Some("off".to_string()),
+            active_external_drivers: Some(vec![]),
+            ..Default::default()
+        };
+        for tool in ["list_tables", "describe_table", "run_query"] {
+            for (connection_id, database) in [
+                ("saved-file", private_path.to_str().unwrap()),
+                ("saved-file", "../private.sqlite"),
+                ("saved-file", "~/private.sqlite"),
+                ("saved-single", "production"),
+                ("saved-multiple", "production"),
+                ("saved-empty", "production"),
+            ] {
+                let args = json!({
+                    "connection_id": connection_id,
+                    "database": database,
+                    "table_name": "secret_records",
+                    "query": "SELECT value FROM secret_records",
+                });
+                let mut audit = CallAudit::for_tool(tool);
+                let error =
+                    dispatch_tool(tool, args.as_object(), &config, "scope-test", &mut audit)
+                        .await
+                        .expect_err("unconfigured databases must be rejected before driver access");
+                assert_eq!(error.code, -32602, "{tool}: {error:?}");
+                assert_eq!(audit.database.as_deref(), Some(database));
+            }
+
+            let args = json!({
+                "connection_id": "saved-file",
+                "table_name": "visible",
+                "query": "SELECT value FROM visible",
+            });
+            let mut audit = CallAudit::for_tool(tool);
+            let result = dispatch_tool(tool, args.as_object(), &config, "scope-test", &mut audit)
+                .await
+                .expect("the saved file must remain accessible without an override");
+            let text = result["content"][0]["text"].as_str().unwrap();
+            assert!(
+                text.contains(if tool == "run_query" {
+                    "public-data"
+                } else {
+                    "visible"
+                }),
+                "{tool}: {text}",
+            );
+        }
+    }
 }

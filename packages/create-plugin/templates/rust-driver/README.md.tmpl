@@ -5,6 +5,8 @@ Generated with `@tabularis/create-plugin`.
 
 ## Getting started
 
+The `just` recipes need [just](https://github.com/casey/just) 1.44 or newer: the `justfile` uses `set script-interpreter`, which older versions refuse to load on every OS. Some distro packages are older (Ubuntu 24.04 ships 1.21), so check with `just --version` and install a newer release if needed.
+
 ```bash
 just dev-install       # build + install into ~/.local/share/tabularis/plugins/drivers/${ID}
 ```

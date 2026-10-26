@@ -456,9 +456,16 @@ describe('clipboard utils', () => {
                 'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, 1, 0);',
             );
             // Built-in drivers keep TRUE/FALSE.
-            for (const driver of ['mysql', 'postgres', 'sqlite', undefined]) {
+            expect(rowsToSqlInsert(rows, cols, 't', 'mysql')).toBe(
+                'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, TRUE, FALSE);',
+            );
+            expect(rowsToSqlInsert(rows, cols, 't', undefined)).toBe(
+                'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, TRUE, FALSE);',
+            );
+            // Postgres and SQLite quote identifiers with double quotes, not backticks.
+            for (const driver of ['postgres', 'sqlite']) {
                 expect(rowsToSqlInsert(rows, cols, 't', driver)).toBe(
-                    'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, TRUE, FALSE);',
+                    'INSERT INTO "t" ("id", "a", "b") VALUES (1, TRUE, FALSE);',
                 );
             }
             expect(columnValuesToInClause([[true], [false]], 0, numeric)).toBe('1, 0');
@@ -586,5 +593,44 @@ describe('rowsToMarkdown', () => {
     it('returns only header and separator when there are no rows', () => {
         const result = rowsToMarkdown([], ['x']);
         expect(result).toBe('| x |\n| --- |');
+    });
+});
+
+describe('SQL INSERT copy quoting', () => {
+    it("quotes identifiers with the driver's own quote character", () => {
+        expect(rowsToSqlInsert([[1, 'a']], ['id', 'name'], 'users', 'postgres')).toBe(
+            'INSERT INTO "users" ("id", "name") VALUES (1, \'a\');',
+        );
+    });
+
+    it('keeps MySQL backticks for a MySQL driver', () => {
+        expect(rowsToSqlInsert([[1]], ['id'], 'users', 'mysql')).toBe(
+            'INSERT INTO `users` (`id`) VALUES (1);',
+        );
+    });
+
+    it('uses double quotes for SQL Server identifiers', () => {
+        expect(rowsToSqlInsert([[1]], ['id'], 'users', 'mssql')).toBe(
+            'INSERT INTO "users" ("id") VALUES (1);',
+        );
+    });
+
+    it('uses a plugin driver’s identifier quote and escapes that quote', () => {
+        const capabilities = {identifier_quote: '~'} as DriverCapabilities;
+        expect(rowsToSqlInsert([[1]], ['we~ird'], 'user~table', capabilities)).toBe(
+            'INSERT INTO ~user~~table~ (~we~~ird~) VALUES (1);',
+        );
+    });
+
+    it('escapes a quote in PostgreSQL identifiers', () => {
+        expect(rowsToSqlInsert([[1]], ['we"ird'], 'user"table', 'postgres')).toBe(
+            'INSERT INTO "user""table" ("we""ird") VALUES (1);',
+        );
+    });
+
+    it('keeps backticks when no driver is given', () => {
+        expect(rowsToSqlInsert([[1]], ['id'], 'users')).toBe(
+            'INSERT INTO `users` (`id`) VALUES (1);',
+        );
     });
 });

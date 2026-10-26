@@ -1,7 +1,7 @@
 import {Maximize2, Minimize2} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
 import {useColumnResize} from '@/hooks/useColumnResize';
-import {ColumnResizeHandle} from './ColumnResizeHandle';
+import {ColumnResizeHandle} from '@/components/ui/ColumnResizeHandle';
 
 const MAX_PREVIEW_ROWS = 10;
 

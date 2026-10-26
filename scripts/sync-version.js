@@ -39,7 +39,7 @@ writeFileSync(paths.cargo, cargo);
 console.log('✅ Updated Cargo.toml');
 
 // 4. Update packages/web-ui/src/version.ts
-const versionContent = `export const APP_VERSION = "${newVersion}";\n`;
+const versionContent = `export const APP_VERSION = '${newVersion}';\n`;
 writeFileSync(paths.appVersion, versionContent);
 console.log('✅ Updated packages/web-ui/src/version.ts');
 

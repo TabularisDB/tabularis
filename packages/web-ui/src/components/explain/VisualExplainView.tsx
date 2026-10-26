@@ -18,6 +18,7 @@ import {
 import {useEditorTheme} from '@/hooks/useEditorTheme';
 import {useAlert} from '@/hooks/useAlert';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {useToast} from '@/hooks/useToast';
 import {loadMonacoTheme} from '@/themes/themeUtils';
 import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {
@@ -27,6 +28,7 @@ import {
     saveRawExplainOutput,
 } from '@/utils/explainRaw';
 import {saveExplainTableCsv} from '@/utils/explainTableExport';
+import {toErrorMessage} from '@/utils/errors';
 import {ExplainAiAnalysis} from '@/components/modals/visual-explain/ExplainAiAnalysis';
 
 export interface VisualExplainViewProps {
@@ -73,6 +75,7 @@ export const VisualExplainView = ({
 
     const {showAlert} = useAlert();
     const platform = usePlatformCapabilities();
+    const {showToast} = useToast();
     const [isSaving, setIsSaving] = useState(false);
 
     const rawLanguage = useMemo(
@@ -125,21 +128,26 @@ export const VisualExplainView = ({
         try {
             const saved = await saveExplainTableCsv(platform, plan, metrics);
             if (saved) {
-                showAlert(
+                showToast(
                     t('editor.visualExplain.exportCsvSuccess', 'Explain table exported as CSV'),
-                    {kind: 'info'},
+                    {kind: 'success'},
                 );
             }
         } catch (err) {
             console.error('Failed to export EXPLAIN table CSV:', err);
-            showAlert(
-                t('editor.visualExplain.exportCsvError', 'Failed to export EXPLAIN table as CSV'),
-                {kind: 'error'},
-            );
+            // Kept until dismissed so the reason can be read and reported.
+            showToast(toErrorMessage(err), {
+                title: t(
+                    'editor.visualExplain.exportCsvError',
+                    'Failed to export EXPLAIN table as CSV',
+                ),
+                kind: 'error',
+                duration: 0,
+            });
         } finally {
             setIsExportingCsv(false);
         }
-    }, [plan, metrics, platform, showAlert, t]);
+    }, [plan, metrics, platform, showToast, t]);
 
     return (
         <div className="flex flex-col h-full min-h-0">

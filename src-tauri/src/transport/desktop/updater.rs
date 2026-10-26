@@ -8,6 +8,7 @@ use tauri::Emitter;
 use tauri::AppHandle;
 
 mod installation_source;
+mod proxy;
 
 use installation_source::{detect_installation_source, is_managed_package};
 
@@ -218,10 +219,7 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateChec
 
         // Ask the updater plugin (prerelease-aware semver) whether this nightly
         // is newer than the running build.
-        #[cfg(feature = "desktop")]
-        use tauri_plugin_updater::UpdaterExt;
-        let updater = app
-            .updater_builder()
+        let updater = proxy::app_updater_builder(&app)?
             .endpoints(vec![url.parse().map_err(|e| format!("Bad nightly url: {e}"))?])
             .map_err(|e| e.to_string())?
             .build()
@@ -348,10 +346,7 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), String> {
     }
 
     // Use tauri-plugin-updater to handle the download and installation.
-    #[cfg(feature = "desktop")]
-    use tauri_plugin_updater::UpdaterExt;
-
-    let mut builder = app.updater_builder();
+    let mut builder = proxy::app_updater_builder(&app)?;
     if release_channel(&app) == "nightly" {
         let release = newest_nightly_release().await?;
         let url = nightly_latest_json_url(&release)

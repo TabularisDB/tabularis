@@ -90,4 +90,24 @@ describe('scaffold', () => {
             expect(existsSync(join(withoutUiDir, 'locales'))).toBe(false);
         });
     });
+
+    describe('README', () => {
+        it('states the minimum just version the justfile needs', () => {
+            const readme = readFileSync(join(scaffoldPlugin(false), 'README.md'), 'utf8');
+            expect(readme).toContain('just) 1.44 or newer');
+        });
+    });
+
+    describe('release workflow', () => {
+        it('builds both macOS targets on macos-latest, not the retired macos-14', () => {
+            const yml = readFileSync(
+                join(scaffoldPlugin(false), '.github', 'workflows', 'release.yml'),
+                'utf8',
+            );
+            expect(yml).not.toMatch(/runner: macos-14\b/);
+            for (const target of ['x86_64-apple-darwin', 'aarch64-apple-darwin']) {
+                expect(yml).toMatch(new RegExp(`runner: macos-latest\\s+target: ${target}`));
+            }
+        });
+    });
 });

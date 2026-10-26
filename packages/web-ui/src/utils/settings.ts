@@ -183,25 +183,15 @@ export function followsThemeFont(fontFamily: string | undefined): boolean {
     return !fontFamily || fontFamily === DEFAULT_FONT_FAMILY;
 }
 
-/**
- * Applies the UI font. With the default choice the theme owns `--font-base`
- * (set by applyThemeToCSS) and the body inherits it from `:root`; an explicit
- * font overrides the theme on both.
- */
 export function applyFontToDocument(fontFamily: string, fontSize: number): void {
     if (typeof document === 'undefined') return;
 
+    const root = document.documentElement;
     const size = fontSize || DEFAULT_FONT_SIZE;
-    document.documentElement.style.setProperty('--font-size-base', `${size}px`);
+    root.style.setProperty('--font-base', fontFamily);
+    root.style.setProperty('--font-size-base', `${size}px`);
+    document.body.style.fontFamily = fontFamily;
     document.body.style.fontSize = `${size}px`;
-
-    if (followsThemeFont(fontFamily)) {
-        document.body.style.removeProperty('font-family');
-        return;
-    }
-    const cssFont = getFontCSS(fontFamily);
-    document.documentElement.style.setProperty('--font-base', cssFont);
-    document.body.style.fontFamily = cssFont;
 }
 
 export function getLanguageForI18n(

@@ -1,6 +1,7 @@
 use super::registry;
 use super::types::{
-    GlobalProxySettings, ProxyEndpoint, ProxyMode, ProxyOverride, ProxyProtocol,
+    GlobalProxySettings, HttpProxyMode, HttpProxyPolicy, ProxyEndpoint, ProxyMode, ProxyOverride,
+    ProxyProtocol,
 };
 use crate::keychain_utils;
 
@@ -37,7 +38,7 @@ pub fn attach_password(endpoint: &mut ProxyEndpoint, slot: &str) {
 /// Rules:
 /// - `disabled` override → no proxy
 /// - `custom` override → that endpoint (with password from `override_slot`)
-/// - `inherit` / absent → global endpoint when enabled and the scope checkbox is on
+/// - `inherit` / absent → global endpoint when this scope selects Custom
 pub fn resolve(
     global: &GlobalProxySettings,
     scope: &str,
@@ -59,7 +60,7 @@ pub fn resolve(
             Some(endpoint)
         }
         ProxyMode::Inherit => {
-            if !global.enabled || !global.scope_enabled(scope) {
+            if !global.scope_enabled(scope) {
                 return None;
             }
             if !registry::is_known_scope(scope) {
@@ -124,6 +125,64 @@ pub fn resolve_global_scope(scope: &str) -> Option<ProxyEndpoint> {
     let config = crate::config::get_cached_config();
     let global = config.proxy.as_ref()?;
     resolve(global, scope, None, None)
+}
+
+/// Resolve HTTP routing without conflating system proxy and explicit direct access.
+pub fn resolve_http_policy(scope: &str, provider: Option<&str>) -> Result<HttpProxyPolicy, String> {
+    if scope != registry::SCOPE_APP_HTTP && scope != registry::SCOPE_AI {
+        return Err(format!("Unsupported HTTP proxy scope: {scope}"));
+    }
+    let config = crate::config::get_cached_config();
+    let override_cfg = provider.and_then(|name| {
+        config
+            .ai_provider_proxies
+            .as_ref()
+            .and_then(|overrides| overrides.get(name))
+    });
+    let slot = provider.map(keychain_ai);
+    http_policy_from_settings(config.proxy.as_ref(), scope, override_cfg, slot.as_deref())
+}
+
+fn custom_http_policy(
+    endpoint: Option<&ProxyEndpoint>,
+    keychain_slot: &str,
+) -> Result<HttpProxyPolicy, String> {
+    let mut endpoint = endpoint
+        .cloned()
+        .ok_or_else(|| "Custom proxy host and port are required".to_string())?;
+    if endpoint.host.trim().is_empty() || endpoint.port == 0 {
+        return Err("Custom proxy host and port are required".into());
+    }
+    attach_password(&mut endpoint, keychain_slot);
+    Ok(HttpProxyPolicy::Custom(endpoint))
+}
+
+fn http_policy_from_settings(
+    global: Option<&GlobalProxySettings>,
+    scope: &str,
+    override_cfg: Option<&ProxyOverride>,
+    override_slot: Option<&str>,
+) -> Result<HttpProxyPolicy, String> {
+    if let Some(override_cfg) = override_cfg {
+        match override_cfg.mode {
+            ProxyMode::Disabled => return Ok(HttpProxyPolicy::Disabled),
+            ProxyMode::Custom => {
+                return custom_http_policy(
+                    override_cfg.endpoint.as_ref(),
+                    override_slot.ok_or("Missing custom proxy keychain slot")?,
+                );
+            }
+            ProxyMode::Inherit => {}
+        }
+    }
+    let Some(global) = global else {
+        return Ok(HttpProxyPolicy::System);
+    };
+    match global.http_mode(scope) {
+        HttpProxyMode::System => Ok(HttpProxyPolicy::System),
+        HttpProxyMode::Disabled => Ok(HttpProxyPolicy::Disabled),
+        HttpProxyMode::Custom => custom_http_policy(global.endpoint.as_ref(), KEYCHAIN_GLOBAL),
+    }
 }
 
 /// Resolve AI traffic for a provider (provider override > global `ai` scope).

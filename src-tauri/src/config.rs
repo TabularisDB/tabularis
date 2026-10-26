@@ -307,7 +307,7 @@ pub struct AppConfig {
     pub migration_mode_by_driver: Option<HashMap<String, MigrationMode>>,
 
     // ----- Network / Proxy -----
-    /// Global HTTP/SOCKS5 proxy and opt-in traffic scopes.
+    /// Shared custom proxy endpoint and per-scope routing modes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<crate::proxy::GlobalProxySettings>,
     /// Per AI-provider proxy overrides (`openai`, `anthropic`, …).

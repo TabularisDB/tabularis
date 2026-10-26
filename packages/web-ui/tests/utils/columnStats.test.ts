@@ -519,6 +519,27 @@ describe('columnStats for plugin drivers (#1137)', () => {
         });
     });
 
+    describe('fromPluginColumnStats sample size', () => {
+        const sampled = {row_count: 100, null_count: 0, sample_size: 50};
+
+        it('drops the sample size when every part is excluded, like restrict_column_stats', () => {
+            const none = {distinct: false, minMax: false, topValues: false} as ColumnStatsSupport;
+            expect(fromPluginColumnStats(sampled, none, false).sampleSize).toBeNull();
+        });
+
+        it('keeps the sample size while any part is kept', () => {
+            for (const part of ['distinct', 'minMax', 'topValues'] as const) {
+                const support = {
+                    distinct: false,
+                    minMax: false,
+                    topValues: false,
+                    [part]: true,
+                } as ColumnStatsSupport;
+                expect(fromPluginColumnStats(sampled, support, false).sampleSize).toBe(50);
+            }
+        });
+    });
+
     describe('loadPluginColumnStats', () => {
         const options = {
             table: 'orders',

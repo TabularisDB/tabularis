@@ -1,5 +1,10 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
-import {groupByDate, formatHistoryTime} from '@/utils/dateGroups';
+import {
+    calendarDayNumber,
+    formatHistoryTime,
+    groupByDate,
+    parseCalendarDay,
+} from '@/utils/dateGroups';
 
 describe('dateGroups', () => {
     describe('groupByDate', () => {
@@ -154,6 +159,61 @@ describe('dateGroups', () => {
             expect(tokyo).toMatch(/\d{1,2}:\d{2}/); // HH:mm → today
             const utc = formatHistoryTime('2026-04-14T16:00:00.000Z', 'UTC');
             expect(utc).toContain('14'); // month + day → not today
+        });
+    });
+
+    describe('parseCalendarDay', () => {
+        it('parses a YYYY-MM-DD date into a comparable day number', () => {
+            expect(parseCalendarDay('2026-04-15')).toBe(Date.UTC(2026, 3, 15));
+            expect(parseCalendarDay(' 2026-01-01 ')).toBe(Date.UTC(2026, 0, 1));
+        });
+
+        it('orders day numbers chronologically', () => {
+            expect(parseCalendarDay('2026-04-15')).toBeGreaterThan(
+                parseCalendarDay('2026-04-14') as number,
+            );
+            expect(parseCalendarDay('2026-05-01')).toBeGreaterThan(
+                parseCalendarDay('2026-04-30') as number,
+            );
+        });
+
+        it('rejects malformed values', () => {
+            expect(parseCalendarDay('')).toBeNull();
+            expect(parseCalendarDay('2026-04')).toBeNull();
+            expect(parseCalendarDay('2026/04/15')).toBeNull();
+            expect(parseCalendarDay('not-a-date')).toBeNull();
+        });
+
+        it('rejects calendar days that do not exist', () => {
+            // `Date.UTC` would otherwise normalise these into the next month.
+            expect(parseCalendarDay('2026-02-30')).toBeNull();
+            expect(parseCalendarDay('2026-04-31')).toBeNull();
+            expect(parseCalendarDay('2026-13-01')).toBeNull();
+            expect(parseCalendarDay('2025-02-29')).toBeNull();
+            expect(parseCalendarDay('2024-02-29')).toBe(Date.UTC(2024, 1, 29));
+        });
+    });
+
+    describe('calendarDayNumber', () => {
+        it('reports the calendar day an instant falls in', () => {
+            expect(calendarDayNumber(new Date('2026-04-15T00:00:00.000Z'), 'UTC')).toBe(
+                parseCalendarDay('2026-04-15'),
+            );
+            expect(calendarDayNumber(new Date('2026-04-15T23:59:59.999Z'), 'UTC')).toBe(
+                parseCalendarDay('2026-04-15'),
+            );
+        });
+
+        it('follows the display timezone', () => {
+            // 2026-04-14T16:00Z is already the 15th in Tokyo, still the 14th in UTC.
+            const instant = new Date('2026-04-14T16:00:00.000Z');
+            expect(calendarDayNumber(instant, 'Asia/Tokyo')).toBe(parseCalendarDay('2026-04-15'));
+            expect(calendarDayNumber(instant, 'UTC')).toBe(parseCalendarDay('2026-04-14'));
+        });
+
+        it('falls back to the OS local timezone for unknown names', () => {
+            const instant = new Date('2026-04-15T12:00:00.000Z');
+            expect(calendarDayNumber(instant, 'Not/AZone')).toBe(calendarDayNumber(instant));
         });
     });
 });

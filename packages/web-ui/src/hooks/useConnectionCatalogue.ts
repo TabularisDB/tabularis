@@ -44,24 +44,36 @@ function createCatalogue(client: TabularisClient) {
     );
 }
 
+function catalogueFor(client: TabularisClient, registryUrl: string | undefined) {
+    const registryKey = registryUrl ?? 'default';
+    let byRegistry = catalogues.get(client);
+    if (!byRegistry) {
+        byRegistry = new Map();
+        catalogues.set(client, byRegistry);
+    }
+    let resource = byRegistry.get(registryKey);
+    if (!resource) {
+        resource = createCatalogue(client);
+        byRegistry.set(registryKey, resource);
+    }
+    return resource;
+}
+
+/** Shares a registry result fetched elsewhere (Plugin Center) with the catalogue cache. */
+export function seedConnectionCatalogue(
+    client: TabularisClient,
+    registryUrl: string | undefined,
+    registry: RegistryPluginWithStatus[],
+) {
+    catalogueFor(client, registryUrl).set(registry);
+}
+
 export function useConnectionCatalogue(enabled = true): ConnectionCatalogue {
     const client = useTabularisClient();
     const {settings} = useSettings();
     const {allDrivers: registered} = useDrivers();
-    const registryKey = settings.tabulariumRegistryUrl ?? 'default';
-    const resource = useMemo(() => {
-        let byRegistry = catalogues.get(client);
-        if (!byRegistry) {
-            byRegistry = new Map();
-            catalogues.set(client, byRegistry);
-        }
-        let resource = byRegistry.get(registryKey);
-        if (!resource) {
-            resource = createCatalogue(client);
-            byRegistry.set(registryKey, resource);
-        }
-        return resource;
-    }, [client, registryKey]);
+    const registryUrl = settings.tabulariumRegistryUrl;
+    const resource = useMemo(() => catalogueFor(client, registryUrl), [client, registryUrl]);
     const {
         data: registry,
         loading,

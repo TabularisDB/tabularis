@@ -4,7 +4,7 @@
  * produced the plan.
  */
 import type {ExplainNode, ExplainPlan} from './types';
-import type {ExplainMetrics} from './metrics';
+import type {ExplainMetrics, ExplainNodeMetrics} from './metrics';
 import {computeExplainMetrics} from './metrics';
 
 // ---------------------------------------------------------------------------
@@ -158,7 +158,11 @@ export function getRowEstimateRatio(node: ExplainNode): number | null {
     return node.actual_rows / node.plan_rows;
 }
 
-function getMismatchMagnitude(node: ExplainNode): number | null {
+/**
+ * How far the row estimate was off, as a factor of at least 1 whichever way it
+ * missed: 3 means three times more or three times fewer rows than estimated.
+ */
+export function getRowEstimateGap(node: ExplainNode): number | null {
     const ratio = getRowEstimateRatio(node);
     if (ratio == null) {
         return null;
@@ -244,7 +248,7 @@ export function getExplainPlanSummary(
         }
 
         const ratio = getRowEstimateRatio(node);
-        const magnitude = getMismatchMagnitude(node);
+        const magnitude = getRowEstimateGap(node);
         if (
             ratio != null &&
             magnitude != null &&
@@ -311,52 +315,54 @@ export interface ExplainTableRowData {
     depth: number;
     nodeType: string;
     relation: string | null;
-    cost: string | null;
+    startupCost: number | null;
+    totalCost: number | null;
     planRows: number | null;
     actualRows: number | null;
     exclusiveTimeMs: number | null;
+    /** See {@link getRowEstimateGap}. */
     estimateGap: number | null;
     filter: string | null;
 }
 
 /**
- * Flatten an ExplainPlan tree into presentation-ready rows for tabular display and export.
- * Preserves tree pre-order, computes depth, and extracts key metrics.
- * Leaves unavailable metrics null rather than converting them to zero.
+ * The values shown for one node in the table view and written to its CSV
+ * export, so both always agree. Values stay raw numbers: each consumer formats
+ * them (abbreviated on screen, plain in the CSV). Unavailable metrics are null,
+ * never zero, and measured values are null unless the plan has ANALYZE data.
+ */
+export function getExplainTableRow(
+    node: ExplainNode,
+    hasAnalyzeData: boolean,
+    nodeMetrics?: ExplainNodeMetrics,
+    fallbackIndex = 1,
+): ExplainTableRowData {
+    return {
+        index: nodeMetrics?.index ?? fallbackIndex,
+        depth: nodeMetrics?.depth ?? 0,
+        nodeType: node.node_type,
+        relation: node.relation ?? null,
+        startupCost: node.startup_cost ?? null,
+        totalCost: node.total_cost ?? null,
+        planRows: node.plan_rows ?? null,
+        actualRows: hasAnalyzeData ? (node.actual_rows ?? null) : null,
+        exclusiveTimeMs: hasAnalyzeData ? (nodeMetrics?.exclusiveTimeMs ?? null) : null,
+        estimateGap: getRowEstimateGap(node),
+        filter: node.filter ?? null,
+    };
+}
+
+/**
+ * Flatten an ExplainPlan tree into table rows, in tree pre-order, collapsed
+ * branches included. See {@link getExplainTableRow} for the row values.
  */
 export function getExplainTableRows(
     plan: ExplainPlan,
     metrics?: ExplainMetrics,
 ): ExplainTableRowData[] {
-    const nodes = flattenExplainNodes(plan.root);
     const planMetrics = metrics ?? computeExplainMetrics(plan);
 
-    return nodes.map((node, i) => {
-        const nodeMetrics = planMetrics.byId.get(node.id);
-        const index = nodeMetrics?.index ?? i + 1;
-        const depth = nodeMetrics?.depth ?? 0;
-
-        let cost: string | null = null;
-        if (node.startup_cost != null && node.total_cost != null) {
-            cost = `${node.startup_cost} - ${node.total_cost}`;
-        } else if (node.total_cost != null) {
-            cost = `${node.total_cost}`;
-        }
-
-        const rowRatio = getRowEstimateRatio(node);
-        const estimateGap = rowRatio != null ? (rowRatio >= 1 ? rowRatio : 1 / rowRatio) : null;
-
-        return {
-            index,
-            depth,
-            nodeType: node.node_type,
-            relation: node.relation ?? null,
-            cost,
-            planRows: node.plan_rows ?? null,
-            actualRows: plan.has_analyze_data ? (node.actual_rows ?? null) : null,
-            exclusiveTimeMs: plan.has_analyze_data ? (nodeMetrics?.exclusiveTimeMs ?? null) : null,
-            estimateGap,
-            filter: node.filter ?? null,
-        };
-    });
+    return flattenExplainNodes(plan.root).map((node, i) =>
+        getExplainTableRow(node, plan.has_analyze_data, planMetrics.byId.get(node.id), i + 1),
+    );
 }

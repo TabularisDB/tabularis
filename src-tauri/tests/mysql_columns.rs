@@ -125,6 +125,84 @@ async fn exercise_column_lengths(
     }
 }
 
+/// Each column as `name data_type full_type`, with `-` when there is no full type.
+fn types(columns: &[TableColumn]) -> Vec<String> {
+    columns
+        .iter()
+        .map(|column| {
+            let full_type = column.full_type.as_deref().unwrap_or("-");
+            format!("{} {} {full_type}", column.name, column.data_type)
+        })
+        .collect()
+}
+
+/// `data_type` keeps the base name and `full_type` carries `COLUMN_TYPE` (#1277).
+/// Only types whose `COLUMN_TYPE` is the same on MySQL 5.7 and 8.x are listed:
+/// 8.0.19+ drops the display width of `int` (`int(11)` on 5.7), but keeps `tinyint(1)`.
+async fn exercise_full_types(
+    connection: &mut MySqlConnection,
+    params: &ConnectionParams,
+    schema: &str,
+) {
+    let db = quoted(schema);
+    execute(
+        connection,
+        &format!(
+            "CREATE TABLE {db}.typed (name VARCHAR(255), code CHAR(10), price DECIMAL(10,2), \
+             flag TINYINT(1), status ENUM('pending','done'), note TEXT, born DATETIME(3))"
+        ),
+    )
+    .await;
+    execute(
+        connection,
+        &format!("CREATE VIEW {db}.typed_view AS SELECT name, price FROM {db}.typed"),
+    )
+    .await;
+
+    let table = [
+        "name varchar varchar(255)",
+        "code char char(10)",
+        "price decimal decimal(10,2)",
+        "flag tinyint tinyint(1)",
+        "status enum('pending','done') -",
+        "note text -",
+        "born datetime datetime(3)",
+    ];
+    for text_protocol in [false, true] {
+        let selected = params_for_protocol(params, text_protocol);
+        let columns = discover(
+            "get_columns",
+            mysql::get_columns(&selected, "typed", Some(schema)),
+        )
+        .await;
+        assert_eq!(
+            types(&columns),
+            table,
+            "get_columns (text protocol: {text_protocol})"
+        );
+        let batch = discover(
+            "get_all_columns_batch",
+            mysql::get_all_columns_batch(&selected, Some(schema)),
+        )
+        .await;
+        assert_eq!(
+            types(&batch["typed"]),
+            table,
+            "get_all_columns_batch (text protocol: {text_protocol})"
+        );
+        let view = discover(
+            "get_view_columns",
+            mysql::get_view_columns(&selected, "typed_view", Some(schema)),
+        )
+        .await;
+        assert_eq!(
+            types(&view),
+            ["name varchar varchar(255)", "price decimal decimal(10,2)"],
+            "get_view_columns (text protocol: {text_protocol})"
+        );
+    }
+}
+
 #[tokio::test]
 #[ignore = "requires an explicitly configured disposable local MySQL/MariaDB server with TLS"]
 async fn column_lengths_are_reported() {
@@ -177,6 +255,7 @@ async fn column_lengths_are_reported() {
         .await;
         created = true;
         exercise_column_lengths(&mut connection, &params, &schema).await;
+        exercise_full_types(&mut connection, &params, &schema).await;
     })
     .catch_unwind()
     .await;

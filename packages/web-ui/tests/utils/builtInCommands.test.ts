@@ -249,6 +249,29 @@ describe('createBuiltInCommandItems', () => {
         expect(closeTab).toHaveBeenCalledOnce();
     });
 
+    it('should list AI editor commands and execute them', async () => {
+        const aiGenerate = vi.fn();
+        const aiExplain = vi.fn();
+        const scope = createScope({
+            getEditorCommands: () => ({
+                aiGenerate: {label: 'AI Assist: Generate SQL', execute: aiGenerate},
+                aiExplain: {label: 'AI Assist: Explain', execute: aiExplain},
+            }),
+        });
+
+        const items = createBuiltInCommandItems(scope, labels, modals(), getShortcut);
+        const generate = findItem(items, 'editor.ai-generate');
+        const explain = findItem(items, 'editor.ai-explain');
+
+        expect(generate.group).toBe('Editor');
+        expect(generate.title).toBe('AI Assist: Generate SQL');
+        expect(explain.keywords).toContain('ai');
+        await generate.primaryAction.execute();
+        await explain.primaryAction.execute();
+        expect(aiGenerate).toHaveBeenCalledOnce();
+        expect(aiExplain).toHaveBeenCalledOnce();
+    });
+
     it('should expose a word wrap toggle in the editor group', () => {
         const toggleWordWrap = vi.fn();
         const scope = createScope();

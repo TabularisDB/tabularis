@@ -6,6 +6,11 @@ import {invoke} from '@tauri-apps/api/core';
 import {listen, type EventCallback} from '@tauri-apps/api/event';
 import React from 'react';
 import type {Settings} from '@/contexts/SettingsContext';
+import {themeRegistry} from '@/themes/themeRegistry';
+
+vi.mock('@/hooks/useTheme', () => ({
+    useTheme: () => ({currentTheme: themeRegistry.getDefault(), isLoading: false}),
+}));
 
 vi.mock('@tauri-apps/api/core');
 vi.mock('@tauri-apps/api/event', () => ({
@@ -537,6 +542,9 @@ describe('SettingsProvider', () => {
                     fontSize: 18,
                 });
             }
+            if (cmd === 'save_config') {
+                return Promise.resolve(undefined);
+            }
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -549,7 +557,7 @@ describe('SettingsProvider', () => {
         const wrapper = ({children}: {children: React.ReactNode}) =>
             React.createElement(SettingsProvider, null, children);
 
-        renderHook(() => useSettings(), {wrapper});
+        const {result} = renderHook(() => useSettings(), {wrapper});
 
         await waitFor(() => {
             const fontFamily = document.documentElement.style.getPropertyValue('--font-base');
@@ -558,6 +566,14 @@ describe('SettingsProvider', () => {
             expect(fontFamily).toContain('JetBrains Mono');
             expect(fontSize).toBe('18px');
         });
+
+        await act(async () => {
+            await result.current.updateSetting('fontFamily', 'System');
+        });
+        expect(document.documentElement.style.getPropertyValue('--font-base')).toBe(
+            themeRegistry.getDefault().typography.fontFamily.base,
+        );
+        expect(document.body.style.fontFamily).toBe('');
     });
 
     it('should cache font settings to localStorage', async () => {

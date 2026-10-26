@@ -23,6 +23,9 @@ const OPERATOR_LABEL_KEYS: Partial<Record<FilterOperator, string>> = {
     'is not empty': 'toolbar.opIsNotEmpty',
 };
 
+/** Operators that build a literal LIKE and so can switch to ILIKE. */
+const MATCH_CASE_OPS: FilterOperator[] = ['contains', 'starts with', 'ends with'];
+
 export interface FilterRowProps {
     filter: StructuredFilter;
     columns: TableColumn[];
@@ -40,6 +43,11 @@ export interface FilterRowProps {
     onLoadValues?: (filter: StructuredFilter) => Promise<DistinctValue[]>;
     /** Identifies the connection and query whose values the picker displays. */
     valuePickerContextKey?: string;
+    /**
+     * Shows the "Match case" toggle for contains / starts with / ends with.
+     * Set only on PostgreSQL-dialect connections.
+     */
+    supportsMatchCase?: boolean;
 }
 
 export const FilterRow = ({
@@ -54,6 +62,7 @@ export const FilterRow = ({
     onTriggerApplied,
     onLoadValues,
     valuePickerContextKey,
+    supportsMatchCase = false,
 }: FilterRowProps) => {
     const {t} = useTranslation();
     const selectedCol = columns.find((c) => c.name === filter.column);
@@ -69,6 +78,9 @@ export const FilterRow = ({
         !noValue &&
         !isBetween &&
         isValuePickerSupported(dataType);
+
+    const showMatchCase = supportsMatchCase && MATCH_CASE_OPS.includes(filter.operator);
+    const matchCase = filter.matchCase !== false;
 
     const handleColumnChange = (col: string) => {
         const colMeta = columns.find((c) => c.name === col);
@@ -156,6 +168,20 @@ export const FilterRow = ({
                         />
                     )}
                 </div>
+            )}
+            {showMatchCase && (
+                <label
+                    className="shrink-0 flex items-center gap-1 text-xs text-muted cursor-pointer select-none"
+                    title={t('toolbar.matchCaseHint')}
+                >
+                    <input
+                        type="checkbox"
+                        checked={matchCase}
+                        onChange={(e) => onChange({...filter, matchCase: e.target.checked})}
+                        className="accent-accent-primary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-focus/60 rounded"
+                    />
+                    {t('toolbar.matchCase')}
+                </label>
             )}
             {noValue && <div className="flex-1" />}
             {isBetween && (

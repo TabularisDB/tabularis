@@ -1,7 +1,7 @@
 import type {NotebookCell} from '@/types/notebook';
 import type {QueryResult} from '@/types/editor';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
-import {getQuoteChar} from './identifiers';
+import {getQuoteChar, quoteIdentifierWith} from './identifiers';
 import type {BooleanLiteralStyle} from '@/types/plugins';
 import {
     booleanLiteralWithStyle,
@@ -29,14 +29,6 @@ export function extractCellReferences(sql: string): CellReference[] {
 
 export function hasCellReferences(sql: string): boolean {
     return new RegExp(CELL_REF_PATTERN.source).test(sql);
-}
-
-/**
- * Quote a column name as a SQL identifier with the driver's identifier quote,
- * doubling embedded quote characters.
- */
-function quoteIdentifier(col: string, quote: string): string {
-    return `${quote}${col.split(quote).join(quote + quote)}${quote}`;
 }
 
 /**
@@ -81,7 +73,7 @@ function resultToCte(
     let cte: string;
     if (result.rows.length === 0) {
         const emptyCols = result.columns
-            .map((col) => `NULL AS ${quoteIdentifier(col, identifierQuote)}`)
+            .map((col) => `NULL AS ${quoteIdentifierWith(col, identifierQuote)}`)
             .join(', ');
         cte = `${alias} AS (SELECT ${emptyCols} WHERE 1=0)`;
     } else {
@@ -89,7 +81,7 @@ function resultToCte(
             const cols = result.columns
                 .map((col, i) => {
                     const val = row[i];
-                    const ident = quoteIdentifier(col, identifierQuote);
+                    const ident = quoteIdentifierWith(col, identifierQuote);
                     if (val === null || val === undefined) return `NULL AS ${ident}`;
                     if (typeof val === 'number' && Number.isFinite(val)) {
                         return `${val} AS ${ident}`;

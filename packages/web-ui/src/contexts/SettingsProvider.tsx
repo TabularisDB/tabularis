@@ -1,11 +1,18 @@
-import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode} from 'react';
 import {useTranslation} from 'react-i18next';
 import {loadStartupConfig} from '@/utils/startupConfig';
 import {detectAiDefaults} from '@/utils/aiDefaults';
 import {SettingsContext, DEFAULT_SETTINGS, type Settings} from './SettingsContext';
-import {applyResultFontToDocument, stripSessionFields, applyFontToDocument} from '@/utils/settings';
+import {
+    applyResultFontToDocument,
+    stripSessionFields,
+    applyFontToDocument,
+    followsThemeFont,
+    getFontCSS,
+} from '@/utils/settings';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {resolveAutoLanguage} from '@/i18n/language';
+import {useTheme} from '@/hooks/useTheme';
 
 const LANGUAGE_APPLICATION_TIMEOUT_MS = 3000;
 
@@ -41,6 +48,8 @@ function matchesAppliedLanguage(
 export const SettingsProvider = ({children}: {children: ReactNode}) => {
     const {i18n} = useTranslation();
     const client = useTabularisClient();
+    const {currentTheme, isLoading: isThemeLoading} = useTheme();
+    const themeFontFamily = currentTheme.typography.fontFamily.base;
     const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
     const [isLoading, setIsLoading] = useState(true);
     const [languageState, setLanguageState] = useState<LanguageState>({
@@ -191,12 +200,6 @@ export const SettingsProvider = ({children}: {children: ReactNode}) => {
                     }
                 }
 
-                // IMMEDIATELY apply font settings from backend config BEFORE setting state
-                // This prevents flash if localStorage cache was stale. The default
-                // choice leaves the base font to the theme.
-                applyFontToDocument(finalSettings.fontFamily, finalSettings.fontSize || 14);
-                applyResultFontToDocument(finalSettings.resultFontFamily);
-
                 const languageAlreadyApplied = isLanguageApplied(finalSettings.language);
                 if (languageAlreadyApplied) {
                     appliedLanguageRef.current = finalSettings.language;
@@ -329,11 +332,19 @@ export const SettingsProvider = ({children}: {children: ReactNode}) => {
     ]);
 
     // Apply font family
+    useLayoutEffect(() => {
+        const usesThemeFont = followsThemeFont(settings.fontFamily);
+        if (isLoading || (usesThemeFont && isThemeLoading)) return;
+        const resolvedFontFamily = usesThemeFont
+            ? themeFontFamily
+            : getFontCSS(settings.fontFamily);
+        applyFontToDocument(resolvedFontFamily, settings.fontSize);
+        if (usesThemeFont) document.body.style.removeProperty('font-family');
+    }, [isLoading, isThemeLoading, settings.fontFamily, settings.fontSize, themeFontFamily]);
+
+    // Cache for next startup
     useEffect(() => {
         if (isLoading) return;
-        applyFontToDocument(settings.fontFamily, settings.fontSize);
-
-        // Cache for next startup
         try {
             localStorage.setItem(
                 'tabularis_font_cache',
@@ -352,18 +363,6 @@ export const SettingsProvider = ({children}: {children: ReactNode}) => {
         if (isLoading) return;
         applyResultFontToDocument(settings.resultFontFamily);
     }, [isLoading, settings.resultFontFamily]);
-
-    // Apply font size
-    useEffect(() => {
-        if (isLoading) return;
-        const size = settings.fontSize || 14;
-
-        // Apply to CSS variable
-        document.documentElement.style.setProperty('--font-size-base', `${size}px`);
-
-        // ALSO apply directly to body as fallback
-        document.body.style.fontSize = `${size}px`;
-    }, [isLoading, settings.fontSize]);
 
     const updateSetting = <K extends keyof Settings>(
         key: K,

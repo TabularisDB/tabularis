@@ -320,12 +320,12 @@ export function connectionSubtitle(
 ): string {
     if (isLocalDriver(capabilities)) {
         const db = conn.params.database;
-        return Array.isArray(db) ? (db[0] ?? '') : db;
+        return Array.isArray(db) ? (db[0] ?? '') : (db ?? '');
     }
     const db = conn.params.database;
     const isAllDatabases =
         isMultiDatabaseCapable(capabilities) &&
-        (Array.isArray(db) ? db.length === 0 : db.trim() === '');
+        (Array.isArray(db) ? db.length === 0 : typeof db !== 'string' || db.trim() === '');
     const dbStr = isAllDatabases
         ? (labels?.allDatabases ?? 'All databases')
         : Array.isArray(db)

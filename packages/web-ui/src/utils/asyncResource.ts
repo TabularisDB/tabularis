@@ -11,6 +11,7 @@ export function createAsyncResource<T>(initial: T, fetchData: () => Promise<T>) 
     let request: Promise<void> | null = null;
     let loaded = false;
     let dirty = false;
+    let generation = 0;
 
     const publish = (next: ResourceSnapshot<T>) => {
         snapshot = next;
@@ -27,11 +28,15 @@ export function createAsyncResource<T>(initial: T, fetchData: () => Promise<T>) 
                 do {
                     dirty = false;
                     publish({...snapshot, loading: true, error: null});
+                    const started = generation;
                     try {
                         const data = await fetchData();
+                        // set() during the read supersedes this older result.
+                        if (started !== generation) continue;
                         loaded = true;
                         publish({data, loading: false, error: null});
                     } catch (error) {
+                        if (started !== generation) continue;
                         loaded = false;
                         publish({...snapshot, loading: false, error: String(error)});
                     }
@@ -46,6 +51,12 @@ export function createAsyncResource<T>(initial: T, fetchData: () => Promise<T>) 
     };
 
     return {
+        /** Adopts data fetched elsewhere, so readers need not request it again. */
+        set: (data: T) => {
+            generation += 1;
+            loaded = true;
+            publish({data, loading: false, error: null});
+        },
         getSnapshot: () => snapshot,
         subscribe: (listener: () => void) => {
             listeners.add(listener);

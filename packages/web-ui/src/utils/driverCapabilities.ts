@@ -1,4 +1,5 @@
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import {isDialect} from './sqlSplitter';
 
 export function isLocalDriver(capabilities?: DriverCapabilities | null): boolean {
     return capabilities?.file_based === true || capabilities?.folder_based === true;
@@ -45,13 +46,16 @@ export function supportsExplain(capabilities?: DriverCapabilities | null): boole
 const GENERIC_SQL_DIALECTS: ReadonlySet<string> = new Set(['postgres', 'mysql', 'sqlite']);
 
 /**
- * True when the driver explicitly declares a `sql_dialect` the host's generic
- * SQL runs on. An omitted `sql_dialect` does not count, even though the
- * statement splitter treats it as postgres (see issue #614): a plugin has to
- * say it speaks SQL before the host sends it SQL it didn't write.
+ * True when the driver explicitly declares a dialect the host's generic SQL
+ * runs on, through `sql_syntax.extends` (which takes precedence, as it does
+ * for the syntax preset, unless it isn't a valid dialect) or `sql_dialect`.
+ * Declaring neither does not count, even though the statement splitter treats
+ * it as postgres (see issue #614): a plugin has to say it speaks SQL before
+ * the host sends it SQL it didn't write.
  */
 export function speaksGenericSql(capabilities?: DriverCapabilities | null): boolean {
-    const dialect = capabilities?.sql_dialect;
+    const extendsDialect = capabilities?.sql_syntax?.extends;
+    const dialect = isDialect(extendsDialect) ? extendsDialect : capabilities?.sql_dialect;
     return typeof dialect === 'string' && GENERIC_SQL_DIALECTS.has(dialect);
 }
 
