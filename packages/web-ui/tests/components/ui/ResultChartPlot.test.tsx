@@ -50,7 +50,7 @@ describe('ResultChartPlot', () => {
                 ]}
                 palette={palette}
                 locale="en"
-                temporal={null}
+                labelFormat={null}
                 animate={false}
             />,
         );
@@ -77,7 +77,7 @@ describe('ResultChartPlot', () => {
                 ]}
                 palette={palette}
                 locale="en"
-                temporal={null}
+                labelFormat={null}
                 animate={false}
             />,
         );
@@ -103,7 +103,7 @@ describe('ResultChartPlot', () => {
                     series={[{key: 'c1', name: 'signups', color: '#111111'}]}
                     palette={palette}
                     locale="en"
-                    temporal={null}
+                    labelFormat={null}
                     animate={false}
                 />,
             );

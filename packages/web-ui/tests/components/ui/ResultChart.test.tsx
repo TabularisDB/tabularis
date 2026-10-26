@@ -2,7 +2,7 @@ import {describe, it, expect, vi} from 'vitest';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {ResultChart} from '@/components/ui/ResultChart';
 import type {QueryResult} from '@/types/editor';
-import type {ResultChartConfig} from '@/utils/resultChart';
+import {ROW_NUMBER, type ResultChartConfig} from '@/utils/resultChart';
 
 const translations = vi.hoisted(() => [] as {key: string; options?: Record<string, unknown>}[]);
 vi.mock('react-i18next', () => ({
@@ -292,6 +292,77 @@ describe('ResultChart', () => {
         expect(screen.getByLabelText('editor.resultChart.xAxis')).toHaveDisplayValue('region');
     });
 
+    describe('with a single numeric column', () => {
+        // SELECT amount FROM orders ORDER BY created_at
+        const amounts: QueryResult = {
+            columns: ['amount'],
+            rows: [[5], [8], [3]],
+            affected_rows: 0,
+        };
+
+        it('plots it by row number', () => {
+            translations.length = 0;
+            render(<ResultChart result={amounts} config={null} onConfigChange={vi.fn()} />);
+            expect(screen.getByTestId('bar-chart')).toHaveAttribute('data-series', 'amount');
+            expect(screen.getByLabelText('editor.resultChart.xAxis')).toHaveDisplayValue(
+                'editor.resultChart.rowNumber',
+            );
+            const summary = translations.find((c) => c.key === 'editor.resultChart.summary');
+            expect(summary?.options).toMatchObject({label: 'editor.resultChart.rowNumber'});
+        });
+
+        it('keeps the only numeric column off the X axis', () => {
+            const result: QueryResult = {
+                columns: ['region', 'revenue'],
+                rows: [['North', 1]],
+                affected_rows: 0,
+            };
+            render(<ResultChart result={result} config={null} onConfigChange={vi.fn()} />);
+            expect(screen.getByRole('option', {name: 'revenue'})).toBeDisabled();
+            expect(screen.getByRole('option', {name: 'region'})).toBeEnabled();
+            expect(
+                screen.getByRole('option', {name: 'editor.resultChart.rowNumber'}),
+            ).toBeEnabled();
+        });
+
+        it('offers the row number as X for any result', () => {
+            const onConfigChange = vi.fn();
+            render(<ResultChart result={sales} config={null} onConfigChange={onConfigChange} />);
+            fireEvent.change(screen.getByLabelText('editor.resultChart.xAxis'), {
+                target: {value: String(ROW_NUMBER)},
+            });
+            expect(onConfigChange).toHaveBeenCalledWith({
+                type: 'bar',
+                labelIndex: ROW_NUMBER,
+                valueIndices: [2],
+                columns: sales.columns,
+            });
+        });
+
+        it('explains a single value instead of saying there is no numeric column', () => {
+            // SELECT COUNT(*) AS n FROM t
+            render(
+                <ResultChart
+                    result={{columns: ['n'], rows: [[42]], affected_rows: 0}}
+                    config={null}
+                    onConfigChange={vi.fn()}
+                    onShowGrid={vi.fn()}
+                />,
+            );
+            expect(
+                screen.getByText('editor.resultChart.emptySingleValueTitle'),
+            ).toBeInTheDocument();
+            expect(screen.getByText('editor.resultChart.emptySingleValueHint')).toBeInTheDocument();
+            expect(
+                screen.queryByText('editor.resultChart.emptyNoNumericTitle'),
+            ).not.toBeInTheDocument();
+            expect(screen.queryByRole('figure')).not.toBeInTheDocument();
+            expect(
+                screen.getByRole('button', {name: 'editor.resultChart.showGrid'}),
+            ).toBeInTheDocument();
+        });
+    });
+
     describe('with repeated column names', () => {
         // SELECT o.id, c.id, c.name, o.total ...
         const joined: QueryResult = {
@@ -310,8 +381,9 @@ describe('ResultChart', () => {
                 const options = Array.from(
                     screen.getByLabelText('editor.resultChart.xAxis').querySelectorAll('option'),
                 );
-                expect(options.map((o) => o.value)).toEqual(['0', '1', '2', '3']);
+                expect(options.map((o) => o.value)).toEqual(['-1', '0', '1', '2', '3']);
                 expect(options.map((o) => o.textContent)).toEqual([
+                    'editor.resultChart.rowNumber',
                     'id',
                     'id (2)',
                     'name',

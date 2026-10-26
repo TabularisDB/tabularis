@@ -10,6 +10,8 @@ import type {QueryResult} from '@/types/editor';
 import {
     MAX_CHART_SERIES,
     RESULT_CHART_TYPES,
+    ROW_NUMBER,
+    buildRowNumberFormatters,
     buildTemporalFormatters,
     chartSeriesKey,
     classifyResultColumns,
@@ -19,10 +21,12 @@ import {
     getResultChartScope,
     getSeriesDash,
     getSeriesSlots,
+    getSoleValueColumn,
     reconcileResultChartConfig,
     setChartLabelColumn,
     shapeResultChartData,
     toggleChartValueColumn,
+    type ChartUnavailableReason,
     type ResultChartConfig,
     type ResultChartType,
 } from '@/utils/resultChart';
@@ -44,6 +48,18 @@ const FOCUS_RING =
 const CHART_TYPES: Record<ResultChartType, {labelKey: string; icon: typeof ChartColumn}> = {
     bar: {labelKey: 'editor.resultChart.typeBar', icon: ChartColumn},
     line: {labelKey: 'editor.resultChart.typeLine', icon: ChartLine},
+};
+
+const EMPTY_STATES: Record<ChartUnavailableReason, {titleKey: string; hintKey?: string}> = {
+    noRows: {titleKey: 'editor.resultChart.emptyNoRowsTitle'},
+    noNumeric: {
+        titleKey: 'editor.resultChart.emptyNoNumericTitle',
+        hintKey: 'editor.resultChart.emptyNoNumericHint',
+    },
+    singleValue: {
+        titleKey: 'editor.resultChart.emptySingleValueTitle',
+        hintKey: 'editor.resultChart.emptySingleValueHint',
+    },
 };
 
 /** Bar/line chart of the loaded rows of a query result, with axis pickers. */
@@ -73,16 +89,20 @@ export function ResultChart({
         () => !!effective && classifyResultColumns(result)[effective.labelIndex] === 'temporal',
         [result, effective],
     );
-    const temporal = useMemo(
-        () =>
-            labelIsTemporal
-                ? buildTemporalFormatters(
-                      data.map((d) => d.label),
-                      locale,
-                  )
-                : null,
-        [labelIsTemporal, data, locale],
-    );
+    const byRow = effective?.labelIndex === ROW_NUMBER;
+    const labelFormat = useMemo(() => {
+        if (byRow) {
+            return buildRowNumberFormatters(locale, (row) =>
+                t('editor.resultChart.rowLabel', {row}),
+            );
+        }
+        return labelIsTemporal
+            ? buildTemporalFormatters(
+                  data.map((d) => d.label),
+                  locale,
+              )
+            : null;
+    }, [byRow, labelIsTemporal, data, locale, t]);
     const slots = useMemo(
         () =>
             effective ? getSeriesSlots(result, effective.labelIndex) : new Map<number, number>(),
@@ -90,20 +110,12 @@ export function ResultChart({
     );
 
     if (unavailable || !effective) {
-        const noRows = unavailable === 'noRows';
+        const {titleKey, hintKey} = EMPTY_STATES[unavailable ?? 'noNumeric'];
         return (
             <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
                 <ChartColumn size={28} aria-hidden="true" className="text-muted" />
-                <p className="text-sm font-medium text-secondary">
-                    {noRows
-                        ? t('editor.resultChart.emptyNoRowsTitle')
-                        : t('editor.resultChart.emptyNoNumericTitle')}
-                </p>
-                {!noRows && (
-                    <p className="text-xs text-muted max-w-sm">
-                        {t('editor.resultChart.emptyNoNumericHint')}
-                    </p>
-                )}
+                <p className="text-sm font-medium text-secondary">{t(titleKey)}</p>
+                {hintKey && <p className="text-xs text-muted max-w-sm">{t(hintKey)}</p>}
                 {onShowGrid && (
                     <button
                         type="button"
@@ -142,6 +154,9 @@ export function ResultChart({
     // A custom theme with fewer distinct colours lowers the limit so colours never repeat.
     const maxSeries = Math.max(1, Math.min(MAX_CHART_SERIES, palette.categorical.length));
     const atSeriesLimit = effective.valueIndices.length >= maxSeries;
+    // The only numeric column can't go on X: nothing would be left to plot.
+    const soleValue = getSoleValueColumn(result);
+    const xName = byRow ? t('editor.resultChart.rowNumber') : labels[effective.labelIndex];
 
     return (
         <div className="flex-1 min-h-0 flex flex-col">
@@ -192,9 +207,10 @@ export function ResultChart({
                             FOCUS_RING,
                         )}
                     >
+                        <option value={ROW_NUMBER}>{t('editor.resultChart.rowNumber')}</option>
                         {/* Keyed by index: a result can repeat a column name. */}
                         {labels.map((label, index) => (
-                            <option key={index} value={index}>
+                            <option key={index} value={index} disabled={index === soleValue}>
                                 {label}
                             </option>
                         ))}
@@ -280,7 +296,7 @@ export function ResultChart({
                     {t('editor.resultChart.summary', {
                         type: t(CHART_TYPES[chartType].labelKey),
                         values: series.map((s) => s.name).join(', '),
-                        label: labels[effective.labelIndex],
+                        label: xName,
                         count: plotted,
                     })}
                 </figcaption>
@@ -290,7 +306,7 @@ export function ResultChart({
                     series={series}
                     palette={palette}
                     locale={locale}
-                    temporal={temporal}
+                    labelFormat={labelFormat}
                     animate={!reducedMotion}
                 />
             </figure>

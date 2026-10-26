@@ -12,13 +12,16 @@ import {
     getSeriesDash,
     getSeriesSlots,
     truncateChartLabel,
+    ROW_NUMBER,
     buildDefaultResultChartConfig,
+    buildRowNumberFormatters,
     chartSeriesKey,
     getChartColumnLabels,
     classifyResultColumns,
     getChartUnavailableReason,
     getChartValueColumns,
     getIsolatedPoints,
+    getSoleValueColumn,
     getResultChartScope,
     isNumericValue,
     isTemporalValue,
@@ -198,6 +201,33 @@ describe('resultChart', () => {
         it('returns null for chartable results', () => {
             expect(getChartUnavailableReason(sales)).toBeNull();
         });
+
+        it('reports a single value with nothing to plot it against', () => {
+            // SELECT COUNT(*) AS n FROM t
+            expect(getChartUnavailableReason(makeResult(['n'], [[42]]))).toBe('singleValue');
+            // An all-NULL column can't serve as X either.
+            expect(getChartUnavailableReason(makeResult(['n', 'note'], [[42, null]]))).toBe(
+                'singleValue',
+            );
+        });
+
+        it('charts a single row when another column can go on X', () => {
+            expect(getChartUnavailableReason(makeResult(['region', 'n'], [['North', 4]]))).toBe(
+                null,
+            );
+            expect(getChartUnavailableReason(makeResult(['a', 'b'], [[1, 2]]))).toBeNull();
+        });
+
+        it('charts a single numeric column once there are several rows', () => {
+            expect(getChartUnavailableReason(makeResult(['n'], [[1], [2]]))).toBeNull();
+        });
+    });
+
+    describe('getSoleValueColumn', () => {
+        it('returns the only numeric column, or null when there are several', () => {
+            expect(getSoleValueColumn(makeResult(['region', 'n'], [['North', 4]]))).toBe(1);
+            expect(getSoleValueColumn(sales)).toBeNull();
+        });
     });
 
     describe('buildDefaultResultChartConfig', () => {
@@ -242,9 +272,33 @@ describe('resultChart', () => {
             });
         });
 
+        it('plots a single numeric column by row number', () => {
+            const result = makeResult(['amount'], [[5], [8], [3]]);
+            expect(buildDefaultResultChartConfig(result)).toEqual({
+                type: 'bar',
+                labelIndex: ROW_NUMBER,
+                valueIndices: [0],
+                columns: result.columns,
+            });
+        });
+
+        it('skips all-NULL columns when picking X', () => {
+            const result = makeResult(
+                ['note', 'a', 'b'],
+                [
+                    [null, 1, 2],
+                    [null, 3, 4],
+                ],
+            );
+            expect(buildDefaultResultChartConfig(result)).toMatchObject({
+                labelIndex: 1,
+                valueIndices: [2],
+            });
+        });
+
         it('returns null when there is nothing to plot', () => {
             expect(buildDefaultResultChartConfig(makeResult(['a'], []))).toBeNull();
-            expect(buildDefaultResultChartConfig(makeResult(['only'], [[1], [2]]))).toBeNull();
+            expect(buildDefaultResultChartConfig(makeResult(['n'], [[42]]))).toBeNull();
             expect(buildDefaultResultChartConfig(makeResult(['name'], [['Ada']]))).toBeNull();
         });
     });
@@ -335,8 +389,44 @@ describe('resultChart', () => {
             });
         });
 
+        it('starts over instead of plotting nothing when X holds the only numeric column', () => {
+            const result = makeResult(['region', 'revenue'], [['North', 1]]);
+            const stuck: ResultChartConfig = {
+                type: 'line',
+                labelIndex: 1,
+                valueIndices: [],
+                columns: result.columns,
+            };
+            expect(reconcileResultChartConfig(stuck, result)).toEqual({
+                type: 'line',
+                labelIndex: 0,
+                valueIndices: [1],
+                columns: result.columns,
+            });
+
+            const single = makeResult(['amount'], [[5], [8]]);
+            expect(
+                reconcileResultChartConfig({...stuck, labelIndex: 0, columns: ['amount']}, single),
+            ).toMatchObject({labelIndex: ROW_NUMBER, valueIndices: [0]});
+        });
+
+        it('keeps plotting by row number when columns move', () => {
+            const byRow: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: ROW_NUMBER,
+                valueIndices: [2],
+                columns: sales.columns,
+            };
+            const moved = makeResult(['revenue', 'region'], [[1, 'North']]);
+            expect(reconcileResultChartConfig(byRow, moved)).toMatchObject({
+                labelIndex: ROW_NUMBER,
+                valueIndices: [0],
+            });
+        });
+
         it('returns null for results that cannot be charted', () => {
             expect(reconcileResultChartConfig(stored, makeResult(['a'], []))).toBeNull();
+            expect(reconcileResultChartConfig(stored, makeResult(['n'], [[42]]))).toBeNull();
         });
     });
 
@@ -396,6 +486,19 @@ describe('resultChart', () => {
                 labelIndex: 2,
                 valueIndices: [3],
                 columns: sales.columns,
+            });
+        });
+
+        it('switches X to the row number and keeps every Y column', () => {
+            const config: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: 1,
+                valueIndices: [2, 3],
+                columns: sales.columns,
+            };
+            expect(setChartLabelColumn(config, ROW_NUMBER, sales)).toEqual({
+                ...config,
+                labelIndex: ROW_NUMBER,
             });
         });
 
@@ -484,6 +587,20 @@ describe('resultChart', () => {
             };
             expect(shapeResultChartData(joined, config)).toEqual([
                 {label: 'Ada', [key(1)]: 1, [key(2)]: 2},
+            ]);
+        });
+
+        it('labels points with their row number', () => {
+            const config: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: ROW_NUMBER,
+                valueIndices: [2],
+                columns: sales.columns,
+            };
+            expect(shapeResultChartData(sales, config)).toEqual([
+                {label: '1', [key(2)]: 100},
+                {label: '2', [key(2)]: 200},
+                {label: '3', [key(2)]: 150},
             ]);
         });
 
@@ -704,6 +821,14 @@ describe('resultChart', () => {
         it('leaves unparseable labels unchanged', () => {
             const f = buildTemporalFormatters(['2024-01-05'], 'en');
             expect(f.tick('n/a')).toBe('n/a');
+        });
+    });
+
+    describe('buildRowNumberFormatters', () => {
+        it('groups digits on ticks and names the row in the tooltip', () => {
+            const f = buildRowNumberFormatters('de', (row) => `Zeile ${row}`);
+            expect(f.tick('1204')).toBe('1.204');
+            expect(f.full('1204')).toBe('Zeile 1.204');
         });
     });
 

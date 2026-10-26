@@ -23,7 +23,7 @@ import {
     truncateChartLabel,
     type ResultChartPoint,
     type ResultChartType,
-    type TemporalFormatters,
+    type ChartLabelFormatters,
 } from '@/utils/resultChart';
 import {SeriesKey} from './SeriesKey';
 
@@ -49,7 +49,8 @@ interface ResultChartPlotProps {
     series: ResultChartSeries[];
     palette: ChartPalette;
     locale: string;
-    temporal: TemporalFormatters | null;
+    /** Formats X labels; null shows them as they are, shortened on ticks. */
+    labelFormat: ChartLabelFormatters | null;
     animate: boolean;
 }
 
@@ -60,19 +61,19 @@ function ChartTooltip({
     type,
     series,
     locale,
-    temporal,
+    labelFormat,
 }: TooltipContentProps<number, string> & {
     type: ResultChartType;
     series: ResultChartSeries[];
     locale: string;
-    temporal: TemporalFormatters | null;
+    labelFormat: ChartLabelFormatters | null;
 }) {
     if (!active || !payload || payload.length === 0) return null;
     const title = String(label ?? '');
     return (
         <div className="bg-tooltip border border-default rounded-md shadow-lg px-2.5 py-2 text-[11px] min-w-[120px] max-w-[280px]">
             <div className="text-primary mb-1 break-words">
-                {temporal ? temporal.full(title) : title}
+                {labelFormat ? labelFormat.full(title) : title}
             </div>
             <ul className="space-y-0.5">
                 {series.map((s) => {
@@ -108,7 +109,7 @@ export function ResultChartPlot({
     series,
     palette,
     locale,
-    temporal,
+    labelFormat,
     animate,
 }: ResultChartPlotProps) {
     const {ref, width} = useContainerWidth<HTMLDivElement>();
@@ -119,7 +120,7 @@ export function ResultChartPlot({
     };
     const formatX = (value: unknown) => {
         const text = String(value ?? '');
-        return temporal ? temporal.tick(text) : truncateChartLabel(text);
+        return labelFormat ? labelFormat.tick(text) : truncateChartLabel(text);
     };
     const tooltip = (
         <Tooltip
@@ -135,7 +136,7 @@ export function ResultChartPlot({
                     type={type}
                     series={series}
                     locale={locale}
-                    temporal={temporal}
+                    labelFormat={labelFormat}
                 />
             )}
         />
