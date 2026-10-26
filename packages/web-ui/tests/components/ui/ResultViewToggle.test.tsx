@@ -1,6 +1,9 @@
 import {describe, it, expect, vi} from 'vitest';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
+import {preloadResultChart} from '@/components/ui/loadResultChart';
+
+vi.mock('@/components/ui/loadResultChart', () => ({preloadResultChart: vi.fn()}));
 
 describe('ResultViewToggle', () => {
     it('exposes a named group of two buttons with their pressed state', () => {
@@ -32,5 +35,20 @@ describe('ResultViewToggle', () => {
             expect(button).toHaveAttribute('type', 'button');
             expect(button.className).toContain('focus-visible:outline-focus');
         }
+    });
+
+    it('starts loading the chart when Chart is hovered or focused', () => {
+        render(<ResultViewToggle view="grid" onChange={vi.fn()} />);
+        const preload = vi.mocked(preloadResultChart);
+        preload.mockClear();
+
+        fireEvent.pointerEnter(screen.getByRole('button', {name: 'editor.resultChart.viewGrid'}));
+        expect(preload).not.toHaveBeenCalled();
+
+        fireEvent.pointerEnter(screen.getByRole('button', {name: 'editor.resultChart.viewChart'}));
+        expect(preload).toHaveBeenCalledTimes(1);
+
+        fireEvent.focus(screen.getByRole('button', {name: 'editor.resultChart.viewChart'}));
+        expect(preload).toHaveBeenCalledTimes(2);
     });
 });

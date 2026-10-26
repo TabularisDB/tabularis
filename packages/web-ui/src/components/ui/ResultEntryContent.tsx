@@ -4,7 +4,7 @@ import {CheckCircle2} from 'lucide-react';
 import {DataGrid, type DataGridCommandTarget} from './DataGrid';
 import {ErrorDisplay} from './ErrorDisplay';
 import {PaginationControls} from './PaginationControls';
-import {ResultChart} from './ResultChart';
+import {LazyResultChart} from './LazyResultChart';
 import {ResultViewToggle} from './ResultViewToggle';
 import {useResultChartState} from '@/hooks/useResultChartState';
 import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
@@ -207,7 +207,7 @@ export function ResultEntryContent({
                 )}
             </div>
             {chartEnabled && chartState.view === 'chart' ? (
-                <ResultChart
+                <LazyResultChart
                     result={entry.result}
                     config={chartState.config}
                     onConfigChange={chartState.setConfig}

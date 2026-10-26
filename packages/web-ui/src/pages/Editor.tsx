@@ -116,7 +116,7 @@ import {DataGrid, type DataGridCommandTarget} from '@/components/ui/DataGrid';
 import {MultiResultPanel} from '@/components/ui/MultiResultPanel';
 import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
-import {ResultChart} from '@/components/ui/ResultChart';
+import {LazyResultChart} from '@/components/ui/LazyResultChart';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
 import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
@@ -6475,7 +6475,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
                                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                                     {showResultChart && activeTab.result ? (
-                                        <ResultChart
+                                        <LazyResultChart
                                             result={activeTab.result}
                                             config={resultChart.config}
                                             onConfigChange={resultChart.setConfig}

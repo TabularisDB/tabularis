@@ -243,14 +243,14 @@ describe('Editor result grid/chart toggle', () => {
         resetResultChartStates();
     });
 
-    it("switches a query tab's result to a chart and back without losing selection or pending edits", () => {
+    it("switches a query tab's result to a chart and back without losing selection or pending edits", async () => {
         render(<Harness initialTabs={[consoleTab()]} />);
         expect(gridButton()).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByTestId('grid-selection')).toHaveTextContent('[1]');
 
         fireEvent.click(chartButton());
         expect(screen.queryByTestId('grid')).not.toBeInTheDocument();
-        expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
+        expect(await screen.findByTestId('bar-chart')).toBeInTheDocument();
         expect(screen.getByLabelText('editor.resultChart.xAxis')).toHaveDisplayValue('region');
 
         fireEvent.click(gridButton());
@@ -258,16 +258,16 @@ describe('Editor result grid/chart toggle', () => {
         expect(screen.getByTestId('grid-pending')).toHaveTextContent('revenue');
     });
 
-    it('keeps the chart choice per tab', () => {
+    it('keeps the chart choice per tab', async () => {
         render(<Harness initialTabs={[consoleTab('a'), consoleTab('b')]} />);
         fireEvent.click(chartButton());
-        expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
+        expect(await screen.findByTestId('bar-chart')).toBeInTheDocument();
 
         act(() => switchTab('b'));
         expect(screen.getByTestId('grid')).toBeInTheDocument();
 
         act(() => switchTab('a'));
-        expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
+        expect(await screen.findByTestId('bar-chart')).toBeInTheDocument();
     });
 
     it('does not offer the toggle on table tabs', () => {
@@ -298,11 +298,11 @@ describe('Editor data toolbar in chart view', () => {
         expect(screen.queryByTitle('editor.submitChanges')).not.toBeInTheDocument();
     });
 
-    it('drops the row and copy actions in chart view but keeps the pending bar', () => {
+    it('drops the row and copy actions in chart view but keeps the pending bar', async () => {
         render(<Harness initialTabs={[consoleTab()]} />);
         fireEvent.click(chartButton());
 
-        expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
+        expect(await screen.findByTestId('bar-chart')).toBeInTheDocument();
         expectGridOnlyActions(false);
         expect(screen.getByTitle('editor.submitChanges')).toBeInTheDocument();
         expect(screen.getByTitle('editor.rollbackChanges')).toBeInTheDocument();

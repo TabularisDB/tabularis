@@ -2,6 +2,7 @@ import {useTranslation} from 'react-i18next';
 import clsx from 'clsx';
 import {ChartColumn, Table2} from 'lucide-react';
 import type {ResultView} from '@/utils/resultChart';
+import {preloadResultChart} from './loadResultChart';
 
 interface ResultViewToggleProps {
     view: ResultView;
@@ -41,6 +42,10 @@ export function ResultViewToggle({view, onChange, className}: ResultViewTogglePr
                         aria-label={label}
                         title={label}
                         onClick={() => onChange(option)}
+                        // Hovering or focusing Chart fetches the chart chunk, so it is
+                        // usually ready by the time the click lands.
+                        onPointerEnter={option === 'chart' ? preloadResultChart : undefined}
+                        onFocus={option === 'chart' ? preloadResultChart : undefined}
                         className={clsx(
                             'flex items-center gap-1 px-1.5 py-1 text-[11px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
                             i > 0 && 'border-l border-strong',

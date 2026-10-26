@@ -31,7 +31,7 @@ import {
     type ResultChartType,
 } from '@/utils/resultChart';
 
-interface ResultChartProps {
+export interface ResultChartProps {
     result: QueryResult;
     /** Stored config for this result; null means "use the defaults". */
     config: ResultChartConfig | null;
