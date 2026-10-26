@@ -361,7 +361,9 @@ async fn fetch_requesty_models() -> Vec<String> {
 /// (bare names such as `claude-sonnet-4-6`, where Opper picks the route),
 /// dropping duplicates.
 async fn fetch_opper_models() -> Vec<String> {
-    let client = ai_client_for("opper");
+    let Ok(client) = ai_client_for("opper") else {
+        return Vec::new();
+    };
     let mut seen = HashSet::new();
     let mut models = Vec::new();
 
