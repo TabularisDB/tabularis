@@ -2549,7 +2549,8 @@
     "allRows": "全部",
     "allRowsHint": "获取所有行",
     "customPageSize": "自定义…",
-    "defaultPageSize": "默认"
+    "defaultPageSize": "默认",
+    "pageNumber": "页码"
   },
   "miniGrid": {
     "runningQuery": "正在执行查询...",

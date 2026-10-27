@@ -1,6 +1,8 @@
 import {useTranslation} from 'react-i18next';
 import {ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight} from 'lucide-react';
 import type {Pagination} from '@/types/editor';
+import {totalPageCount} from '@/utils/pagination';
+import {PageIndicator} from './PageIndicator';
 
 interface PaginationControlsProps {
     pagination: Pagination;
@@ -11,10 +13,7 @@ interface PaginationControlsProps {
 export function PaginationControls({pagination, isLoading, onPageChange}: PaginationControlsProps) {
     const {t} = useTranslation();
     const isFirstPage = pagination.page === 1;
-    const totalPages =
-        pagination.total_rows !== null
-            ? Math.ceil(pagination.total_rows / pagination.page_size)
-            : null;
+    const totalPages = totalPageCount(pagination.total_rows, pagination.page_size);
 
     return (
         <div className="flex items-center gap-1 bg-surface-secondary rounded border border-strong shrink-0">
@@ -37,16 +36,12 @@ export function PaginationControls({pagination, isLoading, onPageChange}: Pagina
             >
                 <ChevronLeft size={14} />
             </button>
-            <div className="px-2 @[480px]:px-3 text-secondary text-xs font-medium min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap">
-                {totalPages !== null
-                    ? t('editor.pageOf', {
-                          current: pagination.page,
-                          total: totalPages,
-                      })
-                    : t('editor.page', {
-                          current: pagination.page,
-                      })}
-            </div>
+            <PageIndicator
+                page={pagination.page}
+                totalPages={totalPages}
+                disabled={isLoading}
+                onPageChange={onPageChange}
+            />
             <button
                 disabled={!pagination.has_more || isLoading}
                 onClick={() => onPageChange(pagination.page + 1)}

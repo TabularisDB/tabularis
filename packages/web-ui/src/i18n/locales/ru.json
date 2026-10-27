@@ -2687,7 +2687,8 @@
     "allRows": "Все",
     "allRowsHint": "загружает все строки",
     "customPageSize": "Свой размер…",
-    "defaultPageSize": "по умолчанию"
+    "defaultPageSize": "по умолчанию",
+    "pageNumber": "Номер страницы"
   },
   "miniGrid": {
     "runningQuery": "Выполнение запроса...",

@@ -2660,7 +2660,8 @@
     "allRows": "Todas",
     "allRowsHint": "busca todas as linhas",
     "customPageSize": "Personalizado…",
-    "defaultPageSize": "padrão"
+    "defaultPageSize": "padrão",
+    "pageNumber": "Número da página"
   },
   "miniGrid": {
     "runningQuery": "Executando consulta...",

@@ -2640,7 +2640,8 @@
     "allRows": "Tutte",
     "allRowsHint": "recupera tutte le righe",
     "customPageSize": "Personalizzato…",
-    "defaultPageSize": "predefinito"
+    "defaultPageSize": "predefinito",
+    "pageNumber": "Numero di pagina"
   },
   "miniGrid": {
     "runningQuery": "Esecuzione query...",

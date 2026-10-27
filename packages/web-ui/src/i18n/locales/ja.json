@@ -2628,7 +2628,8 @@
     "allRows": "すべて",
     "allRowsHint": "すべての行を取得",
     "customPageSize": "カスタム…",
-    "defaultPageSize": "デフォルト"
+    "defaultPageSize": "デフォルト",
+    "pageNumber": "ページ番号"
   },
   "miniGrid": {
     "runningQuery": "クエリを実行中...",

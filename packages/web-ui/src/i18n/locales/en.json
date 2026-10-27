@@ -2717,7 +2717,8 @@
     "allRows": "All",
     "allRowsHint": "fetches every row",
     "customPageSize": "Custom…",
-    "defaultPageSize": "default"
+    "defaultPageSize": "default",
+    "pageNumber": "Page number"
   },
   "miniGrid": {
     "runningQuery": "Running query...",

@@ -2610,7 +2610,8 @@
     "allRows": "전체",
     "allRowsHint": "모든 행을 가져옴",
     "customPageSize": "사용자 지정…",
-    "defaultPageSize": "기본값"
+    "defaultPageSize": "기본값",
+    "pageNumber": "페이지 번호"
   },
   "miniGrid": {
     "runningQuery": "쿼리를 실행하는 중...",

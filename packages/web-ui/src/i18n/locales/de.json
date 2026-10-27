@@ -2600,7 +2600,8 @@
     "allRows": "Alle",
     "allRowsHint": "ruft alle Zeilen ab",
     "customPageSize": "Benutzerdefiniert…",
-    "defaultPageSize": "Standard"
+    "defaultPageSize": "Standard",
+    "pageNumber": "Seitennummer"
   },
   "miniGrid": {
     "runningQuery": "Abfrage wird ausgeführt...",
