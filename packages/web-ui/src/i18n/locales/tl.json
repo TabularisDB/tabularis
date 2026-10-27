@@ -1983,6 +1983,8 @@
       "emptySingleValueTitle": "Iisang value lang ang maipa-chart",
       "emptySingleValueHint": "Magdagdag ng pangalawang column para sa X axis, o magbalik ng mas maraming row para i-plot ang mga ito nang sunod-sunod. Makikita sa grid ang value.",
       "showGrid": "Ipakita ang grid",
+      "loadFailed": "Hindi ma-load ang chart",
+      "retry": "Subukang muli",
       "maxSeries": "Hanggang {{max}} series nang sabay",
       "summary": "{{type}} chart ng {{values}} ayon sa {{label}}, mga row na naka-plot: {{count}}"
     },

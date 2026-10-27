@@ -1963,6 +1963,8 @@
       "emptySingleValueTitle": "描画できる値が 1 つだけです",
       "emptySingleValueHint": "X 軸用の 2 つ目の列を追加するか、より多くの行を返すと順番に描画できます。グリッドで値を確認できます。",
       "showGrid": "グリッドを表示",
+      "loadFailed": "グラフを読み込めませんでした",
+      "retry": "再試行",
       "maxSeries": "同時に表示できる系列は最大 {{max}} 件です",
       "summary": "{{label}} 別の {{values}} の{{type}}チャート、描画した行: {{count}}"
     },

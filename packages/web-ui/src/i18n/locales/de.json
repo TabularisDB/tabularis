@@ -1952,6 +1952,8 @@
       "emptySingleValueTitle": "Nur ein Wert zum Darstellen",
       "emptySingleValueHint": "Füge eine zweite Spalte für die X-Achse hinzu oder gib mehr Zeilen zurück, um sie der Reihe nach darzustellen. Die Tabelle zeigt den Wert.",
       "showGrid": "Tabelle anzeigen",
+      "loadFailed": "Diagramm konnte nicht geladen werden",
+      "retry": "Erneut versuchen",
       "maxSeries": "Bis zu {{max}} Reihen gleichzeitig",
       "summary": "Diagramm ({{type}}) von {{values}} nach {{label}}, dargestellte Zeilen: {{count}}"
     },

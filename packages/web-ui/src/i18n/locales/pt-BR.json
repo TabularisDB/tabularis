@@ -1970,6 +1970,8 @@
       "emptySingleValueTitle": "Só há um valor para plotar",
       "emptySingleValueHint": "Adicione uma segunda coluna para o eixo X ou retorne mais linhas para plotá-las em ordem. A grade mostra o valor.",
       "showGrid": "Mostrar grade",
+      "loadFailed": "Não foi possível carregar o gráfico",
+      "retry": "Tentar novamente",
       "maxSeries": "Até {{max}} séries por vez",
       "summary": "Gráfico de {{type}} de {{values}} por {{label}}, linhas plotadas: {{count}}"
     },

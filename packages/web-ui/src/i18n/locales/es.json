@@ -1925,6 +1925,8 @@
       "emptySingleValueTitle": "Solo hay un valor para representar",
       "emptySingleValueHint": "Añade una segunda columna para el eje X o devuelve más filas para representarlas en orden. La cuadrícula muestra el valor.",
       "showGrid": "Mostrar cuadrícula",
+      "loadFailed": "No se pudo cargar el gráfico",
+      "retry": "Reintentar",
       "maxSeries": "Hasta {{max}} series a la vez",
       "summary": "Gráfico de {{type}} de {{values}} por {{label}}, filas representadas: {{count}}"
     },

@@ -2012,6 +2012,8 @@
       "emptySingleValueTitle": "Un solo valore da tracciare",
       "emptySingleValueHint": "Aggiungi una seconda colonna per l'asse X o restituisci più righe per tracciarle in ordine. La griglia mostra il valore.",
       "showGrid": "Mostra griglia",
+      "loadFailed": "Impossibile caricare il grafico",
+      "retry": "Riprova",
       "maxSeries": "Fino a {{max}} serie alla volta",
       "summary": "Grafico a {{type}} di {{values}} per {{label}}, righe tracciate: {{count}}"
     },

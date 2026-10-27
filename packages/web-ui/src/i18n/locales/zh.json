@@ -1917,6 +1917,8 @@
       "emptySingleValueTitle": "只有一个值可绘制",
       "emptySingleValueHint": "请为 X 轴添加第二列，或返回更多行以按顺序绘制。表格中可查看该值。",
       "showGrid": "显示表格",
+      "loadFailed": "无法加载图表",
+      "retry": "重试",
       "maxSeries": "最多同时显示 {{max}} 个系列",
       "summary": "按 {{label}} 显示 {{values}} 的{{type}}图，已绘制行数：{{count}}"
     },

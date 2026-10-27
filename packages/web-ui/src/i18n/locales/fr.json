@@ -1992,6 +1992,8 @@
       "emptySingleValueTitle": "Une seule valeur à tracer",
       "emptySingleValueHint": "Ajoutez une deuxième colonne pour l'axe X, ou renvoyez plus de lignes pour les tracer dans l'ordre. La grille affiche la valeur.",
       "showGrid": "Afficher la grille",
+      "loadFailed": "Impossible de charger le graphique",
+      "retry": "Réessayer",
       "maxSeries": "Jusqu'à {{max}} séries à la fois",
       "summary": "Graphique ({{type}}) de {{values}} par {{label}}, lignes tracées : {{count}}"
     },

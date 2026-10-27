@@ -1927,6 +1927,8 @@
       "emptySingleValueTitle": "표시할 값이 하나뿐입니다",
       "emptySingleValueHint": "X축에 사용할 두 번째 열을 추가하거나, 더 많은 행을 반환하면 순서대로 표시할 수 있습니다. 그리드에서 값을 볼 수 있습니다.",
       "showGrid": "그리드 보기",
+      "loadFailed": "차트를 불러오지 못했습니다",
+      "retry": "다시 시도",
       "maxSeries": "한 번에 최대 {{max}}개 계열",
       "summary": "{{label}}별 {{values}}의 {{type}} 차트, 표시된 행: {{count}}"
     },

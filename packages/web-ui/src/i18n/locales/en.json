@@ -2023,6 +2023,8 @@
       "emptySingleValueTitle": "Only one value to chart",
       "emptySingleValueHint": "Add a second column for the X axis, or return more rows to plot them in order. The grid shows the value.",
       "showGrid": "Show grid",
+      "loadFailed": "Couldn't load the chart",
+      "retry": "Try again",
       "maxSeries": "Up to {{max}} series at a time",
       "summary": "{{type}} chart of {{values}} by {{label}}, rows plotted: {{count}}"
     },
