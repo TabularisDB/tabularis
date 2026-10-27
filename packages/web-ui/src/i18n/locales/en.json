@@ -1486,6 +1486,8 @@
     "exportSelectedRows": "Export Selected ({{count}})…",
     "exportSelectedRowsCsv": "CSV",
     "exportSelectedRowsJson": "JSON",
+    "exportSelectedRowsMarkdown": "Markdown",
+    "exportSelectedRowsSqlInsert": "SQL INSERT",
     "exportedRows": "Exported {{count}} row(s)",
     "selectColumn": "Select Column",
     "deselectColumn": "Deselect Column",

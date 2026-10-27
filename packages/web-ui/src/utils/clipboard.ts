@@ -6,7 +6,7 @@ import {quoteSqlString, sqlBooleanLiteral, stringEscapeStyle} from './sqlLiteral
 import {escapeHtml} from './escape';
 
 /** Driver whose dialect the copied SQL literals follow. */
-type CopyDriver = string | PluginManifest | DriverCapabilities | null;
+export type CopyDriver = string | PluginManifest | DriverCapabilities | null;
 
 // RFC 4180 quoting, shared with the file export: a field with the delimiter, a quote or a line
 // break (LF or CR) is wrapped in quotes, and its quotes are doubled.

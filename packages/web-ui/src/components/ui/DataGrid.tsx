@@ -2015,17 +2015,37 @@ export const DataGrid = React.memo(function DataGrid({
     // dialog writes nothing, and no query is re-run and no page is fetched —
     // only rows already loaded in the grid are ever exported.
     const exportContextRows = useCallback(
-        async (format: 'csv' | 'json') => {
+        async (format: 'csv' | 'json' | 'markdown' | 'sql-insert') => {
             const rows = getContextRows();
             if (!rows || rows.length === 0) return;
             setContextMenu(null);
 
+            // File-facing details per format: extension, MIME type and the save
+            // dialog filter all have to agree with the serialisation below.
+            const extension =
+                format === 'markdown' ? 'md' : format === 'sql-insert' ? 'sql' : format;
+            const mimeType =
+                format === 'csv'
+                    ? 'text/csv'
+                    : format === 'json'
+                      ? 'application/json'
+                      : format === 'markdown'
+                        ? 'text/markdown'
+                        : 'application/sql';
+
             try {
                 const downloaded = await downloadTextFile(platform, {
-                    fileName: buildExportFileName({tableName, extension: format}),
-                    contents: formatRowsForExport(rows, columns, format, csvDelimiter),
-                    mimeType: format === 'csv' ? 'text/csv' : 'application/json',
-                    filters: [{name: format.toUpperCase(), extensions: [format]}],
+                    fileName: buildExportFileName({tableName, extension}),
+                    contents: formatRowsForExport(
+                        rows,
+                        columns,
+                        format,
+                        csvDelimiter,
+                        tableName,
+                        copyDriver,
+                    ),
+                    mimeType,
+                    filters: [{name: format.toUpperCase(), extensions: [extension]}],
                 });
                 if (!downloaded) return;
 
@@ -2040,7 +2060,17 @@ export const DataGrid = React.memo(function DataGrid({
                 });
             }
         },
-        [getContextRows, columns, tableName, csvDelimiter, platform, showToast, showAlert, t],
+        [
+            getContextRows,
+            columns,
+            tableName,
+            csvDelimiter,
+            copyDriver,
+            platform,
+            showToast,
+            showAlert,
+            t,
+        ],
     );
 
     // "Column statistics" (issue #1001). Masked columns only get counts:
@@ -3581,6 +3611,20 @@ export const DataGrid = React.memo(function DataGrid({
                                     icon: Braces,
                                     action: () => {
                                         void exportContextRows('json');
+                                    },
+                                },
+                                {
+                                    label: t('dataGrid.exportSelectedRowsMarkdown'),
+                                    icon: FileText,
+                                    action: () => {
+                                        void exportContextRows('markdown');
+                                    },
+                                },
+                                {
+                                    label: t('dataGrid.exportSelectedRowsSqlInsert'),
+                                    icon: Braces,
+                                    action: () => {
+                                        void exportContextRows('sql-insert');
                                     },
                                 },
                             ],

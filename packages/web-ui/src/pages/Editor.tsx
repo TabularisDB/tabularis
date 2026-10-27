@@ -249,6 +249,7 @@ const LOADED_ROWS_EXPORT_MIME_TYPES: Record<ResultExportFormat, string> = {
     json: 'application/json',
     ndjson: 'application/x-ndjson',
     markdown: 'text/markdown',
+    'sql-insert': 'application/sql',
     html: 'text/html',
 };
 
@@ -4757,6 +4758,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         if (format === 'ndjson') {
             if (!activeExportResult) return;
             await handleExportLoadedRows(activeExportResult, 'ndjson');
+            return;
+        }
+
+        // SQL INSERT serialises client-side from the loaded rows, like NDJSON:
+        // the backend exporter does not know the format.
+        if (format === 'sql-insert') {
+            if (!activeExportResult) return;
+            await handleExportLoadedRows(activeExportResult, 'sql-insert');
             return;
         }
 

@@ -1,7 +1,13 @@
 import type {QueryResult} from '@/types/editor';
-import {csvField, rowsToHtmlTable, rowsToMarkdown} from './clipboard';
+import {
+    csvField,
+    rowsToHtmlTable,
+    rowsToMarkdown,
+    rowsToSqlInsert,
+    type CopyDriver,
+} from './clipboard';
 
-export type ResultExportFormat = 'csv' | 'json' | 'ndjson' | 'markdown' | 'html';
+export type ResultExportFormat = 'csv' | 'json' | 'ndjson' | 'markdown' | 'sql-insert' | 'html';
 
 /**
  * Describes a loaded-rows export that may not contain the whole query result.
@@ -111,6 +117,8 @@ export function formatRowsForExport(
     columns: string[],
     format: ResultExportFormat,
     csvDelimiter = ',',
+    tableName?: string | null,
+    driver?: CopyDriver,
 ): string {
     if (format === 'json') {
         const objects = rows.map((row) => rowToResultObject(columns, row));
@@ -123,6 +131,10 @@ export function formatRowsForExport(
 
     if (format === 'markdown') {
         return rowsToMarkdown(rows, columns);
+    }
+
+    if (format === 'sql-insert') {
+        return rowsToSqlInsert(rows, columns, tableName ?? 'table', driver);
     }
 
     if (format === 'html') {
