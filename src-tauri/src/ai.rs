@@ -143,65 +143,6 @@ fn load_default_models() -> HashMap<String, Vec<String>> {
     })
 }
 
-// Normalize discovery only. Explicit model IDs and custom catalogs remain valid.
-fn normalize_minimax_models(models: &mut HashMap<String, Vec<String>>) {
-    let is_minimax_text = |id: &str| {
-        let name = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
-        name.strip_prefix("minimax-m")
-            .and_then(|version| version.chars().next())
-            .is_some_and(|version| version.is_ascii_digit())
-            || name.starts_with("minimax-01")
-            || name.starts_with("minimax-text-01")
-    };
-    let mut defaults = load_default_models();
-    if let Some(mut minimax) = defaults.remove("minimax") {
-        if let Some(existing) = models.get("minimax") {
-            minimax.extend(existing.iter().filter(|id| !is_minimax_text(id)).cloned());
-        }
-        models.insert("minimax".to_string(), minimax);
-    }
-    for provider in ["openrouter", "requesty"] {
-        if let Some(list) = models.get_mut(provider) {
-            // Upgrade fresh caches too, using only verified static gateway IDs.
-            if let Some(favorites) = defaults.get(provider) {
-                for id in favorites.iter().filter(|id| is_minimax_text(id)) {
-                    if !list.contains(id) {
-                        list.push(id.clone());
-                    }
-                }
-            }
-            list.retain(|id| {
-                if !is_minimax_text(id) {
-                    return true;
-                }
-                if provider == "openrouter" {
-                    return matches!(
-                        id.as_str(),
-                        "minimax/minimax-m3.1-flash:free" | "minimax/minimax-m3"
-                    );
-                }
-                let name = id.rsplit('/').next().unwrap_or(id);
-                matches!(
-                    name.split('@').next(),
-                    Some("minimax-m3.1-flash" | "minimax-m3")
-                )
-            });
-            // Keep other providers in their existing order and prefer Flash
-            // within the MiniMax entries supported by each gateway.
-            let mut current: Vec<String> = list
-                .iter()
-                .filter(|id| is_minimax_text(id))
-                .cloned()
-                .collect();
-            current.sort_by_key(|id| !id.contains("minimax-m3.1-flash"));
-            let mut current = current.into_iter();
-            for id in list.iter_mut().filter(|id| is_minimax_text(id)) {
-                *id = current.next().unwrap();
-            }
-        }
-    }
-}
-
 fn get_cache_path(_app: &AppHandle) -> Option<std::path::PathBuf> {
     Some(crate::paths::get_app_config_dir().join("ai_models_cache.json"))
 }
@@ -513,7 +454,6 @@ pub async fn get_ai_models(
 
                 // Account-specific ChatGPT models use the dedicated settings command.
                 cached_models.remove("chatgpt");
-                normalize_minimax_models(&mut cached_models);
                 return Ok(cached_models);
             }
         }
@@ -616,8 +556,6 @@ pub async fn get_ai_models(
     } else {
         models.insert("custom-openai".to_string(), vec![]);
     }
-
-    normalize_minimax_models(&mut models);
 
     // Save to Cache
     save_cache(&app, &models);
@@ -1243,10 +1181,6 @@ fn clean_response(text: &str) -> String {
 mod provider_tests;
 
 #[cfg(test)]
-#[path = "ai_catalog_tests.rs"]
-mod catalog_tests;
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1272,7 +1206,15 @@ mod tests {
 
         // Check MiniMax models
         let minimax = models.get("minimax").unwrap();
-        assert_eq!(minimax, &["MiniMax-M3.1-Flash", "MiniMax-M3"]);
+        assert_eq!(
+            minimax,
+            &[
+                "MiniMax-M3.1-Flash",
+                "MiniMax-M3",
+                "MiniMax-M2.7",
+                "MiniMax-M2.7-highspeed",
+            ]
+        );
 
         // Ollama is not in yaml, so it shouldn't be here yet
         assert!(!models.contains_key("ollama"));

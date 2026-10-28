@@ -21,6 +21,8 @@ anthropic:
 minimax:
   - MiniMax-M3.1-Flash
   - MiniMax-M3
+  - MiniMax-M2.7
+  - MiniMax-M2.7-highspeed
 
 openrouter:
   - openai/gpt-5.5
