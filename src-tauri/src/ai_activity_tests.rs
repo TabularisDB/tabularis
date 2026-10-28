@@ -549,6 +549,43 @@ mod tests {
     }
 
     #[test]
+    fn classify_mongo_aggregate_write_stages_hidden_by_json_escapes() {
+        // The plugin decodes these args with serde_json before running them,
+        // so an escaped `$` is still a write stage. A raw text scan would miss
+        // it and let the write past the read-only and approval gates.
+        assert_eq!(
+            classify_query_kind(r#"db.users.aggregate([{ "\u0024out": "archive" }])"#),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind(r#"db.users.aggregate([{ "\u0024merge": { "into": "a" } }])"#),
+            "write"
+        );
+        // Escapes may be spelled one character at a time.
+        assert_eq!(
+            classify_query_kind(
+                r#"db.users.aggregate([{ "\u0024\u006f\u0075\u0074": "archive" }])"#
+            ),
+            "write"
+        );
+        // Args the plugin must rewrite before parsing (shell helpers) can
+        // still hold a write stage, written bare.
+        assert_eq!(
+            classify_query_kind(
+                r#"db.users.aggregate([{ "$match": { "_id": ObjectId("507f1f77bcf86cd799439011") } }, { $out: "archive" }])"#
+            ),
+            "write"
+        );
+        // A read whose only escape is inside a value stays a read.
+        assert_eq!(
+            classify_query_kind(
+                r#"db.users.aggregate([{ "$match": { "path": "a\\b" } }])"#
+            ),
+            "select"
+        );
+    }
+
+    #[test]
     fn classify_mongo_ddl_as_ddl() {
         assert_eq!(classify_query_kind("db.users.drop()"), "ddl");
         assert_eq!(

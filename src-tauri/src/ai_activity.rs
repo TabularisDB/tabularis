@@ -567,12 +567,45 @@ fn classify_mongo_shell(query: &str) -> Option<&'static str> {
 /// Whether an `aggregate` pipeline writes to another collection through an
 /// `$out` or `$merge` stage.
 ///
-/// Matches the stage as an object key, quoted or bare (`"$out":`, `$merge :`),
-/// so a field merely *named* like one (`"$output"`) does not count. A
-/// projection field called `$out` would be a false positive, but MongoDB
-/// rejects `$`-prefixed output field names, and erring towards "write" is the
-/// safe direction.
+/// The plugin feeds these args to `serde_json`, so JSON escapes are decoded
+/// before the stage reaches MongoDB: `{"\u0024out": …}` IS an `$out` stage.
+/// Decoding first is therefore required — a raw text scan would call that
+/// payload a read and let it past the read-only and approval gates.
+///
+/// A payload that does not parse as JSON only runs when the plugin's
+/// `preprocess` turns its shell helpers (`ObjectId(…)`, `ISODate(…)`) into
+/// JSON, and those rewrites never introduce a write stage. Any backslash is
+/// still treated as "write": it may be an escape this scan cannot decode, and
+/// erring towards "write" is the safe direction.
 fn mongo_aggregate_writes(args: &str) -> bool {
+    match serde_json::from_str::<serde_json::Value>(args) {
+        Ok(value) => json_has_write_stage(&value),
+        Err(_) => args.contains('\\') || mongo_aggregate_writes_text(args),
+    }
+}
+
+/// Whether the decoded pipeline has an `$out` or `$merge` key anywhere.
+///
+/// Keys are compared after decoding, so `$output` stays a plain field. A
+/// `$out`-named key elsewhere in the pipeline would be rejected by MongoDB as
+/// an unknown argument, so matching it is the safe direction.
+fn json_has_write_stage(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Object(map) => {
+            map.keys().any(|key| key == "$out" || key == "$merge")
+                || map.values().any(json_has_write_stage)
+        }
+        serde_json::Value::Array(items) => items.iter().any(json_has_write_stage),
+        _ => false,
+    }
+}
+
+/// Text fallback for args that are not valid JSON (the plugin rewrites shell
+/// helpers before parsing, so these can still be executable).
+///
+/// Matches the stage as an object key, quoted or bare (`"$out":`, `$merge :`),
+/// so a field merely *named* like one (`"$output"`) does not count.
+fn mongo_aggregate_writes_text(args: &str) -> bool {
     ["$out", "$merge"].iter().any(|stage| {
         args.match_indices(stage).any(|(idx, _)| {
             let before_is_key_position = args[..idx]
