@@ -472,6 +472,114 @@ mod tests {
         assert_eq!(classify_query_kind("BEGIN"), "unknown");
     }
 
+    // -----------------------------------------------------------------------
+    // classify_query_kind — MongoDB shell calls
+    //
+    // The MongoDB driver plugin accepts `db.<collection>.<op>(<args>)`, which
+    // the SQL keyword table cannot read. Before it was recognised, every
+    // MongoDB query fell through to "unknown" and was therefore treated as a
+    // write by the read-only and approval gates.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn classify_mongo_reads_as_select() {
+        assert_eq!(classify_query_kind("db.users.find({})"), "select");
+        assert_eq!(
+            classify_query_kind(r#"db.users.findOne({ "_id": 1 })"#),
+            "select"
+        );
+        assert_eq!(classify_query_kind("db.users.countDocuments({})"), "select");
+        assert_eq!(classify_query_kind("db.users.count({})"), "select");
+        assert_eq!(
+            classify_query_kind(r#"db.users.distinct("status")"#),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind(r#"db.users.aggregate([{ "$match": { "a": 1 } }])"#),
+            "select"
+        );
+        // A trailing semicolon is what the query editor emits.
+        assert_eq!(classify_query_kind("db.users.find({});"), "select");
+        // Quoted collection names are part of the plugin's grammar.
+        assert_eq!(classify_query_kind(r#"db."users".find({})"#), "select");
+        // An aggregation that only projects a field named like a write stage
+        // must not be mistaken for one.
+        assert_eq!(
+            classify_query_kind(r#"db.users.aggregate([{ "$match": { "$output": 1 } }])"#),
+            "select"
+        );
+    }
+
+    #[test]
+    fn classify_mongo_writes_as_write() {
+        assert_eq!(
+            classify_query_kind(r#"db.users.insertOne({ "name": "a" })"#),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind(r#"db.users.insertMany([{ "name": "a" }])"#),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind(r#"db.users.updateOne({ "a": 1 }, { "$set": { "b": 2 } })"#),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind(r#"db.users.updateMany({}, { "$set": { "b": 2 } })"#),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind(r#"db.users.replaceOne({ "a": 1 }, { "b": 2 })"#),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind(r#"db.users.deleteOne({ "a": 1 })"#),
+            "write"
+        );
+        assert_eq!(classify_query_kind("db.users.deleteMany({})"), "write");
+        // `$out` / `$merge` turn an aggregation into a write.
+        assert_eq!(
+            classify_query_kind(r#"db.users.aggregate([{ "$out": "archive" }])"#),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind(r#"db.users.aggregate([{ $merge: { into: "archive" } }])"#),
+            "write"
+        );
+    }
+
+    #[test]
+    fn classify_mongo_ddl_as_ddl() {
+        assert_eq!(classify_query_kind("db.users.drop()"), "ddl");
+        assert_eq!(
+            classify_query_kind(r#"db.createCollection("archive")"#),
+            "ddl"
+        );
+        assert_eq!(
+            classify_query_kind(r#"db.users.createIndex({ "a": 1 })"#),
+            "ddl"
+        );
+    }
+
+    #[test]
+    fn classify_unrecognised_mongo_stays_unknown() {
+        // `runCommand` can run any command, including writes.
+        assert_eq!(
+            classify_query_kind(r#"db.runCommand({ "drop": "users" })"#),
+            "unknown"
+        );
+        // Unknown operations must fail closed.
+        assert_eq!(classify_query_kind("db.users.someFutureOp({})"), "unknown");
+        // Not a well-formed shell call: the plugin rejects it before running.
+        assert_eq!(classify_query_kind("db.users"), "unknown");
+        assert_eq!(classify_query_kind("db.users.find({}"), "unknown");
+        // A second statement behind a read is still rejected.
+        assert_eq!(
+            classify_query_kind("db.users.find({}); db.users.drop()"),
+            "unknown"
+        );
+    }
+
     #[test]
     fn classify_cte_with_select() {
         assert_eq!(

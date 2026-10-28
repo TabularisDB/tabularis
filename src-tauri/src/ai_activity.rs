@@ -475,7 +475,13 @@ fn classify_with_profile(sql: &str, profile: &LexProfile) -> &'static str {
             "ddl"
         }
         "WITH" => classify_cte(&peeled_upper),
-        _ => "unknown",
+        // Everything else is not SQL. The MongoDB driver plugin's query
+        // language is `db.<collection>.<op>(<args>)`; without this arm every
+        // MongoDB read fell through to "unknown" and the read-only and
+        // approval gates treated it as a write. Only the shell grammar the
+        // plugin actually accepts is mapped, and only operations with a known
+        // effect — anything else stays "unknown" and keeps failing closed.
+        _ => classify_mongo_shell(sql).unwrap_or("unknown"),
     };
 
     // A statement classified as a clean read must not reach a side-effecting
@@ -487,6 +493,102 @@ fn classify_with_profile(sql: &str, profile: &LexProfile) -> &'static str {
         return "unknown";
     }
     kind
+}
+
+/// MongoDB shell operations that only read documents.
+const MONGO_READ_OPS: &[&str] = &["find", "findOne", "countDocuments", "count", "distinct"];
+
+/// MongoDB shell operations that modify documents.
+const MONGO_WRITE_OPS: &[&str] = &[
+    "insertOne",
+    "insertMany",
+    "updateOne",
+    "updateMany",
+    "replaceOne",
+    "deleteOne",
+    "deleteMany",
+];
+
+/// MongoDB shell operations that change collection or index structure.
+const MONGO_DDL_OPS: &[&str] = &["drop", "createCollection", "createIndex"];
+
+/// Classify a MongoDB shell call (`db.<collection>.<op>(<args>)`), the query
+/// language of the MongoDB driver plugin.
+///
+/// Returns `None` when `query` is not a well-formed shell call, so callers
+/// keep the fail-closed `"unknown"` verdict for anything unrecognised. Only
+/// operations with a known effect are mapped: `find`/`count`/`distinct` are
+/// reads, `aggregate` is a read unless its pipeline has an `$out` or `$merge`
+/// stage (both write to a collection), the CRUD calls are writes and
+/// collection/index management is `"ddl"`. `runCommand` can run any command,
+/// so it stays unrecognised and keeps requiring approval.
+///
+/// Parsing mirrors `utils::query_parse::parse` in the plugin, which is what
+/// decides whether the statement reaches the server at all.
+fn classify_mongo_shell(query: &str) -> Option<&'static str> {
+    let trimmed = query.trim();
+    // The plugin strips exactly one trailing semicolon before parsing.
+    let body = trimmed
+        .strip_suffix(';')
+        .map(str::trim_end)
+        .unwrap_or(trimmed);
+    let rest = body.strip_prefix("db.")?;
+    let open = rest.find('(')?;
+    if !rest.ends_with(')') {
+        return None;
+    }
+
+    let path = rest[..open].trim();
+    let (_, op) = match path.rfind('.') {
+        Some(idx) => (&path[..idx], path[idx + 1..].trim()),
+        None => ("", path),
+    };
+
+    if MONGO_READ_OPS.contains(&op) {
+        return Some("select");
+    }
+    if MONGO_WRITE_OPS.contains(&op) {
+        return Some("write");
+    }
+    if MONGO_DDL_OPS.contains(&op) {
+        return Some("ddl");
+    }
+    if op == "aggregate" {
+        let args = &rest[open + 1..rest.len() - 1];
+        return Some(if mongo_aggregate_writes(args) {
+            "write"
+        } else {
+            "select"
+        });
+    }
+    None
+}
+
+/// Whether an `aggregate` pipeline writes to another collection through an
+/// `$out` or `$merge` stage.
+///
+/// Matches the stage as an object key, quoted or bare (`"$out":`, `$merge :`),
+/// so a field merely *named* like one (`"$output"`) does not count. A
+/// projection field called `$out` would be a false positive, but MongoDB
+/// rejects `$`-prefixed output field names, and erring towards "write" is the
+/// safe direction.
+fn mongo_aggregate_writes(args: &str) -> bool {
+    ["$out", "$merge"].iter().any(|stage| {
+        args.match_indices(stage).any(|(idx, _)| {
+            let before_is_key_position = args[..idx]
+                .trim_end()
+                .chars()
+                .next_back()
+                .is_some_and(|c| matches!(c, '{' | ',' | '"' | '\''));
+            // A quoted key ends with its closing quote before the colon.
+            let after_is_key_separator = args[idx + stage.len()..]
+                .trim_start()
+                .trim_start_matches(['"', '\''])
+                .trim_start()
+                .starts_with(':');
+            before_is_key_position && after_is_key_separator
+        })
+    })
 }
 
 fn is_create_compound_routine(upper_sql: &str) -> bool {
