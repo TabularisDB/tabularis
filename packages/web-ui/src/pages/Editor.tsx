@@ -2262,6 +2262,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 csvDelimiter,
                 tableName,
                 driver: activeCapabilities,
+                nullLabel: settings.copyNullLabel ?? 'null',
             });
             return {text, count: rows.length};
         },
@@ -2272,6 +2273,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             copyFormat,
             csvDelimiter,
             csvIncludeHeaders,
+            settings.copyNullLabel,
         ],
     );
 

@@ -135,6 +135,8 @@ pub struct AppConfig {
     pub csv_delimiter: Option<String>,
     /// Whether copied CSV output includes a header row. Default: true.
     pub csv_include_headers: Option<bool>,
+    /// How NULL is written when rows are copied as CSV or Markdown. Default: "null".
+    pub copy_null_label: Option<String>,
     pub active_external_drivers: Option<Vec<String>>,
     /// COMPAT(registry-ga): legacy config key from before the Tabularium API
     /// cutover. Read once by `compat::migrate_legacy_config`, then cleared.
@@ -831,6 +833,17 @@ mod tests {
         assert!(json.contains("defaultSortDirection"));
         let parsed: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.default_sort_direction.as_deref(), Some("desc"));
+    }
+
+    #[test]
+    fn copy_null_label_serializes_with_camel_case_and_keeps_empty_value() {
+        let mut config = AppConfig::default();
+        assert!(config.copy_null_label.is_none());
+        config.copy_null_label = Some(String::new());
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"copyNullLabel\":\"\""));
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.copy_null_label.as_deref(), Some(""));
     }
 
     #[test]
