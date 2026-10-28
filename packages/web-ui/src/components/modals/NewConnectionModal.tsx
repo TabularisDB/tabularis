@@ -2481,7 +2481,7 @@ export const NewConnectionModal = ({
                         username: formData.username,
                         password: formData.password,
                     },
-                    {requirePassword: true},
+                    {requirePassword: true, profiles: credentialProfiles},
                 );
                 if (!pendingValidation.isValid) {
                     setStatus('error');

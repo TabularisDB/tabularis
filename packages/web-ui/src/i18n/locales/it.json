@@ -1473,7 +1473,8 @@
     "errors": {
       "nameRequired": "Il nome del profilo è obbligatorio",
       "usernameRequired": "L'utente è obbligatorio",
-      "passwordRequired": "La password è obbligatoria"
+      "passwordRequired": "La password è obbligatoria",
+      "nameExists": "Esiste già un profilo di credenziali con questo nome"
     }
   },
   "sshAskpass": {

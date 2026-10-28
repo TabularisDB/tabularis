@@ -94,7 +94,7 @@ export function CredentialProfileConnectionFields({
         }
         const validation = validateCredentialProfileForm(
             {name: saveAsName, username, password},
-            {requirePassword: true},
+            {requirePassword: true, profiles},
         );
         if (!validation.isValid) {
             setSaveAsStatus('error');

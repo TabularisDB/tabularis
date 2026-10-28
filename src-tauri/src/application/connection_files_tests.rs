@@ -1165,6 +1165,60 @@ async fn apply_export_payload_persists_credential_profiles_and_merges_by_id() {
 }
 
 #[tokio::test]
+async fn apply_export_payload_renames_imported_profile_name_collisions() {
+    let (_temp, runtime, _secrets) = fixture();
+    let mut file =
+        crate::persistence::load_connections_file(&runtime.paths.connections_file()).unwrap();
+    file.credential_profiles = vec![crate::models::CredentialProfile {
+        id: "profile-a".to_string(),
+        name: "pr993".to_string(),
+        username: "deploy".to_string(),
+    }];
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+
+    let mut payload = export_payload(&runtime, false, None).await.unwrap();
+    payload.credential_profiles = vec![crate::models::CredentialProfile {
+        id: "profile-b".to_string(),
+        name: "PR993".to_string(),
+        username: "deploy".to_string(),
+    }];
+    payload.credential_profile_secrets.insert(
+        "profile-b".to_string(),
+        "imported-password".to_string(),
+    );
+    payload.connections[0].params.credential_profile_id = Some("profile-b".to_string());
+
+    apply_export_payload(
+        &runtime,
+        &crate::connection_cache::ConnectionCache::default(),
+        &crate::credential_cache::CredentialCache::default(),
+        payload,
+    )
+    .await
+    .unwrap();
+
+    let saved =
+        crate::persistence::load_connections_file(&runtime.paths.connections_file()).unwrap();
+    assert_eq!(saved.credential_profiles.len(), 2);
+    // The colliding name (different case, different id) is suffixed, not merged.
+    let imported = saved
+        .credential_profiles
+        .iter()
+        .find(|profile| profile.id == "profile-b")
+        .expect("imported profile is stored");
+    assert_eq!(imported.name, "PR993 (Copy)");
+    assert!(saved
+        .credential_profiles
+        .iter()
+        .any(|profile| profile.id == "profile-a"));
+    // The imported connection keeps resolving to the (renamed) profile.
+    assert_eq!(
+        saved.connections[0].params.credential_profile_id.as_deref(),
+        Some("profile-b")
+    );
+}
+
+#[tokio::test]
 async fn imported_secrets_replace_stale_runtime_cache_entries() {
     let (_temp, runtime, secrets) = fixture();
     secrets.set("connection-1:db", "old-secret").unwrap();

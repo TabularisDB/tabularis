@@ -527,8 +527,20 @@ fn apply_export_payload_locked(
     let mut current_ssh: Vec<SshConnection> = load_json(&ssh_path(runtime))?;
     crate::commands::merge_groups(&mut current.groups, payload.groups);
     let tag_remap = crate::connection_tags::merge_imported_tags(&mut current.tags, payload.tags);
-    for profile in payload.credential_profiles {
+    for mut profile in payload.credential_profiles {
         crate::credential_profiles::validate_profile_keychain_namespace(&current, &profile.id)?;
+        // Imported names must stay unique against the local store so rotation
+        // and the duplicate-name lookup stay unambiguous; a colliding import
+        // gets a "(Copy)" suffix until unique (precedent: `duplicate_connection`).
+        let mut name = profile.name.clone();
+        while current
+            .credential_profiles
+            .iter()
+            .any(|existing| existing.id != profile.id && existing.name.eq_ignore_ascii_case(&name))
+        {
+            name = format!("{name} (Copy)");
+        }
+        profile.name = name;
         if let Some(existing) = current
             .credential_profiles
             .iter_mut()

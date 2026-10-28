@@ -79,12 +79,30 @@ export async function getCredentialProfileDependents(
         .map((connection) => ({id: connection.id, name: connection.name}));
 }
 
+export interface CredentialProfileNameOwner {
+    id: string;
+    name: string;
+}
+
 export function validateCredentialProfileForm(
     data: {name?: string; username?: string; password?: string},
-    options: {requirePassword: boolean},
+    options: {
+        requirePassword: boolean;
+        profiles?: CredentialProfileNameOwner[];
+        editingProfileId?: string | null;
+    },
 ): {isValid: boolean; errorKey?: string} {
     if (!data.name?.trim()) {
         return {isValid: false, errorKey: 'credentialProfiles.errors.nameRequired'};
+    }
+    if (
+        options.profiles?.some(
+            (profile) =>
+                profile.id !== options.editingProfileId &&
+                profile.name.toLowerCase() === data.name?.trim().toLowerCase(),
+        )
+    ) {
+        return {isValid: false, errorKey: 'credentialProfiles.errors.nameExists'};
     }
     if (!data.username?.trim()) {
         return {isValid: false, errorKey: 'credentialProfiles.errors.usernameRequired'};

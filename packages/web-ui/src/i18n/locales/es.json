@@ -1438,7 +1438,8 @@
     "errors": {
       "nameRequired": "El nombre del perfil es obligatorio",
       "usernameRequired": "El usuario es obligatorio",
-      "passwordRequired": "La contraseña es obligatoria"
+      "passwordRequired": "La contraseña es obligatoria",
+      "nameExists": "Ya existe un perfil de credenciales con este nombre"
     }
   },
   "sshAskpass": {

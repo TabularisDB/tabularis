@@ -1384,7 +1384,8 @@
     "errors": {
       "nameRequired": "프로필 이름은 필수입니다",
       "usernameRequired": "사용자 이름은 필수입니다",
-      "passwordRequired": "비밀번호는 필수입니다"
+      "passwordRequired": "비밀번호는 필수입니다",
+      "nameExists": "이 이름의 자격 증명 프로필이 이미 존재합니다"
     }
   },
   "sshAskpass": {

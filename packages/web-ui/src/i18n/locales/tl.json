@@ -1439,7 +1439,8 @@
     "errors": {
       "nameRequired": "Kailangan ang pangalan ng profile",
       "usernameRequired": "Kailangan ang username",
-      "passwordRequired": "Kailangan ang password"
+      "passwordRequired": "Kailangan ang password",
+      "nameExists": "Mayroon nang credential profile na may ganitong pangalan"
     }
   },
   "sshAskpass": {

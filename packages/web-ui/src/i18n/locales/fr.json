@@ -1447,7 +1447,8 @@
     "errors": {
       "nameRequired": "Le nom du profil est requis",
       "usernameRequired": "L'utilisateur est requis",
-      "passwordRequired": "Le mot de passe est requis"
+      "passwordRequired": "Le mot de passe est requis",
+      "nameExists": "Un profil d'identifiants avec ce nom existe déjà"
     }
   },
   "sshAskpass": {

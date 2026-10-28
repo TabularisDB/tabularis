@@ -1477,7 +1477,8 @@
     "errors": {
       "nameRequired": "Profile name is required",
       "usernameRequired": "Username is required",
-      "passwordRequired": "Password is required"
+      "passwordRequired": "Password is required",
+      "nameExists": "A credential profile with this name already exists"
     }
   },
   "sshAskpass": {

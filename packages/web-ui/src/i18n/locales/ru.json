@@ -1408,7 +1408,8 @@
     "errors": {
       "nameRequired": "Требуется имя профиля",
       "usernameRequired": "Требуется имя пользователя",
-      "passwordRequired": "Требуется пароль"
+      "passwordRequired": "Требуется пароль",
+      "nameExists": "Профиль учётных данных с таким именем уже существует"
     }
   },
   "sshAskpass": {

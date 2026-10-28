@@ -155,7 +155,7 @@ export function CredentialProfilesManager({
     const handleSave = async () => {
         const validation = validateCredentialProfileForm(
             {name, username, password},
-            {requirePassword: !editingId},
+            {requirePassword: !editingId, profiles, editingProfileId: editingId},
         );
         if (!validation.isValid) {
             setStatus('error');

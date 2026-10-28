@@ -1423,7 +1423,8 @@
     "errors": {
       "nameRequired": "プロファイル名は必須です",
       "usernameRequired": "ユーザー名は必須です",
-      "passwordRequired": "パスワードは必須です"
+      "passwordRequired": "パスワードは必須です",
+      "nameExists": "この名前の認証プロファイルは既に存在します"
     }
   },
   "sshAskpass": {

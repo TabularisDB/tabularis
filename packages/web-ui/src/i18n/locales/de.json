@@ -1410,7 +1410,8 @@
     "errors": {
       "nameRequired": "Profilname ist erforderlich",
       "usernameRequired": "Benutzername ist erforderlich",
-      "passwordRequired": "Passwort ist erforderlich"
+      "passwordRequired": "Passwort ist erforderlich",
+      "nameExists": "Ein Anmeldeprofil mit diesem Namen existiert bereits"
     }
   },
   "sshAskpass": {

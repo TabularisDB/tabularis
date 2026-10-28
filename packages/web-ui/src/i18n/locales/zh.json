@@ -1385,7 +1385,8 @@
     "errors": {
       "nameRequired": "配置文件名称必填",
       "usernameRequired": "用户名必填",
-      "passwordRequired": "密码必填"
+      "passwordRequired": "密码必填",
+      "nameExists": "已存在使用此名称的凭据配置文件"
     }
   },
   "sshAskpass": {

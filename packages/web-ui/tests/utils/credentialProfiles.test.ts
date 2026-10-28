@@ -1,5 +1,54 @@
 import {describe, expect, it, vi} from 'vitest';
-import {getCredentialProfileDependents, loadCredentialProfiles} from '@/utils/credentialProfiles';
+import {
+    getCredentialProfileDependents,
+    loadCredentialProfiles,
+    validateCredentialProfileForm,
+} from '@/utils/credentialProfiles';
+
+describe('validateCredentialProfileForm', () => {
+    const profiles = [
+        {id: 'p1', name: 'Prod'},
+        {id: 'p2', name: 'Dev'},
+    ];
+
+    it('rejects a name that matches another profile ignoring case', () => {
+        const result = validateCredentialProfileForm(
+            {name: ' prod ', username: 'user', password: 'secret'},
+            {requirePassword: true, profiles},
+        );
+        expect(result).toEqual({
+            isValid: false,
+            errorKey: 'credentialProfiles.errors.nameExists',
+        });
+    });
+
+    it('does not reject an unknown name', () => {
+        const result = validateCredentialProfileForm(
+            {name: 'Staging', username: 'user', password: 'secret'},
+            {requirePassword: true, profiles},
+        );
+        expect(result).toEqual({isValid: true});
+    });
+
+    it('allows update to keep its own name even with a different case', () => {
+        const result = validateCredentialProfileForm(
+            {name: 'PROD', username: 'user'},
+            {requirePassword: false, profiles, editingProfileId: 'p1'},
+        );
+        expect(result).toEqual({isValid: true});
+    });
+
+    it('still rejects the name of another profile during update', () => {
+        const result = validateCredentialProfileForm(
+            {name: 'Dev', username: 'user'},
+            {requirePassword: false, profiles, editingProfileId: 'p1'},
+        );
+        expect(result).toEqual({
+            isValid: false,
+            errorKey: 'credentialProfiles.errors.nameExists',
+        });
+    });
+});
 
 describe('loadCredentialProfiles', () => {
     it('returns an empty list when the transport response is missing or not an array', async () => {

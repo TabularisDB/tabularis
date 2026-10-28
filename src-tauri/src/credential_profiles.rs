@@ -104,11 +104,19 @@ pub fn create_profile_impl(
     username: &str,
 ) -> Result<CredentialProfile, String> {
     validate_profile_fields(name, username)?;
+    let name = name.trim();
+    if file
+        .credential_profiles
+        .iter()
+        .any(|profile| profile.name.eq_ignore_ascii_case(name))
+    {
+        return Err(format!("A credential profile named \"{name}\" already exists"));
+    }
     let id = Uuid::new_v4().to_string();
     validate_profile_keychain_namespace(file, &id)?;
     let profile = CredentialProfile {
         id,
-        name: name.trim().to_string(),
+        name: name.to_string(),
         username: username.trim().to_string(),
     };
     file.credential_profiles.push(profile.clone());
@@ -122,12 +130,20 @@ pub fn update_profile_impl(
     username: &str,
 ) -> Result<(), String> {
     validate_profile_fields(name, username)?;
+    let name = name.trim();
+    if file
+        .credential_profiles
+        .iter()
+        .any(|profile| profile.id != id && profile.name.eq_ignore_ascii_case(name))
+    {
+        return Err(format!("A credential profile named \"{name}\" already exists"));
+    }
     let profile = file
         .credential_profiles
         .iter_mut()
         .find(|profile| profile.id == id)
         .ok_or_else(|| "Credential profile not found".to_string())?;
-    profile.name = name.trim().to_string();
+    profile.name = name.to_string();
     profile.username = username.trim().to_string();
     Ok(())
 }
@@ -225,6 +241,29 @@ mod tests {
             Some(CREDENTIAL_PROFILE_DELETE_BLOCKED_CODE)
         );
         assert_eq!(value["connections"][0]["id"], "conn-1");
+    }
+
+    #[test]
+    fn create_rejects_duplicate_names_case_insensitively() {
+        let mut file = ConnectionsFile::default();
+        create_profile_impl(&mut file, "Prod", "user").unwrap();
+        assert!(create_profile_impl(&mut file, "prod", "user").is_err());
+        let second = create_profile_impl(&mut file, "  Staging  ", "user").unwrap();
+        assert_eq!(second.name, "Staging");
+        assert_eq!(file.credential_profiles.len(), 2);
+    }
+
+    #[test]
+    fn update_renames_and_keeps_own_name_valid() {
+        let mut file = ConnectionsFile::default();
+        let prod = create_profile_impl(&mut file, "Prod", "user").unwrap();
+        create_profile_impl(&mut file, "Dev", "user").unwrap();
+        // Renaming to its own (case-changed) name is allowed.
+        update_profile_impl(&mut file, &prod.id, "PROD", "user").unwrap();
+        assert_eq!(file.credential_profiles[0].name, "PROD");
+        // Colliding with another profile is not.
+        assert!(update_profile_impl(&mut file, &prod.id, "dev", "user").is_err());
+        assert!(update_profile_impl(&mut file, "missing", "New", "user").is_err());
     }
 
     #[test]
