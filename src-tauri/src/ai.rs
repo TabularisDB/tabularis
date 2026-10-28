@@ -363,20 +363,65 @@ fn build_api_url(base_url: &str, endpoint: &str) -> String {
     format!("{trimmed}{endpoint}")
 }
 
+/// OpenAI-compatible servers such as local llama.cpp often accept requests
+/// with no credentials. Hosted providers still require a stored key.
+fn api_key_for_provider(provider: &str, stored: Result<String, String>) -> Result<String, String> {
+    if provider == "custom-openai" {
+        Ok(stored.unwrap_or_default())
+    } else {
+        stored
+    }
+}
+
+fn apply_optional_bearer(
+    request: reqwest::RequestBuilder,
+    api_key: &str,
+) -> reqwest::RequestBuilder {
+    let key = api_key.trim();
+    if key.is_empty() {
+        request
+    } else {
+        request.header("Authorization", format!("Bearer {key}"))
+    }
+}
+
+async fn load_custom_openai_models(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    base_url: Option<&str>,
+) -> Option<Vec<String>> {
+    let base_url = base_url.filter(|url| !url.is_empty())?;
+    let api_key = api_key_for_provider(
+        "custom-openai",
+        crate::application::ai::get_api_key(runtime, cache, "custom-openai"),
+    )
+    .unwrap_or_default();
+    Some(fetch_custom_openai_models(base_url, &api_key).await)
+}
+
 async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String> {
-    if base_url.is_empty() || api_key.is_empty() {
+    if base_url.is_empty() {
         return Vec::new();
     }
 
     let Ok(client) = ai_client_for("custom-openai") else {
         return Vec::new();
     };
+    fetch_custom_openai_models_with_client(&client, base_url, api_key).await
+}
+
+async fn fetch_custom_openai_models_with_client(
+    client: &Client,
+    base_url: &str,
+    api_key: &str,
+) -> Vec<String> {
+    if base_url.is_empty() {
+        return Vec::new();
+    }
 
     let url = build_api_url(base_url, "/models");
 
-    match client
-        .get(&url)
-        .header("Authorization", format!("Bearer {}", api_key))
+    match apply_optional_bearer(client.get(&url), api_key)
         .send()
         .await
     {
@@ -430,19 +475,16 @@ pub async fn get_models(
                     cached_models.insert("ollama".to_string(), vec![]);
                 }
 
-                // Always refresh custom-openai as it depends on user configuration
-                if let (Some(base_url), Ok(api_key)) = (
-                    app_config.ai_custom_openai_url.clone(),
-                    crate::application::ai::get_api_key(runtime, cache, "custom-openai"),
-                ) {
-                    if !base_url.is_empty() && !api_key.is_empty() {
-                        let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
-                        if !custom_models.is_empty() {
-                            cached_models.insert("custom-openai".to_string(), custom_models);
-                        } else {
-                            cached_models.insert("custom-openai".to_string(), vec![]);
-                        }
-                    }
+                // Always refresh custom-openai as it depends on user configuration.
+                // A key is optional: local compatible servers often need none.
+                if let Some(custom_models) = load_custom_openai_models(
+                    runtime,
+                    cache,
+                    app_config.ai_custom_openai_url.as_deref(),
+                )
+                .await
+                {
+                    cached_models.insert("custom-openai".to_string(), custom_models);
                 }
 
                 // Always refresh Anthropic if API key is present
@@ -547,24 +589,12 @@ pub async fn get_models(
         }
     }
 
-    // 7. Custom OpenAI (Dynamic if configured)
-    if let (Some(base_url), Ok(api_key)) = (
-        app_config.ai_custom_openai_url,
-        crate::application::ai::get_api_key(runtime, cache, "custom-openai"),
-    ) {
-        if !base_url.is_empty() && !api_key.is_empty() {
-            let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
-            if !custom_models.is_empty() {
-                models.insert("custom-openai".to_string(), custom_models);
-            } else {
-                models.insert("custom-openai".to_string(), vec![]);
-            }
-        } else {
-            models.insert("custom-openai".to_string(), vec![]);
-        }
-    } else {
-        models.insert("custom-openai".to_string(), vec![]);
-    }
+    // 7. Custom OpenAI (dynamic when a base URL is configured; key is optional)
+    let custom_models =
+        load_custom_openai_models(runtime, cache, app_config.ai_custom_openai_url.as_deref())
+            .await
+            .unwrap_or_default();
+    models.insert("custom-openai".to_string(), custom_models);
 
     // Save to Cache
     save_cache(runtime, &models);
@@ -627,10 +657,13 @@ async fn dispatch_provider(
     if gen_req.provider == "chatgpt" {
         return crate::chatgpt::generate(&gen_req.model, &gen_req.prompt, system_prompt).await;
     }
-    let api_key = if gen_req.provider != "ollama" {
-        crate::application::ai::get_api_key(runtime, cache, &gen_req.provider)?
-    } else {
+    let api_key = if gen_req.provider == "ollama" {
         String::new()
+    } else {
+        api_key_for_provider(
+            &gen_req.provider,
+            crate::application::ai::get_api_key(runtime, cache, &gen_req.provider),
+        )?
     };
 
     let client = if gen_req.provider == "ollama" {
@@ -979,9 +1012,7 @@ async fn generate_custom_openai(
     // Build the chat completions endpoint URL
     let url = build_api_url(base_url, "/chat/completions");
 
-    let res = client
-        .post(&url)
-        .header("Authorization", format!("Bearer {}", api_key))
+    let res = apply_optional_bearer(client.post(&url), api_key)
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
@@ -1234,6 +1265,23 @@ mod provider_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn custom_openai_allows_a_missing_api_key_while_other_providers_do_not() {
+        let missing = Err("API Key for provider not found in Keychain or Environment".to_string());
+        assert_eq!(
+            api_key_for_provider("custom-openai", missing.clone()).unwrap(),
+            ""
+        );
+        assert_eq!(
+            api_key_for_provider("custom-openai", Ok("sk-local".to_string())).unwrap(),
+            "sk-local"
+        );
+        for provider in ["openai", "anthropic", "openrouter", "requesty", "minimax"] {
+            let error = api_key_for_provider(provider, missing.clone()).unwrap_err();
+            assert!(error.contains("API Key"), "{provider}: {error}");
+        }
+    }
 
     #[test]
     fn test_load_default_models() {
