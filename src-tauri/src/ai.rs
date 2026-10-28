@@ -1115,8 +1115,17 @@ async fn generate_anthropic(
     }
 
     let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    let content = json["content"][0]["text"]
-        .as_str()
+    // Models with extended thinking return `thinking` (or other non-text)
+    // blocks ahead of the answer, so use the first `text` block rather than
+    // assuming it is `content[0]`.
+    let content = json["content"]
+        .as_array()
+        .and_then(|blocks| {
+            blocks
+                .iter()
+                .find(|block| block["type"].as_str() == Some("text"))
+        })
+        .and_then(|block| block["text"].as_str())
         .ok_or("Invalid response format from Anthropic")?;
 
     Ok(clean_response(content))
