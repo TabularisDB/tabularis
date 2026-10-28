@@ -38,6 +38,7 @@ import {
     requestBrowserServerPath,
 } from './browserDialogs';
 import {listenForColorSchemeChanges, prefersDarkColorScheme} from './systemColorScheme';
+import {readWebClipboardText, writeWebClipboardHtml, writeWebClipboardText} from './webClipboard';
 
 function browserCapabilityNegotiation(serverFileBrowser: boolean): PlatformCapabilityNegotiation {
     return createPlatformCapabilityNegotiation('browser', {
@@ -208,10 +209,7 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
 
     async readClipboard(): Promise<string> {
         try {
-            if (!navigator.clipboard?.readText) {
-                throw new DOMException('Clipboard access is unavailable', 'NotAllowedError');
-            }
-            return await navigator.clipboard.readText();
+            return await readWebClipboardText();
         } catch (error) {
             throw new PlatformCapabilityPermissionError('readClipboard', 'browser', error);
         }
@@ -219,26 +217,15 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
 
     async writeClipboard(text: string): Promise<void> {
         try {
-            if (!navigator.clipboard?.writeText) {
-                throw new DOMException('Clipboard access is unavailable', 'NotAllowedError');
-            }
-            await navigator.clipboard.writeText(text);
+            await writeWebClipboardText(text);
         } catch (error) {
             throw new PlatformCapabilityPermissionError('writeClipboard', 'browser', error);
         }
     }
 
     async writeClipboardHtml(html: string, altText: string): Promise<void> {
-        if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
-            return this.writeClipboard(altText);
-        }
         try {
-            await navigator.clipboard.write([
-                new ClipboardItem({
-                    'text/html': new Blob([html], {type: 'text/html'}),
-                    'text/plain': new Blob([altText], {type: 'text/plain'}),
-                }),
-            ]);
+            await writeWebClipboardHtml(html, altText);
         } catch (error) {
             throw new PlatformCapabilityPermissionError('writeClipboard', 'browser', error);
         }

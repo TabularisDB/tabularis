@@ -53,6 +53,7 @@ import {
 } from '@/utils/blob';
 import {isLinuxDesktop} from '@/utils/systemTheme';
 import {listenForColorSchemeChanges, prefersDarkColorScheme} from './systemColorScheme';
+import {readWebClipboardText, writeWebClipboardHtml, writeWebClipboardText} from './webClipboard';
 
 export interface TauriPlatformOperations {
     chooseInputPath(options?: ChooseInputFileOptions): Promise<string | string[] | null>;
@@ -321,6 +322,7 @@ const selectedFileName = (reference: string): string => {
 export class TauriPlatformCapabilities implements PlatformCapabilities {
     readonly negotiation: PlatformCapabilityNegotiation;
     private readonly operations: TauriPlatformOperations;
+    private pluginClipboardBroken = false;
 
     constructor(
         operations: TauriPlatformOperations = defaultTauriOperations,
@@ -438,17 +440,30 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
 
     async readClipboard(): Promise<string> {
         this.require('readClipboard');
-        return this.operations.readClipboardText();
+        // The plugin also rejects on an empty or non-text clipboard, where the webview reads ''.
+        return this.withWebClipboardFallback(
+            () => this.operations.readClipboardText(),
+            readWebClipboardText,
+            (text) => text !== '',
+        );
     }
 
     async writeClipboard(text: string): Promise<void> {
         this.require('writeClipboard');
-        await this.operations.writeClipboardText(text);
+        await this.withWebClipboardFallback(
+            () => this.operations.writeClipboardText(text),
+            () => writeWebClipboardText(text),
+            () => true,
+        );
     }
 
     async writeClipboardHtml(html: string, altText: string): Promise<void> {
         this.require('writeClipboard');
-        await this.operations.writeClipboardHtml(html, altText);
+        await this.withWebClipboardFallback(
+            () => this.operations.writeClipboardHtml(html, altText),
+            () => writeWebClipboardHtml(html, altText),
+            () => true,
+        );
     }
 
     async downloadFile(request: DownloadFileRequest): Promise<boolean> {
@@ -543,5 +558,36 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
 
     private require(capability: keyof PlatformCapabilityNegotiation['capabilities']): void {
         requirePlatformCapability(this.negotiation, capability);
+    }
+
+    /**
+     * The clipboard plugin (arboard) reaches Wayland only through the wlr/ext data-control
+     * protocols, which compositors such as Niri withhold from sandboxed (Flatpak) clients; arboard
+     * then falls back to X11 and fails after a timeout. The webview clipboard uses the window's own
+     * Wayland data device. The plugin stays the first choice because reading through the webview
+     * can make WebKitGTK ask for confirmation.
+     *
+     * Once the webview succeeds where the plugin failed and `provesPluginBroken` accepts the
+     * result, every later call skips the plugin for the lifetime of this window. When both fail,
+     * the webview error is thrown.
+     */
+    private async withWebClipboardFallback<T>(
+        viaPlugin: () => Promise<T>,
+        viaWebview: () => Promise<T>,
+        provesPluginBroken: (result: T) => boolean,
+    ): Promise<T> {
+        if (this.pluginClipboardBroken) return viaWebview();
+        let pluginError: unknown;
+        try {
+            return await viaPlugin();
+        } catch (error) {
+            pluginError = error;
+        }
+        const result = await viaWebview();
+        if (provesPluginBroken(result)) {
+            this.pluginClipboardBroken = true;
+            console.warn('Clipboard plugin failed, using the webview clipboard:', pluginError);
+        }
+        return result;
     }
 }
