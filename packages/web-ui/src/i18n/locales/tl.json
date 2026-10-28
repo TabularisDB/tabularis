@@ -1448,6 +1448,8 @@
     "exportSelectedRows": "I-export ang napili ({{count}})…",
     "exportSelectedRowsCsv": "CSV",
     "exportSelectedRowsJson": "JSON",
+    "exportSelectedRowsMarkdown": "Markdown",
+    "exportSelectedRowsSqlInsert": "SQL INSERT",
     "exportedRows": "Na-export ang {{count}} row",
     "selectColumn": "Piliin ang Column",
     "deselectColumn": "Alisin ang Pagpili ng Column",

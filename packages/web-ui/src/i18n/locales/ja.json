@@ -1429,6 +1429,8 @@
     "exportSelectedRows": "選択をエクスポート（{{count}}）…",
     "exportSelectedRowsCsv": "CSV",
     "exportSelectedRowsJson": "JSON",
+    "exportSelectedRowsMarkdown": "Markdown",
+    "exportSelectedRowsSqlInsert": "SQL INSERT",
     "exportedRows": "{{count}} 行をエクスポートしました",
     "selectColumn": "列を選択",
     "deselectColumn": "列の選択を解除",

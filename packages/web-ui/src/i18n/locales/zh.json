@@ -1392,6 +1392,8 @@
     "exportSelectedRows": "导出所选（{{count}}）…",
     "exportSelectedRowsCsv": "CSV",
     "exportSelectedRowsJson": "JSON",
+    "exportSelectedRowsMarkdown": "Markdown",
+    "exportSelectedRowsSqlInsert": "SQL INSERT",
     "exportedRows": "已导出 {{count}} 行",
     "selectColumn": "选择列",
     "deselectColumn": "取消选择列",

@@ -1417,6 +1417,8 @@
     "exportSelectedRows": "Auswahl exportieren ({{count}})…",
     "exportSelectedRowsCsv": "CSV",
     "exportSelectedRowsJson": "JSON",
+    "exportSelectedRowsMarkdown": "Markdown",
+    "exportSelectedRowsSqlInsert": "SQL INSERT",
     "exportedRows": "{{count}} Zeile(n) exportiert",
     "selectColumn": "Spalte auswählen",
     "deselectColumn": "Spalte abwählen",

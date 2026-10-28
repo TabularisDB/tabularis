@@ -1418,6 +1418,8 @@
     "exportSelectedRows": "Экспортировать выбранные ({{count}})…",
     "exportSelectedRowsCsv": "CSV",
     "exportSelectedRowsJson": "JSON",
+    "exportSelectedRowsMarkdown": "Markdown",
+    "exportSelectedRowsSqlInsert": "SQL INSERT",
     "exportedRows": "Экспортировано строк: {{count}}",
     "selectColumn": "Выбрать столбец",
     "deselectColumn": "Снять выбор столбца",

@@ -1392,6 +1392,8 @@
     "exportSelectedRows": "선택 항목 내보내기 ({{count}})…",
     "exportSelectedRowsCsv": "CSV",
     "exportSelectedRowsJson": "JSON",
+    "exportSelectedRowsMarkdown": "Markdown",
+    "exportSelectedRowsSqlInsert": "SQL INSERT",
     "exportedRows": "{{count}}개 행을 내보냈습니다",
     "selectColumn": "열 선택",
     "deselectColumn": "열 선택 해제",
