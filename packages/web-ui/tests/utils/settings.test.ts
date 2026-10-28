@@ -367,6 +367,24 @@ describe('settings', () => {
             expect(result.model).toBeNull();
         });
 
+        it('should not auto-select runcrate even when its key exists', () => {
+            const keyStatus: Record<AiProvider, boolean> = {
+                openai: false,
+                anthropic: false,
+                openrouter: false,
+                runcrate: true,
+                minimax: false,
+            };
+            const models: Record<string, string[]> = {
+                runcrate: ['deepseek-ai/DeepSeek-V4.1-Flash'],
+            };
+
+            const result = detectAIProviderFromKeys(keyStatus, models);
+
+            expect(result.provider).toBeNull();
+            expect(result.model).toBeNull();
+        });
+
         it('should return null model when no models available for provider', () => {
             const keyStatus: Record<AiProvider, boolean> = {
                 openai: true,

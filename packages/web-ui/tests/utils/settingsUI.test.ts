@@ -56,6 +56,10 @@ describe('settingsUI', () => {
             expect(getProviderLabel('requesty' as AiProvider)).toBe('Requesty');
         });
 
+        it('should return correct label for Runcrate', () => {
+            expect(getProviderLabel('runcrate' as AiProvider)).toBe('Runcrate');
+        });
+
         it('should return correct label for MiniMax', () => {
             expect(getProviderLabel('minimax' as AiProvider)).toBe('MiniMax');
         });

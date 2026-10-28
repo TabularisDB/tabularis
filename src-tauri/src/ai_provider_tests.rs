@@ -155,6 +155,9 @@ async fn generate(provider: &str, fixture: &Fixture) -> Result<String, String> {
         "openrouter" => {
             generate_openrouter(&fixture.client, "fixture-key", &req, "SQL instructions").await
         }
+        "runcrate" => {
+            generate_runcrate(&fixture.client, "fixture-key", &req, "SQL instructions").await
+        }
         "minimax" => {
             generate_minimax(&fixture.client, "fixture-key", &req, "SQL instructions").await
         }
@@ -188,6 +191,7 @@ async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() 
         "openai",
         "anthropic",
         "openrouter",
+        "runcrate",
         "minimax",
         "custom-openai",
         "ollama",
@@ -234,6 +238,10 @@ async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() 
                 assert!(headers.contains("http-referer: https://github.com/tabularisdb/tabularis"));
                 assert!(headers.contains("x-title: tabularis"));
             }
+            if provider == "runcrate" {
+                assert!(request.target.contains("api.runcrate.ai:443"));
+                assert!(request.headers.starts_with("POST /v1/chat/completions "));
+            }
         }
     }
 }
@@ -244,6 +252,7 @@ async fn existing_providers_propagate_http_failures() {
         "openai",
         "anthropic",
         "openrouter",
+        "runcrate",
         "custom-openai",
         "ollama",
     ] {

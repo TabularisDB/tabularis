@@ -101,6 +101,18 @@ struct RequestyModel {
     api: Option<String>,
 }
 
+#[derive(Deserialize, Debug)]
+struct RuncrateModelList {
+    data: Vec<RuncrateModel>,
+}
+
+#[derive(Deserialize, Debug)]
+struct RuncrateModel {
+    id: String,
+    #[serde(default)]
+    output_modalities: Vec<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct AiModelsCache {
     last_updated: u64,
@@ -342,6 +354,29 @@ async fn fetch_requesty_models() -> Vec<String> {
     models
 }
 
+/// Fetches the public Runcrate catalog. The same list carries image, video,
+/// audio and embedding models, so only rows whose output is text are kept.
+async fn fetch_runcrate_models() -> Vec<String> {
+    let Ok(client) = ai_client_for("runcrate") else {
+        return Vec::new();
+    };
+    match client.get("https://api.runcrate.ai/v1/models").send().await {
+        Ok(res) if res.status().is_success() => match res.json::<RuncrateModelList>().await {
+            Ok(json) => runcrate_chat_models(json),
+            Err(_) => Vec::new(),
+        },
+        _ => Vec::new(),
+    }
+}
+
+fn runcrate_chat_models(list: RuncrateModelList) -> Vec<String> {
+    list.data
+        .into_iter()
+        .filter(|m| m.output_modalities.iter().any(|o| o == "text"))
+        .map(|m| m.id)
+        .collect()
+}
+
 /// Build an API endpoint URL from a user-provided base_url.
 ///
 /// Handles various formats the user might input:
@@ -547,7 +582,23 @@ pub async fn get_models(
         }
     }
 
-    // 7. Custom OpenAI (Dynamic if configured)
+    // 7. Runcrate (Dynamic public)
+    let runcrate_models = fetch_runcrate_models().await;
+    if !runcrate_models.is_empty() {
+        if let Some(static_list) = models.get_mut("runcrate") {
+            let favorites: HashSet<String> = static_list.iter().cloned().collect();
+            let mut new_list = static_list.clone();
+
+            for m in runcrate_models {
+                if !favorites.contains(&m) {
+                    new_list.push(m);
+                }
+            }
+            *static_list = new_list;
+        }
+    }
+
+    // 8. Custom OpenAI (Dynamic if configured)
     if let (Some(base_url), Ok(api_key)) = (
         app_config.ai_custom_openai_url,
         crate::application::ai::get_api_key(runtime, cache, "custom-openai"),
@@ -643,6 +694,7 @@ async fn dispatch_provider(
         "anthropic" => generate_anthropic(&client, &api_key, gen_req, system_prompt).await,
         "openrouter" => generate_openrouter(&client, &api_key, gen_req, system_prompt).await,
         "requesty" => generate_requesty(&client, &api_key, gen_req, system_prompt).await,
+        "runcrate" => generate_runcrate(&client, &api_key, gen_req, system_prompt).await,
         "ollama" => generate_ollama(&client, gen_req, system_prompt, ollama_port).await,
         "custom-openai" => {
             let base_url = app_config
@@ -1077,6 +1129,42 @@ async fn generate_requesty(
     Ok(clean_response(content))
 }
 
+async fn generate_runcrate(
+    client: &Client,
+    api_key: &str,
+    req: &AiGenerateRequest,
+    system_prompt: &str,
+) -> Result<String, String> {
+    let body = json!({
+        "model": req.model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": req.prompt}
+        ],
+        "temperature": 0.0
+    });
+
+    let res = client
+        .post("https://api.runcrate.ai/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        let error_text = res.text().await.unwrap_or_default();
+        return Err(format!("Runcrate Error: {}", error_text));
+    }
+
+    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    let content = json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("Invalid response format from Runcrate")?;
+
+    Ok(clean_response(content))
+}
+
 /// Builds the Messages API body. No `temperature` is sent: newer Claude
 /// models (e.g. the 5.5 family) reject the parameter, and older ones work
 /// fine without it.
@@ -1242,6 +1330,7 @@ mod tests {
         assert!(models.contains_key("anthropic"));
         assert!(models.contains_key("openrouter"));
         assert!(models.contains_key("requesty"));
+        assert!(models.contains_key("runcrate"));
         assert!(models.contains_key("minimax"));
 
         // Check for new futuristic models from yaml
@@ -1262,6 +1351,13 @@ mod tests {
         assert!(minimax.contains(&"MiniMax-M2.7-highspeed".to_string()));
         // M3 should be listed first so it is selected as the default model
         assert_eq!(minimax.first().map(String::as_str), Some("MiniMax-M3"));
+
+        // Runcrate defaults to DeepSeek V4.1 Flash
+        let runcrate = models.get("runcrate").unwrap();
+        assert_eq!(
+            runcrate.first().map(String::as_str),
+            Some("deepseek-ai/DeepSeek-V4.1-Flash")
+        );
 
         // Ollama is not in yaml, so it shouldn't be here yet
         assert!(!models.contains_key("ollama"));
@@ -1303,5 +1399,23 @@ mod tests {
         let input_whitespace = "   ```sql\nSELECT 1;\n```   ";
         let output_whitespace = clean_response(input_whitespace);
         assert_eq!(output_whitespace, "SELECT 1;");
+    }
+
+    #[test]
+    fn test_runcrate_catalog_keeps_text_models_only() {
+        let list: RuncrateModelList = serde_json::from_value(json!({
+            "data": [
+                {"id": "deepseek-ai/DeepSeek-V4.1-Flash", "output_modalities": ["text"]},
+                {"id": "Qwen/Qwen-Image", "output_modalities": ["image"]},
+                {"id": "BAAI/bge-m3", "output_modalities": ["embeddings"]},
+                {"id": "zai-org/GLM-5.3-Flash", "output_modalities": ["text"]},
+                {"id": "no-modalities-listed"}
+            ]
+        }))
+        .unwrap();
+        assert_eq!(
+            runcrate_chat_models(list),
+            vec!["deepseek-ai/DeepSeek-V4.1-Flash", "zai-org/GLM-5.3-Flash"]
+        );
     }
 }
