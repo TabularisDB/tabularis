@@ -1600,7 +1600,6 @@
     "autoPaginated": "Auto paginated",
     "pageOf": "Pahina {{current}} ng {{total}}",
     "page": "Pahina {{current}}",
-    "jumpToPage": "I-click para tumalon sa pahina",
     "loadRowCount": "I-load ang bilang ng row",
     "rowCount": "{{total}} row",
     "executePrompt": "Magpatupad ng query para makita ang mga resulta",

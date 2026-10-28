@@ -1630,7 +1630,6 @@
     "autoPaginated": "Impaginazione automatica",
     "pageOf": "Pagina {{current}} di {{total}}",
     "page": "Pagina {{current}}",
-    "jumpToPage": "Clicca per saltare alla pagina",
     "loadRowCount": "Carica conteggio righe",
     "rowCount": "{{total}} righe",
     "executePrompt": "Esegui una query per vedere i risultati",

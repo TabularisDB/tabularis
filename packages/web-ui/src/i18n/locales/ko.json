@@ -1544,7 +1544,6 @@
     "autoPaginated": "자동 페이지네이션됨",
     "pageOf": "{{total}}페이지 중 {{current}}",
     "page": "{{current}}페이지",
-    "jumpToPage": "클릭하여 페이지 이동",
     "loadRowCount": "행 개수 불러오기",
     "rowCount": "{{total}}행",
     "executePrompt": "쿼리를 실행하여 결과를 확인하세요",

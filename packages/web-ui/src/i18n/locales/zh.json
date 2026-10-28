@@ -1562,7 +1562,6 @@
     "autoPaginated": "自动分页",
     "pageOf": "第 {{current}} 页，共 {{total}} 页",
     "page": "第 {{current}} 页",
-    "jumpToPage": "点击跳转到页面",
     "loadRowCount": "加载行数",
     "rowCount": "{{total}} 行",
     "executePrompt": "执行查询以查看结果",

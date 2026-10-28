@@ -6071,7 +6071,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                             }
                                                             onClick={() => runQuery(undefined, 1)}
                                                             className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="First Page"
+                                                            title={t('pagination.firstPage')}
+                                                            aria-label={t('pagination.firstPage')}
                                                         >
                                                             <ChevronsLeft size={14} />
                                                         </button>
@@ -6088,7 +6089,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Previous Page"
+                                                            title={t('pagination.previousPage')}
+                                                            aria-label={t(
+                                                                'pagination.previousPage',
+                                                            )}
                                                         >
                                                             <ChevronLeft size={14} />
                                                         </button>
@@ -6148,7 +6152,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Next Page"
+                                                            title={t('pagination.nextPage')}
+                                                            aria-label={t('pagination.nextPage')}
                                                         >
                                                             <ChevronRight size={14} />
                                                         </button>
@@ -6172,7 +6177,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Last Page"
+                                                            title={t('pagination.lastPage')}
+                                                            aria-label={t('pagination.lastPage')}
                                                         >
                                                             <ChevronsRight size={14} />
                                                         </button>

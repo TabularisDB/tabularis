@@ -1616,7 +1616,6 @@
     "autoPaginated": "Paginación automática",
     "pageOf": "Página {{current}} de {{total}}",
     "page": "Página {{current}}",
-    "jumpToPage": "Clic para ir a la página",
     "loadRowCount": "Cargar conteo de filas",
     "rowCount": "{{total}} filas",
     "executePrompt": "Ejecuta una consulta para ver resultados",
