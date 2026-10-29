@@ -475,7 +475,13 @@ fn classify_with_profile(sql: &str, profile: &LexProfile) -> &'static str {
             "ddl"
         }
         "WITH" => classify_cte(&peeled_upper),
-        _ => "unknown",
+        // Everything else is not SQL. The MongoDB driver plugin's query
+        // language is `db.<collection>.<op>(<args>)`; without this arm every
+        // MongoDB read fell through to "unknown" and the read-only and
+        // approval gates treated it as a write. Only the shell grammar the
+        // plugin actually accepts is mapped, and only operations with a known
+        // effect — anything else stays "unknown" and keeps failing closed.
+        _ => classify_mongo_shell(sql).unwrap_or("unknown"),
     };
 
     // A statement classified as a clean read must not reach a side-effecting
@@ -487,6 +493,180 @@ fn classify_with_profile(sql: &str, profile: &LexProfile) -> &'static str {
         return "unknown";
     }
     kind
+}
+
+/// MongoDB shell operations that only read documents.
+const MONGO_READ_OPS: &[&str] = &[
+    "find",
+    "findOne",
+    "countDocuments",
+    "count",
+    "distinct",
+    "estimatedDocumentCount",
+];
+
+/// MongoDB shell operations that modify documents.
+const MONGO_WRITE_OPS: &[&str] = &[
+    "insertOne",
+    "insertMany",
+    "updateOne",
+    "updateMany",
+    "replaceOne",
+    "deleteOne",
+    "deleteMany",
+];
+
+/// MongoDB shell operations that change collection or index structure.
+const MONGO_DDL_OPS: &[&str] = &["drop", "createCollection", "createIndex", "dropIndex"];
+
+/// Classify a MongoDB shell call (`db.<collection>.<op>(<args>)`), the query
+/// language of the MongoDB driver plugins.
+///
+/// Returns `None` when `query` is not a well-formed shell call, so callers
+/// keep the fail-closed `"unknown"` verdict for anything unrecognised. Only
+/// operations with a known effect are mapped: `find`/`count`/`distinct` are
+/// reads, `aggregate` is a read unless its pipeline has an `$out` or `$merge`
+/// stage (both write to a collection), the CRUD calls are writes and
+/// collection/index management is `"ddl"`. `runCommand` can run any command,
+/// so it stays unrecognised and keeps requiring approval.
+///
+/// The classifier is host-wide and cannot tell which plugin a connection
+/// uses, and the two registered MongoDB plugins parse differently: the
+/// `danielnuld` one takes the LAST dot as the operation separator, while the
+/// `TabularisDB` Atlas one drops `//` comment lines first and takes the FIRST
+/// dot. A payload can therefore show one parser a read and hand the other a
+/// write (`db.users\n//.find(\n.drop()`). So this accepts only statements both
+/// parsers read the same way — see [`mongo_operation`] and the comment and
+/// semicolon rules below — and returns `None` for the rest.
+fn classify_mongo_shell(query: &str) -> Option<&'static str> {
+    // The Atlas plugin strips comment lines before parsing. A leading `//`
+    // line would be dropped there and kept here, so the two parsers would
+    // disagree on what the statement even is. Refuse any `//` line instead.
+    if query
+        .lines()
+        .any(|line| line.trim_start().starts_with("//"))
+    {
+        return None;
+    }
+
+    let trimmed = query.trim();
+    // The Atlas plugin strips EVERY trailing semicolon, the other one exactly
+    // one. Only a single trailing `;` is stripped so the statement is read
+    // identically under both; anything else (`db.c.find({});;`) is refused
+    // rather than read as a statement one plugin would still run.
+    let body = trimmed
+        .strip_suffix(';')
+        .map(str::trim_end)
+        .unwrap_or(trimmed);
+    let rest = body.strip_prefix("db.")?;
+    let open = rest.find('(')?;
+    if !rest.ends_with(')') {
+        return None;
+    }
+
+    let path = rest[..open].trim();
+    let op = mongo_operation(path)?;
+
+    if MONGO_READ_OPS.contains(&op) {
+        return Some("select");
+    }
+    if MONGO_WRITE_OPS.contains(&op) {
+        return Some("write");
+    }
+    if MONGO_DDL_OPS.contains(&op) {
+        return Some("ddl");
+    }
+    if op == "aggregate" {
+        let args = &rest[open + 1..rest.len() - 1];
+        return Some(if mongo_aggregate_writes(args) {
+            "write"
+        } else {
+            "select"
+        });
+    }
+    None
+}
+
+/// The operation named by the text before the first `(` — `find` in
+/// `db.users.find`, `createCollection` in `db.createCollection`.
+///
+/// Returns `None` when the two plugins would not agree on it. They disagree
+/// on where the collection ends: the `danielnuld` plugin takes the LAST dot,
+/// the Atlas plugin the FIRST one. Taking the first dot is the stricter of the
+/// two, so `db.a.b.find({})` reads as the Atlas plugin's unsupported `b.find`
+/// rather than as a read. Whitespace and `/` are rejected outright: neither
+/// plugin's grammar needs them, and whitespace is what lets a stripped comment
+/// line (`db.users\n//.find(` + newline + `.drop()`) move the split point.
+/// A path with no dot is a database-level call, which only
+/// `createCollection` is mapped for.
+fn mongo_operation(path: &str) -> Option<&str> {
+    if path.is_empty() || path.contains(['/', '\\']) || path.chars().any(char::is_whitespace) {
+        return None;
+    }
+    match path.find('.') {
+        Some(dot) => Some(path[dot + 1..].trim()).filter(|op| !op.is_empty()),
+        None => Some(path),
+    }
+}
+
+/// Whether an `aggregate` pipeline writes to another collection through an
+/// `$out` or `$merge` stage.
+///
+/// The plugin feeds these args to `serde_json`, so JSON escapes are decoded
+/// before the stage reaches MongoDB: `{"\u0024out": …}` IS an `$out` stage.
+/// Decoding first is therefore required — a raw text scan would call that
+/// payload a read and let it past the read-only and approval gates.
+///
+/// A payload that does not parse as JSON only runs when the plugin's
+/// `preprocess` turns its shell helpers (`ObjectId(…)`, `ISODate(…)`) into
+/// JSON, and those rewrites never introduce a write stage. Any backslash is
+/// still treated as "write": it may be an escape this scan cannot decode, and
+/// erring towards "write" is the safe direction.
+fn mongo_aggregate_writes(args: &str) -> bool {
+    match serde_json::from_str::<serde_json::Value>(args) {
+        Ok(value) => json_has_write_stage(&value),
+        Err(_) => args.contains('\\') || mongo_aggregate_writes_text(args),
+    }
+}
+
+/// Whether the decoded pipeline has an `$out` or `$merge` key anywhere.
+///
+/// Keys are compared after decoding, so `$output` stays a plain field. A
+/// `$out`-named key elsewhere in the pipeline would be rejected by MongoDB as
+/// an unknown argument, so matching it is the safe direction.
+fn json_has_write_stage(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Object(map) => {
+            map.keys().any(|key| key == "$out" || key == "$merge")
+                || map.values().any(json_has_write_stage)
+        }
+        serde_json::Value::Array(items) => items.iter().any(json_has_write_stage),
+        _ => false,
+    }
+}
+
+/// Text fallback for args that are not valid JSON (the plugin rewrites shell
+/// helpers before parsing, so these can still be executable).
+///
+/// Matches the stage as an object key, quoted or bare (`"$out":`, `$merge :`),
+/// so a field merely *named* like one (`"$output"`) does not count.
+fn mongo_aggregate_writes_text(args: &str) -> bool {
+    ["$out", "$merge"].iter().any(|stage| {
+        args.match_indices(stage).any(|(idx, _)| {
+            let before_is_key_position = args[..idx]
+                .trim_end()
+                .chars()
+                .next_back()
+                .is_some_and(|c| matches!(c, '{' | ',' | '"' | '\''));
+            // A quoted key ends with its closing quote before the colon.
+            let after_is_key_separator = args[idx + stage.len()..]
+                .trim_start()
+                .trim_start_matches(['"', '\''])
+                .trim_start()
+                .starts_with(':');
+            before_is_key_position && after_is_key_separator
+        })
+    })
 }
 
 fn is_create_compound_routine(upper_sql: &str) -> bool {
