@@ -8,6 +8,10 @@ Tabularis supports extending its capabilities via a JSON-RPC based external plug
 
 This guide details how to implement and register a custom external plugin.
 
+AI providers use a separate, declarative `ai-assistant` package contract. See the
+[AI assistant package guide](./ai-assistants/README.md); those packages contain
+HTTP templates and JSON selectors and do not use the executable driver protocol.
+
 Plugins that connect to more than one database engine can opt in to
 [connection metadata discovery](./CONNECTION_METADATA.md) to report capabilities
 and data types for each connection. Existing plugins keep their static manifests.

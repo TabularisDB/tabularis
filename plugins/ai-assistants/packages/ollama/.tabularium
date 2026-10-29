@@ -1,0 +1,63 @@
+{
+  "id": "ollama",
+  "name": "Ollama",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "Ollama AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "none",
+    "default_models": [],
+    "generate": {
+      "requests": [
+        {
+          "url": "http://localhost:{{settings.port}}",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "stream": false,
+            "options": {
+              "temperature": 0.0
+            }
+          },
+          "append_path": "/api/chat"
+        }
+      ],
+      "response": {
+        "path": "/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "http://localhost:{{settings.port}}",
+            "append_path": "/api/tags"
+          },
+          "items_path": "/models",
+          "id_path": "/name"
+        }
+      ],
+      "cache_seconds": 0
+    },
+    "direct": true
+  },
+  "settings": [
+    {
+      "key": "port",
+      "label": "Port",
+      "type": "number",
+      "default": 11434
+    }
+  ],
+  "license": "Apache-2.0"
+}

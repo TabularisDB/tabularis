@@ -1,0 +1,85 @@
+{
+  "id": "minimax",
+  "name": "MiniMax",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "MiniMax AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "MiniMax-M3",
+      "MiniMax-M2.7",
+      "MiniMax-M2.7-highspeed"
+    ],
+    "api_key_env": "MINIMAX_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://api.minimax.io/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.1
+          },
+          "append_path": "/chat/completions"
+        },
+        {
+          "url": "https://api.minimaxi.com/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.1
+          },
+          "append_path": "/chat/completions"
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://api.minimax.io/v1",
+            "append_path": "/models"
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        },
+        {
+          "request": {
+            "url": "https://api.minimaxi.com/v1",
+            "append_path": "/models"
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        }
+      ],
+      "cache_seconds": 0,
+      "fallback": true
+    },
+    "auto_select_priority": 40
+  },
+  "settings": [],
+  "license": "Apache-2.0"
+}

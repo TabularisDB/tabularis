@@ -1,0 +1,72 @@
+{
+  "id": "openai",
+  "name": "OpenAI",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "OpenAI AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.4-nano",
+      "gpt-4o",
+      "gpt-4o-mini",
+      "gpt-oss-120B",
+      "gpt-oss-20B"
+    ],
+    "api_key_env": "OPENAI_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://api.openai.com/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.0
+          },
+          "append_path": "/chat/completions"
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://api.openai.com/v1",
+            "append_path": "/models"
+          },
+          "items_path": "/data",
+          "id_path": "/id",
+          "filters": [
+            {
+              "path": "/id",
+              "prefixes": [
+                "gpt",
+                "o1"
+              ]
+            }
+          ]
+        }
+      ],
+      "cache_seconds": 86400
+    },
+    "auto_select_priority": 10
+  },
+  "settings": [],
+  "license": "Apache-2.0"
+}

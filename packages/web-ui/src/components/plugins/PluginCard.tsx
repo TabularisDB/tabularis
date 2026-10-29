@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react';
-import {BookOpen, Check, Download, ExternalLink, Home, Palette} from 'lucide-react';
+import {BookOpen, Check, Download, ExternalLink, Home, Palette, Sparkles} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
 import clsx from 'clsx';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
@@ -86,7 +86,13 @@ export function PluginCard({
             : null;
     const isTheme = kind === 'theme';
     // Themes get a fixed palette tile: they never carry a driver manifest colour.
-    const fallbackIcon = isTheme ? <Palette size={20} /> : getDriverIcon(manifest, 20);
+    const fallbackIcon = isTheme ? (
+        <Palette size={20} />
+    ) : kind === 'ai-assistant' ? (
+        <Sparkles size={20} />
+    ) : (
+        getDriverIcon(manifest, 20)
+    );
     const icon =
         (!isTheme && manifest?.icon) || !iconUrl ? (
             fallbackIcon
@@ -94,7 +100,13 @@ export function PluginCard({
             <RegistryDriverIcon key={iconUrl} src={iconUrl} size={20} fallback={fallbackIcon} />
         );
     const iconColor = isTheme ? THEME_TILE_COLOR : getDriverColor(manifest);
-    const updateLabel = t(isTheme ? 'update.badges.themeUpdate' : 'update.badges.driverUpdate');
+    const updateLabel = t(
+        isTheme
+            ? 'update.badges.themeUpdate'
+            : kind === 'ai-assistant'
+              ? 'settings.plugins.kindAiAssistant'
+              : 'update.badges.driverUpdate',
+    );
     const hasFooter = !!(actions || secondaryActions || secondaryHomepage || onShowReadme);
 
     return (

@@ -664,6 +664,7 @@ fn registers_ai_commands_with_explicit_authorization() {
         "check_ai_key",
         "check_ai_key_status",
         "get_ai_models",
+        "get_ai_providers",
         "generate_ai_query",
         "explain_ai_query",
         "analyze_ai_explain_plan",
@@ -687,6 +688,11 @@ fn registers_ai_commands_with_explicit_authorization() {
 
     let schema_context =
         RpcCommand::parse("get_ai_schema_context").expect("missing get_ai_schema_context");
+    let migration = RpcCommand::parse("migrate_ai_providers").expect("missing AI migration");
+    assert_eq!(
+        migration.metadata().authorization,
+        AuthorizationLevel::LocalAdmin
+    );
     assert_eq!(
         schema_context.metadata().authorization,
         AuthorizationLevel::Database

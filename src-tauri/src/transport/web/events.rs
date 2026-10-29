@@ -229,9 +229,10 @@ impl WebEventBus {
             | "export_progress"
             | "connection-metadata-invalidated"
             | "tabularis://plugin-activated" => Some(AuthorizationLevel::Database),
-            "theme-catalog-changed" | "ui-state://changed" | "tabularis://plugin-installed" => {
-                Some(AuthorizationLevel::Session)
-            }
+            "theme-catalog-changed"
+            | "ui-state://changed"
+            | "tabularis://plugin-installed"
+            | "tabularis://ai-providers-changed" => Some(AuthorizationLevel::Session),
             "plugin-install-progress" | "tabularis://plugin-install" => {
                 Some(AuthorizationLevel::Sensitive)
             }

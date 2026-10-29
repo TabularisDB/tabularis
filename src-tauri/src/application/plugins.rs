@@ -135,10 +135,22 @@ pub async fn fetch_plugin_registry(
         .into_iter()
         // Unknown or ambiguous kinds have no install path; keep them out of the
         // Plugin Center so the kind filter only ever offers drivers and themes.
-        .filter(|plugin| matches!(plugin.kind.as_deref(), None | Some("driver") | Some("theme")))
+        .filter(|plugin| {
+            matches!(
+                plugin.kind.as_deref(),
+                None | Some("driver") | Some("theme") | Some("ai-assistant")
+            )
+        })
         .map(|plugin| {
             let (installed_version, platform) = if plugin.kind.as_deref() == Some("theme") {
                 (themes.version_of(&plugin.id), "universal")
+            } else if plugin.kind.as_deref() == Some(crate::ai_assistants::KIND) {
+                (
+                    crate::ai_assistants::read_manifest(&runtime.paths.plugins_dir(), &plugin.id)
+                        .ok()
+                        .map(|manifest| manifest.version),
+                    "universal",
+                )
             } else {
                 (
                     installed
@@ -198,6 +210,15 @@ pub async fn install_plugin(
     let platform = registry::get_current_platform();
     let (base, has_selected_registry) =
         install_registry_base_url(&config, registry_url.as_deref())?;
+    if crate::plugins::tabularium::fetch_plugin_detail(&base, &plugin_id)
+        .await
+        .is_ok_and(|detail| detail.kind.as_deref() == Some(crate::ai_assistants::KIND))
+    {
+        crate::ai_assistants::install(runtime, &plugin_id, version.as_deref(), &base, cancellation)
+            .await?;
+        crate::ai::clear_models_cache(runtime)?;
+        return Ok(());
+    }
     let (download_url, expected_sha256, target_version) = if let Some(result) =
         crate::plugins::compat::resolve_static_asset(
             &base,
@@ -262,6 +283,11 @@ pub fn cancel_plugin_install(plugin_id: String) -> Result<bool, String> {
 
 pub async fn uninstall_plugin(runtime: &RuntimeContext, plugin_id: String) -> Result<(), String> {
     validate_plugin_id(&plugin_id)?;
+    if crate::ai_assistants::read_manifest(&runtime.paths.plugins_dir(), &plugin_id).is_ok() {
+        crate::ai_assistants::uninstall(runtime, &plugin_id)?;
+        crate::ai::clear_models_cache(runtime)?;
+        return Ok(());
+    }
     crate::drivers::registry::unregister_driver(&plugin_id).await;
     crate::drivers::registry::unregister_manifest(&plugin_id).await;
     installer::uninstall_from(&runtime.paths.plugins_dir(), &plugin_id)
@@ -321,6 +347,13 @@ pub async fn fetch_plugin_preview(
         crate::theme_packages::registry_key(&base)?;
         (
             InstalledThemes::load(runtime).version_of(&slug),
+            "universal".to_string(),
+        )
+    } else if plugin.kind.as_deref() == Some(crate::ai_assistants::KIND) {
+        (
+            crate::ai_assistants::read_manifest(&runtime.paths.plugins_dir(), &slug)
+                .ok()
+                .map(|manifest| manifest.version),
             "universal".to_string(),
         )
     } else {

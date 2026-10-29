@@ -5,6 +5,30 @@ use std::collections::HashMap;
 use tauri::{AppHandle, Manager};
 
 #[tauri::command]
+pub async fn get_ai_providers(app: AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<std::sync::Arc<crate::runtime::state::ApplicationState>>();
+    crate::application::ai::execute(
+        &app.state::<RuntimeContext>(),
+        &state,
+        None,
+        crate::application::ai::AiCommand::GetProviders,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn migrate_ai_providers(app: AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<std::sync::Arc<crate::runtime::state::ApplicationState>>();
+    crate::application::ai::execute(
+        &app.state::<RuntimeContext>(),
+        &state,
+        None,
+        crate::application::ai::AiCommand::MigrateProviders,
+    )
+    .await
+}
+
+#[tauri::command]
 pub fn clear_ai_models_cache(app: AppHandle) -> Result<(), String> {
     clear_models_cache(&app.state::<RuntimeContext>())
 }

@@ -68,6 +68,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'save_config') {
                 return Promise.resolve(undefined);
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -190,6 +200,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'save_config') {
                 return Promise.resolve(undefined);
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -232,6 +252,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({language: 'it'});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -248,9 +278,8 @@ describe('SettingsProvider', () => {
 
         await waitFor(() => {
             expect(mockChangeLanguage).toHaveBeenCalledWith('it');
+            expect(result.current.isLoading).toBe(false);
         });
-
-        expect(result.current.isLoading).toBe(false);
         expect(result.current.isLanguageReady).toBe(false);
         expect(result.current.isLanguageSettled).toBe(false);
         expect(result.current.settings.language).toBe('it');
@@ -270,6 +299,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({language: 'it'});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -302,6 +341,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({language: 'it'});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -361,6 +410,16 @@ describe('SettingsProvider', () => {
                 expect(args?.config).toHaveProperty('language', 'en');
                 return Promise.resolve(undefined);
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -397,6 +456,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({aiEnabled: null});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -423,6 +492,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({aiEnabled: true});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 if (args?.provider === 'openai') return Promise.resolve(true);
                 return Promise.resolve(false);
@@ -545,6 +624,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'save_config') {
                 return Promise.resolve(undefined);
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }

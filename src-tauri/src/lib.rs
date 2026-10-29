@@ -4,6 +4,7 @@
 #![cfg_attr(not(feature = "desktop"), allow(unused_imports, dead_code))]
 
 pub mod ai;
+pub mod ai_assistants;
 pub mod ai_activity;
 #[cfg(test)]
 pub mod ai_activity_tests;

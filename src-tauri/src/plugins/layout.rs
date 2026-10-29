@@ -16,7 +16,7 @@ pub(crate) fn kind_directory(kind: &str) -> &str {
 
 /// Containers must never be mistaken for removable flat package bundles.
 pub(crate) fn is_kind_directory(name: &str) -> bool {
-    ["theme", "driver"]
+    ["theme", "driver", "ai-assistant"]
         .iter()
         .any(|kind| kind_directory(kind) == name)
 }

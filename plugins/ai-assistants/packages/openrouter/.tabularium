@@ -1,0 +1,78 @@
+{
+  "id": "openrouter",
+  "name": "OpenRouter",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "OpenRouter AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "openai/gpt-5.5",
+      "openai/gpt-5.4",
+      "openai/gpt-5.4-mini",
+      "openai/gpt-4o",
+      "openai/gpt-4o-mini",
+      "google/gemini-3-pro-preview",
+      "google/gemini-3-flash-preview",
+      "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash",
+      "google/gemini-2.5-flash-lite",
+      "google/gemini-2.0-flash-001",
+      "anthropic/claude-fable-5",
+      "anthropic/claude-opus-4-8",
+      "anthropic/claude-sonnet-4-6",
+      "anthropic/claude-haiku-4-5",
+      "deepseek/deepseek-v3.2",
+      "openai/gpt-oss-120b:free",
+      "z-ai/glm-4.5-air:free"
+    ],
+    "api_key_env": "OPENROUTER_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://openrouter.ai/api/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.0
+          },
+          "append_path": "/chat/completions",
+          "headers": {
+            "HTTP-Referer": "https://github.com/TabularisDB/tabularis",
+            "X-Title": "Tabularis"
+          }
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://openrouter.ai/api/v1",
+            "append_path": "/models",
+            "authenticated": false
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        }
+      ],
+      "cache_seconds": 86400
+    },
+    "auto_select_priority": 30
+  },
+  "settings": [],
+  "license": "Apache-2.0"
+}

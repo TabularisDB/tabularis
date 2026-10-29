@@ -65,6 +65,7 @@ export interface EventMap {
     >;
     'tabularis://plugin-activated': EventDefinition<{pluginId: string}, 'database'>;
     'tabularis://plugin-installed': EventDefinition<{slug: string}, 'session'>;
+    'tabularis://ai-providers-changed': EventDefinition<null, 'session'>;
 }
 
 export type EventName = keyof EventMap;
@@ -111,4 +112,5 @@ export const EVENT_AUTHORIZATION = {
     'connection-metadata-invalidated': 'database',
     'tabularis://plugin-activated': 'database',
     'tabularis://plugin-installed': 'session',
+    'tabularis://ai-providers-changed': 'session',
 } satisfies {[K in EventName]: EventAuthorization<K>};

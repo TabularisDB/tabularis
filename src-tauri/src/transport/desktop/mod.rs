@@ -509,6 +509,8 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             ai::generate_tab_rename,
             ai::suggest_table_name,
             ai::get_ai_models,
+            ai::get_ai_providers,
+            ai::migrate_ai_providers,
             chatgpt::get_chatgpt_session,
             chatgpt::sign_in_chatgpt,
             chatgpt::cancel_chatgpt_sign_in,

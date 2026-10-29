@@ -140,6 +140,7 @@ describe('plugins', () => {
             expect(pluginKind({kind: null})).toBe('driver');
             expect(pluginKind({kind: 'driver'})).toBe('driver');
             expect(pluginKind({kind: 'theme'})).toBe('theme');
+            expect(pluginKind({kind: 'ai-assistant'})).toBe('ai-assistant');
             expect(pluginKind({kind: 'unsupported:ambiguous-kind'})).toBe('driver');
         });
 
@@ -152,6 +153,8 @@ describe('plugins', () => {
 
         it('falls back to "all" for unknown URL values', () => {
             expect(parsePluginKindFilter('theme')).toBe('theme');
+            expect(parsePluginKindFilter('ai-assistant')).toBe('ai-assistant');
+            expect(matchesPluginKind({kind: 'ai-assistant'}, 'driver')).toBe(false);
             expect(parsePluginKindFilter('driver')).toBe('driver');
             expect(parsePluginKindFilter(null)).toBe('all');
             expect(parsePluginKindFilter('plugin')).toBe('all');

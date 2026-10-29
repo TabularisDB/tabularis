@@ -1,10 +1,31 @@
+import {MemoryRouter} from 'react-router-dom';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {AiTab} from '@/components/settings/AiTab';
 
-const {invoke, updateSetting} = vi.hoisted(() => ({
+const {invoke, updateSetting, providers} = vi.hoisted(() => ({
+    providers: [
+        {
+            id: 'openrouter',
+            name: 'OpenRouter',
+            version: '1.0.0',
+            kind: 'ai-assistant',
+            description: 'AI',
+            settings: [],
+            ai_assistant: {api_version: 1, authentication: 'api-key', default_models: []},
+        },
+    ],
     invoke: vi.fn(),
     updateSetting: vi.fn(),
+}));
+vi.mock('@/hooks/useAiProviders', () => ({
+    useAiProviders: () => ({
+        providers,
+        pendingMigration: [],
+        error: null,
+        loading: false,
+        retryMigration: vi.fn(),
+    }),
 }));
 vi.unmock('lucide-react');
 vi.mock('@tauri-apps/api/core', () => ({invoke}));
@@ -22,6 +43,7 @@ vi.mock('react-i18next', () => ({
 describe('AiTab proxy configuration', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        providers.splice(1);
         invoke.mockImplementation(async (cmd: string) => {
             if (cmd === 'check_ai_key_status') return {configured: true, fromEnv: false};
             if (cmd === 'get_ai_models') return {openrouter: []};
@@ -31,7 +53,11 @@ describe('AiTab proxy configuration', () => {
     });
 
     it('keeps a blank custom endpoint editable and persists it after entering a host', async () => {
-        render(<AiTab />);
+        render(
+            <MemoryRouter>
+                <AiTab />
+            </MemoryRouter>,
+        );
         await screen.findByText('settings.ai.configured');
         fireEvent.click(screen.getByRole('button', {name: 'settings.network.modeCustom'}));
         const host = await screen.findByPlaceholderText('127.0.0.1');
@@ -54,6 +80,18 @@ describe('AiTab proxy configuration', () => {
         fireEvent.click(screen.getByRole('button', {name: 'settings.network.modeInherit'}));
         expect(screen.queryByPlaceholderText('127.0.0.1')).not.toBeInTheDocument();
         expect(updateSetting).toHaveBeenLastCalledWith('aiProviderProxies', {});
+    });
+    it('selects an installed provider without a hardcoded provider entry', async () => {
+        providers.push({...providers[0], id: 'community-ai', name: 'Community AI'});
+        render(
+            <MemoryRouter>
+                <AiTab />
+            </MemoryRouter>,
+        );
+        fireEvent.click(screen.getByRole('button', {name: 'Community AI'}));
+        expect(updateSetting).toHaveBeenCalledWith('aiProvider', 'community-ai');
+        expect(updateSetting).toHaveBeenCalledWith('aiModel', '');
+        expect(screen.queryByRole('button', {name: 'Anthropic'})).not.toBeInTheDocument();
     });
 });
 

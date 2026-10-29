@@ -747,7 +747,11 @@
       "customOpenaiModelDesc": "OpenAI 호환 서비스가 제공하는 모델 이름을 입력하세요.",
       "customOpenaiModelHelp": "사용 중인 OpenAI 호환 제공자의 정확한 모델 이름을 입력하세요.",
       "promptResetSuccess": "프롬프트가 기본값으로 재설정되었습니다",
-      "apiKeySaved": "API 키가 안전하게 저장되었습니다"
+      "apiKeySaved": "API 키가 안전하게 저장되었습니다",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Retry downloads",
+      "pluginMigration": "Restoring your AI providers: {{providers}}. Downloads retry after a network failure.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration."
     },
     "updates": "업데이트",
     "openSourceLibraries": "오픈소스 라이브러리",
@@ -936,7 +940,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "키보드 단축키",

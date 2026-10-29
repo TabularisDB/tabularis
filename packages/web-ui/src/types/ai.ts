@@ -10,6 +10,28 @@ export interface AiKeyStatus {
 
 export type AiProviderModels = Record<string, string[]>;
 
+export interface AiAssistantManifest {
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+    kind: 'ai-assistant';
+    ai_assistant: {
+        api_version: 1;
+        authentication: 'api-key' | 'none';
+        api_key_env?: string | null;
+        optional_api_key?: boolean;
+        auto_select_priority?: number | null;
+        default_models: string[];
+    };
+    settings: import('@/types/plugins').PluginSettingDefinition[];
+}
+
+export interface AiProviderCatalog {
+    providers: AiAssistantManifest[];
+    pendingMigration: string[];
+}
+
 export interface AiGenerateRequest {
     provider: string;
     model: string;
