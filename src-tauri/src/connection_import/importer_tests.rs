@@ -9,9 +9,12 @@ use std::path::PathBuf;
 use super::beekeeper::BeekeeperImporter;
 use super::datagrip::DataGripImporter;
 use super::dbeaver::DBeaverImporter;
+use super::heidisql::HeidiSqlImporter;
 use super::sequelace::SequelAceImporter;
 use super::tableplus::TablePlusImporter;
-use super::ForeignAppImporter;
+use super::{
+    importer_by_id, ForeignAppImporter, ForeignImportError, ImportEnvelope, ImportedConnection,
+};
 
 fn write(path: &PathBuf, contents: &str) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -326,4 +329,221 @@ async fn beekeeper_reads_sqlite() {
     assert_eq!(c.port, 3307);
     assert_eq!(c.database, "shop");
     assert_eq!(c.username, "root");
+}
+
+const HEIDISQL_EXPORT: &str = r#"FontName<|||>1<|||>Tahoma
+Servers\Customers\Folder<|||>3<|||>1
+Servers\Customers\Production\Host<|||>1<|||>db.example.com
+Servers\Customers\Production\Port<|||>3<|||>3306
+Servers\Customers\Production\User<|||>1<|||>app
+Servers\Customers\Production\Password<|||>1<|||>5B2A7C41D3
+Servers\Customers\Production\NetType<|||>3<|||>0
+Servers\Customers\Production\Databases<|||>1<|||>shop;billing
+Servers\Customers\EU\Folder<|||>3<|||>1
+Servers\Customers\EU\Analytics\Host<|||>1<|||>127.0.0.1
+Servers\Customers\EU\Analytics\Port<|||>3<|||>5432
+Servers\Customers\EU\Analytics\User<|||>1<|||>reader
+Servers\Customers\EU\Analytics\NetType<|||>3<|||>9
+Servers\Customers\EU\Analytics\Databases<|||>1<|||>warehouse
+Servers\Customers\EU\Analytics\SSHtunnelHost<|||>1<|||>bastion.example.com
+Servers\Customers\EU\Analytics\SSHtunnelHostPort<|||>3<|||>2222
+Servers\Customers\EU\Analytics\SSHtunnelUser<|||>1<|||>deploy
+Servers\Customers\EU\Analytics\SSHtunnelPrivateKey<|||>1<|||>/keys/id_ed25519
+Servers\Jump host\Host<|||>1<|||>10.0.0.5
+Servers\Jump host\NetType<|||>3<|||>2
+Servers\Jump host\SSHtunnelHost<|||>1<|||>10.0.0.1
+Servers\Jump host\SSHtunnelUser<|||>1<|||>ops
+Servers\Reports\Host<|||>1<|||>10.0.0.7
+Servers\Reports\Port<|||>3<|||>1433
+Servers\Reports\User<|||>1<|||>sa
+Servers\Reports\NetType<|||>3<|||>4
+Servers\Local file\Host<|||>1<|||>C:\data\app.db|C:\data\extra.db
+Servers\Local file\NetType<|||>3<|||>10
+Servers\Pipe\Host<|||>1<|||>.
+Servers\Pipe\NetType<|||>3<|||>1
+Servers\Warehouse\Host<|||>1<|||>10.0.0.9
+Servers\Warehouse\NetType<|||>3<|||>14
+"#;
+
+async fn import_heidisql(
+    contents: &str,
+    include_passwords: bool,
+) -> Result<ImportEnvelope, ForeignImportError> {
+    let tmp = tempfile::tempdir().unwrap();
+    let file = tmp.path().join("portable_settings.txt");
+    write(&file, contents);
+    HeidiSqlImporter::default()
+        .import(include_passwords, Some(&file))
+        .await
+}
+
+fn heidisql_connection<'a>(env: &'a ImportEnvelope, name: &str) -> &'a ImportedConnection {
+    env.connections
+        .iter()
+        .find(|c| c.name == name)
+        .unwrap_or_else(|| panic!("no imported connection named {name}"))
+}
+
+#[tokio::test]
+async fn heidisql_parses_sessions_into_connections() {
+    let env = import_heidisql(HEIDISQL_EXPORT, false).await.unwrap();
+    assert_eq!(env.source_name, "HeidiSQL");
+
+    let prod = heidisql_connection(&env, "Production");
+    assert_eq!(prod.host, "db.example.com");
+    assert_eq!(prod.port, 3306);
+    assert_eq!(prod.username, "app");
+    assert_eq!(prod.database, "shop");
+    assert_eq!(prod.driver_label, "MySQL");
+    assert_eq!(prod.group_name.as_deref(), Some("Customers"));
+    assert!(prod.ssh.is_none());
+
+    let top_level = heidisql_connection(&env, "Reports");
+    assert!(top_level.group_name.is_none());
+}
+
+#[tokio::test]
+async fn heidisql_treats_folder_entries_as_groups_not_connections() {
+    let env = import_heidisql(HEIDISQL_EXPORT, false).await.unwrap();
+
+    let analytics = heidisql_connection(&env, "Analytics");
+    assert_eq!(analytics.group_name.as_deref(), Some("EU"));
+    let mut groups = env.group_names.clone();
+    groups.sort_unstable();
+    assert_eq!(groups, ["Customers", "EU"]);
+    assert!(env
+        .connections
+        .iter()
+        .all(|c| c.name != "EU" && c.name != "Customers"));
+}
+
+#[tokio::test]
+async fn heidisql_maps_net_types_to_drivers() {
+    let env = import_heidisql(HEIDISQL_EXPORT, false).await.unwrap();
+
+    let analytics = heidisql_connection(&env, "Analytics");
+    assert_eq!(analytics.driver_label, "PostgreSQL");
+    assert_eq!(analytics.port, 5432);
+    assert_eq!(analytics.database, "warehouse");
+
+    let reports = heidisql_connection(&env, "Reports");
+    assert_eq!(reports.driver_label, "SQL Server");
+    assert_eq!(reports.host, "10.0.0.7");
+    assert_eq!(reports.port, 1433);
+    assert_eq!(reports.username, "sa");
+
+    let local = heidisql_connection(&env, "Local file");
+    assert_eq!(local.driver_label, "SQLite");
+    assert_eq!(local.database, r"C:\data\app.db");
+    assert!(local.host.is_empty());
+    assert_eq!(local.port, 0);
+}
+
+#[tokio::test]
+async fn heidisql_skips_unsupported_net_types() {
+    let env = import_heidisql(HEIDISQL_EXPORT, false).await.unwrap();
+
+    let mut names: Vec<&str> = env.connections.iter().map(|c| c.name.as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(
+        names,
+        [
+            "Analytics",
+            "Jump host",
+            "Local file",
+            "Production",
+            "Reports"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn heidisql_imports_ssh_tunnel_settings() {
+    let env = import_heidisql(HEIDISQL_EXPORT, false).await.unwrap();
+
+    let keyed = heidisql_connection(&env, "Analytics").ssh.as_ref().unwrap();
+    assert_eq!(keyed.host, "bastion.example.com");
+    assert_eq!(keyed.port, Some(2222));
+    assert_eq!(keyed.username, "deploy");
+    assert_eq!(keyed.auth_type, "ssh_key");
+    assert_eq!(keyed.private_key_path.as_deref(), Some("/keys/id_ed25519"));
+
+    let jump = heidisql_connection(&env, "Jump host");
+    assert_eq!(jump.driver_label, "MySQL");
+    assert_eq!(jump.port, 3306);
+    let ssh = jump.ssh.as_ref().unwrap();
+    assert_eq!(ssh.host, "10.0.0.1");
+    assert_eq!(ssh.port, None);
+    assert_eq!(ssh.username, "ops");
+    assert_eq!(ssh.auth_type, "password");
+    assert!(ssh.private_key_path.is_none());
+}
+
+#[tokio::test]
+async fn heidisql_never_imports_passwords() {
+    let env = import_heidisql(HEIDISQL_EXPORT, true).await.unwrap();
+
+    assert_eq!(env.connections.len(), 5);
+    assert!(env.credentials_by_index.is_empty());
+    assert!(!env.credentials_aborted);
+}
+
+#[tokio::test]
+async fn heidisql_reads_bom_and_crlf_exports() {
+    let export = format!("\u{feff}{}", HEIDISQL_EXPORT.replace('\n', "\r\n"));
+    let env = import_heidisql(&export, false).await.unwrap();
+
+    assert_eq!(env.connections.len(), 5);
+    assert_eq!(heidisql_connection(&env, "Production").database, "shop");
+}
+
+#[tokio::test]
+async fn heidisql_reads_ports_whatever_the_integer_type_code() {
+    for type_code in ["3", "4"] {
+        let export = format!(
+            "Servers\\Dev\\Host<|||>1<|||>10.0.0.2\nServers\\Dev\\Port<|||>{type_code}<|||>3307\n"
+        );
+        let env = import_heidisql(&export, false).await.unwrap();
+        assert_eq!(env.connections[0].port, 3307, "type code {type_code}");
+    }
+}
+
+#[tokio::test]
+async fn heidisql_rejects_files_that_are_not_settings_exports() {
+    let err = import_heidisql("just some notes\n", false)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, ForeignImportError::UnsupportedFormat(_)),
+        "{err:?}"
+    );
+
+    let err = import_heidisql("FontName<|||>1<|||>Tahoma\n", false)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, ForeignImportError::NoConnectionsFound),
+        "{err:?}"
+    );
+}
+
+#[tokio::test]
+async fn heidisql_requires_a_picked_file() {
+    let err = HeidiSqlImporter::default()
+        .import(false, None)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, ForeignImportError::FileNotFound(_)),
+        "{err:?}"
+    );
+}
+
+#[tokio::test]
+async fn heidisql_is_registered_as_a_file_importer() {
+    let importer = importer_by_id("heidisql").expect("heidisql is registered");
+    assert_eq!(importer.display_name(), "HeidiSQL");
+    assert_eq!(importer.import_file_types(), Some(vec!["txt"]));
+    assert!(!importer.is_available().await);
+    assert!(!importer.reads_passwords_from_keychain());
 }
