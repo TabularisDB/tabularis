@@ -1089,12 +1089,15 @@ describe('connections', () => {
             expect(effectiveLocalSocketPath({unix_socket_path: '   '})).toBeNull();
         });
 
-        it('should return null while an SSH or K8s tunnel is enabled', () => {
+        it('should return null while an SSH, K8s, or AWS SSM tunnel is enabled', () => {
             expect(
                 effectiveLocalSocketPath({unix_socket_path: '/tmp/mysql.sock', ssh_enabled: true}),
             ).toBeNull();
             expect(
                 effectiveLocalSocketPath({unix_socket_path: '/tmp/mysql.sock', k8s_enabled: true}),
+            ).toBeNull();
+            expect(
+                effectiveLocalSocketPath({unix_socket_path: '/tmp/mysql.sock', ssm_enabled: true}),
             ).toBeNull();
         });
     });
@@ -1175,6 +1178,24 @@ describe('connections', () => {
             const result = validateConnectionParams(params);
             expect(result.isValid).toBe(false);
             expect(result.error).toBe('Host is required for remote databases');
+        });
+
+        it('validateConnectionParams should require host when socket is set but K8s or SSM tunnel is enabled', () => {
+            const k8sParams: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+                k8s_enabled: true,
+            };
+            expect(validateConnectionParams(k8sParams).isValid).toBe(false);
+
+            const ssmParams: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+                ssm_enabled: true,
+            };
+            expect(validateConnectionParams(ssmParams).isValid).toBe(false);
         });
 
         it('connectionSubtitle should show the socket path instead of host:port', () => {

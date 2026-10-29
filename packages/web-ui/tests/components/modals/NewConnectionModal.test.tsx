@@ -2055,6 +2055,27 @@ describe('NewConnectionModal keychain default', () => {
         expect(screen.queryByPlaceholderText('3306')).not.toBeInTheDocument();
     });
 
+    it('hides the socket endpoint selector when AWS SSM tunnel is active', async () => {
+        vi.mocked(invoke).mockImplementation((command) =>
+            command === 'get_connection_by_id'
+                ? Promise.reject(new Error('use initial params'))
+                : Promise.resolve('ok'),
+        );
+        renderModal(
+            createInitialConnection({
+                host: 'db.internal',
+                port: 3306,
+                unix_socket_path: '/var/run/mysqld/mysqld.sock',
+                ssm_enabled: true,
+            }),
+        );
+
+        // When SSM is enabled (TCP-only forward), canUseSocket is false,
+        // so the socket selector must be hidden and Host/Port must be visible
+        expect(screen.queryByRole('button', {name: 'newConnection.socketPath'})).not.toBeInTheDocument();
+        expect(screen.getByPlaceholderText('localhost')).toBeInTheDocument();
+    });
+
     it("keeps an existing connection's stored keychain setting", async () => {
         renderModal(
             createInitialConnection({

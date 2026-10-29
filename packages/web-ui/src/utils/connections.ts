@@ -192,17 +192,18 @@ export function hasUnixSockets(
 
 /**
  * The local Unix socket path in effect for a connection: set and non-empty,
- * with no SSH or Kubernetes tunnel overriding it (the tunnel owns the route
- * to the database, so the socket is ignored while one is enabled).
- * @param params - Connection parameters (any object carrying the three fields)
+ * with no SSH, Kubernetes or AWS SSM tunnel overriding it (the tunnel owns the
+ * route to the database, so the socket is ignored while one is enabled).
+ * @param params - Connection parameters (any object carrying the tunnel/socket fields)
  * @returns The trimmed socket path, or null when none applies
  */
 export function effectiveLocalSocketPath(params: {
     unix_socket_path?: string;
     ssh_enabled?: boolean;
     k8s_enabled?: boolean;
+    ssm_enabled?: boolean;
 }): string | null {
-    if (params.ssh_enabled || params.k8s_enabled) {
+    if (params.ssh_enabled || params.k8s_enabled || params.ssm_enabled) {
         return null;
     }
     const path = params.unix_socket_path?.trim();
@@ -293,6 +294,7 @@ export function validateConnectionParams(
     const isBuiltInSocketDriver = params.driver === 'mysql' || params.driver === 'postgres';
     const socketDestination =
         !params.k8s_enabled &&
+        !params.ssm_enabled &&
         !!params.unix_socket_path?.trim() &&
         (params.ssh_enabled ||
             capabilities?.unix_socket === true ||

@@ -648,16 +648,17 @@ export const NewConnectionModal = ({
     // A local socket needs the driver capability and a platform with Unix
     // sockets; through SSH the server dials it, so Windows can use that too.
     const supportsUnixSocket = activeDriver?.capabilities?.unix_socket === true && hasUnixSockets();
-    const tunnelEnabled = !!formData.ssh_enabled || !!formData.k8s_enabled;
+    const tunnelEnabled = !!formData.ssh_enabled || !!formData.k8s_enabled || !!formData.ssm_enabled;
     const socketPathSet = !!formData.unix_socket_path?.trim();
     const canUseSocket =
         !isUriPassthrough &&
         (supportsUnixSocket || !!formData.ssh_enabled) &&
-        !formData.k8s_enabled;
+        !formData.k8s_enabled &&
+        !formData.ssm_enabled;
     const socketMode = canUseSocket && formData.unix_socket_path !== undefined;
     // The socket replaces host:port at the destination: dialed by the SSH
-    // server when SSH is enabled, locally otherwise (capability-gated). A K8s
-    // tunnel ignores it.
+    // server when SSH is enabled, locally otherwise (capability-gated). K8s
+    // and AWS SSM tunnels ignore it (TCP forwards only).
     const usesForwardSocket = !!formData.ssh_enabled && socketPathSet;
     const usesLocalSocket = supportsUnixSocket && !tunnelEnabled && socketPathSet;
     const usesSocket = usesForwardSocket || usesLocalSocket;
@@ -2604,11 +2605,14 @@ export const NewConnectionModal = ({
             );
 
             const driverChanged = newDriver !== driver;
-            // The socket field is hidden on Windows (unless the SSH server dials it),
-            // so an imported path would be saved with no way to see or fix it.
+            // The socket field is hidden on Windows (unless the SSH server dials it)
+            // or when a TCP-only tunnel (K8s, SSM) is active, so an imported path
+            // would be saved with no way to see or fix it.
             const socketFieldAvailable =
                 parsedDriver?.capabilities?.unix_socket === true &&
-                (hasUnixSockets() || !!formData.ssh_enabled);
+                (hasUnixSockets() || !!formData.ssh_enabled) &&
+                !formData.k8s_enabled &&
+                !formData.ssm_enabled;
             const parsedFields: Partial<ConnectionParams> = {
                 driver: newDriver,
                 host: parsed.host || 'localhost',
