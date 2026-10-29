@@ -238,3 +238,96 @@ fn ssh_profile_create_and_update_keep_plaintext_secrets_private() {
         .unwrap()
         .contains("stored-password"));
 }
+
+fn base_params() -> ConnectionParams {
+    ConnectionParams {
+        driver: "mysql".to_string(),
+        host: Some("localhost".to_string()),
+        port: Some(3306),
+        database: DatabaseSelection::Single("testdb".to_string()),
+        username: Some("root".to_string()),
+        ssh_enabled: Some(true),
+        ssh_host: Some("bastion.example.com".to_string()),
+        ssh_port: Some(22),
+        ssh_user: Some("jump".to_string()),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn forward_destination_defaults_to_tcp() {
+    let destination = ssh_forward_destination(&base_params());
+    assert_eq!(
+        destination,
+        crate::ssh_tunnel::SshForwardDestination::Tcp {
+            host: "localhost".to_string(),
+            port: 3306,
+        }
+    );
+}
+
+#[test]
+fn forward_destination_ignores_blank_socket_path() {
+    let params = ConnectionParams {
+        unix_socket_path: Some("   ".to_string()),
+        ..base_params()
+    };
+    assert!(matches!(
+        ssh_forward_destination(&params),
+        crate::ssh_tunnel::SshForwardDestination::Tcp { .. }
+    ));
+}
+
+#[test]
+fn forward_destination_uses_trimmed_socket_path() {
+    let params = ConnectionParams {
+        unix_socket_path: Some(" /var/run/mysqld/mysqld.sock ".to_string()),
+        ..base_params()
+    };
+    assert_eq!(
+        ssh_forward_destination(&params),
+        crate::ssh_tunnel::SshForwardDestination::UnixSocket {
+            path: "/var/run/mysqld/mysqld.sock".to_string(),
+        }
+    );
+}
+
+#[test]
+fn tunnel_params_keep_ssl_mode_for_tcp_destination() {
+    let params = ConnectionParams {
+        ssl_mode: Some("require".to_string()),
+        ..base_params()
+    };
+    let destination = ssh_forward_destination(&params);
+    let resolved = params_through_tunnel(&params, 15000, &destination);
+    assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+    assert_eq!(resolved.port, Some(15000));
+    assert_eq!(resolved.ssl_mode.as_deref(), Some("require"));
+}
+
+#[test]
+fn tunnel_params_disable_ssl_for_socket_destination() {
+    let params = ConnectionParams {
+        ssl_mode: Some("require".to_string()),
+        unix_socket_path: Some("/tmp/db.sock".to_string()),
+        ..base_params()
+    };
+    let destination = ssh_forward_destination(&params);
+    let resolved = params_through_tunnel(&params, 15000, &destination);
+    assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+    assert_eq!(resolved.port, Some(15000));
+    assert_eq!(resolved.ssl_mode.as_deref(), Some("disable"));
+}
+
+#[test]
+fn tunnel_params_clear_local_socket_path() {
+    // A leftover local socket path would make the drivers dial the socket
+    // instead of the tunnel's forwarded local port.
+    let params = ConnectionParams {
+        unix_socket_path: Some("/tmp/db.sock".to_string()),
+        ..base_params()
+    };
+    let destination = ssh_forward_destination(&params);
+    let resolved = params_through_tunnel(&params, 15000, &destination);
+    assert_eq!(resolved.unix_socket_path, None);
+}

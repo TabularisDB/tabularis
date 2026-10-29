@@ -2015,6 +2015,208 @@ describe('NewConnectionModal keychain default', () => {
         });
     });
 
+    it('switches between host/port and Unix socket endpoint modes', async () => {
+        vi.mocked(invoke).mockImplementation((command) =>
+            command === 'get_connection_by_id'
+                ? Promise.reject(new Error('use initial params'))
+                : Promise.resolve('ok'),
+        );
+        renderModal(
+            createInitialConnection({
+                host: 'db.internal',
+                port: 3306,
+                unix_socket_path: '/var/run/mysqld/mysqld.sock',
+                ssh_enabled: true,
+            }),
+        );
+
+        const socketInput = await screen.findByDisplayValue('/var/run/mysqld/mysqld.sock');
+        expect(screen.queryByPlaceholderText('localhost')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('3306')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'newConnection.socketPath'})).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'newConnection.host / newConnection.port',
+            }),
+        );
+
+        expect(screen.getByPlaceholderText('localhost')).toHaveValue('db.internal');
+        expect(screen.getByPlaceholderText('3306')).toHaveValue(3306);
+        expect(socketInput).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', {name: 'newConnection.socketPath'}));
+
+        expect(screen.getByDisplayValue('/var/run/mysqld/mysqld.sock')).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('localhost')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('3306')).not.toBeInTheDocument();
+    });
+
+    it('hides the socket endpoint selector when AWS SSM tunnel is active', async () => {
+        vi.mocked(invoke).mockImplementation((command) =>
+            command === 'get_connection_by_id'
+                ? Promise.reject(new Error('use initial params'))
+                : Promise.resolve('ok'),
+        );
+        renderModal(
+            createInitialConnection({
+                host: 'db.internal',
+                port: 3306,
+                unix_socket_path: '/var/run/mysqld/mysqld.sock',
+                ssm_enabled: true,
+            }),
+        );
+
+        // When SSM is enabled (TCP-only forward), canUseSocket is false,
+        // so the socket selector must be hidden and Host/Port must be visible
+        expect(
+            screen.queryByRole('button', {name: 'newConnection.socketPath'}),
+        ).not.toBeInTheDocument();
+        expect(screen.getByPlaceholderText('localhost')).toBeInTheDocument();
+    });
+
+    it('omits hidden unix_socket_path from list_databases when socket mode is inactive', async () => {
+        let listDatabasesParams: Record<string, unknown> | undefined;
+        vi.mocked(invoke).mockImplementation(async (command, args) => {
+            if (command === 'list_databases') {
+                const req = args as {request?: {params?: Record<string, unknown>}};
+                listDatabasesParams = req.request?.params;
+                return ['app_db'];
+            }
+            if (command === 'get_connection_by_id') {
+                throw new Error('use initial params');
+            }
+            return 'ok';
+        });
+
+        renderModal(
+            createInitialConnection({
+                driver: 'mysql',
+                host: 'db.internal',
+                port: 3306,
+                unix_socket_path: '/tmp/old.sock',
+            }),
+        );
+
+        expect(
+            screen.queryByRole('button', {name: 'newConnection.socketPath'}),
+        ).not.toBeInTheDocument();
+
+        fireEvent.click(await screen.findByText('newConnection.loadDatabases'));
+
+        await waitFor(() => {
+            expect(listDatabasesParams).toBeDefined();
+        });
+        expect(listDatabasesParams?.host).toBe('db.internal');
+        expect(listDatabasesParams).not.toHaveProperty('unix_socket_path');
+    });
+
+    it('omits hidden unix_socket_path from initial edit-time list_databases discovery', async () => {
+        let listDatabasesParams: Record<string, unknown> | undefined;
+        vi.mocked(invoke).mockImplementation(async (command, args) => {
+            if (command === 'list_databases') {
+                const req = args as {request?: {params?: Record<string, unknown>}};
+                listDatabasesParams = req.request?.params;
+                return ['analytics', 'reporting'];
+            }
+            if (command === 'get_connection_by_id') {
+                throw new Error('use initial params');
+            }
+            return 'ok';
+        });
+
+        driverState.multiDatabase = true;
+        try {
+            renderModal(
+                createInitialConnection({
+                    driver: 'mysql',
+                    host: 'db.internal',
+                    port: 3306,
+                    database: ['analytics'],
+                    unix_socket_path: '/tmp/old.sock',
+                }),
+            );
+
+            await waitFor(() => {
+                expect(listDatabasesParams).toBeDefined();
+            });
+            expect(listDatabasesParams).not.toHaveProperty('unix_socket_path');
+        } finally {
+            driverState.multiDatabase = false;
+        }
+    });
+
+    it('preserves unix_socket_path in list_databases when SSH tunnel is active', async () => {
+        let listDatabasesParams: Record<string, unknown> | undefined;
+        vi.mocked(invoke).mockImplementation(async (command, args) => {
+            if (command === 'list_databases') {
+                const req = args as {request?: {params?: Record<string, unknown>}};
+                listDatabasesParams = req.request?.params;
+                return ['app_db'];
+            }
+            if (command === 'get_connection_by_id') {
+                throw new Error('use initial params');
+            }
+            return 'ok';
+        });
+
+        renderModal(
+            createInitialConnection({
+                driver: 'mysql',
+                host: 'db.internal',
+                port: 3306,
+                unix_socket_path: '/var/run/mysqld/mysqld.sock',
+                ssh_enabled: true,
+            }),
+        );
+
+        fireEvent.click(await screen.findByText('newConnection.loadDatabases'));
+
+        await waitFor(() => {
+            expect(listDatabasesParams).toBeDefined();
+        });
+        expect(listDatabasesParams?.unix_socket_path).toBe('/var/run/mysqld/mysqld.sock');
+    });
+
+    it('omits unix_socket_path from list_databases when connection string import switches back to host/port', async () => {
+        let listDatabasesParams: Record<string, unknown> | undefined;
+        vi.mocked(invoke).mockImplementation(async (command, args) => {
+            if (command === 'list_databases') {
+                const req = args as {request?: {params?: Record<string, unknown>}};
+                listDatabasesParams = req.request?.params;
+                return ['shop'];
+            }
+            if (command === 'get_connection_by_id') {
+                throw new Error('use initial params');
+            }
+            return 'ok';
+        });
+
+        renderModal(
+            createInitialConnection({
+                driver: 'mysql',
+                ssh_enabled: true,
+                unix_socket_path: '/var/run/mysqld/mysqld.sock',
+            }),
+        );
+
+        const input = await screen.findByPlaceholderText(
+            'newConnection.connectionStringPlaceholder',
+        );
+        fireEvent.change(input, {
+            target: {value: 'mysql://root:pw@db2.example.com:3306/shop'},
+        });
+
+        await waitFor(() => {
+            expect(listDatabasesParams).toBeDefined();
+        });
+        expect(listDatabasesParams?.host).toBe('db2.example.com');
+        expect(listDatabasesParams).not.toHaveProperty('unix_socket_path');
+    });
+
     it("keeps an existing connection's stored keychain setting", async () => {
         renderModal(
             createInitialConnection({
