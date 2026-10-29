@@ -496,7 +496,14 @@ fn classify_with_profile(sql: &str, profile: &LexProfile) -> &'static str {
 }
 
 /// MongoDB shell operations that only read documents.
-const MONGO_READ_OPS: &[&str] = &["find", "findOne", "countDocuments", "count", "distinct"];
+const MONGO_READ_OPS: &[&str] = &[
+    "find",
+    "findOne",
+    "countDocuments",
+    "count",
+    "distinct",
+    "estimatedDocumentCount",
+];
 
 /// MongoDB shell operations that modify documents.
 const MONGO_WRITE_OPS: &[&str] = &[
@@ -510,10 +517,10 @@ const MONGO_WRITE_OPS: &[&str] = &[
 ];
 
 /// MongoDB shell operations that change collection or index structure.
-const MONGO_DDL_OPS: &[&str] = &["drop", "createCollection", "createIndex"];
+const MONGO_DDL_OPS: &[&str] = &["drop", "createCollection", "createIndex", "dropIndex"];
 
 /// Classify a MongoDB shell call (`db.<collection>.<op>(<args>)`), the query
-/// language of the MongoDB driver plugin.
+/// language of the MongoDB driver plugins.
 ///
 /// Returns `None` when `query` is not a well-formed shell call, so callers
 /// keep the fail-closed `"unknown"` verdict for anything unrecognised. Only
@@ -523,11 +530,30 @@ const MONGO_DDL_OPS: &[&str] = &["drop", "createCollection", "createIndex"];
 /// collection/index management is `"ddl"`. `runCommand` can run any command,
 /// so it stays unrecognised and keeps requiring approval.
 ///
-/// Parsing mirrors `utils::query_parse::parse` in the plugin, which is what
-/// decides whether the statement reaches the server at all.
+/// The classifier is host-wide and cannot tell which plugin a connection
+/// uses, and the two registered MongoDB plugins parse differently: the
+/// `danielnuld` one takes the LAST dot as the operation separator, while the
+/// `TabularisDB` Atlas one drops `//` comment lines first and takes the FIRST
+/// dot. A payload can therefore show one parser a read and hand the other a
+/// write (`db.users\n//.find(\n.drop()`). So this accepts only statements both
+/// parsers read the same way — see [`mongo_operation`] and the comment and
+/// semicolon rules below — and returns `None` for the rest.
 fn classify_mongo_shell(query: &str) -> Option<&'static str> {
+    // The Atlas plugin strips comment lines before parsing. A leading `//`
+    // line would be dropped there and kept here, so the two parsers would
+    // disagree on what the statement even is. Refuse any `//` line instead.
+    if query
+        .lines()
+        .any(|line| line.trim_start().starts_with("//"))
+    {
+        return None;
+    }
+
     let trimmed = query.trim();
-    // The plugin strips exactly one trailing semicolon before parsing.
+    // The Atlas plugin strips EVERY trailing semicolon, the other one exactly
+    // one. Only a single trailing `;` is stripped so the statement is read
+    // identically under both; anything else (`db.c.find({});;`) is refused
+    // rather than read as a statement one plugin would still run.
     let body = trimmed
         .strip_suffix(';')
         .map(str::trim_end)
@@ -539,10 +565,7 @@ fn classify_mongo_shell(query: &str) -> Option<&'static str> {
     }
 
     let path = rest[..open].trim();
-    let (_, op) = match path.rfind('.') {
-        Some(idx) => (&path[..idx], path[idx + 1..].trim()),
-        None => ("", path),
-    };
+    let op = mongo_operation(path)?;
 
     if MONGO_READ_OPS.contains(&op) {
         return Some("select");
@@ -562,6 +585,28 @@ fn classify_mongo_shell(query: &str) -> Option<&'static str> {
         });
     }
     None
+}
+
+/// The operation named by the text before the first `(` — `find` in
+/// `db.users.find`, `createCollection` in `db.createCollection`.
+///
+/// Returns `None` when the two plugins would not agree on it. They disagree
+/// on where the collection ends: the `danielnuld` plugin takes the LAST dot,
+/// the Atlas plugin the FIRST one. Taking the first dot is the stricter of the
+/// two, so `db.a.b.find({})` reads as the Atlas plugin's unsupported `b.find`
+/// rather than as a read. Whitespace and `/` are rejected outright: neither
+/// plugin's grammar needs them, and whitespace is what lets a stripped comment
+/// line (`db.users\n//.find(` + newline + `.drop()`) move the split point.
+/// A path with no dot is a database-level call, which only
+/// `createCollection` is mapped for.
+fn mongo_operation(path: &str) -> Option<&str> {
+    if path.is_empty() || path.contains(['/', '\\']) || path.chars().any(char::is_whitespace) {
+        return None;
+    }
+    match path.find('.') {
+        Some(dot) => Some(path[dot + 1..].trim()).filter(|op| !op.is_empty()),
+        None => Some(path),
+    }
 }
 
 /// Whether an `aggregate` pipeline writes to another collection through an

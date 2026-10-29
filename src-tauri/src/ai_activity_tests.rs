@@ -596,6 +596,61 @@ mod tests {
             classify_query_kind(r#"db.users.createIndex({ "a": 1 })"#),
             "ddl"
         );
+        // The Atlas plugin also ships `dropIndex`.
+        assert_eq!(
+            classify_query_kind(r#"db.users.dropIndex("a_1")"#),
+            "ddl"
+        );
+    }
+
+    #[test]
+    fn classify_mongo_rejects_comment_hidden_operations() {
+        // Two MongoDB plugins are registered and this classifier is host-wide,
+        // so it cannot assume one parser. The Atlas plugin drops every line
+        // starting with `//` and then takes the collection up to the FIRST dot,
+        // so this payload runs `drop` there while a last-dot parse sees `find`.
+        assert_eq!(classify_query_kind("db.users\n//.find(\n.drop()"), "unknown");
+        assert_eq!(
+            classify_query_kind("db.users\n//.find(\n.deleteMany({})"),
+            "unknown"
+        );
+        assert_eq!(
+            classify_query_kind("db.users\n//.find(\n.updateMany({}, { \"$set\": {} })"),
+            "unknown"
+        );
+        // A comment line at all is refused, since the two plugins disagree on
+        // whether it is a comment or part of the statement.
+        assert_eq!(
+            classify_query_kind("db.users.find({})\n// trailing note"),
+            "unknown"
+        );
+        assert_eq!(
+            classify_query_kind("// note\ndb.users.find({})"),
+            "unknown"
+        );
+        // Neither parser's grammar allows whitespace or `/` in the path.
+        assert_eq!(classify_query_kind("db.users .find({})"), "unknown");
+        assert_eq!(
+            classify_query_kind(r#""db.users.find({})"#),
+            "unknown"
+        );
+        // Normal reads still classify.
+        assert_eq!(classify_query_kind("db.users.find({})"), "select");
+    }
+
+    #[test]
+    fn classify_mongo_path_matches_the_stricter_plugin_grammar() {
+        // `db.a.b.find({})` is collection `a`, operation `b.find` for the Atlas
+        // plugin (first dot), which rejects it; a last-dot parse reads `find`.
+        // Both readings must reach the same verdict, so the first dot wins.
+        assert_eq!(classify_query_kind("db.a.b.find({})"), "unknown");
+        // The Atlas plugin strips every trailing semicolon, not just one.
+        assert_eq!(classify_query_kind("db.users.find({});;"), "unknown");
+        // `estimatedDocumentCount` reads; the Atlas plugin supports it.
+        assert_eq!(
+            classify_query_kind("db.users.estimatedDocumentCount()"),
+            "select"
+        );
     }
 
     #[test]
