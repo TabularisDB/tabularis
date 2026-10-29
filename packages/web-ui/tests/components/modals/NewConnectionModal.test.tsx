@@ -2181,6 +2181,42 @@ describe('NewConnectionModal keychain default', () => {
         expect(listDatabasesParams?.unix_socket_path).toBe('/var/run/mysqld/mysqld.sock');
     });
 
+    it('omits unix_socket_path from list_databases when connection string import switches back to host/port', async () => {
+        let listDatabasesParams: Record<string, unknown> | undefined;
+        vi.mocked(invoke).mockImplementation(async (command, args) => {
+            if (command === 'list_databases') {
+                const req = args as {request?: {params?: Record<string, unknown>}};
+                listDatabasesParams = req.request?.params;
+                return ['shop'];
+            }
+            if (command === 'get_connection_by_id') {
+                throw new Error('use initial params');
+            }
+            return 'ok';
+        });
+
+        renderModal(
+            createInitialConnection({
+                driver: 'mysql',
+                ssh_enabled: true,
+                unix_socket_path: '/var/run/mysqld/mysqld.sock',
+            }),
+        );
+
+        const input = await screen.findByPlaceholderText(
+            'newConnection.connectionStringPlaceholder',
+        );
+        fireEvent.change(input, {
+            target: {value: 'mysql://root:pw@db2.example.com:3306/shop'},
+        });
+
+        await waitFor(() => {
+            expect(listDatabasesParams).toBeDefined();
+        });
+        expect(listDatabasesParams?.host).toBe('db2.example.com');
+        expect(listDatabasesParams).not.toHaveProperty('unix_socket_path');
+    });
+
     it("keeps an existing connection's stored keychain setting", async () => {
         renderModal(
             createInitialConnection({

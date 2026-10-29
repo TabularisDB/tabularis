@@ -69,6 +69,7 @@ import {
 } from '@/utils/database';
 import {
     hasUnixSockets,
+    isSocketEligible,
     unixSocketPathIssue,
     updateExtraField,
     withoutBlankSslMode,
@@ -651,11 +652,7 @@ export const NewConnectionModal = ({
     const tunnelEnabled =
         !!formData.ssh_enabled || !!formData.k8s_enabled || !!formData.ssm_enabled;
     const socketPathSet = !!formData.unix_socket_path?.trim();
-    const canUseSocket =
-        !isUriPassthrough &&
-        (supportsUnixSocket || !!formData.ssh_enabled) &&
-        !formData.k8s_enabled &&
-        !formData.ssm_enabled;
+    const canUseSocket = isSocketEligible(activeDriver?.capabilities, formData);
     const socketMode = canUseSocket && formData.unix_socket_path !== undefined;
     // The socket replaces host:port at the destination: dialed by the SSH
     // server when SSH is enabled, locally otherwise (capability-gated). K8s
@@ -1794,35 +1791,18 @@ export const NewConnectionModal = ({
         setLoadingDatabases(true);
         setDatabaseLoadError(null);
         try {
-            const effectiveSupportsUnixSocket =
-                targetDriver?.capabilities?.unix_socket === true && hasUnixSockets();
-            const effectiveUriPassthrough = uriPassthroughEnabled(targetDriver?.capabilities);
-            const effectiveSshEnabled = !!(overrides?.ssh_enabled ?? formData.ssh_enabled);
-            const effectiveK8sEnabled = !!(overrides?.k8s_enabled ?? formData.k8s_enabled);
-            const effectiveSsmEnabled = !!(overrides?.ssm_enabled ?? formData.ssm_enabled);
-            const effectiveCanUseSocket =
-                !effectiveUriPassthrough &&
-                (effectiveSupportsUnixSocket || effectiveSshEnabled) &&
-                !effectiveK8sEnabled &&
-                !effectiveSsmEnabled;
-            const effectiveRawSocketPath =
-                overrides?.unix_socket_path !== undefined
-                    ? overrides.unix_socket_path
-                    : formData.unix_socket_path;
-            const effectiveSocketMode =
-                effectiveCanUseSocket && effectiveRawSocketPath !== undefined;
-
-            const listParamsBase: Partial<ConnectionParams> = {
+            const merged: Partial<ConnectionParams> = {
                 ...formData,
                 ...overrides,
                 driver: effectiveDriver,
-                unix_socket_path: effectiveSocketMode ? effectiveRawSocketPath : undefined,
-                port:
-                    overrides?.port != null
-                        ? Number(overrides.port)
-                        : formData.port != null
-                          ? Number(formData.port)
-                          : undefined,
+            };
+            const effectiveCanUseSocket = isSocketEligible(targetDriver?.capabilities, merged);
+            const effectiveSocketMode =
+                effectiveCanUseSocket && merged.unix_socket_path !== undefined;
+
+            const listParamsBase: Partial<ConnectionParams> = {
+                ...merged,
+                port: merged.port != null ? Number(merged.port) : undefined,
             };
             if (!effectiveSocketMode) {
                 delete listParamsBase.unix_socket_path;
@@ -1831,9 +1811,6 @@ export const NewConnectionModal = ({
                 ...listParamsBase,
                 k8s_port: resolveK8sPort(listParamsBase),
             };
-            if (!effectiveSocketMode) {
-                delete listParams.unix_socket_path;
-            }
             const databases = await client.call('list_databases', {
                 request: {
                     params: {
@@ -1848,11 +1825,10 @@ export const NewConnectionModal = ({
                 },
             });
             if (!shouldApply()) return;
-            const databaseList = Array.isArray(databases) ? databases : [];
-            setAvailableDatabases(databaseList);
+            setAvailableDatabases(databases);
             // Initialization restores the saved order. Reloads must preserve the
             // draft default and must not reselect databases the user removed.
-            setSelectedDatabasesState((prev) => prev.filter((db) => databaseList.includes(db)));
+            setSelectedDatabasesState((prev) => prev.filter((db) => databases.includes(db)));
         } catch (err) {
             if (!shouldApply()) return;
             const errorMsg =
@@ -2641,11 +2617,7 @@ export const NewConnectionModal = ({
             // The socket field is hidden on Windows (unless the SSH server dials it)
             // or when a TCP-only tunnel (K8s, SSM) is active, so an imported path
             // would be saved with no way to see or fix it.
-            const socketFieldAvailable =
-                parsedDriver?.capabilities?.unix_socket === true &&
-                (hasUnixSockets() || !!formData.ssh_enabled) &&
-                !formData.k8s_enabled &&
-                !formData.ssm_enabled;
+            const socketFieldAvailable = isSocketEligible(parsedDriver?.capabilities, formData);
             const parsedFields: Partial<ConnectionParams> = {
                 driver: newDriver,
                 host: parsed.host || 'localhost',

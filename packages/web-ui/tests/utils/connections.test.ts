@@ -17,6 +17,7 @@ import {
     unixSocketPathIssue,
     effectiveLocalSocketPath,
     hasUnixSockets,
+    isSocketEligible,
     type ConnectionParams,
     type DatabaseDriver,
 } from '@/utils/connections';
@@ -1046,6 +1047,76 @@ describe('connections', () => {
             expect(hasUnixSockets('Win32')).toBe(false);
             expect(hasUnixSockets('MacIntel')).toBe(true);
             expect(hasUnixSockets('Linux x86_64')).toBe(true);
+        });
+    });
+
+    describe('isSocketEligible', () => {
+        const socketCaps: DriverCapabilities = {
+            ...makeRemoteCaps(),
+            unix_socket: true,
+        };
+
+        it('is true for a unix_socket capable driver on a unix platform', () => {
+            expect(isSocketEligible(socketCaps, null, 'Linux x86_64')).toBe(true);
+            expect(isSocketEligible(socketCaps, null, 'MacIntel')).toBe(true);
+        });
+
+        it('is false for a local socket on Windows', () => {
+            expect(isSocketEligible(socketCaps, null, 'Win32')).toBe(false);
+            expect(isSocketEligible(socketCaps, {ssh_enabled: false}, 'Win32')).toBe(false);
+        });
+
+        it('is true on Windows when SSH tunnel is enabled', () => {
+            expect(isSocketEligible(socketCaps, {ssh_enabled: true}, 'Win32')).toBe(true);
+        });
+
+        it('is true when SSH is enabled even if driver lacks local unix_socket capability', () => {
+            expect(isSocketEligible(makeRemoteCaps(), {ssh_enabled: true}, 'Linux x86_64')).toBe(
+                true,
+            );
+            expect(isSocketEligible(null, {ssh_enabled: true}, 'Win32')).toBe(true);
+        });
+
+        it('is false when driver lacks unix_socket capability and SSH is not enabled', () => {
+            expect(isSocketEligible(makeRemoteCaps(), null, 'Linux x86_64')).toBe(false);
+            expect(isSocketEligible(null, null, 'Linux x86_64')).toBe(false);
+        });
+
+        it('is false when Kubernetes tunnel is enabled', () => {
+            expect(isSocketEligible(socketCaps, {k8s_enabled: true}, 'Linux x86_64')).toBe(false);
+            expect(
+                isSocketEligible(
+                    socketCaps,
+                    {ssh_enabled: true, k8s_enabled: true},
+                    'Linux x86_64',
+                ),
+            ).toBe(false);
+        });
+
+        it('is false when AWS SSM tunnel is enabled', () => {
+            expect(isSocketEligible(socketCaps, {ssm_enabled: true}, 'Linux x86_64')).toBe(false);
+            expect(
+                isSocketEligible(
+                    socketCaps,
+                    {ssh_enabled: true, ssm_enabled: true},
+                    'Linux x86_64',
+                ),
+            ).toBe(false);
+        });
+
+        it('is false when URI passthrough is active', () => {
+            const uriCaps: DriverCapabilities = {
+                ...socketCaps,
+                connection_uri: true,
+            };
+            expect(isSocketEligible(uriCaps, null, 'Linux x86_64')).toBe(false);
+            expect(isSocketEligible(uriCaps, {ssh_enabled: true}, 'Linux x86_64')).toBe(false);
+
+            const camelUriCaps: DriverCapabilities = {
+                ...socketCaps,
+                connectionUri: true,
+            };
+            expect(isSocketEligible(camelUriCaps, null, 'Linux x86_64')).toBe(false);
         });
     });
 

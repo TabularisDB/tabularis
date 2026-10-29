@@ -191,6 +191,44 @@ export function hasUnixSockets(
 }
 
 /**
+ * Flags indicating tunnel state for socket eligibility checks.
+ */
+export interface SocketEligibilityFlags {
+    ssh_enabled?: boolean;
+    k8s_enabled?: boolean;
+    ssm_enabled?: boolean;
+}
+
+/**
+ * Determine whether a connection can use a Unix domain socket endpoint (local or SSH forward).
+ *
+ * A Unix socket is eligible if:
+ * 1. URI passthrough is not active (the driver consumes raw connection URI verbatim);
+ * 2. No TCP-only tunnels (Kubernetes or AWS SSM) are enabled;
+ * 3. Either:
+ *    - The SSH tunnel is enabled (the SSH server dials the socket at the destination), OR
+ *    - The driver declares the `unix_socket` capability AND the local platform supports Unix sockets.
+ *
+ * @param capabilities - Driver capabilities from its manifest, if available
+ * @param flags - Tunnel state flags (ssh_enabled, k8s_enabled, ssm_enabled)
+ * @param platform - Target platform string for Unix socket support check (defaults to navigator.platform)
+ */
+export function isSocketEligible(
+    capabilities?: DriverCapabilities | null,
+    flags?: SocketEligibilityFlags | null,
+    platform?: string,
+): boolean {
+    if (capabilities?.connection_uri === true || capabilities?.connectionUri === true) {
+        return false;
+    }
+    if (flags?.k8s_enabled || flags?.ssm_enabled) {
+        return false;
+    }
+    const supportsUnixSocket = capabilities?.unix_socket === true && hasUnixSockets(platform);
+    return supportsUnixSocket || !!flags?.ssh_enabled;
+}
+
+/**
  * The local Unix socket path in effect for a connection: set and non-empty,
  * with no SSH, Kubernetes or AWS SSM tunnel overriding it (the tunnel owns the
  * route to the database, so the socket is ignored while one is enabled).
