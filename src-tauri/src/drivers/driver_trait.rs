@@ -831,8 +831,8 @@ pub trait DatabaseDriver: Send + Sync {
     /// rejects any write the classifier missed.
     ///
     /// The default implementation delegates to [`Self::execute_query`]:
-    /// plugin drivers have no read-only mode, so for them classification is
-    /// the only safeguard.
+    /// for drivers without a read-only mode, classification is the only
+    /// safeguard.
     async fn execute_read_only_query(
         &self,
         params: &ConnectionParams,
