@@ -1634,6 +1634,7 @@
     "dangerousQueryTruncateTitle": "Diese Tabelle leeren?",
     "dangerousQueryTruncateMessage": "TRUNCATE löscht alle Zeilen der Tabelle. Dies kann nicht rückgängig gemacht werden.",
     "showErrorDetails": "Details anzeigen",
+    "fixWithAi": "Mit KI beheben",
     "hideErrorDetails": "Details ausblenden",
     "errorBoundary": {
       "title": "Der Editor ist unerwartet abgestürzt",

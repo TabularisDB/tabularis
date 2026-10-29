@@ -1591,6 +1591,7 @@
     "dangerousQueryTruncateTitle": "이 테이블을 비울까요?",
     "dangerousQueryTruncateMessage": "TRUNCATE는 테이블의 모든 행을 삭제합니다. 되돌릴 수 없습니다.",
     "showErrorDetails": "세부 정보 표시",
+    "fixWithAi": "AI로 수정",
     "hideErrorDetails": "세부 정보 숨기기",
     "errorBoundary": {
       "title": "에디터가 예기치 않게 종료되었습니다",

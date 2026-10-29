@@ -115,6 +115,7 @@ import {TableToolbar} from '@/components/ui/TableToolbar';
 import {DataGrid, type DataGridCommandTarget} from '@/components/ui/DataGrid';
 import {MultiResultPanel} from '@/components/ui/MultiResultPanel';
 import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
+import {buildFixQueryPrompt} from '@/utils/aiFixPrompt';
 import {PageIndicator} from '@/components/ui/PageIndicator';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
@@ -587,6 +588,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     useClickOutside(exportMenuRef, () => setExportMenuOpen(false), exportMenuOpen);
     useClickOutside(dbDropdownRef, () => setIsDbDropdownOpen(false), isDbDropdownOpen);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+    const [aiFixPrompt, setAiFixPrompt] = useState<string | null>(null);
     const [isAiExplainModalOpen, setIsAiExplainModalOpen] = useState(false);
     const [isVisualExplainOpen, setIsVisualExplainOpen] = useState(false);
     const [visualExplainQuery, setVisualExplainQuery] = useState<string | null>(null);
@@ -2675,7 +2677,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 runAll: handleRunAll,
                 saveSqlFile: () => handleSaveSqlFile(activeTab),
                 closeTab: () => handleCloseTab(activeTab.id),
-                aiGenerate: () => setIsAiModalOpen(true),
+                aiGenerate: () => {
+                    setAiFixPrompt(null);
+                    setIsAiModalOpen(true);
+                },
                 aiExplain: () => setIsAiExplainModalOpen(true),
             },
         });
@@ -5724,7 +5729,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 {/* AI dropdown — only if AI enabled */}
                                 {settings.aiEnabled && (
                                     <AiDropdownButton
-                                        onGenerate={() => setIsAiModalOpen(true)}
+                                        onGenerate={() => {
+                                            setAiFixPrompt(null);
+                                            setIsAiModalOpen(true);
+                                        }}
                                         onExplain={() => setIsAiExplainModalOpen(true)}
                                         disableAll={!activeConnectionId}
                                         disableExplain={!tab.query?.trim()}
@@ -5960,7 +5968,25 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 <p className="text-sm">{t('editor.executingQuery')}</p>
                             </div>
                         ) : activeTab.error ? (
-                            <ErrorDisplay error={activeTab.error} t={t} />
+                            <ErrorDisplay
+                                error={activeTab.error}
+                                t={t}
+                                onFixWithAi={
+                                    settings.aiEnabled &&
+                                    activeConnectionId &&
+                                    activeTab.query?.trim()
+                                        ? () => {
+                                              setAiFixPrompt(
+                                                  buildFixQueryPrompt(
+                                                      activeTab.query,
+                                                      activeTab.error ?? '',
+                                                  ),
+                                              );
+                                              setIsAiModalOpen(true);
+                                          }
+                                        : undefined
+                                }
+                            />
                         ) : shouldShowStatementSuccess(activeTab) ? (
                             // Non-SELECT statement (INSERT/UPDATE/DELETE/DDL): no result set,
                             // so surface an explicit success message instead of an empty grid.
@@ -6621,8 +6647,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 connectionId={activeConnectionId ?? undefined}
                 schema={activeTab?.schema ?? activeSchema ?? undefined}
                 database={activeTab?.database}
+                initialPrompt={aiFixPrompt ?? undefined}
                 onInsert={(q) => {
                     updateActiveTab({query: q});
+                    // A fix is only inserted so the user can review it before running.
+                    if (aiFixPrompt !== null) return;
                     // AI-generated SQL uses the same production-first safety pipeline.
                     void runQuery(q, 1);
                 }}

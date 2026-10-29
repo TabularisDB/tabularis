@@ -1646,6 +1646,7 @@
     "dangerousQueryTruncateTitle": "このテーブルを空にしますか？",
     "dangerousQueryTruncateMessage": "TRUNCATE はテーブルのすべての行を削除します。この操作は元に戻せません。",
     "showErrorDetails": "詳細を表示",
+    "fixWithAi": "AIで修正",
     "hideErrorDetails": "詳細を非表示",
     "errorBoundary": {
       "title": "エディタが予期せずクラッシュしました",

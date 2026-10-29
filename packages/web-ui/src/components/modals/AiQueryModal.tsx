@@ -12,6 +12,7 @@ interface AiQueryModalProps {
     connectionId?: string;
     schema?: string;
     database?: string;
+    initialPrompt?: string;
 }
 
 interface SchemaLoadState {
@@ -27,6 +28,7 @@ export const AiQueryModal = ({
     connectionId,
     schema,
     database,
+    initialPrompt,
 }: AiQueryModalProps) => {
     const {activeConnectionId, activeSchema, activeDatabaseName} = useDatabase();
     const {settings} = useSettings();
@@ -44,7 +46,12 @@ export const AiQueryModal = ({
         undefined;
     const schemaKey = `${resolvedConnectionId ?? ''}:${resolvedDatabase ?? ''}:${resolvedSchema ?? ''}`;
 
-    const [prompt, setPrompt] = useState('');
+    const [prompt, setPrompt] = useState(initialPrompt ?? '');
+    const [wasOpen, setWasOpen] = useState(isOpen);
+    if (isOpen !== wasOpen) {
+        setWasOpen(isOpen);
+        if (isOpen && initialPrompt !== undefined) setPrompt(initialPrompt);
+    }
     const promptId = useId();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -134,6 +141,7 @@ export const AiQueryModal = ({
                 },
             });
             onInsert(sql);
+            if (initialPrompt !== undefined) setPrompt('');
             onClose();
         } catch (err) {
             setError(String(err));

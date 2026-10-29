@@ -1633,6 +1633,7 @@
     "dangerousQueryTruncateTitle": "Truncar esta tabela?",
     "dangerousQueryTruncateMessage": "TRUNCATE exclui todas as linhas da tabela. Isso não pode ser desfeito.",
     "showErrorDetails": "Mostrar detalhes",
+    "fixWithAi": "Corrigir com IA",
     "hideErrorDetails": "Ocultar detalhes",
     "errorBoundary": {
       "title": "O editor travou inesperadamente",

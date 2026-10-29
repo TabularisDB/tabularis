@@ -1686,6 +1686,7 @@
     "dangerousQueryTruncateTitle": "Truncate this table?",
     "dangerousQueryTruncateMessage": "TRUNCATE deletes every row in the table. This cannot be undone.",
     "showErrorDetails": "Show details",
+    "fixWithAi": "Fix with AI",
     "hideErrorDetails": "Hide details",
     "errorBoundary": {
       "title": "The editor crashed unexpectedly",

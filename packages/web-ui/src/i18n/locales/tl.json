@@ -1647,6 +1647,7 @@
     "dangerousQueryTruncateTitle": "I-truncate ang table na ito?",
     "dangerousQueryTruncateMessage": "Binubura ng TRUNCATE ang bawat row sa table. Hindi na ito maaaring bawiin.",
     "showErrorDetails": "Ipakita ang detalye",
+    "fixWithAi": "Ayusin gamit ang AI",
     "hideErrorDetails": "Itago ang detalye",
     "errorBoundary": {
       "title": "Biglang nag-crash ang editor",

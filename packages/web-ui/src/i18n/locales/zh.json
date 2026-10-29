@@ -1609,6 +1609,7 @@
     "dangerousQueryTruncateTitle": "清空此表？",
     "dangerousQueryTruncateMessage": "TRUNCATE 会删除表中的所有行。此操作无法撤销。",
     "showErrorDetails": "显示详情",
+    "fixWithAi": "使用 AI 修复",
     "hideErrorDetails": "隐藏详情",
     "errorBoundary": {
       "title": "编辑器意外崩溃",

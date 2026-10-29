@@ -1656,6 +1656,7 @@
     "dangerousQueryTruncateTitle": "Vider cette table ?",
     "dangerousQueryTruncateMessage": "TRUNCATE supprime toutes les lignes de la table. Cette action est irréversible.",
     "showErrorDetails": "Afficher les détails",
+    "fixWithAi": "Corriger avec l'IA",
     "hideErrorDetails": "Masquer les détails",
     "errorBoundary": {
       "title": "L'éditeur a planté de manière inattendue",

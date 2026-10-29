@@ -1638,6 +1638,7 @@
     "dangerousQueryTruncateTitle": "Очистить эту таблицу?",
     "dangerousQueryTruncateMessage": "TRUNCATE удаляет все строки таблицы. Это действие нельзя отменить.",
     "showErrorDetails": "Показать подробности",
+    "fixWithAi": "Исправить с помощью ИИ",
     "hideErrorDetails": "Скрыть подробности",
     "errorBoundary": {
       "title": "Редактор завершился с ошибкой",

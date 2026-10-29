@@ -1677,6 +1677,7 @@
     "dangerousQueryTruncateTitle": "Svuotare questa tabella?",
     "dangerousQueryTruncateMessage": "TRUNCATE elimina tutte le righe della tabella. L'operazione non può essere annullata.",
     "showErrorDetails": "Mostra dettagli",
+    "fixWithAi": "Correggi con l'IA",
     "hideErrorDetails": "Nascondi dettagli",
     "errorBoundary": {
       "title": "L'editor si è bloccato in modo imprevisto",
