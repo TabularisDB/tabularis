@@ -1794,10 +1794,29 @@ export const NewConnectionModal = ({
         setLoadingDatabases(true);
         setDatabaseLoadError(null);
         try {
+            const effectiveSupportsUnixSocket =
+                targetDriver?.capabilities?.unix_socket === true && hasUnixSockets();
+            const effectiveUriPassthrough = uriPassthroughEnabled(targetDriver?.capabilities);
+            const effectiveSshEnabled = !!(overrides?.ssh_enabled ?? formData.ssh_enabled);
+            const effectiveK8sEnabled = !!(overrides?.k8s_enabled ?? formData.k8s_enabled);
+            const effectiveSsmEnabled = !!(overrides?.ssm_enabled ?? formData.ssm_enabled);
+            const effectiveCanUseSocket =
+                !effectiveUriPassthrough &&
+                (effectiveSupportsUnixSocket || effectiveSshEnabled) &&
+                !effectiveK8sEnabled &&
+                !effectiveSsmEnabled;
+            const effectiveRawSocketPath =
+                overrides?.unix_socket_path !== undefined
+                    ? overrides.unix_socket_path
+                    : formData.unix_socket_path;
+            const effectiveSocketMode =
+                effectiveCanUseSocket && effectiveRawSocketPath !== undefined;
+
             const listParamsBase: Partial<ConnectionParams> = {
                 ...formData,
                 ...overrides,
                 driver: effectiveDriver,
+                unix_socket_path: effectiveSocketMode ? effectiveRawSocketPath : undefined,
                 port:
                     overrides?.port != null
                         ? Number(overrides.port)
@@ -1805,10 +1824,16 @@ export const NewConnectionModal = ({
                           ? Number(formData.port)
                           : undefined,
             };
+            if (!effectiveSocketMode) {
+                delete listParamsBase.unix_socket_path;
+            }
             const listParams: Partial<ConnectionParams> = {
                 ...listParamsBase,
                 k8s_port: resolveK8sPort(listParamsBase),
             };
+            if (!effectiveSocketMode) {
+                delete listParams.unix_socket_path;
+            }
             const databases = await client.call('list_databases', {
                 request: {
                     params: {
@@ -1823,10 +1848,11 @@ export const NewConnectionModal = ({
                 },
             });
             if (!shouldApply()) return;
-            setAvailableDatabases(databases);
+            const databaseList = Array.isArray(databases) ? databases : [];
+            setAvailableDatabases(databaseList);
             // Initialization restores the saved order. Reloads must preserve the
             // draft default and must not reselect databases the user removed.
-            setSelectedDatabasesState((prev) => prev.filter((db) => databases.includes(db)));
+            setSelectedDatabasesState((prev) => prev.filter((db) => databaseList.includes(db)));
         } catch (err) {
             if (!shouldApply()) return;
             const errorMsg =
@@ -2191,6 +2217,9 @@ export const NewConnectionModal = ({
                             ) ?? '')
                           : formData.database,
                 };
+                if (!socketMode) {
+                    delete testParamsBase.unix_socket_path;
+                }
                 const testParams = withoutBlankSslMode(
                     withInlineK8sPaths(testParamsBase, inlinePaths.options),
                 );
@@ -2425,6 +2454,9 @@ export const NewConnectionModal = ({
                           ) ?? formData.database)
                         : formData.database,
             };
+            if (!socketMode) {
+                delete paramsBase.unix_socket_path;
+            }
             const params = withoutBlankSslMode(
                 withInlineK8sPaths(paramsBase, inlinePaths.options),
             ) as ConnectionParams;
