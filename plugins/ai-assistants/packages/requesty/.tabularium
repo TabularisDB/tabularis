@@ -1,0 +1,99 @@
+{
+  "id": "requesty",
+  "name": "Requesty",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "Requesty AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "openai/gpt-4o-mini",
+      "gpt-5.4-mini",
+      "gpt-5.4",
+      "gpt-5.5",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5",
+      "claude-opus-4-8",
+      "claude-fable-5",
+      "gemini-3.5-flash",
+      "gemini-3.1-pro-preview",
+      "deepseek-v4-flash",
+      "deepseek-v4-pro",
+      "grok-4.6",
+      "kimi-k3",
+      "glm-5.2",
+      "gpt-5-mini@eu",
+      "claude-sonnet-4-6@eu"
+    ],
+    "api_key_env": "REQUESTY_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://router.requesty.ai/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.0
+          },
+          "append_path": "/chat/completions",
+          "headers": {
+            "HTTP-Referer": "https://github.com/TabularisDB/tabularis",
+            "X-Title": "Tabularis"
+          }
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://router.requesty.ai/v1",
+            "append_path": "/models/managed",
+            "authenticated": false
+          },
+          "items_path": "/data",
+          "id_path": "/id",
+          "filters": [
+            {
+              "path": "/api",
+              "equals": "chat",
+              "missing_matches": true
+            }
+          ]
+        },
+        {
+          "request": {
+            "url": "https://router.requesty.ai/v1",
+            "append_path": "/models",
+            "authenticated": false
+          },
+          "items_path": "/data",
+          "id_path": "/id",
+          "filters": [
+            {
+              "path": "/api",
+              "equals": "chat",
+              "missing_matches": true
+            }
+          ]
+        }
+      ],
+      "cache_seconds": 86400
+    }
+  },
+  "settings": [],
+  "license": "Apache-2.0"
+}

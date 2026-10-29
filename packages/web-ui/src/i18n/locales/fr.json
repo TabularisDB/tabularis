@@ -802,7 +802,11 @@
       "customOpenaiModelDesc": "Saisissez le nom du modèle fourni par votre service compatible OpenAI.",
       "customOpenaiModelHelp": "Saisissez le nom exact du modèle pour votre fournisseur compatible OpenAI.",
       "promptResetSuccess": "Prompt réinitialisé par défaut",
-      "apiKeySaved": "Clé API enregistrée en toute sécurité"
+      "apiKeySaved": "Clé API enregistrée en toute sécurité",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Retry downloads",
+      "pluginMigration": "Restoring your AI providers: {{providers}}. Downloads retry after a network failure.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration."
     },
     "updates": "Mises à jour",
     "openSourceLibraries": "Bibliothèques open source",
@@ -993,7 +997,9 @@
         }
       },
       "poweredBy": "Propulsé par",
-      "openHomepage": "Ouvrir la page"
+      "openHomepage": "Ouvrir la page",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Raccourcis clavier",

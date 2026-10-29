@@ -1038,6 +1038,12 @@ export interface CommandMap {
     delete_ai_key: CommandDefinition<{provider: string}, void, 'sensitive'>;
     check_ai_key: CommandDefinition<{provider: string}, boolean, 'sensitive'>;
     check_ai_key_status: CommandDefinition<{provider: string}, AiKeyStatus, 'sensitive'>;
+    get_ai_providers: CommandDefinition<
+        undefined,
+        import('@/types/ai').AiProviderCatalog,
+        'sensitive'
+    >;
+    migrate_ai_providers: CommandDefinition<undefined, void, 'local-admin'>;
     get_ai_models: CommandDefinition<
         {forceRefresh?: boolean} | undefined,
         AiProviderModels,

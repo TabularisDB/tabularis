@@ -802,7 +802,11 @@
       "customOpenaiModelDesc": "Ilagay ang pangalan ng model na ibinibigay ng iyong OpenAI-compatible service.",
       "customOpenaiModelHelp": "Ilagay ang eksaktong pangalan ng model para sa iyong OpenAI-compatible provider.",
       "promptResetSuccess": "Na-reset ang prompt sa default",
-      "apiKeySaved": "Matagumpay na na-save ang API key"
+      "apiKeySaved": "Matagumpay na na-save ang API key",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Retry downloads",
+      "pluginMigration": "Restoring your AI providers: {{providers}}. Downloads retry after a network failure.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration."
     },
     "updates": "Mga Update",
     "openSourceLibraries": "Mga Open Source Library",
@@ -991,7 +995,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Mga Keyboard Shortcut",

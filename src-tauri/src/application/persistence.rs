@@ -173,6 +173,26 @@ pub fn save_config(runtime: &RuntimeContext, update: AppConfig) -> Result<AppCon
     Ok(saved)
 }
 
+/// Seed migrated plugin fields under the same lock as ordinary config writes.
+/// Existing values and unrelated plugins always win over migration defaults.
+pub fn merge_missing_plugin_settings(
+    runtime: &RuntimeContext,
+    plugin_id: &str,
+    defaults: HashMap<String, Value>,
+) -> Result<AppConfig, String> {
+    update_config(runtime, |config| {
+        let settings = &mut config
+            .plugins
+            .get_or_insert_with(HashMap::new)
+            .entry(plugin_id.to_string())
+            .or_default()
+            .settings;
+        for (key, value) in defaults {
+            settings.entry(key).or_insert(value);
+        }
+    })
+}
+
 pub fn set_selected_schemas(
     runtime: &RuntimeContext,
     connection_id: String,

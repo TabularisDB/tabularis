@@ -734,7 +734,11 @@
       "customOpenaiModelDesc": "输入您的 OpenAI 兼容服务提供的模型名称。",
       "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。",
       "promptResetSuccess": "提示词已重置为默认值",
-      "apiKeySaved": "API 密钥已安全保存"
+      "apiKeySaved": "API 密钥已安全保存",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Retry downloads",
+      "pluginMigration": "Restoring your AI providers: {{providers}}. Downloads retry after a network failure.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration."
     },
     "updates": "更新",
     "openSourceLibraries": "开源库",
@@ -921,7 +925,9 @@
         }
       },
       "poweredBy": "技术支持：",
-      "openHomepage": "打开主页"
+      "openHomepage": "打开主页",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "键盘快捷键",

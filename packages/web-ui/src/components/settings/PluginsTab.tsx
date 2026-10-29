@@ -1,3 +1,5 @@
+import {useAiProviders} from '@/hooks/useAiProviders';
+import {mergeLocalAiProviders} from '@/utils/aiProviders';
 import {
     useState,
     useCallback,
@@ -30,6 +32,7 @@ import {
     FolderOpen,
     CircleStop,
     Palette,
+    Sparkles,
 } from 'lucide-react';
 import clsx from 'clsx';
 import {useSettings} from '@/hooks/useSettings';
@@ -624,6 +627,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
     const {settings, updateSetting} = useSettings();
     const {allDrivers, installedPlugins, refresh: refreshDrivers} = useDrivers();
     const {catalog, refreshCatalog} = useTheme();
+    const {providers: aiProviders, refresh: refreshAiProviders} = useAiProviders();
     const {
         plugins: remotePlugins,
         loading: registryLoading,
@@ -638,11 +642,14 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
     }, [refreshPluginRegistry, refreshConnectionCatalogue]);
     const registryPlugins = useMemo(
         () =>
-            mergeLocalThemePlugins(
-                remotePlugins,
-                catalog.themes.map(({entry}) => entry),
+            mergeLocalAiProviders(
+                mergeLocalThemePlugins(
+                    remotePlugins,
+                    catalog.themes.map(({entry}) => entry),
+                ),
+                aiProviders,
             ),
-        [remotePlugins, catalog.themes],
+        [remotePlugins, catalog.themes, aiProviders],
     );
     const pluginUpdates = useMemo(
         () => getPluginUpdates(registryPlugins, APP_VERSION),
@@ -759,15 +766,26 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
             all: registryPlugins.length,
             driver: registryPlugins.filter((p) => pluginKind(p) === 'driver').length,
             theme: registryPlugins.filter((p) => pluginKind(p) === 'theme').length,
+            'ai-assistant': registryPlugins.filter((p) => pluginKind(p) === 'ai-assistant').length,
         }),
         [registryPlugins],
     );
     // Local and registry themes share the list, but never driver manifests.
     const installedThemes = useMemo(
         () =>
-            activeKind === 'driver'
+            activeKind !== 'all' && activeKind !== 'theme'
                 ? []
                 : registryPlugins.filter((p) => pluginKind(p) === 'theme' && !!p.installed_version),
+        [registryPlugins, activeKind],
+    );
+    const installedAssistants = useMemo(
+        () =>
+            activeKind === 'all' || activeKind === 'ai-assistant'
+                ? registryPlugins.filter(
+                      (plugin) =>
+                          pluginKind(plugin) === 'ai-assistant' && !!plugin.installed_version,
+                  )
+                : [],
         [registryPlugins, activeKind],
     );
     const updateCount = kindUpdates.length;
@@ -891,6 +909,11 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                     {deadlineMs: PLUGIN_INSTALL_DEADLINE_MS},
                 );
                 forgetSelection();
+                if (registryPlugin?.kind === 'ai-assistant') {
+                    await refreshAiProviders();
+                    await refreshRegistry();
+                    return;
+                }
                 await updateSettingRef.current(
                     'activeExternalDrivers',
                     Array.from(
@@ -925,6 +948,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
             refreshRegistry,
             refreshDrivers,
             refreshCatalog,
+            refreshAiProviders,
             onPluginsChanged,
             registryPlugins,
         ],
@@ -1118,6 +1142,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
     // path differs (driver installer vs. theme package dialog).
     const renderRegistryCard = (plugin: RegistryPluginWithStatus) => {
         const isTheme = pluginKind(plugin) === 'theme';
+        const isAssistant = pluginKind(plugin) === 'ai-assistant';
         const themeEntry = isTheme
             ? catalog.themes.find(
                   ({entry}) =>
@@ -1163,7 +1188,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
         return (
             <PluginCard
                 key={`${pluginKind(plugin)}:${plugin.id}`}
-                kind={isTheme ? 'theme' : 'driver'}
+                kind={pluginKind(plugin)}
                 name={plugin.name}
                 description={plugin.description}
                 author={plugin.author}
@@ -1228,7 +1253,42 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                 }
                 actions={isLocalOnly ? undefined : renderVersionActions(plugin)}
                 secondaryActions={
-                    isTheme && plugin.installed_version ? (
+                    isAssistant && plugin.installed_version ? (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setPluginRemoveConfirm({
+                                    pluginId: plugin.id,
+                                    pluginName: plugin.name,
+                                    onConfirm: async () => {
+                                        setPluginRemoveConfirm(null);
+                                        setUninstallingPluginId(plugin.id);
+                                        try {
+                                            await client.call('uninstall_plugin', {
+                                                pluginId: plugin.id,
+                                            });
+                                            await refreshAiProviders();
+                                            await refreshRegistry();
+                                        } catch (error) {
+                                            setPluginInstallError({
+                                                pluginId: plugin.id,
+                                                error: String(error),
+                                                operation: 'uninstall',
+                                            });
+                                        } finally {
+                                            setUninstallingPluginId(null);
+                                        }
+                                    },
+                                })
+                            }
+                            disabled={uninstallingPluginId !== null || installingPluginId !== null}
+                            aria-label={t('settings.plugins.remove')}
+                            title={t('settings.plugins.remove')}
+                            className={FOOTER_ICON_DANGER}
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    ) : isTheme && plugin.installed_version ? (
                         <>
                             <button
                                 type="button"
@@ -1321,7 +1381,10 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                         <StatCard
                             icon={<PackageCheck size={15} />}
                             value={
-                                (activeKind === 'theme' ? 0 : installedPlugins.length) +
+                                (activeKind === 'theme' || activeKind === 'ai-assistant'
+                                    ? 0
+                                    : installedPlugins.length) +
+                                installedAssistants.length +
                                 installedThemes.length
                             }
                             label={t('settings.plugins.installedMetric')}
@@ -1403,12 +1466,14 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                                         id: 'installed' as const,
                                         label: t('settings.plugins.filterInstalled'),
                                         count:
-                                            (activeKind === 'theme'
+                                            (activeKind === 'theme' || activeKind === 'ai-assistant'
                                                 ? 0
                                                 : allDrivers.length +
                                                   installedPlugins.filter(
                                                       (p) => !allDrivers.some((d) => d.id === p.id),
-                                                  ).length) + installedThemes.length,
+                                                  ).length) +
+                                            installedThemes.length +
+                                            installedAssistants.length,
                                     },
                                     {
                                         id: 'updates' as const,
@@ -1462,6 +1527,11 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                                         label: t('settings.plugins.kindThemes'),
                                         icon: <Palette size={11} />,
                                     },
+                                    {
+                                        id: 'ai-assistant' as const,
+                                        label: t('settings.plugins.kindAiAssistants'),
+                                        icon: <Sparkles size={11} />,
+                                    },
                                 ] satisfies Array<{
                                     id: PluginKindFilter;
                                     label: string;
@@ -1497,19 +1567,24 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                                     !sq ||
                                     item.name.toLowerCase().includes(sq) ||
                                     item.description.toLowerCase().includes(sq);
-                                const kindDrivers = activeKind === 'theme' ? [] : allDrivers;
+                                const kindDrivers =
+                                    activeKind === 'theme' || activeKind === 'ai-assistant'
+                                        ? []
+                                        : allDrivers;
                                 const activeDrivers = kindDrivers.filter(matchesSearch);
                                 const disabledPlugins =
-                                    activeKind === 'theme'
+                                    activeKind === 'theme' || activeKind === 'ai-assistant'
                                         ? []
                                         : installedPlugins
                                               .filter((p) => !allDrivers.some((d) => d.id === p.id))
                                               .filter(matchesSearch);
                                 const visibleThemes = installedThemes.filter(matchesSearch);
+                                const visibleAssistants = installedAssistants.filter(matchesSearch);
                                 const isEmpty =
                                     activeDrivers.length === 0 &&
                                     disabledPlugins.length === 0 &&
-                                    visibleThemes.length === 0;
+                                    visibleThemes.length === 0 &&
+                                    visibleAssistants.length === 0;
                                 return (
                                     <div className="grid gap-4 xl:grid-cols-2 lg:grid-cols-2 sm:grid-cols-1">
                                         {activeDrivers.map((driver: PluginManifest) => {
@@ -1839,6 +1914,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                                         })}
 
                                         {visibleThemes.map(renderRegistryCard)}
+                                        {visibleAssistants.map(renderRegistryCard)}
 
                                         {isEmpty && (
                                             <p className="col-span-full text-sm text-muted py-4">

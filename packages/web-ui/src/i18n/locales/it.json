@@ -829,7 +829,11 @@
       "customOpenaiModelDesc": "Inserisci il nome del modello fornito dal tuo servizio compatibile OpenAI.",
       "customOpenaiModelHelp": "Inserisci il nome esatto del modello per il tuo provider compatibile OpenAI.",
       "promptResetSuccess": "Prompt ripristinato al valore predefinito",
-      "apiKeySaved": "Chiave API salvata in modo sicuro"
+      "apiKeySaved": "Chiave API salvata in modo sicuro",
+      "manageProviders": "Sfoglia i provider AI",
+      "retryMigration": "Riprova i download",
+      "pluginMigration": "Ripristino dei provider AI: {{providers}}. I download verranno ritentati dopo un errore di rete.",
+      "providerMissing": "{{provider}} non è installato. Installalo dal Plugin Center per continuare a usare la configurazione salvata."
     },
     "updates": "Aggiornamenti",
     "openSourceLibraries": "Librerie Open Source",
@@ -1020,7 +1024,9 @@
         }
       },
       "poweredBy": "Powered by",
-      "openHomepage": "Apri homepage"
+      "openHomepage": "Apri homepage",
+      "kindAiAssistant": "Assistente AI",
+      "kindAiAssistants": "Assistenti AI"
     },
     "shortcuts": {
       "title": "Scorciatoie da tastiera",

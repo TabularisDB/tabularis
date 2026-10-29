@@ -1,0 +1,66 @@
+{
+  "id": "custom-openai",
+  "name": "OpenAI Compatible",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "OpenAI Compatible AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [],
+    "api_key_env": "CUSTOM_OPENAI_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "{{settings.base_url}}",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.0
+          },
+          "append_path": "/chat/completions"
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "{{settings.base_url}}",
+            "append_path": "/models"
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        }
+      ],
+      "cache_seconds": 0
+    },
+    "optional_api_key": true
+  },
+  "settings": [
+    {
+      "key": "base_url",
+      "label": "Base URL",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "model",
+      "label": "Default model",
+      "type": "string"
+    }
+  ],
+  "license": "Apache-2.0"
+}

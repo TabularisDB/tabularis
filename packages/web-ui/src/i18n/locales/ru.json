@@ -764,7 +764,11 @@
       "customOpenaiModelDesc": "Введите название модели, предоставляемой OpenAI-совместимым сервисом.",
       "customOpenaiModelHelp": "Укажите точное название модели вашего OpenAI-совместимого провайдера.",
       "promptResetSuccess": "Промпт сброшен к значению по умолчанию",
-      "apiKeySaved": "API-ключ надёжно сохранён"
+      "apiKeySaved": "API-ключ надёжно сохранён",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Retry downloads",
+      "pluginMigration": "Restoring your AI providers: {{providers}}. Downloads retry after a network failure.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration."
     },
     "updates": "Обновления",
     "openSourceLibraries": "Библиотеки с открытым исходным кодом",
@@ -953,7 +957,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Горячие клавиши",

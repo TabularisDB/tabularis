@@ -21,6 +21,8 @@ pub struct AiKeyStatus {
 
 #[derive(Debug)]
 pub enum AiCommand {
+    GetProviders,
+    MigrateProviders,
     SetKey {
         provider: String,
         key: String,
@@ -72,6 +74,26 @@ pub async fn execute(
     command: AiCommand,
 ) -> Result<Value, String> {
     match command {
+        AiCommand::GetProviders => {
+            let pending = std::fs::read(
+                runtime
+                    .paths
+                    .config_dir()
+                    .join("ai-assistant-migration-v1.json"),
+            )
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+            .and_then(|value| value.get("pending").cloned())
+            .unwrap_or_else(|| serde_json::json!([]));
+            Ok(
+                serde_json::json!({"providers":crate::ai_assistants::list_installed(&runtime.paths.plugins_dir()), "pendingMigration":pending}),
+            )
+        }
+        AiCommand::MigrateProviders => {
+            crate::ai_assistants::migrate_legacy_providers(runtime, &state.credential_cache)
+                .await?;
+            Ok(Value::Null)
+        }
         AiCommand::SetKey { provider, key } => {
             set_key(runtime, &state.credential_cache, &provider, &key)?;
             Ok(Value::Null)
@@ -232,7 +254,7 @@ pub fn get_api_key(
         },
     }
 
-    environment_key(provider).ok_or_else(|| missing_key_error(provider))
+    environment_key(runtime, provider).ok_or_else(|| missing_key_error(provider))
 }
 
 pub fn key_status(
@@ -261,7 +283,7 @@ pub fn key_status(
             }
         },
     };
-    let from_env = !stored && environment_key(provider).is_some();
+    let from_env = !stored && environment_key(runtime, provider).is_some();
     AiKeyStatus {
         configured: stored || from_env,
         from_env,
@@ -408,7 +430,7 @@ fn key_account(provider: &str) -> String {
     format!("{AI_KEY_PREFIX}{provider}")
 }
 
-fn environment_key(provider: &str) -> Option<String> {
+fn environment_key(runtime: &RuntimeContext, provider: &str) -> Option<String> {
     let variable = match provider {
         "openai" => "OPENAI_API_KEY",
         "anthropic" => "ANTHROPIC_API_KEY",
@@ -416,7 +438,13 @@ fn environment_key(provider: &str) -> Option<String> {
         "custom-openai" => "CUSTOM_OPENAI_API_KEY",
         "minimax" => "MINIMAX_API_KEY",
         "requesty" => "REQUESTY_API_KEY",
-        _ => return None,
+        _ => {
+            let manifest =
+                crate::ai_assistants::read_manifest(&runtime.paths.plugins_dir(), provider).ok()?;
+            return std::env::var(manifest.ai_assistant.api_key_env?)
+                .ok()
+                .filter(|key| !key.is_empty());
+        }
     };
     std::env::var(variable).ok().filter(|key| !key.is_empty())
 }

@@ -1,5 +1,7 @@
-import {useState, useEffect, useCallback, useId, type ReactNode} from 'react';
+import {useState, useEffect, useCallback, useId, useMemo} from 'react';
 import {useTranslation, Trans} from 'react-i18next';
+import {Link} from 'react-router-dom';
+import {useAiProviders} from '@/hooks/useAiProviders';
 import {
     CheckCircle2,
     Code2,
@@ -34,61 +36,7 @@ import {
     proxyKeychainAi,
     type ProxyOverride,
 } from '@/types/proxy';
-import {
-    OpenAIIcon,
-    AnthropicIcon,
-    MiniMaxIcon,
-    OpenRouterIcon,
-    RequestyIcon,
-    OllamaIcon,
-} from '@/components/icons/ClientIcons';
-
-const PROVIDERS: Array<{
-    id: AiProvider;
-    label: string;
-    icon: ReactNode;
-}> = [
-    {
-        id: 'chatgpt',
-        label: 'ChatGPT',
-        icon: <OpenAIIcon size={18} className="text-primary" />,
-    },
-    {
-        id: 'openai',
-        label: 'OpenAI',
-        icon: <OpenAIIcon size={18} className="text-[#10a37f]" />,
-    },
-    {
-        id: 'anthropic',
-        label: 'Anthropic',
-        icon: <AnthropicIcon size={18} />,
-    },
-    {
-        id: 'minimax',
-        label: 'MiniMax',
-        icon: <MiniMaxIcon size={18} className="text-[#6c6cff]" />,
-    },
-    {
-        id: 'openrouter',
-        label: 'OpenRouter',
-        icon: <OpenRouterIcon size={18} className="text-[#9b6dff]" />,
-    },
-    {
-        id: 'requesty',
-        label: 'Requesty',
-        icon: <RequestyIcon size={18} className="text-current" />,
-    },
-    {
-        id: 'ollama',
-        label: 'Ollama',
-        icon: <OllamaIcon size={18} className="text-current" />,
-    },
-    {
-        id: 'custom-openai',
-        label: 'OpenAI Compatible',
-        icon: <OpenAIIcon size={18} className="text-muted" />,
-    },
-];
+import {OpenAIIcon} from '@/components/icons/ClientIcons';
 
 export function AiTab() {
     const {t} = useTranslation();
@@ -96,6 +44,36 @@ export function AiTab() {
     const platform = usePlatformCapabilities();
     const {settings, updateSetting} = useSettings();
     const {showAlert} = useAlert();
+    const {
+        providers,
+        pendingMigration,
+        error: providerError,
+        loading: providersLoading,
+        retryMigration,
+    } = useAiProviders();
+    const selectedProvider = providers.find((provider) => provider.id === settings.aiProvider);
+    const requiresKey = selectedProvider?.ai_assistant.authentication === 'api-key';
+    const providerChoices = useMemo(
+        () => [
+            ...(platform.negotiation.environment === 'tauri'
+                ? [
+                      {
+                          id: 'chatgpt',
+                          label: 'ChatGPT',
+                          icon: <OpenAIIcon size={18} />,
+                          authentication: 'account',
+                      },
+                  ]
+                : []),
+            ...providers.map((provider) => ({
+                id: provider.id,
+                label: provider.name,
+                icon: <Sparkles size={18} />,
+                authentication: provider.ai_assistant.authentication,
+            })),
+        ],
+        [providers, platform.negotiation.environment],
+    );
     const fieldId = useId();
     const [proxyDrafts, setProxyDrafts] = useState<Partial<Record<AiProvider, ProxyOverride>>>({});
 
@@ -139,31 +117,22 @@ export function AiTab() {
 
     const checkKeys = useCallback(async () => {
         try {
-            const [openai, anthropic, openrouter, requesty, minimax, customOpenai] =
-                await Promise.all(
-                    [
-                        'openai',
-                        'anthropic',
-                        'openrouter',
-                        'requesty',
-                        'minimax',
-                        'custom-openai',
-                    ].map((provider) => client.call('check_ai_key_status', {provider})),
-                );
-            const ollama = {configured: true, fromEnv: false};
-            setAiKeyStatus({
-                openai,
-                anthropic,
-                openrouter,
-                requesty,
-                minimax,
-                'custom-openai': customOpenai,
-                ollama,
-            });
+            const statuses = await Promise.all(
+                providers.map(
+                    async (provider) =>
+                        [
+                            provider.id,
+                            provider.ai_assistant.authentication === 'none'
+                                ? {configured: true, fromEnv: false}
+                                : await client.call('check_ai_key_status', {provider: provider.id}),
+                        ] as const,
+                ),
+            );
+            setAiKeyStatus(Object.fromEntries(statuses));
         } catch (e) {
             console.error('Failed to check keys', e);
         }
-    }, [client]);
+    }, [client, providers]);
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -279,6 +248,48 @@ export function AiTab() {
                 </div>
             </div>
 
+            <div className="mb-5 space-y-3">
+                <Link
+                    to="?tab=plugins&kind=ai-assistant"
+                    className="inline-flex items-center gap-2 text-sm text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                >
+                    <Sparkles size={16} />
+                    {t('settings.ai.manageProviders')}
+                </Link>
+                {providerError && (
+                    <p role="alert" className="text-sm text-accent-error">
+                        {providerError}
+                    </p>
+                )}
+                {pendingMigration.length > 0 && (
+                    <div
+                        role="status"
+                        className="rounded-lg border border-accent-warning bg-accent-warning/5 p-3 text-sm text-primary"
+                    >
+                        <p>
+                            {t('settings.ai.pluginMigration', {
+                                providers: pendingMigration.join(', '),
+                            })}
+                        </p>
+                        <button
+                            type="button"
+                            disabled={providersLoading}
+                            onClick={() => void retryMigration()}
+                            className="mt-2 text-accent disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        >
+                            {t('settings.ai.retryMigration')}
+                        </button>
+                    </div>
+                )}
+                {settings.aiProvider && settings.aiProvider !== 'chatgpt' && !selectedProvider && (
+                    <p role="status" className="text-sm text-muted">
+                        {t('settings.ai.providerMissing', {
+                            provider: getProviderLabel(settings.aiProvider),
+                        })}
+                    </p>
+                )}
+            </div>
+
             <fieldset
                 disabled={!settings.aiEnabled}
                 className={clsx(
@@ -292,10 +303,7 @@ export function AiTab() {
                     description={t('settings.ai.providerHelp')}
                 >
                     <div className="grid grid-cols-2 @min-[560px]:grid-cols-3 gap-2.5 pt-3">
-                        {PROVIDERS.filter(
-                            (p) =>
-                                p.id !== 'chatgpt' || platform.negotiation.environment === 'tauri',
-                        ).map((p) => {
+                        {providerChoices.map((p) => {
                             const isSelected = settings.aiProvider === p.id;
                             return (
                                 <button
@@ -304,11 +312,7 @@ export function AiTab() {
                                     aria-label={p.label}
                                     aria-pressed={isSelected}
                                     onClick={() => {
-                                        if (
-                                            !isSelected &&
-                                            (p.id === 'chatgpt' ||
-                                                settings.aiProvider === 'chatgpt')
-                                        ) {
+                                        if (!isSelected) {
                                             // Empty strings clear persisted optional fields; null means no change.
                                             void updateSetting('aiModel', '');
                                         }
@@ -332,13 +336,11 @@ export function AiTab() {
                                         </span>
                                         <span className="mt-0.5 block text-xs text-muted">
                                             {t(
-                                                p.id === 'chatgpt'
+                                                p.authentication === 'account'
                                                     ? 'settings.ai.planAccess'
-                                                    : p.id === 'ollama'
+                                                    : p.authentication === 'none'
                                                       ? 'settings.ai.localAccess'
-                                                      : p.id === 'custom-openai'
-                                                        ? 'settings.ai.customAccess'
-                                                        : 'settings.ai.keyAccess',
+                                                      : 'settings.ai.keyAccess',
                                             )}
                                         </span>
                                     </span>
@@ -356,9 +358,9 @@ export function AiTab() {
                 </SettingSection>
 
                 {/* Provider configuration */}
-                {settings.aiProvider && (
+                {settings.aiProvider && (settings.aiProvider === 'chatgpt' || selectedProvider) && (
                     <SettingSection
-                        title={getProviderLabel(settings.aiProvider)}
+                        title={selectedProvider?.name ?? getProviderLabel(settings.aiProvider)}
                         icon={
                             <SlidersHorizontal
                                 size={14}
@@ -387,7 +389,8 @@ export function AiTab() {
                                             )}
                                         </>
                                     ) : (
-                                        settings.aiProvider !== 'ollama' && (
+                                        requiresKey &&
+                                        !selectedProvider?.ai_assistant.optional_api_key && (
                                             <span className="text-muted text-xs bg-surface-secondary px-2 py-0.5 rounded-full border border-default">
                                                 {t('settings.ai.notConfigured')}
                                             </span>
@@ -400,262 +403,227 @@ export function AiTab() {
                                 platform.negotiation.environment === 'tauri' && <ChatGptSettings />}
 
                             {/* API Key */}
-                            {settings.aiProvider !== 'ollama' &&
-                                settings.aiProvider !== 'chatgpt' && (
-                                    <div className="space-y-2 py-3">
-                                        <label
-                                            htmlFor={`${fieldId}-key`}
-                                            className="block text-sm font-medium text-primary"
-                                        >
-                                            {t('settings.ai.apiKey', {
-                                                provider: getProviderLabel(settings.aiProvider),
-                                            })}
-                                        </label>
-
-                                        {aiKeyStatus[settings.aiProvider]?.configured &&
-                                        !editingKey ? (
-                                            <div className="space-y-2">
-                                                <div className="flex items-center gap-3 bg-base border border-default rounded-lg px-4 py-3">
-                                                    <Lock
-                                                        size={14}
-                                                        className="text-accent-success shrink-0"
-                                                    />
-                                                    <span className="flex-1 text-sm text-primary font-mono tracking-widest">
-                                                        ••••••••••••••••
-                                                    </span>
-                                                    <div className="flex items-center gap-2 shrink-0">
-                                                        {!aiKeyStatus[settings.aiProvider]
-                                                            ?.fromEnv && (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setEditingKey(true);
-                                                                        setKeyInput('');
-                                                                    }}
-                                                                    className="px-3 py-1 text-xs font-medium text-secondary hover:text-primary bg-surface-secondary hover:bg-surface-tertiary border border-strong rounded-md transition-colors"
-                                                                >
-                                                                    {t('settings.ai.changeKey')}
-                                                                </button>
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        try {
-                                                                            await client.call(
-                                                                                'delete_ai_key',
-                                                                                {
-                                                                                    provider:
-                                                                                        settings.aiProvider!,
-                                                                                },
-                                                                            );
-                                                                            await checkKeys();
-                                                                            showAlert(
-                                                                                t(
-                                                                                    'settings.ai.keyResetSuccess',
-                                                                                ),
-                                                                                {
-                                                                                    title: t(
-                                                                                        'common.success',
-                                                                                    ),
-                                                                                    kind: 'info',
-                                                                                },
-                                                                            );
-                                                                        } catch (e) {
-                                                                            showAlert(String(e), {
-                                                                                title: t(
-                                                                                    'common.error',
-                                                                                ),
-                                                                                kind: 'error',
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                    className="px-3 py-1 text-xs font-medium text-secondary hover:text-accent-error bg-surface-secondary hover:bg-accent-error/10 border border-strong hover:border-accent-error/15 rounded-md transition-colors"
-                                                                    title={t(
-                                                                        'settings.ai.resetKey',
-                                                                    )}
-                                                                >
-                                                                    {t('settings.ai.reset')}
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                {aiKeyStatus[settings.aiProvider]?.fromEnv && (
-                                                    <p className="text-xs text-accent flex items-center gap-1.5">
-                                                        <Info size={12} />
-                                                        {t('settings.ai.envVariableDetected')}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                <div className="flex gap-2">
-                                                    <div className="relative flex-1 group">
-                                                        <input
-                                                            autoCorrect="off"
-                                                            autoCapitalize="off"
-                                                            autoComplete="off"
-                                                            spellCheck={false}
-                                                            id={`${fieldId}-key`}
-                                                            type={showKey ? 'text' : 'password'}
-                                                            value={keyInput}
-                                                            placeholder={t('settings.ai.enterKey', {
-                                                                provider: getProviderLabel(
-                                                                    settings.aiProvider,
-                                                                ),
-                                                            })}
-                                                            className="w-full bg-base border border-strong rounded-lg pl-3 pr-10 py-2 text-primary text-sm focus:outline-none focus:border-focus transition-colors"
-                                                            onChange={(e) =>
-                                                                setKeyInput(e.target.value)
-                                                            }
-                                                            autoFocus={editingKey}
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            aria-label={t(
-                                                                showKey
-                                                                    ? 'settings.ai.hideKey'
-                                                                    : 'settings.ai.showKey',
-                                                            )}
-                                                            aria-pressed={showKey}
-                                                            onClick={() => setShowKey(!showKey)}
-                                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus rounded"
-                                                        >
-                                                            {showKey ? (
-                                                                <EyeOff size={14} />
-                                                            ) : (
-                                                                <Eye size={14} />
-                                                            )}
-                                                        </button>
-                                                    </div>
-                                                    <button
-                                                        onClick={() =>
-                                                            handleSaveKey(settings.aiProvider!)
-                                                        }
-                                                        disabled={!keyInput.trim()}
-                                                        className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:bg-surface-secondary disabled:text-muted text-inverse rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
-                                                    >
-                                                        {t('common.save')}
-                                                    </button>
-                                                    {editingKey && (
-                                                        <button
-                                                            aria-label={t('common.cancel')}
-                                                            onClick={() => {
-                                                                setEditingKey(false);
-                                                                setKeyInput('');
-                                                                setShowKey(false);
-                                                            }}
-                                                            className="px-3 py-2 bg-surface-secondary hover:bg-surface-tertiary text-secondary border border-strong rounded-lg text-sm font-medium transition-colors"
-                                                        >
-                                                            <X size={16} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                                <p className="text-xs text-muted">
-                                                    {t('settings.ai.keyStoredSecurely')}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                            {/* Custom OpenAI URL */}
-                            {settings.aiProvider === 'custom-openai' && (
-                                <div className="space-y-1 py-3">
+                            {requiresKey && (
+                                <div className="space-y-2 py-3">
                                     <label
-                                        htmlFor={`${fieldId}-endpoint`}
+                                        htmlFor={`${fieldId}-key`}
                                         className="block text-sm font-medium text-primary"
                                     >
-                                        {t('settings.ai.endpointUrl')}
+                                        {t('settings.ai.apiKey', {
+                                            provider: getProviderLabel(settings.aiProvider),
+                                        })}
                                     </label>
-                                    <input
-                                        autoCorrect="off"
-                                        autoCapitalize="off"
-                                        autoComplete="off"
-                                        spellCheck={false}
-                                        id={`${fieldId}-endpoint`}
-                                        type="text"
-                                        value={settings.aiCustomOpenaiUrl || ''}
-                                        onChange={(e) =>
-                                            updateSetting('aiCustomOpenaiUrl', e.target.value)
-                                        }
-                                        placeholder="https://api.example.com/v1"
-                                        className="w-full bg-base border border-strong rounded-lg px-3 py-2 text-primary text-sm focus:outline-none focus:border-focus transition-colors"
-                                    />
-                                    <p className="text-xs text-muted">
-                                        {t('settings.ai.endpointUrlDesc')}
-                                    </p>
+
+                                    {aiKeyStatus[settings.aiProvider]?.configured && !editingKey ? (
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-3 bg-base border border-default rounded-lg px-4 py-3">
+                                                <Lock
+                                                    size={14}
+                                                    className="text-accent-success shrink-0"
+                                                />
+                                                <span className="flex-1 text-sm text-primary font-mono tracking-widest">
+                                                    ••••••••••••••••
+                                                </span>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {!aiKeyStatus[settings.aiProvider]?.fromEnv && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingKey(true);
+                                                                    setKeyInput('');
+                                                                }}
+                                                                className="px-3 py-1 text-xs font-medium text-secondary hover:text-primary bg-surface-secondary hover:bg-surface-tertiary border border-strong rounded-md transition-colors"
+                                                            >
+                                                                {t('settings.ai.changeKey')}
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        await client.call(
+                                                                            'delete_ai_key',
+                                                                            {
+                                                                                provider:
+                                                                                    settings.aiProvider!,
+                                                                            },
+                                                                        );
+                                                                        await checkKeys();
+                                                                        showAlert(
+                                                                            t(
+                                                                                'settings.ai.keyResetSuccess',
+                                                                            ),
+                                                                            {
+                                                                                title: t(
+                                                                                    'common.success',
+                                                                                ),
+                                                                                kind: 'info',
+                                                                            },
+                                                                        );
+                                                                    } catch (e) {
+                                                                        showAlert(String(e), {
+                                                                            title: t(
+                                                                                'common.error',
+                                                                            ),
+                                                                            kind: 'error',
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                className="px-3 py-1 text-xs font-medium text-secondary hover:text-accent-error bg-surface-secondary hover:bg-accent-error/10 border border-strong hover:border-accent-error/15 rounded-md transition-colors"
+                                                                title={t('settings.ai.resetKey')}
+                                                            >
+                                                                {t('settings.ai.reset')}
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {aiKeyStatus[settings.aiProvider]?.fromEnv && (
+                                                <p className="text-xs text-accent flex items-center gap-1.5">
+                                                    <Info size={12} />
+                                                    {t('settings.ai.envVariableDetected')}
+                                                </p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-1 group">
+                                                    <input
+                                                        autoCorrect="off"
+                                                        autoCapitalize="off"
+                                                        autoComplete="off"
+                                                        spellCheck={false}
+                                                        id={`${fieldId}-key`}
+                                                        type={showKey ? 'text' : 'password'}
+                                                        value={keyInput}
+                                                        placeholder={t('settings.ai.enterKey', {
+                                                            provider: getProviderLabel(
+                                                                settings.aiProvider,
+                                                            ),
+                                                        })}
+                                                        className="w-full bg-base border border-strong rounded-lg pl-3 pr-10 py-2 text-primary text-sm focus:outline-none focus:border-focus transition-colors"
+                                                        onChange={(e) =>
+                                                            setKeyInput(e.target.value)
+                                                        }
+                                                        autoFocus={editingKey}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        aria-label={t(
+                                                            showKey
+                                                                ? 'settings.ai.hideKey'
+                                                                : 'settings.ai.showKey',
+                                                        )}
+                                                        aria-pressed={showKey}
+                                                        onClick={() => setShowKey(!showKey)}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus rounded"
+                                                    >
+                                                        {showKey ? (
+                                                            <EyeOff size={14} />
+                                                        ) : (
+                                                            <Eye size={14} />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                                <button
+                                                    onClick={() =>
+                                                        handleSaveKey(settings.aiProvider!)
+                                                    }
+                                                    disabled={!keyInput.trim()}
+                                                    className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:bg-surface-secondary disabled:text-muted text-inverse rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+                                                >
+                                                    {t('common.save')}
+                                                </button>
+                                                {editingKey && (
+                                                    <button
+                                                        aria-label={t('common.cancel')}
+                                                        onClick={() => {
+                                                            setEditingKey(false);
+                                                            setKeyInput('');
+                                                            setShowKey(false);
+                                                        }}
+                                                        className="px-3 py-2 bg-surface-secondary hover:bg-surface-tertiary text-secondary border border-strong rounded-lg text-sm font-medium transition-colors"
+                                                    >
+                                                        <X size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-muted">
+                                                {t('settings.ai.keyStoredSecurely')}
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
-                            {/* Ollama */}
-                            {settings.aiProvider === 'ollama' && (
-                                <div className="space-y-4 py-3">
-                                    <div
-                                        className={clsx(
-                                            'border rounded-lg px-3 py-2.5 text-sm flex items-center gap-2',
-                                            (
-                                                settings.aiCustomModels?.['ollama'] ||
-                                                availableModels['ollama'] ||
-                                                []
-                                            ).length > 0
-                                                ? 'bg-accent-success/5 border-accent-success/10 text-accent-success'
-                                                : 'bg-accent-error/5 border-accent-error/10 text-accent-error',
-                                        )}
-                                    >
-                                        {(
-                                            settings.aiCustomModels?.['ollama'] ||
-                                            availableModels['ollama'] ||
-                                            []
-                                        ).length > 0 ? (
-                                            <>
-                                                <CheckCircle2 size={14} />
-                                                <span>
-                                                    {t('settings.ai.ollamaConnected', {
-                                                        count: (
-                                                            settings.aiCustomModels?.['ollama'] ||
-                                                            availableModels['ollama'] ||
-                                                            []
-                                                        ).length,
-                                                    })}
-                                                </span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <AlertTriangle size={14} />
-                                                <span>
-                                                    {t('settings.ai.ollamaNotDetected', {
-                                                        port: settings.aiOllamaPort || 11434,
-                                                    })}
-                                                </span>
-                                            </>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
+                            {selectedProvider?.settings.map((definition) => {
+                                const value =
+                                    settings.plugins?.[selectedProvider.id]?.settings?.[
+                                        definition.key
+                                    ] ??
+                                    definition.default ??
+                                    '';
+                                const save = (next: unknown) =>
+                                    updateSetting('plugins', {
+                                        ...settings.plugins,
+                                        [selectedProvider.id]: {
+                                            ...settings.plugins?.[selectedProvider.id],
+                                            settings: {
+                                                ...settings.plugins?.[selectedProvider.id]
+                                                    ?.settings,
+                                                [definition.key]: next,
+                                            },
+                                        },
+                                    });
+                                return (
+                                    <div key={definition.key} className="space-y-1 py-3">
                                         <label
-                                            htmlFor={`${fieldId}-port`}
-                                            className="text-sm text-secondary whitespace-nowrap"
+                                            htmlFor={`${fieldId}-${definition.key}`}
+                                            className="block text-sm font-medium text-primary"
                                         >
-                                            {t('settings.ai.ollamaPort')}:
+                                            {definition.label}
                                         </label>
-                                        <input
-                                            autoCorrect="off"
-                                            autoCapitalize="off"
-                                            autoComplete="off"
-                                            spellCheck={false}
-                                            id={`${fieldId}-port`}
-                                            type="number"
-                                            value={settings.aiOllamaPort || 11434}
-                                            onChange={(e) =>
-                                                updateSetting(
-                                                    'aiOllamaPort',
-                                                    parseInt(e.target.value) || 11434,
-                                                )
-                                            }
-                                            className="w-24 bg-base border border-strong rounded-lg px-2 py-1.5 text-sm text-primary focus:outline-none focus:border-focus transition-colors"
-                                        />
-                                        <p className="text-xs text-muted">(Default: 11434)</p>
+                                        {definition.type === 'boolean' ? (
+                                            <input
+                                                id={`${fieldId}-${definition.key}`}
+                                                type="checkbox"
+                                                checked={value === true}
+                                                onChange={(event) =>
+                                                    void save(event.target.checked)
+                                                }
+                                            />
+                                        ) : definition.options?.length ? (
+                                            <Select
+                                                id={`${fieldId}-${definition.key}`}
+                                                value={String(value)}
+                                                options={definition.options}
+                                                onChange={(value) => void save(value)}
+                                            />
+                                        ) : (
+                                            <input
+                                                id={`${fieldId}-${definition.key}`}
+                                                type={
+                                                    definition.type === 'number' ? 'number' : 'text'
+                                                }
+                                                value={String(value)}
+                                                required={definition.required}
+                                                onChange={(event) =>
+                                                    void save(
+                                                        definition.type === 'number'
+                                                            ? Number(event.target.value)
+                                                            : event.target.value,
+                                                    )
+                                                }
+                                                className="w-full bg-base border border-strong rounded-lg px-3 py-2 text-primary text-sm focus:outline-none focus:border-focus transition-colors"
+                                            />
+                                        )}
+                                        {definition.description && (
+                                            <p className="text-xs text-muted">
+                                                {definition.description}
+                                            </p>
+                                        )}
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })}
 
                             {/* Model selection */}
                             {settings.aiProvider !== 'chatgpt' && (
@@ -736,9 +704,7 @@ export function AiTab() {
                                                     </div>
                                                 )}
                                                 <p className="text-xs text-muted">
-                                                    {settings.aiProvider === 'custom-openai'
-                                                        ? t('settings.ai.customOpenaiModelHelp')
-                                                        : t('settings.ai.modelDesc')}
+                                                    {t('settings.ai.modelDesc')}
                                                 </p>
                                             </>
                                         );

@@ -783,7 +783,11 @@
       "customOpenaiModelDesc": "OpenAI 互換サービスが提供するモデル名を入力してください。",
       "customOpenaiModelHelp": "OpenAI 互換プロバイダの正確なモデル名を入力してください。",
       "promptResetSuccess": "プロンプトをデフォルトにリセットしました",
-      "apiKeySaved": "APIキーを安全に保存しました"
+      "apiKeySaved": "APIキーを安全に保存しました",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Retry downloads",
+      "pluginMigration": "Restoring your AI providers: {{providers}}. Downloads retry after a network failure.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration."
     },
     "updates": "アップデート",
     "openSourceLibraries": "オープンソースライブラリ",
@@ -974,7 +978,9 @@
         }
       },
       "poweredBy": "提供：",
-      "openHomepage": "ホームページを開く"
+      "openHomepage": "ホームページを開く",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "キーボードショートカット",

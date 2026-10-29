@@ -1,0 +1,73 @@
+{
+  "id": "anthropic",
+  "name": "Anthropic",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "Anthropic AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "claude-fable-5",
+      "claude-opus-4-8",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5",
+      "claude-opus-4-7",
+      "claude-opus-4-6",
+      "claude-sonnet-4-5",
+      "claude-opus-4-5"
+    ],
+    "api_key_env": "ANTHROPIC_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://api.anthropic.com/v1",
+          "body": {
+            "model": "{{model}}",
+            "system": "{{system_prompt}}",
+            "messages": [
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "max_tokens": 1024
+          },
+          "append_path": "/messages",
+          "headers": {
+            "anthropic-version": "2023-06-01"
+          }
+        }
+      ],
+      "response": {
+        "path": "/content",
+        "select": {
+          "path": "/type",
+          "equals": "text"
+        },
+        "value_path": "/text"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://api.anthropic.com/v1",
+            "append_path": "/models",
+            "headers": {
+              "anthropic-version": "2023-06-01"
+            }
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        }
+      ],
+      "cache_seconds": 0
+    },
+    "api_key_header": "x-api-key",
+    "api_key_prefix": "",
+    "auto_select_priority": 20
+  },
+  "settings": [],
+  "license": "Apache-2.0"
+}

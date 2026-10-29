@@ -56,11 +56,11 @@
     "literalCommandCount": 15,
     "literalCallSiteCount": 16,
     "dynamicCallSiteCount": 0,
-    "handlerRegistrationCount": 296,
-    "registeredCommandCount": 296,
+    "handlerRegistrationCount": 298,
+    "registeredCommandCount": 298,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 281
+    "registeredCommandsWithoutFrontendCall": 283
   },
   "commands": [
     {
@@ -370,6 +370,7 @@
     "get_add_column_sql",
     "get_ai_activity",
     "get_ai_models",
+    "get_ai_providers",
     "get_ai_schema_context",
     "get_ai_session_events",
     "get_ai_sessions",
@@ -474,6 +475,7 @@
     "load_notebook",
     "log_frontend_event",
     "map_inferred_column_types",
+    "migrate_ai_providers",
     "move_connection_to_group",
     "move_group_to_parent",
     "move_saved_query",
