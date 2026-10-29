@@ -4,14 +4,17 @@
 //! with `include_passwords = false` (metadata only).
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::beekeeper::BeekeeperImporter;
 use super::datagrip::DataGripImporter;
 use super::dbeaver::DBeaverImporter;
+use super::navicat::NavicatImporter;
 use super::sequelace::SequelAceImporter;
 use super::tableplus::TablePlusImporter;
-use super::ForeignAppImporter;
+use super::{
+    importer_by_id, ForeignAppImporter, ForeignImportError, ImportEnvelope, ImportedConnection,
+};
 
 fn write(path: &PathBuf, contents: &str) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -326,4 +329,189 @@ async fn beekeeper_reads_sqlite() {
     assert_eq!(c.port, 3307);
     assert_eq!(c.database, "shop");
     assert_eq!(c.username, "root");
+}
+
+const NAVICAT_FIXTURE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/connection_import/navicat.ncx"
+);
+
+async fn import_navicat_fixture(include_passwords: bool) -> ImportEnvelope {
+    NavicatImporter::default()
+        .import(include_passwords, Some(Path::new(NAVICAT_FIXTURE)))
+        .await
+        .unwrap()
+}
+
+async fn import_navicat_xml(xml: &str) -> Result<ImportEnvelope, ForeignImportError> {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("connections.ncx");
+    write(&path, xml);
+    NavicatImporter::default().import(false, Some(&path)).await
+}
+
+fn by_name<'a>(env: &'a ImportEnvelope, name: &str) -> &'a ImportedConnection {
+    env.connections.iter().find(|c| c.name == name).unwrap()
+}
+
+#[tokio::test]
+async fn navicat_asks_for_an_ncx_file() {
+    let importer = importer_by_id("navicat").expect("navicat is registered");
+    assert_eq!(importer.display_name(), "Navicat");
+    assert_eq!(importer.import_file_types(), Some(vec!["ncx"]));
+    assert!(!importer.is_available().await);
+    assert!(!importer.reads_passwords_from_keychain());
+}
+
+#[tokio::test]
+async fn navicat_maps_every_supported_connection_type() {
+    let env = import_navicat_fixture(false).await;
+    assert_eq!(env.source_name, "Navicat");
+
+    // (name, driver label, host, port, database, username)
+    let expected = [
+        (
+            "Orders DB",
+            "PostgreSQL",
+            "10.0.0.5",
+            5432,
+            "orders",
+            "orders",
+        ),
+        (
+            "Shop MySQL",
+            "MySQL",
+            "db.example.com",
+            3306,
+            "shop",
+            "shop_app",
+        ),
+        (
+            "Legacy MariaDB",
+            "MariaDB",
+            "10.0.0.12",
+            3307,
+            "legacy",
+            "legacy_ro",
+        ),
+        (
+            "Local Notes",
+            "SQLite",
+            "",
+            0,
+            "/home/dev/data/notes.db",
+            "",
+        ),
+        (
+            "Warehouse",
+            "SQL Server",
+            "sql.example.com",
+            1433,
+            "warehouse",
+            "reporting",
+        ),
+        ("Billing", "Oracle", "10.0.0.20", 1521, "ORCL", "billing"),
+        (
+            "Events",
+            "MongoDB",
+            "mongo.example.com",
+            27017,
+            "events",
+            "analyst",
+        ),
+    ];
+    assert_eq!(env.connections.len(), expected.len());
+    for (name, label, host, port, database, username) in expected {
+        let c = by_name(&env, name);
+        assert_eq!(c.driver_label, label, "{name}: driver");
+        assert_eq!(c.host, host, "{name}: host");
+        assert_eq!(c.port, port, "{name}: port");
+        assert_eq!(c.database, database, "{name}: database");
+        assert_eq!(c.username, username, "{name}: username");
+    }
+}
+
+#[tokio::test]
+async fn navicat_imports_ssh_only_when_enabled() {
+    let env = import_navicat_fixture(false).await;
+    assert!(by_name(&env, "Orders DB").ssh.is_none());
+
+    let tunnel = by_name(&env, "Shop MySQL").ssh.as_ref().unwrap();
+    assert_eq!(tunnel.host, "bastion.example.com");
+    assert_eq!(tunnel.port, Some(2222));
+    assert_eq!(tunnel.username, "deploy");
+    assert_eq!(tunnel.auth_type, "password");
+    assert!(tunnel.private_key_path.is_none());
+
+    let keyed = by_name(&env, "Legacy MariaDB").ssh.as_ref().unwrap();
+    assert_eq!(keyed.host, "jump.example.com");
+    assert_eq!(keyed.port, Some(22));
+    assert_eq!(keyed.username, "ops");
+    assert_eq!(keyed.auth_type, "ssh_key");
+    assert_eq!(
+        keyed.private_key_path.as_deref(),
+        Some("/home/dev/.ssh/id_ed25519")
+    );
+}
+
+#[tokio::test]
+async fn navicat_skips_unsupported_connection_types() {
+    let env = import_navicat_fixture(false).await;
+    assert_eq!(env.connections.len(), 7);
+    assert!(env.connections.iter().all(|c| c.name != "Future Store"));
+}
+
+#[tokio::test]
+async fn navicat_never_imports_passwords() {
+    let env = import_navicat_fixture(true).await;
+    assert!(env.credentials_by_index.is_empty());
+    assert!(!env.credentials_aborted);
+}
+
+#[tokio::test]
+async fn navicat_tolerates_missing_attributes() {
+    let env = import_navicat_xml(
+        r#"<Connections><Connection ConnType="mysql" Port="oops"/><Connection ConnectionName="No type"/></Connections>"#,
+    )
+    .await
+    .unwrap();
+    assert_eq!(env.connections.len(), 1);
+    let c = &env.connections[0];
+    assert_eq!(c.name, "Untitled");
+    assert_eq!(c.driver_label, "MySQL");
+    assert_eq!(c.host, "localhost");
+    assert_eq!(c.port, 3306);
+    assert_eq!(c.database, "");
+    assert_eq!(c.username, "");
+    assert!(c.ssh.is_none());
+}
+
+#[tokio::test]
+async fn navicat_rejects_files_without_usable_connections() {
+    let importer = NavicatImporter::default();
+    assert!(matches!(
+        importer.import(false, None).await,
+        Err(ForeignImportError::FileNotFound(_))
+    ));
+    assert!(matches!(
+        importer
+            .import(false, Some(Path::new("/nonexistent/connections.ncx")))
+            .await,
+        Err(ForeignImportError::FileNotFound(_))
+    ));
+    assert!(matches!(
+        import_navicat_xml("<Connections>").await,
+        Err(ForeignImportError::ParseError(_))
+    ));
+    assert!(matches!(
+        import_navicat_xml("<plist/>").await,
+        Err(ForeignImportError::UnsupportedFormat(_))
+    ));
+    assert!(matches!(
+        import_navicat_xml(
+            r#"<Connections><Connection ConnectionName="x" ConnType="FUTUREDB"/></Connections>"#
+        )
+        .await,
+        Err(ForeignImportError::NoConnectionsFound)
+    ));
 }
