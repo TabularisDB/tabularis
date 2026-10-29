@@ -39,3 +39,19 @@ export function getKeyboardColumnWidth(
             return null;
     }
 }
+
+/**
+ * The width that fits a column to its content: the widest measured text
+ * (header and loaded rows) plus the cell's horizontal padding, rounded up
+ * and kept within the limits. With nothing measured it falls back to
+ * `minWidth`.
+ */
+export function getFitColumnWidth(
+    textWidths: readonly number[],
+    padding: number,
+    minWidth: number,
+    maxWidth: number,
+): number {
+    const widest = textWidths.reduce((max, w) => Math.max(max, w), 0);
+    return clamp(Math.ceil(widest + padding), minWidth, maxWidth);
+}

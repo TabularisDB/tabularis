@@ -264,16 +264,20 @@ export function supportsMatchCaseToggle(
  * `col` must already be a quoted/formatted identifier.
  * With `options.matchCase === false` on a PostgreSQL-dialect driver the
  * operator is `ILIKE` instead of `LIKE`; the escaping is identical.
+ * `options.negate` prefixes the operator with `NOT`, so rows whose value is
+ * NULL match neither the clause nor its negation, as with the filter bar's
+ * `NOT LIKE`.
  */
 export function buildLiteralLikeClause(
     col: string,
     value: string,
     mode: LikeMatchMode,
     driver: string | PluginManifest | DriverCapabilities | null | undefined,
-    options?: {matchCase?: boolean},
+    options?: {matchCase?: boolean; negate?: boolean},
 ): string {
-    const likeOp =
+    const caseOp =
         options?.matchCase === false && supportsMatchCaseToggle(driver) ? 'ILIKE' : 'LIKE';
+    const likeOp = options?.negate ? `NOT ${caseOp}` : caseOp;
     // A syntax without `LIKE … ESCAPE` (declared `like_escape: false`, e.g.
     // GoogleSQL) escapes `%`, `_` and backslash itself with a backslash, its
     // default LIKE escape; the literal then gets the syntax's own escaping.

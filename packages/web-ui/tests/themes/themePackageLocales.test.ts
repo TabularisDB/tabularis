@@ -15,9 +15,9 @@ function leaves(value: Record<string, unknown>, prefix = ''): Record<string, str
 }
 
 describe('theme package translations', () => {
-    it('provides every label, conversion diagnostic and interpolation in all 11 locales', () => {
+    it('provides every label, conversion diagnostic and interpolation in all 12 locales', () => {
         const english = leaves(locales['../../src/i18n/locales/en.json'].themePackages);
-        expect(Object.keys(locales)).toHaveLength(11);
+        expect(Object.keys(locales)).toHaveLength(12);
         for (const [locale, value] of Object.entries(locales)) {
             const translated = leaves(value.themePackages);
             expect(Object.keys(translated).sort(), locale).toEqual(Object.keys(english).sort());

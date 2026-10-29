@@ -173,7 +173,7 @@ describe('InfoTab', () => {
         expect(screen.getByText('linux-x86_64 · release · abc1234')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: 'Open server upgrade guide'}));
         expect(openExternalUrl).toHaveBeenCalledWith(
-            'https://github.com/TabularisDB/tabularis/blob/main/web-ui-project/docs/WEB_MODE_UPGRADES.md',
+            'https://github.com/TabularisDB/tabularis/blob/main/docs/web/WEB_MODE_UPGRADES.md',
         );
         expect(screen.queryByText('Release channel')).not.toBeInTheDocument();
         expect(screen.queryByRole('button', {name: 'settings.checkNow'})).not.toBeInTheDocument();

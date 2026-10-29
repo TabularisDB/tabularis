@@ -115,8 +115,10 @@ import {TableToolbar} from '@/components/ui/TableToolbar';
 import {DataGrid, type DataGridCommandTarget} from '@/components/ui/DataGrid';
 import {MultiResultPanel} from '@/components/ui/MultiResultPanel';
 import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
+import {PageIndicator} from '@/components/ui/PageIndicator';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
+import {totalPageCount} from '@/utils/pagination';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
 import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
@@ -591,8 +593,6 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [explainSelectableQueries, setExplainSelectableQueries] = useState<
         {query: string; index: number}[]
     >([]);
-    const [isEditingPage, setIsEditingPage] = useState(false);
-    const [tempPage, setTempPage] = useState('1');
     const [isCountLoading, setIsCountLoading] = useState(false);
     const [applyToAll, setApplyToAll] = useState(false);
     const [copyFormat, setCopyFormat] = useState<'csv' | 'json' | 'sql-insert' | 'markdown'>(
@@ -2262,6 +2262,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 csvDelimiter,
                 tableName,
                 driver: activeCapabilities,
+                nullLabel: settings.copyNullLabel ?? 'null',
             });
             return {text, count: rows.length};
         },
@@ -2272,6 +2273,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             copyFormat,
             csvDelimiter,
             csvIncludeHeaders,
+            settings.copyNullLabel,
         ],
     );
 
@@ -6071,7 +6073,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                             }
                                                             onClick={() => runQuery(undefined, 1)}
                                                             className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="First Page"
+                                                            title={t('pagination.firstPage')}
+                                                            aria-label={t('pagination.firstPage')}
                                                         >
                                                             <ChevronsLeft size={14} />
                                                         </button>
@@ -6088,108 +6091,27 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Previous Page"
+                                                            title={t('pagination.previousPage')}
+                                                            aria-label={t(
+                                                                'pagination.previousPage',
+                                                            )}
                                                         >
                                                             <ChevronLeft size={14} />
                                                         </button>
 
-                                                        {isEditingPage ? (
-                                                            <div
-                                                                className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap"
-                                                                title={t('editor.jumpToPage')}
-                                                            >
-                                                                <input
-                                                                    autoCorrect="off"
-                                                                    autoCapitalize="off"
-                                                                    autoComplete="off"
-                                                                    spellCheck={false}
-                                                                    autoFocus
-                                                                    type="text"
-                                                                    className="w-full bg-transparent text-center focus:outline-none text-primary p-0 m-0 border-none h-full"
-                                                                    value={tempPage}
-                                                                    onChange={(e) =>
-                                                                        setTempPage(e.target.value)
-                                                                    }
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') {
-                                                                            const newPage =
-                                                                                parseInt(tempPage);
-                                                                            const totalRows =
-                                                                                activeTab.result!
-                                                                                    .pagination!
-                                                                                    .total_rows;
-                                                                            if (
-                                                                                !isNaN(newPage) &&
-                                                                                newPage >= 1
-                                                                            ) {
-                                                                                if (
-                                                                                    totalRows ===
-                                                                                        null ||
-                                                                                    newPage <=
-                                                                                        Math.ceil(
-                                                                                            totalRows /
-                                                                                                activeTab
-                                                                                                    .result!
-                                                                                                    .pagination!
-                                                                                                    .page_size,
-                                                                                        )
-                                                                                ) {
-                                                                                    runQuery(
-                                                                                        undefined,
-                                                                                        newPage,
-                                                                                    );
-                                                                                }
-                                                                            }
-                                                                            setIsEditingPage(false);
-                                                                        } else if (
-                                                                            e.key === 'Escape'
-                                                                        ) {
-                                                                            setIsEditingPage(false);
-                                                                        }
-                                                                        e.stopPropagation();
-                                                                    }}
-                                                                    onBlur={() =>
-                                                                        setIsEditingPage(false)
-                                                                    }
-                                                                />
-                                                            </div>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
-                                                                onClick={() => {
-                                                                    setIsEditingPage(true);
-                                                                    setTempPage(
-                                                                        String(
-                                                                            activeTab.result!
-                                                                                .pagination!.page,
-                                                                        ),
-                                                                    );
-                                                                }}
-                                                                title={t('editor.jumpToPage')}
-                                                            >
-                                                                {activeTab.result.pagination
-                                                                    .total_rows !== null
-                                                                    ? t('editor.pageOf', {
-                                                                          current:
-                                                                              activeTab.result
-                                                                                  .pagination.page,
-                                                                          total: Math.ceil(
-                                                                              activeTab.result
-                                                                                  .pagination
-                                                                                  .total_rows /
-                                                                                  activeTab.result
-                                                                                      .pagination
-                                                                                      .page_size,
-                                                                          ),
-                                                                      })
-                                                                    : t('editor.page', {
-                                                                          current:
-                                                                              activeTab.result
-                                                                                  .pagination.page,
-                                                                      })}
-                                                            </button>
-                                                        )}
+                                                        <PageIndicator
+                                                            page={activeTab.result.pagination.page}
+                                                            totalPages={totalPageCount(
+                                                                activeTab.result.pagination
+                                                                    .total_rows,
+                                                                activeTab.result.pagination
+                                                                    .page_size,
+                                                            )}
+                                                            disabled={!!activeTab.isLoading}
+                                                            onPageChange={(nextPage) =>
+                                                                runQuery(undefined, nextPage)
+                                                            }
+                                                        />
 
                                                         {activeTab.result.pagination.total_rows ===
                                                         null ? (
@@ -6232,7 +6154,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Next Page"
+                                                            title={t('pagination.nextPage')}
+                                                            aria-label={t('pagination.nextPage')}
                                                         >
                                                             <ChevronRight size={14} />
                                                         </button>
@@ -6256,7 +6179,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Last Page"
+                                                            title={t('pagination.lastPage')}
+                                                            aria-label={t('pagination.lastPage')}
                                                         >
                                                             <ChevronsRight size={14} />
                                                         </button>

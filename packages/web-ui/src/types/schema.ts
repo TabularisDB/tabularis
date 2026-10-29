@@ -24,6 +24,8 @@ export interface ForeignKey {
     column_name: string;
     ref_table: string;
     ref_column: string;
+    on_delete?: string | null;
+    on_update?: string | null;
     /**
      * 1-based position of this column within its (possibly composite) foreign-key
      * constraint. The backend reports one row per column of a composite FK that

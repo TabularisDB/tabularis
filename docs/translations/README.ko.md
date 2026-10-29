@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis는 3종의 내장 데이터베이스 드라이버와 DuckDB, ClickHouse, Redis, Firestore를 포함한 24종의 출시된 플러그인을 갖춘 오픈소스 데스크톱 SQL 워크스페이스입니다. 내장 MCP 서버를 통해 Claude, Cursor, Devin(구 Windsurf)이 여러분이 이미 사용하는 앱에서 스키마를 읽고 쿼리를 실행할 수 있습니다.
+Tabularis는 3종의 내장 데이터베이스 드라이버와 DuckDB, ClickHouse, Redis, Firestore를 포함한 26종의 출시된 플러그인을 갖춘 오픈소스 데스크톱 SQL 워크스페이스입니다. 내장 MCP 서버를 통해 Claude, Cursor, Devin(구 Windsurf)이 여러분이 이미 사용하는 앱에서 스키마를 읽고 쿼리를 실행할 수 있습니다.
 
 <p align="center">
   <b><a href="https://tabularis.dev">웹사이트</a></b> ·
@@ -20,7 +20,7 @@ Tabularis는 3종의 내장 데이터베이스 드라이버와 DuckDB, ClickHous
 <p align="center">
   <img src="https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat" alt="Release" />
   <img src="https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat" alt="Stars" />
-  <img src="https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat" alt="Downloads" />
+  <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTabularisDB%2Ftabularis%2Fdownload-stats%2Fdownloads.json&amp;style=flat" alt="Downloads" />
   <img src="https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg" alt="Build & Release" />
   <a href="https://discord.com/invite/K2hmhfHRSt"><img src="https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://gitster.dev/repo/TabularisDB/tabularis"><img src="https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e" alt="Gitster" /></a>
@@ -91,7 +91,7 @@ sudo snap install tabularis       # Linux
 | **모든 언어**로 작성 가능한 플러그인 (stdio 기반 JSON-RPC) |              ✅               |     Java/Eclipse 플러그인     | JavaScript 플러그인 |         ❌          |
 | **로컬 모델**(Ollama)을 사용하는 AI text-to-SQL            |              ✅               |  클라우드 기반 AI 어시스턴트  |         ❌          |         ❌          |
 | 인터랙티브 플랜 그래프가 있는 Visual EXPLAIN               |              ✅               |              ✅               |         ❌          |         ❌          |
-| 기본 제공 데이터베이스                                     | 내장 3종 + 공식 플러그인 24종 |          100종 이상           |      20종 이상      |       약 10종       |
+| 기본 제공 데이터베이스                                     | 내장 3종 + 드라이버 플러그인 26종 |          100종 이상           |      20종 이상      |       약 10종       |
 
 > [!NOTE]
 > 2026년 6월 기준 비교이며, 다른 도구의 기능은 이후 변경되었을 수 있습니다. 수십 종의 드라이버가 필요하다면 DBeaver를 사용하세요. tabularis는 소수의 데이터베이스를 제대로 지원하는 데 집중합니다.
@@ -104,6 +104,7 @@ PostgreSQL, MySQL/MariaDB, SQLite는 기본 내장되어 있습니다. 내장 Po
 
 | 데이터베이스             | 플러그인                                                                                        | 데이터베이스   | 플러그인                                                                                        |
 | ------------------------ | ----------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| Google BigQuery          | [tabularis-bigquery-plugin](https://github.com/TabularisDB/tabularis-bigquery-plugin)           | CockroachDB    | [tabularis-cockroachdb-plugin](https://github.com/TabularisDB/tabularis-cockroachdb-plugin)     |
 | ClickHouse               | [tabularis-clickhouse-plugin](https://github.com/TabularisDB/tabularis-clickhouse-plugin)       | LibSQL / Turso | [tabularis-libsql-plugin](https://github.com/TabularisDB/tabularis-libsql-plugin)               |
 | Cloudflare D1            | [tabularis_cloudflare_d1_plugin](https://github.com/josejorge/tabularis_cloudflare_d1_plugin)   | MongoDB        | [tabularis-mongodb-plugin](https://github.com/danielnuld/tabularis-mongodb-plugin)              |
 | Cloudflare D1 (HTTP API) | [cloudflare-tabularis](https://github.com/GabrielMalava/cloudflare-tabularis)                   | MongoDB Atlas  | [tabularis-mongodb-plugin](https://github.com/TabularisDB/tabularis-mongodb-plugin)             |
@@ -121,10 +122,9 @@ PostgreSQL, MySQL/MariaDB, SQLite는 기본 내장되어 있습니다. 내장 Po
 
 | 상태          | 데이터베이스                                                                 |
 | ------------- | ---------------------------------------------------------------------------- |
-| 개발 중          | Amazon Redshift, Google BigQuery, Meilisearch                                |
-| 계획됨           | CockroachDB, TiDB                                                            |
-| 곧 출시          | Snowflake                                                                    |
-| 모집 중          | Etcd, Firebird, SQL Anywhere, SurrealDB                                      |
+| 개발 중          | Amazon Redshift, Etcd, Meilisearch, Snowflake, SQL Anywhere                                |
+| 계획됨           | TiDB                                                            |
+| 모집 중          | Firebird, SurrealDB                                      |
 
 > [!NOTE]
 > **출시됨** 상태의 드라이버는 [플러그인 레지스트리](https://tabularis.dev/plugins)에서 설치할 수 있습니다. 그 외 모든 것은 [바운티 보드](https://tabularis.dev/plugins/bounties)에 있습니다. 직접 맡거나, 후원하거나, [데이터베이스를 요청](https://github.com/TabularisDB/tabularis/discussions)하세요.

@@ -1,6 +1,6 @@
 //! TablePlus importer (macOS). Reads `Connections.plist` / `ConnectionGroups.plist`
 //! from TablePlus' Application Support data dir and pulls passwords from the
-//! login Keychain. Ported from TablePro's `TablePlusImporter.swift`.
+//! login Keychain.
 
 use std::path::{Path, PathBuf};
 

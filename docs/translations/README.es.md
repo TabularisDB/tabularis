@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis es un espacio de trabajo SQL de escritorio open source con 3 drivers de bases de datos integrados y 24 plugins publicados, entre ellos DuckDB, ClickHouse, Redis y Firestore. Su servidor MCP integrado permite que Claude, Cursor y Devin (antes Windsurf) lean tu esquema y ejecuten consultas en la misma app que ya usas.
+Tabularis es un espacio de trabajo SQL de escritorio open source con 3 drivers de bases de datos integrados y 26 plugins publicados, entre ellos DuckDB, ClickHouse, Redis y Firestore. Su servidor MCP integrado permite que Claude, Cursor y Devin (antes Windsurf) lean tu esquema y ejecuten consultas en la misma app que ya usas.
 
 <p align="center">
   <b><a href="https://tabularis.dev">Sitio web</a></b> ·
@@ -20,7 +20,7 @@ Tabularis es un espacio de trabajo SQL de escritorio open source con 3 drivers d
 <p align="center">
   <img src="https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat" alt="Release" />
   <img src="https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat" alt="Stars" />
-  <img src="https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat" alt="Downloads" />
+  <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTabularisDB%2Ftabularis%2Fdownload-stats%2Fdownloads.json&amp;style=flat" alt="Downloads" />
   <img src="https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg" alt="Build & Release" />
   <a href="https://discord.com/invite/K2hmhfHRSt"><img src="https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://gitster.dev/repo/TabularisDB/tabularis"><img src="https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e" alt="Gitster" /></a>
@@ -91,7 +91,7 @@ La interfaz de la aplicación está disponible en inglés, italiano, español, c
 | Plugins en **cualquier lenguaje** (JSON-RPC sobre stdio)                |                 ✅                  |        Plugins Java/Eclipse         | Plugins JavaScript |            ❌             |
 | Text-to-SQL con IA usando **modelos locales** (Ollama)                  |                 ✅                  |     Asistente de IA en la nube      |         ❌         |            ❌             |
 | EXPLAIN visual con grafos de plan interactivos                          |                 ✅                  |                 ✅                  |         ❌         |            ❌             |
-| Bases de datos soportadas de serie                                      | 3 integradas + 24 plugins oficiales |                100+                 |        20+         |            ~10            |
+| Bases de datos soportadas de serie                                      | 3 integradas + 26 plugins de drivers |                100+                 |        20+         |            ~10            |
 
 > [!NOTE]
 > Comparativa a junio de 2026; las funcionalidades de las otras herramientas pueden haber cambiado desde entonces. Si necesitas decenas de drivers, usa DBeaver. Tabularis se centra en hacer bien unas pocas bases de datos.
@@ -104,6 +104,7 @@ PostgreSQL, MySQL/MariaDB y SQLite vienen integradas. El driver de PostgreSQL in
 
 | Base de datos            | Plugin                                                                                          | Base de datos  | Plugin                                                                                          |
 | ------------------------ | ----------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| Google BigQuery          | [tabularis-bigquery-plugin](https://github.com/TabularisDB/tabularis-bigquery-plugin)           | CockroachDB    | [tabularis-cockroachdb-plugin](https://github.com/TabularisDB/tabularis-cockroachdb-plugin)     |
 | ClickHouse               | [tabularis-clickhouse-plugin](https://github.com/TabularisDB/tabularis-clickhouse-plugin)       | LibSQL / Turso | [tabularis-libsql-plugin](https://github.com/TabularisDB/tabularis-libsql-plugin)               |
 | Cloudflare D1            | [tabularis_cloudflare_d1_plugin](https://github.com/josejorge/tabularis_cloudflare_d1_plugin)   | MongoDB        | [tabularis-mongodb-plugin](https://github.com/danielnuld/tabularis-mongodb-plugin)              |
 | Cloudflare D1 (HTTP API) | [cloudflare-tabularis](https://github.com/GabrielMalava/cloudflare-tabularis)                   | MongoDB Atlas  | [tabularis-mongodb-plugin](https://github.com/TabularisDB/tabularis-mongodb-plugin)             |
@@ -121,10 +122,9 @@ PostgreSQL, MySQL/MariaDB y SQLite vienen integradas. El driver de PostgreSQL in
 
 | Estado       | Bases de datos                                                               |
 | ------------ | ---------------------------------------------------------------------------- |
-| En curso     | Amazon Redshift, Google BigQuery, Meilisearch                                |
-| Planificado  | CockroachDB, TiDB                                                            |
-| Próximamente | Snowflake                                                                    |
-| Abierto      | Etcd, Firebird, SQL Anywhere, SurrealDB                                      |
+| En curso     | Amazon Redshift, Etcd, Meilisearch, Snowflake, SQL Anywhere                                |
+| Planificado  | TiDB                                                            |
+| Abierto      | Firebird, SurrealDB                                      |
 
 > [!NOTE]
 > Los drivers **disponibles** se instalan desde el [registro de plugins](https://tabularis.dev/plugins). Todo lo demás está en el [tablón de recompensas](https://tabularis.dev/plugins/bounties): reclama uno, patrocina uno o [solicita una base de datos](https://github.com/TabularisDB/tabularis/discussions).

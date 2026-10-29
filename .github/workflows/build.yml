@@ -270,6 +270,7 @@ jobs:
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: ${{ inputs.experimental_appimage && 'true' || '' }}
           # Source maps only for prerelease (nightly) builds; stable stays lean.
           TABULARIS_SOURCEMAP: ${{ inputs.prerelease && 'true' || '' }}
+          NODE_OPTIONS: --max-old-space-size=4096
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           # macOS code signing (Developer ID Application certificate)
@@ -301,6 +302,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: ${{ inputs.experimental_appimage && 'true' || '' }}
           TABULARIS_SOURCEMAP: ${{ inputs.prerelease && 'true' || '' }}
+          NODE_OPTIONS: --max-old-space-size=4096
         with:
           # No tagName: tauri-action only builds, it never touches releases.
           tauriScript: ${{ inputs.experimental_appimage && matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
@@ -352,8 +354,8 @@ jobs:
           appimage=$(find src-tauri/target -path '*/bundle/appimage/*.AppImage' -print -quit)
           test -n "$deb"
           test -n "$appimage"
-          web-ui-project/scripts/verify-linux-web-package.sh assets "$deb"
-          web-ui-project/scripts/verify-linux-web-package.sh assets "$appimage"
+          scripts/web/verify-linux-web-package.sh assets "$deb"
+          scripts/web/verify-linux-web-package.sh assets "$appimage"
 
       - name: Smoke-test headless Web mode (Linux)
         if: matrix.platform == 'ubuntu-24.04'
@@ -362,7 +364,7 @@ jobs:
           set -euo pipefail
           deb=$(find src-tauri/target -path '*/bundle/deb/*.deb' -print -quit)
           test -n "$deb"
-          web-ui-project/scripts/verify-linux-web-package.sh headless "$deb"
+          scripts/web/verify-linux-web-package.sh headless "$deb"
 
       - name: Verify packaged Web UI (macOS)
         if: startsWith(matrix.platform, 'macos')

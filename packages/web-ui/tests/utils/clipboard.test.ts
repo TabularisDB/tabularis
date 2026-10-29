@@ -596,6 +596,80 @@ describe('rowsToMarkdown', () => {
     });
 });
 
+describe('formatRowsForCopy NULL label', () => {
+    const rows = [
+        [1, 'Ada', null],
+        [2, 'Alan', undefined],
+    ];
+    const columns = ['id', 'name', 'phone'];
+
+    it.each([
+        ['null', 'id,name,phone\n1,Ada,null\n2,Alan,null'],
+        ['NULL', 'id,name,phone\n1,Ada,NULL\n2,Alan,NULL'],
+        ['', 'id,name,phone\n1,Ada,\n2,Alan,'],
+    ])('writes NULL as %j in CSV with headers', (nullLabel, expected) => {
+        expect(formatRowsForCopy(rows, columns, 'csv', {withHeaders: true, nullLabel})).toBe(
+            expected,
+        );
+    });
+
+    it.each([
+        ['null', '1;Ada;null\n2;Alan;null'],
+        ['NULL', '1;Ada;NULL\n2;Alan;NULL'],
+        ['', '1;Ada;\n2;Alan;'],
+    ])('writes NULL as %j in CSV without headers', (nullLabel, expected) => {
+        expect(formatRowsForCopy(rows, columns, 'csv', {csvDelimiter: ';', nullLabel})).toBe(
+            expected,
+        );
+    });
+
+    it.each([
+        ['null', '| 1 | Ada | null |\n| 2 | Alan | null |'],
+        ['NULL', '| 1 | Ada | NULL |\n| 2 | Alan | NULL |'],
+        ['', '| 1 | Ada |  |\n| 2 | Alan |  |'],
+    ])('writes NULL as %j in Markdown', (nullLabel, expected) => {
+        expect(formatRowsForCopy(rows, columns, 'markdown', {nullLabel})).toBe(expected);
+        expect(formatRowsForCopy(rows, columns, 'markdown', {withHeaders: true, nullLabel})).toBe(
+            `| id | name | phone |\n| --- | --- | --- |\n${expected}`,
+        );
+    });
+
+    it('keeps the text null by default', () => {
+        expect(formatRowsForCopy(rows, columns, 'csv')).toBe('1,Ada,null\n2,Alan,null');
+    });
+
+    it('leaves JSON and SQL INSERT unchanged', () => {
+        for (const nullLabel of ['null', 'NULL', '']) {
+            expect(formatRowsForCopy(rows, columns, 'json', {nullLabel})).toBe(
+                '[{"id":1,"name":"Ada","phone":null},{"id":2,"name":"Alan","phone":null}]',
+            );
+            expect(
+                formatRowsForCopy(rows, columns, 'sql-insert', {tableName: 'people', nullLabel}),
+            ).toBe(
+                "INSERT INTO `people` (`id`, `name`, `phone`) VALUES (1, 'Ada', NULL);\n" +
+                    "INSERT INTO `people` (`id`, `name`, `phone`) VALUES (2, 'Alan', NULL);",
+            );
+        }
+    });
+
+    it('applies the NULL label to single-column copies', () => {
+        expect(
+            columnValuesForCopy(rows, columns, 2, {
+                format: 'csv',
+                includeHeader: true,
+                nullLabel: '',
+            }),
+        ).toBe('phone\n\n');
+        expect(
+            columnValuesForCopy(rows, columns, 2, {
+                format: 'markdown',
+                includeHeader: false,
+                nullLabel: 'NULL',
+            }),
+        ).toBe('| NULL |\n| NULL |');
+    });
+});
+
 describe('SQL INSERT copy quoting', () => {
     it("quotes identifiers with the driver's own quote character", () => {
         expect(rowsToSqlInsert([[1, 'a']], ['id', 'name'], 'users', 'postgres')).toBe(

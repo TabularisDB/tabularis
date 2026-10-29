@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis 是一款开源的桌面 SQL 工作台，内置 3 种数据库驱动，并提供 24 个已发布插件，包括 DuckDB、ClickHouse、Redis 和 Firestore。其内置的 MCP 服务器可让 Claude、Cursor 和 Devin（原 Windsurf）在你日常使用的同一款应用中读取数据库结构并执行查询。
+Tabularis 是一款开源的桌面 SQL 工作台，内置 3 种数据库驱动，并提供 26 个已发布插件，包括 DuckDB、ClickHouse、Redis 和 Firestore。其内置的 MCP 服务器可让 Claude、Cursor 和 Devin（原 Windsurf）在你日常使用的同一款应用中读取数据库结构并执行查询。
 
 <p align="center">
   <b><a href="https://tabularis.dev">官网</a></b> ·
@@ -20,7 +20,7 @@ Tabularis 是一款开源的桌面 SQL 工作台，内置 3 种数据库驱动�
 <p align="center">
   <img src="https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat" alt="Release" />
   <img src="https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat" alt="Stars" />
-  <img src="https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat" alt="Downloads" />
+  <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTabularisDB%2Ftabularis%2Fdownload-stats%2Fdownloads.json&amp;style=flat" alt="Downloads" />
   <img src="https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg" alt="Build & Release" />
   <a href="https://discord.com/invite/K2hmhfHRSt"><img src="https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://gitster.dev/repo/TabularisDB/tabularis"><img src="https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e" alt="Gitster" /></a>
@@ -91,7 +91,7 @@ sudo snap install tabularis       # Linux
 | 支持**任意语言**编写插件（基于 stdio 的 JSON-RPC）  |            ✅            |       Java/Eclipse 插件        | JavaScript 插件 |        ❌         |
 | 支持**本地模型**（Ollama）的 AI text-to-SQL         |            ✅            |       基于云端的 AI 助手       |       ❌        |        ❌         |
 | 带交互式计划图的可视化 EXPLAIN                      |            ✅            |               ✅               |       ❌        |        ❌         |
-| 开箱即用支持的数据库                                | 3 种内置 + 24 个官方插件 |              100+              |       20+       |     约 10 种      |
+| 开箱即用支持的数据库                                | 3 种内置 + 26 个驱动插件 |              100+              |       20+       |     约 10 种      |
 
 > [!NOTE]
 > 对比数据截至 2026 年 6 月，其他工具的功能此后可能已有变化。如果你需要几十种驱动，请使用 DBeaver。tabularis 专注于把少数几种数据库做好。
@@ -104,6 +104,7 @@ PostgreSQL、MySQL/MariaDB 和 SQLite 为内置支持。内置 PostgreSQL 驱动
 
 | 数据库                   | 插件                                                                                            | 数据库         | 插件                                                                                            |
 | ------------------------ | ----------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| Google BigQuery          | [tabularis-bigquery-plugin](https://github.com/TabularisDB/tabularis-bigquery-plugin)           | CockroachDB    | [tabularis-cockroachdb-plugin](https://github.com/TabularisDB/tabularis-cockroachdb-plugin)     |
 | ClickHouse               | [tabularis-clickhouse-plugin](https://github.com/TabularisDB/tabularis-clickhouse-plugin)       | LibSQL / Turso | [tabularis-libsql-plugin](https://github.com/TabularisDB/tabularis-libsql-plugin)               |
 | Cloudflare D1            | [tabularis_cloudflare_d1_plugin](https://github.com/josejorge/tabularis_cloudflare_d1_plugin)   | MongoDB        | [tabularis-mongodb-plugin](https://github.com/danielnuld/tabularis-mongodb-plugin)              |
 | Cloudflare D1 (HTTP API) | [cloudflare-tabularis](https://github.com/GabrielMalava/cloudflare-tabularis)                   | MongoDB Atlas  | [tabularis-mongodb-plugin](https://github.com/TabularisDB/tabularis-mongodb-plugin)             |
@@ -121,10 +122,9 @@ PostgreSQL、MySQL/MariaDB 和 SQLite 为内置支持。内置 PostgreSQL 驱动
 
 | 状态     | 数据库                                                                       |
 | -------- | ---------------------------------------------------------------------------- |
-| 开发中      | Amazon Redshift, Google BigQuery, Meilisearch                                |
-| 已规划      | CockroachDB, TiDB                                                            |
-| 即将推出     | Snowflake                                                                    |
-| 开放中      | Etcd, Firebird, SQL Anywhere, SurrealDB                                      |
+| 开发中      | Amazon Redshift, Etcd, Meilisearch, Snowflake, SQL Anywhere                                |
+| 已规划      | TiDB                                                            |
+| 开放中      | Firebird, SurrealDB                                      |
 
 > [!NOTE]
 > 标记为**已发布**的驱动可从[插件注册表](https://tabularis.dev/plugins)安装。其余均在[悬赏看板](https://tabularis.dev/plugins/bounties)上：你可以认领、赞助，或[申请新数据库](https://github.com/TabularisDB/tabularis/discussions)。

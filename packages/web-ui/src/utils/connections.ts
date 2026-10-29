@@ -7,7 +7,7 @@ import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import type {ConnectionGroup, SavedConnection} from '@/contexts/DatabaseContext';
 import type {ProxyOverride} from '@/types/proxy';
 import {isLocalDriver} from './driverCapabilities';
-import {isMultiDatabaseCapable} from './database';
+import {hasOptedIntoDatabaseSelection} from './database';
 
 export type DatabaseDriver = string;
 
@@ -312,6 +312,10 @@ export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string 
  * "all databases" label (multi-db connection with no explicit selection)
  * and the "{{n}} databases" counter. Untranslated fallbacks apply when
  * omitted.
+ *
+ * "All databases" is detected with `hasOptedIntoDatabaseSelection`, the same
+ * gate the connect flow uses, so it covers flat multi-db drivers (MySQL) and
+ * schema-based ones (PostgreSQL) alike.
  */
 export function connectionSubtitle(
     conn: SavedConnection,
@@ -323,9 +327,9 @@ export function connectionSubtitle(
         return Array.isArray(db) ? (db[0] ?? '') : (db ?? '');
     }
     const db = conn.params.database;
+    const selection = Array.isArray(db) ? db : typeof db === 'string' ? db.trim() : '';
     const isAllDatabases =
-        isMultiDatabaseCapable(capabilities) &&
-        (Array.isArray(db) ? db.length === 0 : typeof db !== 'string' || db.trim() === '');
+        selection.length === 0 && hasOptedIntoDatabaseSelection(capabilities, selection);
     const dbStr = isAllDatabases
         ? (labels?.allDatabases ?? 'All databases')
         : Array.isArray(db)

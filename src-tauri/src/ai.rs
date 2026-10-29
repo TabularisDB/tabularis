@@ -1115,11 +1115,27 @@ async fn generate_anthropic(
     }
 
     let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    let content = json["content"][0]["text"]
-        .as_str()
-        .ok_or("Invalid response format from Anthropic")?;
+    // Models with extended thinking return `thinking` (or other non-text)
+    // blocks ahead of the answer, so use the first `text` block rather than
+    // assuming it is `content[0]`.
+    let content = json["content"]
+        .as_array()
+        .and_then(|blocks| {
+            blocks
+                .iter()
+                .find(|block| block["type"].as_str() == Some("text"))
+        })
+        .and_then(|block| block["text"].as_str());
 
-    Ok(clean_response(content))
+    match content {
+        Some(content) => Ok(clean_response(content)),
+        // Thinking tokens count toward `max_tokens`, so a long answer can run
+        // out of budget before any text block is produced.
+        None if json["stop_reason"].as_str() == Some("max_tokens") => {
+            Err("Anthropic stopped at the max_tokens limit before producing an answer".into())
+        }
+        None => Err("Invalid response format from Anthropic".into()),
+    }
 }
 
 async fn generate_ollama(

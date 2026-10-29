@@ -53,6 +53,7 @@ import {useAlert} from '@/hooks/useAlert';
 import {useToast} from '@/hooks/useToast';
 import {getSavedQueryCopyName} from '@/utils/savedQueryNames';
 import {getSavedQueryExportFileName} from '@/utils/sqlFile';
+import {formatSavedQueriesAsSql} from '@/utils/savedQueryExport';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
 import {useSettings} from '@/hooks/useSettings';
 import {useDatabase} from '@/hooks/useDatabase';
@@ -74,6 +75,8 @@ import {QueryModal} from '@/components/modals/QueryModal';
 import {SavedQueryFolderModal} from '@/components/modals/SavedQueryFolderModal';
 import {MoveSavedQueryModal} from '@/components/modals/MoveSavedQueryModal';
 import {ModifyColumnModal} from '@/components/modals/ModifyColumnModal';
+import {SchemaObjectDetailsModal} from '@/components/modals/SchemaObjectDetailsModal';
+import type {SchemaObjectDetails} from '@/types/schemaObjectDetails';
 import {CreateIndexModal} from '@/components/modals/CreateIndexModal';
 import {CreateForeignKeyModal} from '@/components/modals/CreateForeignKeyModal';
 import {GenerateSQLModal} from '@/components/modals/GenerateSQLModal';
@@ -286,6 +289,7 @@ export const ExplorerSidebar = ({
         label: string;
         data?: ContextMenuData;
     } | null>(null);
+    const [objectDetails, setObjectDetails] = useState<SchemaObjectDetails | null>(null);
     const [schemaModal, setSchemaModal] = useState<TableTarget | null>(null);
     const [runRoutineModal, setRunRoutineModal] = useState<{
         routine: RoutineInfo;
@@ -336,6 +340,22 @@ export const ExplorerSidebar = ({
     const [folderDeleteConfirm, setFolderDeleteConfirm] = useState<SavedQueryFolder | null>(null);
     const [moveQueryTarget, setMoveQueryTarget] = useState<SavedQuery | null>(null);
     const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+
+    const exportSavedQueries = async (toExport: SavedQuery[], title: string) => {
+        if (toExport.length === 0) return;
+        try {
+            const saved = await saveSqlFile(platform, client, {
+                query: formatSavedQueriesAsSql(toExport, folders),
+                title,
+                saveAs: true,
+                filters: [{name: t('editor.sqlFileFilter'), extensions: ['sql', 'psql', 'pgsql']}],
+            });
+            if (!saved) return;
+            showToast(t('editor.sqlFileSaved'), {kind: 'success'});
+        } catch (error) {
+            showToast(`${t('common.error')}: ${toErrorMessage(error)}`, {kind: 'error'});
+        }
+    };
     const [tableFilter, setTableFilter] = useState('');
     const [favoritesFilter, setFavoritesFilter] = useState('');
     const [refreshingMatView, setRefreshingMatView] = useState<string | null>(null);
@@ -1305,6 +1325,9 @@ export const ExplorerSidebar = ({
                                     queries: SavedQuery[];
                                 }) => {
                                     const isCollapsed = collapsedFolders.has(folder.id);
+                                    const allFolderQueries = sorted.filter(
+                                        (q) => q.folder_id === folder.id,
+                                    );
                                     const FolderIcon = isCollapsed ? Folder : FolderOpen;
                                     const actionClass =
                                         'p-1 rounded text-muted hover:text-primary hover:bg-surface-hover opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus';
@@ -1346,6 +1369,23 @@ export const ExplorerSidebar = ({
                                                     <span className="text-[10px] text-muted shrink-0">
                                                         {folderQueries.length}
                                                     </span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    title={t('sidebar.exportFolder')}
+                                                    aria-label={`${t('sidebar.exportFolder')}: ${folder.name}`}
+                                                    disabled={allFolderQueries.length === 0}
+                                                    onClick={() =>
+                                                        void exportSavedQueries(
+                                                            allFolderQueries,
+                                                            getSavedQueryExportFileName(
+                                                                folder.name,
+                                                            ),
+                                                        )
+                                                    }
+                                                    className={`${actionClass} disabled:hidden`}
+                                                >
+                                                    <Download size={11} />
                                                 </button>
                                                 <button
                                                     type="button"
@@ -1419,6 +1459,21 @@ export const ExplorerSidebar = ({
                                                 className="p-1.5 rounded text-muted hover:text-primary hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
                                             >
                                                 <FolderPlus size={14} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                title={t('sidebar.exportAllQueries')}
+                                                aria-label={t('sidebar.exportAllQueries')}
+                                                disabled={queries.length === 0}
+                                                onClick={() =>
+                                                    void exportSavedQueries(
+                                                        sorted,
+                                                        'saved-queries.sql',
+                                                    )
+                                                }
+                                                className="p-1.5 rounded text-muted hover:text-primary hover:bg-surface-secondary disabled:opacity-40 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                                            >
+                                                <Download size={14} />
                                             </button>
                                         </div>
                                         {isSearching && (
@@ -3562,6 +3617,19 @@ export const ExplorerSidebar = ({
                             : contextMenu.type === 'index'
                               ? ([
                                     {
+                                        label: t('objectDetails.viewDetails'),
+                                        icon: FileText,
+                                        action: () => {
+                                            if (
+                                                contextMenu.data &&
+                                                'objectDetails' in contextMenu.data &&
+                                                contextMenu.data.objectDetails
+                                            ) {
+                                                setObjectDetails(contextMenu.data.objectDetails);
+                                            }
+                                        },
+                                    },
+                                    {
                                         label: t('sidebar.copyName'),
                                         icon: Copy,
                                         action: () => navigator.clipboard.writeText(contextMenu.id),
@@ -3631,6 +3699,19 @@ export const ExplorerSidebar = ({
                                 ].filter(Boolean) as ContextMenuItem[])
                               : contextMenu.type === 'foreign_key'
                                 ? ([
+                                      {
+                                          label: t('objectDetails.viewDetails'),
+                                          icon: FileText,
+                                          action: () => {
+                                              if (
+                                                  contextMenu.data &&
+                                                  'objectDetails' in contextMenu.data &&
+                                                  contextMenu.data.objectDetails
+                                              ) {
+                                                  setObjectDetails(contextMenu.data.objectDetails);
+                                              }
+                                          },
+                                      },
                                       {
                                           label: t('sidebar.copyName'),
                                           icon: Copy,
@@ -4750,6 +4831,13 @@ export const ExplorerSidebar = ({
                 />
             )}
 
+            {objectDetails && (
+                <SchemaObjectDetailsModal
+                    isOpen={true}
+                    onClose={() => setObjectDetails(null)}
+                    details={objectDetails}
+                />
+            )}
             {createIndexModal.isOpen && activeConnectionId && (
                 <CreateIndexModal
                     isOpen={createIndexModal.isOpen}

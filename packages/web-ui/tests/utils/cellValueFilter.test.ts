@@ -4,6 +4,7 @@ import {
     combineFilterClauses,
     getCellValueFilterOperators,
 } from '@/utils/cellValueFilter';
+import {buildSingleFilterClause} from '@/utils/filterBar';
 
 describe('cellValueFilter', () => {
     describe('buildCellValueFilterClause', () => {
@@ -184,6 +185,49 @@ describe('cellValueFilter', () => {
             ).toBe(`"path" LIKE '%C:\\tmp%' ESCAPE '!'`);
         });
 
+        it('builds not contains, starts with and ends with as literal LIKE clauses', () => {
+            expect(
+                buildCellValueFilterClause('email', 'not contains', '@test.', 'postgres', 'text'),
+            ).toBe(`"email" NOT LIKE '%@test.%' ESCAPE '!'`);
+            expect(
+                buildCellValueFilterClause('sku', 'starts with', 'EU-1042', 'mysql', 'varchar(32)'),
+            ).toBe("`sku` LIKE 'EU-1042%' ESCAPE '!'");
+            expect(buildCellValueFilterClause('file', 'ends with', '.csv', 'sqlite', 'TEXT')).toBe(
+                `"file" LIKE '%.csv' ESCAPE '!'`,
+            );
+        });
+
+        it('escapes %, _, the escape character and quotes for the new LIKE operators', () => {
+            expect(
+                buildCellValueFilterClause('note', 'not contains', "50%_off!'", 'postgres', 'text'),
+            ).toBe(`"note" NOT LIKE '%50!%!_off!!''%' ESCAPE '!'`);
+            expect(
+                buildCellValueFilterClause('note', 'starts with', '50%_', 'postgres', 'text'),
+            ).toBe(`"note" LIKE '50!%!_%' ESCAPE '!'`);
+            expect(buildCellValueFilterClause('note', 'ends with', '_x', 'postgres', 'text')).toBe(
+                `"note" LIKE '%!_x' ESCAPE '!'`,
+            );
+            expect(
+                buildCellValueFilterClause('path', 'starts with', 'C:\\tmp', 'mysql', 'text'),
+            ).toBe("`path` LIKE 'C:\\\\tmp%' ESCAPE '!'");
+        });
+
+        it('matches the filter bar clause for the same operator and value', () => {
+            for (const driver of ['postgres', 'mysql', 'sqlite']) {
+                for (const operator of ['contains', 'starts with', 'ends with'] as const) {
+                    expect(
+                        buildCellValueFilterClause('sku', operator, 'EU-%', driver, 'text'),
+                    ).toBe(
+                        buildSingleFilterClause(
+                            {id: '1', column: 'sku', operator, value: 'EU-%'},
+                            driver,
+                            'always',
+                        ),
+                    );
+                }
+            }
+        });
+
         it('quotes the identifier per driver', () => {
             expect(buildCellValueFilterClause('my col', '=', 1, 'mysql')).toBe('`my col` = 1');
             expect(buildCellValueFilterClause('my col', '=', 1, 'postgres')).toBe('"my col" = 1');
@@ -268,17 +312,20 @@ describe('cellValueFilter', () => {
             }
         });
 
-        it('adds contains for text columns', () => {
+        it('adds the literal LIKE operators for text columns', () => {
             for (const columnType of ['text', 'varchar(255)', 'character varying(50)', 'CHAR(3)']) {
                 expect(getCellValueFilterOperators('abc', {columnType})).toEqual([
                     '=',
                     '<>',
                     'contains',
+                    'not contains',
+                    'starts with',
+                    'ends with',
                 ]);
             }
         });
 
-        it('does not offer contains for an empty string', () => {
+        it('does not offer the LIKE operators for an empty string', () => {
             expect(getCellValueFilterOperators('', {columnType: 'text'})).toEqual(['=', '<>']);
         });
 

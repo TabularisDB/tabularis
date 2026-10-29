@@ -124,6 +124,8 @@ export function formatRowsForCopy(
         csvDelimiter?: string;
         tableName?: string | null;
         driver?: CopyDriver;
+        /** How NULL is written in CSV and Markdown. JSON and SQL INSERT keep their native null. */
+        nullLabel?: string;
     } = {},
 ): string {
     const {
@@ -132,15 +134,16 @@ export function formatRowsForCopy(
         csvDelimiter = ',',
         tableName,
         driver,
+        nullLabel = 'null',
     } = options;
     if (copyFormat === 'json') return rowsToJSON(rows, columns);
     if (copyFormat === 'sql-insert')
         return rowsToSqlInsert(rows, columns, tableName ?? 'table', driver);
     if (copyFormat === 'markdown')
-        return rowsToMarkdown(rows, columns, 'null', withHeaders && csvIncludeHeaders);
+        return rowsToMarkdown(rows, columns, nullLabel, withHeaders && csvIncludeHeaders);
     if (withHeaders && csvIncludeHeaders)
-        return rowsToCSVWithHeaders(rows, columns, 'null', csvDelimiter);
-    return rowsToCSV(rows, 'null', csvDelimiter);
+        return rowsToCSVWithHeaders(rows, columns, nullLabel, csvDelimiter);
+    return rowsToCSV(rows, nullLabel, csvDelimiter);
 }
 
 export function getSelectedRows(data: unknown[][], selectedIndices: Set<number>): unknown[][] {
@@ -167,6 +170,8 @@ interface ColumnCopyOptions {
     includeHeader?: boolean;
     tableName?: string;
     driver?: CopyDriver;
+    /** How NULL is written in CSV and Markdown. Default: "null". */
+    nullLabel?: string;
 }
 
 export function columnValuesForCopy(
@@ -180,6 +185,7 @@ export function columnValuesForCopy(
 
     const projectedRows = rows.map((row) => [row[colIndex]]);
     const projectedColumns = [column];
+    const nullLabel = options.nullLabel ?? 'null';
 
     if (options.format === 'json') {
         return rowsToJSON(projectedRows, projectedColumns);
@@ -193,12 +199,12 @@ export function columnValuesForCopy(
         );
     }
     if (options.format === 'markdown') {
-        return rowsToMarkdown(projectedRows, projectedColumns, 'null', options.includeHeader);
+        return rowsToMarkdown(projectedRows, projectedColumns, nullLabel, options.includeHeader);
     }
     if (options.includeHeader) {
-        return rowsToCSVWithHeaders(projectedRows, projectedColumns, 'null', options.delimiter);
+        return rowsToCSVWithHeaders(projectedRows, projectedColumns, nullLabel, options.delimiter);
     }
-    return rowsToCSV(projectedRows, 'null', options.delimiter);
+    return rowsToCSV(projectedRows, nullLabel, options.delimiter);
 }
 
 export function columnValuesToInClause(

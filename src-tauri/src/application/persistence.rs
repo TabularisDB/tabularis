@@ -322,6 +322,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         copy_format,
         csv_delimiter,
         csv_include_headers,
+        copy_null_label,
         active_external_drivers,
         tabularium_registry_url,
         release_channel,

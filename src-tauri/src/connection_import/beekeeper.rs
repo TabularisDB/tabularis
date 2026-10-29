@@ -1,6 +1,6 @@
 //! Beekeeper Studio importer. Reads the local workspace from Beekeeper's
 //! `app.db` (SQLite) and decrypts password columns with the per-install key
-//! stored in `.key`. Ported from TablePro's `BeekeeperStudioImporter.swift`.
+//! stored in `.key`.
 //!
 //! Only the personal workspace (`workspaceId = -1`) is imported; cloud-synced
 //! rows have a positive id and their own source of truth.
@@ -149,7 +149,7 @@ impl ForeignAppImporter for BeekeeperImporter {
         for row in &rows {
             let driver_label = match map_driver(row.connection_type.as_deref()) {
                 Some(d) => d,
-                None => continue, // unsupported driver — skip, like TablePro
+                None => continue, // unsupported driver — skip
             };
             let group_name = row
                 .connection_folder_id

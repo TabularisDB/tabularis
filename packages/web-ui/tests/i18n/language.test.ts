@@ -26,6 +26,11 @@ describe('language', () => {
             expect(resolveAutoLanguage('fil')).toBe('tl');
         });
 
+        it('maps a Vietnamese system locale to Vietnamese', () => {
+            expect(resolveAutoLanguage('vi-VN')).toBe('vi');
+            expect(resolveAutoLanguage('vi')).toBe('vi');
+        });
+
         it('picks the first supported locale from a preference list', () => {
             expect(resolveAutoLanguage(['xx-YY', 'de-DE', 'it'])).toBe('de');
         });
@@ -51,6 +56,7 @@ describe('language', () => {
             expect(getAiExplanationLanguage('auto', 'pt-BR')).toBe('Português (Brasil)');
             expect(getAiExplanationLanguage('auto', 'zh-CN')).toBe('中文');
             expect(getAiExplanationLanguage('auto', 'it-CH')).toBe('Italiano');
+            expect(getAiExplanationLanguage('auto', 'vi-VN')).toBe('Tiếng Việt');
         });
 
         it('is case- and separator-insensitive', () => {

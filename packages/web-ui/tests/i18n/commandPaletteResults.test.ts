@@ -10,6 +10,7 @@ import ko from '@/i18n/locales/ko.json';
 import ptBR from '@/i18n/locales/pt-BR.json';
 import ru from '@/i18n/locales/ru.json';
 import tl from '@/i18n/locales/tl.json';
+import vi from '@/i18n/locales/vi.json';
 import zh from '@/i18n/locales/zh.json';
 
 const locales = {
@@ -23,6 +24,7 @@ const locales = {
     'pt-BR': ptBR,
     ru,
     tl,
+    vi,
     zh,
 };
 

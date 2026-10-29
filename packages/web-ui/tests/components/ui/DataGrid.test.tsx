@@ -2045,6 +2045,26 @@ describe('DataGrid filter-by-value context menu', () => {
         );
     });
 
+    it('offers does not contain, starts with and ends with on a text cell', async () => {
+        const {container, onFilterByValue} = renderUsersGrid();
+
+        for (const [label, operator] of [
+            ['dataGrid.filterNotContains', 'not contains'],
+            ['dataGrid.filterStartsWith', 'starts with'],
+            ['dataGrid.filterEndsWith', 'ends with'],
+        ] as const) {
+            fireEvent.contextMenu(cellAt(container, 0, 1));
+            await openFilterSubmenu();
+            fireEvent.click(await screen.findByText(label));
+            expect(onFilterByValue).toHaveBeenLastCalledWith(
+                'name',
+                operator,
+                'Alice',
+                'character varying(255)',
+            );
+        }
+    });
+
     it('hides the items on BLOB and JSON cells', async () => {
         const {container} = renderUsersGrid();
 
@@ -3317,6 +3337,71 @@ describe('DataGrid column resizing (#1151)', () => {
         fireEvent.keyDown(separators()[0], {key: 'ArrowLeft', shiftKey: true});
         expect(col(1).style.width).toBe('110px');
         expect(grid.style.scrollPaddingLeft).toBe(`${MEASURED + 110}px`);
+    });
+
+    describe('fit to content on double-click (#1295)', () => {
+        // JSDOM has no canvas: every character measures 10px. The outer
+        // afterEach (vi.restoreAllMocks) removes this spy again.
+        beforeEach(() => {
+            vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+                font: '',
+                measureText: (text: string) => ({width: text.length * 10}),
+            } as unknown as CanvasRenderingContext2D);
+        });
+
+        // The horizontal padding the grid reads from a rendered cell of the column.
+        const cellPadding = (cell: HTMLElement) => {
+            const style = getComputedStyle(cell);
+            const px = (value: string) => Number.parseFloat(value) || 0;
+            return px(style.paddingLeft) + px(style.paddingRight) + px(style.borderRightWidth);
+        };
+        const fittedWidth = (container: HTMLElement, colIndex: number, text: string) => {
+            const cell = container.querySelector<HTMLElement>(
+                `tbody td[data-col-index="${colIndex}"]`,
+            )!;
+            const padding = cellPadding(cell) || 33;
+            return `${Math.max(48, Math.ceil(text.length * 10 + padding))}px`;
+        };
+
+        it('fits only the double-clicked column to its widest value', () => {
+            const {container, col} = renderGrid();
+
+            fireEvent.doubleClick(separators()[2]);
+
+            expect(col(3).style.width).toBe(fittedWidth(container, 2, 'alice@example.com'));
+            expect(col(0).style.width).toBe(`${MEASURED}px`);
+            expect(col(1).style.width).toBe(`${MEASURED}px`);
+            expect(col(2).style.width).toBe(`${MEASURED}px`);
+        });
+
+        it('fits a frozen first column', async () => {
+            const {container, col} = renderGrid({
+                columns: ['name', 'id'],
+                data: [
+                    ['Alexandra', 1],
+                    ['Bob', 2],
+                ],
+            });
+            fireEvent.contextMenu(container.querySelector('th[data-col-index="1"]')!);
+            fireEvent.click(await screen.findByText('dataGrid.freezeFirstColumn'));
+
+            fireEvent.doubleClick(separators()[0]);
+
+            expect(col(1).style.width).toBe(fittedWidth(container, 0, 'Alexandra'));
+            expect(col(2).style.width).toBe(`${MEASURED}px`);
+        });
+
+        it('resets the fitted widths to the measured layout from the header menu', async () => {
+            const {container, col, table} = renderGrid();
+            fireEvent.doubleClick(separators()[2]);
+            expect(col(3).style.width).not.toBe(`${MEASURED}px`);
+
+            fireEvent.contextMenu(container.querySelector('th[data-col-index="0"]')!);
+            fireEvent.click(await screen.findByText('dataGrid.resetColumnWidths'));
+
+            [0, 1, 2, 3].forEach((index) => expect(col(index).style.width).toBe(`${MEASURED}px`));
+            expect(table.style.width).toBe('');
+        });
     });
 });
 

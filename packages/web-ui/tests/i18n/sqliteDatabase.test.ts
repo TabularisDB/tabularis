@@ -8,9 +8,10 @@ import ja from '@/i18n/locales/ja.json';
 import ko from '@/i18n/locales/ko.json';
 import ru from '@/i18n/locales/ru.json';
 import tl from '@/i18n/locales/tl.json';
+import vi from '@/i18n/locales/vi.json';
 import zh from '@/i18n/locales/zh.json';
 
-const locales = {de, en, es, fr, it: itLocale, ja, ko, ru, tl, zh};
+const locales = {de, en, es, fr, it: itLocale, ja, ko, ru, tl, vi, zh};
 
 describe('SQLite database creation translations', () => {
     it('defines every required string in each supported locale', () => {

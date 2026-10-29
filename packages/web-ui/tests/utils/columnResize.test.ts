@@ -3,6 +3,7 @@ import {
     COLUMN_RESIZE_STEP,
     COLUMN_RESIZE_STEP_LARGE,
     getKeyboardColumnWidth,
+    getFitColumnWidth,
     isColumnResizeKey,
 } from '@/utils/columnResize';
 
@@ -53,6 +54,20 @@ describe('columnResize', () => {
         it('returns null for keys that do not resize', () => {
             expect(getKeyboardColumnWidth('ArrowUp', false, 100, 48, 2000)).toBeNull();
             expect(getKeyboardColumnWidth('Enter', false, 100, 48, 2000)).toBeNull();
+        });
+    });
+    describe('getFitColumnWidth', () => {
+        it('fits the widest text plus padding', () => {
+            expect(getFitColumnWidth([40, 120.4, 80], 32, 48, 2000)).toBe(153);
+        });
+
+        it('keeps the width within the limits', () => {
+            expect(getFitColumnWidth([5], 10, 48, 2000)).toBe(48);
+            expect(getFitColumnWidth([5000], 32, 48, 2000)).toBe(2000);
+        });
+
+        it('falls back to the minimum when nothing is measured', () => {
+            expect(getFitColumnWidth([], 32, 48, 2000)).toBe(48);
         });
     });
 });

@@ -26,7 +26,7 @@ charts/**/templates
 tests/fixtures
 
 # This inventory has a byte-for-byte generator contract.
-web-ui-project/docs/web-ui-parity.json
+docs/web/web-ui-parity.json
 
 # Browser test sessions and reports are generated runtime data.
-web-ui-project/.runtime
+e2e/web/.runtime
