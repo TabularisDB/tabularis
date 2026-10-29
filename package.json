@@ -46,7 +46,7 @@
     "roadmap": "node scripts/update-roadmap.js",
     "sync-links": "node scripts/sync-links.js",
     "sync-sponsors": "node scripts/sync-sponsors.js",
-    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md -s && git add README.md docs/translations/README.*.md CHANGELOG.md src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock packages/web-ui/src/version.ts",
+    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md -s && git add README.md docs/translations/README.*.md CHANGELOG.md src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock packages/web-ui/package.json packages/web-ui/src/version.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
