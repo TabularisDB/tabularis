@@ -2072,7 +2072,9 @@ describe('NewConnectionModal keychain default', () => {
 
         // When SSM is enabled (TCP-only forward), canUseSocket is false,
         // so the socket selector must be hidden and Host/Port must be visible
-        expect(screen.queryByRole('button', {name: 'newConnection.socketPath'})).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', {name: 'newConnection.socketPath'}),
+        ).not.toBeInTheDocument();
         expect(screen.getByPlaceholderText('localhost')).toBeInTheDocument();
     });
 

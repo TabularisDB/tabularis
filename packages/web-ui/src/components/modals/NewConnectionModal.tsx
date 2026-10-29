@@ -648,7 +648,8 @@ export const NewConnectionModal = ({
     // A local socket needs the driver capability and a platform with Unix
     // sockets; through SSH the server dials it, so Windows can use that too.
     const supportsUnixSocket = activeDriver?.capabilities?.unix_socket === true && hasUnixSockets();
-    const tunnelEnabled = !!formData.ssh_enabled || !!formData.k8s_enabled || !!formData.ssm_enabled;
+    const tunnelEnabled =
+        !!formData.ssh_enabled || !!formData.k8s_enabled || !!formData.ssm_enabled;
     const socketPathSet = !!formData.unix_socket_path?.trim();
     const canUseSocket =
         !isUriPassthrough &&
