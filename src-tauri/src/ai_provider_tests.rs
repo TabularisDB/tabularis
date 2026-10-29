@@ -272,6 +272,26 @@ async fn anthropic_without_a_text_block_is_an_invalid_response() {
 }
 
 #[tokio::test]
+async fn anthropic_reports_max_tokens_when_no_text_block_was_produced() {
+    let fixture = Fixture::new(
+        true,
+        vec![(
+            200,
+            json!({
+                "stop_reason":"max_tokens",
+                "content":[{"type":"thinking","thinking":"","signature":"fixture-signature"}]
+            }),
+        )],
+    );
+    let error = generate("anthropic", &fixture).await.unwrap_err();
+    assert_eq!(
+        error,
+        "Anthropic stopped at the max_tokens limit before producing an answer"
+    );
+    fixture.requests.join().unwrap();
+}
+
+#[tokio::test]
 async fn existing_providers_propagate_http_failures() {
     for provider in [
         "openai",
