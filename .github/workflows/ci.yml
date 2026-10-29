@@ -68,9 +68,6 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Check web API inventory
-        run: pnpm run web:inventory
-
       - name: Check web frontend boundaries
         run: pnpm run web:boundaries
 

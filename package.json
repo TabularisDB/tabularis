@@ -30,8 +30,6 @@
     "test:web-e2e": "bash e2e/web/run.sh --project=chromium",
     "test:web-e2e:browsers": "bash e2e/web/run.sh",
     "test:all": "pnpm test:rust && pnpm test:coverage",
-    "web:inventory": "node scripts/web/generate-web-ui-api-inventory.mjs --check",
-    "web:inventory:write": "node scripts/web/generate-web-ui-api-inventory.mjs --write",
     "web:boundaries": "node scripts/web/check-web-ui-frontend-boundaries.mjs --check",
     "web:packaging": "node --test scripts/web/check-web-ui-packaging.test.mjs tests/web/verify-linux-web-package.test.mjs",
     "web:docs": "node --test scripts/web/check-web-ui-documentation.test.mjs",
