@@ -50,6 +50,11 @@ const makeRemoteCaps = (): DriverCapabilities => ({
     alter_primary_key: true,
 });
 
+const makeSchemaRemoteCaps = (): DriverCapabilities => ({
+    ...makeRemoteCaps(),
+    schemas: true,
+});
+
 describe('connections', () => {
     describe('withoutBlankSslMode', () => {
         it('omits blank ssl_mode', () => {
@@ -613,6 +618,104 @@ describe('connections', () => {
             expect(
                 connectionSubtitle(conn, makeRemoteCaps(), {databaseCount: (c) => `${c} DB`}),
             ).toBe('db.host:5432  ·  2 DB');
+        });
+
+        describe('all databases across drivers (#1281)', () => {
+            const labels = {
+                allDatabases: 'All databases',
+                databaseCount: (count: number) => `${count} databases`,
+            };
+
+            it('labels a PostgreSQL connection saved as all databases (empty string)', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: ''});
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  All databases',
+                );
+            });
+
+            it('labels a PostgreSQL connection with an empty database selection', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: []});
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  All databases',
+                );
+            });
+
+            it('labels a MySQL connection saved as all databases', () => {
+                const conn = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: '',
+                });
+                expect(connectionSubtitle(conn, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  All databases',
+                );
+            });
+
+            it('labels a MySQL connection with an empty database selection', () => {
+                const conn = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: [],
+                });
+                expect(connectionSubtitle(conn, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  All databases',
+                );
+            });
+
+            it('shows the database name for a single-database PostgreSQL connection', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: 'app'});
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  app',
+                );
+            });
+
+            it('shows the database name for a single-database MySQL connection', () => {
+                const conn = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: 'app',
+                });
+                expect(connectionSubtitle(conn, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  app',
+                );
+            });
+
+            it('counts multiple selected databases on PostgreSQL', () => {
+                const conn = makeConn({
+                    host: 'localhost',
+                    port: 5432,
+                    database: ['app', 'billing'],
+                });
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  2 databases',
+                );
+            });
+
+            it('counts multiple selected databases on MySQL', () => {
+                const conn = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: ['app', 'billing', 'audit'],
+                });
+                expect(connectionSubtitle(conn, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  3 databases',
+                );
+            });
+
+            it('keeps an empty database blank on a single-database driver', () => {
+                const conn = makeConn({host: 'localhost', port: 7700, database: ''});
+                expect(
+                    connectionSubtitle(
+                        conn,
+                        {...makeSchemaRemoteCaps(), single_database: true},
+                        labels,
+                    ),
+                ).toBe('localhost:7700  ·  ');
+            });
         });
     });
 

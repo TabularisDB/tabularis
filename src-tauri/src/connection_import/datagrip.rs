@@ -1,7 +1,6 @@
 //! DataGrip importer. Reads `dataSources.xml` (+ `dataSources.local.xml`) and
 //! `sshConfigs.xml` from the JetBrains config dirs, parsing the JDBC URL for
-//! host/port/database. Ported from TablePro's `DataGripImporter.swift` and
-//! `DataGripDataSourceParser.swift`.
+//! host/port/database.
 //!
 //! Cross-platform for connection metadata. Passwords are NOT imported:
 //! DataGrip keeps them in a JetBrains credential store (Keychain or a KeePass

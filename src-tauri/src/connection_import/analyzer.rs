@@ -1,6 +1,6 @@
 //! Annotates an [`ImportEnvelope`] against the user's existing connections and
 //! the set of registered drivers, producing the serializable [`ImportPreview`]
-//! the frontend renders. Ported from TablePro's `ConnectionImportAnalyzer`.
+//! the frontend renders.
 
 use serde::Serialize;
 
