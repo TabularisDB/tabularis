@@ -1,5 +1,5 @@
 import {invoke} from '@tauri-apps/api/core';
-import {describe, expect, it, vi} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {createPlatformCapabilityNegotiation} from '@/platform/capabilities';
 import {
     TauriPlatformCapabilities,
@@ -14,6 +14,7 @@ const createOperations = (): TauriPlatformOperations => ({
     showMessageDialog: vi.fn(),
     readClipboardText: vi.fn(),
     writeClipboardText: vi.fn(),
+    writeClipboardHtml: vi.fn(),
     writeFileContents: vi.fn(),
     readFileContents: vi.fn(),
     openUrl: vi.fn(),
@@ -257,5 +258,148 @@ describe('TauriPlatformCapabilities host window integration', () => {
         expect(operations.openStorageLocation).toHaveBeenCalledOnce();
         expect(capabilities.currentWindowLabel()).toBe('conn-1');
         expect(capabilities.supports('openStorageLocation')).toBe(true);
+    });
+});
+
+describe('TauriPlatformCapabilities clipboard fallback', () => {
+    const pluginFailure = new Error('X11 server connection timed out');
+
+    const stubWebClipboard = (withClipboardItem = true) => {
+        const clipboard = {
+            readText: vi.fn().mockResolvedValue('from webview'),
+            writeText: vi.fn().mockResolvedValue(undefined),
+            write: vi.fn().mockResolvedValue(undefined),
+        };
+        vi.stubGlobal('navigator', {...navigator, clipboard});
+        vi.stubGlobal(
+            'ClipboardItem',
+            withClipboardItem
+                ? class {
+                      constructor(readonly items: Record<string, Blob>) {}
+                  }
+                : undefined,
+        );
+        return clipboard;
+    };
+
+    const failingOperations = () => {
+        const operations = createOperations();
+        vi.mocked(operations.readClipboardText).mockRejectedValue(pluginFailure);
+        vi.mocked(operations.writeClipboardText).mockRejectedValue(pluginFailure);
+        vi.mocked(operations.writeClipboardHtml).mockRejectedValue(pluginFailure);
+        return operations;
+    };
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+    });
+
+    it('leaves the webview clipboard untouched while the plugin works', async () => {
+        const clipboard = stubWebClipboard();
+        const operations = createOperations();
+        vi.mocked(operations.readClipboardText).mockResolvedValue('from plugin');
+        const capabilities = new TauriPlatformCapabilities(operations);
+
+        await expect(capabilities.readClipboard()).resolves.toBe('from plugin');
+        await capabilities.writeClipboard('SELECT 1');
+        await capabilities.writeClipboardHtml('<b>1</b>', '1');
+
+        expect(operations.writeClipboardText).toHaveBeenCalledWith('SELECT 1');
+        expect(operations.writeClipboardHtml).toHaveBeenCalledWith('<b>1</b>', '1');
+        expect(clipboard.readText).not.toHaveBeenCalled();
+        expect(clipboard.writeText).not.toHaveBeenCalled();
+        expect(clipboard.write).not.toHaveBeenCalled();
+    });
+
+    it('reads and writes text through the webview when the plugin fails', async () => {
+        const clipboard = stubWebClipboard();
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const capabilities = new TauriPlatformCapabilities(failingOperations());
+
+        await expect(capabilities.readClipboard()).resolves.toBe('from webview');
+        await capabilities.writeClipboard('SELECT 1');
+
+        expect(clipboard.writeText).toHaveBeenCalledWith('SELECT 1');
+    });
+
+    it('writes HTML and plain-text flavors through the webview when the plugin fails', async () => {
+        const clipboard = stubWebClipboard();
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const capabilities = new TauriPlatformCapabilities(failingOperations());
+
+        await capabilities.writeClipboardHtml('<b>1</b>', '1');
+
+        const [[item]] = clipboard.write.mock.calls[0] as [[{items: Record<string, Blob>}]];
+        await expect(item.items['text/html'].text()).resolves.toBe('<b>1</b>');
+        await expect(item.items['text/plain'].text()).resolves.toBe('1');
+        expect(clipboard.writeText).not.toHaveBeenCalled();
+    });
+
+    it('writes only the plain text when the webview has no ClipboardItem', async () => {
+        const clipboard = stubWebClipboard(false);
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const capabilities = new TauriPlatformCapabilities(failingOperations());
+
+        await capabilities.writeClipboardHtml('<b>1</b>', '1');
+
+        expect(clipboard.writeText).toHaveBeenCalledWith('1');
+        expect(clipboard.write).not.toHaveBeenCalled();
+    });
+
+    it('rejects with the webview error and keeps trying the plugin when both fail', async () => {
+        const clipboard = stubWebClipboard();
+        const webviewFailure = new DOMException('Denied', 'NotAllowedError');
+        clipboard.writeText.mockRejectedValue(webviewFailure);
+        const operations = failingOperations();
+        const capabilities = new TauriPlatformCapabilities(operations);
+
+        await expect(capabilities.writeClipboard('a')).rejects.toBe(webviewFailure);
+        await expect(capabilities.writeClipboard('b')).rejects.toBe(webviewFailure);
+
+        expect(operations.writeClipboardText).toHaveBeenCalledTimes(2);
+    });
+
+    it('skips the plugin for the session once a webview write succeeded', async () => {
+        const clipboard = stubWebClipboard();
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const operations = failingOperations();
+        const capabilities = new TauriPlatformCapabilities(operations);
+
+        await capabilities.writeClipboard('a');
+        await capabilities.writeClipboard('b');
+        await expect(capabilities.readClipboard()).resolves.toBe('from webview');
+
+        expect(operations.writeClipboardText).toHaveBeenCalledOnce();
+        expect(operations.readClipboardText).not.toHaveBeenCalled();
+        expect(clipboard.writeText).toHaveBeenNthCalledWith(2, 'b');
+        expect(warn).toHaveBeenCalledOnce();
+        expect(warn).toHaveBeenCalledWith(expect.any(String), pluginFailure);
+    });
+
+    it('keeps the plugin when a failed read meets an empty webview clipboard', async () => {
+        const clipboard = stubWebClipboard();
+        clipboard.readText.mockResolvedValue('');
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const operations = failingOperations();
+        const capabilities = new TauriPlatformCapabilities(operations);
+
+        await expect(capabilities.readClipboard()).resolves.toBe('');
+        await capabilities.readClipboard();
+
+        expect(operations.readClipboardText).toHaveBeenCalledTimes(2);
+        expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('skips the plugin once the webview read text the plugin could not', async () => {
+        stubWebClipboard();
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const operations = failingOperations();
+        const capabilities = new TauriPlatformCapabilities(operations);
+
+        await capabilities.readClipboard();
+        await capabilities.readClipboard();
+
+        expect(operations.readClipboardText).toHaveBeenCalledOnce();
     });
 });
