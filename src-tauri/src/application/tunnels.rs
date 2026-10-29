@@ -554,6 +554,12 @@ fn resolve_connection_transport(
         return resolve_ssh_params(params, askpass_server);
     }
 
+    // A local Unix socket is a file on this machine: there is no host:port to
+    // proxy, so the database-scope proxy does not apply.
+    if params.local_unix_socket_path().is_some() {
+        return Ok(params.clone());
+    }
+
     // Direct DB connection — apply database-scope proxy when configured.
     let mut resolved = params.clone();
     if let Some(proxy) = crate::proxy::resolve_for_connection(
@@ -583,6 +589,24 @@ fn is_loopback_host(host: &str) -> bool {
     h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "[::1]"
 }
 
+/// The SSH forward target for a connection: a dynamic SOCKS5 proxy for
+/// drivers with the `socks5_proxy` capability, a remote Unix socket path when
+/// one is configured, or the database host:port otherwise.
+pub(crate) fn ssh_forward_target(params: &ConnectionParams) -> crate::ssh_tunnel::ForwardTarget {
+    if crate::drivers::registry::is_socks5_proxy_driver(&params.driver) {
+        return crate::ssh_tunnel::ForwardTarget::Socks5;
+    }
+    match params.unix_socket_path() {
+        Some(path) => crate::ssh_tunnel::ForwardTarget::UnixSocket {
+            path: path.to_string(),
+        },
+        None => crate::ssh_tunnel::ForwardTarget::Fixed {
+            host: params.host.as_deref().unwrap_or("localhost").to_string(),
+            port: params.port.unwrap_or(DEFAULT_REMOTE_PORT),
+        },
+    }
+}
+
 fn resolve_ssh_params(
     params: &ConnectionParams,
     askpass_server: Option<crate::askpass::AskpassServer>,
@@ -590,38 +614,14 @@ fn resolve_ssh_params(
     let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
     let ssh_port = params.ssh_port.unwrap_or(22);
     let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
-    let remote_host = params.host.as_deref().unwrap_or("localhost");
-    let remote_port = params.port.unwrap_or(DEFAULT_REMOTE_PORT);
-    // A driver that routes through a SOCKS5 proxy can reach every endpoint
-    // its connection names (SRV seedlists, replica sets), which one fixed
-    // forward cannot serve: open a dynamic forward and leave host/port alone.
-    let socks5 = crate::drivers::registry::is_socks5_proxy_driver(&params.driver);
-    let (target, base_key) = if socks5 {
-        (
-            crate::ssh_tunnel::ForwardTarget::Socks5,
-            crate::ssh_tunnel::build_socks5_tunnel_key(ssh_user, ssh_host, ssh_port),
-        )
-    } else {
-        (
-            crate::ssh_tunnel::ForwardTarget::Fixed {
-                host: remote_host.to_string(),
-                port: remote_port,
-            },
-            crate::ssh_tunnel::build_tunnel_key(
-                ssh_user,
-                ssh_host,
-                ssh_port,
-                remote_host,
-                remote_port,
-            ),
-        )
-    };
+    let target = ssh_forward_target(params);
 
     let proxy = crate::proxy::resolve_for_connection(
         crate::proxy::SCOPE_SSH_TUNNEL,
         params.connection_id.as_deref(),
         params.proxy.as_ref(),
     );
+    let base_key = crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, &target);
     let key = match &proxy {
         Some(p) => {
             let proto = match p.protocol {
@@ -635,7 +635,7 @@ fn resolve_ssh_params(
     };
     if let Some(tunnel) = live_tunnel(&key) {
         log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
-        return Ok(point_at_tunnel(params, &tunnel, socks5));
+        return Ok(point_at_tunnel(params, &tunnel, &target));
     }
 
     let (tcp_host, tcp_port) = if let Some(proxy) = proxy {
@@ -666,7 +666,7 @@ fn resolve_ssh_params(
         params.ssh_key_file.as_deref(),
         params.ssh_key_passphrase.as_deref(),
         allow_prompt,
-        target,
+        target.clone(),
         askpass_server,
         tcp_host.as_deref(),
         tcp_port,
@@ -680,7 +680,7 @@ fn resolve_ssh_params(
         tunnel.local_port
     );
     let tunnel = cache_tunnel(key, tunnel);
-    Ok(point_at_tunnel(params, &tunnel, socks5))
+    Ok(point_at_tunnel(params, &tunnel, &target))
 }
 
 /// The cached SSH tunnel for `key`, if its session is still up. A dead one
@@ -723,22 +723,37 @@ pub(crate) fn cache_tunnel(
 
 /// Params that reach the database through `tunnel`: a SOCKS5 proxy (with
 /// the listener's credentials, when it has any) for drivers with the
-/// `socks5_proxy` capability, a rewritten `host`/`port` otherwise.
+/// `socks5_proxy` capability, or a rewritten `host`/`port` otherwise.
+/// A Unix socket target also clears any local socket path and disables
+/// database TLS: the server side of a Unix socket cannot negotiate it,
+/// and the SSH tunnel already encrypts the whole path.
 pub(crate) fn point_at_tunnel(
     params: &ConnectionParams,
     tunnel: &crate::ssh_tunnel::SshTunnel,
-    socks5: bool,
+    target: &crate::ssh_tunnel::ForwardTarget,
 ) -> ConnectionParams {
     let mut resolved = params.clone();
-    if socks5 {
-        let credentials = tunnel.socks5_credentials.as_ref();
-        resolved.socks5_proxy_host = Some("127.0.0.1".to_string());
-        resolved.socks5_proxy_port = Some(tunnel.local_port);
-        resolved.socks5_proxy_username = credentials.map(|c| c.username.clone());
-        resolved.socks5_proxy_password = credentials.map(|c| c.password.clone());
-    } else {
-        resolved.host = Some("127.0.0.1".to_string());
-        resolved.port = Some(tunnel.local_port);
+    match target {
+        crate::ssh_tunnel::ForwardTarget::Socks5 => {
+            let credentials = tunnel.socks5_credentials.as_ref();
+            resolved.socks5_proxy_host = Some("127.0.0.1".to_string());
+            resolved.socks5_proxy_port = Some(tunnel.local_port);
+            resolved.socks5_proxy_username = credentials.map(|c| c.username.clone());
+            resolved.socks5_proxy_password = credentials.map(|c| c.password.clone());
+        }
+        crate::ssh_tunnel::ForwardTarget::Fixed { .. } => {
+            resolved.host = Some("127.0.0.1".to_string());
+            resolved.port = Some(tunnel.local_port);
+            // The tunnel owns the route: a leftover local socket path would make the
+            // drivers bypass the tunnel's local port and dial the socket instead.
+            resolved.unix_socket_path = None;
+        }
+        crate::ssh_tunnel::ForwardTarget::UnixSocket { .. } => {
+            resolved.host = Some("127.0.0.1".to_string());
+            resolved.port = Some(tunnel.local_port);
+            resolved.unix_socket_path = None;
+            resolved.ssl_mode = Some("disable".to_string());
+        }
     }
     resolved
 }
@@ -788,6 +803,7 @@ pub(crate) fn resolve_ssm_params(params: &ConnectionParams) -> Result<Connection
                 new_params.ssm_enabled = Some(false);
                 new_params.host = Some("127.0.0.1".to_string());
                 new_params.port = Some(tunnel.local_port);
+                new_params.unix_socket_path = None;
                 return Ok(new_params);
             }
             log::info!(
@@ -824,6 +840,7 @@ pub(crate) fn resolve_ssm_params(params: &ConnectionParams) -> Result<Connection
     new_params.ssm_enabled = Some(false);
     new_params.host = Some("127.0.0.1".to_string());
     new_params.port = Some(local_port);
+    new_params.unix_socket_path = None;
     Ok(new_params)
 }
 
@@ -889,6 +906,7 @@ pub(crate) fn resolve_k8s_params(params: &ConnectionParams) -> Result<Connection
             resolved.k8s_enabled = Some(false);
             resolved.host = Some("127.0.0.1".to_string());
             resolved.port = Some(local_port);
+            resolved.unix_socket_path = None;
             return Ok(resolved);
         }
         Err(previous) => previous,
@@ -907,6 +925,7 @@ pub(crate) fn resolve_k8s_params(params: &ConnectionParams) -> Result<Connection
     resolved.k8s_enabled = Some(false);
     resolved.host = Some("127.0.0.1".to_string());
     resolved.port = Some(local_port);
+    resolved.unix_socket_path = None;
     Ok(resolved)
 }
 
