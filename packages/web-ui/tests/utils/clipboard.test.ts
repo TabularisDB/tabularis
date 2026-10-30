@@ -15,6 +15,8 @@ import {
     columnNamesAsJson,
     formatRowsForCopy,
     rowsToSqlInsert,
+    rowsToSqlUpdate,
+    sqlUpdateBlocker,
     rowsToMarkdown,
 } from '@/utils/clipboard';
 import type {DriverCapabilities} from '@/types/plugins';
@@ -483,6 +485,92 @@ describe('clipboard utils', () => {
                     driver: bq,
                 }),
             ).toBe("INSERT INTO `t` (`c`) VALUES ('a\\'b');");
+        });
+    });
+
+    describe('rowsToSqlUpdate', () => {
+        const columns = ['id', 'email', 'name'];
+
+        it('puts the primary key in WHERE and every other column in SET', () => {
+            const rows = [
+                [1, 'ada@example.com', 'Ada'],
+                [2, 'alan@example.com', 'Alan'],
+            ];
+            expect(rowsToSqlUpdate(rows, columns, 'users', ['id'], 'postgres')).toBe(
+                `UPDATE "users" SET "email" = 'ada@example.com', "name" = 'Ada' WHERE "id" = 1;\n` +
+                    `UPDATE "users" SET "email" = 'alan@example.com', "name" = 'Alan' WHERE "id" = 2;`,
+            );
+        });
+
+        it('joins a composite key with AND and leaves key columns out of SET', () => {
+            const cols = ['post_id', 'lang', 'title'];
+            expect(rowsToSqlUpdate([[7, 'en', 'Hello']], cols, 'titles', ['post_id', 'lang'])).toBe(
+                "UPDATE `titles` SET `title` = 'Hello' WHERE `post_id` = 7 AND `lang` = 'en';",
+            );
+        });
+
+        it('writes NULL values as NULL and matches a NULL key with IS NULL', () => {
+            expect(rowsToSqlUpdate([[1, null, 'Ada']], columns, 'users', ['id'])).toBe(
+                "UPDATE `users` SET `email` = NULL, `name` = 'Ada' WHERE `id` = 1;",
+            );
+            expect(rowsToSqlUpdate([[1, null, 'x']], ['a', 'b', 'c'], 't', ['a', 'b'])).toBe(
+                "UPDATE `t` SET `c` = 'x' WHERE `a` = 1 AND `b` IS NULL;",
+            );
+        });
+
+        it('quotes identifiers and values for the driver like the INSERT format', () => {
+            const rows = [[1, "O'Brien", true]];
+            const cols = ['id', 'name', 'active'];
+            expect(rowsToSqlUpdate(rows, cols, 't', ['id'], 'mysql')).toBe(
+                "UPDATE `t` SET `name` = 'O''Brien', `active` = TRUE WHERE `id` = 1;",
+            );
+            expect(rowsToSqlUpdate(rows, cols, 't', ['id'], 'sqlite')).toBe(
+                `UPDATE "t" SET "name" = 'O''Brien', "active" = TRUE WHERE "id" = 1;`,
+            );
+            expect(rowsToSqlUpdate(rows, cols, 't', ['id'], GOOGLESQL_CAPS)).toBe(
+                "UPDATE `t` SET `name` = 'O\\'Brien', `active` = TRUE WHERE `id` = 1;",
+            );
+        });
+    });
+
+    describe('sqlUpdateBlocker', () => {
+        it('allows a result with its whole key and at least one other column', () => {
+            expect(sqlUpdateBlocker(['id', 'name'], ['id'])).toBeNull();
+            expect(sqlUpdateBlocker(['a', 'b', 'c'], ['a', 'b'])).toBeNull();
+        });
+
+        it('says why an UPDATE cannot be built', () => {
+            expect(sqlUpdateBlocker(['id', 'name'], null)).toBe('no-key');
+            expect(sqlUpdateBlocker(['id', 'name'], [])).toBe('no-key');
+            expect(sqlUpdateBlocker(['name'], ['id'])).toBe('key-not-in-result');
+            expect(sqlUpdateBlocker(['a', 'b'], ['a', 'b'])).toBe('only-key-columns');
+        });
+    });
+
+    describe('formatRowsForCopy with sql-update', () => {
+        const options = {tableName: 'users', driver: 'postgres'};
+
+        it('copies UPDATE statements when the result has a usable key', () => {
+            expect(
+                formatRowsForCopy([[1, 'Ada']], ['id', 'name'], 'sql-update', {
+                    ...options,
+                    pkColumns: ['id'],
+                }),
+            ).toBe(`UPDATE "users" SET "name" = 'Ada' WHERE "id" = 1;`);
+        });
+
+        it('falls back to INSERT without a usable key, since no safe WHERE exists', () => {
+            for (const pkColumns of [undefined, null, [], ['user_id']]) {
+                expect(
+                    formatRowsForCopy([[1, 'Ada']], ['id', 'name'], 'sql-update', {
+                        ...options,
+                        pkColumns,
+                    }),
+                ).toBe(`INSERT INTO "users" ("id", "name") VALUES (1, 'Ada');`);
+            }
+            expect(
+                columnValuesForCopy([['Ada']], ['name'], 0, {...options, format: 'sql-update'}),
+            ).toBe(`INSERT INTO "users" ("name") VALUES ('Ada');`);
         });
     });
 

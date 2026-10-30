@@ -3,9 +3,9 @@ import type {AppLanguage} from '@/i18n/config';
 import {DEFAULT_MASKING_PATTERNS} from '@/utils/columnMasking';
 import type {AutocompleteKeywordCase} from '@/utils/autocomplete';
 import type {GlobalProxySettings, ProxyOverride} from '@/types/proxy';
+import type {CopyFormat} from '@/utils/clipboard';
 
-export type {AppLanguage};
-export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'markdown';
+export type {AppLanguage, CopyFormat};
 /** How NULL is written when rows are copied as CSV or Markdown ("" writes an empty field). */
 export type CopyNullLabel = 'null' | 'NULL' | '';
 export type DefaultSortDirection = 'asc' | 'desc';

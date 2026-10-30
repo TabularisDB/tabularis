@@ -11,11 +11,12 @@ import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
 import {useTimingLabels} from '@/hooks/useTimingLabels';
 import {getStackedGridHeight} from '@/utils/multiResult';
 import type {QueryResultEntry} from '@/types/editor';
+import type {CopyFormat} from '@/utils/clipboard';
 
 interface ResultEntryContentProps {
     entry: QueryResultEntry;
     connectionId: string | null;
-    copyFormat: 'csv' | 'json' | 'sql-insert' | 'markdown';
+    copyFormat: CopyFormat;
     csvDelimiter: string;
     csvIncludeHeaders: boolean;
     onPageChange: (page: number) => void;

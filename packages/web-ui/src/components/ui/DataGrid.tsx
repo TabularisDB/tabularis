@@ -134,6 +134,10 @@ import {
     rowsToHtmlTable,
     columnNamesAsLines,
     columnNamesAsJson,
+    rowsToSqlUpdate,
+    sqlUpdateBlocker,
+    type CopyFormat,
+    type SqlUpdateBlocker,
 } from '@/utils/clipboard';
 import {formatColumnNamesAsSqlList} from '@/utils/objectNameCopy';
 import {quoteIdentifier} from '@/utils/identifiers';
@@ -217,7 +221,7 @@ interface DataGridProps {
     canRedo?: boolean;
     onBeginBatchEdit?: () => void;
     onEndBatchEdit?: () => void;
-    copyFormat?: 'csv' | 'json' | 'sql-insert' | 'markdown';
+    copyFormat?: CopyFormat;
     csvDelimiter?: string;
     csvIncludeHeaders?: boolean;
     sortClause?: string;
@@ -305,6 +309,13 @@ const CELL_VALUE_FILTER_LABEL_KEYS: Record<CellValueFilterOperator, string> = {
     'ends with': 'dataGrid.filterEndsWith',
     'IS NULL': 'dataGrid.filterIsNull',
     'IS NOT NULL': 'dataGrid.filterIsNotNull',
+};
+
+// Why "Copy as SQL UPDATE" is disabled: there is no safe WHERE clause to build.
+const SQL_UPDATE_BLOCKER_REASONS: Record<SqlUpdateBlocker, string> = {
+    'no-key': 'dataGrid.editSelectionNoKey',
+    'key-not-in-result': 'dataGrid.sqlUpdateKeyNotInResult',
+    'only-key-columns': 'dataGrid.sqlUpdateOnlyKeyColumns',
 };
 
 export const DataGrid = React.memo(function DataGrid({
@@ -2040,6 +2051,7 @@ export const DataGrid = React.memo(function DataGrid({
                 tableName,
                 driver: copyDriver,
                 nullLabel: copyNullLabel,
+                pkColumns,
             }),
         [
             columns,
@@ -2049,7 +2061,18 @@ export const DataGrid = React.memo(function DataGrid({
             tableName,
             copyDriver,
             copyNullLabel,
+            pkColumns,
         ],
+    );
+
+    // SQL UPDATE needs the primary key for its WHERE clause. Without it the copy falls
+    // back to SQL INSERT (see formatRowsForCopy), and the toast says so.
+    const copiedRowsToast = useCallback(
+        (count: number, copiedColumns: string[] = columns) =>
+            copyFormat === 'sql-update' && sqlUpdateBlocker(copiedColumns, pkColumns) !== null
+                ? t('dataGrid.copiedAsInsertNoKey', {count})
+                : rowsCopiedToast(count),
+        [columns, copyFormat, pkColumns, rowsCopiedToast, t],
     );
 
     // Rows the row context menu acts on: the selected rows (pending insertions
@@ -2067,8 +2090,8 @@ export const DataGrid = React.memo(function DataGrid({
         const rows = getContextRows();
         if (!rows) return;
 
-        await copyToClipboard(formatRows(rows, true), rowsCopiedToast(rows.length));
-    }, [getContextRows, formatRows, copyToClipboard, rowsCopiedToast]);
+        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows.length));
+    }, [getContextRows, formatRows, copyToClipboard, copiedRowsToast]);
 
     // Copies the selected rows (or the right-clicked row) as an HTML table, with
     // the regular copy output as the plain-text flavor.
@@ -2085,6 +2108,25 @@ export const DataGrid = React.memo(function DataGrid({
             rowsCopiedToast(rows.length),
         );
     }, [getContextRows, columns, formatRows, writeToClipboard, rowsCopiedToast, platform]);
+
+    // Copies the selected rows (or the right-clicked row) as UPDATE statements, whatever
+    // the default copy format is. The menu enables it only when sqlUpdateBlocker allows.
+    const copySelectedOrContextRowAsSqlUpdate = useCallback(async () => {
+        const rows = getContextRows();
+        if (!rows || !pkColumns || sqlUpdateBlocker(columns, pkColumns) !== null) return;
+        await copyToClipboard(
+            rowsToSqlUpdate(rows, columns, tableName ?? 'table', pkColumns, copyDriver),
+            rowsCopiedToast(rows.length),
+        );
+    }, [
+        getContextRows,
+        pkColumns,
+        columns,
+        tableName,
+        copyDriver,
+        copyToClipboard,
+        rowsCopiedToast,
+    ]);
 
     // Writes the rows the row context menu acts on to a file (#1154).
     //
@@ -2265,8 +2307,8 @@ export const DataGrid = React.memo(function DataGrid({
             mergedRows.map((row) => row.rowData),
             selectedRowIndices,
         );
-        await copyToClipboard(formatRows(rows, true), rowsCopiedToast(rows.length));
-    }, [selectedRowIndices, mergedRows, formatRows, copyToClipboard, rowsCopiedToast]);
+        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows.length));
+    }, [selectedRowIndices, mergedRows, formatRows, copyToClipboard, copiedRowsToast]);
 
     // Copies one column for the selected rows, or every visible row when
     // nothing is selected, using the same export format as other copy actions.
@@ -2283,8 +2325,9 @@ export const DataGrid = React.memo(function DataGrid({
                 tableName,
                 driver: copyDriver,
                 nullLabel: copyNullLabel,
+                pkColumns,
             }),
-            rowsCopiedToast(rows.length),
+            copiedRowsToast(rows.length, projected.columns),
         );
     }, [
         selectedColIndices,
@@ -2296,8 +2339,9 @@ export const DataGrid = React.memo(function DataGrid({
         tableName,
         copyDriver,
         copyNullLabel,
+        pkColumns,
         copyToClipboard,
-        rowsCopiedToast,
+        copiedRowsToast,
     ]);
 
     // Copies the rectangular cell range (anchor..Shift+click target) in the
@@ -2320,10 +2364,13 @@ export const DataGrid = React.memo(function DataGrid({
                 tableName,
                 driver: copyDriver,
                 nullLabel: copyNullLabel,
+                pkColumns,
             }),
-            t('dataGrid.copiedCells', {
-                count: rangeRows.length * projected.columns.length,
-            }),
+            copyFormat === 'sql-update' && sqlUpdateBlocker(projected.columns, pkColumns) !== null
+                ? t('dataGrid.copiedAsInsertNoKey', {count: rangeRows.length})
+                : t('dataGrid.copiedCells', {
+                      count: rangeRows.length * projected.columns.length,
+                  }),
         );
     }, [
         cellRange,
@@ -2335,6 +2382,7 @@ export const DataGrid = React.memo(function DataGrid({
         tableName,
         copyDriver,
         copyNullLabel,
+        pkColumns,
         copyToClipboard,
         t,
     ]);
@@ -2400,8 +2448,8 @@ export const DataGrid = React.memo(function DataGrid({
 
     const copyAllLoadedRows = useCallback(async () => {
         const rows = mergedRows.map((row) => row.rowData);
-        await copyToClipboard(formatRows(rows, true), rowsCopiedToast(rows.length));
-    }, [copyToClipboard, formatRows, mergedRows, rowsCopiedToast]);
+        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows.length));
+    }, [copyToClipboard, formatRows, mergedRows, copiedRowsToast]);
 
     const getResultCommands = useCallback(
         (): ResultCommands =>
@@ -3676,6 +3724,25 @@ export const DataGrid = React.memo(function DataGrid({
                             icon: Table,
                             action: copySelectedOrContextRowAsHtml,
                         });
+
+                        // Shown even when it can't run, with the reason, so the format is
+                        // discoverable and it's clear why a safe WHERE can't be built.
+                        const updateBlocker = sqlUpdateBlocker(columns, pkColumns);
+                        menuItems.push(
+                            updateBlocker === null
+                                ? {
+                                      label: t('dataGrid.copyAsSqlUpdate'),
+                                      icon: Braces,
+                                      action: copySelectedOrContextRowAsSqlUpdate,
+                                  }
+                                : {
+                                      label: t('dataGrid.copyAsSqlUpdateUnavailable', {
+                                          reason: t(SQL_UPDATE_BLOCKER_REASONS[updateBlocker]),
+                                      }),
+                                      icon: Braces,
+                                      disabled: true,
+                                  },
+                        );
 
                         // "Export selected rows…" (issue #1154): the same scope as
                         // the copy actions above, written to a file instead.

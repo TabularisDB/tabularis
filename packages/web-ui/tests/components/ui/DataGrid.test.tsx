@@ -1059,6 +1059,77 @@ describe('DataGrid select all', () => {
         expect(html).not.toContain('Alice');
     });
 
+    it('copies the selected rows as SQL UPDATE statements keyed on the primary key', async () => {
+        const {container} = render(
+            <DataGrid
+                columns={columns}
+                data={data}
+                tableName="users"
+                pkColumns={['id']}
+                selectedRows={new Set([0, 1])}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+        fireEvent.contextMenu(container.querySelector('td[data-col-index="0"]')!);
+        fireEvent.click(await screen.findByText('dataGrid.copyAsSqlUpdate'));
+
+        await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+        expect(writeText.mock.calls[0][0]).toBe(
+            "UPDATE `users` SET `name` = 'Alice' WHERE `id` = 1;\n" +
+                "UPDATE `users` SET `name` = 'Bob' WHERE `id` = 2;",
+        );
+    });
+
+    it('shows Copy as SQL UPDATE disabled, with the reason, when there is no primary key', async () => {
+        const {container} = render(
+            <DataGrid
+                columns={columns}
+                data={data}
+                tableName="users"
+                selectedRows={new Set([0])}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+        fireEvent.contextMenu(container.querySelector('td[data-col-index="0"]')!);
+        const item = (await screen.findByText('dataGrid.copyAsSqlUpdateUnavailable')).closest(
+            'button',
+        );
+        expect(item).toBeDisabled();
+        expect(translationMock).toHaveBeenCalledWith('dataGrid.copyAsSqlUpdateUnavailable', {
+            reason: 'dataGrid.editSelectionNoKey',
+        });
+        fireEvent.click(item!);
+        expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('copies as SQL INSERT and says why when SQL UPDATE is the default but there is no key', async () => {
+        const {container} = render(
+            <DataGrid
+                columns={columns}
+                data={data}
+                tableName="users"
+                copyFormat="sql-update"
+                selectedRows={new Set([0])}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+        fireEvent.contextMenu(container.querySelector('td[data-col-index="0"]')!);
+        fireEvent.click(await screen.findByText('dataGrid.copySelectedN'));
+
+        await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+        expect(writeText.mock.calls[0][0]).toBe(
+            "INSERT INTO `users` (`id`, `name`) VALUES (1, 'Alice');",
+        );
+        await waitFor(() =>
+            expect(showToastMock).toHaveBeenCalledWith('dataGrid.copiedAsInsertNoKey', {
+                kind: 'success',
+            }),
+        );
+    });
+
     it('selects all loaded rows with Cmd/Ctrl+A without copying', () => {
         const onSelectionChange = vi.fn();
         const {container} = render(
