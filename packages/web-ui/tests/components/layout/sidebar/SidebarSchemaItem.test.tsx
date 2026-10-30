@@ -1,7 +1,9 @@
-import {render, screen, fireEvent} from '@testing-library/react';
+import {render, screen, fireEvent, within} from '@testing-library/react';
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import React from 'react';
 import {SidebarSchemaItem} from '@/components/layout/sidebar/SidebarSchemaItem';
+import {UI_STATE_KEYS, uiStateStore} from '@/utils/uiStateStore';
+import {pinScope, type PinnedObject} from '@/utils/explorerPins';
 import {invoke} from '@tauri-apps/api/core';
 
 const clientMock = vi.hoisted(() => ({call: vi.fn()}));
@@ -17,6 +19,9 @@ vi.mock('@/hooks/useTabularisClient', () => ({
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({t: (key: string) => key}),
 }));
+
+// Real icons: tables and the Pinned group render icons the global mock lacks.
+vi.mock('lucide-react', async () => await vi.importActual('lucide-react'));
 
 const baseSchemaData = {
     tables: [],
@@ -179,5 +184,75 @@ describe('SidebarSchemaItem — New routine button', () => {
         render(<SidebarSchemaItem {...defaultProps} schemaData={baseSchemaData} />);
 
         expect(screen.queryByTitle('routines.newRoutine')).toBeNull();
+    });
+});
+
+describe('SidebarSchemaItem — pinned objects (#1306)', () => {
+    const schemaData = {
+        ...baseSchemaData,
+        tables: [{name: 'customers'}, {name: 'orders'}],
+        views: [{name: 'active_users'}],
+    };
+    const pin = (pins: PinnedObject[], schema = 'public') =>
+        uiStateStore.set(UI_STATE_KEYS.explorerPins.key, {
+            'conn-123': {[pinScope(undefined, schema)]: pins},
+        });
+    const pinnedGroup = () => screen.queryByRole('group', {name: 'sidebar.pinned'});
+
+    beforeEach(() => {
+        localStorage.clear();
+        uiStateStore.reset();
+    });
+
+    it('lists existing pinned tables and views in a Pinned group, keeping the full lists', () => {
+        pin([
+            {kind: 'view', name: 'active_users'},
+            {kind: 'table', name: 'dropped'},
+            {kind: 'table', name: 'orders'},
+        ]);
+        render(<SidebarSchemaItem {...defaultProps} schemaData={schemaData} />);
+
+        const group = pinnedGroup()!;
+        expect(within(group).getByText('orders')).toBeInTheDocument();
+        expect(within(group).getByText('active_users')).toBeInTheDocument();
+        expect(within(group).queryByText('dropped')).toBeNull();
+        expect(within(group).queryByText('customers')).toBeNull();
+        // The regular lists still show every table and view.
+        expect(screen.getAllByText('orders')).toHaveLength(2);
+        expect(screen.getAllByText('customers')).toHaveLength(1);
+    });
+
+    it('shows no Pinned group without pins in this schema', () => {
+        pin([{kind: 'table', name: 'orders'}], 'sales');
+        render(<SidebarSchemaItem {...defaultProps} schemaData={schemaData} />);
+        expect(pinnedGroup()).toBeNull();
+    });
+
+    it('applies the table filter to the pinned objects', () => {
+        pin([
+            {kind: 'table', name: 'orders'},
+            {kind: 'table', name: 'customers'},
+        ]);
+        render(<SidebarSchemaItem {...defaultProps} schemaData={schemaData} />);
+        fireEvent.change(screen.getByPlaceholderText('sidebar.filterTables'), {
+            target: {value: 'cust'},
+        });
+        const group = pinnedGroup()!;
+        expect(within(group).getByText('customers')).toBeInTheDocument();
+        expect(within(group).queryByText('orders')).toBeNull();
+    });
+
+    it('opens a pinned table like its regular item', () => {
+        pin([{kind: 'table', name: 'orders'}]);
+        const onTableDoubleClick = vi.fn();
+        render(
+            <SidebarSchemaItem
+                {...defaultProps}
+                schemaData={schemaData}
+                onTableDoubleClick={onTableDoubleClick}
+            />,
+        );
+        fireEvent.doubleClick(within(pinnedGroup()!).getByText('orders'));
+        expect(onTableDoubleClick).toHaveBeenCalledWith('orders', 'public');
     });
 });
