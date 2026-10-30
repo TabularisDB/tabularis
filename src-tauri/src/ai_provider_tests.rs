@@ -52,11 +52,17 @@ fn serve(
             key.eq_ignore_ascii_case("content-length")
                 .then(|| value.trim().parse::<usize>().unwrap())
         })
-        .unwrap();
+        .unwrap_or(0);
     assert!(length < 64 * 1024);
     let mut bytes = vec![0; length];
-    stream.read_exact(&mut bytes).unwrap();
-    let body = serde_json::from_slice(&bytes).unwrap();
+    if length > 0 {
+        stream.read_exact(&mut bytes).unwrap();
+    }
+    let body = if bytes.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap()
+    };
     let response = response.to_string();
     write!(stream, "HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}", response.len()).unwrap();
     stream.flush().unwrap();
@@ -307,6 +313,100 @@ async fn existing_providers_propagate_http_failures() {
         let error = generate(provider, &fixture).await.unwrap_err();
         assert!(error.contains("fixture-rejection"), "{provider}: {error}");
         fixture.requests.join().unwrap();
+    }
+}
+
+#[tokio::test]
+async fn custom_openai_omits_authorization_when_the_api_key_is_empty() {
+    let cases = [("fixture-key", true), ("", false), ("   ", false)];
+    let fixture = Fixture::new(
+        true,
+        cases
+            .iter()
+            .map(|_| (200, success("custom-openai")))
+            .collect(),
+    );
+    for (key, _) in cases {
+        let req = AiGenerateRequest {
+            provider: "custom-openai".into(),
+            model: "fixture-model".into(),
+            prompt: "Count authors".into(),
+            schema: String::new(),
+        };
+        assert_eq!(
+            generate_custom_openai(
+                &fixture.client,
+                key,
+                &req,
+                "SQL instructions",
+                "https://fixture.invalid/v1/",
+            )
+            .await
+            .unwrap(),
+            "SELECT COUNT(*) FROM authors;",
+            "{key:?}"
+        );
+    }
+    let requests = fixture.requests.join().unwrap();
+    assert_eq!(requests.len(), cases.len());
+    for ((key, expects_authorization), request) in cases.iter().zip(&requests) {
+        let headers = request.headers.to_ascii_lowercase();
+        assert!(
+            request.headers.starts_with("POST /v1/chat/completions "),
+            "{key:?}: {}",
+            request.headers
+        );
+        assert_eq!(request.body["model"], "fixture-model", "{key:?}");
+        if *expects_authorization {
+            assert!(
+                headers.contains("authorization: bearer fixture-key"),
+                "{key:?}: {headers}"
+            );
+        } else {
+            assert!(!headers.contains("authorization:"), "{key:?}: {headers}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn custom_openai_model_catalog_omits_authorization_when_the_api_key_is_empty() {
+    assert!(fetch_custom_openai_models("", "").await.is_empty());
+    assert!(fetch_custom_openai_models("", "secret").await.is_empty());
+
+    let cases = [("fixture-key", true), ("", false), ("   ", false)];
+    let fixture = Fixture::new(
+        true,
+        cases
+            .iter()
+            .map(|_| (200, json!({"data":[{"id":"local-llama"}]})))
+            .collect(),
+    );
+    for (key, _) in cases {
+        let models = fetch_custom_openai_models_with_client(
+            &fixture.client,
+            "https://fixture.invalid/v1",
+            key,
+        )
+        .await;
+        assert_eq!(models, vec!["local-llama".to_string()], "{key:?}");
+    }
+    let requests = fixture.requests.join().unwrap();
+    assert_eq!(requests.len(), cases.len());
+    for ((key, expects_authorization), request) in cases.iter().zip(&requests) {
+        let headers = request.headers.to_ascii_lowercase();
+        assert!(
+            request.headers.starts_with("GET /v1/models "),
+            "{key:?}: {}",
+            request.headers
+        );
+        if *expects_authorization {
+            assert!(
+                headers.contains("authorization: bearer fixture-key"),
+                "{key:?}: {headers}"
+            );
+        } else {
+            assert!(!headers.contains("authorization:"), "{key:?}: {headers}");
+        }
     }
 }
 
