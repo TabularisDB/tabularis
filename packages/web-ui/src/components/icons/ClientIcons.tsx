@@ -74,6 +74,25 @@ export const RequestyIcon = ({size = 20, className}: IconProps) => (
     </svg>
 );
 
+export const RuncrateIcon = ({size = 20, className}: IconProps) => (
+    <svg
+        viewBox="0 0 24 24"
+        width={size}
+        height={size}
+        className={className}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        xmlns="http://www.w3.org/2000/svg"
+    >
+        <path d="M21 8 12 3 3 8l9 5 9-5z" />
+        <path d="M3 8v8l9 5 9-5V8" />
+        <path d="M12 13v8" />
+    </svg>
+);
+
 export const OllamaIcon = ({size = 20, className}: IconProps) => (
     <svg
         viewBox="0 0 17 25"

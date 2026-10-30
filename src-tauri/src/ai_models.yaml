@@ -61,3 +61,11 @@ requesty:
   - glm-5.2
   - gpt-5-mini@eu
   - claude-sonnet-4-6@eu
+
+runcrate:
+  - deepseek-ai/DeepSeek-V4.1-Flash
+  - zai-org/GLM-5.3-Flash
+  - zai-org/GLM-5.3
+  - Qwen/Qwen3.8-Flash
+  - openai/gpt-oss-120b
+  - moonshotai/Kimi-K2.6
