@@ -290,6 +290,8 @@
     "historyDateRangeInverted": "La data di inizio deve essere uguale o precedente a quella di fine.",
     "historyClearFilters": "Cancella i filtri",
     "clearAllHistory": "Cancella Tutta la Cronologia",
+    "exportHistory": "Esporta cronologia in SQL",
+    "exportHistoryError": "Impossibile esportare la cronologia delle query",
     "pauseHistoryCapture": "Metti in pausa la registrazione della cronologia",
     "resumeHistoryCapture": "Riprendi la registrazione della cronologia",
     "historyCapturePausedNotice": "Registrazione della cronologia query in pausa",

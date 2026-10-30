@@ -273,6 +273,8 @@
     "historyDateRangeInverted": "시작일은 종료일과 같거나 이전이어야 합니다.",
     "historyClearFilters": "필터 지우기",
     "clearAllHistory": "전체 기록 지우기",
+    "exportHistory": "기록을 SQL로 내보내기",
+    "exportHistoryError": "쿼리 기록을 내보내지 못했습니다",
     "pauseHistoryCapture": "기록 수집 일시 중지",
     "resumeHistoryCapture": "기록 수집 재개",
     "historyCapturePausedNotice": "쿼리 기록 수집이 일시 중지됨",

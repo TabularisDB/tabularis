@@ -296,6 +296,8 @@
     "historyDateRangeInverted": "開始日は終了日と同じかそれ以前にしてください。",
     "historyClearFilters": "フィルタをクリア",
     "clearAllHistory": "すべての履歴を削除",
+    "exportHistory": "履歴をSQLとしてエクスポート",
+    "exportHistoryError": "クエリ履歴のエクスポートに失敗しました",
     "pauseHistoryCapture": "履歴の記録を一時停止",
     "resumeHistoryCapture": "履歴の記録を再開",
     "historyCapturePausedNotice": "クエリ履歴の記録を一時停止中",

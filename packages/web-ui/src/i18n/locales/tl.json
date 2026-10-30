@@ -296,6 +296,8 @@
     "historyDateRangeInverted": "Ang Mula ay dapat nasa o bago ang Hanggang.",
     "historyClearFilters": "I-clear ang mga filter",
     "clearAllHistory": "Burahin ang Lahat ng Kasaysayan",
+    "exportHistory": "I-export ang kasaysayan bilang SQL",
+    "exportHistoryError": "Hindi ma-export ang kasaysayan ng query",
     "pauseHistoryCapture": "I-pause ang pagtatala ng kasaysayan",
     "resumeHistoryCapture": "Ipagpatuloy ang pagtatala ng kasaysayan",
     "historyCapturePausedNotice": "Naka-pause ang pagtatala ng kasaysayan ng query",

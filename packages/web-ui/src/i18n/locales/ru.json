@@ -296,6 +296,8 @@
     "historyDateRangeInverted": "Начальная дата должна быть не позднее конечной.",
     "historyClearFilters": "Сбросить фильтры",
     "clearAllHistory": "Очистить всю историю",
+    "exportHistory": "Экспортировать историю в SQL",
+    "exportHistoryError": "Не удалось экспортировать историю запросов",
     "pauseHistoryCapture": "Приостановить запись истории",
     "resumeHistoryCapture": "Возобновить запись истории",
     "historyCapturePausedNotice": "Запись истории запросов приостановлена",

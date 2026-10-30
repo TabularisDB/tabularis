@@ -296,6 +296,8 @@
     "historyDateRangeInverted": "La date de début doit être égale ou antérieure à la date de fin.",
     "historyClearFilters": "Effacer les filtres",
     "clearAllHistory": "Effacer tout l’historique",
+    "exportHistory": "Exporter l’historique en SQL",
+    "exportHistoryError": "Impossible d’exporter l’historique des requêtes",
     "pauseHistoryCapture": "Mettre en pause la capture de l’historique",
     "resumeHistoryCapture": "Reprendre la capture de l’historique",
     "historyCapturePausedNotice": "Capture de l’historique des requêtes en pause",

@@ -282,6 +282,8 @@
     "historyDateRangeInverted": "起始日期必须早于或等于结束日期。",
     "historyClearFilters": "清除筛选",
     "clearAllHistory": "清除所有历史",
+    "exportHistory": "将历史记录导出为 SQL",
+    "exportHistoryError": "导出查询历史记录失败",
     "pauseHistoryCapture": "暂停记录查询历史",
     "resumeHistoryCapture": "恢复记录查询历史",
     "historyCapturePausedNotice": "查询历史记录已暂停",
