@@ -1493,6 +1493,7 @@
     "copyAsSqlUpdateUnavailable": "Copy as SQL UPDATE ({{reason}})",
     "sqlUpdateKeyNotInResult": "primary key not in the result",
     "sqlUpdateOnlyKeyColumns": "no columns besides the key",
+    "sqlUpdateRowWithoutKeyValue": "a selected row has no key value yet",
     "copiedAsInsertNoKey": "Copied {{count}} row(s) as SQL INSERT: SQL UPDATE needs the primary key",
     "exportSelectedRows": "Export Selected ({{count}})…",
     "exportSelectedRowsCsv": "CSV",

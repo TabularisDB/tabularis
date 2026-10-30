@@ -114,20 +114,27 @@ export function rowsToHtmlTable(
 export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'sql-update' | 'markdown';
 
 /** Why rows can't be copied as UPDATE statements; `null` when they can. */
-export type SqlUpdateBlocker = 'no-key' | 'key-not-in-result' | 'only-key-columns';
+export type SqlUpdateBlocker =
+    'no-key' | 'key-not-in-result' | 'only-key-columns' | 'row-without-key-value';
 
 /**
  * An UPDATE needs a WHERE clause on the primary key, so the result must have a known
  * key, every key column must be in `columns`, and at least one other column must be
- * left to SET.
+ * left to SET. When `rows` is given, every row also needs a value in each key column:
+ * an unsaved insertion has no key yet, and `WHERE "id" IS NULL` would match nothing,
+ * or the wrong rows if the key column allows NULLs.
  */
 export function sqlUpdateBlocker(
     columns: string[],
     pkColumns?: string[] | null,
+    rows?: unknown[][],
 ): SqlUpdateBlocker | null {
     if (!pkColumns || pkColumns.length === 0) return 'no-key';
     if (!pkColumns.every((pk) => columns.includes(pk))) return 'key-not-in-result';
     if (columns.every((column) => pkColumns.includes(column))) return 'only-key-columns';
+    const keyIndices = pkColumns.map((pk) => columns.indexOf(pk));
+    if (rows?.some((row) => keyIndices.some((i) => row[i] === null || row[i] === undefined)))
+        return 'row-without-key-value';
     return null;
 }
 
@@ -158,7 +165,11 @@ export function formatRowsForCopy(
         pkColumns,
     } = options;
     if (copyFormat === 'json') return rowsToJSON(rows, columns);
-    if (copyFormat === 'sql-update' && pkColumns && sqlUpdateBlocker(columns, pkColumns) === null)
+    if (
+        copyFormat === 'sql-update' &&
+        pkColumns &&
+        sqlUpdateBlocker(columns, pkColumns, rows) === null
+    )
         return rowsToSqlUpdate(rows, columns, tableName ?? 'table', pkColumns, driver);
     // Without a usable key there is no safe WHERE clause, so SQL UPDATE falls back to
     // INSERT; callers check sqlUpdateBlocker to tell the user.
@@ -289,20 +300,18 @@ function rowToSqlUpdate(
         .map((column, i) => ({column, value: row[i]}))
         .filter(({column}) => !pkColumns.includes(column))
         .map(({column, value}) => `${quoteName(column)} = ${sqlValue(value, driver)}`);
-    const conditions = pkColumns.map((pk) => {
-        const value = row[columns.indexOf(pk)];
-        // `= NULL` never matches, so a NULL key is compared with IS NULL.
-        return value === null || value === undefined
-            ? `${quoteName(pk)} IS NULL`
-            : `${quoteName(pk)} = ${sqlValue(value, driver)}`;
-    });
+    // sqlUpdateBlocker keeps rows without a key value out, so every key has a value here.
+    const conditions = pkColumns.map(
+        (pk) => `${quoteName(pk)} = ${sqlValue(row[columns.indexOf(pk)], driver)}`,
+    );
     return `UPDATE ${quoteName(tableName)} SET ${assignments.join(', ')} WHERE ${conditions.join(' AND ')};`;
 }
 
 /**
  * One UPDATE per row: primary key columns go to the WHERE clause (joined with AND for a
  * composite key) and every other column to SET, quoted for the driver like the INSERT
- * format. Check {@link sqlUpdateBlocker} first; without a usable key there is no safe WHERE.
+ * format. Check {@link sqlUpdateBlocker}, with the rows, first: without a usable key
+ * there is no safe WHERE.
  */
 export function rowsToSqlUpdate(
     rows: unknown[][],

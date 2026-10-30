@@ -1424,6 +1424,7 @@
     "copyAsSqlUpdateUnavailable": "Als SQL UPDATE kopieren ({{reason}})",
     "sqlUpdateKeyNotInResult": "Primärschlüssel nicht im Ergebnis",
     "sqlUpdateOnlyKeyColumns": "keine Spalten außer dem Schlüssel",
+    "sqlUpdateRowWithoutKeyValue": "eine ausgewählte Zeile hat noch keinen Schlüsselwert",
     "copiedAsInsertNoKey": "{{count}} Zeile(n) als SQL INSERT kopiert: SQL UPDATE benötigt den Primärschlüssel",
     "exportSelectedRows": "Auswahl exportieren ({{count}})…",
     "exportSelectedRowsCsv": "CSV",

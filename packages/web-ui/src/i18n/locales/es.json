@@ -1452,6 +1452,7 @@
     "copyAsSqlUpdateUnavailable": "Copiar como SQL UPDATE ({{reason}})",
     "sqlUpdateKeyNotInResult": "la clave primaria no está en el resultado",
     "sqlUpdateOnlyKeyColumns": "no hay columnas aparte de la clave",
+    "sqlUpdateRowWithoutKeyValue": "una fila seleccionada aún no tiene valor de clave",
     "copiedAsInsertNoKey": "{{count}} fila(s) copiada(s) como SQL INSERT: SQL UPDATE necesita la clave primaria",
     "exportSelectedRows": "Exportar selección ({{count}})…",
     "exportSelectedRowsCsv": "CSV",

@@ -316,6 +316,7 @@ const SQL_UPDATE_BLOCKER_REASONS: Record<SqlUpdateBlocker, string> = {
     'no-key': 'dataGrid.editSelectionNoKey',
     'key-not-in-result': 'dataGrid.sqlUpdateKeyNotInResult',
     'only-key-columns': 'dataGrid.sqlUpdateOnlyKeyColumns',
+    'row-without-key-value': 'dataGrid.sqlUpdateRowWithoutKeyValue',
 };
 
 export const DataGrid = React.memo(function DataGrid({
@@ -2068,10 +2069,10 @@ export const DataGrid = React.memo(function DataGrid({
     // SQL UPDATE needs the primary key for its WHERE clause. Without it the copy falls
     // back to SQL INSERT (see formatRowsForCopy), and the toast says so.
     const copiedRowsToast = useCallback(
-        (count: number, copiedColumns: string[] = columns) =>
-            copyFormat === 'sql-update' && sqlUpdateBlocker(copiedColumns, pkColumns) !== null
-                ? t('dataGrid.copiedAsInsertNoKey', {count})
-                : rowsCopiedToast(count),
+        (rows: unknown[][], copiedColumns: string[] = columns) =>
+            copyFormat === 'sql-update' && sqlUpdateBlocker(copiedColumns, pkColumns, rows) !== null
+                ? t('dataGrid.copiedAsInsertNoKey', {count: rows.length})
+                : rowsCopiedToast(rows.length),
         [columns, copyFormat, pkColumns, rowsCopiedToast, t],
     );
 
@@ -2090,7 +2091,7 @@ export const DataGrid = React.memo(function DataGrid({
         const rows = getContextRows();
         if (!rows) return;
 
-        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows.length));
+        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows));
     }, [getContextRows, formatRows, copyToClipboard, copiedRowsToast]);
 
     // Copies the selected rows (or the right-clicked row) as an HTML table, with
@@ -2113,7 +2114,7 @@ export const DataGrid = React.memo(function DataGrid({
     // the default copy format is. The menu enables it only when sqlUpdateBlocker allows.
     const copySelectedOrContextRowAsSqlUpdate = useCallback(async () => {
         const rows = getContextRows();
-        if (!rows || !pkColumns || sqlUpdateBlocker(columns, pkColumns) !== null) return;
+        if (!rows || !pkColumns || sqlUpdateBlocker(columns, pkColumns, rows) !== null) return;
         await copyToClipboard(
             rowsToSqlUpdate(rows, columns, tableName ?? 'table', pkColumns, copyDriver),
             rowsCopiedToast(rows.length),
@@ -2307,7 +2308,7 @@ export const DataGrid = React.memo(function DataGrid({
             mergedRows.map((row) => row.rowData),
             selectedRowIndices,
         );
-        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows.length));
+        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows));
     }, [selectedRowIndices, mergedRows, formatRows, copyToClipboard, copiedRowsToast]);
 
     // Copies one column for the selected rows, or every visible row when
@@ -2327,7 +2328,7 @@ export const DataGrid = React.memo(function DataGrid({
                 nullLabel: copyNullLabel,
                 pkColumns,
             }),
-            copiedRowsToast(rows.length, projected.columns),
+            copiedRowsToast(projected.rows, projected.columns),
         );
     }, [
         selectedColIndices,
@@ -2366,7 +2367,8 @@ export const DataGrid = React.memo(function DataGrid({
                 nullLabel: copyNullLabel,
                 pkColumns,
             }),
-            copyFormat === 'sql-update' && sqlUpdateBlocker(projected.columns, pkColumns) !== null
+            copyFormat === 'sql-update' &&
+                sqlUpdateBlocker(projected.columns, pkColumns, projected.rows) !== null
                 ? t('dataGrid.copiedAsInsertNoKey', {count: rangeRows.length})
                 : t('dataGrid.copiedCells', {
                       count: rangeRows.length * projected.columns.length,
@@ -2403,7 +2405,14 @@ export const DataGrid = React.memo(function DataGrid({
                 driver: copyDriver,
                 nullLabel: copyNullLabel,
             });
-            await copyToClipboard(text);
+            // One column can't hold both a key and a value, so SQL UPDATE copies it as
+            // INSERT (see columnValuesForCopy); the toast says so.
+            await copyToClipboard(
+                text,
+                copyFormat === 'sql-update'
+                    ? t('dataGrid.copiedAsInsertNoKey', {count: rows.length})
+                    : undefined,
+            );
         },
         [
             selectedRowIndices,
@@ -2416,6 +2425,7 @@ export const DataGrid = React.memo(function DataGrid({
             copyDriver,
             copyNullLabel,
             copyToClipboard,
+            t,
         ],
     );
 
@@ -2448,7 +2458,7 @@ export const DataGrid = React.memo(function DataGrid({
 
     const copyAllLoadedRows = useCallback(async () => {
         const rows = mergedRows.map((row) => row.rowData);
-        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows.length));
+        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows));
     }, [copyToClipboard, formatRows, mergedRows, copiedRowsToast]);
 
     const getResultCommands = useCallback(
@@ -3727,7 +3737,11 @@ export const DataGrid = React.memo(function DataGrid({
 
                         // Shown even when it can't run, with the reason, so the format is
                         // discoverable and it's clear why a safe WHERE can't be built.
-                        const updateBlocker = sqlUpdateBlocker(columns, pkColumns);
+                        const updateBlocker = sqlUpdateBlocker(
+                            columns,
+                            pkColumns,
+                            getContextRows() ?? undefined,
+                        );
                         menuItems.push(
                             updateBlocker === null
                                 ? {

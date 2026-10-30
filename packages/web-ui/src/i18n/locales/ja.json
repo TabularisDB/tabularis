@@ -1436,6 +1436,7 @@
     "copyAsSqlUpdateUnavailable": "SQL UPDATEとしてコピー（{{reason}}）",
     "sqlUpdateKeyNotInResult": "結果に主キーがありません",
     "sqlUpdateOnlyKeyColumns": "キー以外の列がありません",
+    "sqlUpdateRowWithoutKeyValue": "選択した行にキーの値がまだありません",
     "copiedAsInsertNoKey": "{{count}} 行をSQL INSERTとしてコピーしました：SQL UPDATEには主キーが必要です",
     "exportSelectedRows": "選択をエクスポート（{{count}}）…",
     "exportSelectedRowsCsv": "CSV",

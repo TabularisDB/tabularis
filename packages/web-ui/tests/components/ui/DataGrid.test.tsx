@@ -1104,6 +1104,28 @@ describe('DataGrid select all', () => {
         expect(writeText).not.toHaveBeenCalled();
     });
 
+    it('disables Copy as SQL UPDATE when a selected row has no key value yet', async () => {
+        const {container} = render(
+            <DataGrid
+                columns={columns}
+                data={[...data, [null, 'Unsaved']]}
+                tableName="users"
+                pkColumns={['id']}
+                selectedRows={new Set([0, 2])}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+        fireEvent.contextMenu(container.querySelector('td[data-col-index="0"]')!);
+        const item = (await screen.findByText('dataGrid.copyAsSqlUpdateUnavailable')).closest(
+            'button',
+        );
+        expect(item).toBeDisabled();
+        expect(translationMock).toHaveBeenCalledWith('dataGrid.copyAsSqlUpdateUnavailable', {
+            reason: 'dataGrid.sqlUpdateRowWithoutKeyValue',
+        });
+    });
+
     it('copies as SQL INSERT and says why when SQL UPDATE is the default but there is no key', async () => {
         const {container} = render(
             <DataGrid

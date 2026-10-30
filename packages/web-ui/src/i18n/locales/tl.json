@@ -1455,6 +1455,7 @@
     "copyAsSqlUpdateUnavailable": "Kopyahin bilang SQL UPDATE ({{reason}})",
     "sqlUpdateKeyNotInResult": "wala sa resulta ang primary key",
     "sqlUpdateOnlyKeyColumns": "walang column bukod sa key",
+    "sqlUpdateRowWithoutKeyValue": "wala pang key value ang isang napiling row",
     "copiedAsInsertNoKey": "Nakopya ang {{count}} row bilang SQL INSERT: kailangan ng SQL UPDATE ang primary key",
     "exportSelectedRows": "I-export ang napili ({{count}})…",
     "exportSelectedRowsCsv": "CSV",

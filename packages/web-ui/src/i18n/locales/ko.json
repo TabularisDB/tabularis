@@ -1399,6 +1399,7 @@
     "copyAsSqlUpdateUnavailable": "SQL UPDATE로 복사 ({{reason}})",
     "sqlUpdateKeyNotInResult": "결과에 기본 키 없음",
     "sqlUpdateOnlyKeyColumns": "키 외의 열 없음",
+    "sqlUpdateRowWithoutKeyValue": "선택한 행에 아직 키 값이 없음",
     "copiedAsInsertNoKey": "{{count}}개 행을 SQL INSERT로 복사했습니다: SQL UPDATE에는 기본 키가 필요합니다",
     "exportSelectedRows": "선택 항목 내보내기 ({{count}})…",
     "exportSelectedRowsCsv": "CSV",

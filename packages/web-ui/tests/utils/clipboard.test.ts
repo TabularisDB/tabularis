@@ -509,12 +509,9 @@ describe('clipboard utils', () => {
             );
         });
 
-        it('writes NULL values as NULL and matches a NULL key with IS NULL', () => {
+        it('writes NULL values in SET as NULL', () => {
             expect(rowsToSqlUpdate([[1, null, 'Ada']], columns, 'users', ['id'])).toBe(
                 "UPDATE `users` SET `email` = NULL, `name` = 'Ada' WHERE `id` = 1;",
-            );
-            expect(rowsToSqlUpdate([[1, null, 'x']], ['a', 'b', 'c'], 't', ['a', 'b'])).toBe(
-                "UPDATE `t` SET `c` = 'x' WHERE `a` = 1 AND `b` IS NULL;",
             );
         });
 
@@ -545,6 +542,27 @@ describe('clipboard utils', () => {
             expect(sqlUpdateBlocker(['name'], ['id'])).toBe('key-not-in-result');
             expect(sqlUpdateBlocker(['a', 'b'], ['a', 'b'])).toBe('only-key-columns');
         });
+
+        it('blocks rows without a key value, such as an unsaved insertion', () => {
+            const cols = ['id', 'name'];
+            expect(sqlUpdateBlocker(cols, ['id'], [[1, 'Ada']])).toBeNull();
+            expect(sqlUpdateBlocker(cols, ['id'], [[1, null]])).toBeNull();
+            for (const missing of [null, undefined]) {
+                expect(
+                    sqlUpdateBlocker(
+                        cols,
+                        ['id'],
+                        [
+                            [1, 'Ada'],
+                            [missing, 'New'],
+                        ],
+                    ),
+                ).toBe('row-without-key-value');
+            }
+            expect(sqlUpdateBlocker(['a', 'b', 'c'], ['a', 'b'], [[1, null, 'x']])).toBe(
+                'row-without-key-value',
+            );
+        });
     });
 
     describe('formatRowsForCopy with sql-update', () => {
@@ -571,6 +589,15 @@ describe('clipboard utils', () => {
             expect(
                 columnValuesForCopy([['Ada']], ['name'], 0, {...options, format: 'sql-update'}),
             ).toBe(`INSERT INTO "users" ("name") VALUES ('Ada');`);
+        });
+
+        it('falls back to INSERT when a row has no key value, instead of WHERE "id" IS NULL', () => {
+            expect(
+                formatRowsForCopy([[null, 'New']], ['id', 'name'], 'sql-update', {
+                    ...options,
+                    pkColumns: ['id'],
+                }),
+            ).toBe(`INSERT INTO "users" ("id", "name") VALUES (NULL, 'New');`);
         });
     });
 
