@@ -11,6 +11,8 @@ import type {Tab} from '@/types/editor';
 const mocks = vi.hoisted(() => ({
     noop: vi.fn(),
     reorderTab: vi.fn(),
+    setTabPinned: vi.fn(),
+    closeOtherTabs: vi.fn(),
     guard: vi.fn().mockResolvedValue(true),
     location: {state: null, pathname: '/editor', key: 'test'},
     settings: {resultPageSize: 100, csvIncludeHeaders: true},
@@ -141,10 +143,11 @@ function Harness({initialTabs}: {initialTabs: Tab[]}) {
         openNotebook: mocks.noop,
         closeTab: mocks.noop,
         closeAllTabs: mocks.noop,
-        closeOtherTabs: mocks.noop,
+        closeOtherTabs: mocks.closeOtherTabs,
         closeTabsToLeft: mocks.noop,
         closeTabsToRight: mocks.noop,
         reorderTab: mocks.reorderTab,
+        setTabPinned: mocks.setTabPinned,
         updateResultEntry: mocks.noop,
         getSchema: mocks.noop,
         reopenClosedTab: mocks.noop,
@@ -208,5 +211,67 @@ describe('Editor tab context menu move actions (#1160)', () => {
         moveLeft.focus();
         await user.keyboard('{Enter}');
         expect(mocks.reorderTab).toHaveBeenCalledExactlyOnceWith('middle', 0);
+    });
+});
+
+describe('Editor tab pinning (#1304)', () => {
+    // The pinned tab comes first, like in the tab bar, and has unsaved file changes.
+    const pinnedTabs = [
+        baseTab({
+            id: 'sessions',
+            title: 'Sessions',
+            pinned: true,
+            sourceFilePath: '/queries/sessions.sql',
+            sourceFileDirty: true,
+        }),
+        baseTab({id: 'scratch', title: 'Scratch'}),
+        baseTab({id: 'report', title: 'Report'}),
+    ];
+
+    beforeEach(() => {
+        mocks.setTabPinned.mockReset();
+        mocks.closeOtherTabs.mockReset();
+        vi.mocked(invoke).mockReset();
+        vi.mocked(invoke).mockResolvedValue([]);
+    });
+
+    it('pins and unpins a tab from its context menu', () => {
+        render(<Harness initialTabs={pinnedTabs} />);
+
+        fireEvent.contextMenu(screen.getByRole('button', {name: 'Scratch'}));
+        fireEvent.click(screen.getByRole('button', {name: 'editor.pinTab'}));
+        expect(mocks.setTabPinned).toHaveBeenCalledExactlyOnceWith('scratch', true);
+
+        fireEvent.contextMenu(screen.getByRole('button', {name: 'Sessions'}));
+        fireEvent.click(screen.getByRole('button', {name: 'editor.unpinTab'}));
+        expect(mocks.setTabPinned).toHaveBeenLastCalledWith('sessions', false);
+    });
+
+    it('describes a pinned tab as pinned to screen readers', () => {
+        render(<Harness initialTabs={pinnedTabs} />);
+
+        expect(screen.getByRole('button', {name: 'Sessions'})).toHaveAccessibleDescription(
+            expect.stringContaining('editor.pinnedTab'),
+        );
+        expect(screen.getByRole('button', {name: 'Scratch'})).not.toHaveAttribute(
+            'aria-describedby',
+        );
+    });
+
+    it('does not move the first unpinned tab in front of a pinned tab', () => {
+        render(<Harness initialTabs={pinnedTabs} />);
+        const {moveLeft, moveRight} = openTabMenu('Scratch');
+
+        expect(moveLeft).toBeDisabled();
+        expect(moveRight).toBeEnabled();
+    });
+
+    it("closes other tabs without asking about a pinned tab's unsaved file, which stays open", () => {
+        render(<Harness initialTabs={pinnedTabs} />);
+
+        fireEvent.contextMenu(screen.getByRole('button', {name: 'Report'}));
+        fireEvent.click(screen.getByRole('button', {name: 'editor.closeOthers'}));
+
+        expect(mocks.closeOtherTabs).toHaveBeenCalledExactlyOnceWith('report');
     });
 });

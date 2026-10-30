@@ -25,6 +25,7 @@ import {
     createSchemaCacheEntry,
 } from '@/utils/editor';
 import {moveTab} from '@/utils/tabDnd';
+import {getBulkClosedTabIds, keepPinnedTabsFirst, setTabPinned} from '@/utils/tabPins';
 import {getRecentTabIds as orderRecentTabs} from '@/utils/tabScroll';
 import {createAutoRefreshSchedule, type AutoRefreshSchedule} from '@/utils/autoRefresh';
 import {
@@ -199,7 +200,10 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
                         const tabsFromOtherConnections = prev.filter(
                             (t) => t.connectionId !== activeConnectionId,
                         );
-                        return [...tabsFromOtherConnections, ...loadedTabs];
+                        return keepPinnedTabsFirst(
+                            [...tabsFromOtherConnections, ...loadedTabs],
+                            activeConnectionId,
+                        );
                     });
                     setActiveTabIds((prev) => ({
                         ...prev,
@@ -321,9 +325,13 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
                     connectionId: activeConnectionId,
                     ...partial,
                 });
-                return options?.insertAfterId
-                    ? insertTabAfter(prev, options.insertAfterId, newTab)
-                    : [...prev, newTab];
+                // A tab inserted after a pinned tab still lands after every pinned tab.
+                return keepPinnedTabsFirst(
+                    options?.insertAfterId
+                        ? insertTabAfter(prev, options.insertAfterId, newTab)
+                        : [...prev, newTab],
+                    activeConnectionId,
+                );
             });
             setActiveTabId(id);
             return id;
@@ -405,25 +413,34 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
     const closeAllTabs = useCallback(() => {
         if (!activeConnectionId) return;
         rememberClosedTabs(
-            tabsRef.current.filter((t) => t.connectionId === activeConnectionId).map((t) => t.id),
+            getBulkClosedTabIds(
+                tabsRef.current.filter((t) => t.connectionId === activeConnectionId),
+                'all',
+            ),
         );
         setTabs((prev) => {
-            const {newTabs, newActiveTabId} = closeAllTabsForConnection(prev, activeConnectionId);
+            const {newTabs, newActiveTabId} = closeAllTabsForConnection(
+                prev,
+                activeConnectionId,
+                activeTabId,
+            );
             setActiveTabIds((prevIds) => ({
                 ...prevIds,
                 [activeConnectionId]: newActiveTabId || '',
             }));
             return newTabs;
         });
-    }, [activeConnectionId, rememberClosedTabs]);
+    }, [activeConnectionId, activeTabId, rememberClosedTabs]);
 
     const closeOtherTabs = useCallback(
         (id: string) => {
             if (!activeConnectionId) return;
             rememberClosedTabs(
-                tabsRef.current
-                    .filter((t) => t.connectionId === activeConnectionId && t.id !== id)
-                    .map((t) => t.id),
+                getBulkClosedTabIds(
+                    tabsRef.current.filter((t) => t.connectionId === activeConnectionId),
+                    'others',
+                    id,
+                ),
             );
             setTabs((prev) => {
                 const newTabs = closeOtherTabsForConnection(prev, activeConnectionId, id);
@@ -441,10 +458,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
         (id: string) => {
             if (!activeConnectionId) return;
             const connTabs = tabsRef.current.filter((t) => t.connectionId === activeConnectionId);
-            const targetIndex = connTabs.findIndex((t) => t.id === id);
-            rememberClosedTabs(
-                targetIndex === -1 ? [] : connTabs.slice(0, targetIndex).map((t) => t.id),
-            );
+            rememberClosedTabs(getBulkClosedTabIds(connTabs, 'left', id));
             setTabs((prev) => {
                 const {newTabs, newActiveTabId} = closeTabsToLeft(
                     prev,
@@ -468,10 +482,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
         (id: string) => {
             if (!activeConnectionId) return;
             const connTabs = tabsRef.current.filter((t) => t.connectionId === activeConnectionId);
-            const targetIndex = connTabs.findIndex((t) => t.id === id);
-            rememberClosedTabs(
-                targetIndex === -1 ? [] : connTabs.slice(targetIndex + 1).map((t) => t.id),
-            );
+            rememberClosedTabs(getBulkClosedTabIds(connTabs, 'right', id));
             setTabs((prev) => {
                 const {newTabs, newActiveTabId} = closeTabsToRight(
                     prev,
@@ -502,7 +513,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
         setClosedTabs(stacks);
 
         const {newTabs, tab} = insertReopenedTab(tabsRef.current, activeConnectionId, entry);
-        setTabs(newTabs);
+        setTabs(keepPinnedTabsFirst(newTabs, activeConnectionId));
         setActiveTabId(tab.id);
         return tab.id;
     }, [activeConnectionId, setActiveTabId]);
@@ -521,6 +532,10 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
         },
         [activeConnectionId],
     );
+
+    const pinTab = useCallback((id: string, pinned: boolean) => {
+        setTabs((prev) => setTabPinned(prev, id, pinned));
+    }, []);
 
     const updateResultEntry = useCallback(
         (tabId: string, entryId: string, partial: Partial<QueryResultEntry>) => {
@@ -592,6 +607,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
             closeTab,
             updateTab,
             reorderTab,
+            setTabPinned: pinTab,
             updateResultEntry,
             setActiveTabId,
             getRecentTabIds,
@@ -613,6 +629,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
             closeTab,
             updateTab,
             reorderTab,
+            pinTab,
             updateResultEntry,
             setActiveTabId,
             getRecentTabIds,

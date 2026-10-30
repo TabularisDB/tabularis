@@ -143,6 +143,8 @@ export interface Tab {
     /** Content last read from / written to `sourceFilePath`; dirty = query differs from it. */
     sourceFileContent?: string;
     sourceFileDirty?: boolean;
+    /** Pinned tabs come first in the tab bar, and bulk close actions skip them. */
+    pinned?: boolean;
 }
 
 export interface EditorPreferences {

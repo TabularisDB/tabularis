@@ -45,6 +45,11 @@ export interface EditorContextType {
      */
     reorderTab: (fromTabId: string, insertAt: number) => void;
     /**
+     * Pin or unpin a tab. Pinned tabs come first in the tab bar, and Close other tabs,
+     * Close tabs to the left/right and Close all tabs skip them.
+     */
+    setTabPinned: (id: string, pinned: boolean) => void;
+    /**
      * Functional update of a single result entry inside a tab's `results` array,
      * matched by entry id. Used to resolve batch result tabs progressively as
      * each statement completes — safe under rapid back-to-back events because it

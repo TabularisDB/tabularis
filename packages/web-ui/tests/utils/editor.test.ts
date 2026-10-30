@@ -1448,4 +1448,60 @@ describe('editor', () => {
             ]);
         });
     });
+
+    describe('bulk close actions with pinned tabs (#1304)', () => {
+        const makeTab = (id: string, pinned = false, connectionId = 'conn-1'): Tab => ({
+            id,
+            title: id,
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId,
+            ...(pinned ? {pinned} : {}),
+        });
+        // p1 and p2 are pinned, so they come first like in the tab bar.
+        const tabs = [
+            makeTab('p1', true),
+            makeTab('p2', true),
+            makeTab('a'),
+            makeTab('b'),
+            makeTab('x', false, 'conn-2'),
+        ];
+
+        it('Close all keeps pinned tabs and an active pinned tab', () => {
+            const result = closeAllTabsForConnection(tabs, 'conn-1', 'p1');
+            expect(result.newTabs.map((t) => t.id)).toEqual(['p1', 'p2', 'x']);
+            expect(result.newActiveTabId).toBe('p1');
+        });
+
+        it('Close all activates the last pinned tab when the active tab closes', () => {
+            expect(closeAllTabsForConnection(tabs, 'conn-1', 'b').newActiveTabId).toBe('p2');
+        });
+
+        it('Close other tabs keeps pinned tabs', () => {
+            expect(closeOtherTabsForConnection(tabs, 'conn-1', 'b').map((t) => t.id)).toEqual([
+                'p1',
+                'p2',
+                'b',
+                'x',
+            ]);
+        });
+
+        it('Close tabs to the left keeps pinned tabs', () => {
+            const result = closeTabsToLeft(tabs, 'conn-1', 'b', 'a');
+            expect(result.newTabs.map((t) => t.id)).toEqual(['x', 'p1', 'p2', 'b']);
+            expect(result.newActiveTabId).toBe('b');
+        });
+
+        it('Close tabs to the right of a pinned tab keeps the other pinned tabs', () => {
+            const result = closeTabsToRight(tabs, 'conn-1', 'p1', 'a');
+            expect(result.newTabs.map((t) => t.id)).toEqual(['x', 'p1', 'p2']);
+            expect(result.newActiveTabId).toBe('p1');
+        });
+    });
 });
