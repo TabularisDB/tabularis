@@ -99,6 +99,8 @@ import {
     BookOpen,
     UsersRound,
     Pencil,
+    Pin,
+    PinOff,
     Hash,
     Loader2,
     Copy,
@@ -229,7 +231,8 @@ import {
     type PluginColumnStatsFetcher,
 } from '@/utils/columnStats';
 import {getNextSortClause} from '@/utils/tableToolbar';
-import {getAdjacentTabGap} from '@/utils/tabDnd';
+import {clampTabGap, getAdjacentTabGap} from '@/utils/tabDnd';
+import {getBulkClosedTabIds} from '@/utils/tabPins';
 import {
     createSqlFileTab,
     getSqlFileName,
@@ -314,6 +317,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         activeTabId,
         updateTab,
         reorderTab,
+        setTabPinned,
         updateResultEntry: patchResultEntry,
         addTab,
         setActiveTabId,
@@ -889,21 +893,32 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         stopTabAutoScroll();
     }, [stopTabAutoScroll]);
 
+    // Pixel offset of the insertion line for a gap: the left edge of the tab after it,
+    // or the right edge of the last tab.
+    const tabGapLeft = useCallback((gap: number): number => {
+        const tabEls = Array.from(
+            tabScrollRef.current?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [],
+        );
+        const next = tabEls[gap];
+        if (next) return next.offsetLeft;
+        const last = tabEls.at(-1);
+        return last ? last.offsetLeft + last.offsetWidth : 0;
+    }, []);
+
     const handleTabDragOver = useCallback(
         (index: number) => (e: React.DragEvent<HTMLDivElement>) => {
             if (!dragTabId) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            // Left half of the tab drops before it, right half drops after it.
-            const target = e.currentTarget;
-            const rect = target.getBoundingClientRect();
+            // Left half of the tab drops before it, right half drops after it. Pinned
+            // tabs stay before unpinned ones, so the gap is kept in the dragged tab's group.
+            const rect = e.currentTarget.getBoundingClientRect();
             const after = e.clientX > rect.left + rect.width / 2;
-            setDropPos(after ? index + 1 : index);
-            setDropIndicatorLeft(
-                after ? target.offsetLeft + target.offsetWidth : target.offsetLeft,
-            );
+            const gap = clampTabGap(tabs, dragTabId, after ? index + 1 : index);
+            setDropPos(gap);
+            setDropIndicatorLeft(tabGapLeft(gap));
         },
-        [dragTabId],
+        [dragTabId, tabs, tabGapLeft],
     );
 
     // Drive edge auto-scroll from the scroll container, and fall back to
@@ -924,12 +939,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 autoScrollRafRef.current = requestAnimationFrame(stepTabAutoScroll);
             }
             if (e.target === container) {
-                const lastTab = container.children[tabs.length - 1] as HTMLElement | undefined;
-                setDropPos(tabs.length);
-                setDropIndicatorLeft(lastTab ? lastTab.offsetLeft + lastTab.offsetWidth : 0);
+                const gap = clampTabGap(tabs, dragTabId, tabs.length);
+                setDropPos(gap);
+                setDropIndicatorLeft(tabGapLeft(gap));
             }
         },
-        [dragTabId, tabs.length, stepTabAutoScroll],
+        [dragTabId, tabs, stepTabAutoScroll, tabGapLeft],
     );
 
     const handleTabsDrop = useCallback(
@@ -1075,9 +1090,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [clearEntryScrollTops, closeTab, requestTabClosure],
     );
 
+    // Bulk close actions leave pinned tabs open, so only the tabs they close are
+    // checked for unsaved changes.
     const handleCloseOtherTabs = useCallback(
         (tabId: string) => {
-            const tabIds = tabsRef.current.filter((tab) => tab.id !== tabId).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'others', tabId);
             requestTabClosure(tabIds, () => closeOtherTabs(tabId));
         },
         [closeOtherTabs, requestTabClosure],
@@ -1085,8 +1102,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const handleCloseTabsToRight = useCallback(
         (tabId: string) => {
-            const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
-            const tabIds = index < 0 ? [] : tabsRef.current.slice(index + 1).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'right', tabId);
             requestTabClosure(tabIds, () => closeTabsToRight(tabId));
         },
         [closeTabsToRight, requestTabClosure],
@@ -1094,18 +1110,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const handleCloseTabsToLeft = useCallback(
         (tabId: string) => {
-            const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
-            const tabIds = index < 0 ? [] : tabsRef.current.slice(0, index).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'left', tabId);
             requestTabClosure(tabIds, () => closeTabsToLeft(tabId));
         },
         [closeTabsToLeft, requestTabClosure],
     );
 
     const handleCloseAllTabs = useCallback(() => {
-        requestTabClosure(
-            tabsRef.current.map((tab) => tab.id),
-            closeAllTabs,
-        );
+        requestTabClosure(getBulkClosedTabIds(tabsRef.current, 'all'), closeAllTabs);
     }, [closeAllTabs, requestTabClosure]);
 
     const cancelPendingTabClosure = useCallback(() => {
@@ -4998,6 +5010,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {tabs.map((tab, index) => (
                         <div
                             key={tab.id}
+                            data-tab-id={tab.id}
                             draggable
                             onDragStart={(e) => handleTabDragStart(e, tab.id)}
                             onDragEnd={handleTabDragEnd}
@@ -5008,6 +5021,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                             aria-label={tabFullTitle(tab)}
                             aria-describedby={
                                 [
+                                    tab.pinned ? `${tabStripId}-pinned-${tab.id}` : null,
                                     tab.sourceFileDirty ? `${tabStripId}-dirty-${tab.id}` : null,
                                     transactionTabIds.has(tab.id)
                                         ? `${tabStripId}-transaction-${tab.id}`
@@ -5150,6 +5164,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             {t('editor.transactionOpen')}
                                         </span>
                                     )}
+                                </span>
+                            )}
+                            {tab.pinned && (
+                                // The tab's aria-label replaces its text, so the pinned state
+                                // reaches screen readers as a description instead.
+                                <span className="flex shrink-0 text-muted">
+                                    <Pin size={11} aria-hidden="true" />
+                                    <span id={`${tabStripId}-pinned-${tab.id}`} className="sr-only">
+                                        {t('editor.pinnedTab')}
+                                    </span>
                                 </span>
                             )}
                             <button
@@ -6716,6 +6740,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                               icon: Copy,
                                               action: () =>
                                                   handleDuplicateTab(tabContextMenu.tabId),
+                                          },
+                                      ]
+                                    : []),
+                                ...(contextTab
+                                    ? [
+                                          {
+                                              label: contextTab.pinned
+                                                  ? t('editor.unpinTab')
+                                                  : t('editor.pinTab'),
+                                              icon: contextTab.pinned ? PinOff : Pin,
+                                              action: () =>
+                                                  setTabPinned(contextTab.id, !contextTab.pinned),
                                           },
                                       ]
                                     : []),

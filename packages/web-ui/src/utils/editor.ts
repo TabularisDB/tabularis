@@ -4,6 +4,7 @@ import {quoteTableRef} from './identifiers';
 import type {TypedCommandCaller} from '@/api/contract';
 import {cleanTabForStorage, restoreTabFromStorage} from './tabCleaner';
 import {filterTabsByConnection, getActiveTabForConnection} from './tabFilters';
+import {getBulkClosedTabIds} from './tabPins';
 
 export interface TabsStorage {
     tabs: Tab[];
@@ -194,7 +195,7 @@ export function canRenameTab(
 /**
  * Fields copied into a new tab: SQL, parameters, table, schema/database,
  * and editability flags (`readOnly`, `materialized`).
- * Results, the source `.sql` path, and notebook ids are left behind.
+ * Results, the source `.sql` path, notebook ids and the pinned state are left behind.
  */
 export function buildDuplicatedTab(source: Tab): Partial<Tab> | null {
     if (!canDuplicateTab(source.type)) return null;
@@ -280,23 +281,43 @@ export function closeTabWithState(
     };
 }
 
+/**
+ * Closes every unpinned tab of a connection. Pinned tabs stay open: the active tab
+ * stays active when it is one of them, otherwise the last pinned tab becomes active.
+ */
 export function closeAllTabsForConnection(
     tabs: Tab[],
     connectionId: string,
+    activeTabId: string | null = null,
 ): {newTabs: Tab[]; newActiveTabId: string | null} {
-    const otherConnTabs = tabs.filter((t) => t.connectionId !== connectionId);
+    const closedIds = getBulkClosedTabIds(
+        tabs.filter((t) => t.connectionId === connectionId),
+        'all',
+    );
+    const newTabs = tabs.filter(
+        (t) => t.connectionId !== connectionId || !closedIds.includes(t.id),
+    );
+    const keptTabs = newTabs.filter((t) => t.connectionId === connectionId);
     return {
-        newTabs: otherConnTabs,
-        newActiveTabId: null,
+        newTabs,
+        newActiveTabId: keptTabs.some((t) => t.id === activeTabId)
+            ? activeTabId
+            : (keptTabs.at(-1)?.id ?? null),
     };
 }
 
+/** Closes every other unpinned tab of a connection, keeping `keepTabId` and pinned tabs. */
 export function closeOtherTabsForConnection(
     tabs: Tab[],
     connectionId: string,
     keepTabId: string,
 ): Tab[] {
-    return tabs.filter((t) => t.connectionId !== connectionId || t.id === keepTabId);
+    const closedIds = getBulkClosedTabIds(
+        tabs.filter((t) => t.connectionId === connectionId),
+        'others',
+        keepTabId,
+    );
+    return tabs.filter((t) => t.connectionId !== connectionId || !closedIds.includes(t.id));
 }
 
 export function closeTabsToLeft(
@@ -312,9 +333,10 @@ export function closeTabsToLeft(
         return {newTabs: tabs, newActiveTabId: activeTabId};
     }
 
-    const tabsToClose = connTabs.slice(0, targetIndex).map((t) => t.id);
+    // Pinned tabs to the left stay open.
+    const tabsToClose = getBulkClosedTabIds(connTabs, 'left', targetTabId);
     const otherConnTabs = tabs.filter((t) => t.connectionId !== connectionId);
-    const remainingConnTabs = connTabs.slice(targetIndex);
+    const remainingConnTabs = connTabs.filter((t) => !tabsToClose.includes(t.id));
 
     const activeTabWasClosed = activeTabId ? tabsToClose.includes(activeTabId) : false;
     const newActiveTabId = activeTabWasClosed ? targetTabId : activeTabId;
@@ -338,9 +360,10 @@ export function closeTabsToRight(
         return {newTabs: tabs, newActiveTabId: activeTabId};
     }
 
-    const tabsToClose = connTabs.slice(targetIndex + 1).map((t) => t.id);
+    // Pinned tabs to the right stay open.
+    const tabsToClose = getBulkClosedTabIds(connTabs, 'right', targetTabId);
     const otherConnTabs = tabs.filter((t) => t.connectionId !== connectionId);
-    const remainingConnTabs = connTabs.slice(0, targetIndex + 1);
+    const remainingConnTabs = connTabs.filter((t) => !tabsToClose.includes(t.id));
 
     const activeTabWasClosed = activeTabId ? tabsToClose.includes(activeTabId) : false;
     const newActiveTabId = activeTabWasClosed ? targetTabId : activeTabId;

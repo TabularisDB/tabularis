@@ -28,6 +28,7 @@ export interface CleanedTab {
     sourceFilePath?: string;
     sourceFileContent?: string;
     sourceFileDirty?: boolean;
+    pinned?: boolean;
 }
 
 /**
@@ -63,6 +64,7 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
         sourceFilePath: tab.sourceFilePath,
         sourceFileContent: tab.sourceFileContent,
         sourceFileDirty: tab.sourceFileDirty,
+        pinned: tab.pinned,
     };
 }
 

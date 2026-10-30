@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {getAdjacentTabGap, moveTab} from '@/utils/tabDnd';
+import {clampTabGap, getAdjacentTabGap, moveTab} from '@/utils/tabDnd';
 import type {Tab} from '@/types/editor';
 
 function makeTab(id: string, connectionId: string): Tab {
@@ -137,6 +137,33 @@ describe('tabDnd', () => {
         it("should return null for an unknown tab id or another connection's tab", () => {
             expect(getAdjacentTabGap(tabs, 'c1', 'missing', 'right')).toBeNull();
             expect(getAdjacentTabGap(tabs, 'c1', 'x', 'right')).toBeNull();
+        });
+    });
+
+    describe('pinned tabs (#1304)', () => {
+        const pinned = (id: string): Tab => ({...makeTab(id, 'c1'), pinned: true});
+        // p1 and p2 are pinned, so they come first like in the tab bar.
+        const tabs = [pinned('p1'), pinned('p2'), makeTab('a', 'c1'), makeTab('b', 'c1')];
+
+        it('keeps a dragged unpinned tab after the pinned tabs', () => {
+            expect(moveTab(tabs, 'c1', 'b', 0).map((t) => t.id)).toEqual(['p1', 'p2', 'b', 'a']);
+        });
+
+        it('keeps a dragged pinned tab before the unpinned tabs', () => {
+            expect(moveTab(tabs, 'c1', 'p1', 4).map((t) => t.id)).toEqual(['p2', 'p1', 'a', 'b']);
+        });
+
+        it("clamps a drop gap to the dragged tab's group", () => {
+            expect(clampTabGap(tabs, 'a', 0)).toBe(2);
+            expect(clampTabGap(tabs, 'p1', 4)).toBe(2);
+            expect(clampTabGap(tabs, 'b', 3)).toBe(3);
+            expect(clampTabGap(tabs, 'missing', 1)).toBe(1);
+        });
+
+        it('does not move a tab across the edge between pinned and unpinned tabs', () => {
+            expect(getAdjacentTabGap(tabs, 'c1', 'a', 'left')).toBeNull();
+            expect(getAdjacentTabGap(tabs, 'c1', 'p2', 'right')).toBeNull();
+            expect(getAdjacentTabGap(tabs, 'c1', 'p1', 'right')).toBe(2);
         });
     });
 });
