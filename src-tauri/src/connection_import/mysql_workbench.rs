@@ -116,7 +116,7 @@ fn read_connections(path: &Path) -> Option<Vec<ImportedConnection>> {
         match parse_connection(node) {
             Some(conn) => connections.push(conn),
             None => log::warn!(
-                "Skipped MySQL Workbench connection \"{}\": unsupported connection method",
+                "Skipped MySQL Workbench connection \"{}\": unsupported connection method or missing SSH host",
                 key_text(node, "name").unwrap_or_default()
             ),
         }
@@ -167,6 +167,14 @@ fn parse_connection(node: Node) -> Option<ImportedConnection> {
             .filter(|v| !v.is_empty())
     };
 
+    // Without its SSH host the server is usually unreachable, so importing the
+    // connection as a direct one would only produce a connection that fails.
+    let ssh = if over_ssh {
+        Some(parse_ssh(&params)?)
+    } else {
+        None
+    };
+
     let host = get("hostName").unwrap_or("127.0.0.1").to_string();
     let name = key_text(node, "name")
         .filter(|n| !n.is_empty())
@@ -178,7 +186,7 @@ fn parse_connection(node: Node) -> Option<ImportedConnection> {
         database: get("schema").unwrap_or("").to_string(),
         username: get("userName").unwrap_or("").to_string(),
         driver_label: "MySQL".to_string(),
-        ssh: if over_ssh { parse_ssh(&params) } else { None },
+        ssh,
         ssl: parse_ssl(&params),
         group_name: None,
     })
@@ -204,8 +212,24 @@ fn parse_ssh(params: &HashMap<String, String>) -> Option<ImportedSsh> {
             "password"
         }
         .to_string(),
-        private_key_path: key_file.map(resolve_key_path),
+        private_key_path: key_file.map(key_path),
     })
+}
+
+/// Workbench stores the full path picked in its UI, so absolute paths are kept
+/// as they are, including Windows drive-letter and UNC paths that
+/// `resolve_key_path` would take for a bare file name.
+fn key_path(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    let drive_path = bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/');
+    if drive_path || raw.starts_with("\\\\") {
+        raw.to_string()
+    } else {
+        resolve_key_path(raw)
+    }
 }
 
 fn split_host_port(value: &str) -> (String, Option<u16>) {
@@ -261,6 +285,19 @@ mod tests {
             ("bastion:notaport".into(), None)
         );
         assert_eq!(split_host_port("fe80::1"), ("fe80::1".into(), None));
+    }
+
+    #[test]
+    fn keeps_absolute_key_paths() {
+        assert_eq!(
+            key_path(r"C:\Users\me\.ssh\id_rsa"),
+            r"C:\Users\me\.ssh\id_rsa"
+        );
+        assert_eq!(key_path("d:/keys/id_rsa"), "d:/keys/id_rsa");
+        assert_eq!(key_path(r"\\server\share\id_rsa"), r"\\server\share\id_rsa");
+        assert_eq!(key_path("/home/me/.ssh/id_rsa"), "/home/me/.ssh/id_rsa");
+        assert_eq!(key_path("~/keys/id_rsa"), "~/keys/id_rsa");
+        assert_eq!(key_path("id_rsa"), "~/.ssh/id_rsa");
     }
 
     #[test]

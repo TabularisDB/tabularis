@@ -357,6 +357,15 @@ const WORKBENCH_CONNECTIONS: &str = r#"<?xml version="1.0"?>
       </value>
       <value type="string" key="name">Via bastion</value>
     </value>
+    <value type="object" struct-name="db.mgmt.Connection" id="00000000-0000-0000-0000-000000000004">
+      <link type="object" struct-name="db.mgmt.Driver" key="driver">com.mysql.rdbms.mysql.driver.native_sshtun</link>
+      <value type="dict" key="parameterValues">
+        <value type="string" key="hostName">10.0.0.13</value>
+        <value type="string" key="sshHost"></value>
+        <value type="string" key="userName">deploy</value>
+      </value>
+      <value type="string" key="name">Tunnel without SSH host</value>
+    </value>
     <value type="object" struct-name="db.mgmt.Connection" id="00000000-0000-0000-0000-000000000003">
       <link type="object" struct-name="db.mgmt.Driver" key="driver">com.mysql.rdbms.mysql.driver.native_socket</link>
       <value type="dict" key="parameterValues">
@@ -378,7 +387,11 @@ async fn mysql_workbench_parses_connections_xml() {
     assert_eq!(importer.connection_count().await, 2);
 
     let env = importer.import(false, None).await.unwrap();
-    assert_eq!(env.connections.len(), 2, "the local socket connection is skipped");
+    assert_eq!(
+        env.connections.len(),
+        2,
+        "the local socket connection and the tunnel without an SSH host are skipped"
+    );
 
     let direct = &env.connections[0];
     assert_eq!(direct.name, "Local & staging");
