@@ -324,6 +324,7 @@ fn saves_all_grid_preferences_and_preserves_them_on_partial_updates() {
         "columnMaskingEnabled": false,
         "columnMaskingOverrides": {"connection.table": {"include": ["secret"]}},
         "columnMaskingPatterns": ["password"],
+        "nullDisplay": "emptySet",
         "resultZebraStripes": false,
         "rowEditorFollowSelection": false,
         "stickyColumnHeaders": false

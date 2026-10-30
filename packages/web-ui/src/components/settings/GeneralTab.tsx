@@ -15,6 +15,7 @@ import {
     SettingNumberInput,
 } from './SettingControls';
 import {DEFAULT_NOTIFY_THRESHOLD_SEC} from '@/utils/queryNotification';
+import {DEFAULT_NULL_DISPLAY, type NullDisplay} from '@/utils/nullDisplay';
 
 export function GeneralTab() {
     const {t} = useTranslation();
@@ -119,6 +120,22 @@ export function GeneralTab() {
                             {value: 'json', label: 'JSON'},
                             {value: 'sql-insert', label: 'SQL INSERT'},
                             {value: 'markdown', label: 'Markdown'},
+                        ]}
+                    />
+                </SettingRow>
+
+                <SettingRow
+                    label={t('settings.nullDisplay')}
+                    description={t('settings.nullDisplayDesc')}
+                >
+                    <SettingButtonGroup<NullDisplay>
+                        value={settings.nullDisplay ?? DEFAULT_NULL_DISPLAY}
+                        onChange={(v) => updateSetting('nullDisplay', v)}
+                        options={[
+                            {value: 'default', label: t('dataGrid.null')},
+                            {value: 'parenthesized', label: '(null)'},
+                            {value: 'emptySet', label: '∅'},
+                            {value: 'empty', label: t('settings.nullDisplayEmpty')},
                         ]}
                     />
                 </SettingRow>

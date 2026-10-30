@@ -2,6 +2,7 @@ import {createContext} from 'react';
 import type {AppLanguage} from '@/i18n/config';
 import {DEFAULT_MASKING_PATTERNS} from '@/utils/columnMasking';
 import type {AutocompleteKeywordCase} from '@/utils/autocomplete';
+import type {NullDisplay} from '@/utils/nullDisplay';
 import type {GlobalProxySettings, ProxyOverride} from '@/types/proxy';
 
 export type {AppLanguage};
@@ -83,6 +84,8 @@ export interface Settings {
     maxLogEntries?: number;
     erDiagramDefaultLayout?: ERDiagramLayout;
     copyFormat?: CopyFormat;
+    /** How NULL values are shown in the data grid. Display only: copy and export are unchanged. Default: "default". */
+    nullDisplay?: NullDisplay;
     csvDelimiter?: string;
     /** Whether copied CSV output includes a header row. Default: true. */
     csvIncludeHeaders?: boolean;
@@ -250,6 +253,7 @@ export const DEFAULT_SETTINGS: Settings = {
     loggingEnabled: true,
     maxLogEntries: 1000,
     copyFormat: 'csv',
+    nullDisplay: 'default',
     csvDelimiter: ',',
     csvIncludeHeaders: true,
     copyNullLabel: 'null',
