@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use super::beekeeper::BeekeeperImporter;
 use super::datagrip::DataGripImporter;
 use super::dbeaver::DBeaverImporter;
+use super::mysql_workbench::MySqlWorkbenchImporter;
 use super::sequelace::SequelAceImporter;
 use super::tableplus::TablePlusImporter;
 use super::ForeignAppImporter;
@@ -326,4 +327,124 @@ async fn beekeeper_reads_sqlite() {
     assert_eq!(c.port, 3307);
     assert_eq!(c.database, "shop");
     assert_eq!(c.username, "root");
+}
+
+const WORKBENCH_CONNECTIONS: &str = r#"<?xml version="1.0"?>
+<data grt_format="2.0">
+  <value type="list" content-type="object" content-struct-name="db.mgmt.Connection">
+    <value type="object" struct-name="db.mgmt.Connection" id="00000000-0000-0000-0000-000000000001">
+      <link type="object" struct-name="db.mgmt.Driver" key="driver">com.mysql.rdbms.mysql.driver.native</link>
+      <value type="dict" key="parameterValues">
+        <value type="string" key="hostName">db.example.com</value>
+        <value type="int" key="port">3307</value>
+        <value type="string" key="schema">shop</value>
+        <value type="string" key="sslCA">/certs/ca.pem</value>
+        <value type="int" key="useSSL">3</value>
+        <value type="string" key="userName">app</value>
+      </value>
+      <value type="string" key="name">Local &amp; staging</value>
+    </value>
+    <value type="object" struct-name="db.mgmt.Connection" id="00000000-0000-0000-0000-000000000002">
+      <link type="object" struct-name="db.mgmt.Driver" key="driver">com.mysql.rdbms.mysql.driver.native_sshtun</link>
+      <value type="dict" key="parameterValues">
+        <value type="string" key="hostName">10.0.0.12</value>
+        <value type="int" key="port">3306</value>
+        <value type="string" key="sshHost">bastion.example.com:2222</value>
+        <value type="string" key="sshKeyFile">/keys/deploy</value>
+        <value type="string" key="sshUserName">deploy</value>
+        <value type="int" key="useSSL">0</value>
+        <value type="string" key="userName">deploy</value>
+      </value>
+      <value type="string" key="name">Via bastion</value>
+    </value>
+    <value type="object" struct-name="db.mgmt.Connection" id="00000000-0000-0000-0000-000000000003">
+      <link type="object" struct-name="db.mgmt.Driver" key="driver">com.mysql.rdbms.mysql.driver.native_socket</link>
+      <value type="dict" key="parameterValues">
+        <value type="string" key="socket">/tmp/mysql.sock</value>
+        <value type="string" key="userName">root</value>
+      </value>
+      <value type="string" key="name">Local socket</value>
+    </value>
+  </value>
+</data>"#;
+
+#[tokio::test]
+async fn mysql_workbench_parses_connections_xml() {
+    let tmp = tempfile::tempdir().unwrap();
+    write(&tmp.path().join("connections.xml"), WORKBENCH_CONNECTIONS);
+
+    let importer = MySqlWorkbenchImporter::with_data_dir(tmp.path().to_path_buf());
+    assert!(importer.is_available().await);
+    assert_eq!(importer.connection_count().await, 2);
+
+    let env = importer.import(false, None).await.unwrap();
+    assert_eq!(env.connections.len(), 2, "the local socket connection is skipped");
+
+    let direct = &env.connections[0];
+    assert_eq!(direct.name, "Local & staging");
+    assert_eq!(direct.host, "db.example.com");
+    assert_eq!(direct.port, 3307);
+    assert_eq!(direct.database, "shop");
+    assert_eq!(direct.username, "app");
+    assert_eq!(direct.driver_label, "MySQL");
+    assert!(direct.ssh.is_none());
+    let ssl = direct.ssl.as_ref().unwrap();
+    assert_eq!(ssl.mode, "verify_ca");
+    assert_eq!(ssl.ca_certificate_path.as_deref(), Some("/certs/ca.pem"));
+    assert!(ssl.client_certificate_path.is_none());
+
+    let tunneled = &env.connections[1];
+    assert_eq!(tunneled.name, "Via bastion");
+    assert_eq!(tunneled.host, "10.0.0.12");
+    assert_eq!(tunneled.port, 3306);
+    assert!(tunneled.ssl.is_none());
+    let ssh = tunneled.ssh.as_ref().unwrap();
+    assert_eq!(ssh.host, "bastion.example.com");
+    assert_eq!(ssh.port, Some(2222));
+    assert_eq!(ssh.username, "deploy");
+    assert_eq!(ssh.auth_type, "ssh_key");
+    assert_eq!(ssh.private_key_path.as_deref(), Some("/keys/deploy"));
+    assert!(env.credentials_by_index.is_empty());
+}
+
+#[tokio::test]
+async fn mysql_workbench_import_accepts_manual_path() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("Moved/Workbench");
+    write(&dir.join("connections.xml"), WORKBENCH_CONNECTIONS);
+
+    let importer = MySqlWorkbenchImporter::default();
+    let from_dir = importer.import(false, Some(&dir)).await.unwrap();
+    let from_file = importer
+        .import(false, Some(&dir.join("connections.xml")))
+        .await
+        .unwrap();
+    assert_eq!(from_dir.connections.len(), 2);
+    assert_eq!(from_file.connections.len(), 2);
+}
+
+#[tokio::test]
+async fn mysql_workbench_reports_missing_and_unusable_files() {
+    let tmp = tempfile::tempdir().unwrap();
+    let importer = MySqlWorkbenchImporter::with_data_dir(tmp.path().to_path_buf());
+    assert!(!importer.is_available().await);
+    assert!(matches!(
+        importer.import(false, None).await,
+        Err(super::ForeignImportError::FileNotFound(_))
+    ));
+
+    write(&tmp.path().join("connections.xml"), "not xml");
+    assert!(matches!(
+        importer.import(false, None).await,
+        Err(super::ForeignImportError::ParseError(_))
+    ));
+
+    write(
+        &tmp.path().join("connections.xml"),
+        r#"<?xml version="1.0"?><data grt_format="2.0"><value type="list"/></data>"#,
+    );
+    assert!(matches!(
+        importer.import(false, None).await,
+        Err(super::ForeignImportError::NoConnectionsFound)
+    ));
 }
