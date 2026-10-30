@@ -22,11 +22,12 @@ import {useTimingLabels} from '@/hooks/useTimingLabels';
 import {onActivationKey} from '@/utils/keyboardEvents';
 import {getEntryDisplayLabel, getStackedGridHeight} from '@/utils/multiResult';
 import type {QueryResultEntry} from '@/types/editor';
+import type {CopyFormat} from '@/utils/clipboard';
 
 interface StackedResultItemProps {
     entry: QueryResultEntry;
     connectionId: string | null;
-    copyFormat: 'csv' | 'json' | 'sql-insert' | 'markdown';
+    copyFormat: CopyFormat;
     csvDelimiter: string;
     csvIncludeHeaders: boolean;
     collapsed: boolean;
