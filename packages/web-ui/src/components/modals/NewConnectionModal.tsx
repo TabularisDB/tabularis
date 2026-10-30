@@ -67,7 +67,7 @@ import {
     isSchemaBasedMultiDbCapable,
     hasOptedIntoDatabaseSelection,
 } from '@/utils/database';
-import {updateExtraField, withoutBlankSslMode} from '@/utils/connections';
+import {parseConnectTimeoutSecs, updateExtraField, withoutBlankSslMode} from '@/utils/connections';
 import {normalizeLocalDatabasePath, sanitizeLocalFilePath} from '@/utils/fsPath';
 import {
     IN_MEMORY_DATABASE,
@@ -170,6 +170,8 @@ interface ConnectionParams {
     startup_script?: string;
     /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
     pooler_mode?: string;
+    /** Seconds to wait for a new connection; unset keeps the driver default. */
+    connect_timeout_secs?: number;
     // Opaque plugin-specific connection fields, forwarded verbatim to the
     // driver/plugin and persisted as-is in connections.json.
     extra?: Record<string, string>;
@@ -307,6 +309,7 @@ export const NewConnectionModal = ({
     // to this fix (e.g. the Oracle plugin, which sets supports_ssl but declares
     // no dialect).
     const isPostgresDialect = activeDriver?.capabilities?.sql_dialect === 'postgres';
+    const isMysqlDialect = activeDriver?.capabilities?.sql_dialect === 'mysql';
 
     // ── driver install state ──
     const [installStatus, setInstallStatus] = useState<'idle' | 'installing' | 'error'>('idle');
@@ -3218,6 +3221,23 @@ export const NewConnectionModal = ({
                     />
                 </div>
             </div>
+
+            {(isPostgresDialect || isMysqlDialect) && (
+                <div className="flex flex-col gap-1">
+                    <FieldInput
+                        label={t('newConnection.connectTimeout')}
+                        value={formData.connect_timeout_secs}
+                        onChange={(v) =>
+                            updateField('connect_timeout_secs', parseConnectTimeoutSecs(v))
+                        }
+                        type="number"
+                        placeholder={isMysqlDialect ? '60' : undefined}
+                    />
+                    <p className="text-xs text-muted leading-snug">
+                        {t('newConnection.connectTimeoutHint')}
+                    </p>
+                </div>
+            )}
 
             {/* PostgreSQL: pooler mode (PgBouncer transaction/session) */}
             {isPostgresDialect && (

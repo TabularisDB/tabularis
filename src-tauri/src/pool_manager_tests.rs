@@ -2,10 +2,12 @@
 mod tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
     use crate::pool_manager::{
-        build_connection_key, build_mysql_options, connection_pool_prefix, format_error_chain,
-        is_pipes_as_concat_unsupported, postgres_pool_max_size_from_value,
-        remove_pools_with_prefix, DEFAULT_POSTGRES_POOL_MAX_SIZE,
+        build_connection_key, build_mysql_options, connect_timeout, connection_pool_prefix,
+        format_error_chain, is_pipes_as_concat_unsupported, mysql_connect_timeout,
+        postgres_pool_max_size_from_value, remove_pools_with_prefix, with_connect_timeout,
+        DEFAULT_POSTGRES_POOL_MAX_SIZE,
     };
+    use std::time::Duration;
     use sqlx::mysql::MySqlSslMode;
     use std::collections::HashMap;
 
@@ -337,6 +339,77 @@ mod tests {
         assert_eq!(
             build_connection_key(&none, Some("conn-1")),
             build_connection_key(&blank, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn connect_timeout_is_unset_for_none_and_zero() {
+        let mut params = connection_params("postgres", None);
+        assert_eq!(connect_timeout(&params), None);
+
+        params.connect_timeout_secs = Some(0);
+        assert_eq!(connect_timeout(&params), None);
+
+        params.connect_timeout_secs = Some(7);
+        assert_eq!(connect_timeout(&params), Some(Duration::from_secs(7)));
+    }
+
+    #[test]
+    fn mysql_connect_timeout_prefers_the_connection_value() {
+        let mut params = mysql_params("disabled");
+        let global = mysql_connect_timeout(&params);
+        assert!(global > Duration::ZERO);
+
+        params.connect_timeout_secs = Some(3);
+        assert_eq!(mysql_connect_timeout(&params), Duration::from_secs(3));
+
+        params.connect_timeout_secs = Some(0);
+        assert_eq!(mysql_connect_timeout(&params), global);
+    }
+
+    #[test]
+    fn pool_key_changes_only_when_connect_timeout_is_set() {
+        let none = connection_params("postgres", Some("require"));
+        let mut zero = none.clone();
+        zero.connect_timeout_secs = Some(0);
+        let mut five = none.clone();
+        five.connect_timeout_secs = Some(5);
+        let mut ten = none.clone();
+        ten.connect_timeout_secs = Some(10);
+
+        let key_none = build_connection_key(&none, Some("conn-1"));
+        assert_eq!(key_none, build_connection_key(&zero, Some("conn-1")));
+        assert_ne!(key_none, build_connection_key(&five, Some("conn-1")));
+        assert_ne!(
+            build_connection_key(&five, Some("conn-1")),
+            build_connection_key(&ten, Some("conn-1"))
+        );
+        assert!(build_connection_key(&five, Some("conn-1"))
+            .starts_with(&connection_pool_prefix("postgres", "conn-1")));
+    }
+
+    #[tokio::test]
+    async fn with_connect_timeout_fails_a_stalled_attempt() {
+        let mut params = connection_params("postgres", None);
+        params.connect_timeout_secs = Some(1);
+        let started = std::time::Instant::now();
+
+        let result =
+            with_connect_timeout(&params, std::future::pending::<Result<(), String>>()).await;
+
+        assert_eq!(result, Err("Connection timed out after 1 s".to_string()));
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn with_connect_timeout_passes_results_through() {
+        let mut params = connection_params("postgres", None);
+        assert_eq!(with_connect_timeout(&params, async { Ok(1) }).await, Ok(1));
+
+        params.connect_timeout_secs = Some(5);
+        assert_eq!(
+            with_connect_timeout(&params, async { Err::<(), _>("refused".to_string()) }).await,
+            Err("refused".to_string())
         );
     }
 
@@ -1061,6 +1134,17 @@ mod postgres_ssl_config_tests {
         let params = params_with_ssl("disable");
         let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Disable);
+    }
+
+    #[test]
+    fn connect_timeout_is_applied_only_when_set() {
+        let mut params = params_no_ssl();
+        let cfg = build_postgres_configurations(&params).expect("valid config");
+        assert_eq!(cfg.get_connect_timeout(), None);
+
+        params.connect_timeout_secs = Some(4);
+        let cfg = build_postgres_configurations(&params).expect("valid config");
+        assert_eq!(cfg.get_connect_timeout(), Some(&std::time::Duration::from_secs(4)));
     }
 
     #[test]

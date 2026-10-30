@@ -1389,6 +1389,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Modalità pooler",
     "poolerModeTransactionHint": "Quando si usa PgBouncer in modalità transazione con tipi personalizzati (enum, compositi, tipi di estensione), imposta max_prepared_statements > 0 in pgbouncer.ini. Questo abilita la cache lato server delle istruzioni preparate in modo che le istruzioni denominate sopravvivano alla riassegnazione della connessione.",
+    "connectTimeout": "Timeout di connessione (secondi)",
+    "connectTimeoutHint": "Quanto attendere il server prima di rinunciare. Lascia vuoto per usare il valore predefinito.",
     "poolerModes": {
       "none": "Nessuna (connessione diretta)",
       "transaction": "PgBouncer transazione",

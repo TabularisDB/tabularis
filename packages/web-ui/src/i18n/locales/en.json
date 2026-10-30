@@ -1393,6 +1393,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Pooler mode",
     "poolerModeTransactionHint": "When using PgBouncer in transaction mode with custom types (enums, composites, extension types), set max_prepared_statements > 0 in pgbouncer.ini. This enables server-side prepared statement caching so named statements survive connection reassignment.",
+    "connectTimeout": "Connect timeout (seconds)",
+    "connectTimeoutHint": "How long to wait for the server before giving up. Leave empty to use the default.",
     "poolerModes": {
       "none": "None (direct connection)",
       "transaction": "PgBouncer transaction",

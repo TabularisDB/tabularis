@@ -1302,6 +1302,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "连接池模式",
     "poolerModeTransactionHint": "在事务模式下使用 PgBouncer 且涉及自定义类型（枚举、复合类型、扩展类型）时，请在 pgbouncer.ini 中设置 max_prepared_statements > 0。这会启用服务端预处理语句缓存，使具名语句在连接重新分配后仍然有效。",
+    "connectTimeout": "连接超时（秒）",
+    "connectTimeoutHint": "等待服务器响应的时长，超时即放弃。留空则使用默认值。",
     "poolerModes": {
       "none": "无（直连）",
       "transaction": "PgBouncer 事务",

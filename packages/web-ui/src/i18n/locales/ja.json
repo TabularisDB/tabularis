@@ -1340,6 +1340,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "プーラーモード",
     "poolerModeTransactionHint": "PgBouncer をトランザクションモードでカスタム型（enum、複合型、拡張型）と共に使用する場合、pgbouncer.ini で max_prepared_statements > 0 を設定してください。これによりサーバー側のプリペアドステートメントキャッシュが有効になり、名前付きステートメントが接続の再割り当てを保持します。",
+    "connectTimeout": "接続タイムアウト（秒）",
+    "connectTimeoutHint": "サーバーの応答を待つ時間です。空欄の場合は既定値を使用します。",
     "poolerModes": {
       "none": "なし（直接接続）",
       "transaction": "PgBouncer トランザクション",

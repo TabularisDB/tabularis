@@ -9,6 +9,8 @@ import {
     getCardClass,
     updateExtraField,
     withoutBlankSslMode,
+    parseConnectTimeoutSecs,
+    MAX_CONNECT_TIMEOUT_SECS,
     migrationDirectionForDriver,
     connectionOrderAfterMove,
     planGroupDrop,
@@ -1037,5 +1039,29 @@ describe('connections', () => {
         it('does nothing when dropped on itself', () => {
             expect(planGroupDrop(groups, 'pg', 'pg', 'before')).toBeNull();
         });
+    });
+});
+
+describe('parseConnectTimeoutSecs', () => {
+    it('reads whole seconds', () => {
+        expect(parseConnectTimeoutSecs('15')).toBe(15);
+        expect(parseConnectTimeoutSecs('2.9')).toBe(2);
+    });
+
+    it('treats an empty field as unset', () => {
+        expect(parseConnectTimeoutSecs('')).toBeUndefined();
+    });
+
+    it('clamps negatives to 0', () => {
+        expect(parseConnectTimeoutSecs('-5')).toBe(0);
+    });
+
+    it('caps values above the maximum', () => {
+        expect(parseConnectTimeoutSecs('99999999999')).toBe(MAX_CONNECT_TIMEOUT_SECS);
+    });
+
+    it('treats non-finite input as unset', () => {
+        expect(parseConnectTimeoutSecs('1e999')).toBeUndefined();
+        expect(parseConnectTimeoutSecs('abc')).toBeUndefined();
     });
 });

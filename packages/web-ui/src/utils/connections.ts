@@ -100,11 +100,28 @@ export interface ConnectionParams {
     startup_script?: string;
     /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
     pooler_mode?: string;
+    /** Seconds to wait for a new connection; unset keeps the driver default. */
+    connect_timeout_secs?: number;
     /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
      * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
     extra?: Record<string, string>;
     /** Optional proxy override for this connection. */
     proxy?: ProxyOverride;
+}
+
+/** Upper bound for `connect_timeout_secs`; the backend reads it as a u32. */
+export const MAX_CONNECT_TIMEOUT_SECS = 3600;
+
+/**
+ * Parse the connect timeout field into whole seconds in
+ * [0, MAX_CONNECT_TIMEOUT_SECS]. Empty or non-numeric input (including
+ * overflow such as `1e999`) returns undefined, which keeps the driver default.
+ */
+export function parseConnectTimeoutSecs(raw: string): number | undefined {
+    if (raw.trim() === '') return undefined;
+    const secs = Number(raw);
+    if (!Number.isFinite(secs)) return undefined;
+    return Math.min(MAX_CONNECT_TIMEOUT_SECS, Math.max(0, Math.floor(secs)));
 }
 
 /**

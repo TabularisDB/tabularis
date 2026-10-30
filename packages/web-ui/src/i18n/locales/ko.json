@@ -1301,6 +1301,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "풀러 모드",
     "poolerModeTransactionHint": "사용자 정의 타입(enum, composite, 확장 타입)과 함께 트랜잭션 모드에서 PgBouncer를 사용할 때, pgbouncer.ini에 max_prepared_statements > 0을 설정하세요. 이렇게 하면 서버 측 준비된 문 캐싱이 활성화되어 명명된 문이 연결 재할당을 견딜 수 있습니다.",
+    "connectTimeout": "연결 시간 제한(초)",
+    "connectTimeoutHint": "서버 응답을 기다리는 시간입니다. 비워 두면 기본값을 사용합니다.",
     "poolerModes": {
       "none": "없음 (직접 연결)",
       "transaction": "PgBouncer 트랜잭션",

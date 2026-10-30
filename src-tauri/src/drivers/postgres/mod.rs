@@ -2287,20 +2287,23 @@ impl DatabaseDriver for PostgresDriver {
     ) -> Result<(), String> {
         let cfg = crate::pool_manager::build_postgres_configurations(params)?;
         let tls_connector = crate::pool_manager::build_postgres_tls_connector(params)?;
-        let (client, connection) = cfg
-            .connect(tls_connector)
-            .await
-            .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                log::debug!("Postgres test_connection connection background task ended: {e}");
-            }
-        });
-        client
-            .simple_query("SELECT 1")
-            .await
-            .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
-        Ok(())
+        crate::pool_manager::with_connect_timeout(params, async {
+            let (client, connection) = cfg
+                .connect(tls_connector)
+                .await
+                .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    log::debug!("Postgres test_connection connection background task ended: {e}");
+                }
+            });
+            client
+                .simple_query("SELECT 1")
+                .await
+                .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
+            Ok(())
+        })
+        .await
     }
 
     async fn get_databases(

@@ -292,6 +292,11 @@ pub struct ConnectionParams {
     /// connections.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pooler_mode: Option<String>, // "transaction" | "session" | None
+    /// Seconds to wait for a new connection before failing. None or 0 keeps the
+    /// driver default (the global MySQL `connectTimeout` setting, no limit on
+    /// PostgreSQL). Forwarded to driver plugins as part of `params`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connect_timeout_secs: Option<u32>,
     /// Opaque, plugin-specific connection fields. The host does not interpret
     /// these — they are persisted verbatim and forwarded to the driver plugin
     /// as part of `params`, so plugins can carry custom connection settings

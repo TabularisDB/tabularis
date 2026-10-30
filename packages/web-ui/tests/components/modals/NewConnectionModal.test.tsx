@@ -99,6 +99,10 @@ vi.mock('@/components/ui/Modal', () => ({
         ) : null,
 }));
 
+vi.mock('@/components/ui/SqlEditorWrapper', () => ({
+    SqlEditorWrapper: () => null,
+}));
+
 vi.mock('@/components/ui/Select', () => ({
     Select: ({ariaLabel, value, options, onChange, placeholder, labels}: MockSelectProps) => (
         <select
@@ -140,6 +144,7 @@ vi.mock('@/hooks/useDrivers', () => ({
                         },
                     ],
                     supports_ssl: true,
+                    sql_dialect: 'mysql',
                 },
             },
             {
@@ -2170,5 +2175,92 @@ describe('NewConnectionModal extra_fields slot plugin secrets', () => {
             expect(invokeArgs('update_connection')).toBeDefined();
         });
         expect(invokeArgs('update_connection')?.pluginSecretChanges).toEqual({});
+    });
+});
+
+describe('NewConnectionModal connect timeout', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 15432;
+        driverState.multiDatabase = false;
+        vi.mocked(invoke).mockResolvedValue('ok');
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    });
+
+    function connectTimeoutInput() {
+        const label = screen.getByText('newConnection.connectTimeout');
+        return label.parentElement!.querySelector('input')!;
+    }
+
+    it('saves the timeout set on the Advanced tab', async () => {
+        renderModal(createInitialConnection({host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        fireEvent.change(connectTimeoutInput(), {target: {value: '15'}});
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({connect_timeout_secs: 15}),
+                }),
+            ),
+        );
+    });
+
+    it('caps a timeout above one hour before saving', async () => {
+        renderModal(createInitialConnection({host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        fireEvent.change(connectTimeoutInput(), {target: {value: '99999999999'}});
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({connect_timeout_secs: 3600}),
+                }),
+            ),
+        );
+    });
+
+    it('drops the timeout when the field is cleared', async () => {
+        renderModal(createInitialConnection({host: 'localhost', connect_timeout_secs: 15}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(connectTimeoutInput()).toHaveValue(15);
+        fireEvent.change(connectTimeoutInput(), {target: {value: ''}});
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.not.objectContaining({connect_timeout_secs: expect.anything()}),
+                }),
+            ),
+        );
+    });
+
+    it('is offered for a plugin that declares a supported SQL dialect', async () => {
+        renderModal(createInitialConnection({driver: 'postgresql', host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        fireEvent.change(connectTimeoutInput(), {target: {value: '20'}});
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({
+                        driver: 'postgresql',
+                        connect_timeout_secs: 20,
+                    }),
+                }),
+            ),
+        );
+    });
+
+    it('is not offered for drivers that do not read it', async () => {
+        renderModal(createInitialConnection({driver: 'sqlite', database: '/tmp/a.db'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(screen.queryByText('newConnection.connectTimeout')).not.toBeInTheDocument();
     });
 });
