@@ -283,6 +283,8 @@
     "historyDateRangeInverted": "Das Von-Datum muss am oder vor dem Bis-Datum liegen.",
     "historyClearFilters": "Filter zurücksetzen",
     "clearAllHistory": "Gesamten Verlauf löschen",
+    "exportHistory": "Verlauf als SQL exportieren",
+    "exportHistoryError": "Abfrageverlauf konnte nicht exportiert werden",
     "pauseHistoryCapture": "Verlaufsaufzeichnung pausieren",
     "resumeHistoryCapture": "Verlaufsaufzeichnung fortsetzen",
     "historyCapturePausedNotice": "Aufzeichnung des Abfrageverlaufs pausiert",

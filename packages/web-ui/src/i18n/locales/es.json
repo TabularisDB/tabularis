@@ -283,6 +283,8 @@
     "historyDateRangeInverted": "La fecha de inicio debe ser igual o anterior a la de fin.",
     "historyClearFilters": "Borrar filtros",
     "clearAllHistory": "Borrar Todo el Historial",
+    "exportHistory": "Exportar historial como SQL",
+    "exportHistoryError": "No se pudo exportar el historial de consultas",
     "pauseHistoryCapture": "Pausar captura del historial",
     "resumeHistoryCapture": "Reanudar captura del historial",
     "historyCapturePausedNotice": "Captura del historial de consultas en pausa",

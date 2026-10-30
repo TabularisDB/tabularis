@@ -296,6 +296,8 @@
     "historyDateRangeInverted": "The start date must be on or before the end date.",
     "historyClearFilters": "Clear filters",
     "clearAllHistory": "Clear All History",
+    "exportHistory": "Export history as SQL",
+    "exportHistoryError": "Failed to export query history",
     "pauseHistoryCapture": "Pause history capture",
     "resumeHistoryCapture": "Resume history capture",
     "historyCapturePausedNotice": "Query history capture paused",

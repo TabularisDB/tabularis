@@ -8,6 +8,9 @@ import {QueryHistorySection} from '@/components/layout/sidebar/QueryHistorySecti
 import type {QueryHistoryEntry} from '@/types/queryHistory';
 
 vi.mock('lucide-react', async (importOriginal) => await importOriginal());
+vi.mock('@/hooks/usePlatformCapabilities', () => ({
+    usePlatformCapabilities: () => ({downloadFile: vi.fn()}),
+}));
 vi.mock('@/hooks/useTabularisClient', () => import('../support/tauriBackedHooks'));
 
 vi.mock('@/hooks/useDatabase', () => ({
