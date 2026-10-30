@@ -120,6 +120,7 @@ import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
 import {totalPageCount} from '@/utils/pagination';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
+import {HiddenColumnsIndicator} from '@/components/ui/HiddenColumnsIndicator';
 import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
@@ -161,6 +162,7 @@ import {extractQueryParams, interpolateQueryParams} from '@/utils/queryParameter
 import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
 import {useTimingLabels} from '@/hooks/useTimingLabels';
 import {useResultChartState} from '@/hooks/useResultChartState';
+import {useHiddenColumns} from '@/hooks/useHiddenColumns';
 import {notifyQueryFinished} from '@/utils/queryNotification';
 import {
     buildSyncPayload,
@@ -613,6 +615,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         !!activeTab && !isTableTab && (activeTab.result?.columns.length ?? 0) > 0;
     const resultChart = useResultChartState(resultChartEnabled ? activeTab.id : null);
     const showResultChart = resultChartEnabled && resultChart.view === 'chart';
+    // Columns hidden in the active tab's grid (#1299).
+    const resultHiddenColumns = useHiddenColumns(
+        activeTab?.id ?? null,
+        activeTab?.result?.columns ?? [],
+    );
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
     const tabStripId = useId();
     // Full name behind a truncated tab title (tooltip and accessible name).
@@ -6041,6 +6048,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 )}
                                             </span>
 
+                                            {!showResultChart && (
+                                                <HiddenColumnsIndicator
+                                                    columns={activeTab.result.columns}
+                                                    hidden={resultHiddenColumns.hidden}
+                                                    onChange={resultHiddenColumns.setHidden}
+                                                />
+                                            )}
+
                                             {activeTab.result.pagination?.has_more && (
                                                 <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0">
                                                     {t('editor.autoPaginated')}
@@ -6494,6 +6509,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 canRedo={canRedoGrid(activeTab.gridHistory)}
                                                 onBeginBatchEdit={handleBeginBatchEdit}
                                                 onEndBatchEdit={handleEndBatchEdit}
+                                                hiddenColumns={resultHiddenColumns.hidden}
+                                                onHiddenColumnsChange={
+                                                    resultHiddenColumns.setHidden
+                                                }
                                             />
                                         </div>
                                     )}

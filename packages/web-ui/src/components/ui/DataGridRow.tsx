@@ -72,6 +72,8 @@ export interface RowCtx {
      * or null when it scrolls with the rest.
      */
     frozenFirstColumnLeft: number | null;
+    /** Indices into `columns` of the columns rendered, in order (#1299). */
+    visibleColIndices: readonly number[];
     updateSelection: (s: Set<number>) => void;
     /** Sensitive-column masking (#485): columns rendered masked until revealed. */
     maskedColIndices: Set<number>;
@@ -216,6 +218,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         onPendingInsertionChange,
         openJsonViewerWindow,
         editInputRef,
+        visibleColIndices,
     } = ctx;
 
     const editingCell =
@@ -288,7 +291,8 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                 >
                     {isInsertion ? 'NEW' : rowIndex + 1}
                 </td>
-                {columns.map((colName, colIndex) => {
+                {visibleColIndices.map((colIndex) => {
+                    const colName = columns[colIndex];
                     const cellValue = rowOriginal[colIndex];
                     const isEditing =
                         editingCell?.rowIndex === rowIndex && editingCell?.colIndex === colIndex;
@@ -363,7 +367,8 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     // backdrop. Sticky already anchors the inline editor, so the cell
                     // must not switch to `relative` while editing, and its focus mark is
                     // an outline because an inset ring would sit under the backdrop.
-                    const isFrozen = frozenFirstColumnLeft !== null && colIndex === 0;
+                    const isFrozen =
+                        frozenFirstColumnLeft !== null && colIndex === visibleColIndices[0];
                     const frozenClass = isFrozen
                         ? `sticky z-[5] ${getFrozenCellBackdropClass({
                               isSelected,
@@ -845,7 +850,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     return (
                         <tr>
                             <td
-                                colSpan={columns.length + 1}
+                                colSpan={visibleColIndices.length + 1}
                                 className="p-0 border-b border-default"
                             >
                                 <div
