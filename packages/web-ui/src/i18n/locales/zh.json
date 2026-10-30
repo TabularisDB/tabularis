@@ -974,6 +974,7 @@
       "extendCellRange": "扩展单元格范围",
       "jumpToEdge": "跳转到网格边缘",
       "jumpToColumn": "跳转到列",
+      "findInGrid": "在结果中查找",
       "extendCellRangeToEdge": "扩展单元格范围至边缘",
       "selectRow": "选择行",
       "selectColumn": "选择列"
@@ -1370,6 +1371,19 @@
     "jumpToColumn": "跳转到列",
     "searchColumns": "搜索列",
     "noMatchingColumns": "未找到匹配的列",
+    "find": {
+      "label": "在结果中查找",
+      "matchCase": "区分大小写",
+      "previous": "上一个匹配项",
+      "next": "下一个匹配项",
+      "close": "关闭查找",
+      "position": "{{current}}/{{total}}",
+      "announcement": "第 {{current}} 个匹配项，共 {{total}} 个",
+      "noResults": "无结果",
+      "loadedRowsOnly": "仅已加载的行（{{loaded}}）",
+      "loadedRowsOfTotal": "仅已加载的行（{{loaded}}/{{total}}）",
+      "loadedRowsHint": "查找只在结果网格中已加载的行内进行。如需搜索所有行，请筛选表格或调整查询。"
+    },
     "noRowIdentity": "无法编辑行:\"{{table}}\" 没有主键,因此编辑要求结果包含表的所有列。请选择所有列(例如 SELECT *)或添加主键。",
     "resizeRelatedPanel": "拖动以调整面板大小",
     "keylessRowNotFound": "更新 \"{{column}}\" 时没有行与原始值匹配。该表没有主键,数据可能已更改,请刷新后重试。",

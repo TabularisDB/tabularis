@@ -27,6 +27,7 @@ import {isLongTextCellTarget, truncateCellPreview} from '@/utils/text';
 import {getForeignKeyForPreview} from '@/utils/foreignKeys';
 import {getDateInputMode} from '@/utils/dateInput';
 import {renderDefaultCellContent} from '@/utils/dataGridCell';
+import {FIND_MATCH_CELL_CLASS, getFindMatchState} from '@/utils/gridFind';
 import {resolveResultFontFamily} from '@/utils/settings';
 import {GeometryInput} from './GeometryInput';
 import {DateInput} from './DateInput';
@@ -155,6 +156,10 @@ export interface MemoRowProps {
     focusedColIndex: number | null;
     expandedColIndex: number | null;
     expandedKind: 'json' | 'text' | null;
+    /** Columns of this row matching Find in results (#1298), null without matches. */
+    findMatchColIndices: ReadonlySet<number> | null;
+    /** Column of the current find match when it is in this row. */
+    currentFindColIndex: number | null;
 }
 
 export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
@@ -171,6 +176,8 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         focusedColIndex,
         expandedColIndex,
         expandedKind,
+        findMatchColIndices,
+        currentFindColIndex,
     } = rowCtx;
 
     const {
@@ -412,6 +419,11 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                         <td
                             key={colName}
                             data-col-index={colIndex}
+                            data-find-match={getFindMatchState(
+                                colIndex,
+                                findMatchColIndices,
+                                currentFindColIndex,
+                            )}
                             onMouseDown={(e) => {
                                 // Shift+click extends the cell range — suppress the browser's
                                 // text selection that a Shift+click would otherwise start.
@@ -451,7 +463,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                                 handleContextMenu(e, rowOriginal, rowIndex, colIndex, colName)
                             }
                             style={isFrozen ? {left: frozenFirstColumnLeft} : undefined}
-                            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : 'whitespace-nowrap truncate max-w-[300px]'} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${stateClass} ${selectedColIndices.has(colIndex) || (rangeColBounds !== null && colIndex >= rangeColBounds.minCol && colIndex <= rangeColBounds.maxCol) ? 'bg-accent-primary/15' : ''} ${focusClass}`}
+                            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : 'whitespace-nowrap truncate max-w-[300px]'} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${stateClass} ${selectedColIndices.has(colIndex) || (rangeColBounds !== null && colIndex >= rangeColBounds.minCol && colIndex <= rangeColBounds.maxCol) ? 'bg-accent-primary/15' : ''} ${focusClass} ${FIND_MATCH_CELL_CLASS}`}
                             title={
                                 // The hover tooltip would leak the real value of a masked cell.
                                 !isEditing && !isMasked
