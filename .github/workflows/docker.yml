@@ -107,7 +107,7 @@ jobs:
     name: manifest
     needs: image
     if: github.event_name == 'push' || inputs.push == true
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       packages: write
@@ -154,7 +154,7 @@ jobs:
 
   chart:
     name: Helm chart
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       packages: write

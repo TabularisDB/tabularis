@@ -22,7 +22,7 @@ jobs:
     # Apple Silicon, like build.yml's arm64 leg. Not macos-14: GitHub fails
     # jobs on that image during brownouts and retires it on 2026-11-02
     # (actions/runner-images#13518). /opt/homebrew below assumes arm64.
-    runs-on: macos-latest
+    runs-on: blacksmith-6vcpu-macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
