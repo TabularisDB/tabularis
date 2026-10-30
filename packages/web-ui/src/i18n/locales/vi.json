@@ -1074,6 +1074,7 @@
       "extendCellRange": "Mở rộng vùng chọn ô",
       "jumpToEdge": "Nhảy tới mép lưới",
       "jumpToColumn": "Nhảy tới cột",
+      "findInGrid": "Tìm trong kết quả",
       "extendCellRangeToEdge": "Mở rộng vùng chọn ô tới mép",
       "selectRow": "Chọn dòng",
       "selectColumn": "Chọn cột"
@@ -1456,6 +1457,19 @@
     "jumpToColumn": "Nhảy tới cột",
     "searchColumns": "Tìm cột",
     "noMatchingColumns": "Không có cột nào khớp",
+    "find": {
+      "label": "Tìm trong kết quả",
+      "matchCase": "Phân biệt chữ hoa/thường",
+      "previous": "Kết quả khớp trước",
+      "next": "Kết quả khớp tiếp theo",
+      "close": "Đóng tìm kiếm",
+      "position": "{{current}}/{{total}}",
+      "announcement": "Kết quả khớp {{current}}/{{total}}",
+      "noResults": "Không có kết quả",
+      "loadedRowsOnly": "Chỉ các dòng đã tải ({{loaded}})",
+      "loadedRowsOfTotal": "Chỉ các dòng đã tải ({{loaded}}/{{total}})",
+      "loadedRowsHint": "Chỉ tìm trong các dòng đã tải vào lưới kết quả. Hãy lọc bảng hoặc điều chỉnh truy vấn để tìm trong tất cả các dòng."
+    },
     "noRowIdentity": "Không sửa được dòng: \"{{table}}\" không có khóa chính, nên muốn sửa thì kết quả phải chứa đủ mọi cột của bảng. Hãy chọn tất cả cột (ví dụ SELECT *) hoặc thêm khóa chính.",
     "resizeRelatedPanel": "Kéo để đổi kích thước bảng",
     "keylessRowNotFound": "Không có dòng nào khớp với giá trị ban đầu khi cập nhật \"{{column}}\". Bảng không có khóa chính và dữ liệu có thể đã thay đổi — hãy làm mới rồi thử lại.",

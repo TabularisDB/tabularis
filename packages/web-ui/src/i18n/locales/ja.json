@@ -1028,6 +1028,7 @@
       "extendCellRange": "セル範囲を拡張",
       "jumpToEdge": "グリッドの端へ移動",
       "jumpToColumn": "列に移動",
+      "findInGrid": "結果内を検索",
       "extendCellRangeToEdge": "セル範囲を端まで拡張",
       "selectRow": "行を選択",
       "selectColumn": "列を選択"
@@ -1408,6 +1409,19 @@
     "jumpToColumn": "列に移動",
     "searchColumns": "列を検索",
     "noMatchingColumns": "一致する列がありません",
+    "find": {
+      "label": "結果内を検索",
+      "matchCase": "大文字と小文字を区別",
+      "previous": "前の一致",
+      "next": "次の一致",
+      "close": "検索を閉じる",
+      "position": "{{current}} / {{total}}",
+      "announcement": "{{total}} 件中 {{current}} 件目",
+      "noResults": "結果なし",
+      "loadedRowsOnly": "読み込み済みの行のみ ({{loaded}})",
+      "loadedRowsOfTotal": "読み込み済みの行のみ ({{total}} 行中 {{loaded}} 行)",
+      "loadedRowsHint": "検索の対象はグリッドに読み込み済みの行だけです。すべての行を検索するには、テーブルを絞り込むかクエリを調整してください。"
+    },
     "noRowIdentity": "行を編集できません: \"{{table}}\" には主キーがないため、編集には結果にテーブルの全列が含まれている必要があります。すべての列を選択する(例: SELECT *)か、主キーを追加してください。",
     "resizeRelatedPanel": "ドラッグしてパネルのサイズを変更",
     "keylessRowNotFound": "\"{{column}}\" の更新時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",

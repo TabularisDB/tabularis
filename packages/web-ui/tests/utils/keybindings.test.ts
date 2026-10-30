@@ -470,6 +470,26 @@ describe('default shortcut conflicts', () => {
         ).toBe(true);
     });
 
+    it('lists Find in results as a rebindable grid shortcut free of default conflicts', () => {
+        const find = shortcutDefs.find((shortcut) => shortcut.id === 'find_in_grid');
+        expect(find).toBeDefined();
+        expect(find?.category).toBe('data_grid');
+        expect(find?.overridable).toBe(true);
+        expect(find?.i18nKey).toBe('settings.shortcuts.findInGrid');
+
+        for (const other of shortcutDefs) {
+            if (other.id === 'find_in_grid') continue;
+            expect(keyMatchesOverlap(find!.macMatch, other.macMatch, true)).toBe(false);
+            expect(keyMatchesOverlap(find!.winMatch, other.winMatch, false)).toBe(false);
+        }
+        expect(matchesEvent(makeEvent({key: 'f', metaKey: true}), find!.macMatch)).toBe(true);
+        expect(matchesEvent(makeEvent({key: 'f', ctrlKey: true}), find!.winMatch)).toBe(true);
+        // Cmd/Ctrl+Shift+F stays the table filter shortcut.
+        expect(
+            matchesEvent(makeEvent({key: 'F', ctrlKey: true, shiftKey: true}), find!.winMatch),
+        ).toBe(false);
+    });
+
     it('reopen_closed_tab does not overlap any other default shortcut', () => {
         const reopen = shortcutDefs.find((shortcut) => shortcut.id === 'reopen_closed_tab');
         expect(reopen).toBeDefined();
