@@ -5,6 +5,7 @@ import {EditorContext, type AddTabOptions} from './EditorContext';
 import {useDatabase} from '@/hooks/useDatabase';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {forgetResultChartStates} from '@/hooks/useResultChartState';
+import {forgetHiddenColumns} from '@/hooks/useHiddenColumns';
 import {
     generateTabId,
     loadEditorPreferences,
@@ -130,9 +131,9 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
 
     // Every tab close ends here, so a tab leaving the list releases its pinned
     // connection, rolling back any transaction it left open, and drops its result
-    // chart view and config. The list cleared with no active connection is skipped:
-    // disconnect and a failed health check release in the backend, and a detached
-    // window reopens the same tabs and continues them.
+    // chart views and hidden columns. The list cleared with no active connection
+    // is skipped: disconnect and a failed health check release in the backend,
+    // and a detached window reopens the same tabs and continues them.
     const releasedFromTabsRef = useRef<Tab[]>([]);
     useEffect(() => {
         const previous = releasedFromTabsRef.current;
@@ -141,6 +142,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
         const open = new Set(tabs.map((t) => t.id));
         const closed = previous.filter((tab) => !open.has(tab.id));
         forgetResultChartStates(closed.map((tab) => tab.id));
+        forgetHiddenColumns(closed.map((tab) => tab.id));
         for (const tab of closed) {
             void client
                 .call('release_query_session', {

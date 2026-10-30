@@ -14,11 +14,13 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import {ResultEntryContent} from './ResultEntryContent';
+import {HiddenColumnsIndicator} from './HiddenColumnsIndicator';
 import type {DataGridCommandTarget} from './DataGrid';
 import {PaginationControls} from './PaginationControls';
 import {ResizeHandle} from '@/components/notebook/ResizeHandle';
 import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
 import {useTimingLabels} from '@/hooks/useTimingLabels';
+import {useHiddenColumns} from '@/hooks/useHiddenColumns';
 import {onActivationKey} from '@/utils/keyboardEvents';
 import {getEntryDisplayLabel, getStackedGridHeight} from '@/utils/multiResult';
 import type {QueryResultEntry} from '@/types/editor';
@@ -72,6 +74,8 @@ export function StackedResultItem({
     const inputRef = useRef<HTMLInputElement>(null);
 
     const rowCount = entry.result?.rows.length ?? 0;
+    // The grid below hides them; the header shows how many (#1299).
+    const hiddenColumns = useHiddenColumns(entry.id, entry.result?.columns ?? []);
     const autoHeight = entry.result ? getStackedGridHeight(rowCount) : 120;
     const [userHeight, setUserHeight] = useState<number | null>(null);
     const gridHeight = userHeight ?? autoHeight;
@@ -256,6 +260,13 @@ export function StackedResultItem({
                 {/* Inline summary when collapsed or always */}
                 {hasResult && (
                     <div className="flex items-center gap-2 min-w-0">
+                        {!collapsed && (
+                            <HiddenColumnsIndicator
+                                columns={entry.result!.columns}
+                                hidden={hiddenColumns.hidden}
+                                onChange={hiddenColumns.setHidden}
+                            />
+                        )}
                         {entry.result!.pagination?.has_more && (
                             <span className="px-1.5 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0">
                                 {t('editor.autoPaginated')}
