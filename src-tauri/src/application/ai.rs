@@ -416,6 +416,7 @@ fn environment_key(provider: &str) -> Option<String> {
         "custom-openai" => "CUSTOM_OPENAI_API_KEY",
         "minimax" => "MINIMAX_API_KEY",
         "requesty" => "REQUESTY_API_KEY",
+        "opper" => "OPPER_API_KEY",
         _ => return None,
     };
     std::env::var(variable).ok().filter(|key| !key.is_empty())

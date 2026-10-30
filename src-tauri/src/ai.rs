@@ -101,6 +101,21 @@ struct RequestyModel {
     api: Option<String>,
 }
 
+#[derive(Deserialize, Debug)]
+struct OpperModelList {
+    models: Vec<OpperModel>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OpperModel {
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    pooled: Option<bool>,
+    #[serde(rename = "type", default)]
+    kind: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct AiModelsCache {
     last_updated: u64,
@@ -342,6 +357,39 @@ async fn fetch_requesty_models() -> Vec<String> {
     models
 }
 
+/// Fetches Opper's public model catalog and keeps the pooled chat models
+/// (bare names such as `claude-sonnet-4-6`, where Opper picks the route),
+/// dropping duplicates.
+async fn fetch_opper_models() -> Vec<String> {
+    let Ok(client) = ai_client_for("opper") else {
+        return Vec::new();
+    };
+    let mut seen = HashSet::new();
+    let mut models = Vec::new();
+
+    if let Ok(res) = client
+        .get("https://api.opper.ai/v3/models?limit=2000")
+        .send()
+        .await
+    {
+        if res.status().is_success() {
+            if let Ok(json) = res.json::<OpperModelList>().await {
+                for m in json.models {
+                    let is_chat = m.kind.as_deref() == Some("llm");
+                    let is_pool = m.pooled.unwrap_or(false);
+                    if let Some(name) = m.model {
+                        if is_chat && is_pool && seen.insert(name.clone()) {
+                            models.push(name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    models
+}
+
 /// Build an API endpoint URL from a user-provided base_url.
 ///
 /// Handles various formats the user might input:
@@ -547,7 +595,23 @@ pub async fn get_models(
         }
     }
 
-    // 7. Custom OpenAI (Dynamic if configured)
+    // 7. Opper (Dynamic public)
+    let opper_models = fetch_opper_models().await;
+    if !opper_models.is_empty() {
+        if let Some(static_list) = models.get_mut("opper") {
+            let favorites: HashSet<String> = static_list.iter().cloned().collect();
+            let mut new_list = static_list.clone();
+
+            for m in opper_models {
+                if !favorites.contains(&m) {
+                    new_list.push(m);
+                }
+            }
+            *static_list = new_list;
+        }
+    }
+
+    // 8. Custom OpenAI (Dynamic if configured)
     if let (Some(base_url), Ok(api_key)) = (
         app_config.ai_custom_openai_url,
         crate::application::ai::get_api_key(runtime, cache, "custom-openai"),
@@ -643,6 +707,7 @@ async fn dispatch_provider(
         "anthropic" => generate_anthropic(&client, &api_key, gen_req, system_prompt).await,
         "openrouter" => generate_openrouter(&client, &api_key, gen_req, system_prompt).await,
         "requesty" => generate_requesty(&client, &api_key, gen_req, system_prompt).await,
+        "opper" => generate_opper(&client, &api_key, gen_req, system_prompt).await,
         "ollama" => generate_ollama(&client, gen_req, system_prompt, ollama_port).await,
         "custom-openai" => {
             let base_url = app_config
@@ -1077,6 +1142,43 @@ async fn generate_requesty(
     Ok(clean_response(content))
 }
 
+async fn generate_opper(
+    client: &Client,
+    api_key: &str,
+    req: &AiGenerateRequest,
+    system_prompt: &str,
+) -> Result<String, String> {
+    let body = json!({
+        "model": req.model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": req.prompt}
+        ],
+        "temperature": 0.0
+    });
+
+    let res = client
+        .post("https://api.opper.ai/v3/compat/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("X-Opper-Name", "tabularis")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        let error_text = res.text().await.unwrap_or_default();
+        return Err(format!("Opper Error: {}", error_text));
+    }
+
+    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    let content = json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("Invalid response format from Opper")?;
+
+    Ok(clean_response(content))
+}
+
 /// Builds the Messages API body. No `temperature` is sent: newer Claude
 /// models (e.g. the 5.5 family) reject the parameter, and older ones work
 /// fine without it.
@@ -1258,6 +1360,7 @@ mod tests {
         assert!(models.contains_key("anthropic"));
         assert!(models.contains_key("openrouter"));
         assert!(models.contains_key("requesty"));
+        assert!(models.contains_key("opper"));
         assert!(models.contains_key("minimax"));
 
         // Check for new futuristic models from yaml

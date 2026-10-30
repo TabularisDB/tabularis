@@ -317,6 +317,7 @@ yay -S tabularis-bin
 - MiniMax
 - OpenRouter
 - Requesty
+- Opper
 - Ollama
 - 兼容 OpenAI 的 API
 

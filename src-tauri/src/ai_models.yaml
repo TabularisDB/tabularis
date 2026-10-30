@@ -61,3 +61,13 @@ requesty:
   - glm-5.2
   - gpt-5-mini@eu
   - claude-sonnet-4-6@eu
+
+opper:
+  - claude-sonnet-4-6
+  - gpt-5.4-mini
+  - gpt-5.5
+  - claude-opus-5
+  - gemini-3.8-flash
+  - deepseek-v4-pro
+  - kimi-k3
+  - mistral-large-2512
