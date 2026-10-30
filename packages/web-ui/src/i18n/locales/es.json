@@ -286,6 +286,8 @@
     "pinned": "Fijados",
     "pin": "Fijar",
     "unpin": "Desfijar",
+    "exportHistory": "Exportar historial como SQL",
+    "exportHistoryError": "No se pudo exportar el historial de consultas",
     "pauseHistoryCapture": "Pausar captura del historial",
     "resumeHistoryCapture": "Reanudar captura del historial",
     "historyCapturePausedNotice": "Captura del historial de consultas en pausa",

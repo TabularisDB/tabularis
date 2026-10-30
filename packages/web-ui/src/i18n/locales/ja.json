@@ -299,6 +299,8 @@
     "pinned": "ピン留め済み",
     "pin": "ピン留め",
     "unpin": "ピン留め解除",
+    "exportHistory": "履歴をSQLとしてエクスポート",
+    "exportHistoryError": "クエリ履歴のエクスポートに失敗しました",
     "pauseHistoryCapture": "履歴の記録を一時停止",
     "resumeHistoryCapture": "履歴の記録を再開",
     "historyCapturePausedNotice": "クエリ履歴の記録を一時停止中",

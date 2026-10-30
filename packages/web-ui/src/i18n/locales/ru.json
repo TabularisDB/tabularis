@@ -299,6 +299,8 @@
     "pinned": "Закреплённые",
     "pin": "Закрепить",
     "unpin": "Открепить",
+    "exportHistory": "Экспортировать историю в SQL",
+    "exportHistoryError": "Не удалось экспортировать историю запросов",
     "pauseHistoryCapture": "Приостановить запись истории",
     "resumeHistoryCapture": "Возобновить запись истории",
     "historyCapturePausedNotice": "Запись истории запросов приостановлена",

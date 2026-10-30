@@ -299,6 +299,8 @@
     "pinned": "Épinglés",
     "pin": "Épingler",
     "unpin": "Désépingler",
+    "exportHistory": "Exporter l’historique en SQL",
+    "exportHistoryError": "Impossible d’exporter l’historique des requêtes",
     "pauseHistoryCapture": "Mettre en pause la capture de l’historique",
     "resumeHistoryCapture": "Reprendre la capture de l’historique",
     "historyCapturePausedNotice": "Capture de l’historique des requêtes en pause",

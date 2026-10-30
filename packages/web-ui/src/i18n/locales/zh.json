@@ -285,6 +285,8 @@
     "pinned": "已固定",
     "pin": "固定",
     "unpin": "取消固定",
+    "exportHistory": "将历史记录导出为 SQL",
+    "exportHistoryError": "导出查询历史记录失败",
     "pauseHistoryCapture": "暂停记录查询历史",
     "resumeHistoryCapture": "恢复记录查询历史",
     "historyCapturePausedNotice": "查询历史记录已暂停",
