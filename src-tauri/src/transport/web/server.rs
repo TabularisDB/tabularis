@@ -5,6 +5,7 @@ use super::auth::{
 };
 use super::contract::SessionNegotiation;
 use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
+use super::login_page::{login_page_csp, render_login_page};
 use super::login_target::{login_return_target, LOGIN_TARGET_PARAM};
 use super::rpc::{RequestId, RpcAccessPolicy, RpcDispatcher};
 use crate::application::file_transfers::{
@@ -1250,20 +1251,9 @@ fn login_redirect_response(target: Option<&str>) -> Response {
     response
 }
 
-/// `target` must come from `login_return_target`, whose character set needs
-/// no HTML escaping.
+/// `target` must come from `login_return_target`.
 fn login_page_response(status: StatusCode, error: Option<&str>, target: Option<&str>) -> Response {
-    let error = error
-        .map(|message| format!("<p role=\"alert\">{message}</p>"))
-        .unwrap_or_default();
-    let target = target
-        .map(|target| {
-            format!("<input type=\"hidden\" name=\"{LOGIN_TARGET_PARAM}\" value=\"{target}\">")
-        })
-        .unwrap_or_default();
-    let body = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>Tabularis Web sign in</title></head><body><main><h1>Sign in to Tabularis Web</h1>{error}<form method=\"post\" action=\"{LOGIN_PATH}\">{target}<label>Password <input type=\"password\" name=\"password\" required autofocus autocomplete=\"current-password\"></label><button type=\"submit\">Sign in</button></form></main></body></html>"
-    );
+    let body = render_login_page(LOGIN_PATH, error, target);
     let mut response = (status, body).into_response();
     let headers = response.headers_mut();
     headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -1276,14 +1266,12 @@ fn login_page_response(status: StatusCode, error: Option<&str>, target: Option<&
     headers.insert(REFERRER_POLICY, HeaderValue::from_static("same-origin"));
     headers.insert(
         CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static(
-            "default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
-        ),
+        HeaderValue::from_static(login_page_csp()),
     );
     response
 }
 
-fn authentication_error_response(
+pub(super) fn authentication_error_response(
     error: AuthenticationError,
     html: bool,
     target: Option<&str>,
