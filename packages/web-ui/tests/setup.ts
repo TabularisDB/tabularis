@@ -120,6 +120,7 @@ vi.mock('@monaco-editor/react', () => ({
 // Mock lucide-react icons
 vi.mock('lucide-react', () => ({
     LayoutDashboard: () => null,
+    GitBranch: () => null,
     Brain: () => null,
     Users: () => null,
     ShieldCheck: () => null,

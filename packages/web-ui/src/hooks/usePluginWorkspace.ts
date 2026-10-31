@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
+import {buildEditorRoute, isEditorRoute} from '@/routing';
 import {useEditor} from './useEditor';
 import {usePluginConnection} from './usePluginApi';
 import type {
@@ -31,7 +32,7 @@ export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
             );
             if (existing) {
                 setActiveTabId(existing.id);
-                if (pathname !== '/editor') navigate('/editor');
+                if (!isEditorRoute(pathname)) navigate(buildEditorRoute(connectionId));
                 return existing.id;
             }
             const id = addTab({
@@ -42,7 +43,7 @@ export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
                 connectionId,
             });
             if (!id) throw new Error('The workspace connection is not active in this editor');
-            if (pathname !== '/editor') navigate('/editor');
+            if (!isEditorRoute(pathname)) navigate(buildEditorRoute(connectionId));
             return id;
         },
         [activeConnectionId, addTab, navigate, pathname, pluginId, setActiveTabId, tabs],

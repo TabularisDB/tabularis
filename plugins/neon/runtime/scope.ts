@@ -5,7 +5,7 @@ import { admin } from './admin.js';
 import { cliSetup } from './cliAuth.js';
 import { account } from './account.js';
 
-const operations = new Set(['neon_status', 'neon_auth_users', 'neon_auth_users_page', 'neon_auth_user_details', 'neon_management_context', 'neon_demo_notes', 'neon_function', 'neon_ai_models', 'neon_ai_complete', 'neon_storage_list', 'neon_storage_put', 'neon_storage_get', 'neon_storage_delete', 'neon_realtime_snapshot', 'neon_project_branches']);
+const operations = new Set(['neon_status', 'neon_auth_users', 'neon_auth_users_page', 'neon_auth_user_details', 'neon_management_context', 'neon_branch_context', 'neon_demo_notes', 'neon_function', 'neon_ai_models', 'neon_ai_complete', 'neon_storage_list', 'neon_storage_put', 'neon_storage_get', 'neon_storage_delete', 'neon_realtime_snapshot', 'neon_project_branches']);
 
 export async function extension(request: Params): Promise<unknown> {
   const context = request.context as Params | undefined;
@@ -42,6 +42,10 @@ export async function extension(request: Params): Promise<unknown> {
   const params = request.params as Params;
   if (!params || typeof params !== 'object' || params.driver !== 'neon') throw new Error('Neon driver connection required');
   if (method === 'neon_management_context') return withCredentials(credentials, () => admin(method, {}, context));
+  if (method === 'neon_branch_context') {
+    const binding = await withCredentials(credentials, () => admin('neon_management_context', {}, context)) as Record<string, unknown>;
+    return {...binding, database: typeof params.database === 'string' ? params.database : null, role: typeof params.username === 'string' ? params.username : null};
+  }
   if (params.host) {
     const url = new URL('postgresql://localhost');
     url.hostname = text(params.host, 'host'); url.port = String(params.port ?? 5432);

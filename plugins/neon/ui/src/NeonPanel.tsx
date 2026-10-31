@@ -20,6 +20,7 @@ import {styles} from './styles';
 import type {NeonService} from './services';
 import {databaseSummary} from './utils/status';
 import {PanelSection, ResultPlaceholder} from './components/PanelSection';
+import {BranchesManager} from './BranchesManager';
 import {FunctionsManager} from './FunctionsManager';
 import {AuthManager} from './AuthManager';
 
@@ -53,6 +54,7 @@ export function NeonPanel({
     const tab = serviceId;
     let content: ReactNode;
     if (!connectionId) content = <div className="neon-empty">{t('noConnection')}</div>;
+    else if (tab === 'branches') content = <BranchesManager connectionId={connectionId} />;
     else if (tab === 'overview') content = <Overview connectionId={connectionId} />;
     else if (tab === 'users')
         content = <AuthManager connectionId={connectionId} userId={authUserId} />;

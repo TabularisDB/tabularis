@@ -60,15 +60,24 @@ describe('usePluginWorkspace', () => {
         await waitFor(() => expect(result.current.editor.tabs).toHaveLength(1));
         expect(result.current.location.pathname).toBe('/settings');
         act(() => result.current.workspace.openWorkspace({id: 'users', title: 'Provider · Users'}));
-        expect(result.current.location.pathname).toBe('/editor');
+        expect(result.current.location.pathname).toBe('/connections/connection-1/editor');
         act(() => result.current.navigate('/settings?tab=plugins'));
         expect(result.current.location.pathname).toBe('/settings');
         act(() => result.current.workspace.openWorkspace({id: 'users', title: 'Provider · Users'}));
-        expect(result.current.location.pathname).toBe('/editor');
+        expect(result.current.location.pathname).toBe('/connections/connection-1/editor');
         expect(result.current.location.state).toBeNull();
         expect(
             result.current.editor.tabs.filter((tab) => tab.type === 'plugin-workspace'),
         ).toHaveLength(1);
+    });
+
+    it('preserves the connection editor URL and navigation state when already editing', async () => {
+        const {result} = renderHook(useWorkspace, {wrapper});
+        await waitFor(() => expect(result.current.editor.tabs).toHaveLength(1));
+        act(() => result.current.navigate('/connections/connection-1/editor', {state: {marker:'keep'}}));
+        act(() => result.current.workspace.openWorkspace({id:'branches', title:'Branches'}));
+        expect(result.current.location.pathname).toBe('/connections/connection-1/editor');
+        expect(result.current.location.state).toEqual({marker:'keep'});
     });
 
     it('keeps the same workspace isolated across connections', async () => {

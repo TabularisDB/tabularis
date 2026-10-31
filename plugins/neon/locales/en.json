@@ -16,7 +16,8 @@
     "ai": "AI Gateway",
     "functions": "Functions",
     "realtime": "Realtime",
-    "setup": "Connection / Setup"
+    "setup": "Connection / Setup",
+    "branches": "Branches"
   },
   "loading": "Loading…",
   "waiting": "Waiting for a live snapshot… This can take up to 30 seconds.",
@@ -331,5 +332,37 @@
     "reconnect": "Update Neon account access"
   },
   "databaseNativeHint": "Browse tables and run SQL in the normal Tabularis explorer and console. The former Neon demo-data tab has been retired.",
-  "databaseNativeHintShort": "Tables and SQL in the native explorer"
+  "databaseNativeHintShort": "Tables and SQL in the native explorer",
+  "branches": {
+    "title": "Branches",
+    "description": "Manage the branches of this connection’s Neon project.",
+    "switchBranch": "Switch Neon branch",
+    "manage": "Manage branches",
+    "default": "Default",
+    "current": "Current connection",
+    "protected": "Protected",
+    "parent": "Parent",
+    "root": "Root branch",
+    "empty": "No branches found.",
+    "create": "Create branch",
+    "name": "Branch name",
+    "copyHint": "Copies schema and data from the selected parent branch.",
+    "created": "Branch created.",
+    "rename": "Rename branch",
+    "newName": "New branch name",
+    "renamed": "Branch renamed.",
+    "delete": "Delete branch",
+    "deleteBlocked": "Current, default, protected, parent and locally connected branches cannot be deleted here. Remove their saved connections first.",
+    "deleteHint": "Deleting this branch permanently removes its data and branch services.",
+    "typeName": "Type “{{name}}” to confirm deletion",
+    "confirmDelete": "Permanently delete branch",
+    "deleted": "Branch deleted.",
+    "isolationHint": "Each branch uses a separate connection. Existing SQL tabs and drafts stay on their original branch.",
+    "switch": "Switch to branch",
+    "openNew": "Open in new connection",
+    "opened": "Branch connection opened.",
+    "opening": "Opening branch…",
+    "unresolved": "Some local connection bindings could not be read. Refresh or repair those connections before deleting a branch.",
+    "account": "Neon account"
+  }
 }

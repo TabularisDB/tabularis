@@ -4,7 +4,7 @@ A Tabularis driver with native explorer services for an existing Neon project. S
 with the Tabularis CLI, then adapted to Node.js to use Neon's SDKs. Requires
 Node.js 22+, pnpm, and the `feat/neon-integration` Core changes on upstream
 Tabularis 0.30.0. The public 0.30.0 release alone does not yet include the new
-`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.4).
+`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.5).
 
 ## Build and install from this repository
 
@@ -201,6 +201,42 @@ it exits nonzero when Neon reports an active deployment but serves old values.
 The latest run passed activation as well as creation, initial invocation, rename,
 clipboard, Auth role changes and deletion. Polling is bounded so persistent stale
 revisions remain test failures.
+
+## Branches per connection
+
+The native Explorer header shows the active project's branch selector. **Manage
+branches** and the **Branches** Explorer entry open the same ordinary editor tab.
+Create a branch from an explicit parent (schema and data), rename it, select its
+database/role, switch to it or explicitly open another connection. Current,
+default, protected, parent and locally referenced branches cannot be deleted in
+the UI. Deletion also requires the exact current branch name and repeats the
+provider's current/default/protected/children checks on the backend. Unreadable
+local bindings block deletion until repaired or refreshed.
+
+Each branch/database/role keeps a distinct saved connection ID. Switching reuses
+an exact match or imports a new connection with freshly discovered SQL and service
+credentials. Existing SQL tabs, results and drafts remain on their source branch;
+other open windows/sessions are never silently retargeted. The original connection's
+name, groups, appearance and credentials remain unchanged. Legacy branch names
+are resolved within their saved project when possible. Navigation keeps the
+connection-specific editor URL.
+
+Quick switching never creates service credentials automatically. The manager
+provides the existing explicit Storage/AI credential consent option; selecting it
+imports a fresh connection rather than modifying a reused credential bundle.
+New branches/services still need to be available and permitted by Neon. This
+prototype does not expose reset/restore, recursive deletion or schema-only mode.
+
+```sh
+node tests/branches-host-e2e.mjs
+```
+
+The test uses the installed CLI's refreshable DEFAULT profile, an isolated Core
+store and a disposable child branch. It checks actual parent/child SQL isolation,
+retained SQL drafts, connection reuse/additional connections, deletion guards and
+exact-name confirmation, then removes its table, connections and branch. Use
+`NEON_ACCOUNT_TEST_PROJECT_ID`, `NEON_ACCOUNT_TEST_BRANCH` and
+`NEON_ACCOUNT_TEST_CLI_PROFILE` to target another authorized test project/profile.
 
 ## Functions and Auth management
 

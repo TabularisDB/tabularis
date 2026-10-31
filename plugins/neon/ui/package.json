@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && vite build --config vite.workspace.config.ts",
+    "build": "vite build && vite build --config vite.workspace.config.ts && vite build --config vite.branch.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts"
   },

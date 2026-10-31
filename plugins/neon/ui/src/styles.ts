@@ -118,6 +118,14 @@ export const styles = `
 .neon-auth-key-toggle {margin:10px 0}
 .neon-auth-install {padding-top:8px;border-top:1px solid var(--border-default)}
 .neon-auth-command {margin:10px 0;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;font-family:var(--font-mono);font-size:12px;color:var(--text-primary)}
+.neon-branch-picker {min-width:0;color:var(--text-secondary);font-size:12px}
+.neon-branch-project {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--text-muted);margin-bottom:5px}
+.neon-branch-picker-row {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.neon-branch-picker-row select,.neon-branch-picker-row button {min-width:0;min-height:30px;border:1px solid var(--border-default);background:var(--bg-input);color:var(--text-primary);border-radius:var(--radius-sm);font:inherit;padding:4px 7px;cursor:pointer}
+.neon-branch-picker-row select:disabled {opacity:.6;cursor:default}
+.neon-branch-picker-row button:focus-visible,.neon-branch-picker-row select:focus-visible {outline:2px solid var(--border-focus);outline-offset:2px}
+.neon-branch-picker [role="alert"] {display:block;overflow-wrap:anywhere;margin-top:6px;font-size:11px}
+.neon-branches-layout {grid-template-columns:minmax(220px,.8fr) minmax(0,1.4fr)}
 @container(max-width:740px){.neon-workbench,.neon-workbench-balanced,.neon-workbench-settings{grid-template-columns:minmax(0,1fr);gap:18px}.neon-service{gap:8px}.neon-service-name > span{max-width:42ch}.neon-toolbar{gap:10px}.neon-status{font-size:10px}}
 @container(max-width:540px){.neon-panel .neon-columns{grid-template-columns:minmax(0,1fr)}.neon-toolbar > .neon-description{flex-basis:100%}.neon-section-header > .neon-inline-actions{width:100%}.neon-panel .neon-auth-metadata{grid-template-columns:minmax(0,1fr);gap:4px}.neon-auth-metadata dd{margin-bottom:10px}}
 @container(max-width:400px){.neon-summary-strip{grid-template-columns:minmax(0,1fr);gap:10px}.neon-summary-strip > div{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.neon-summary-strip dt{margin:0}.neon-summary-strip dd{font-size:12px}.neon-service-name > span{display:none}.neon-meta-list > div{grid-template-columns:minmax(0,1fr);gap:4px}.neon-data-region{min-height:160px}}

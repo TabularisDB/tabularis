@@ -1,5 +1,6 @@
 import { createNeonClient, isNeonError, type NeonClient } from '@neon/sdk';
 import type { Params } from './database.js';
+import { branchMethods, manageBranches } from './branches.js';
 import { cliCredential } from './cliAuth.js';
 import { withFunctionMutation } from './managementQueue.js';
 import { manage, managementMethods, ManagementError } from './management.js';
@@ -69,7 +70,7 @@ export async function account(
   secrets: Record<string, string>,
   fetcher: typeof fetch = globalThis.fetch,
 ): Promise<unknown> {
-  if (!methods.has(method) && !managementMethods.has(method)) throw new Error('Unsupported Neon account method');
+  if (!methods.has(method) && !managementMethods.has(method) && !branchMethods.has(method)) throw new Error('Unsupported Neon account method');
   if (secrets.NEON_API_KEY && secrets.NEON_CLI_AUTH) throw new Error('Choose one Neon account authentication method');
   const key = secrets.NEON_CLI_AUTH ? await cliCredential(secrets.NEON_CLI_AUTH) : secrets.NEON_API_KEY;
   if (!key || !key.trim() || /[\r\n\0]/.test(key)) throw new Error('A Neon account API key is required');
@@ -99,6 +100,7 @@ export async function account(
       return { branches: branches.map(({ id, name }) => ({ id, name })) };
     }
     const branchScope = { projectId: scope.projectId, branchId: id(args.branchId, 'branch') };
+    if (branchMethods.has(method)) return await manageBranches(client, method, args, branchScope);
     if (managementMethods.has(method)) {
       const action = () => manage(client, method, args, branchScope, fetcher);
       return await (['account_function_deploy', 'account_function_delete', 'account_function_rename'].includes(method)

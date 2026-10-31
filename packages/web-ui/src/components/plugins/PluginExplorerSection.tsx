@@ -5,6 +5,7 @@ import {
     Database,
     FileText,
     Folder,
+    GitBranch,
     LayoutDashboard,
     Settings,
     Shield,
@@ -19,6 +20,7 @@ import type {PluginExplorerSectionProps} from '@/types/pluginExplorerSection';
 
 const itemIcons = {
     overview: LayoutDashboard,
+    branches: GitBranch,
     database: Database,
     users: Users,
     storage: Folder,

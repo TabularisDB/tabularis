@@ -109,7 +109,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` | Initial release |
 | `0.1.1`         | `0.1.0` | Typed slots and automatic manifest compatibility gate |
-| `0.4.0` (unreleased) | `0.2.4` | Account/service calls, provider setup/preparation, native resource UI and clipboard |
+| `0.4.0` (unreleased) | `0.2.5` | Provider connection navigation, account/service calls, provider setup/preparation, native resource UI and clipboard |
 
 ## Slot reference
 
@@ -162,3 +162,16 @@ items contain `severity`, `message`, `line` and `column`. JS/TS syntax, completi
 and type checking use the bundled Monaco worker and local Node.js declarations;
 no CDN or automatic npm package/type downloads are needed. Models are disposed
 when the editor closes or changes language.
+
+
+### Provider connection navigation (API 0.2.5)
+
+`usePluginAccount(pluginId)` exposes `connections: [{id, name}]` for that driver's
+saved connections, `callConnection<T>(id, method, args?)` for the existing scoped
+extension transport, and `openConnection(id, sourceConnectionId?)`. Activation
+validates driver ownership and optionally rejects stale actions if the selected
+source connection changed while loading. It reuses open connection state or uses
+the ordinary connect/rollback lifecycle, then navigates to the connection's own
+editor URL. It never changes another connection's target, credentials or SQL tabs.
+Use provider-owned metadata methods to match exact project/environment/database/
+role identities before reusing an existing connection.

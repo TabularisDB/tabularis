@@ -16,7 +16,8 @@
     "ai": "AI Gateway",
     "functions": "Funktionen",
     "realtime": "Echtzeit",
-    "setup": "Verbindung / Einrichtung"
+    "setup": "Verbindung / Einrichtung",
+    "branches": "Branches"
   },
   "loading": "Wird geladen…",
   "waiting": "Warte auf einen Live-Snapshot… Das kann bis zu 30 Sekunden dauern.",
@@ -331,5 +332,37 @@
     "reconnect": "Neon-Kontozugang aktualisieren"
   },
   "databaseNativeHint": "Tabellen und SQL findest du im normalen Tabularis-Explorer und in der Konsole. Der bisherige Neon-Tab für Demo-Daten wurde entfernt.",
-  "databaseNativeHintShort": "Tabellen und SQL im nativen Explorer"
+  "databaseNativeHintShort": "Tabellen und SQL im nativen Explorer",
+  "branches": {
+    "title": "Branches",
+    "description": "Verwalte die Branches des Neon-Projekts dieser Verbindung.",
+    "switchBranch": "Neon-Branch wechseln",
+    "manage": "Branches verwalten",
+    "default": "Standard",
+    "current": "Aktuelle Verbindung",
+    "protected": "Geschützt",
+    "parent": "Übergeordnet",
+    "root": "Hauptbranch",
+    "empty": "Keine Branches gefunden.",
+    "create": "Branch erstellen",
+    "name": "Branch-Name",
+    "copyHint": "Kopiert Schema und Daten vom ausgewählten übergeordneten Branch.",
+    "created": "Branch erstellt.",
+    "rename": "Branch umbenennen",
+    "newName": "Neuer Branch-Name",
+    "renamed": "Branch umbenannt.",
+    "delete": "Branch löschen",
+    "deleteBlocked": "Aktuelle, geschützte, Standard- und übergeordnete Branches sowie Branches mit lokalen Verbindungen sind hier gegen Löschen gesperrt. Entferne zuerst ihre gespeicherten Verbindungen.",
+    "deleteHint": "Das Löschen entfernt dauerhaft alle Daten und Dienste dieses Branches.",
+    "typeName": "Gib „{{name}}“ ein, um das Löschen zu bestätigen",
+    "confirmDelete": "Branch endgültig löschen",
+    "deleted": "Branch gelöscht.",
+    "isolationHint": "Jeder Branch nutzt eine eigene Verbindung. Vorhandene SQL-Tabs und Entwürfe bleiben an ihrem ursprünglichen Branch.",
+    "switch": "Zu Branch wechseln",
+    "openNew": "In neuer Verbindung öffnen",
+    "opened": "Branch-Verbindung geöffnet.",
+    "opening": "Branch wird geöffnet…",
+    "unresolved": "Einige lokale Verbindungszuordnungen konnten nicht gelesen werden. Aktualisiere oder repariere diese Verbindungen vor dem Löschen eines Branches.",
+    "account": "Neon-Konto"
+  }
 }

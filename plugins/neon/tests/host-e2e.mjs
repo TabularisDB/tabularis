@@ -97,7 +97,7 @@ try {
     const overview = services.getByRole('button', {name:'Overview',exact:true});
     await overview.waitFor({timeout:30000});
     assert.equal(await page.locator('[data-provider-action]').count(), 0, 'Provider card remains in native explorer');
-    assert.equal(await page.locator('[data-slot="explorer.connection.actions"]').count(), 0, 'Provider service list remains outside native tree');
+    assert.equal(await page.locator('[data-slot="explorer.connection.actions"]').count(), 1, 'Branch selector is missing from the connection header');
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-launcher.png',import.meta.url))});
     await overview.click();
     await page.locator('.neon-panel .neon-service').nth(5).waitFor();

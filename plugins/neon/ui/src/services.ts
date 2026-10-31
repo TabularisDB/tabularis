@@ -1,5 +1,6 @@
 export const serviceIds = [
     'overview',
+    'branches',
     'users',
     'storage',
     'ai',
@@ -10,6 +11,7 @@ export const serviceIds = [
 export type NeonService = (typeof serviceIds)[number] | 'database';
 export const serviceIcons: Record<NeonService, string> = {
     overview: 'overview',
+    branches: 'branches',
     database: 'database',
     users: 'users',
     storage: 'storage',

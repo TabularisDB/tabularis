@@ -211,6 +211,14 @@ export interface PluginAccountImportResult {
 }
 
 export interface UsePluginAccountReturn {
+    /** Saved connections belonging to this provider, without credentials. */
+    connections: ReadonlyArray<{id: string; name: string}>;
+    openConnection: (connectionId: string, sourceConnectionId?: string) => Promise<void>;
+    callConnection: <T = unknown>(
+        connectionId: string,
+        method: string,
+        args?: Record<string, unknown>,
+    ) => Promise<T>;
     prepare: <T = unknown>(method: string, args?: Record<string, unknown>) => Promise<T>;
     connect: (secrets: Record<string, string>) => Promise<void>;
     secretFields: () => Promise<string[]>;
