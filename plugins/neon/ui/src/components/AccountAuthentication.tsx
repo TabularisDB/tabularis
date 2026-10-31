@@ -43,8 +43,11 @@ export function AccountAuthentication({
             <div className="neon-auth-option">
                 <h3 className="neon-auth-title">{t('account.cli.title')}</h3>
                 <p className="neon-description">{t('account.cli.description')}</p>
-                <p className="neon-hint">{t('account.cli.hostHint')}</p>
-                <p className="neon-hint">{t('account.cli.profileStorageHint')}</p>
+                <details className="neon-disclosure">
+                    <summary>{t('account.cli.signInDetails')}</summary>
+                    <p className="neon-hint">{t('account.cli.hostHint')}</p>
+                    <p className="neon-hint">{t('account.cli.profileStorageHint')}</p>
+                </details>
                 {cli.phase === 'checking' ? (
                     <p role="status" className="neon-hint">
                         {t('account.cli.checking')}

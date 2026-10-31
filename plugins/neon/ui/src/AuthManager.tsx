@@ -116,6 +116,15 @@ function AuthUserList({connectionId}: {connectionId: string}) {
                     </>
                 }
             >
+                {showCreate && (
+                    <CreateUser
+                        connectionId={connectionId}
+                        onCreated={() => {
+                            setOffset(0);
+                            read.reload();
+                        }}
+                    />
+                )}
                 <form
                     className="neon-auth-search"
                     onSubmit={(event) => {
@@ -140,7 +149,7 @@ function AuthUserList({connectionId}: {connectionId: string}) {
                     </button>
                 </form>
                 {read.pending && (
-                    <p role="status" className="neon-hint">
+                    <p role="status" className="neon-hint neon-pending">
                         {t('authManager.loading')}
                     </p>
                 )}
@@ -196,15 +205,6 @@ function AuthUserList({connectionId}: {connectionId: string}) {
                     </>
                 )}
             </PanelSection>
-            {showCreate && (
-                <CreateUser
-                    connectionId={connectionId}
-                    onCreated={() => {
-                        setOffset(0);
-                        read.reload();
-                    }}
-                />
-            )}
         </>
     );
 }
@@ -290,7 +290,7 @@ function CreateUser({connectionId, onCreated}: {connectionId: string; onCreated:
                 </div>
             </form>
             {task.pending && (
-                <p role="status" className="neon-hint">
+                <p role="status" className="neon-hint neon-pending">
                     {t('authManager.saving')}
                 </p>
             )}
@@ -311,6 +311,9 @@ function CreateUser({connectionId, onCreated}: {connectionId: string; onCreated:
 function AuthUserView({connectionId, userId}: {connectionId: string; userId: string}) {
     const t = usePluginTranslation('neon');
     const id = useId();
+    const {openWorkspace} = usePluginWorkspace('neon');
+    const backToUsers = () =>
+        openWorkspace({id: 'users', title: `Neon · ${t('tabs.users')}`, connectionId});
     const read = useAuthRead<AuthUserDetails>(connectionId, 'neon_auth_user_details', {userId});
     const management = useNeonManagement(connectionId);
     const action = useTask<{kind: 'role' | 'delete'}>();
@@ -322,14 +325,26 @@ function AuthUserView({connectionId, userId}: {connectionId: string; userId: str
     const pending = action.pending || read.pending || management.pending;
     if (deleted)
         return (
-            <p role="status" className="neon-success">
-                {t('authManager.userDeleted')}
-            </p>
+            <div>
+                <p role="status" className="neon-success">
+                    {t('authManager.userDeleted')}
+                </p>
+                <button type="button" className="neon-button" onClick={backToUsers}>
+                    {t('authManager.backToUsers')}
+                </button>
+            </div>
         );
     return (
         <>
             <div className="neon-toolbar">
-                <p className="neon-description">{t('authManager.userDetails')}</p>
+                <button
+                    type="button"
+                    className="neon-button neon-button-quiet"
+                    onClick={backToUsers}
+                >
+                    {t('authManager.backToUsers')}
+                </button>
+                <p className="neon-description neon-grow">{t('authManager.userDetails')}</p>
                 <button
                     type="button"
                     className="neon-button"
@@ -340,7 +355,7 @@ function AuthUserView({connectionId, userId}: {connectionId: string; userId: str
                 </button>
             </div>
             {read.pending && (
-                <p role="status" className="neon-hint">
+                <p role="status" className="neon-hint neon-pending">
                     {t('authManager.loading')}
                 </p>
             )}
@@ -492,7 +507,7 @@ function AuthUserView({connectionId, userId}: {connectionId: string; userId: str
                 </>
             )}
             {action.pending && (
-                <p role="status" className="neon-hint">
+                <p role="status" className="neon-hint neon-pending">
                     {t('authManager.saving')}
                 </p>
             )}

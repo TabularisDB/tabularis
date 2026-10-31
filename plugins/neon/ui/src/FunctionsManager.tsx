@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useId, useRef, useState, type ReactNode} from 'react';
 import {
+    copyText,
     openUrl,
     PluginCodeEditor,
     PluginResourceList,
@@ -39,8 +40,8 @@ interface FunctionLogs {
 type Management = ReturnType<typeof useNeonManagement>;
 
 const functionStyles = `
-.neon-functions {min-width:0}
-.neon-functions .neon-functions-editor {height:360px;min-height:240px;border:1px solid var(--border-default);border-radius:var(--radius-sm);overflow:hidden;margin:12px 0}
+.neon-functions {min-width:0;max-width:1100px;margin:0 auto}
+.neon-functions .neon-functions-editor {height:clamp(280px,48vh,640px);min-height:240px;max-height:80vh;resize:vertical;border-radius:var(--radius-sm);overflow:hidden;margin:12px 0}
 .neon-functions .neon-functions-url {max-width:100%;overflow-wrap:anywhere;text-align:left}
 .neon-functions .neon-functions-output {margin-top:12px}
 .neon-functions .neon-functions-log {max-height:260px;overflow:auto;padding:0;list-style:none}
@@ -109,7 +110,7 @@ function OperationFeedback({pending, error}: {pending: boolean; error?: string})
     return (
         <>
             {pending && (
-                <p className="neon-hint" role="status">
+                <p className="neon-hint neon-pending" role="status">
                     {t('loading')}
                 </p>
             )}
@@ -339,7 +340,14 @@ function FunctionDetail({
     return (
         <>
             <div className="neon-toolbar">
-                <p className="neon-description">
+                <button
+                    type="button"
+                    className="neon-button neon-button-quiet"
+                    onClick={backToList}
+                >
+                    {t('functionsManager.backToList')}
+                </button>
+                <p className="neon-description neon-grow">
                     {t(
                         create
                             ? 'functionsManager.createDescription'
@@ -411,6 +419,21 @@ function FunctionDetail({
                                 {details.data.url}
                             </button>
                         )}
+                        {details.data?.url && (
+                            <button
+                                type="button"
+                                className="neon-button neon-button-quiet"
+                                disabled={busy}
+                                onClick={() =>
+                                    void mutation.run(async () => {
+                                        await copyText(details.data!.url!);
+                                        return {message: t('functionsManager.urlCopied')};
+                                    })
+                                }
+                            >
+                                {t('functionsManager.copyUrl')}
+                            </button>
+                        )}
                     </div>
                     <label className="neon-field-label" htmlFor={`${id}-name`}>
                         {t('functionsManager.displayName')}
@@ -446,34 +469,34 @@ function FunctionDetail({
             <PanelSection
                 title={t('functionsManager.source')}
                 hint={t('functionsManager.sourceHint')}
+                actions={
+                    <div className="neon-editor-tools">
+                        <label htmlFor={`${id}-language`}>{t('functionsManager.language')}</label>
+                        <select
+                            id={`${id}-language`}
+                            className="neon-field neon-field-compact"
+                            value={language}
+                            disabled={busy}
+                            onChange={(event) =>
+                                updateDraft({
+                                    ...draft,
+                                    language:
+                                        event.target.value === 'typescript'
+                                            ? 'typescript'
+                                            : 'javascript',
+                                })
+                            }
+                        >
+                            <option value="javascript">JavaScript · index.js</option>
+                            <option value="typescript">TypeScript · index.ts</option>
+                        </select>
+                        <span className="neon-status">Node.js 24</span>
+                    </div>
+                }
             >
                 {!create && details.data?.source === null && !draft.source && (
                     <p className="neon-hint">{t('functionsManager.sourceUnavailable')}</p>
                 )}
-                <div className="neon-inline-actions">
-                    <label className="neon-field-label" htmlFor={`${id}-language`}>
-                        {t('functionsManager.language')}
-                    </label>
-                    <select
-                        id={`${id}-language`}
-                        className="neon-field"
-                        value={language}
-                        disabled={busy}
-                        onChange={(event) =>
-                            updateDraft({
-                                ...draft,
-                                language:
-                                    event.target.value === 'typescript'
-                                        ? 'typescript'
-                                        : 'javascript',
-                            })
-                        }
-                    >
-                        <option value="javascript">JavaScript · index.js</option>
-                        <option value="typescript">TypeScript · index.ts</option>
-                    </select>
-                    <span className="neon-status">Node.js 24</span>
-                </div>
                 <div className="neon-functions-editor">
                     <PluginCodeEditor
                         label={t('functionsManager.source')}
@@ -521,8 +544,8 @@ function FunctionDetail({
                         )}
                     </div>
                 )}
-                <div className="neon-actionbar">
-                    <span className="neon-hint">{t('functionsManager.sessionDraftHint')}</span>
+                <p className="neon-hint">{t('functionsManager.sessionDraftHint')}</p>
+                <div className="neon-actionbar neon-actions-sticky">
                     <button
                         type="button"
                         className="neon-button"

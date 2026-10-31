@@ -189,6 +189,31 @@ try {
         assert.equal((await(await invalid).json()).data.valid,false);
         assert.deepEqual(errors,[]);
         console.log('PASS real Function tab: Monaco TypeScript/Node types, live errors, deployment guard and Core syntax validation; no deployment');
+        if(process.env.NEON_ACCOUNT_TEST_POLISH === '1') {
+          await page.getByRole('button',{name:'Dismiss',exact:true}).click({timeout:1000}).catch(()=>{});
+          await rpc('save_config',{config:{theme:'tabularis-light',followSystemTheme:false}});
+          await page.reload();
+          await page.getByRole('region',{name:'Function source',exact:true}).locator('.monaco-editor').waitFor();
+          await page.getByRole('button',{name:'Dismiss',exact:true}).click({timeout:1000}).catch(()=>{});
+          const collapse=page.getByRole('button',{name:'Collapse Explorer',exact:true});
+          if(await collapse.count())await collapse.click();
+          await page.setViewportSize({width:390,height:760});
+          await page.getByRole('button',{name:'Validate function',exact:true}).scrollIntoViewIfNeeded();
+          const mobile=await page.locator('[data-plugin-workspace]').evaluate(panel=>{
+            const box=panel.getBoundingClientRect();const content=panel.querySelector('[data-workspace-content]');
+            return {left:box.left,right:box.right,width:innerWidth,scroll:content.scrollWidth,client:content.clientWidth};
+          });
+          assert(mobile.left>=0 && mobile.right<=mobile.width+1 && mobile.scroll<=mobile.client+1,'Function form overflows the mobile workspace');
+          await page.screenshot({path:resolve(root,'plugins/neon/artifacts/function-polished-light-mobile.png')});
+          await page.setViewportSize({width:1280,height:860});
+          await rpc('save_config',{config:{theme:'tabularis-dark',followSystemTheme:false}});
+          await page.reload();
+          await page.getByRole('region',{name:'Function source',exact:true}).locator('.monaco-editor').waitFor();
+          await page.getByRole('button',{name:'Dismiss',exact:true}).click({timeout:1000}).catch(()=>{});
+          await page.screenshot({path:resolve(root,'plugins/neon/artifacts/function-polished-dark-desktop.png')});
+          console.log('PASS polished Function form: light/dark themes, 390px workspace, wrapped code, reachable toolbar and actions');
+        }
+
         } catch(error) {
           await page.screenshot({path:resolve(root,'plugins/neon/artifacts/function-editor-failure.png')});
           console.log('Editor diagnostic:',(await page.locator('.neon-functions').innerText()).slice(0,2000));

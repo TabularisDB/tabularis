@@ -210,7 +210,8 @@
       "signedOut": "No reusable CLI sign-in was found. Sign in with the CLI or use an API key.",
       "unavailableProfile": "The CLI profile could not be checked. Retry or use an API key.",
       "profile": "CLI profile",
-      "profileStorageHint": "New browser sign-in creates a separate file-backed Tabularis CLI profile. Existing CLI profiles stay unchanged. Disconnecting Tabularis does not sign the CLI out."
+      "profileStorageHint": "New browser sign-in creates a separate file-backed Tabularis CLI profile. Existing CLI profiles stay unchanged. Disconnecting Tabularis does not sign the CLI out.",
+      "signInDetails": "How sign-in works"
     }
   },
   "authManager": {
@@ -255,7 +256,8 @@
     "deleteConfirm": "Permanently delete this user from the selected branch? This can affect application data linked to this identity.",
     "cancel": "Cancel",
     "confirmDelete": "Confirm deletion",
-    "userDeleted": "User deleted."
+    "userDeleted": "User deleted.",
+    "backToUsers": "All users"
   },
   "functionsManager": {
     "accountRequired": "Connect a Neon account and select a project branch to manage Functions.",
@@ -263,17 +265,17 @@
     "newFunction": "New function",
     "listLabel": "Branch functions",
     "empty": "No functions have been deployed on this branch.",
-    "createDescription": "Create a JavaScript or TypeScript function on this branch. Deployment makes its HTTP endpoint available.",
+    "createDescription": "Create a function on this branch.",
     "editDescription": "Manage this function on the selected branch. Refresh to check an asynchronous deployment.",
     "slug": "Function slug",
-    "slugHint": "1–20 lowercase letters or digits. The slug becomes part of the URL and cannot be renamed.",
+    "slugHint": "1–20 lowercase letters or digits. Permanent URL identifier.",
     "displayName": "Display name",
     "rename": "Rename",
     "renamed": "Function display name updated.",
     "source": "Function source",
-    "sourceHint": "JavaScript or TypeScript with a default request handler or fetch object. Node.js built-in imports are supported; bundle npm dependencies and additional files with the Neon CLI.",
+    "sourceHint": "Default-export a request handler or an object with fetch(request).",
     "sourceUnavailable": "Neon does not return the deployed source. Paste your local source to replace this function; the existing code stays unchanged until you confirm deployment.",
-    "sessionDraftHint": "Source drafts survive tab switching during this session. Keep a local copy before restarting the app.",
+    "sessionDraftHint": "Draft kept while switching tabs. Save a local copy before restarting.",
     "deploy": "Deploy function",
     "confirmDeployment": "Confirm deployment",
     "replaceWarning": "Replace the deployed source of {{slug}} on this branch? The previous code may stop serving while the new deployment starts.",
@@ -300,12 +302,14 @@
     "deleteWarning": "Delete {{slug}} and its deployed endpoint from this branch? This cannot be undone.",
     "deleted": "Function {{slug}} deleted.",
     "backToList": "Back to functions",
-    "activationWarning": "Live tests found that endpoints kept serving previous code and environment values after Neon reported an active, completed update. New function creation worked. Verify the endpoint after submitting updates; activation is currently unreliable in this tested environment.",
+    "activationWarning": "After updating, invoke the function to verify the result. In this environment, Neon has sometimes continued serving the previous revision.",
     "language": "Language",
     "problems": "Problems",
     "validate": "Validate function",
     "validationPassed": "Compilation passed · {{bytes}} bytes · Node.js 24",
-    "validationFailed": "Fix the errors before deploying."
+    "validationFailed": "Fix the errors before deploying.",
+    "copyUrl": "Copy URL",
+    "urlCopied": "Function URL copied."
   },
   "management": {
     "missingBinding": "Save the Neon project and branch in Connection / Setup before managing services.",

@@ -176,6 +176,32 @@ the mature Postgres driver for large exports and session-dependent workflows.
 View/routine creation and alteration are not advertised. The separate demo
 implements end-user sign-in.
 
+## UI verification
+
+Provider screens share compact native controls, keyboard focus, reduced-motion
+loading indicators, responsive field grids and consistent feedback. Function
+editors wrap long lines, resize vertically and keep validation/deployment actions
+reachable while scrolling. Lists and details have explicit return navigation;
+function URLs can be copied through the host clipboard. CLI sign-in keeps detailed
+storage/host explanations in an accessible disclosure.
+
+The browser checks include real storage uploads/deletion and AI completions,
+service-tab restoration and SQL navigation. To also check the function editor at
+390px in the built-in light/dark themes with an existing CLI profile:
+
+```sh
+NEON_ACCOUNT_TEST_AUTH_MODE=cli NEON_ACCOUNT_TEST_BROWSER=1 NEON_ACCOUNT_TEST_EDITOR=1 NEON_ACCOUNT_TEST_POLISH=1 node tests/account-host-e2e.mjs
+NEON_MANAGEMENT_TEST_USE_CLI=1 node tests/management-host-e2e.mjs
+```
+
+Management tests use a refreshable CLI profile reference, create disposable
+functions/users, exercise confirmations and remove their resources. The suite
+also verifies updated code and environment values at the public function endpoint;
+it exits nonzero when Neon reports an active deployment but serves old values.
+The latest run passed activation as well as creation, initial invocation, rename,
+clipboard, Auth role changes and deletion. Polling is bounded so persistent stale
+revisions remain test failures.
+
 ## Functions and Auth management
 
 Connect a Neon account with access to the saved connection's project. Existing
@@ -206,13 +232,14 @@ return through metadata. Local mutations to the same function are serialized;
 the provider does not expose an atomic create-only operation to prevent races
 with unrelated external clients.
 
-**Known activation failure:** live tests found that Neon reported a completed,
-active deployment 2 while fresh endpoint requests continued serving revision 1
-and previous environment values. This affected code and environment updates;
-closing HTTP connections did not resolve it. New function creation, initial
-execution, metadata changes and deletion worked. The UI warns before updating
-an existing function. Do not treat an accepted deployment as proof of updated
-runtime behavior; `tests/activation-diagnostic.mjs` reproduces the observed issue.
+**Activation timing:** earlier live runs returned old code/environment values even
+though Neon reported a completed, active deployment. The latest full UI test
+successfully deployed TypeScript and verified the changed environment at the
+endpoint by checking up to six times, two seconds apart. API acceptance/active
+metadata alone is still not proof of runtime behavior: invoke the endpoint after
+updates. The UI keeps that reminder visible, and the management suite exits
+nonzero if the new revision never appears. `tests/activation-diagnostic.mjs`
+retains the earlier diagnostic for investigating persistent failures.
 
 **Auth:** search and paginate users, inspect identity/session metadata, create
 identities with name/email, update the supported user/admin role, and confirm

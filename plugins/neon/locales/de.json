@@ -210,7 +210,8 @@
       "signedOut": "Keine übernehmbare CLI-Anmeldung gefunden. Melde dich mit der CLI an oder nutze einen API-Key.",
       "unavailableProfile": "Das CLI-Profil konnte nicht geprüft werden. Prüfe erneut oder nutze einen API-Key.",
       "profile": "CLI-Profil",
-      "profileStorageHint": "Eine neue Browseranmeldung erstellt ein eigenes dateibasiertes Tabularis-CLI-Profil. Vorhandene CLI-Profile bleiben unverändert. Das Trennen von Tabularis meldet die CLI nicht ab."
+      "profileStorageHint": "Eine neue Browseranmeldung erstellt ein eigenes dateibasiertes Tabularis-CLI-Profil. Vorhandene CLI-Profile bleiben unverändert. Das Trennen von Tabularis meldet die CLI nicht ab.",
+      "signInDetails": "So funktioniert die Anmeldung"
     }
   },
   "authManager": {
@@ -255,7 +256,8 @@
     "deleteConfirm": "Diesen Benutzer dauerhaft aus dem ausgewählten Branch löschen? Das kann Anwendungsdaten betreffen, die mit dieser Identität verknüpft sind.",
     "cancel": "Abbrechen",
     "confirmDelete": "Löschen bestätigen",
-    "userDeleted": "Benutzer gelöscht."
+    "userDeleted": "Benutzer gelöscht.",
+    "backToUsers": "Alle Benutzer"
   },
   "functionsManager": {
     "accountRequired": "Verbinde ein Neon-Konto und wähle einen Projekt-Branch, um Functions zu verwalten.",
@@ -263,17 +265,17 @@
     "newFunction": "Neue Function",
     "listLabel": "Functions des Branches",
     "empty": "Auf diesem Branch wurden noch keine Functions bereitgestellt.",
-    "createDescription": "Erstelle eine JavaScript- oder TypeScript-Function auf diesem Branch. Das Deployment stellt ihren HTTP-Endpunkt bereit.",
+    "createDescription": "Erstelle eine Function auf diesem Branch.",
     "editDescription": "Verwalte diese Function auf dem ausgewählten Branch. Aktualisiere die Ansicht, um ein laufendes Deployment zu prüfen.",
     "slug": "Function-Slug",
-    "slugHint": "1–20 Kleinbuchstaben oder Ziffern. Der Slug wird Teil der URL und kann nicht umbenannt werden.",
+    "slugHint": "1–20 Kleinbuchstaben oder Ziffern. Dauerhafter Bezeichner der URL.",
     "displayName": "Anzeigename",
     "rename": "Umbenennen",
     "renamed": "Anzeigename der Function aktualisiert.",
     "source": "Function-Quellcode",
-    "sourceHint": "JavaScript oder TypeScript mit einem als default exportierten Handler oder fetch-Objekt. Node.js-Module werden unterstützt; npm-Abhängigkeiten und weitere Dateien über die Neon CLI bündeln.",
+    "sourceHint": "Exportiere einen Request-Handler oder ein Objekt mit fetch(request) als default.",
     "sourceUnavailable": "Neon liefert den bereitgestellten Quellcode nicht zurück. Füge deinen lokalen Quellcode ein, um diese Function zu ersetzen. Bis zur bestätigten Bereitstellung bleibt der bestehende Code unverändert.",
-    "sessionDraftHint": "Quellcode-Entwürfe bleiben beim Tabwechsel in dieser Sitzung erhalten. Sichere eine lokale Kopie, bevor du die App neu startest.",
+    "sessionDraftHint": "Entwurf bleibt beim Tabwechsel erhalten. Vor dem Neustart lokal sichern.",
     "deploy": "Function bereitstellen",
     "confirmDeployment": "Deployment bestätigen",
     "replaceWarning": "Den bereitgestellten Quellcode von {{slug}} auf diesem Branch ersetzen? Während das neue Deployment startet, kann die bisherige Version vorübergehend nicht erreichbar sein.",
@@ -300,12 +302,14 @@
     "deleteWarning": "{{slug}} und den bereitgestellten Endpunkt aus diesem Branch löschen? Das kann nicht rückgängig gemacht werden.",
     "deleted": "Function {{slug}} gelöscht.",
     "backToList": "Zurück zu Functions",
-    "activationWarning": "Im Live-Test lieferten Endpoints trotz aktivem, abgeschlossenem Neon-Update weiterhin bisherigen Code und bisherige Environment-Werte. Die Neuanlage funktionierte. Prüfe den Endpoint nach Updates; die Aktivierung ist in der getesteten Umgebung derzeit unzuverlässig.",
+    "activationWarning": "Rufe die Function nach einem Update auf, um das Ergebnis zu prüfen. In dieser Umgebung hat Neon teilweise weiterhin die vorherige Revision ausgeliefert.",
     "language": "Sprache",
     "problems": "Probleme",
     "validate": "Function prüfen",
     "validationPassed": "Kompilierung erfolgreich · {{bytes}} Bytes · Node.js 24",
-    "validationFailed": "Behebe die Fehler vor dem Deployment."
+    "validationFailed": "Behebe die Fehler vor dem Deployment.",
+    "copyUrl": "URL kopieren",
+    "urlCopied": "Function-URL kopiert."
   },
   "management": {
     "missingBinding": "Speichere Neon-Projekt und Branch unter Verbindung / Einrichtung, bevor du Dienste verwaltest.",

@@ -136,6 +136,20 @@ describe('Functions manager', () => {
         expect(screen.queryByText('2:3 · Unexpected token')).toBeNull();
     });
 
+    it('returns to the functions list without losing the source draft', async () => {
+        render(createElement(FunctionsManager, {connectionId: 'conn', create: true}));
+        fireEvent.change(screen.getByLabelText('functionsManager.source'), {
+            target: {value: 'export default {fetch() {return new Response("draft")}}'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'functionsManager.backToList'}));
+        expect(openWorkspace).toHaveBeenCalledWith({
+            id: 'functions',
+            title: 'Neon · tabs.functions',
+            connectionId: 'conn',
+        });
+        expect(call).not.toHaveBeenCalledWith('account_function_deploy', expect.anything());
+    });
+
     it('sends only changed environment keys and clears their draft after save', async () => {
         render(createElement(FunctionsManager, {connectionId: 'conn', slug: 'hello'}));
         await screen.findByText('EXISTING_SECRET');

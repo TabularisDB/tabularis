@@ -1,19 +1,17 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, writeFile, rm, open } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, open } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
-// CLI credentials are test-only and opt-in; the installed plugin never reads this file.
-let apiKey = process.env.NEON_API_KEY;
-if (!apiKey && process.env.NEON_MANAGEMENT_TEST_USE_CLI === '1') {
-  const auth = JSON.parse(await readFile(join(homedir(), '.config/neon/credentials.json'), 'utf8'));
-  apiKey = auth.access_token;
-}
-assert(typeof apiKey === 'string' && apiKey, 'Set NEON_API_KEY or explicitly permit the current CLI token with NEON_MANAGEMENT_TEST_USE_CLI=1');
+// Reuse the same refreshable profile reference as the installed plugin.
+const apiKey = process.env.NEON_API_KEY;
+const cliMode = process.env.NEON_MANAGEMENT_TEST_USE_CLI === '1';
+const cliProfile = process.env.NEON_MANAGEMENT_TEST_CLI_PROFILE ?? 'DEFAULT';
+assert(cliMode || typeof apiKey === 'string' && apiKey, 'Set NEON_API_KEY or NEON_MANAGEMENT_TEST_USE_CLI=1');
 const projectId = process.env.NEON_ACCOUNT_TEST_PROJECT_ID ?? 'solitary-leaf-07190439';
 const orgId = process.env.NEON_ACCOUNT_TEST_ORG_ID ?? 'org-empty-pine-21623834';
 const branchName = process.env.NEON_ACCOUNT_TEST_BRANCH ?? 'production';
@@ -26,7 +24,7 @@ const origin = `http://127.0.0.1:${process.env.NEON_MANAGEMENT_TEST_PORT ?? 3050
 const password = randomBytes(32).toString('base64url');
 const log = await open(join(temp, 'server.log'), 'w', 0o600);
 const server = spawn(resolve(root, 'src-tauri/target/debug/tabularis'), ['web', '--host', '127.0.0.1', '--port', new URL(origin).port, '--no-open', '--auth', 'password', '--allow-high-risk', '--public-url', origin, '--allowed-origin', origin, '--web-root', resolve(root, 'packages/web-ui/dist')], {
-  env: { ...process.env, XDG_CONFIG_HOME: join(temp, 'config'), TABULARIS_WEB_PASSWORD: password, TABULARIS_SECRET_STORE: 'file', TABULARIS_SECRET_KEY: randomBytes(32).toString('hex'), TABULARIS_SECRET_STORE_PATH: join(temp, 'secrets.json') },
+  env: { ...process.env, ...(cliMode ? {NEON_CONFIG_DIR:process.env.NEON_CONFIG_DIR ?? join(homedir(),'.config','neon')} : {}), XDG_CONFIG_HOME: join(temp, 'config'), TABULARIS_WEB_PASSWORD: password, TABULARIS_SECRET_STORE: 'file', TABULARIS_SECRET_KEY: randomBytes(32).toString('hex'), TABULARIS_SECRET_STORE_PATH: join(temp, 'secrets.json') },
   stdio: ['ignore', log.fd, log.fd],
 });
 let cookie;
@@ -35,6 +33,7 @@ let connectionId;
 let connected = false;
 let browser;
 const results = [];
+let activationFailure = false;
 
 async function rpc(command, payload) {
   const response = await fetch(`${origin}/api/v1/rpc/${command}`, { method: 'POST', headers: { origin, cookie, 'content-type': 'application/json', 'x-tabularis-csrf': csrf }, body: JSON.stringify(payload) });
@@ -59,7 +58,7 @@ try {
   cookie = login.headers.get('set-cookie').split(';')[0];
   csrf = (await (await fetch(`${origin}/api/v1/session`, { headers: { cookie } })).json()).csrfToken;
   assert(csrf);
-  await account('connect', {secrets:{NEON_API_KEY:apiKey}});connected=true;
+  await account('connect', {secrets:cliMode ? {NEON_CLI_AUTH:cliProfile} : {NEON_API_KEY:apiKey}});connected=true;
 
   const branchId = (await call('account_branches',{projectId})).branches.find(item=>item.name===branchName)?.id;
   assert(branchId,'Requested branch was not found');
@@ -87,7 +86,7 @@ try {
   }
   try {
     browser=await chromium.launch({executablePath:process.env.CHROME_PATH??'/usr/bin/google-chrome-stable',headless:true});
-    const context=await browser.newContext({colorScheme:'dark',viewport:{width:1280,height:900}});
+    const context=await browser.newContext({colorScheme:'dark',viewport:{width:1280,height:900},permissions:['clipboard-read','clipboard-write']});
     const split=cookie.indexOf('=');
     await context.addCookies([{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,sameSite:'Strict'}]);
     page=await context.newPage();
@@ -111,6 +110,8 @@ try {
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/management-function-source.png')});
     });
     await check('Function rename, configuration submission and invocation work in the native view',async()=>{
+      await page.getByRole('button',{name:'Copy URL',exact:true}).click();
+      await page.getByText('Function URL copied.',{exact:true}).waitFor();
       await page.getByLabel('Display name',{exact:true}).fill(displayName);
       await page.getByRole('button',{name:'Rename',exact:true}).click();
       await page.getByText('Function display name updated.',{exact:true}).waitFor();
@@ -142,6 +143,42 @@ try {
       await page.getByRole('button',{name:'Save role',exact:true}).click();
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/management-auth-user.png')});
     });
+    try {
+      await nav.getByRole('button',{name:'Functions',exact:true}).click();
+      await page.getByRole('button',{name:displayName,exact:true}).click();
+      await page.getByLabel('Language',{exact:true}).selectOption('typescript');
+      const editor=page.getByRole('region',{name:'Function source',exact:true}).locator('.monaco-editor');
+      await editor.click({position:{x:100,y:40}});
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.evaluate(source=>navigator.clipboard.writeText(source),'export default { fetch(request: Request): Response { return Response.json({revision: 2, environment: process.env.TABULARIS_UI_TEST}); } };');
+      await page.keyboard.press('ControlOrMeta+V');
+      const validation=page.waitForResponse(response=>response.url().endsWith('/rpc/plugin_account')&&response.request().postDataJSON()?.method==='account_function_validate');
+      await page.getByRole('button',{name:'Validate function',exact:true}).click();
+      const checked=await(await validation).json();
+      assert(checked.ok && checked.data.valid,'Pasted source did not pass validation');
+      await page.getByRole('button',{name:'Deploy function',exact:true}).click();
+      const response=page.waitForResponse(response=>response.url().endsWith('/rpc/plugin_account')&&response.request().postDataJSON()?.method==='account_function_deploy');
+      await page.getByRole('button',{name:'Confirm deployment',exact:true}).click();
+      const envelope=await(await response).json();
+      assert(envelope.ok,`Core deployment rejected: ${envelope.error?.message ?? 'unknown error'}`);
+      const deployment=envelope.data;
+      const state=await waitDeployment(deployment.id);
+      let activated=false;
+      for(let attempt=0;attempt<6;attempt++){
+        const invoked=await manage('account_function_invoke',{slug,method:'GET'});
+        assert.equal(invoked.status,200);
+        let actual;try{actual=JSON.parse(invoked.body)}catch{}
+        if(actual?.revision===2 && actual.environment==='enabled'){activated=true;break;}
+        if(attempt<5)await new Promise(resolve=>setTimeout(resolve,2000));
+      }
+      assert(activated,`Neon activation mismatch: current=${state.deploymentId}, active=${state.activeDeploymentId}; endpoint did not serve updated source/environment after six checks`);
+      console.log('PASS Function browser: TypeScript redeployment and environment are live at the endpoint');
+    } catch(error) {
+      activationFailure=true;
+      console.error('FAIL Function redeployment activation:', error.message);
+    }
+    await nav.getByRole('button',{name:'Auth',exact:true}).click();
+    await page.getByRole('button',{name:displayName,exact:true}).click();
     await check('Destructive Auth and Function actions require confirmation and delete only test resources',async()=>{
       await page.getByRole('button',{name:'Delete user',exact:true}).click();
       await page.getByRole('button',{name:'Confirm deletion',exact:true}).click();
@@ -161,9 +198,10 @@ try {
     if(userId)await manage('account_auth_delete_user',{userId}).catch(()=>{});
     if(functionCreated)await manage('account_function_delete',{slug}).catch(()=>{});
   }
-  console.log(`PASS ${results.length} real management browser checks; disposable resources removed`);
+  console.log(`${activationFailure ? "PARTIAL" : "PASS"} ${results.length} management browser checks passed; activation ${activationFailure ? "failed" : "passed"}; disposable resources removed`);
+  if(activationFailure) process.exitCode=1;
 } catch (error) {
-  console.error(error instanceof Error ? error.message.replaceAll(apiKey,'[account credential]') : 'Management browser test failed');
+  console.error(error instanceof Error ? (apiKey ? error.message.replaceAll(apiKey,'[account credential]') : error.message) : 'Management browser test failed');
   process.exitCode=1;
 } finally {
   await browser?.close();

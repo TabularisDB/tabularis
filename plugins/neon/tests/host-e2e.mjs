@@ -86,6 +86,7 @@ try {
     const split = cookie.indexOf('=');
     await context.addCookies([{ name: cookie.slice(0, split), value: cookie.slice(split + 1), url: origin, httpOnly: true, sameSite: 'Strict' }]);
     const page = await context.newPage();
+    page.setDefaultTimeout(20000);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin);
@@ -118,6 +119,15 @@ try {
       assert.equal(await page.getByLabel('Object key',{exact:true}).inputValue(),objectKey);
       await page.getByRole('button',{name:'Read object',exact:true}).click();
       await page.locator('.neon-output').filter({hasText:'Native storage selection'}).waitFor();
+      await page.getByLabel('Text content',{exact:true}).fill('Updated through native storage UI');
+      await page.getByRole('button',{name:'Save object',exact:true}).click();
+      await page.locator('.neon-panel .neon-confirmation').getByRole('button',{name:'Confirm',exact:true}).click();
+      await page.getByText('Object saved.',{exact:true}).waitFor();
+      assert.equal((await extension('neon_storage_get',{key:objectKey})).body,'Updated through native storage UI');
+      await page.getByRole('button',{name:'Delete object',exact:true}).click();
+      await page.locator('.neon-panel .neon-confirmation').getByRole('button',{name:'Confirm',exact:true}).click();
+      await page.getByText('Object deleted.',{exact:true}).waitFor();
+      console.log('PASS Storage browser: select, read, confirmed upload and deletion');
       await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-storage.png',import.meta.url))});
     } finally { await extension('neon_storage_delete',{key:objectKey}); }
 
@@ -166,7 +176,15 @@ try {
     await nav.getByRole('button',{name:'AI Gateway',exact:true}).click();
     await page.getByRole('button',{name:'Load models',exact:true}).click();
     await page.waitForFunction(()=>{const model=document.querySelector('#neon-model');return model && !model.disabled;});
-    await page.getByLabel('Prompt',{exact:true}).fill('Explain what this database connection can do.');
+    const modelOptions=await page.getByLabel('Model',{exact:true}).locator('option').evaluateAll(options=>options.filter(option=>!option.disabled).map(option=>option.value));
+    const chatModel=modelOptions.find(value=>/gpt-4o-mini|llama.*(8b|small)|haiku/i.test(value)) ?? modelOptions.find(value=>!/embed|codex|pro|image/i.test(value));
+    assert(chatModel,'No chat model is enabled');
+    await page.getByLabel('Model',{exact:true}).selectOption(chatModel);
+    await page.getByLabel('Prompt',{exact:true}).fill('Reply with exactly: Tabularis Neon OK');
+    await page.getByRole('button',{name:'Send prompt',exact:true}).click();
+    await page.locator('.neon-answer').waitFor();
+    assert((await page.locator('.neon-answer').innerText()).length>0);
+    console.log('PASS AI Gateway browser: enabled chat model, prompt and real response');
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-ai.png',import.meta.url))});
     await nav.getByRole('button',{name:'Functions',exact:true}).click();
     await page.getByRole('button',{name:'Invoke hello function',exact:true}).click();

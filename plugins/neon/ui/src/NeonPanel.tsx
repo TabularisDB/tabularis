@@ -75,7 +75,11 @@ export function NeonPanel({
         <div className="neon-panel">
             <style>{styles}</style>
             <PluginWorkspaceShell
-                title={t(`tabs.${serviceId}`)}
+                title={
+                    createFunction
+                        ? t('functionsManager.newFunction')
+                        : (functionSlug ?? t(`tabs.${serviceId}`))
+                }
                 subtitle={connectionName ?? t('selectedConnection')}
                 actions={<ConsoleLink />}
             >
@@ -115,7 +119,7 @@ function Feedback({
     return (
         <>
             {pending && (
-                <div className="neon-feedback" role="status">
+                <div className="neon-feedback neon-pending" role="status">
                     {t(waiting ? 'waiting' : 'loading')}
                 </div>
             )}
