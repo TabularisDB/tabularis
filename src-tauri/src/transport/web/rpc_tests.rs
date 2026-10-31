@@ -3146,3 +3146,40 @@ async fn plugin_extensions_enforce_web_authorization_and_reject_credential_injec
     );
     assert!(RpcCommand::parse("get_plugin_secrets").is_none());
 }
+
+#[tokio::test]
+async fn provider_accounts_are_admin_only_and_reject_injected_connection_parameters() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    for operation in ["fields", "disconnect", "connect", "call", "import"] {
+        let payload = serde_json::json!({"pluginId":"neon","operation":operation});
+        for level in [
+            AuthorizationLevel::Session,
+            AuthorizationLevel::Database,
+            AuthorizationLevel::Sensitive,
+        ] {
+            assert_eq!(
+                dispatch_json(
+                    &dispatcher,
+                    "plugin_account",
+                    payload.clone(),
+                    Some(Uuid::new_v4()),
+                    level
+                )
+                .await
+                .status(),
+                StatusCode::FORBIDDEN
+            );
+        }
+    }
+    let invalid = dispatch_json(&dispatcher,"plugin_account",serde_json::json!({"pluginId":"neon","operation":"import","args":{},"params":{"password":"injected"}}),Some(Uuid::new_v4()),AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+    let valid = dispatch_json(
+        &dispatcher,
+        "plugin_account",
+        serde_json::json!({"pluginId":"neon","operation":"fields"}),
+        Some(Uuid::new_v4()),
+        AuthorizationLevel::LocalAdmin,
+    )
+    .await;
+    assert_eq!(valid.status(), StatusCode::OK);
+}

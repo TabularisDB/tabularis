@@ -214,6 +214,7 @@ enum OperationalRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PluginRpcCommand {
+    Account,
     CallExtension,
     SetSecrets,
     SecretFields,
@@ -2188,6 +2189,7 @@ impl OperationalRpcCommand {
 impl PluginRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "plugin_account" => Self::Account,
             "call_plugin_extension" => Self::CallExtension,
             "set_plugin_secrets" => Self::SetSecrets,
             "get_plugin_secret_fields" => Self::SecretFields,
@@ -2957,6 +2959,7 @@ fn decode_mcp_host_command(
 fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<PluginCommand, String> {
     use crate::application::plugin_extensions::ExtensionCommand;
     Ok(match command {
+        PluginRpcCommand::Account => PluginCommand::Account(decode_payload(body)?),
         PluginRpcCommand::CallExtension => {
             PluginCommand::Extension(ExtensionCommand::Call(decode_payload(body)?))
         }

@@ -4,6 +4,7 @@
     "@neon/config": "^1.9.6",
     "@neon/env": "^1.6.6",
     "@neon/realtime": "^0.1.2",
+    "@neon/sdk": "7.6.1",
     "@tabularis/explain": "^0.2.0",
     "dotenv": "^18.0.9",
     "jose": "^6.2.14",
@@ -26,7 +27,7 @@
   "scripts": {
     "build": "pnpm build:runtime && pnpm build:ui",
     "start": "node dist/driver.js",
-    "test": "node --test tests/unit.mjs",
+    "test": "node --test tests/unit.mjs tests/account.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "build:runtime": "tsc -p tsconfig.json",
     "build:ui": "pnpm --dir ui build",

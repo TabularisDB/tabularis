@@ -13,6 +13,7 @@ pub mod notebooks;
 pub mod operations;
 pub mod persistence;
 pub mod plugin_assets;
+pub mod plugin_accounts;
 pub mod plugin_extensions;
 pub mod plugins;
 pub mod productivity;

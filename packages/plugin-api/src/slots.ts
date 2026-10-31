@@ -25,6 +25,7 @@ export interface PluginSecretFieldState {
  * `packages/web-ui/src/contexts/PluginSlotProvider.tsx` and related renderers.
  */
 export type SlotContextMap = {
+    'connections.actions': {onConnectionCreated: () => void | Promise<void>};
     'editor.workspace.content': {
         pluginId: string;
         workspaceId: string;

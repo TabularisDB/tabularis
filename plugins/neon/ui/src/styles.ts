@@ -82,6 +82,18 @@ export const styles = `
 .neon-field-list {list-style:none;padding:0;margin:0}
 .neon-field-list li {display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border-default);color:var(--text-secondary);font-size:11px;min-width:0}
 .neon-field-list code {font-family:var(--font-mono);overflow-wrap:anywhere}
+.neon-account {padding:20px;height:auto;min-height:100%;overflow:visible;box-sizing:border-box}
+.neon-account > h3 {margin:0 0 10px;font-size:14px}
+.neon-account-connected {display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0 4px;padding:10px 0;border-top:1px solid var(--border-default);border-bottom:1px solid var(--border-default)}
+.neon-account-service-warning {display:block;margin-top:4px;font-size:11px;color:var(--text-muted);line-height:1.5;overflow-wrap:anywhere}
+.neon-account .neon-account-subtitle {font-size:12px;margin:20px 0 8px}
+.neon-account-check {display:flex;align-items:flex-start;gap:8px;margin-top:18px;font-size:12px;color:var(--text-primary);line-height:1.5}
+.neon-account-check input {margin-top:3px;accent-color:var(--accent-primary);flex-shrink:0}
+.neon-account-warnings {font-size:12px;color:var(--text-secondary);line-height:1.6;padding-left:20px;margin:16px 0}
+.neon-account .neon-inline-actions {margin-top:20px}
+.neon-connect-action {display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-lg);background:var(--bg-elevated);color:var(--text-primary);font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.neon-connect-action:hover {background:var(--surface-hover);border-color:var(--accent-primary)}
+.neon-connect-action:focus-visible {outline:2px solid var(--border-focus);outline-offset:2px}
 @container(max-width:740px){.neon-workbench,.neon-workbench-balanced,.neon-workbench-settings{grid-template-columns:minmax(0,1fr);gap:18px}.neon-service{gap:8px}.neon-service-name > span{max-width:42ch}.neon-toolbar{gap:10px}.neon-status{font-size:10px}}
 @container(max-width:400px){.neon-summary-strip{grid-template-columns:minmax(0,1fr);gap:10px}.neon-summary-strip > div{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.neon-summary-strip dt{margin:0}.neon-summary-strip dd{font-size:12px}.neon-service-name > span{display:none}.neon-meta-list > div{grid-template-columns:minmax(0,1fr);gap:4px}.neon-data-region{min-height:160px}}
 `;

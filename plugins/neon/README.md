@@ -41,6 +41,34 @@ Release publication/signing is outside this prototype.
 
 ## Configure a connection
 
+### Connect an existing Neon account
+
+On **Connections**, click **Connect Neon**. Enter a Neon API key with access to
+the intended organization/project. The key is stored in the host's secret store
+(OS keyring on desktop), separately from database connections. Select the
+organization, project, branch, database and role, then import the connection.
+The host saves the SQL password and discovered service credentials internally;
+the UI receives only the connection ID, display name and any warnings.
+
+The importer discovers existing Auth, Storage, AI Gateway, Functions and Realtime
+resources. It does not enable or deploy services. **Create service credentials**
+is off by default. Enabling it explicitly creates one branch-scoped credential
+for the enabled Storage/AI services; otherwise their endpoints are discovered
+but those services still need a credential import. Existing Realtime secrets
+can be retrieved without rotation. API permission failures appear as warnings.
+
+Disconnecting the account removes the locally stored account key. Imported
+connections retain their independent SQL/service access. It does not revoke the
+remote API key or delete remote service credentials. One account credential is
+stored per provider plugin in this prototype; replacing it does not modify
+existing connections.
+
+Neon's partner OAuth client is not available yet, so this entry uses an API key
+and does not pretend to perform a Neon browser sign-in. A later OAuth connector
+can use the same account/resource selection and host import interface.
+
+### Import credentials manually
+
 Select Neon in the connection picker and import its Postgres URL. SQL always
 uses the saved connection's credentials and verified TLS. Expand **Neon** in the
 Structure explorer and open a service. Each service has its own normal editor
@@ -64,8 +92,9 @@ Required service variables:
 Optional: `NEON_PROJECT_ID` and `NEON_API_KEY` enable project branch listing.
 A project API key is distinct from a branch service credential. Native account
 OAuth requires Neon's partner registration and is not fabricated here. Branch
-creation/switching is not yet implemented; SQL and service credentials must
-already refer to the same intended branch.
+creation/switching is not implemented. Account import selects a branch and saves
+a separate connection; manually pasted SQL/service credentials must refer to
+the same intended branch.
 
 The repository's `.env.local` is only used by explicit local CLI/test runs.
 Host-scoped service calls never fall back to it. Generic extension calls and secret writes require LocalAdmin authorization in the web transport; stored field names require database access. SQL credentials are derived
@@ -112,6 +141,12 @@ administrative inspection; the separate demo implements end-user sign-in.
 
 ## Reusable Core integration
 
+The generic `usePluginAccount` API and `connections.actions` slot let a provider
+connect before any database connection exists. The administrator-only Core
+account command separates account credentials from connection service bundles,
+reserves the secret-bearing import method, and imports credentials atomically
+without a plaintext fallback when the secret store fails.
+
 The Core owns `PluginExplorerSection` (native collapsible explorer entries),
 `usePluginWorkspace` (connection-scoped service tabs), `PluginWorkspaceShell`
 (compact native toolbar/content layout), and `PluginDataGrid` (the real native
@@ -136,6 +171,8 @@ pnpm test
 pnpm test:e2e
 pnpm test:scoped
 pnpm test:host
+# Read-only real account/import checks; uses an existing API key:
+NEON_API_KEY=... node tests/account-host-e2e.mjs
 ```
 
 E2E tests launch the real stdio executable. They cover SQL/metadata/CRUD/EXPLAIN,

@@ -1,0 +1,134 @@
+// @vitest-environment jsdom
+import {act, renderHook, waitFor} from '@testing-library/react';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {useAccountBrowser} from '../../src/hooks/useAccountBrowser';
+
+const {account} = vi.hoisted(() => ({
+    account: {
+        connect: vi.fn(),
+        secretFields: vi.fn(),
+        disconnect: vi.fn(),
+        call: vi.fn(),
+        importConnection: vi.fn(),
+    },
+}));
+vi.mock('@tabularis/plugin-api', () => ({usePluginAccount: () => account}));
+
+const resources = {databases: [{name: 'neondb'}], roles: [{name: 'owner'}], services: []};
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((done) => {
+        resolve = done;
+    });
+    return {promise, resolve};
+}
+
+describe('Neon account browser', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        account.secretFields.mockResolvedValue(['NEON_API_KEY']);
+        account.call.mockImplementation(async (method: string) =>
+            method === 'account_projects'
+                ? {organizations: [], projects: [{id: 'p1', name: 'First', regionId: 'eu'}]}
+                : method === 'account_branches'
+                  ? {branches: [{id: 'b1', name: 'production'}]}
+                  : resources,
+        );
+    });
+
+    it('ignores a stale branch response after another project is selected', async () => {
+        const {result} = renderHook(() => useAccountBrowser());
+        await waitFor(() => expect(result.current.state.connected).toBe(true));
+        const old = deferred<{branches: {id: string; name: string}[]}>();
+        account.call.mockImplementation((_method: string, args: {projectId: string}) =>
+            args.projectId === 'p1'
+                ? old.promise
+                : Promise.resolve({branches: [{id: 'b2', name: 'New branch'}]}),
+        );
+        act(() => {
+            void result.current.selectProject('p1');
+        });
+        await act(async () => {
+            await result.current.selectProject('p2');
+        });
+        await act(async () => {
+            old.resolve({branches: [{id: 'old', name: 'Old branch'}]});
+        });
+        expect(result.current.state.projectId).toBe('p2');
+        expect(result.current.state.branches).toEqual([{id: 'b2', name: 'New branch'}]);
+    });
+
+    it('imports selected resources without returning credentials and refreshes host connections', async () => {
+        const refresh = vi.fn();
+        account.importConnection.mockResolvedValue({
+            id: 'saved',
+            name: 'Project · production',
+            warnings: ['Storage requires credentials'],
+        });
+        const {result} = renderHook(() => useAccountBrowser(refresh));
+        await waitFor(() => expect(result.current.state.connected).toBe(true));
+        await act(async () => {
+            await result.current.selectProject('p1');
+        });
+        await act(async () => {
+            await result.current.selectBranch('b1');
+        });
+        await act(async () => {
+            await result.current.importConnection(false);
+        });
+        expect(account.importConnection).toHaveBeenCalledWith({
+            projectId: 'p1',
+            branchId: 'b1',
+            database: 'neondb',
+            role: 'owner',
+            createServiceCredentials: false,
+        });
+        expect(refresh).toHaveBeenCalledOnce();
+        expect(result.current.state.imported?.id).toBe('saved');
+    });
+
+    it('clears a saved key draft even if project discovery fails', async () => {
+        account.secretFields.mockResolvedValue([]);
+        const clear = vi.fn();
+        const {result} = renderHook(() => useAccountBrowser());
+        await waitFor(() => expect(result.current.state.connected).toBe(false));
+        account.call.mockRejectedValue(new Error('Neon API returned HTTP 403'));
+        await act(async () => {
+            await result.current.connect('  private-key  ', clear);
+        });
+        expect(account.connect).toHaveBeenCalledWith({NEON_API_KEY: 'private-key'});
+        expect(clear).toHaveBeenCalledOnce();
+        expect(result.current.state.connected).toBe(true);
+        expect(result.current.state.error).toBe('Neon API returned HTTP 403');
+    });
+    it('keeps an imported connection visible if refreshing the host list fails', async () => {
+        account.importConnection.mockResolvedValue({id: 'saved', name: 'Imported', warnings: []});
+        const refresh = vi.fn().mockRejectedValue(new Error('Refresh unavailable'));
+        const {result} = renderHook(() => useAccountBrowser(refresh));
+        await waitFor(() => expect(result.current.state.connected).toBe(true));
+        await act(async () => {
+            await result.current.selectProject('p1');
+        });
+        await act(async () => {
+            await result.current.selectBranch('b1');
+        });
+        await act(async () => {
+            await result.current.importConnection(false);
+        });
+        expect(result.current.state.imported?.id).toBe('saved');
+        expect(result.current.state.error).toBe('Refresh unavailable');
+        expect(account.importConnection).toHaveBeenCalledOnce();
+    });
+
+    it('allows disconnecting a stored account whose discovery permissions were revoked', async () => {
+        account.call.mockRejectedValue(new Error('Access denied'));
+        const {result} = renderHook(() => useAccountBrowser());
+        await waitFor(() => expect(result.current.state.error).toBe('Access denied'));
+        expect(result.current.state.connected).toBe(true);
+        await act(async () => {
+            await result.current.disconnect();
+        });
+        expect(result.current.state.connected).toBe(false);
+        expect(account.disconnect).toHaveBeenCalledOnce();
+    });
+});

@@ -20,6 +20,9 @@ importers:
       '@neon/realtime':
         specifier: ^0.1.2
         version: 0.1.2(ws@8.22.0)
+      '@neon/sdk':
+        specifier: 7.6.1
+        version: 7.6.1
       '@tabularis/explain':
         specifier: ^0.2.0
         version: 0.2.0

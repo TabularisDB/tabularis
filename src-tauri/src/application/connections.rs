@@ -814,6 +814,64 @@ fn restore_secrets_for_connect(
     Ok(())
 }
 
+/// Provider imports must fail closed when credential storage is unavailable.
+pub(super) fn save_provider_connection(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    name: String,
+    mut params: ConnectionParams,
+    service_secrets: Value,
+) -> Result<SavedConnection, String> {
+    let mut file = load_file(runtime)?;
+    let id = Uuid::new_v4().to_string();
+    let mut writes = SecretWrites::default();
+    let result = (|| {
+        params.connection_id = None;
+        params.save_in_keychain = Some(true);
+        let uri = params.connection_uri.take();
+        params.connection_uri_in_keychain = uri.as_ref().map(|_| true);
+        for (suffix, value) in [
+            (DB_SECRET_SUFFIX, params.password.take()),
+            (SSH_SECRET_SUFFIX, params.ssh_password.take()),
+            (SSH_PASSPHRASE_SUFFIX, params.ssh_key_passphrase.take()),
+            (CONNECTION_URI_SUFFIX, uri),
+        ] {
+            if let Some(value) = value.filter(|value| !value.is_empty()) {
+                writes.set(runtime, secret_account(&id, suffix), &value)?;
+            }
+        }
+        if service_secrets
+            .as_object()
+            .is_some_and(|value| !value.is_empty())
+        {
+            writes.set(
+                runtime,
+                crate::plugins::extension_policy::secret_key(&params.driver, &id),
+                &service_secrets.to_string(),
+            )?;
+        }
+        let connection = SavedConnection {
+            id,
+            name,
+            params,
+            plugin_secret_keys: Vec::new(),
+            group_id: None,
+            sort_order: None,
+            detect_json_in_text_columns: None,
+            appearance: None,
+            tag_ids: None,
+            environment: None,
+        };
+        file.connections.push(connection.clone());
+        save_file(runtime, state, &file)?;
+        Ok(redact_connection(connection))
+    })();
+    if result.is_err() {
+        writes.rollback(runtime);
+    }
+    result
+}
+
 fn save_connection(
     runtime: &RuntimeContext,
     state: &Arc<ApplicationState>,

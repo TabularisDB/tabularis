@@ -140,5 +140,44 @@
     "realtime": "Live SQL results"
   },
   "configure": "Configure",
-  "configureServiceNamed": "Configure {{name}}"
+  "configureServiceNamed": "Configure {{name}}",
+  "account": {
+    "title": "Connect a Neon account",
+    "connectNeon": "Connect Neon",
+    "description": "Connect your Neon account with an API key, then import an existing branch and its enabled services.",
+    "connected": "Account connected",
+    "disconnect": "Disconnect account",
+    "apiKey": "Neon API key",
+    "keyHint": "Stored in the host secret store. The saved key cannot be read back by the UI.",
+    "connect": "Connect account",
+    "createKey": "Create an API key in Neon",
+    "organization": "Organization",
+    "personal": "Personal / default account",
+    "project": "Project",
+    "chooseProject": "Choose a project",
+    "noProjects": "No projects are available in this scope. Select an organization or check the API key permissions.",
+    "branch": "Branch",
+    "chooseBranch": "Choose a branch",
+    "database": "Database",
+    "chooseDatabase": "Choose a database",
+    "role": "Database role",
+    "chooseRole": "Choose a role",
+    "services": "Existing services",
+    "enabled": "Enabled",
+    "notEnabled": "Not enabled",
+    "createCredentials": "Create scoped credentials for enabled Storage and AI Gateway services",
+    "credentialsHint": "Creates new service credentials on the selected branch. Existing services are discovered without enabling, deploying, rotating, or deleting anything. Without this option, these services may require a later credential import.",
+    "import": "Import connection",
+    "imported": "Imported {{name}}",
+    "importedHint": "The connection is now available in Connections. Open it to access its Neon services in the explorer.",
+    "done": "Done",
+    "serviceNames": {
+      "auth": "Auth",
+      "storage": "Storage",
+      "ai": "AI Gateway",
+      "functions": "Functions",
+      "realtime": "Realtime"
+    },
+    "unavailable": "Could not check"
+  }
 }

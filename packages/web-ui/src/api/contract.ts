@@ -1,3 +1,4 @@
+import type {PluginAccountRequest} from '@/types/pluginAccount';
 import type {DatabaseBackupStatus} from '@/types/databaseBackup';
 import type {ChatGptModel, ChatGptSession} from '@/types/chatgpt';
 import type {TableQueryTemplateRequest} from '@/utils/tableQueryTemplates';
@@ -625,6 +626,7 @@ export interface CommandMap {
     // start or stop subprocesses. Raw plugin paths and files are intentionally
     // excluded from the browser RPC contract.
     /** Opaque extension methods can mutate resources and require administrator access. */
+    plugin_account: CommandDefinition<PluginAccountRequest, unknown, 'local-admin'>;
     call_plugin_extension: CommandDefinition<
         {pluginId: string; connectionId: string; method: string; args: Record<string, unknown>},
         unknown,

@@ -3,6 +3,7 @@ import type {
     UsePluginConnectionReturn,
     UsePluginWorkspaceReturn,
     UsePluginRpcReturn,
+    UsePluginAccountReturn,
     UsePluginModalReturn,
     UsePluginQueryReturn,
     UsePluginSettingReturn,
@@ -80,4 +81,9 @@ export function usePluginRpc(pluginId: string, connectionId?: string): UsePlugin
 /** Open or focus a plugin-owned workspace on the current editor connection. */
 export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
     return getHost().usePluginWorkspace(pluginId);
+}
+
+/** Provider account operations that do not require a saved database connection. */
+export function usePluginAccount(pluginId: string): UsePluginAccountReturn {
+    return getHost().usePluginAccount(pluginId);
 }

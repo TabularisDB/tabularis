@@ -140,5 +140,44 @@
     "realtime": "Live-SQL-Ergebnisse"
   },
   "configure": "Einrichten",
-  "configureServiceNamed": "{{name}} einrichten"
+  "configureServiceNamed": "{{name}} einrichten",
+  "account": {
+    "title": "Neon-Konto verbinden",
+    "connectNeon": "Neon verbinden",
+    "description": "Verbinde dein Neon-Konto per API-Key und importiere einen bestehenden Branch samt aktivierten Diensten.",
+    "connected": "Konto verbunden",
+    "disconnect": "Konto trennen",
+    "apiKey": "Neon API-Key",
+    "keyHint": "Wird im Secret-Store des Hosts gespeichert. Die Oberfläche kann den gespeicherten Key nicht auslesen.",
+    "connect": "Konto verbinden",
+    "createKey": "API-Key in Neon erstellen",
+    "organization": "Organisation",
+    "personal": "Persönliches / Standardkonto",
+    "project": "Projekt",
+    "chooseProject": "Projekt auswählen",
+    "noProjects": "In diesem Bereich sind keine Projekte verfügbar. Wähle eine Organisation oder prüfe die Berechtigungen des API-Keys.",
+    "branch": "Branch",
+    "chooseBranch": "Branch auswählen",
+    "database": "Datenbank",
+    "chooseDatabase": "Datenbank auswählen",
+    "role": "Datenbankrolle",
+    "chooseRole": "Rolle auswählen",
+    "services": "Bestehende Dienste",
+    "enabled": "Aktiviert",
+    "notEnabled": "Nicht aktiviert",
+    "createCredentials": "Berechtigungsgebundene Credentials für aktiviertes Storage und AI Gateway erstellen",
+    "credentialsHint": "Erstellt neue Service-Credentials auf dem gewählten Branch. Bestehende Dienste werden erkannt, ohne etwas zu aktivieren, zu deployen, zu rotieren oder zu löschen. Ohne diese Option kann später ein Credential-Import nötig sein.",
+    "import": "Verbindung importieren",
+    "imported": "{{name}} importiert",
+    "importedHint": "Die Verbindung ist jetzt unter Verbindungen verfügbar. Öffne sie, um ihre Neon-Dienste im Explorer zu nutzen.",
+    "done": "Fertig",
+    "serviceNames": {
+      "auth": "Auth",
+      "storage": "Storage",
+      "ai": "AI Gateway",
+      "functions": "Functions",
+      "realtime": "Realtime"
+    },
+    "unavailable": "Nicht prüfbar"
+  }
 }

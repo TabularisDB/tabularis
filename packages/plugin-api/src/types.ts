@@ -124,6 +124,7 @@ export interface TabularisHostApi {
     PluginConnectionAction: ComponentType<PluginConnectionActionProps>;
     PluginWorkspaceShell: ComponentType<PluginWorkspaceShellProps>;
     usePluginWorkspace: (pluginId: string) => UsePluginWorkspaceReturn;
+    usePluginAccount: (pluginId: string) => UsePluginAccountReturn;
     usePluginRpc: (pluginId: string, connectionId?: string) => UsePluginRpcReturn;
     usePluginQuery: () => UsePluginQueryReturn;
     usePluginConnection: () => UsePluginConnectionReturn;
@@ -197,4 +198,19 @@ export interface PluginDataGridProps {
     label?: string;
     /** Fill the available editor area instead of sizing to a short dataset. */
     fill?: boolean;
+}
+
+/** Account metadata and connection imports; stored secret values never return to UI code. */
+export interface PluginAccountImportResult {
+    id: string;
+    name: string;
+    warnings: string[];
+}
+
+export interface UsePluginAccountReturn {
+    connect: (secrets: Record<string, string>) => Promise<void>;
+    secretFields: () => Promise<string[]>;
+    disconnect: () => Promise<void>;
+    call: <T = unknown>(method: string, args?: Record<string, unknown>) => Promise<T>;
+    importConnection: (args: Record<string, unknown>) => Promise<PluginAccountImportResult>;
 }

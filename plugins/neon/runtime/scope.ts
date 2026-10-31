@@ -2,11 +2,25 @@ import { withCredentials } from './env.js';
 import { type Params, text } from './database.js';
 import { service } from './services.js';
 import { admin } from './admin.js';
+import { account } from './account.js';
 
 const operations = new Set(['neon_status', 'neon_auth_users', 'neon_demo_notes', 'neon_function', 'neon_ai_models', 'neon_ai_complete', 'neon_storage_list', 'neon_storage_put', 'neon_storage_get', 'neon_storage_delete', 'neon_realtime_snapshot', 'neon_project_branches']);
 
 export async function extension(request: Params): Promise<unknown> {
   const context = request.context as Params | undefined;
+  if (context?.plugin_id === 'neon' && context.scope === 'account') {
+    if (context.connection_id !== undefined || request.params !== undefined) throw new Error('Account scope cannot include a connection');
+    const supplied = request.secrets;
+    if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied)) throw new Error('Invalid account credentials');
+    const credentials: Record<string, string> = {};
+    for (const [key, value] of Object.entries(supplied)) {
+      if (typeof value !== 'string') throw new Error('Invalid account credential value');
+      credentials[key] = value;
+    }
+    const args = request.args;
+    if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid account arguments');
+    return account(text(request.method, 'method'), args as Params, credentials);
+  }
   if (context?.plugin_id !== 'neon' || typeof context.connection_id !== 'string' || !context.connection_id) throw new Error('A trusted Neon connection context is required');
   const method = text(request.method, 'method');
   if (!operations.has(method)) throw new Error('Unsupported Neon extension method');

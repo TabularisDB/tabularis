@@ -35,6 +35,7 @@ export default MySlot.component;
 
 | Hook | Returns | Purpose |
 |------|---------|---------|
+| `usePluginAccount(pluginId)` | `{ connect, secretFields, disconnect, call, importConnection }` | Provider account onboarding before a database connection exists |
 | `usePluginRpc(pluginId, connectionId?)` | `{ call, saveSecrets, secretFields, deleteSecrets }` | Connection-scoped services and write-only secret storage |
 | `usePluginQuery()` | `{ executeQuery, loading, error }` | Execute read-only queries on the active connection |
 | `usePluginConnection()` | `{ connectionId, driver, schema }` | Active connection metadata |
@@ -47,6 +48,24 @@ export default MySlot.component;
 | `openUrl(url)` | `Promise<void>` | Open a URL in the system browser |
 
 All hooks must run inside a React component loaded by Tabularis. Calling them outside the host throws a clear error instead of failing silently.
+
+## Provider account connections
+
+`connections.actions` mounts provider-owned actions beside Add Connection and supplies
+`onConnectionCreated()`. Use `usePluginAccount(pluginId)` there to store account
+credentials in the host secret store, list safe account metadata, and import a
+connection without returning SQL passwords or service secrets to UI code. A single
+account bundle is stored per provider. All account operations require `local-admin`
+authorization in the web host.
+
+`connect(secrets)` replaces the provider's account bundle, `secretFields()` returns
+names only, and `disconnect()` removes it. `call(method, args)` sends a trusted
+plugin process an account-scoped extension envelope. `importConnection(args)` calls
+its `account_import` method and lets the host save the returned connection and
+service credentials, returning only `{id, name, warnings}`. The hook refreshes shared
+connection state after import, including when launched from Settings. The optional
+`onConnectionCreated()` callback lets an entry point refresh additional local state. Disconnecting an
+account does not revoke remote credentials or remove previously imported connections.
 
 ## Connection-scoped plugin services
 

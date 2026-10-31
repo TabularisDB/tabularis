@@ -50,3 +50,6 @@ export {PluginExplorerSection} from './components/plugins/PluginExplorerSection'
 export type {PluginExplorerSectionProps} from './types/pluginExplorerSection';
 export {PluginDataGrid} from './components/plugins/PluginDataGrid';
 export type {PluginDataGridProps} from './types/pluginDataGrid';
+
+export {usePluginAccount} from './hooks/usePluginAccount';
+export type {UsePluginAccountReturn, PluginAccountImportResult} from './types/pluginAccount';

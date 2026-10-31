@@ -3,6 +3,7 @@ import {lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback} from 
 import {createPortal} from 'react-dom';
 import {useNavigate, useLocation} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
+import {SlotAnchor} from '@/components/ui/SlotAnchor';
 import {LoadingState} from '@/components/ui/LoadingState';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {ExportConnectionsModal, type ExportMode} from '@/components/modals/ExportConnectionsModal';
@@ -1216,80 +1217,93 @@ export const Connections = () => {
                     </div>
                 </div>
 
-                <div className="relative flex items-stretch shadow-lg shadow-accent-primary/20 rounded-xl">
-                    <button
-                        onClick={() => {
-                            setEditingConnection(null);
-                            setIsModalOpen(true);
-                        }}
-                        className="flex items-center gap-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse pl-4 pr-3.5 py-2.5 rounded-l-xl font-semibold text-sm transition-colors duration-150"
-                    >
-                        <Plus size={15} />
-                        {t('connections.addConnection')}
-                    </button>
-                    <button
-                        ref={importMenuBtnRef}
-                        onClick={toggleImportMenu}
-                        className="flex items-center bg-accent-primary hover:bg-accent-primary/90 text-inverse px-2 rounded-r-xl border-l border-inverse/20 transition-colors duration-150"
-                        title={t('connections.addConnection')}
-                        aria-haspopup="menu"
-                        aria-expanded={isImportMenuOpen}
-                    >
-                        <ChevronDown
-                            size={15}
-                            className={clsx(
-                                'transition-transform',
-                                isImportMenuOpen && 'rotate-180',
-                            )}
-                        />
-                    </button>
-                    {isImportMenuOpen &&
-                        createPortal(
-                            <>
-                                <div
-                                    role="presentation"
-                                    className="fixed inset-0 z-[200]"
-                                    onClick={closeImportMenu}
-                                />
-                                <div
-                                    style={{top: importMenuPos.top, right: importMenuPos.right}}
-                                    className="fixed z-[201] w-60 bg-elevated border border-strong rounded-xl shadow-2xl py-1 overflow-hidden"
-                                >
-                                    <button
-                                        onClick={() => void handleCreateSqliteDatabase()}
-                                        disabled={isCreatingSqliteDatabase}
-                                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
+                <div className="flex items-center gap-3">
+                    <SlotAnchor
+                        name="connections.actions"
+                        context={{onConnectionCreated: loadConnections}}
+                        className="flex items-center gap-2"
+                    />
+                    <div className="relative flex items-stretch shadow-lg shadow-accent-primary/20 rounded-xl">
+                        <button
+                            onClick={() => {
+                                setEditingConnection(null);
+                                setIsModalOpen(true);
+                            }}
+                            className="flex items-center gap-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse pl-4 pr-3.5 py-2.5 rounded-l-xl font-semibold text-sm transition-colors duration-150"
+                        >
+                            <Plus size={15} />
+                            {t('connections.addConnection')}
+                        </button>
+                        <button
+                            ref={importMenuBtnRef}
+                            onClick={toggleImportMenu}
+                            className="flex items-center bg-accent-primary hover:bg-accent-primary/90 text-inverse px-2 rounded-r-xl border-l border-inverse/20 transition-colors duration-150"
+                            title={t('connections.addConnection')}
+                            aria-haspopup="menu"
+                            aria-expanded={isImportMenuOpen}
+                        >
+                            <ChevronDown
+                                size={15}
+                                className={clsx(
+                                    'transition-transform',
+                                    isImportMenuOpen && 'rotate-180',
+                                )}
+                            />
+                        </button>
+                        {isImportMenuOpen &&
+                            createPortal(
+                                <>
+                                    <div
+                                        role="presentation"
+                                        className="fixed inset-0 z-[200]"
+                                        onClick={closeImportMenu}
+                                    />
+                                    <div
+                                        style={{top: importMenuPos.top, right: importMenuPos.right}}
+                                        className="fixed z-[201] w-60 bg-elevated border border-strong rounded-xl shadow-2xl py-1 overflow-hidden"
                                     >
-                                        {isCreatingSqliteDatabase ? (
-                                            <Loader2
+                                        <button
+                                            onClick={() => void handleCreateSqliteDatabase()}
+                                            disabled={isCreatingSqliteDatabase}
+                                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
+                                        >
+                                            {isCreatingSqliteDatabase ? (
+                                                <Loader2
+                                                    size={15}
+                                                    className="shrink-0 text-accent animate-spin"
+                                                />
+                                            ) : (
+                                                <Database
+                                                    size={15}
+                                                    className="shrink-0 text-accent"
+                                                />
+                                            )}
+                                            <span className="flex-1">
+                                                {t('connections.newSqliteDatabase.menuLabel')}
+                                            </span>
+                                        </button>
+                                        <div className="h-px bg-default mx-2" />
+                                        <button
+                                            onClick={() => {
+                                                setIsImportMenuOpen(false);
+                                                setIsImportAppModalOpen(true);
+                                            }}
+                                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
+                                        >
+                                            <FolderInput
                                                 size={15}
-                                                className="shrink-0 text-accent animate-spin"
+                                                className="shrink-0 text-accent"
                                             />
-                                        ) : (
-                                            <Database size={15} className="shrink-0 text-accent" />
-                                        )}
-                                        <span className="flex-1">
-                                            {t('connections.newSqliteDatabase.menuLabel')}
-                                        </span>
-                                    </button>
-                                    <div className="h-px bg-default mx-2" />
-                                    <button
-                                        onClick={() => {
-                                            setIsImportMenuOpen(false);
-                                            setIsImportAppModalOpen(true);
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
-                                    >
-                                        <FolderInput size={15} className="shrink-0 text-accent" />
-                                        <span className="flex-1">
-                                            {t('connections.importFromApp.menuLabel')}
-                                        </span>
-                                        <BetaBadge />
-                                    </button>
-                                </div>
-                            </>,
-                            document.body,
-                        )}
+                                            <span className="flex-1">
+                                                {t('connections.importFromApp.menuLabel')}
+                                            </span>
+                                            <BetaBadge />
+                                        </button>
+                                    </div>
+                                </>,
+                                document.body,
+                            )}
+                    </div>
                 </div>
             </div>
 
