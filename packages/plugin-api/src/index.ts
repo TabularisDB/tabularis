@@ -51,9 +51,16 @@ export type {
     UsePluginThemeReturn,
 } from './types';
 
-export {PluginConnectionAction, PluginWorkspaceShell} from './components';
+export {
+    PluginConnectionAction,
+    PluginWorkspaceShell,
+    PluginExplorerSection,
+    PluginDataGrid,
+} from './components';
 export type {
     PluginConnectionActionProps,
+    PluginExplorerSectionProps,
+    PluginDataGridProps,
     PluginWorkspaceShellProps,
     OpenPluginWorkspaceOptions,
     UsePluginWorkspaceReturn,

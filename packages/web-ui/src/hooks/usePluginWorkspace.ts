@@ -1,4 +1,5 @@
 import {useCallback, useMemo} from 'react';
+import {useLocation, useNavigate} from 'react-router-dom';
 import {useEditor} from './useEditor';
 import {usePluginConnection} from './usePluginApi';
 import type {
@@ -8,6 +9,8 @@ import type {
 
 /** Open a connection-bound workspace in the host's main editor. */
 export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
+    const navigate = useNavigate();
+    const {pathname} = useLocation();
     const {addTab, tabs, setActiveTabId} = useEditor();
     const {connectionId: activeConnectionId} = usePluginConnection();
     const openWorkspace = useCallback(
@@ -28,6 +31,7 @@ export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
             );
             if (existing) {
                 setActiveTabId(existing.id);
+                if (pathname !== '/editor') navigate('/editor');
                 return existing.id;
             }
             const id = addTab({
@@ -38,9 +42,10 @@ export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
                 connectionId,
             });
             if (!id) throw new Error('The workspace connection is not active in this editor');
+            if (pathname !== '/editor') navigate('/editor');
             return id;
         },
-        [activeConnectionId, addTab, pluginId, setActiveTabId, tabs],
+        [activeConnectionId, addTab, navigate, pathname, pluginId, setActiveTabId, tabs],
     );
     return useMemo(() => ({openWorkspace}), [openWorkspace]);
 }

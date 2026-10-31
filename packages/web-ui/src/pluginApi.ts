@@ -45,3 +45,8 @@ export type {
 } from './types/pluginWorkspaceTab';
 export {PluginWorkspaceShell} from './components/plugins/PluginWorkspaceShell';
 export type {PluginWorkspaceShellProps} from './types/pluginWorkspaceShell';
+
+export {PluginExplorerSection} from './components/plugins/PluginExplorerSection';
+export type {PluginExplorerSectionProps} from './types/pluginExplorerSection';
+export {PluginDataGrid} from './components/plugins/PluginDataGrid';
+export type {PluginDataGridProps} from './types/pluginDataGrid';

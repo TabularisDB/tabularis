@@ -11,6 +11,7 @@ export type SlotName =
     | 'data-grid.toolbar.actions'
     | 'data-grid.context-menu.items'
     | 'sidebar.footer.actions'
+    | 'explorer.services'
     | 'explorer.connection.actions'
     | 'editor.workspace.content'
     | 'settings.plugin.actions'
@@ -30,6 +31,7 @@ export const VALID_SLOTS: ReadonlySet<string> = new Set<SlotName>([
     'data-grid.toolbar.actions',
     'data-grid.context-menu.items',
     'sidebar.footer.actions',
+    'explorer.services',
     'explorer.connection.actions',
     'editor.workspace.content',
     'settings.plugin.actions',
@@ -134,6 +136,13 @@ export type HostSlotContextRequirements = {
         connectionName?: string | null;
     };
     'explorer.connection.actions': {
+        connectionId: string | null;
+        connectionName: string | null;
+        driver: string | null;
+        schema: string | null;
+    };
+
+    'explorer.services': {
         connectionId: string | null;
         connectionName: string | null;
         driver: string | null;

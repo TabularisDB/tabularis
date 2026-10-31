@@ -1,6 +1,6 @@
 # Neon integration prototype
 
-A Tabularis driver and provider workspace for an existing Neon project. Scaffolded
+A Tabularis driver with native explorer services for an existing Neon project. Scaffolded
 with the Tabularis CLI, then adapted to Node.js to use Neon's SDKs. Requires
 Node.js 22+, pnpm, and the `feat/neon-integration` Core changes on upstream
 Tabularis 0.30.0. The public 0.30.0 release alone does not yet include the new
@@ -42,8 +42,10 @@ Release publication/signing is outside this prototype.
 ## Configure a connection
 
 Select Neon in the connection picker and import its Postgres URL. SQL always
-uses the saved connection's credentials and verified TLS. Open **Neon** below the active connection in the
-explorer (or the plugin's settings action). Neon opens as a main editor tab, beside SQL consoles and tables. Reopening the same workspace focuses its existing tab; connection scope is preserved across reloads.
+uses the saved connection's credentials and verified TLS. Expand **Neon** in the
+Structure explorer and open a service. Each service has its own normal editor
+tab, beside SQL consoles and tables. Reopening a service focuses its existing
+tab; connection scope is preserved across reloads.
 
 In **Connection / Setup**, paste a complete `.env` bundle or JSON object from
 `neon env pull`. Saving **replaces** that connection's bundle in the host's secret
@@ -110,17 +112,22 @@ administrative inspection; the separate demo implements end-user sign-in.
 
 ## Reusable Core integration
 
-The Core owns `PluginConnectionAction` (prominent branded entry),
-`usePluginWorkspace` (connection-scoped tab lifecycle), `PluginWorkspaceShell`
-(header, accessible service navigation and layout), and the owner-filtered
-`editor.workspace.content` extension point. RPC transport and credential storage
-are shared with other plugins. Workspace tabs never execute SQL or show SQL
-toolbars/results, and persist only plugin/workspace metadata.
+The Core owns `PluginExplorerSection` (native collapsible explorer entries),
+`usePluginWorkspace` (connection-scoped service tabs), `PluginWorkspaceShell`
+(compact native toolbar/content layout), and `PluginDataGrid` (the real native
+read-only grid with the user's copy/privacy settings). `explorer.services` and
+owner-filtered `editor.workspace.content` connect those pieces. RPC transport
+and credential storage remain shared with other plugins. Service tabs never
+execute SQL or show SQL toolbars/results; only safe metadata is persisted.
 
-Neon supplies its logo/color, supported sections and service implementations.
-Supabase, Firebase RTDB, Appwrite or other plugins can use the same Core pieces
-with their own sections and APIs; no SQL-shaped service contract is required by
-the workspace UI. Those provider integrations are not implemented in this plugin.
+Neon supplies its sections, small provider mark and service implementations.
+There is no colored launch card, provider hero, or second navigation inside a
+tab. Auth, Storage, AI and the other entries live directly in the same explorer
+as schemas/tables. The former `services` workspace ID still opens Overview.
+
+Supabase, Firebase RTDB, Appwrite or other plugins can reuse these Core pieces
+with their own sections and APIs. The workspace UI requires no SQL-shaped
+service contract. Those provider integrations are not implemented here.
 
 ## Verification
 

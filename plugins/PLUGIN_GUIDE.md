@@ -538,6 +538,7 @@ Add an optional `ui_extensions` array to your manifest:
 | `data-grid.toolbar.actions` | Table toolbar (right side) | `connectionId`, `tableName`, `schema`, `driver` | Export buttons, analysis tools |
 | `data-grid.context-menu.items` | Right-click context menu on grid rows | `connectionId`, `tableName`, `schema`, `driver`, `columnName`, `rowIndex`, `rowData` | Row-level custom actions |
 | `editor.workspace.content` | Full-height main editor workspace | `pluginId`, `workspaceId`, `connectionId`, `driver`, `schema`, `connectionName?` | Provider-owned service UI; only the owning plugin renders |
+| `explorer.services` | Scrollable Explorer Structure body, before schema/tree sections | `connectionId`, `connectionName`, `driver`, `schema` | Native provider service rows opening main tabs |
 | `explorer.connection.actions` | Connection explorer, below its header | `connectionId`, `connectionName`, `driver`, `schema` | Connection-specific service tools |
 | `sidebar.footer.actions` | Narrow navigation icon rail footer (icon-sized controls) | `connectionId`, `driver` | Status indicators, quick actions |
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
@@ -2047,7 +2048,7 @@ The legacy path — a pull request adding an entry to `plugins/registry.json` (f
 ### Connection-bound editor workspaces
 
 Use `usePluginWorkspace(pluginId).openWorkspace({id, title, connectionId?})` from an
-`explorer.connection.actions` contribution to open a provider workspace as a main
+`explorer.services` contribution to open a provider service as a main
 editor tab. Register its content in `editor.workspace.content` (with `api_version:
 "0.2.0"`). Reopening the same plugin/workspace/connection focuses the existing tab;
 other connections keep separate tabs. The optional connection ID must match both
@@ -2062,8 +2063,23 @@ when inactive or closed, so clean up polling, subscriptions and pending requests
 in React effect cleanup. Bind service calls with
 `usePluginRpc(pluginId, context.connectionId)` rather than a changing global selection.
 
-`PluginWorkspaceShell` supplies the shared header, accessible navigation and
-full-height content area. Pass `title`, optional `subtitle`/`icon`, optional `brandColor`,
-`tabs: [{id, label, icon?}]`, `activeTab`, `onTabChange`, `children`, and optional
-`actions`. The plugin owns its sections and data; the shell owns native styling.
-`PluginConnectionAction` supplies the matching prominent explorer entry point.
+`PluginExplorerSection` renders a native collapsible Explorer section. Pass
+`pluginId`, `providerName`, optional `connectionId`/`icon`/`disabled`, and
+`items: [{id, label, icon?}]`. Each row opens its own main tab, titled
+`Provider · Service`, and repeated clicks focus that tab. Selection is scoped to
+the owning plugin, service and connection. Supported item icon names are
+`overview`, `database`, `users`, `storage`, `functions`, `ai`, `realtime`, `settings`,
+`documents` and `security`; unknown icons use the document icon. Scope errors
+appear inline. The provider mark stays small and uses the native section header.
+
+`PluginWorkspaceShell` supplies a compact native header and bounded scrolling
+content. Pass `title`, optional `subtitle`/`icon`/`actions`, and `children` for the
+current service. It renders full-width content with no internal navigation by
+default. Existing callers can still pass `tabs: [{id, label, icon?}]`, `activeTab`,
+`onTabChange`, and optional `brandColor` for the navigation indicator.
+`PluginConnectionAction` remains supported for existing connection actions.
+
+`PluginDataGrid` renders the actual host data grid for read-only provider results.
+Pass `columns: string[]`, `rows: unknown[][]`, optional `connectionId`, and optional
+accessible `label`. It has a bounded height and uses native copy preferences,
+selection and column resizing. It exposes no mutation callbacks or generated SQL.

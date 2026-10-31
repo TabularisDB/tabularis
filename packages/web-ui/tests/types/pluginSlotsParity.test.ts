@@ -6,6 +6,7 @@ import {VALID_SLOTS} from '@/types/pluginSlots';
 
 const SLOT_ANCHORS: Readonly<Record<string, string>> = {
     'editor.workspace.content': 'components/plugins/PluginWorkspaceView.tsx',
+    'explorer.services': 'components/layout/ExplorerSidebar.tsx',
     'explorer.connection.actions': 'components/layout/ExplorerSidebar.tsx',
     'row-edit-modal.field.after': 'components/modals/NewRowModal.tsx',
     'row-edit-modal.footer.before': 'components/modals/NewRowModal.tsx',

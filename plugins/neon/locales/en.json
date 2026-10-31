@@ -11,7 +11,7 @@
   "tabs": {
     "overview": "Overview",
     "database": "Database",
-    "users": "Users",
+    "users": "Auth",
     "storage": "Storage",
     "ai": "AI Gateway",
     "functions": "Functions",
@@ -95,5 +95,9 @@
   "selectedConnection": "Selected connection",
   "connectionTools": "Neon services for this connection",
   "projectServices": "Project services",
-  "requestFailed": "Request failed"
+  "requestFailed": "Request failed",
+  "gridLabel": "Service data",
+  "unknownService": "This Neon service is unavailable.",
+  "existingObject": "Existing object",
+  "chooseObject": "Choose an object"
 }

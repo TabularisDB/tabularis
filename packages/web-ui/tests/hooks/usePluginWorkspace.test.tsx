@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {act, renderHook, waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
+import {MemoryRouter, useLocation, useNavigate} from 'react-router-dom';
 import {EditorProvider} from '@/contexts/EditorProvider';
 import {useEditor} from '@/hooks/useEditor';
 import {usePluginWorkspace} from '@/hooks/usePluginWorkspace';
@@ -17,9 +18,15 @@ vi.mock('@/hooks/useTabularisClient', () => {
     return {useTabularisClient: () => client};
 });
 
-const wrapper = ({children}: {children: ReactNode}) => <EditorProvider>{children}</EditorProvider>;
+const wrapper = ({children}: {children: ReactNode}) => (
+    <MemoryRouter initialEntries={['/settings?tab=plugins']}>
+        <EditorProvider>{children}</EditorProvider>
+    </MemoryRouter>
+);
 const useWorkspace = () => ({
     editor: useEditor(),
+    location: useLocation(),
+    navigate: useNavigate(),
     workspace: usePluginWorkspace('custom-provider'),
 });
 
@@ -46,6 +53,22 @@ describe('usePluginWorkspace', () => {
         act(() => result.current.editor.setActiveTabId(result.current.editor.tabs[0].id));
         act(() => result.current.workspace.openWorkspace({id: 'services', title: 'Services'}));
         expect(result.current.editor.activeTabId).toBe(first);
+    });
+
+    it('navigates from settings to the editor on both opening and focusing a workspace', async () => {
+        const {result} = renderHook(useWorkspace, {wrapper});
+        await waitFor(() => expect(result.current.editor.tabs).toHaveLength(1));
+        expect(result.current.location.pathname).toBe('/settings');
+        act(() => result.current.workspace.openWorkspace({id: 'users', title: 'Provider · Users'}));
+        expect(result.current.location.pathname).toBe('/editor');
+        act(() => result.current.navigate('/settings?tab=plugins'));
+        expect(result.current.location.pathname).toBe('/settings');
+        act(() => result.current.workspace.openWorkspace({id: 'users', title: 'Provider · Users'}));
+        expect(result.current.location.pathname).toBe('/editor');
+        expect(result.current.location.state).toBeNull();
+        expect(
+            result.current.editor.tabs.filter((tab) => tab.type === 'plugin-workspace'),
+        ).toHaveLength(1);
     });
 
     it('keeps the same workspace isolated across connections', async () => {
@@ -79,6 +102,7 @@ describe('usePluginWorkspace', () => {
                 connectionId: 'connection-2',
             }),
         ).toThrow('Select the workspace connection');
+        expect(result.current.location.pathname).toBe('/settings');
         connection.connectionId = 'connection-2';
         rerender();
         expect(() =>

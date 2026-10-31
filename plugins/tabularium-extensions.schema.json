@@ -407,7 +407,7 @@
           "slot": {
             "type": "string",
             "maxLength": 80,
-            "description": "Target slot identifier. Use explorer.connection.actions for connection tools; sidebar.footer.actions is the narrow icon rail."
+            "description": "Target slot identifier. Use explorer.services for native service sections and explorer.connection.actions for compact connection tools; sidebar.footer.actions is the narrow icon rail."
           },
           "module": {
             "type": "string",

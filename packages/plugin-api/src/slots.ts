@@ -39,6 +39,13 @@ export type SlotContextMap = {
         driver: string;
         schema: string | null;
     };
+
+    'explorer.services': {
+        connectionId: string;
+        connectionName: string | null;
+        driver: string;
+        schema: string | null;
+    };
     'row-edit-modal.field.after': {
         connectionId: string;
         tableName: string;

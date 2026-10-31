@@ -87,21 +87,24 @@
   "engine": "postgres",
   "ui_extensions": [
     {
-      "slot": "explorer.connection.actions",
+      "slot": "explorer.services",
       "module": "ui/dist/index.js",
       "driver": "neon",
-      "order": 30
+      "order": 30,
+      "api_version": "0.2.0"
     },
     {
       "slot": "settings.plugin.actions",
       "module": "ui/dist/index.js",
-      "order": 30
+      "order": 30,
+      "api_version": "0.2.0"
     },
     {
       "slot": "editor.workspace.content",
       "module": "ui/dist/workspace.js",
       "driver": "neon",
-      "order": 30
+      "order": 30,
+      "api_version": "0.2.0"
     }
   ],
   "kind": "driver",

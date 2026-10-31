@@ -5,6 +5,24 @@ import {PluginWorkspaceShell} from '@/components/plugins/PluginWorkspaceShell';
 vi.mock('lucide-react', async (importOriginal) => await importOriginal());
 
 describe('PluginWorkspaceShell', () => {
+    it('renders a compact full-width page without internal navigation', () => {
+        render(
+            <PluginWorkspaceShell
+                title="Firebase · Documents"
+                icon={<span>mark</span>}
+                brandColor="#00ff00"
+            >
+                <p>Native page</p>
+            </PluginWorkspaceShell>,
+        );
+        expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+        expect(screen.getByRole('region', {name: 'Firebase · Documents'})).toHaveTextContent(
+            'Native page',
+        );
+        expect(screen.getByRole('heading')).toHaveClass('text-primary', 'text-sm');
+        expect(document.querySelector('[data-workspace-header]')).toHaveClass('min-h-11');
+        expect(document.querySelector('[style]')).toBeNull();
+    });
     it('renders provider sections, selected content and accessible keyboard navigation', () => {
         const select = vi.fn();
         render(

@@ -1573,6 +1573,18 @@ export const ExplorerSidebar = ({
                         />
                     )}
 
+                    {sidebarTab === 'structure' && (
+                        <SlotAnchor
+                            name="explorer.services"
+                            context={{
+                                connectionId: activeConnectionId,
+                                connectionName: activeConnectionName ?? null,
+                                driver: activeDriver,
+                                schema: activeSchema,
+                            }}
+                        />
+                    )}
+
                     {/* Structure tab */}
                     {sidebarTab === 'structure' &&
                         (isLoadingTables || isLoadingSchemas ? (

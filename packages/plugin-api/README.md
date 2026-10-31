@@ -104,7 +104,18 @@ in IDs and titles. Content unmounts when backgrounded or closed: effect cleanup
 must cancel polling, subscriptions and pending requests. Use
 `usePluginRpc(pluginId, context.connectionId)` for stable service binding.
 
-`PluginWorkspaceShell` renders the native workspace frame with a title, optional
-subtitle/brand color/actions, and section tabs (`id`, `label`, optional `icon`).
-Pass `activeTab`, `onTabChange`, and children for the current section.
-`PluginConnectionAction` renders the matching explorer launcher.
+Use `PluginExplorerSection` in `explorer.services` with `pluginId`, `providerName`,
+optional `connectionId`/`icon`/`disabled`, and `items: [{id, label, icon?}]`. Each
+service opens a separate native main tab titled `Provider · Service`; repeated
+clicks focus it. Supported icons: `overview`, `database`, `users`, `storage`,
+`functions`, `ai`, `realtime`, `settings`, `documents`, `security` (unknown: document).
+
+`PluginWorkspaceShell` renders a compact native header and full-width scrolling
+content. Pass a title, optional subtitle/icon/actions, and children. Internal tabs
+are optional; existing `tabs`, `activeTab`, `onTabChange` callers remain supported.
+Optional `brandColor` only affects their navigation indicator.
+
+`PluginDataGrid` uses the actual host read-only grid with `columns: string[]`,
+`rows: unknown[][]`, optional `connectionId: string | null`, and optional `label`.
+It provides native copy settings and column resizing in a bounded view, without
+mutation callbacks or SQL generation. `PluginConnectionAction` remains supported.

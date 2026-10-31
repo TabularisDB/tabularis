@@ -11,7 +11,7 @@
   "tabs": {
     "overview": "Übersicht",
     "database": "Datenbank",
-    "users": "Benutzer",
+    "users": "Auth",
     "storage": "Speicher",
     "ai": "AI Gateway",
     "functions": "Funktionen",
@@ -95,5 +95,9 @@
   "selectedConnection": "Ausgewählte Verbindung",
   "connectionTools": "Neon-Dienste für diese Verbindung",
   "projectServices": "Projektdienste",
-  "requestFailed": "Anfrage fehlgeschlagen"
+  "requestFailed": "Anfrage fehlgeschlagen",
+  "gridLabel": "Dienstdaten",
+  "unknownService": "Dieser Neon-Dienst ist nicht verfügbar.",
+  "existingObject": "Vorhandenes Objekt",
+  "chooseObject": "Objekt auswählen"
 }

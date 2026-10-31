@@ -92,64 +92,77 @@ try {
     await page.getByRole('button', { name: 'Maybe later', exact: true }).click({ timeout: 10000 }).catch(() => {});
     await page.getByRole('button', {name:'Dismiss',exact:true}).click().catch(() => {});
     await page.getByText('Neon Core E2E', { exact: true }).dblclick();
-    const launcher = page.locator('[data-slot="explorer.connection.actions"]').getByRole('button', { name: 'Neon workspace', exact: true });
-    await launcher.waitFor({ timeout: 30000 });
-    assert.equal(await page.locator('[data-slot="sidebar.footer.actions"] [data-provider-action]').count(), 0);
-    assert.equal(await launcher.evaluate(button => getComputedStyle(button).backgroundColor), 'rgb(0, 229, 153)');
-    const buttonBounds = await launcher.boundingBox();
-    const explorerBounds = await launcher.locator('xpath=ancestor::aside').boundingBox();
-    assert(buttonBounds && explorerBounds && buttonBounds.x >= explorerBounds.x && buttonBounds.x + buttonBounds.width <= explorerBounds.x + explorerBounds.width + 1, 'Launcher overflows the connection explorer');
-    await page.screenshot({ path: fileURLToPath(new URL('../artifacts/core-neon-launcher.png', import.meta.url)) });
-    await launcher.click();
-    await page.getByRole('tab', { name: 'Overview', exact: true }).waitFor();
-    await page.getByText('AI Gateway', { exact: true }).last().waitFor();
-    await page.getByRole('tab', { name: 'Database', exact: true }).click();
-    await page.locator('.neon-panel tbody tr').first().waitFor();
-    await page.getByRole('tab', { name: 'Users', exact: true }).click();
-    await page.locator('.neon-panel tbody tr').first().waitFor();
-    await page.getByRole('tab', { name: 'Overview', exact: true }).click();
+    const services = page.locator('[data-slot="explorer.services"]');
+    const overview = services.getByRole('button', {name:'Overview',exact:true});
+    await overview.waitFor({timeout:30000});
+    assert.equal(await page.locator('[data-provider-action]').count(), 0, 'Provider card remains in native explorer');
+    assert.equal(await page.locator('[data-slot="explorer.connection.actions"]').count(), 0, 'Provider service list remains outside native tree');
+    await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-launcher.png',import.meta.url))});
+    await overview.click();
     await page.locator('.neon-panel .neon-service').nth(5).waitFor();
-    assert.equal(await page.locator('[data-plugin-workspace]').locator('xpath=ancestor::*[@role="dialog"]').count(), 0, 'Provider workspace must open as a main tab');
-    assert(await page.locator('[data-plugin-workspace] h2').evaluate(node => getComputedStyle(node).color !== getComputedStyle(node.closest('header')).backgroundColor), 'Provider heading is invisible against its background');
-    assert.equal(await page.locator('.monaco-editor:visible').count(), 0, 'SQL editor must not render over workspace');
-    await launcher.click();
-    assert.equal(await page.getByRole('button', {name:'Neon',exact:true}).count(), 1, 'Opening provider twice created duplicate tabs');
+    assert.equal(await page.locator('[data-plugin-workspace] [role="tablist"]').count(), 0, 'Provider has duplicate internal navigation');
+    await services.getByRole('button', {name:'Auth',exact:true}).click();
+    await page.locator('[data-workspace-header]').getByRole('heading', {name:'Auth',exact:true}).waitFor();
+    await page.getByRole('region', {name:'Service data',exact:true}).getByText('email',{exact:true}).first().waitFor();
+    assert.equal(await services.getByRole('button', {name:'Auth',exact:true}).getAttribute('aria-pressed'),'true');
+    await services.getByRole('button', {name:'Database',exact:true}).click();
+    await page.getByRole('region', {name:'Service data',exact:true}).getByText('body',{exact:true}).first().waitFor();
+    assert.equal(await page.getByRole('button', {name:'Neon · Auth',exact:true}).count(), 1);
+    assert.equal(await page.getByRole('button', {name:'Neon · Database',exact:true}).count(), 1);
+    const objectKey = `tabularis-host-native/${randomBytes(8).toString('hex')}.txt`;
+    await extension('neon_storage_put',{key:objectKey,body:'Native storage selection'});
+    try {
+      await services.getByRole('button',{name:'Storage',exact:true}).click();
+      await page.getByLabel('Object prefix (optional)',{exact:true}).fill(objectKey);
+      await page.getByRole('button',{name:'List objects',exact:true}).click();
+      await page.getByRole('region',{name:'Service data',exact:true}).waitFor();
+      await page.getByLabel('Existing object',{exact:true}).selectOption(objectKey);
+      assert.equal(await page.getByLabel('Object key',{exact:true}).inputValue(),objectKey);
+      await page.getByRole('button',{name:'Read object',exact:true}).click();
+      await page.locator('.neon-output').filter({hasText:'Native storage selection'}).waitFor();
+    } finally { await extension('neon_storage_delete',{key:objectKey}); }
+
+    await services.getByRole('button', {name:'Auth',exact:true}).click();
+    assert.equal(await page.getByRole('button', {name:'Neon · Auth',exact:true}).count(),1,'Service duplicate tab created');
+    assert.equal(await page.locator('.monaco-editor:visible').count(),0,'SQL editor rendered over provider service');
     await page.getByRole('button', {name:'Console',exact:true}).click();
     await page.locator('[data-plugin-workspace]').waitFor({state:'detached'});
     await page.locator('.monaco-editor:visible').first().waitFor();
-    await launcher.click();
+    await overview.click();
     await page.locator('.neon-panel .neon-service').nth(5).waitFor();
     let persisted = false;
     for (let attempt = 0; attempt < 100; attempt++) {
       const preferences = await rpc('load_editor_preferences', {connectionId});
       const workspaces = preferences?.tabs?.filter(tab => tab.type === 'plugin-workspace') ?? [];
-      if (workspaces.length === 1 && workspaces[0].pluginId === 'neon' && workspaces[0].workspaceId === 'services' && preferences.active_tab_id === workspaces[0].id) { persisted = true; break; }
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const active = workspaces.find(tab => tab.workspaceId === 'services');
+      if (workspaces.length === 4 && active && preferences.active_tab_id === active.id) { persisted=true;break; }
+      await new Promise(resolve => setTimeout(resolve,100));
     }
-    assert(persisted, 'Provider workspace metadata was not persisted');
+    assert(persisted,'Service tab metadata was not persisted');
     await page.reload();
     await page.locator('.neon-panel .neon-service').nth(5).waitFor();
-    const assertWorkspaceLayout = async () => {
+    const assertNativeLayout = async () => {
       const layout = await page.locator('[data-plugin-workspace]').evaluate(panel => {
-        const nav = panel.querySelector('[role="tablist"]').getBoundingClientRect();
-        const head = panel.querySelector('[data-workspace-header]').getBoundingClientRect();
-        const main = panel.querySelector('[data-workspace-content]').getBoundingClientRect();
-        const bounds = panel.getBoundingClientRect();
-        return {left:bounds.left,right:bounds.right,bottom:bounds.bottom,navTop:nav.top,headBottom:head.bottom,mainBottom:main.bottom,viewportWidth:innerWidth,viewportHeight:innerHeight};
+        const bounds=panel.getBoundingClientRect();
+        const header=panel.querySelector('[data-workspace-header]').getBoundingClientRect();
+        const content=panel.querySelector('[data-workspace-content]').getBoundingClientRect();
+        return {left:bounds.left,right:bounds.right,bottom:bounds.bottom,headerHeight:header.height,contentTop:content.top,headerBottom:header.bottom,viewportWidth:innerWidth,viewportHeight:innerHeight};
       });
-      assert(layout.left >= 0 && layout.right <= layout.viewportWidth + 1 && layout.bottom <= layout.viewportHeight + 1, 'Workspace exceeds viewport');
-      assert(layout.navTop >= layout.headBottom - 1, 'Service navigation overlaps header');
-      assert(layout.mainBottom <= layout.bottom + 1, 'Service content overflows editor pane');
+      assert(layout.left>=0 && layout.right<=layout.viewportWidth+1 && layout.bottom<=layout.viewportHeight+1,'Native service exceeds editor pane');
+      assert(layout.headerHeight<=64,'Provider hero header remains');
+      assert(layout.contentTop>=layout.headerBottom-1,'Native toolbar overlaps service content');
     };
-    await assertWorkspaceLayout();
-    await page.getByRole('button', {name:'Collapse Explorer',exact:true}).click();
+    await assertNativeLayout();
+    await page.getByRole('button',{name:'Collapse Explorer',exact:true}).click();
     await page.setViewportSize({width:390,height:700});
-    await assertWorkspaceLayout();
+    await assertNativeLayout();
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-panel-mobile.png',import.meta.url))});
     await page.setViewportSize({width:1160,height:754});
-    await page.getByRole('button', {name:/expand explorer/i}).click();
-    await mkdir(new URL('../artifacts/', import.meta.url), {recursive:true});
+    await page.getByRole('button',{name:/expand explorer/i}).click();
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-panel.png',import.meta.url))});
+    await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Auth',exact:true}).click();
+    await page.getByRole('region',{name:'Service data',exact:true}).getByText('email',{exact:true}).first().waitFor();
+    await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-auth-grid.png',import.meta.url))});
     assert.deepEqual(errors, []);
   });
   await rpc('delete_connection', { id: connectionId }); connectionId = undefined;

@@ -6,9 +6,9 @@ export interface PluginWorkspaceShellProps {
     subtitle?: string;
     icon?: ReactNode;
     brandColor?: string;
-    tabs: ReadonlyArray<{id: string; label: string; icon?: ReactNode}>;
-    activeTab: string;
-    onTabChange: (id: string) => void;
+    tabs?: ReadonlyArray<{id: string; label: string; icon?: ReactNode}>;
+    activeTab?: string;
+    onTabChange?: (id: string) => void;
     children: ReactNode;
     actions?: ReactNode;
 }

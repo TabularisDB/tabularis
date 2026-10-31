@@ -119,6 +119,8 @@ export type PluginTranslator = (key: string, options?: Record<string, unknown>) 
  * import the named hooks/helpers from `@tabularis/plugin-api` instead.
  */
 export interface TabularisHostApi {
+    PluginExplorerSection: ComponentType<PluginExplorerSectionProps>;
+    PluginDataGrid: ComponentType<PluginDataGridProps>;
     PluginConnectionAction: ComponentType<PluginConnectionActionProps>;
     PluginWorkspaceShell: ComponentType<PluginWorkspaceShellProps>;
     usePluginWorkspace: (pluginId: string) => UsePluginWorkspaceReturn;
@@ -170,9 +172,27 @@ export interface PluginWorkspaceShellProps {
     subtitle?: string;
     icon?: ReactNode;
     brandColor?: string;
-    tabs: ReadonlyArray<{id: string; label: string; icon?: ReactNode}>;
-    activeTab: string;
-    onTabChange: (id: string) => void;
+    tabs?: ReadonlyArray<{id: string; label: string; icon?: ReactNode}>;
+    activeTab?: string;
+    onTabChange?: (id: string) => void;
     children: ReactNode;
     actions?: ReactNode;
+}
+
+/** Connection services rendered as native Explorer rows, each opening its own editor tab. */
+export interface PluginExplorerSectionProps {
+    pluginId: string;
+    providerName: string;
+    connectionId?: string;
+    icon?: ReactNode;
+    items: ReadonlyArray<{id: string; label: string; icon?: string}>;
+    disabled?: boolean;
+}
+
+/** Read-only provider results rendered by the host's native data grid. */
+export interface PluginDataGridProps {
+    columns: string[];
+    rows: unknown[][];
+    connectionId?: string | null;
+    label?: string;
 }
