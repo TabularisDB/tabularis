@@ -43,7 +43,7 @@ openrouter:
   - deepseek/deepseek-v3.2
   - openai/gpt-oss-120b:free
   - z-ai/glm-4.5-air:free
-  - minimax/minimax-m3.1-flash:free
+  - minimax/minimax-m3.1-flash
   - minimax/minimax-m3
 
 requesty:
