@@ -1513,6 +1513,8 @@
       "hiddenLabel_one": "{{count}} nakatagong column",
       "hiddenLabel_other": "{{count}} na nakatagong column"
     },
+    "freezeFirstRow": "I-freeze ang unang row",
+    "unfreezeFirstRow": "I-unfreeze ang unang row",
     "resetColumnWidths": "I-reset ang lapad ng mga column",
     "copySelectedColumns": "Kopyahin ang Napiling Columns ({{count}})",
     "copyRangeN": "Kopyahin ang Range ({{rows}}×{{cols}})",
@@ -1607,6 +1609,8 @@
     "maskCell": "I-mask ang cell",
     "revealColumn": "Ipakita ang column",
     "maskColumn": "I-mask ang column",
+    "transpose": "I-transpose: ipakita ang mga column bilang row",
+    "untranspose": "Ipakita ang mga record bilang row",
     "resizeColumn": "Baguhin ang laki ng column na {{col}}"
   },
   "editRow": {

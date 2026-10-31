@@ -1457,6 +1457,8 @@
       "hiddenLabel_one": "已隐藏 {{count}} 列",
       "hiddenLabel_other": "已隐藏 {{count}} 列"
     },
+    "freezeFirstRow": "冻结首行",
+    "unfreezeFirstRow": "取消冻结首行",
     "resetColumnWidths": "重置列宽",
     "copySelectedColumns": "复制选中列（{{count}}）",
     "copyRangeN": "复制范围（{{rows}}×{{cols}}）",
@@ -1551,6 +1553,8 @@
     "maskCell": "掩码单元格",
     "revealColumn": "显示列",
     "maskColumn": "掩码列",
+    "transpose": "转置：将列显示为行",
+    "untranspose": "将记录显示为行",
     "resizeColumn": "调整列 {{col}} 的宽度"
   },
   "editRow": {
