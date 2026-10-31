@@ -1024,6 +1024,8 @@ fn registers_saved_query_and_history_commands_with_database_authorization() {
         "save_query",
         "update_saved_query",
         "delete_saved_query",
+        "get_saved_query_versions",
+        "restore_saved_query_version",
         "get_saved_query_folders",
         "create_saved_query_folder",
         "rename_saved_query_folder",

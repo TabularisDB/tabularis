@@ -195,6 +195,66 @@ describe('SavedQueriesProvider', () => {
         });
     });
 
+    it('should load the versions of a query', async () => {
+        const versions = [
+            {
+                id: 'version-1',
+                name: 'All Users',
+                sql: 'SELECT id FROM users',
+                database: null,
+                saved_at: '2026-08-22T00:00:00Z',
+            },
+        ];
+        mockBackend({queries: mockQueries});
+
+        const wrapper = ({children}: {children: React.ReactNode}) =>
+            React.createElement(SavedQueriesProvider, null, children);
+
+        const {result} = renderHook(() => useSavedQueries(), {wrapper});
+
+        await waitFor(() => expect(result.current.queries).toHaveLength(2));
+
+        mockClient.call.mockImplementationOnce(async () => versions);
+        await expect(result.current.getQueryVersions('query-1')).resolves.toEqual(versions);
+        expect(mockClient.call).toHaveBeenCalledWith('get_saved_query_versions', {
+            connectionId: 'conn-123',
+            id: 'query-1',
+        });
+    });
+
+    it('should restore a version and refresh the queries', async () => {
+        const backend: Backend = mockBackend({
+            queries: mockQueries,
+            effects: {
+                restore_saved_query_version: () => {
+                    backend.queries = [
+                        {...mockQueries[0], sql: 'SELECT id FROM users'},
+                        mockQueries[1],
+                    ];
+                },
+            },
+        });
+
+        const wrapper = ({children}: {children: React.ReactNode}) =>
+            React.createElement(SavedQueriesProvider, null, children);
+
+        const {result} = renderHook(() => useSavedQueries(), {wrapper});
+
+        await waitFor(() => expect(result.current.queries).toHaveLength(2));
+
+        await result.current.restoreQueryVersion('query-1', 'version-1');
+
+        expect(mockClient.call).toHaveBeenCalledWith('restore_saved_query_version', {
+            connectionId: 'conn-123',
+            id: 'query-1',
+            versionId: 'version-1',
+        });
+
+        await waitFor(() => {
+            expect(result.current.queries[0].sql).toBe('SELECT id FROM users');
+        });
+    });
+
     it('should delete a query', async () => {
         const backend: Backend = mockBackend({
             queries: mockQueries,

@@ -303,6 +303,8 @@ enum ProductivityRpcCommand {
     SaveQuery,
     UpdateSavedQuery,
     DeleteSavedQuery,
+    GetSavedQueryVersions,
+    RestoreSavedQueryVersion,
     GetSavedQueryFolders,
     CreateSavedQueryFolder,
     RenameSavedQueryFolder,
@@ -2318,6 +2320,8 @@ impl ProductivityRpcCommand {
             "save_query" => Self::SaveQuery,
             "update_saved_query" => Self::UpdateSavedQuery,
             "delete_saved_query" => Self::DeleteSavedQuery,
+            "get_saved_query_versions" => Self::GetSavedQueryVersions,
+            "restore_saved_query_version" => Self::RestoreSavedQueryVersion,
             "get_saved_query_folders" => Self::GetSavedQueryFolders,
             "create_saved_query_folder" => Self::CreateSavedQueryFolder,
             "rename_saved_query_folder" => Self::RenameSavedQueryFolder,
@@ -3064,6 +3068,21 @@ fn decode_productivity_command(
             ProductivityCommand::DeleteSavedQuery {
                 connection_id: Some(request.connection_id),
                 id: request.id,
+            }
+        }
+        ProductivityRpcCommand::GetSavedQueryVersions => {
+            let request: ConnectionItemRequest = decode_payload(body)?;
+            ProductivityCommand::GetSavedQueryVersions {
+                connection_id: Some(request.connection_id),
+                id: request.id,
+            }
+        }
+        ProductivityRpcCommand::RestoreSavedQueryVersion => {
+            let request: RestoreSavedQueryVersionRequest = decode_payload(body)?;
+            ProductivityCommand::RestoreSavedQueryVersion {
+                connection_id: Some(request.connection_id),
+                id: request.id,
+                version_id: request.version_id,
             }
         }
         ProductivityRpcCommand::GetSavedQueryFolders => {
@@ -4318,6 +4337,14 @@ struct RenameSavedQueryFolderRequest {
     connection_id: String,
     id: String,
     name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RestoreSavedQueryVersionRequest {
+    connection_id: String,
+    id: String,
+    version_id: String,
 }
 
 #[derive(Debug, Deserialize)]

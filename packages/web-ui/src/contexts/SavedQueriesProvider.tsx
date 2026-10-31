@@ -5,6 +5,7 @@ import {
     SavedQueriesContext,
     type SavedQuery,
     type SavedQueryFolder,
+    type SavedQueryVersion,
 } from '@/contexts/SavedQueriesContext';
 
 export const SavedQueriesProvider = ({children}: {children: ReactNode}) => {
@@ -99,6 +100,22 @@ export const SavedQueriesProvider = ({children}: {children: ReactNode}) => {
         }
     };
 
+    const getQueryVersions = useCallback(
+        async (id: string): Promise<SavedQueryVersion[]> => {
+            const connectionId = activeConnectionIdRef.current;
+            if (!connectionId) return [];
+            return client.call('get_saved_query_versions', {connectionId, id});
+        },
+        [client],
+    );
+
+    const restoreQueryVersion = async (id: string, versionId: string) => {
+        const connectionId = activeConnectionIdRef.current;
+        if (!connectionId) return;
+        await client.call('restore_saved_query_version', {connectionId, id, versionId});
+        await refreshQueries();
+    };
+
     const createFolder = async (name: string) => {
         const connectionId = activeConnectionIdRef.current;
         if (!connectionId) return;
@@ -136,6 +153,8 @@ export const SavedQueriesProvider = ({children}: {children: ReactNode}) => {
                 saveQuery,
                 updateQuery,
                 deleteQuery,
+                getQueryVersions,
+                restoreQueryVersion,
                 createFolder,
                 renameFolder,
                 deleteFolder,

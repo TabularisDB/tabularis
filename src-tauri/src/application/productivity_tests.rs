@@ -244,3 +244,227 @@ async fn rejects_history_connection_path_traversal() {
     .unwrap_err();
     assert_eq!(error, "Invalid connection identifier");
 }
+
+async fn update_sql(config_dir: &std::path::Path, id: &str, sql: &str) -> SavedQuery {
+    from_value(
+        execute(
+            config_dir,
+            ProductivityCommand::UpdateSavedQuery {
+                connection_id: Some("connection-a".to_string()),
+                id: id.to_string(),
+                name: "Query 1".to_string(),
+                sql: sql.to_string(),
+                database: Some("app".to_string()),
+            },
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+async fn versions_of(config_dir: &std::path::Path, id: &str) -> Vec<SavedQueryVersion> {
+    from_value(
+        execute(
+            config_dir,
+            ProductivityCommand::GetSavedQueryVersions {
+                connection_id: Some("connection-a".to_string()),
+                id: id.to_string(),
+            },
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn saving_changed_sql_keeps_the_previous_version() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_dir = temp.path();
+    let saved: SavedQuery = from_value(
+        execute(config_dir, save_command("connection-a", 1))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(versions_of(config_dir, &saved.id).await.is_empty());
+
+    let unchanged = update_sql(config_dir, &saved.id, "SELECT 1").await;
+    assert!(
+        versions_of(config_dir, &saved.id).await.is_empty(),
+        "saving without changes must not create a version"
+    );
+
+    update_sql(config_dir, &saved.id, "SELECT 2").await;
+    update_sql(config_dir, &saved.id, "SELECT 3").await;
+    let versions = versions_of(config_dir, &saved.id).await;
+    let sqls: Vec<&str> = versions.iter().map(|v| v.sql.as_str()).collect();
+    assert_eq!(sqls, ["SELECT 2", "SELECT 1"]);
+    assert_eq!(versions[1].saved_at, unchanged.updated_at);
+
+    let other_connection = execute(
+        config_dir,
+        ProductivityCommand::GetSavedQueryVersions {
+            connection_id: Some("connection-b".to_string()),
+            id: saved.id.clone(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(other_connection, "Query not found");
+}
+
+#[tokio::test]
+async fn version_history_is_capped_and_drops_the_oldest() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_dir = temp.path();
+    let saved: SavedQuery = from_value(
+        execute(config_dir, save_command("connection-a", 0))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    for index in 1..=MAX_SAVED_QUERY_VERSIONS + 5 {
+        update_sql(config_dir, &saved.id, &format!("SELECT {index}")).await;
+    }
+
+    let versions = versions_of(config_dir, &saved.id).await;
+    assert_eq!(versions.len(), MAX_SAVED_QUERY_VERSIONS);
+    assert_eq!(
+        versions[0].sql,
+        format!("SELECT {}", MAX_SAVED_QUERY_VERSIONS + 4)
+    );
+    assert_eq!(versions.last().unwrap().sql, "SELECT 5");
+}
+
+#[test]
+fn push_saved_query_version_puts_newest_first_within_the_cap() {
+    let version = |sql: &str| SavedQueryVersion {
+        id: sql.to_string(),
+        name: "Query".to_string(),
+        sql: sql.to_string(),
+        database: None,
+        saved_at: None,
+    };
+    let mut versions = vec![version("b"), version("a")];
+    push_saved_query_version(&mut versions, version("c"), 2);
+    assert_eq!(versions, [version("c"), version("b")]);
+
+    let mut empty = Vec::new();
+    push_saved_query_version(&mut empty, version("a"), 0);
+    assert!(empty.is_empty());
+}
+
+#[tokio::test]
+async fn restoring_a_version_can_be_undone() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_dir = temp.path();
+    let saved: SavedQuery = from_value(
+        execute(config_dir, save_command("connection-a", 1))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    update_sql(config_dir, &saved.id, "SELECT 2").await;
+    let first = versions_of(config_dir, &saved.id).await.remove(0);
+    assert_eq!(first.sql, "SELECT 1");
+
+    let restored: SavedQuery = from_value(
+        execute(
+            config_dir,
+            ProductivityCommand::RestoreSavedQueryVersion {
+                connection_id: Some("connection-a".to_string()),
+                id: saved.id.clone(),
+                version_id: first.id.clone(),
+            },
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(restored.sql, "SELECT 1");
+    assert_eq!(restored.name, saved.name);
+    assert_eq!(restored.database, saved.database);
+
+    let versions = versions_of(config_dir, &saved.id).await;
+    let sqls: Vec<&str> = versions.iter().map(|v| v.sql.as_str()).collect();
+    assert_eq!(sqls, ["SELECT 2", "SELECT 1"]);
+
+    let missing = execute(
+        config_dir,
+        ProductivityCommand::RestoreSavedQueryVersion {
+            connection_id: Some("connection-a".to_string()),
+            id: saved.id.clone(),
+            version_id: "missing".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(missing, "Version not found");
+}
+
+#[tokio::test]
+async fn deleting_a_saved_query_removes_its_versions() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_dir = temp.path();
+    let saved: SavedQuery = from_value(
+        execute(config_dir, save_command("connection-a", 1))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    update_sql(config_dir, &saved.id, "SELECT 2").await;
+    let versions_file = config_dir
+        .join("saved_queries")
+        .join("versions")
+        .join(format!("{}.json", saved.id));
+    assert!(versions_file.exists());
+
+    execute(
+        config_dir,
+        ProductivityCommand::DeleteSavedQuery {
+            connection_id: Some("connection-a".to_string()),
+            id: saved.id,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(!versions_file.exists());
+}
+
+#[tokio::test]
+async fn a_version_history_failure_does_not_block_the_save() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_dir = temp.path();
+    let saved: SavedQuery = from_value(
+        execute(config_dir, save_command("connection-a", 1))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    // A directory where the versions file belongs makes reading and writing it fail.
+    std::fs::create_dir_all(
+        config_dir
+            .join("saved_queries")
+            .join("versions")
+            .join(format!("{}.json", saved.id)),
+    )
+    .unwrap();
+
+    let updated = update_sql(config_dir, &saved.id, "SELECT 2").await;
+    assert_eq!(updated.sql, "SELECT 2");
+
+    let queries: Vec<SavedQuery> = from_value(
+        execute(
+            config_dir,
+            ProductivityCommand::GetSavedQueries {
+                connection_id: "connection-a".to_string(),
+            },
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(queries[0].sql, "SELECT 2");
+}
