@@ -818,7 +818,12 @@ export const DataGrid = React.memo(function DataGrid({
             updateSelection(new Set());
             if (event.shiftKey && lastSelectedColIndex !== null) {
                 setSelectedColIndices(
-                    new Set(calculateSelectionRange(lastSelectedColIndex, index)),
+                    new Set(
+                        filterVisibleColumns(
+                            calculateSelectionRange(lastSelectedColIndex, index),
+                            hiddenColumns,
+                        ),
+                    ),
                 );
             } else if (event.ctrlKey || event.metaKey) {
                 setSelectedColIndices((prev) => toggleSetValue(prev, index));
@@ -828,7 +833,7 @@ export const DataGrid = React.memo(function DataGrid({
                 setLastSelectedColIndex(index);
             }
         },
-        [lastSelectedColIndex, updateSelection, onForeignKeyHidePanel],
+        [lastSelectedColIndex, hiddenColumns, updateSelection, onForeignKeyHidePanel],
     );
 
     const clearColSelection = useCallback(() => setSelectedColIndices(new Set()), []);

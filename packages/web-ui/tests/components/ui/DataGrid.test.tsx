@@ -3740,6 +3740,22 @@ describe('DataGrid hidden columns (#1299)', () => {
         expect(entry).toBeDisabled();
     });
 
+    it('leaves hidden columns out of a Shift+click header range', async () => {
+        const {container} = renderGrid();
+        await hideColumn(container, 1);
+
+        const selectHeader = (colIndex: number, shiftKey = false) =>
+            fireEvent.click(headerAt(container, colIndex).querySelector('[role="button"]')!, {
+                shiftKey,
+            });
+        selectHeader(0);
+        selectHeader(2, true);
+
+        expect(headerAt(container, 0)).toHaveClass('bg-accent-primary/20');
+        expect(headerAt(container, 2)).toHaveClass('bg-accent-primary/20');
+        expect(headerAt(container, 1)).not.toHaveClass('bg-accent-primary/20');
+    });
+
     it('skips hidden columns with the arrow keys', async () => {
         const {container} = renderGrid();
         await hideColumn(container, 1);
