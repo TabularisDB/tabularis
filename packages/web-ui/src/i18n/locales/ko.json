@@ -1405,6 +1405,8 @@
     "deselectColumn": "열 선택 해제",
     "freezeFirstColumn": "첫 번째 열 고정",
     "unfreezeFirstColumn": "첫 번째 열 고정 해제",
+    "freezeFirstRow": "첫 번째 행 고정",
+    "unfreezeFirstRow": "첫 번째 행 고정 해제",
     "resetColumnWidths": "열 너비 초기화",
     "copySelectedColumns": "선택한 열 복사 ({{count}})",
     "copyRangeN": "범위 복사 ({{rows}}×{{cols}})",
@@ -1499,6 +1501,8 @@
     "maskCell": "셀 마스킹",
     "revealColumn": "열 표시",
     "maskColumn": "열 마스킹",
+    "transpose": "행/열 바꾸기: 열을 행으로 표시",
+    "untranspose": "레코드를 행으로 표시",
     "resizeColumn": "{{col}} 열 크기 조정"
   },
   "editRow": {

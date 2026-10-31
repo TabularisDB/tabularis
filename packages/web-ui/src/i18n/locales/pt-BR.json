@@ -1448,6 +1448,8 @@
     "deselectColumn": "Desmarcar Coluna",
     "freezeFirstColumn": "Congelar a primeira coluna",
     "unfreezeFirstColumn": "Descongelar a primeira coluna",
+    "freezeFirstRow": "Congelar a primeira linha",
+    "unfreezeFirstRow": "Descongelar a primeira linha",
     "resetColumnWidths": "Redefinir largura das colunas",
     "copySelectedColumns": "Copiar Colunas Selecionadas ({{count}})",
     "copyRangeN": "Copiar Intervalo ({{rows}}×{{cols}})",
@@ -1543,6 +1545,8 @@
     "maskCell": "Mascarar célula",
     "revealColumn": "Revelar coluna",
     "maskColumn": "Mascarar coluna",
+    "transpose": "Transpor: mostrar colunas como linhas",
+    "untranspose": "Mostrar registros como linhas",
     "resizeColumn": "Redimensionar coluna {{col}}"
   },
   "editRow": {

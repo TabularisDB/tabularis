@@ -1491,6 +1491,8 @@
     "deselectColumn": "Bỏ chọn cột",
     "freezeFirstColumn": "Cố định cột đầu tiên",
     "unfreezeFirstColumn": "Bỏ cố định cột đầu tiên",
+    "freezeFirstRow": "Cố định dòng đầu tiên",
+    "unfreezeFirstRow": "Bỏ cố định dòng đầu tiên",
     "copySelectedColumns": "Sao chép các cột đã chọn ({{count}})",
     "copyRangeN": "Sao chép vùng ({{rows}}×{{cols}})",
     "copyAllRows": "Sao chép tất cả ({{count}})",
@@ -1582,6 +1584,8 @@
     "maskCell": "Che ô",
     "revealColumn": "Hiện nội dung cột",
     "maskColumn": "Che cột",
+    "transpose": "Chuyển vị: hiển thị cột dưới dạng dòng",
+    "untranspose": "Hiển thị bản ghi dưới dạng dòng",
     "resizeColumn": "Đổi kích thước cột {{col}}"
   },
   "editRow": {

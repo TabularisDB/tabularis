@@ -1431,6 +1431,8 @@
     "deselectColumn": "Снять выбор столбца",
     "freezeFirstColumn": "Закрепить первый столбец",
     "unfreezeFirstColumn": "Открепить первый столбец",
+    "freezeFirstRow": "Закрепить первую строку",
+    "unfreezeFirstRow": "Открепить первую строку",
     "resetColumnWidths": "Сбросить ширину столбцов",
     "copySelectedColumns": "Копировать выбранные столбцы ({{count}})",
     "copyRangeN": "Копировать диапазон ({{rows}}×{{cols}})",
@@ -1526,6 +1528,8 @@
     "maskCell": "Скрыть ячейку",
     "revealColumn": "Показать столбец",
     "maskColumn": "Скрыть столбец",
+    "transpose": "Транспонировать: показать столбцы в виде строк",
+    "untranspose": "Показать записи в виде строк",
     "resizeColumn": "Изменить ширину столбца {{col}}"
   },
   "editRow": {

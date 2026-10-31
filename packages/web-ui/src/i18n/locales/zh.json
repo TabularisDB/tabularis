@@ -1405,6 +1405,8 @@
     "deselectColumn": "取消选择列",
     "freezeFirstColumn": "冻结首列",
     "unfreezeFirstColumn": "取消冻结首列",
+    "freezeFirstRow": "冻结首行",
+    "unfreezeFirstRow": "取消冻结首行",
     "resetColumnWidths": "重置列宽",
     "copySelectedColumns": "复制选中列（{{count}}）",
     "copyRangeN": "复制范围（{{rows}}×{{cols}}）",
@@ -1499,6 +1501,8 @@
     "maskCell": "掩码单元格",
     "revealColumn": "显示列",
     "maskColumn": "掩码列",
+    "transpose": "转置：将列显示为行",
+    "untranspose": "将记录显示为行",
     "resizeColumn": "调整列 {{col}} 的宽度"
   },
   "editRow": {

@@ -1442,6 +1442,8 @@
     "deselectColumn": "列の選択を解除",
     "freezeFirstColumn": "最初の列を固定",
     "unfreezeFirstColumn": "最初の列の固定を解除",
+    "freezeFirstRow": "最初の行を固定",
+    "unfreezeFirstRow": "最初の行の固定を解除",
     "resetColumnWidths": "列幅をリセット",
     "copySelectedColumns": "選択した列をコピー（{{count}}）",
     "copyRangeN": "範囲をコピー（{{rows}}×{{cols}}）",
@@ -1536,6 +1538,8 @@
     "maskCell": "セルをマスク",
     "revealColumn": "列を表示",
     "maskColumn": "列をマスク",
+    "transpose": "行と列を入れ替えて表示",
+    "untranspose": "レコードを行として表示",
     "resizeColumn": "列 {{col}} のサイズを変更"
   },
   "editRow": {

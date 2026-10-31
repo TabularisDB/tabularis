@@ -1493,6 +1493,8 @@
     "deselectColumn": "Deseleziona Colonna",
     "freezeFirstColumn": "Blocca la prima colonna",
     "unfreezeFirstColumn": "Sblocca la prima colonna",
+    "freezeFirstRow": "Blocca la prima riga",
+    "unfreezeFirstRow": "Sblocca la prima riga",
     "resetColumnWidths": "Ripristina larghezza colonne",
     "copySelectedColumns": "Copia Colonne Selezionate ({{count}})",
     "copyRangeN": "Copia Intervallo ({{rows}}×{{cols}})",
@@ -1585,6 +1587,8 @@
     "maskCell": "Maschera cella",
     "revealColumn": "Mostra colonna",
     "maskColumn": "Maschera colonna",
+    "transpose": "Trasponi: mostra le colonne come righe",
+    "untranspose": "Mostra i record come righe",
     "resizeColumn": "Ridimensiona colonna {{col}}"
   },
   "editRow": {
