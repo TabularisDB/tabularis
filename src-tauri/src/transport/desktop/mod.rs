@@ -447,6 +447,8 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             saved_queries::save_query,
             saved_queries::update_saved_query,
             saved_queries::delete_saved_query,
+            saved_queries::get_saved_query_versions,
+            saved_queries::restore_saved_query_version,
             saved_queries::get_saved_query_folders,
             saved_queries::create_saved_query_folder,
             saved_queries::rename_saved_query_folder,

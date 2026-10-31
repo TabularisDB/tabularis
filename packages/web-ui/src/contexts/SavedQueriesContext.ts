@@ -19,6 +19,16 @@ export interface SavedQueryFolder {
     created_at: string | null;
 }
 
+/** A previous content of a saved query, kept when a save changed its SQL. */
+export interface SavedQueryVersion {
+    id: string;
+    name: string;
+    sql: string;
+    database: string | null;
+    /** When this content was saved. */
+    saved_at: string | null;
+}
+
 export interface SavedQueriesContextType {
     queries: SavedQuery[];
     folders: SavedQueryFolder[];
@@ -26,6 +36,10 @@ export interface SavedQueriesContextType {
     saveQuery: (name: string, sql: string, database?: string | null) => Promise<void>;
     updateQuery: (id: string, name: string, sql: string, database?: string | null) => Promise<void>;
     deleteQuery: (id: string) => Promise<void>;
+    /** Previous versions of a saved query, newest first. */
+    getQueryVersions: (id: string) => Promise<SavedQueryVersion[]>;
+    /** Makes a version the current content; the replaced content becomes a version. */
+    restoreQueryVersion: (id: string, versionId: string) => Promise<void>;
     createFolder: (name: string) => Promise<void>;
     renameFolder: (id: string, name: string) => Promise<void>;
     /** Only empty folders can be deleted; rejects otherwise. */
