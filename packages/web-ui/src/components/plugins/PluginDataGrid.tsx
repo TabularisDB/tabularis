@@ -7,7 +7,7 @@ const NativeDataGrid = lazy(() =>
     import('@/components/ui/DataGrid').then(({DataGrid}) => ({default: DataGrid})),
 );
 
-export function PluginDataGrid({columns, rows, connectionId, label}: PluginDataGridProps) {
+export function PluginDataGrid({columns, rows, connectionId, label, fill}: PluginDataGridProps) {
     const {settings} = useSettings();
     const {t} = useTranslation();
     const height = Math.min(320, Math.max(96, (rows.length + 2) * 35));
@@ -16,7 +16,7 @@ export function PluginDataGrid({columns, rows, connectionId, label}: PluginDataG
             role={label ? 'region' : undefined}
             aria-label={label}
             className="min-h-0 w-full min-w-0 overflow-hidden"
-            style={{height}}
+            style={{height: fill ? '100%' : height}}
         >
             <Suspense
                 fallback={

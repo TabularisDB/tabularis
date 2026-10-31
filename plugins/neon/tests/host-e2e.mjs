@@ -120,6 +120,7 @@ try {
       assert.equal(await page.getByLabel('Object key',{exact:true}).inputValue(),objectKey);
       await page.getByRole('button',{name:'Read object',exact:true}).click();
       await page.locator('.neon-output').filter({hasText:'Native storage selection'}).waitFor();
+      await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-storage.png',import.meta.url))});
     } finally { await extension('neon_storage_delete',{key:objectKey}); }
 
     await services.getByRole('button', {name:'Auth',exact:true}).click();
@@ -163,6 +164,35 @@ try {
     await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Auth',exact:true}).click();
     await page.getByRole('region',{name:'Service data',exact:true}).getByText('email',{exact:true}).first().waitFor();
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-auth-grid.png',import.meta.url))});
+    const authBounds = await page.getByRole('region',{name:'Service data',exact:true}).boundingBox();
+    assert(authBounds && authBounds.height > 400,'Auth grid does not use the available editor height');
+    const nav = page.locator('[data-slot="explorer.services"]');
+    await nav.getByRole('button',{name:'AI Gateway',exact:true}).click();
+    await page.getByRole('button',{name:'Load models',exact:true}).click();
+    await page.waitForFunction(()=>{const model=document.querySelector('#neon-model');return model && !model.disabled;});
+    await page.getByLabel('Prompt',{exact:true}).fill('Explain what this database connection can do.');
+    await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-ai.png',import.meta.url))});
+    await nav.getByRole('button',{name:'Functions',exact:true}).click();
+    await page.getByRole('button',{name:'Invoke hello function',exact:true}).click();
+    await page.locator('.neon-output').filter({hasText:'Hello from Neon Functions'}).waitFor();
+    await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-functions.png',import.meta.url))});
+    await nav.getByRole('button',{name:'Realtime',exact:true}).click();
+    await page.getByRole('button',{name:'Read live snapshot',exact:true}).click();
+    await page.getByText('Snapshot received. The subscription is now closed.',{exact:true}).waitFor();
+    await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-realtime.png',import.meta.url))});
+    await nav.getByRole('button',{name:'Connection / Setup',exact:true}).click();
+    await page.getByLabel('Import .env lines or a JSON object',{exact:true}).fill(await readFile(resolve(root,'plugins/neon/.env.local'),'utf8'));
+    await page.getByRole('button',{name:'Replace keyring credentials',exact:true}).click();
+    await page.getByText('Credentials saved. The pasted draft has been cleared.',{exact:true}).waitFor();
+    assert.equal(await page.getByLabel('Import .env lines or a JSON object',{exact:true}).inputValue(),'');
+    assert((await rpc('get_plugin_secret_fields',scope)).includes('NEON_AUTH_JWKS_URL'));
+    await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-setup.png',import.meta.url))});
+    await rpc('set_plugin_secrets',{...scope,secrets:{NEON_BRANCH:'production'}});
+    await nav.getByRole('button',{name:'Overview',exact:true}).click();
+    await page.locator('.neon-panel').getByRole('button',{name:'Configure Storage',exact:true}).click();
+    await page.locator('[data-workspace-header]').getByRole('heading',{name:'Connection / Setup',exact:true}).waitFor();
+
+
     assert.deepEqual(errors, []);
   });
   await rpc('delete_connection', { id: connectionId }); connectionId = undefined;

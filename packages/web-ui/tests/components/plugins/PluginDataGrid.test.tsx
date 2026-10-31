@@ -43,3 +43,14 @@ describe('PluginDataGrid', () => {
         });
     });
 });
+
+it('can fill the editor area without changing readonly native grid behavior', async () => {
+    render(
+        <div style={{height: 500}}>
+            <PluginDataGrid columns={['id']} rows={[[1]]} label="Users" fill />
+        </div>,
+    );
+    await waitFor(() => expect(screen.getByText('Native grid')).toBeInTheDocument());
+    expect(screen.getByRole('region', {name: 'Users'})).toHaveStyle({height: '100%'});
+    expect(grid.mock.lastCall?.[0]).toMatchObject({readonly: true, tableName: null});
+});
