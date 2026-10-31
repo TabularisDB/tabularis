@@ -432,3 +432,39 @@ async fn deleting_a_saved_query_removes_its_versions() {
     .unwrap();
     assert!(!versions_file.exists());
 }
+
+#[tokio::test]
+async fn a_version_history_failure_does_not_block_the_save() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_dir = temp.path();
+    let saved: SavedQuery = from_value(
+        execute(config_dir, save_command("connection-a", 1))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    // A directory where the versions file belongs makes reading and writing it fail.
+    std::fs::create_dir_all(
+        config_dir
+            .join("saved_queries")
+            .join("versions")
+            .join(format!("{}.json", saved.id)),
+    )
+    .unwrap();
+
+    let updated = update_sql(config_dir, &saved.id, "SELECT 2").await;
+    assert_eq!(updated.sql, "SELECT 2");
+
+    let queries: Vec<SavedQuery> = from_value(
+        execute(
+            config_dir,
+            ProductivityCommand::GetSavedQueries {
+                connection_id: "connection-a".to_string(),
+            },
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(queries[0].sql, "SELECT 2");
+}

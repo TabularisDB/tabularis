@@ -450,23 +450,16 @@ fn update_saved_query(
     let index = find_saved_query(&meta, connection_id, id)?;
     validate_storage_filename(&meta[index].filename)?;
     let path = saved_queries_dir(config_dir)?.join(&meta[index].filename);
-    let previous_sql = if path.exists() {
-        fs::read_to_string(&path).ok()
-    } else {
-        None
-    };
-    if let Some(previous_sql) = previous_sql.filter(|previous| *previous != sql) {
-        let previous = SavedQueryVersion {
+    // Captured before the save so the content it replaces can become a version.
+    let previous = read_previous_sql(&path, &meta[index].id)
+        .filter(|previous_sql| *previous_sql != sql)
+        .map(|previous_sql| SavedQueryVersion {
             id: Uuid::new_v4().to_string(),
             name: meta[index].name.clone(),
             sql: previous_sql,
             database: meta[index].database.clone(),
             saved_at: meta[index].updated_at.clone(),
-        };
-        let mut versions = read_saved_query_versions(config_dir, &meta[index].id)?;
-        push_saved_query_version(&mut versions, previous, MAX_SAVED_QUERY_VERSIONS);
-        write_saved_query_versions(config_dir, &meta[index].id, &versions)?;
-    }
+        });
     atomic_write(&path, sql.as_bytes())?;
 
     let now = Utc::now().to_rfc3339();
@@ -474,6 +467,17 @@ fn update_saved_query(
     meta[index].database = database.clone();
     meta[index].updated_at = Some(now.clone());
     write_saved_query_meta(config_dir, &meta)?;
+    // History is auxiliary: it is recorded only once the save went through, and
+    // a failure to record it never fails the save.
+    if let Some(previous) = previous {
+        if let Err(error) = record_saved_query_version(config_dir, &meta[index].id, previous) {
+            log::warn!(
+                "Could not keep the previous version of saved query '{}': {}",
+                meta[index].id,
+                error
+            );
+        }
+    }
     let folders = saved_query_folders::read_folders_file_lenient(&saved_query_folders_path(
         config_dir,
     )?);
@@ -510,6 +514,35 @@ fn delete_saved_query(
         }
     }
     Ok(())
+}
+
+/// The query's current SQL, or `None` when there is none to keep. A file that
+/// exists but cannot be read is logged, since its content then gets no version.
+fn read_previous_sql(path: &Path, query_id: &str) -> Option<String> {
+    if !path.exists() {
+        return None;
+    }
+    match fs::read_to_string(path) {
+        Ok(sql) => Some(sql),
+        Err(error) => {
+            log::warn!(
+                "Could not read saved query '{}' to keep its previous version: {}",
+                query_id,
+                error
+            );
+            None
+        }
+    }
+}
+
+fn record_saved_query_version(
+    config_dir: &Path,
+    query_id: &str,
+    version: SavedQueryVersion,
+) -> Result<(), String> {
+    let mut versions = read_saved_query_versions(config_dir, query_id)?;
+    push_saved_query_version(&mut versions, version, MAX_SAVED_QUERY_VERSIONS);
+    write_saved_query_versions(config_dir, query_id, &versions)
 }
 
 /// Newest first.
