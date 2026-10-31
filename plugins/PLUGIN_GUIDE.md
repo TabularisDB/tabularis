@@ -2085,6 +2085,16 @@ The legacy path — a pull request adding an entry to `plugins/registry.json` (f
 
 ### Connection-bound editor workspaces
 
+Account prerequisites and interactive sign-in setup can use
+`usePluginAccount(pluginId).prepare(method, args)` (API `0.2.3`). Like account
+calls, it requires local-admin authorization. The host forwards no stored
+account/SQL credentials, only `{method,args,secrets:{},context:{plugin_id,
+scope:"account-setup"}}` to the enabled external plugin. Keep an explicit setup
+method allowlist, bound any child processes or polling, start login only after
+a user action, and return metadata rather than credentials or raw process output.
+`account_import` cannot be called through preparation. `copyText(text)` provides
+host-native clipboard access for commands and diagnostic text.
+
 Use `usePluginWorkspace(pluginId).openWorkspace({id, title, connectionId?})` from an
 `explorer.services` contribution to open a provider service as a main
 editor tab. Register its content in `editor.workspace.content` (with `api_version:

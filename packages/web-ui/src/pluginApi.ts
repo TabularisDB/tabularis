@@ -15,6 +15,7 @@ export {
     usePluginTheme,
     usePluginTranslation,
     openUrl,
+    copyText,
 } from './hooks/usePluginApi';
 
 export {usePluginRpc} from './hooks/usePluginRpc';

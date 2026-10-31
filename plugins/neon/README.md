@@ -4,7 +4,7 @@ A Tabularis driver with native explorer services for an existing Neon project. S
 with the Tabularis CLI, then adapted to Node.js to use Neon's SDKs. Requires
 Node.js 22+, pnpm, and the `feat/neon-integration` Core changes on upstream
 Tabularis 0.30.0. The public 0.30.0 release alone does not yet include the new
-`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.2).
+`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.3).
 
 ## Build and install from this repository
 
@@ -45,8 +45,9 @@ Release publication/signing is outside this prototype.
 
 On **Connections**, choose **Add Connection → Neon**. Neon has its own catalogue
 entry and supplies its account/project setup inside the ordinary connection
-dialog; it has no global connection-page launcher. Enter a Neon API key with access to
-the intended organization/project. The key is stored in the host's secret store
+dialog; it has no global connection-page launcher. Use the recommended Neon CLI
+sign-in below, or choose **Use API key** for the intended organization/project.
+An API key is stored in the host's secret store
 (OS keyring on desktop), separately from database connections. Select the
 organization, project, branch, database and role, then import the connection.
 The host saves the SQL password and discovered service credentials internally;
@@ -65,9 +66,36 @@ remote API key or delete remote service credentials. One account credential is
 stored per provider plugin in this prototype; replacing it does not modify
 existing connections.
 
-Neon's partner OAuth client is not available yet, so this entry uses an API key
-and does not pretend to perform a Neon browser sign-in. A later OAuth connector
-can use the same account/resource selection and host import interface.
+### Optional sign-in through the installed Neon CLI
+
+The plugin detects the official CLI without starting authentication. Select a
+local CLI profile and explicitly reuse its existing sign-in, or start browser
+authentication through `neon login`. This wraps the official CLI's OAuth flow;
+it does not reuse its client ID to implement another OAuth client. Neon CLI
+8.15.1 or a later 8.x version is required for the verified session behavior.
+
+Only the CLI profile reference is linked in the host secret store. Access and
+refresh tokens never return to the UI and are not copied into the account
+bundle. The CLI refreshes OAuth sessions through noninteractive `neon me`
+before account API requests; stored API-key profiles are read without requiring
+the user-only `me` endpoint. An expired/revoked session fails rather than opening
+a browser or silently switching to ambient credentials. API-key mode does not
+fall back to a CLI login. CLI configuration follows its normal profile metadata
+and `NEON_CONFIG_DIR`; it runs on the Tabularis host, including in web mode.
+
+New browser sign-in uses a unique file-backed `tabularis-...` CLI profile and
+preserves existing profiles. Linux browser opening is relayed through the host's
+system-default browser. Authentication jobs have bounded output/lifetimes and
+are cancelled on view or plugin shutdown. OS-keyring CLI profiles cannot be
+reused by this bridge; use a separate Tabularis CLI sign-in or an API key instead.
+Disconnecting Tabularis removes only its profile link, not the CLI session.
+
+**Install Neon CLI** shows a copyable `npm install -g neon@latest` command,
+the official install guide and a recheck action. It does not install or upgrade
+software automatically. No CLI dependency is required for the API-key path.
+
+The dedicated Tabularis partner OAuth client remains unavailable. Once granted,
+it can use the same project/branch selection and host import interface directly.
 
 Neon deliberately does not offer raw connection-string or SQL login inputs.
 Use the PostgreSQL plugin for a standalone Postgres URL. The Neon integration
@@ -191,7 +219,7 @@ own account authentication and resource selection before any database connection
 exists. The manifest opt-in replaces the generic new-connection form, is filtered
 to the selected driver owner, and fails closed when plugin UI is unavailable.
 Other SQL drivers retain their standard form. Neon owns the account/branch UI;
-the Core contains no Neon-specific onboarding code. Runtime API 0.2.2 is required.
+the Core contains no Neon-specific onboarding code. Runtime API 0.2.3 is required.
 The administrator-only Core
 account command separates account credentials from connection service bundles,
 reserves the secret-bearing import method, and imports credentials atomically
@@ -254,6 +282,8 @@ pnpm test:scoped
 pnpm test:host
 # Read-only real account/import checks; uses an existing API key:
 NEON_API_KEY=... node tests/account-host-e2e.mjs
+# Installed CLI profile reuse through the real host and browser; no token copied:
+NEON_ACCOUNT_TEST_AUTH_MODE=cli NEON_ACCOUNT_TEST_BROWSER=1 node tests/account-host-e2e.mjs
 # Disposable live writes, including cleanup of test functions/users:
 NEON_API_KEY=... node tests/management-host-e2e.mjs
 NEON_API_KEY=... node tests/management-e2e.mjs

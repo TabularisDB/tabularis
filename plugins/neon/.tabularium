@@ -90,27 +90,27 @@
       "module": "ui/dist/index.js",
       "driver": "neon",
       "order": 30,
-      "api_version": "0.2.2"
+      "api_version": "0.2.3"
     },
     {
       "slot": "explorer.services",
       "module": "ui/dist/index.js",
       "driver": "neon",
       "order": 30,
-      "api_version": "0.2.2"
+      "api_version": "0.2.3"
     },
     {
       "slot": "settings.plugin.actions",
       "module": "ui/dist/index.js",
       "order": 30,
-      "api_version": "0.2.2"
+      "api_version": "0.2.3"
     },
     {
       "slot": "editor.workspace.content",
       "module": "ui/dist/workspace.js",
       "driver": "neon",
       "order": 30,
-      "api_version": "0.2.2"
+      "api_version": "0.2.3"
     }
   ],
   "kind": "driver",

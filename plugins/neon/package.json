@@ -29,7 +29,7 @@
   "scripts": {
     "build": "pnpm build:runtime && pnpm build:ui",
     "start": "node dist/driver.js",
-    "test": "node --test tests/unit.mjs tests/account.mjs tests/management.mjs",
+    "test": "node --test tests/unit.mjs tests/account.mjs tests/management.mjs tests/cli-auth.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "build:runtime": "tsc -p tsconfig.json",
     "build:ui": "pnpm --dir ui build",

@@ -15,6 +15,7 @@ pub enum AccountOperation {
     Fields,
     Disconnect,
     Call,
+    Prepare,
     Import,
 }
 
@@ -59,7 +60,7 @@ fn validate_operation(request: &AccountRequest) -> Result<(), String> {
         AccountOperation::Fields | AccountOperation::Disconnect => {
             request.secrets.is_none() && request.method.is_none() && request.args.is_none()
         }
-        AccountOperation::Call => {
+        AccountOperation::Call | AccountOperation::Prepare => {
             request.secrets.is_none() && request.method.is_some() && request.args.is_some()
         }
         AccountOperation::Import => {
@@ -75,7 +76,11 @@ fn validate_operation(request: &AccountRequest) -> Result<(), String> {
     if let Some(args) = &request.args {
         let method = request.method.as_deref().unwrap_or("account_import");
         validate_request(method, args)?;
-        if matches!(request.operation, AccountOperation::Call) && method == "account_import" {
+        if matches!(
+            request.operation,
+            AccountOperation::Call | AccountOperation::Prepare
+        ) && method == "account_import"
+        {
             return Err("account_import is reserved for the host import operation".into());
         }
     }
@@ -123,6 +128,15 @@ pub async fn execute(
         AccountOperation::Disconnect => {
             blocking(move || runtime_owned.secrets.delete(&key)).await?;
             Ok(Value::Null)
+        }
+        AccountOperation::Prepare => {
+            // Setup status/login flows run before linking an account and never receive its secrets.
+            driver
+                .call_extension(json!({
+                    "method": request.method.unwrap(), "args": request.args.unwrap(), "secrets": {},
+                    "context": {"plugin_id": request.plugin_id, "scope": "account-setup"}
+                }))
+                .await
         }
         operation => {
             let secrets = blocking(move || match runtime_owned.secrets.get(&key)? {

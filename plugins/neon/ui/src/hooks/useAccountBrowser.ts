@@ -24,6 +24,7 @@ interface ProjectList {
 }
 interface State {
     connected: boolean | null;
+    authMode?: 'cli' | 'api-key';
     pending: boolean;
     error?: string;
     organizations: Named[];
@@ -79,10 +80,12 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
         () =>
             run(async (current) => {
                 const fields = await account.secretFields();
-                if (!fields.includes('NEON_API_KEY')) return {...initial, connected: false};
-                if (current()) patch({connected: true});
+                if (!fields.includes('NEON_API_KEY') && !fields.includes('NEON_CLI_AUTH'))
+                    return {...initial, connected: false};
+                const authMode = fields.includes('NEON_CLI_AUTH') ? 'cli' : 'api-key';
+                if (current()) patch({connected: true, authMode});
                 const list = await account.call<ProjectList>('account_projects');
-                return {...initial, connected: true, ...list};
+                return {...initial, connected: true, authMode, ...list};
             }),
         [account, run],
     );
@@ -101,10 +104,20 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
                 // The key is already stored even if subsequent API discovery is forbidden.
                 if (current()) {
                     clearDraft();
-                    patch({connected: true});
+                    patch({connected: true, authMode: 'api-key'});
                 }
                 const list = await account.call<ProjectList>('account_projects');
-                return {...initial, connected: true, ...list};
+                return {...initial, connected: true, authMode: 'api-key', ...list};
+            }),
+        [account, run],
+    );
+    const connectCli = useCallback(
+        (profile: string) =>
+            run(async (current) => {
+                await account.connect({NEON_CLI_AUTH: profile});
+                if (current()) patch({connected: true, authMode: 'cli'});
+                const list = await account.call<ProjectList>('account_projects');
+                return {...initial, connected: true, authMode: 'cli', ...list};
             }),
         [account, run],
     );
@@ -197,6 +210,7 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
         state,
         reload,
         connect,
+        connectCli,
         disconnect,
         selectOrganization,
         selectProject,

@@ -10,6 +10,19 @@ vi.mock('@/hooks/useTabularisClient', () => {
 });
 
 describe('usePluginAccount', () => {
+    it('prepares authentication before an account exists without adding credentials', async () => {
+        const {result} = renderHook(() => usePluginAccount('neon'));
+        call.mockResolvedValue({installed: true});
+        await expect(result.current.prepare('account_cli_status')).resolves.toEqual({
+            installed: true,
+        });
+        expect(call).toHaveBeenLastCalledWith('plugin_account', {
+            pluginId: 'neon',
+            operation: 'prepare',
+            method: 'account_cli_status',
+            args: {},
+        });
+    });
     beforeEach(() => {
         call.mockReset();
         loadConnections.mockReset();

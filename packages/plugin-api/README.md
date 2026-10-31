@@ -35,7 +35,7 @@ export default MySlot.component;
 
 | Hook | Returns | Purpose |
 |------|---------|---------|
-| `usePluginAccount(pluginId)` | `{ connect, secretFields, disconnect, call, importConnection }` | Provider account onboarding before a database connection exists |
+| `usePluginAccount(pluginId)` | `{ prepare, connect, secretFields, disconnect, call, importConnection }` | Provider account onboarding before a database connection exists |
 | `usePluginRpc(pluginId, connectionId?)` | `{ call, saveSecrets, secretFields, deleteSecrets }` | Connection-scoped services and write-only secret storage |
 | `usePluginQuery()` | `{ executeQuery, loading, error }` | Execute read-only queries on the active connection |
 | `usePluginConnection()` | `{ connectionId, driver, schema }` | Active connection metadata |
@@ -73,6 +73,13 @@ connection state after import, including when launched from Settings. The option
 `onConnectionCreated()` callback lets an entry point refresh additional local state. Disconnecting an
 account does not revoke remote credentials or remove previously imported connections.
 
+API `0.2.3` adds `prepare(method, args)` for prerequisite detection and interactive
+sign-in setup before account credentials exist. It requires local-admin access
+and forwards an empty secret object with `context.scope: "account-setup"` to the
+enabled owning plugin. Plugins must allowlist setup methods and return only safe
+metadata; the secret-bearing `account_import` method stays reserved for the host.
+`copyText(text)` uses the host clipboard for installation commands or diagnostics.
+
 ## Connection-scoped plugin services
 
 `usePluginRpc` uses the active saved connection unless an explicit connection ID is supplied. The host checks that the enabled external plugin owns that connection and sends its resolved saved parameters and stored secrets only to that plugin process. The UI cannot supply connection credentials in the envelope or read stored secret values.
@@ -102,7 +109,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` | Initial release |
 | `0.1.1`         | `0.1.0` | Typed slots and automatic manifest compatibility gate |
-| `0.4.0` (unreleased) | `0.2.2` | Account/service calls, resource lists, native code editing and provider-owned connection setup |
+| `0.4.0` (unreleased) | `0.2.3` | Account/service calls, provider setup/preparation, native resource UI and clipboard |
 
 ## Slot reference
 

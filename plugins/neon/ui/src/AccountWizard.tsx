@@ -1,7 +1,8 @@
 import {useId, useState} from 'react';
-import {openUrl, usePluginTranslation} from '@tabularis/plugin-api';
+import {usePluginTranslation} from '@tabularis/plugin-api';
 import {useAccountBrowser} from './hooks/useAccountBrowser';
 import {styles} from './styles';
+import {AccountAuthentication} from './components/AccountAuthentication';
 
 export function AccountWizard({
     onConnected,
@@ -12,9 +13,7 @@ export function AccountWizard({
 }) {
     const t = usePluginTranslation('neon');
     const id = useId();
-    const [draft, setDraft] = useState('');
     const [createCredentials, setCreateCredentials] = useState(false);
-    const [linkError, setLinkError] = useState<string>();
     const browser = useAccountBrowser(onConnected);
     const {state} = browser;
     const ready = !!(
@@ -59,7 +58,11 @@ export function AccountWizard({
                     {state.connected ? (
                         <div className="neon-account-connected">
                             <span className="neon-status is-configured">
-                                {t('account.connected')}
+                                {t(
+                                    state.authMode === 'cli'
+                                        ? 'account.cli.connected'
+                                        : 'account.connected',
+                                )}
                             </span>
                             <button
                                 type="button"
@@ -72,54 +75,11 @@ export function AccountWizard({
                         </div>
                     ) : (
                         state.connected === false && (
-                            <form
-                                onSubmit={(event) => {
-                                    event.preventDefault();
-                                    void browser.connect(draft, () => setDraft(''));
-                                }}
-                            >
-                                <label className="neon-field-label" htmlFor={`${id}-key`}>
-                                    {t('account.apiKey')}
-                                </label>
-                                <input
-                                    id={`${id}-key`}
-                                    className="neon-field"
-                                    type="password"
-                                    autoComplete="off"
-                                    spellCheck={false}
-                                    value={draft}
-                                    disabled={state.pending}
-                                    onChange={(event) => setDraft(event.target.value)}
-                                    autoFocus
-                                />
-                                <p className="neon-hint">{t('account.keyHint')}</p>
-                                <div className="neon-row">
-                                    <button
-                                        type="submit"
-                                        className="neon-button neon-button-primary"
-                                        disabled={state.pending || !draft.trim()}
-                                    >
-                                        {t('account.connect')}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="neon-link"
-                                        onClick={() =>
-                                            void openUrl(
-                                                'https://console.neon.tech/app/settings/api-keys',
-                                            ).catch((error) =>
-                                                setLinkError(
-                                                    error instanceof Error
-                                                        ? error.message
-                                                        : t('requestFailed'),
-                                                ),
-                                            )
-                                        }
-                                    >
-                                        {t('account.createKey')}
-                                    </button>
-                                </div>
-                            </form>
+                            <AccountAuthentication
+                                pending={state.pending}
+                                onCliConnected={browser.connectCli}
+                                onApiKeyConnected={browser.connect}
+                            />
                         )
                     )}
                     {state.connected && (
@@ -313,9 +273,9 @@ export function AccountWizard({
                             {t('loading')}
                         </p>
                     )}
-                    {(state.error || linkError) && (
+                    {state.error && (
                         <div role="alert" className="neon-feedback neon-error">
-                            {state.error ?? linkError}
+                            {state.error}
                         </div>
                     )}
                     {state.error && !state.connected && (

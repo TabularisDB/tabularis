@@ -7,13 +7,16 @@ import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
-// CLI credentials are test-only and opt-in; the installed plugin never reads this file.
+// The CLI path uses only a linked profile. The API-key regression can explicitly reuse a test bearer.
+const cliMode = process.env.NEON_ACCOUNT_TEST_AUTH_MODE === 'cli';
 let apiKey = process.env.NEON_API_KEY;
-if (!apiKey && process.env.NEON_ACCOUNT_TEST_USE_CLI === '1') {
+if (!cliMode && !apiKey && process.env.NEON_ACCOUNT_TEST_USE_CLI === '1') {
   const auth = JSON.parse(await readFile(join(homedir(), '.config/neon/credentials.json'), 'utf8'));
   apiKey = auth.access_token;
 }
-assert(typeof apiKey === 'string' && apiKey, 'Set NEON_API_KEY or explicitly permit the current CLI token with NEON_ACCOUNT_TEST_USE_CLI=1');
+assert(cliMode || typeof apiKey === 'string' && apiKey, 'Set NEON_API_KEY or explicitly select a CLI profile test');
+const cliProfile = process.env.NEON_ACCOUNT_TEST_CLI_PROFILE ?? 'DEFAULT';
+const linkedSecrets = cliMode ? {NEON_CLI_AUTH:cliProfile} : {NEON_API_KEY:apiKey};
 const projectId = process.env.NEON_ACCOUNT_TEST_PROJECT_ID ?? 'solitary-leaf-07190439';
 const orgId = process.env.NEON_ACCOUNT_TEST_ORG_ID ?? 'org-empty-pine-21623834';
 const branchName = process.env.NEON_ACCOUNT_TEST_BRANCH ?? 'production';
@@ -26,7 +29,7 @@ const origin = `http://127.0.0.1:${process.env.NEON_ACCOUNT_TEST_PORT ?? 3049}`;
 const password = randomBytes(32).toString('base64url');
 const log = await open(join(temp, 'server.log'), 'w', 0o600);
 const server = spawn(resolve(root, 'src-tauri/target/debug/tabularis'), ['web', '--host', '127.0.0.1', '--port', new URL(origin).port, '--no-open', '--auth', 'password', '--allow-high-risk', '--public-url', origin, '--allowed-origin', origin, '--web-root', resolve(root, 'packages/web-ui/dist')], {
-  env: { ...process.env, XDG_CONFIG_HOME: join(temp, 'config'), TABULARIS_WEB_PASSWORD: password, TABULARIS_SECRET_STORE: 'file', TABULARIS_SECRET_KEY: randomBytes(32).toString('hex'), TABULARIS_SECRET_STORE_PATH: join(temp, 'secrets.json') },
+  env: { ...process.env, ...(cliMode ? {NEON_CONFIG_DIR:process.env.NEON_CONFIG_DIR ?? join(homedir(),'.config','neon')} : {}), XDG_CONFIG_HOME: join(temp, 'config'), TABULARIS_WEB_PASSWORD: password, TABULARIS_SECRET_STORE: 'file', TABULARIS_SECRET_KEY: randomBytes(32).toString('hex'), TABULARIS_SECRET_STORE_PATH: join(temp, 'secrets.json') },
   stdio: ['ignore', log.fd, log.fd],
 });
 let cookie;
@@ -64,18 +67,25 @@ try {
     assert.equal(response.status, 401);
     await assert.rejects(call('account_import', {}), /reserved/);
   });
-  await account('connect', { secrets: { NEON_API_KEY: apiKey } }); connected = true;
+  if(cliMode){
+    const status=await account('prepare',{method:'account_cli_status',args:{profile:cliProfile}});
+    assert(status.installed && status.canReuse,'No reusable CLI sign-in on the selected profile');
+    const selected=await account('prepare',{method:'account_cli_use',args:{profile:cliProfile}});
+    assert.equal(selected.profile,cliProfile);
+    console.log('PASS CLI preparation/reuse before linking returns only a profile reference');
+  }
+  await account('connect', { secrets: linkedSecrets }); connected = true;
   await check('Account key is stored write-only in the host before any database connection exists', async () => {
-    assert.deepEqual(await account('fields'), ['NEON_API_KEY']);
+    assert.deepEqual(await account('fields'), [cliMode ? 'NEON_CLI_AUTH' : 'NEON_API_KEY']);
     assert.deepEqual(await rpc('get_connections'), []);
-    assert.equal((await readFile(join(temp, 'secrets.json'), 'utf8')).includes(apiKey), false);
+    assert.equal((await readFile(join(temp, 'secrets.json'), 'utf8')).includes(apiKey ?? '[no token in CLI test]'), false);
   });
   let branchId;
   let resources;
   await check('Existing organization, project, branch, database and service metadata are discovered through Core', async () => {
     const projects = await call('account_projects', { orgId });
     assert(projects.projects.some(project => project.id === projectId));
-    assert.equal(JSON.stringify(projects).includes(apiKey), false);
+    assert.equal(JSON.stringify(projects).includes(apiKey ?? '[no token in CLI test]'), false);
     const branches = await call('account_branches', { projectId });
     branchId = branches.branches.find(branch => branch.name === branchName)?.id;
     assert(branchId, 'Requested test branch was not found');
@@ -105,9 +115,18 @@ try {
       await page.getByRole('button',{name:'Connect to Neon',exact:true}).click();
       const dialog = page.locator('[data-slot="connection-modal.setup"]');
       await dialog.getByText('Connect your Neon workspace',{exact:true}).waitFor();
-      await dialog.getByLabel('Neon API key',{exact:true}).fill(apiKey);
-      await dialog.getByRole('button',{name:'Connect account',exact:true}).click();
-      await dialog.getByText('Account connected',{exact:true}).waitFor(); connected=true;
+      if(cliMode){
+        await dialog.getByRole('button',{name:'Use signed-in Neon CLI account',exact:true}).click();
+        await dialog.getByText('Neon CLI account connected',{exact:true}).waitFor();
+        assert.deepEqual(await account('fields'),['NEON_CLI_AUTH']);
+        console.log('PASS Add Connection links installed CLI login without an API-key field or copied bearer');
+      }else{
+        await dialog.getByRole('button',{name:'Use API key',exact:true}).click();
+        await dialog.getByLabel('Neon API key',{exact:true}).fill(apiKey);
+        await dialog.getByRole('button',{name:'Connect account',exact:true}).click();
+        await dialog.getByText('Account connected',{exact:true}).waitFor();
+      }
+      connected=true;
       assert.equal(await dialog.locator('input[type="password"]').count(),0,'Key draft was not cleared from the completed auth form');
       assert.equal(await page.getByText(/^Connection string$/i).count(),0);
       assert.equal(await page.getByRole('button',{name:'Test Connection',exact:true}).count(),0);
@@ -142,7 +161,7 @@ try {
       console.log('PASS Add Connection → Neon plugin auth, branch/service selection and immediate connection-list refresh');
     } else imported = await account('import', { args });
     assert.deepEqual(Object.keys(imported).sort(), ['id', 'name', 'warnings']);
-    assert.equal(JSON.stringify(imported).includes(apiKey), false);
+    assert.equal(JSON.stringify(imported).includes(apiKey ?? '[no token in CLI test]'), false);
     connectionId = imported.id;
     const saved = await rpc('get_connection_by_id', { id: connectionId });
     assert.equal(saved.params.driver, 'neon');
@@ -155,9 +174,9 @@ try {
     assert(!fields.includes('NEON_AI_GATEWAY_TOKEN'));
     const path = join(config, 'connections.json');
     const persisted = await readFile(path, 'utf8');
-    assert.equal(persisted.includes(apiKey), false);
+    assert.equal(persisted.includes(apiKey ?? '[no token in CLI test]'), false);
     for (const connection of JSON.parse(persisted).connections) assert(!connection.params.password && !connection.params.connection_uri);
-    assert.equal((await readFile(join(temp, 'secrets.json'), 'utf8')).includes(apiKey), false);
+    assert.equal((await readFile(join(temp, 'secrets.json'), 'utf8')).includes(apiKey ?? '[no token in CLI test]'), false);
   });
   await check('Imported Postgres and discovered Auth, Function and Realtime work through saved connection scope', async () => {
     const extension = async (method, args = {}) => {
@@ -182,7 +201,7 @@ try {
   });
   console.log(`PASS ${results.length} account integration checks; no cloud resources or credentials created`);
 } catch (error) {
-  console.error(error instanceof Error ? error.message.replaceAll(apiKey, '[account credential]') : 'Account integration test failed');
+  console.error(error instanceof Error ? (apiKey ? error.message.replaceAll(apiKey, '[account credential]') : error.message) : 'Account integration test failed');
   process.exitCode = 1;
 } finally {
   await browser?.close();

@@ -24,6 +24,22 @@ function deferred<T>() {
 }
 
 describe('Neon account browser', () => {
+    it('links only a CLI profile reference and restores the CLI authentication mode', async () => {
+        const {result} = renderHook(() => useAccountBrowser());
+        await waitFor(() => expect(result.current.state.connected).toBe(true));
+        await act(async () => {
+            await result.current.connectCli('DEFAULT');
+        });
+        expect(account.connect).toHaveBeenCalledWith({NEON_CLI_AUTH: 'DEFAULT'});
+        expect(result.current.state.authMode).toBe('cli');
+        expect(result.current.state.connected).toBe(true);
+    });
+    it('recognizes a stored CLI link without a copied API token', async () => {
+        account.secretFields.mockResolvedValue(['NEON_CLI_AUTH']);
+        const {result} = renderHook(() => useAccountBrowser());
+        await waitFor(() => expect(result.current.state.authMode).toBe('cli'));
+        expect(result.current.state.connected).toBe(true);
+    });
     it('does not call a stale setup completion callback after the driver view closes', async () => {
         account.secretFields.mockResolvedValue(['NEON_API_KEY']);
         account.call.mockResolvedValue({organizations: [], projects: []});

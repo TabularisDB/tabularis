@@ -7,6 +7,16 @@ import type {PluginAccountImportResult, UsePluginAccountReturn} from '@/types/pl
 export function usePluginAccount(pluginId: string): UsePluginAccountReturn {
     const client = useTabularisClient();
     const {loadConnections} = useDatabase();
+    const prepare = useCallback(
+        <T = unknown>(method: string, args: Record<string, unknown> = {}) =>
+            client.call('plugin_account', {
+                pluginId,
+                operation: 'prepare',
+                method,
+                args,
+            }) as Promise<T>,
+        [client, pluginId],
+    );
     const connect = useCallback(
         async (secrets: Record<string, string>) => {
             await client.call('plugin_account', {pluginId, operation: 'connect', secrets});
@@ -43,7 +53,7 @@ export function usePluginAccount(pluginId: string): UsePluginAccountReturn {
         [client, loadConnections, pluginId],
     );
     return useMemo(
-        () => ({connect, secretFields, disconnect, call, importConnection}),
-        [connect, secretFields, disconnect, call, importConnection],
+        () => ({prepare, connect, secretFields, disconnect, call, importConnection}),
+        [prepare, connect, secretFields, disconnect, call, importConnection],
     );
 }

@@ -101,6 +101,12 @@ export const styles = `
 .neon-connect-action {display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-lg);background:var(--bg-elevated);color:var(--text-primary);font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .neon-connect-action:hover {background:var(--surface-hover);border-color:var(--accent-primary)}
 .neon-connect-action:focus-visible {outline:2px solid var(--border-focus);outline-offset:2px}
+.neon-authentication {margin-top:16px;min-width:0}
+.neon-auth-option {border:1px solid var(--border-default);border-radius:var(--radius-sm);padding:14px;background:var(--bg-elevated)}
+.neon-auth-title {margin:0 0 8px;font-size:13px;font-weight:600}
+.neon-auth-key-toggle {margin:10px 0}
+.neon-auth-install {padding-top:8px;border-top:1px solid var(--border-default)}
+.neon-auth-command {margin:10px 0;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;font-family:var(--font-mono);font-size:12px;color:var(--text-primary)}
 @container(max-width:740px){.neon-workbench,.neon-workbench-balanced,.neon-workbench-settings{grid-template-columns:minmax(0,1fr);gap:18px}.neon-service{gap:8px}.neon-service-name > span{max-width:42ch}.neon-toolbar{gap:10px}.neon-status{font-size:10px}}
 @container(max-width:400px){.neon-summary-strip{grid-template-columns:minmax(0,1fr);gap:10px}.neon-summary-strip > div{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.neon-summary-strip dt{margin:0}.neon-summary-strip dd{font-size:12px}.neon-service-name > span{display:none}.neon-meta-list > div{grid-template-columns:minmax(0,1fr);gap:4px}.neon-data-region{min-height:160px}}
 `;

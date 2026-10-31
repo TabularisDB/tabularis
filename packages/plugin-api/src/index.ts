@@ -18,6 +18,7 @@ export {
     usePluginModal,
     usePluginTheme,
     openUrl,
+    copyText,
 } from './hooks';
 
 export {getHost, assertHostCompat} from './host';

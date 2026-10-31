@@ -46,7 +46,7 @@ export function useNeonManagement(connectionId: string) {
                 if (!binding.projectId || (!binding.branchId && !binding.branchName))
                     throw new Error(t('management.missingBinding'));
                 const fields = await account.secretFields();
-                if (!fields.includes('NEON_API_KEY'))
+                if (!fields.includes('NEON_API_KEY') && !fields.includes('NEON_CLI_AUTH'))
                     throw new Error(t('management.connectRequired'));
                 let branchId = binding.branchId;
                 if (!branchId) {

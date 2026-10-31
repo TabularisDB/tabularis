@@ -2,12 +2,19 @@ import { withCredentials } from './env.js';
 import { type Params, text } from './database.js';
 import { service } from './services.js';
 import { admin } from './admin.js';
+import { cliSetup } from './cliAuth.js';
 import { account } from './account.js';
 
 const operations = new Set(['neon_status', 'neon_auth_users', 'neon_auth_users_page', 'neon_auth_user_details', 'neon_management_context', 'neon_demo_notes', 'neon_function', 'neon_ai_models', 'neon_ai_complete', 'neon_storage_list', 'neon_storage_put', 'neon_storage_get', 'neon_storage_delete', 'neon_realtime_snapshot', 'neon_project_branches']);
 
 export async function extension(request: Params): Promise<unknown> {
   const context = request.context as Params | undefined;
+  if (context?.plugin_id === 'neon' && context.scope === 'account-setup') {
+    if (context.connection_id !== undefined || request.params !== undefined) throw new Error('Account setup cannot include a connection');
+    if (!request.secrets || typeof request.secrets !== 'object' || Array.isArray(request.secrets) || Object.keys(request.secrets).length) throw new Error('Account setup cannot include credentials');
+    if (!request.args || typeof request.args !== 'object' || Array.isArray(request.args)) throw new Error('Invalid account setup arguments');
+    return cliSetup(text(request.method, 'method'), request.args as Params);
+  }
   if (context?.plugin_id === 'neon' && context.scope === 'account') {
     if (context.connection_id !== undefined || request.params !== undefined) throw new Error('Account scope cannot include a connection');
     const supplied = request.secrets;

@@ -73,6 +73,11 @@ export async function openUrl(url: string): Promise<void> {
     return getHost().openUrl(url);
 }
 
+/** Copy a command or diagnostic through the host clipboard. */
+export async function copyText(text: string): Promise<void> {
+    return getHost().copyText(text);
+}
+
 /** Connection-scoped services; stored secret values cannot be read through this API. */
 export function usePluginRpc(pluginId: string, connectionId?: string): UsePluginRpcReturn {
     return getHost().usePluginRpc(pluginId, connectionId);

@@ -2,7 +2,7 @@
 export type PluginAccountRequest = {pluginId: string} & (
     | {operation: 'connect'; secrets: Record<string, string>}
     | {operation: 'fields' | 'disconnect'}
-    | {operation: 'call'; method: string; args: Record<string, unknown>}
+    | {operation: 'call' | 'prepare'; method: string; args: Record<string, unknown>}
     | {operation: 'import'; args: Record<string, unknown>}
 );
 
@@ -14,6 +14,8 @@ export interface PluginAccountImportResult {
 
 /** The host stores credentials and imports connections without exposing their secret values. */
 export interface UsePluginAccountReturn {
+    /** Metadata and interactive authentication setup; no stored account credentials are forwarded. */
+    prepare: <T = unknown>(method: string, args?: Record<string, unknown>) => Promise<T>;
     connect: (secrets: Record<string, string>) => Promise<void>;
     secretFields: () => Promise<string[]>;
     disconnect: () => Promise<void>;

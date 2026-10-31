@@ -54,6 +54,75 @@ fn request(plugin: &str, operation: &str, fields: Value) -> AccountRequest {
 }
 
 #[tokio::test]
+async fn provider_preparation_needs_admin_but_no_account_and_never_receives_stored_secrets() {
+    let (_temp, runtime, state) = fixture(false);
+    let plugin = "account-prepare-test";
+    crate::drivers::registry::register_driver(with_test_driver_id(
+        test_driver(move |rpc| {
+            assert_eq!(
+                rpc.params["context"],
+                json!({"plugin_id":plugin,"scope":"account-setup"})
+            );
+            assert_eq!(rpc.params["secrets"], json!({}));
+            assert!(rpc.params.get("params").is_none());
+            json!({"installed":true})
+        }),
+        plugin,
+    ))
+    .await;
+    let payload = || {
+        request(
+            plugin,
+            "prepare",
+            json!({"method":"account_cli_status","args":{}}),
+        )
+    };
+    for level in [
+        AuthorizationLevel::Session,
+        AuthorizationLevel::Database,
+        AuthorizationLevel::Sensitive,
+    ] {
+        assert!(execute(&runtime, &state, level, payload())
+            .await
+            .unwrap_err()
+            .contains("administrator"));
+    }
+    assert_eq!(
+        execute(&runtime, &state, AuthorizationLevel::LocalAdmin, payload())
+            .await
+            .unwrap(),
+        json!({"installed":true})
+    );
+    runtime
+        .secrets
+        .set(
+            &account_key(plugin),
+            &json!({"TOKEN":"must-stay-in-host"}).to_string(),
+        )
+        .unwrap();
+    assert_eq!(
+        execute(&runtime, &state, AuthorizationLevel::LocalAdmin, payload())
+            .await
+            .unwrap(),
+        json!({"installed":true})
+    );
+    assert!(validate_operation(&request(
+        plugin,
+        "prepare",
+        json!({"method":"account_import","args":{}})
+    ))
+    .unwrap_err()
+    .contains("reserved"));
+    assert!(validate_operation(&request(
+        plugin,
+        "prepare",
+        json!({"method":"account_cli_status","args":{},"secrets":{"TOKEN":"injected"}})
+    ))
+    .is_err());
+    crate::drivers::registry::unregister_driver(plugin).await;
+}
+
+#[tokio::test]
 async fn provider_account_requires_admin_before_credentials_or_plugins() {
     let (_temp, runtime, state) = fixture(false);
     for level in [

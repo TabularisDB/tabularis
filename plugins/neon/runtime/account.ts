@@ -1,5 +1,6 @@
 import { createNeonClient, isNeonError, type NeonClient } from '@neon/sdk';
 import type { Params } from './database.js';
+import { cliCredential } from './cliAuth.js';
 import { withFunctionMutation } from './managementQueue.js';
 import { manage, managementMethods, ManagementError } from './management.js';
 
@@ -61,7 +62,7 @@ function serviceMetadata(discovered: Awaited<ReturnType<typeof discover>>) {
   ];
 }
 
-/** Account calls use only the host's account credential, never a CLI or process login. */
+/** Account calls use only the credential source explicitly linked by the host. */
 export async function account(
   method: string,
   args: Params,
@@ -69,7 +70,8 @@ export async function account(
   fetcher: typeof fetch = globalThis.fetch,
 ): Promise<unknown> {
   if (!methods.has(method) && !managementMethods.has(method)) throw new Error('Unsupported Neon account method');
-  const key = secrets.NEON_API_KEY;
+  if (secrets.NEON_API_KEY && secrets.NEON_CLI_AUTH) throw new Error('Choose one Neon account authentication method');
+  const key = secrets.NEON_CLI_AUTH ? await cliCredential(secrets.NEON_CLI_AUTH) : secrets.NEON_API_KEY;
   if (!key || !key.trim() || /[\r\n\0]/.test(key)) throw new Error('A Neon account API key is required');
   const orgId = args.orgId === undefined || args.orgId === '' ? undefined : id(args.orgId, 'organization');
   const scope = method === 'account_projects' ? undefined : {
