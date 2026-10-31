@@ -90,5 +90,8 @@
     "value": "Jedes Zugangsdatenfeld benötigt einen nicht leeren Textwert.",
     "duplicate": "Ein Zugangsdatenfeld ist mehrfach vorhanden. Behalte je Feld nur einen Wert."
   },
-  "coreRequired": "Dieses Neon-Panel benötigt den Tabularis-Feature-Build mit Plugin-API 0.2.0."
+  "coreRequired": "Dieses Neon-Panel benötigt den Tabularis-Feature-Build mit Plugin-API 0.2.0.",
+  "launcher": "Neon",
+  "selectedConnection": "Ausgewählte Verbindung",
+  "connectionTools": "Neon-Dienste für diese Verbindung"
 }

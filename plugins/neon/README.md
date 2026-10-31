@@ -42,8 +42,8 @@ Release publication/signing is outside this prototype.
 ## Configure a connection
 
 Select Neon in the connection picker and import its Postgres URL. SQL always
-uses the saved connection's credentials and verified TLS. Open **Neon** in the
-sidebar (or the plugin's settings action). The panel stays pinned to that
+uses the saved connection's credentials and verified TLS. Open **Neon** below the active connection in the
+explorer (or the plugin's settings action). The panel stays pinned to that
 connection even when another tab is selected.
 
 In **Connection / Setup**, paste a complete `.env` bundle or JSON object from

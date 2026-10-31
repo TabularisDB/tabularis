@@ -13,6 +13,36 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "ui_extensions": {
+      "type": "array",
+      "description": "Optional plugin UI contributions. Connection tools belong in explorer.connection.actions; sidebar.footer.actions is the narrow icon rail.",
+      "items": {
+        "type": "object",
+        "required": [
+          "slot",
+          "module"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "slot": {
+            "type": "string"
+          },
+          "module": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "driver": {
+            "type": "string"
+          },
+          "api_version": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9-]+$",

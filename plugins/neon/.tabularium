@@ -87,7 +87,7 @@
   "engine": "postgres",
   "ui_extensions": [
     {
-      "slot": "sidebar.footer.actions",
+      "slot": "explorer.connection.actions",
       "module": "ui/dist/index.js",
       "driver": "neon",
       "order": 30

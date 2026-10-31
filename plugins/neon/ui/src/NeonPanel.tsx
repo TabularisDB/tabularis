@@ -16,7 +16,7 @@ interface NeonStatus {
   services: { name: string; configured: boolean }[];
 }
 
-export function NeonPanel({ connectionId }: { connectionId: string | null }) {
+export function NeonPanel({ connectionId, connectionName }: { connectionId: string | null; connectionName?: string }) {
   const t = usePluginTranslation("neon");
   const [tab, setTab] = useState<Tab>("overview");
   const tabs: Tab[] = ["overview", "database", "users", "storage", "ai", "functions", "realtime", "setup"];
@@ -31,7 +31,7 @@ export function NeonPanel({ connectionId }: { connectionId: string | null }) {
   else content = <Setup connectionId={connectionId} />;
   return <div className="neon-panel">
     <style>{styles}</style>
-    <div className="neon-head"><div><strong>{t("workspace")}</strong><p>{connectionId ? t("pinned", { id: connectionId }) : t("selectConnection")}</p></div><ConsoleLink /></div>
+    <div className="neon-head"><div><strong title={connectionId ?? undefined}>{connectionName ?? t("selectedConnection")}</strong><p>{connectionId ? t("connectionTools") : t("selectConnection")}</p></div><ConsoleLink /></div>
     <div className="neon-shell">
       <nav className="neon-nav" role="tablist" aria-label={t("services")} aria-orientation="vertical">{tabs.map((item, index) => <button key={item} id={`neon-tab-${item}`} role="tab" aria-controls="neon-content" aria-selected={tab === item} tabIndex={tab === item ? 0 : -1} disabled={!connectionId} onClick={() => setTab(item)} onKeyDown={event => {
         const offset = event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 0;

@@ -82,7 +82,7 @@ try {
   });
   await check('Real Tabularis UI opens the Neon service panel and reads project data', async () => {
     browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/usr/bin/google-chrome-stable', headless: true });
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const context = await browser.newContext({ colorScheme: 'dark', viewport: { width: 1160, height: 754 } });
     const split = cookie.indexOf('=');
     await context.addCookies([{ name: cookie.slice(0, split), value: cookie.slice(split + 1), url: origin, httpOnly: true, sameSite: 'Strict' }]);
     const page = await context.newPage();
@@ -91,7 +91,14 @@ try {
     await page.goto(origin);
     await page.getByRole('button', { name: 'Maybe later', exact: true }).click({ timeout: 10000 }).catch(() => {});
     await page.getByText('Neon Core E2E', { exact: true }).dblclick();
-    await page.getByRole('button', { name: 'Neon workspace', exact: true }).click({ timeout: 30000 });
+    const launcher = page.locator('[data-slot="explorer.connection.actions"]').getByRole('button', { name: 'Neon workspace', exact: true });
+    await launcher.waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('[data-slot="sidebar.footer.actions"] .neon-launch').count(), 0);
+    const buttonBounds = await launcher.boundingBox();
+    const explorerBounds = await launcher.locator('xpath=ancestor::aside').boundingBox();
+    assert(buttonBounds && explorerBounds && buttonBounds.x >= explorerBounds.x && buttonBounds.x + buttonBounds.width <= explorerBounds.x + explorerBounds.width + 1, 'Launcher overflows the connection explorer');
+    await page.screenshot({ path: fileURLToPath(new URL('../artifacts/core-neon-launcher.png', import.meta.url)) });
+    await launcher.click();
     await page.getByRole('tab', { name: 'Overview', exact: true }).waitFor();
     await page.getByText('AI Gateway', { exact: true }).last().waitFor();
     await page.getByRole('tab', { name: 'Database', exact: true }).click();
@@ -100,6 +107,24 @@ try {
     await page.locator('.neon-panel tbody tr').first().waitFor();
     await page.getByRole('tab', { name: 'Overview', exact: true }).click();
     await page.locator('.neon-panel .neon-service').nth(5).waitFor();
+    const assertPanelLayout = async () => {
+      const layout = await page.locator('.neon-panel').evaluate(panel => {
+        const nav = panel.querySelector('.neon-nav').getBoundingClientRect();
+        const head = panel.querySelector('.neon-head').getBoundingClientRect();
+        const main = panel.querySelector('.neon-main').getBoundingClientRect();
+        const bounds = panel.getBoundingClientRect();
+        const wrapper = panel.parentElement;
+        return { left: bounds.left, right: bounds.right, bottom: bounds.bottom, navTop: nav.top, headBottom: head.bottom, mainBottom: main.bottom, outerOverflow: wrapper.scrollHeight - wrapper.clientHeight, viewportWidth: innerWidth, viewportHeight: innerHeight };
+      });
+      assert(layout.left >= 0 && layout.right <= layout.viewportWidth && layout.bottom <= layout.viewportHeight, 'Dialog exceeds viewport');
+      assert(layout.navTop >= layout.headBottom - 1, 'Navigation overlaps panel header');
+      assert(layout.mainBottom <= layout.bottom + 1 && layout.outerOverflow <= 1, 'Nested modal overflow');
+    };
+    await assertPanelLayout();
+    await page.setViewportSize({ width: 390, height: 700 });
+    await assertPanelLayout();
+    await page.screenshot({ path: fileURLToPath(new URL('../artifacts/core-neon-panel-mobile.png', import.meta.url)) });
+    await page.setViewportSize({ width: 1160, height: 754 });
     await mkdir(new URL('../artifacts/', import.meta.url), { recursive: true });
     await page.screenshot({ path: fileURLToPath(new URL('../artifacts/core-neon-panel.png', import.meta.url)) });
     assert.deepEqual(errors, []);

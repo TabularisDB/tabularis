@@ -537,7 +537,8 @@ Add an optional `ui_extensions` array to your manifest:
 | `row-editor-sidebar.header.actions` | Sidebar header action buttons | `connectionId`, `tableName`, `schema`, `driver`, `rowData`, `rowIndex` | "Copy as JSON", audit links |
 | `data-grid.toolbar.actions` | Table toolbar (right side) | `connectionId`, `tableName`, `schema`, `driver` | Export buttons, analysis tools |
 | `data-grid.context-menu.items` | Right-click context menu on grid rows | `connectionId`, `tableName`, `schema`, `driver`, `columnName`, `rowIndex`, `rowData` | Row-level custom actions |
-| `sidebar.footer.actions` | Explorer sidebar footer | `connectionId`, `driver` | Status indicators, quick actions |
+| `explorer.connection.actions` | Connection explorer, below its header | `connectionId`, `connectionName`, `driver`, `schema` | Connection-specific service tools |
+| `sidebar.footer.actions` | Narrow navigation icon rail footer (icon-sized controls) | `connectionId`, `driver` | Status indicators, quick actions |
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
 | `settings.plugin.before_settings` | Content above plugin settings form | `targetPluginId` | OAuth panels, status banners |
 | `connection-modal.connection_content` | Inside the connection form | `driver` | Custom connection fields |

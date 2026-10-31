@@ -11,6 +11,7 @@ export type SlotName =
     | 'data-grid.toolbar.actions'
     | 'data-grid.context-menu.items'
     | 'sidebar.footer.actions'
+    | 'explorer.connection.actions'
     | 'settings.plugin.actions'
     | 'settings.plugin.before_settings'
     | 'connection-modal.connection_content'
@@ -28,6 +29,7 @@ export const VALID_SLOTS: ReadonlySet<string> = new Set<SlotName>([
     'data-grid.toolbar.actions',
     'data-grid.context-menu.items',
     'sidebar.footer.actions',
+    'explorer.connection.actions',
     'settings.plugin.actions',
     'settings.plugin.before_settings',
     'connection-modal.connection_content',
@@ -121,6 +123,12 @@ export interface UIExtensionDeclaration {
  * `SlotAnchor` uses these requirements for the slots listed here.
  */
 export type HostSlotContextRequirements = {
+    'explorer.connection.actions': {
+        connectionId: string | null;
+        connectionName: string | null;
+        driver: string | null;
+        schema: string | null;
+    };
     'data-grid.toolbar.actions': {
         connectionId: string | null;
         tableName: string | null;
