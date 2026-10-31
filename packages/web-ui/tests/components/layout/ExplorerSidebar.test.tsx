@@ -164,6 +164,8 @@ describe('ExplorerSidebar — schema load error block', () => {
             queries: [],
             folders: [],
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
             saveQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
@@ -301,6 +303,8 @@ describe('ExplorerSidebar — database object navigation', () => {
             queries: [],
             folders: [],
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
             saveQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
@@ -794,6 +798,8 @@ describe('ExplorerSidebar — capabilities threading (issue #614)', () => {
             queries: [],
             folders: [],
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
             saveQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
@@ -975,6 +981,8 @@ describe('ExplorerSidebar — saved query actions', () => {
             folders: [],
             saveQuery,
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
         vi.mocked(useQueryHistory).mockReturnValue({
@@ -1142,6 +1150,8 @@ describe('ExplorerSidebar — saved query actions', () => {
                 folders,
                 saveQuery,
                 deleteQuery: vi.fn(),
+                getQueryVersions: vi.fn(),
+                restoreQueryVersion: vi.fn(),
                 updateQuery: vi.fn(),
                 createFolder,
                 renameFolder,
@@ -1414,6 +1424,8 @@ describe('ExplorerSidebar — saved query actions', () => {
                 folders: [],
                 saveQuery,
                 deleteQuery: vi.fn(),
+                getQueryVersions: vi.fn(),
+                restoreQueryVersion: vi.fn(),
                 updateQuery: vi.fn(),
             } as unknown as ReturnType<typeof useSavedQueries>);
             renderFavorites();

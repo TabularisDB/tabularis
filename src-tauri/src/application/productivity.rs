@@ -14,6 +14,9 @@ const SAVED_QUERIES_DIR: &str = "saved_queries";
 const SAVED_QUERIES_META_FILE: &str = "meta.json";
 const SAVED_QUERY_FOLDERS_FILE: &str = "folders.json";
 const QUERY_HISTORY_DIR: &str = "query_history";
+const SAVED_QUERY_VERSIONS_DIR: &str = "versions";
+/// How many previous versions are kept per saved query; older ones are dropped.
+pub const MAX_SAVED_QUERY_VERSIONS: usize = 50;
 
 static PRODUCTIVITY_STORAGE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
@@ -49,6 +52,19 @@ pub struct SavedQuery {
     pub updated_at: Option<String>,
     #[serde(default)]
     pub folder_id: Option<String>,
+}
+
+/// A previous content of a saved query, written when a save changes its SQL.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct SavedQueryVersion {
+    pub id: String,
+    pub name: String,
+    pub sql: String,
+    #[serde(default)]
+    pub database: Option<String>,
+    /// When this content was saved, i.e. the query's `updated_at` at the time.
+    #[serde(default)]
+    pub saved_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -93,6 +109,15 @@ pub enum ProductivityCommand {
     DeleteSavedQuery {
         connection_id: Option<String>,
         id: String,
+    },
+    GetSavedQueryVersions {
+        connection_id: Option<String>,
+        id: String,
+    },
+    RestoreSavedQueryVersion {
+        connection_id: Option<String>,
+        id: String,
+        version_id: String,
     },
     GetSavedQueryFolders {
         connection_id: String,
@@ -170,6 +195,19 @@ pub async fn execute(config_dir: &Path, command: ProductivityCommand) -> Result<
             delete_saved_query(config_dir, connection_id.as_deref(), &id)?;
             Ok(Value::Null)
         }
+        ProductivityCommand::GetSavedQueryVersions { connection_id, id } => json(
+            get_saved_query_versions(config_dir, connection_id.as_deref(), &id)?,
+        ),
+        ProductivityCommand::RestoreSavedQueryVersion {
+            connection_id,
+            id,
+            version_id,
+        } => json(restore_saved_query_version(
+            config_dir,
+            connection_id.as_deref(),
+            &id,
+            &version_id,
+        )?),
         ProductivityCommand::GetSavedQueryFolders { connection_id } => {
             json(saved_query_folders::list_folders_for_connection(
                 &saved_query_folders_path(config_dir)?,
@@ -412,6 +450,23 @@ fn update_saved_query(
     let index = find_saved_query(&meta, connection_id, id)?;
     validate_storage_filename(&meta[index].filename)?;
     let path = saved_queries_dir(config_dir)?.join(&meta[index].filename);
+    let previous_sql = if path.exists() {
+        fs::read_to_string(&path).ok()
+    } else {
+        None
+    };
+    if let Some(previous_sql) = previous_sql.filter(|previous| *previous != sql) {
+        let previous = SavedQueryVersion {
+            id: Uuid::new_v4().to_string(),
+            name: meta[index].name.clone(),
+            sql: previous_sql,
+            database: meta[index].database.clone(),
+            saved_at: meta[index].updated_at.clone(),
+        };
+        let mut versions = read_saved_query_versions(config_dir, &meta[index].id)?;
+        push_saved_query_version(&mut versions, previous, MAX_SAVED_QUERY_VERSIONS);
+        write_saved_query_versions(config_dir, &meta[index].id, &versions)?;
+    }
     atomic_write(&path, sql.as_bytes())?;
 
     let now = Utc::now().to_rfc3339();
@@ -449,7 +504,58 @@ fn delete_saved_query(
     if path.exists() {
         let _ = fs::remove_file(path);
     }
+    if let Ok(versions_path) = saved_query_versions_path(config_dir, &removed.id) {
+        if versions_path.exists() {
+            let _ = fs::remove_file(versions_path);
+        }
+    }
     Ok(())
+}
+
+/// Newest first.
+fn get_saved_query_versions(
+    config_dir: &Path,
+    connection_id: Option<&str>,
+    id: &str,
+) -> Result<Vec<SavedQueryVersion>, String> {
+    let meta = read_saved_query_meta(config_dir)?;
+    let index = find_saved_query(&meta, connection_id, id)?;
+    read_saved_query_versions(config_dir, &meta[index].id)
+}
+
+/// Saves the version's SQL as the query's content. The content it replaces
+/// becomes a new version, so a restore can itself be undone.
+fn restore_saved_query_version(
+    config_dir: &Path,
+    connection_id: Option<&str>,
+    id: &str,
+    version_id: &str,
+) -> Result<SavedQuery, String> {
+    let meta = read_saved_query_meta(config_dir)?;
+    let index = find_saved_query(&meta, connection_id, id)?;
+    let current = &meta[index];
+    let version = read_saved_query_versions(config_dir, &current.id)?
+        .into_iter()
+        .find(|version| version.id == version_id)
+        .ok_or_else(|| "Version not found".to_string())?;
+    update_saved_query(
+        config_dir,
+        connection_id,
+        id,
+        current.name.clone(),
+        version.sql,
+        current.database.clone(),
+    )
+}
+
+/// Puts `version` first and drops the oldest ones beyond `max_versions`.
+pub fn push_saved_query_version(
+    versions: &mut Vec<SavedQueryVersion>,
+    version: SavedQueryVersion,
+    max_versions: usize,
+) {
+    versions.insert(0, version);
+    versions.truncate(max_versions);
 }
 
 /// Web sessions name the connection they act on; a folder of another
@@ -579,6 +685,40 @@ fn write_saved_query_meta(config_dir: &Path, meta: &[SavedQueryMeta]) -> Result<
     atomic_write(&path, &content)
 }
 
+fn read_saved_query_versions(
+    config_dir: &Path,
+    query_id: &str,
+) -> Result<Vec<SavedQueryVersion>, String> {
+    let path = saved_query_versions_path(config_dir, query_id)?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    match serde_json::from_str(&content) {
+        Ok(versions) => Ok(versions),
+        Err(parse_error) => {
+            let backup = backup_corrupt_file(&path)?;
+            log::warn!(
+                "Version history of saved query '{}' was corrupt ({}); moved to {}",
+                query_id,
+                parse_error,
+                backup.display()
+            );
+            Ok(Vec::new())
+        }
+    }
+}
+
+fn write_saved_query_versions(
+    config_dir: &Path,
+    query_id: &str,
+    versions: &[SavedQueryVersion],
+) -> Result<(), String> {
+    let path = saved_query_versions_path(config_dir, query_id)?;
+    let content = serde_json::to_vec_pretty(versions).map_err(|error| error.to_string())?;
+    atomic_write(&path, &content)
+}
+
 fn read_query_history(
     config_dir: &Path,
     connection_id: &str,
@@ -636,6 +776,13 @@ fn saved_query_folders_path(config_dir: &Path) -> Result<PathBuf, String> {
 
 fn saved_query_meta_path(config_dir: &Path) -> Result<PathBuf, String> {
     Ok(saved_queries_dir(config_dir)?.join(SAVED_QUERIES_META_FILE))
+}
+
+fn saved_query_versions_path(config_dir: &Path, query_id: &str) -> Result<PathBuf, String> {
+    validate_storage_key(query_id).map_err(|_| "Invalid saved query identifier".to_string())?;
+    Ok(saved_queries_dir(config_dir)?
+        .join(SAVED_QUERY_VERSIONS_DIR)
+        .join(format!("{query_id}.json")))
 }
 
 fn query_history_path(config_dir: &Path, connection_id: &str) -> Result<PathBuf, String> {
