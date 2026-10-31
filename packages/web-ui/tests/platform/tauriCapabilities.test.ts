@@ -36,6 +36,14 @@ const createOperations = (): TauriPlatformOperations => ({
 });
 
 describe('TauriPlatformCapabilities', () => {
+    it('uses the native system-default application command for external links', async () => {
+        vi.mocked(invoke).mockClear();
+        await new TauriPlatformCapabilities().openExternalUrl('https://console.neon.tech');
+        expect(invoke).toHaveBeenCalledExactlyOnceWith('open_external_url', {
+            url: 'https://console.neon.tech',
+        });
+        vi.mocked(invoke).mockClear();
+    });
     it('advertises every semantic capability as native', () => {
         const capabilities = new TauriPlatformCapabilities(createOperations());
 

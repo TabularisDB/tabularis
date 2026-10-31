@@ -10,7 +10,6 @@ import {
     type SaveDialogOptions,
 } from '@tauri-apps/plugin-dialog';
 import {readFile, writeFile} from '@tauri-apps/plugin-fs';
-import {openUrl} from '@tauri-apps/plugin-opener';
 import {readText, writeHtml, writeText} from '@tauri-apps/plugin-clipboard-manager';
 import {
     isPermissionGranted,
@@ -268,7 +267,7 @@ const defaultTauriOperations: TauriPlatformOperations = {
     writeClipboardHtml: writeHtml,
     writeFileContents: writeFile,
     readFileContents: readFile,
-    openUrl,
+    openUrl: (url) => invoke<void>('open_external_url', {url}),
     isNotificationPermissionGranted: isPermissionGranted,
     requestNotificationPermission: requestPermission,
     sendNotification,
