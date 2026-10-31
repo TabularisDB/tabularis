@@ -21,6 +21,12 @@ export const DATA_GRID_MIN_COLUMN_WIDTH = 48;
 /** Widest a data column can be resized to. */
 export const DATA_GRID_MAX_COLUMN_WIDTH = 2000;
 
+/** Transposed layout (#561): fixed width of each record column. */
+export const TRANSPOSED_RECORD_WIDTH = 220;
+
+/** Transposed layout (#561): width of the sticky field-name column. */
+export const TRANSPOSED_FIELD_LABEL_WIDTH = 220;
+
 /** Whether a database column stores UUID values supported by the grid. */
 export function isUuidColumnType(dataType: string): boolean {
     const normalizedType = dataType.trim().toLowerCase();
@@ -383,6 +389,71 @@ export function extendCellRange(
         return null;
     }
     return {range: buildCellRange(anchor, next), cursor: next};
+}
+
+const TRANSPOSED_ARROW_KEYS: Record<RangeExtendKey, RangeExtendKey> = {
+    ArrowUp: 'ArrowLeft',
+    ArrowDown: 'ArrowRight',
+    ArrowLeft: 'ArrowUp',
+    ArrowRight: 'ArrowDown',
+};
+
+/**
+ * Maps an arrow key as seen on screen to the logical direction it moves in.
+ * In the transposed layout (#561) fields run down and records run across, so
+ * ArrowDown means the next column and ArrowRight the next row.
+ */
+export function toLogicalArrowKey(key: RangeExtendKey, transposed: boolean): RangeExtendKey {
+    return transposed ? TRANSPOSED_ARROW_KEYS[key] : key;
+}
+
+/**
+ * Where a plain navigation key moves the focused cell, following what is on
+ * screen: arrows step one cell, Home/End jump to the first/last cell of the
+ * visual row, PageUp/PageDown move `pageStep` visual rows. Positions stay
+ * logical (result row, result column) in both layouts. Returns null for keys
+ * that don't move the focus.
+ */
+export function navigateCell(
+    key: string,
+    pos: CellPosition,
+    totalRows: number,
+    totalCols: number,
+    pageStep: number,
+    transposed = false,
+): CellPosition | null {
+    switch (key) {
+        case 'ArrowUp':
+        case 'ArrowDown':
+        case 'ArrowLeft':
+        case 'ArrowRight':
+            return moveCellPosition(pos, toLogicalArrowKey(key, transposed), totalRows, totalCols);
+        case 'Home':
+        case 'End':
+            return moveCellPosition(
+                pos,
+                toLogicalArrowKey(key === 'Home' ? 'ArrowLeft' : 'ArrowRight', transposed),
+                totalRows,
+                totalCols,
+                true,
+            );
+        case 'PageUp':
+        case 'PageDown': {
+            const delta = key === 'PageUp' ? -pageStep : pageStep;
+            if (transposed) {
+                return {
+                    ...pos,
+                    colIndex: Math.min(totalCols - 1, Math.max(0, pos.colIndex + delta)),
+                };
+            }
+            return {
+                ...pos,
+                rowIndex: Math.min(totalRows - 1, Math.max(0, pos.rowIndex + delta)),
+            };
+        }
+        default:
+            return null;
+    }
 }
 
 /**
@@ -922,6 +993,19 @@ const FROZEN_CELL_LAYERS =
  * the gutter header (z-20).
  */
 export const FROZEN_HEADER_CELL_CLASS = `sticky z-[15] ${FROZEN_CELL_LAYERS} before:bg-base`;
+
+/**
+ * Sticky field-name cell of the transposed layout (#561): the header
+ * background under its own tint, at the frozen body-cell layer so it stays
+ * below the sticky header row.
+ */
+export const TRANSPOSED_FIELD_LABEL_CLASS = `sticky left-0 z-[5] ${FROZEN_CELL_LAYERS} before:bg-base`;
+
+/**
+ * Field label of the frozen first row when transposed: above the frozen row's
+ * cells and the other labels scrolling under it, still below the header row.
+ */
+export const TRANSPOSED_FROZEN_FIELD_LABEL_CLASS = `sticky left-0 z-[6] ${FROZEN_CELL_LAYERS} before:bg-base`;
 
 /**
  * Backdrop for a frozen (sticky) body cell. The row tints are translucent, so

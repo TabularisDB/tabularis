@@ -20,6 +20,7 @@ export interface CleanedTab {
     sortClause?: string;
     limitClause?: number;
     pageSize?: number;
+    transposed?: boolean;
     autoRefreshIntervalMs?: Tab['autoRefreshIntervalMs'];
     queryParams?: Record<string, string>;
     notebookId?: string;
@@ -55,6 +56,7 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
         sortClause: tab.sortClause,
         limitClause: tab.limitClause,
         pageSize: tab.pageSize,
+        transposed: tab.transposed,
         autoRefreshIntervalMs: normalizeAutoRefreshInterval(tab.autoRefreshIntervalMs),
         queryParams: tab.queryParams,
         notebookId: tab.notebookId,

@@ -45,6 +45,7 @@ const {
     translationMock,
     scrollToIndexMock,
     scrollToOffsetMock,
+    virtualizerOptionsMock,
     virtualizerRenderControl,
     sidebarState,
     writeHtmlMock,
@@ -57,6 +58,8 @@ const {
     translationMock: vi.fn((key: string) => key),
     scrollToIndexMock: vi.fn(),
     scrollToOffsetMock: vi.fn(),
+    // Records the options each useVirtualizer call received.
+    virtualizerOptionsMock: vi.fn(),
     // Lets a single test simulate the virtualizer's first, unmeasured commit,
     // where it has no virtual items yet.
     virtualizerRenderControl: {forceEmpty: false},
@@ -120,13 +123,9 @@ vi.mock('@tauri-apps/api/event', () => ({
 // virtualizerRenderControl.forceEmpty is set, which simulates the real
 // virtualizer's first, unmeasured commit (no virtual items yet).
 vi.mock('@tanstack/react-virtual', () => ({
-    useVirtualizer: ({
-        count,
-        getScrollElement,
-    }: {
-        count: number;
-        getScrollElement: () => HTMLElement | null;
-    }) => {
+    useVirtualizer: (options: {count: number; getScrollElement: () => HTMLElement | null}) => {
+        virtualizerOptionsMock(options);
+        const {count, getScrollElement} = options;
         const items = virtualizerRenderControl.forceEmpty
             ? []
             : Array.from({length: count}, (_, index) => ({
@@ -3664,5 +3663,206 @@ describe('DataGrid selected-row export (#1154)', () => {
 
         await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
         expect(decodedDownload(0)).toBe('id,name\n1,Alice\n');
+    });
+});
+
+describe('DataGrid transposed layout (#561)', () => {
+    const columns = ['id', 'name'];
+    const data: unknown[][] = [
+        [1, 'Alice'],
+        [2, 'Bob'],
+        [3, 'Carol'],
+    ];
+
+    // Cells keep their logical (result row, result column) address.
+    const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+        container.querySelector(`td[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`)!;
+
+    const gridOf = (container: HTMLElement) => container.querySelector('div[tabindex="0"]')!;
+
+    const renderTransposed = (props: Partial<ComponentProps<typeof DataGrid>> = {}) =>
+        render(
+            <DataGrid
+                columns={columns}
+                data={data}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+                transposed
+                {...props}
+            />,
+        );
+
+    it('renders one visual row per field and one column per record', () => {
+        const {container} = renderTransposed();
+
+        const fieldRows = container.querySelectorAll('tbody tr[data-field-index]');
+        expect(fieldRows).toHaveLength(2);
+        expect(fieldRows[0].querySelector('th')).toHaveTextContent('id');
+        expect(fieldRows[1].querySelector('th')).toHaveTextContent('name');
+
+        const recordHeaders = container.querySelectorAll('thead th[data-record-index]');
+        expect(Array.from(recordHeaders, (th) => th.textContent)).toEqual(['1', '2', '3']);
+
+        expect(cellAt(container, 1, 1)).toHaveTextContent('Bob');
+        expect(cellAt(container, 1, 1).closest('tr')).toHaveAttribute('data-field-index', '1');
+    });
+
+    it("moves the focus along what's on screen", () => {
+        const {container} = renderTransposed();
+
+        fireEvent.click(cellAt(container, 0, 0));
+        // Down = next field of the same record.
+        fireEvent.keyDown(gridOf(container), {key: 'ArrowDown'});
+        expect(cellAt(container, 0, 1)).toHaveClass('ring-2');
+        // Right = same field of the next record.
+        fireEvent.keyDown(gridOf(container), {key: 'ArrowRight'});
+        expect(cellAt(container, 1, 1)).toHaveClass('ring-2');
+        // End = last record.
+        fireEvent.keyDown(gridOf(container), {key: 'End'});
+        expect(cellAt(container, 2, 1)).toHaveClass('ring-2');
+    });
+
+    it('extends a range across records with Shift+ArrowRight', () => {
+        const {container} = renderTransposed();
+
+        fireEvent.click(cellAt(container, 0, 1));
+        fireEvent.keyDown(gridOf(container), {key: 'ArrowRight', shiftKey: true});
+
+        expect(cellAt(container, 0, 1)).toHaveClass('bg-accent-primary/15');
+        expect(cellAt(container, 1, 1)).toHaveClass('bg-accent-primary/15');
+        expect(cellAt(container, 1, 0)).not.toHaveClass('bg-accent-primary/15');
+    });
+
+    it('selects a record from its column header', () => {
+        const onSelectionChange = vi.fn();
+        const {container} = renderTransposed({onSelectionChange});
+
+        fireEvent.click(container.querySelector('th[data-record-index="1"]')!);
+
+        expect(onSelectionChange).toHaveBeenCalledWith(new Set([1]));
+    });
+
+    it('opens the column menu from a field label, offering to freeze the first row', async () => {
+        const {container} = renderTransposed();
+
+        fireEvent.contextMenu(container.querySelector('th[scope="row"][data-col-index="1"]')!);
+
+        expect(await screen.findByText('dataGrid.copyColumnName')).toBeInTheDocument();
+        expect(screen.getByText('dataGrid.freezeFirstRow')).toBeInTheDocument();
+        expect(screen.queryByText('dataGrid.freezeFirstColumn')).not.toBeInTheDocument();
+        expect(screen.queryByText('dataGrid.resetColumnWidths')).not.toBeInTheDocument();
+    });
+
+    it('freezes the first field row, and keeps the first field frozen across layouts', async () => {
+        const props = {
+            columns,
+            data,
+            selectedRows: new Set<number>(),
+            onSelectionChange: vi.fn(),
+            readonly: true,
+        };
+        const {container, rerender} = render(<DataGrid {...props} transposed />);
+
+        fireEvent.contextMenu(container.querySelector('th[scope="row"][data-col-index="1"]')!);
+        fireEvent.click(await screen.findByText('dataGrid.freezeFirstRow'));
+
+        // Pinned right under the sticky record header row.
+        const frozenLabel = container.querySelector('th[scope="row"][data-col-index="0"]')!;
+        expect(frozenLabel).toHaveClass('sticky');
+        expect(frozenLabel).toHaveStyle({top: '35px'});
+        expect(cellAt(container, 1, 0)).toHaveClass('sticky');
+        expect(cellAt(container, 1, 0)).toHaveStyle({top: '35px'});
+        expect(cellAt(container, 1, 1)).not.toHaveClass('sticky');
+
+        // The same field stays frozen as a column in the normal layout.
+        rerender(<DataGrid {...props} transposed={false} />);
+        expect(cellAt(container, 1, 0)).toHaveClass('sticky');
+        expect(cellAt(container, 1, 0).getAttribute('style')).toContain('left');
+        expect(cellAt(container, 1, 1)).not.toHaveClass('sticky');
+    });
+
+    it('edits the logical cell under the cursor', () => {
+        const onPendingChange = vi.fn();
+        const {container} = renderTransposed({
+            readonly: false,
+            tableName: 'users',
+            pkColumns: ['id'],
+            onPendingChange,
+        });
+
+        fireEvent.click(cellAt(container, 1, 1));
+        fireEvent.keyDown(gridOf(container), {key: 'Enter'});
+        const editor = container.querySelector('textarea')!;
+        expect(editor).toHaveValue('Bob');
+
+        fireEvent.change(editor, {target: {value: 'Robert'}});
+        fireEvent.blur(editor);
+
+        expect(onPendingChange).toHaveBeenCalledWith(
+            buildPkMap(['id'], [2, 'Bob'], [0]),
+            'name',
+            'Robert',
+        );
+    });
+
+    it('keeps scrolled-to records clear of the sticky field labels', () => {
+        virtualizerOptionsMock.mockClear();
+        renderTransposed();
+
+        const recordOptions = virtualizerOptionsMock.mock.calls
+            .map(([options]) => options)
+            .find((options) => options.horizontal);
+        expect(recordOptions).toMatchObject({
+            enabled: true,
+            paddingStart: 220,
+            scrollPaddingStart: 220,
+        });
+    });
+
+    it('keeps focused fields clear of the sticky record headers', () => {
+        const {container} = renderTransposed();
+
+        expect(gridOf(container)).toHaveStyle({scrollPaddingTop: '35px'});
+    });
+
+    it('starts at the top-left after switching layouts', () => {
+        const props = {
+            columns,
+            data,
+            selectedRows: new Set<number>(),
+            onSelectionChange: vi.fn(),
+            readonly: true,
+        };
+        const {container, rerender} = render(<DataGrid {...props} />);
+        const grid = gridOf(container) as HTMLElement;
+        grid.scrollTop = 120;
+        grid.scrollLeft = 80;
+
+        rerender(<DataGrid {...props} transposed />);
+
+        expect(grid.scrollTop).toBe(0);
+        expect(grid.scrollLeft).toBe(0);
+    });
+
+    it('copies the same row-based text as the normal layout', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', {
+            value: {writeText},
+            configurable: true,
+        });
+        const copyAll = async (transposed: boolean) => {
+            const commandTargetRef = createRef<DataGridCommandTarget>();
+            const {unmount} = renderTransposed({ref: commandTargetRef, transposed});
+            await act(async () => {
+                await commandTargetRef.current?.getResultCommands().copyAllRows?.execute();
+            });
+            unmount();
+            return writeText.mock.calls.at(-1)![0] as string;
+        };
+
+        const transposedText = await copyAll(true);
+        expect(transposedText).toContain('Carol');
+        expect(transposedText).toBe(await copyAll(false));
     });
 });

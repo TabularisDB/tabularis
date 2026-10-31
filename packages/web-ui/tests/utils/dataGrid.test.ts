@@ -29,6 +29,8 @@ import {
     getFrozenCellBackdropClass,
     isUuidColumnType,
     isOriginalCellValue,
+    navigateCell,
+    toLogicalArrowKey,
 } from '@/utils/dataGrid';
 import {rowsToCSV, rowsToCSVWithHeaders} from '@/utils/clipboard';
 
@@ -1509,5 +1511,67 @@ describe('getResizedTableWidth', () => {
 
     it('should be undefined when the widths belong to another layout', () => {
         expect(getResizedTableWidth({key: 'k', widths: [50], resized: true}, null)).toBeUndefined();
+    });
+});
+
+describe('toLogicalArrowKey', () => {
+    it('passes keys through in the normal layout', () => {
+        expect(toLogicalArrowKey('ArrowDown', false)).toBe('ArrowDown');
+        expect(toLogicalArrowKey('ArrowLeft', false)).toBe('ArrowLeft');
+    });
+
+    it('swaps the axes when transposed', () => {
+        expect(toLogicalArrowKey('ArrowUp', true)).toBe('ArrowLeft');
+        expect(toLogicalArrowKey('ArrowDown', true)).toBe('ArrowRight');
+        expect(toLogicalArrowKey('ArrowLeft', true)).toBe('ArrowUp');
+        expect(toLogicalArrowKey('ArrowRight', true)).toBe('ArrowDown');
+    });
+});
+
+describe('navigateCell', () => {
+    const from = {rowIndex: 5, colIndex: 2};
+    const nav = (key: string, transposed = false, pos = from) =>
+        navigateCell(key, pos, 10, 4, 3, transposed);
+
+    it('moves one cell with the arrows', () => {
+        expect(nav('ArrowDown')).toEqual({rowIndex: 6, colIndex: 2});
+        expect(nav('ArrowRight')).toEqual({rowIndex: 5, colIndex: 3});
+        expect(nav('ArrowDown', true)).toEqual({rowIndex: 5, colIndex: 3});
+        expect(nav('ArrowRight', true)).toEqual({rowIndex: 6, colIndex: 2});
+    });
+
+    it('jumps along the visual row with Home/End', () => {
+        expect(nav('Home')).toEqual({rowIndex: 5, colIndex: 0});
+        expect(nav('End')).toEqual({rowIndex: 5, colIndex: 3});
+        // Transposed, a visual row is one field across all records.
+        expect(nav('Home', true)).toEqual({rowIndex: 0, colIndex: 2});
+        expect(nav('End', true)).toEqual({rowIndex: 9, colIndex: 2});
+    });
+
+    it('pages along the visual column, clamped', () => {
+        expect(nav('PageDown')).toEqual({rowIndex: 8, colIndex: 2});
+        expect(nav('PageUp')).toEqual({rowIndex: 2, colIndex: 2});
+        expect(nav('PageDown', false, {rowIndex: 8, colIndex: 2})).toEqual({
+            rowIndex: 9,
+            colIndex: 2,
+        });
+        expect(nav('PageDown', true)).toEqual({rowIndex: 5, colIndex: 3});
+        expect(nav('PageUp', true)).toEqual({rowIndex: 5, colIndex: 0});
+    });
+
+    it('clamps at the grid edges', () => {
+        expect(nav('ArrowUp', false, {rowIndex: 0, colIndex: 0})).toEqual({
+            rowIndex: 0,
+            colIndex: 0,
+        });
+        expect(nav('ArrowRight', true, {rowIndex: 9, colIndex: 0})).toEqual({
+            rowIndex: 9,
+            colIndex: 0,
+        });
+    });
+
+    it('ignores keys that do not navigate', () => {
+        expect(nav('Enter')).toBeNull();
+        expect(nav('a', true)).toBeNull();
     });
 });

@@ -30,6 +30,7 @@ describe('tabCleaner', () => {
                 sortClause: 'name ASC',
                 limitClause: 100,
                 pageSize: 51,
+                transposed: true,
                 autoRefreshIntervalMs: 10000,
                 isAutoRefreshing: true,
                 autoRefreshError: 'offline',
@@ -63,6 +64,7 @@ describe('tabCleaner', () => {
             expect(cleaned.sortClause).toBe('name ASC');
             expect(cleaned.limitClause).toBe(100);
             expect(cleaned.pageSize).toBe(51);
+            expect(cleaned.transposed).toBe(true);
             expect(cleaned.autoRefreshIntervalMs).toBe(10000);
             expect(cleaned).not.toHaveProperty('isAutoRefreshing');
             expect(cleaned).not.toHaveProperty('autoRefreshError');
