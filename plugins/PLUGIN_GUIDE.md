@@ -537,6 +537,7 @@ Add an optional `ui_extensions` array to your manifest:
 | `row-editor-sidebar.header.actions` | Sidebar header action buttons | `connectionId`, `tableName`, `schema`, `driver`, `rowData`, `rowIndex` | "Copy as JSON", audit links |
 | `data-grid.toolbar.actions` | Table toolbar (right side) | `connectionId`, `tableName`, `schema`, `driver` | Export buttons, analysis tools |
 | `data-grid.context-menu.items` | Right-click context menu on grid rows | `connectionId`, `tableName`, `schema`, `driver`, `columnName`, `rowIndex`, `rowData` | Row-level custom actions |
+| `editor.workspace.content` | Full-height main editor workspace | `pluginId`, `workspaceId`, `connectionId`, `driver`, `schema`, `connectionName?` | Provider-owned service UI; only the owning plugin renders |
 | `explorer.connection.actions` | Connection explorer, below its header | `connectionId`, `connectionName`, `driver`, `schema` | Connection-specific service tools |
 | `sidebar.footer.actions` | Narrow navigation icon rail footer (icon-sized controls) | `connectionId`, `driver` | Status indicators, quick actions |
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
@@ -2042,3 +2043,27 @@ The legacy path — a pull request adding an entry to `plugins/registry.json` (f
 > **Note:** `min_tabularis_version` is specified per-release inside the `releases[]` array,
 > not at the root plugin level. This allows older Tabularis installs to install an older
 > compatible release even when a newer release requires a higher app version.
+
+### Connection-bound editor workspaces
+
+Use `usePluginWorkspace(pluginId).openWorkspace({id, title, connectionId?})` from an
+`explorer.connection.actions` contribution to open a provider workspace as a main
+editor tab. Register its content in `editor.workspace.content` (with `api_version:
+"0.2.0"`). Reopening the same plugin/workspace/connection focuses the existing tab;
+other connections keep separate tabs. The optional connection ID must match both
+the current slot connection and the editor connection. Mismatches throw instead of
+switching connections or assigning the workspace to another connection.
+
+Only tab metadata and the plugin/workspace identifiers are saved. Do not put
+credentials in workspace IDs or titles. SQL controls and query shortcuts are
+unavailable on workspace tabs. Disabled, removed, or unloadable plugins show an
+unavailable state; their tabs can still be closed and reopened. Content unmounts
+when inactive or closed, so clean up polling, subscriptions and pending requests
+in React effect cleanup. Bind service calls with
+`usePluginRpc(pluginId, context.connectionId)` rather than a changing global selection.
+
+`PluginWorkspaceShell` supplies the shared header, accessible navigation and
+full-height content area. Pass `title`, optional `subtitle`/`icon`, optional `brandColor`,
+`tabs: [{id, label, icon?}]`, `activeTab`, `onTabChange`, `children`, and optional
+`actions`. The plugin owns its sections and data; the shell owns native styling.
+`PluginConnectionAction` supplies the matching prominent explorer entry point.

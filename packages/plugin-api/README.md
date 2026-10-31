@@ -39,6 +39,7 @@ export default MySlot.component;
 | `usePluginQuery()` | `{ executeQuery, loading, error }` | Execute read-only queries on the active connection |
 | `usePluginConnection()` | `{ connectionId, driver, schema }` | Active connection metadata |
 | `usePluginToast()` | `{ showInfo, showError, showWarning }` | System notifications |
+| `usePluginWorkspace(pluginId)` | `{ openWorkspace({id, title, connectionId?}) }` | Open or focus a connection-bound main editor workspace |
 | `usePluginModal()` | `{ openModal, closeModal }` | Host-managed modal with custom content |
 | `usePluginSetting(pluginId)` | `{ getSetting, setSetting, setSettings }` | Read/write the plugin's own settings |
 | `usePluginTheme()` | `{ themeId, themeName, isDark, colors }` | Current theme tokens |
@@ -85,3 +86,25 @@ See the full slot list and context contracts in [`plugins/PLUGIN_GUIDE.md` § 3b
 ## License
 
 Apache-2.0, same as Tabularis.
+
+## Provider workspaces
+
+Register an `editor.workspace.content` slot and open it from a connection action:
+
+```tsx
+const {openWorkspace} = usePluginWorkspace("my-plugin");
+openWorkspace({id: "services", title: "My provider", connectionId: context.connectionId});
+```
+
+Only the owning plugin's contributions render. The same workspace and connection
+focus the existing tab; other connections are isolated. `connectionId` must match
+the active slot and editor connection; the hook throws on a mismatch. IDs and tab
+metadata are persisted, never React content or runtime service state. Avoid secrets
+in IDs and titles. Content unmounts when backgrounded or closed: effect cleanup
+must cancel polling, subscriptions and pending requests. Use
+`usePluginRpc(pluginId, context.connectionId)` for stable service binding.
+
+`PluginWorkspaceShell` renders the native workspace frame with a title, optional
+subtitle/brand color/actions, and section tabs (`id`, `label`, optional `icon`).
+Pass `activeTab`, `onTabChange`, and children for the current section.
+`PluginConnectionAction` renders the matching explorer launcher.

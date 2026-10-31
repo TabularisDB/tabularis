@@ -96,6 +96,12 @@
       "slot": "settings.plugin.actions",
       "module": "ui/dist/index.js",
       "order": 30
+    },
+    {
+      "slot": "editor.workspace.content",
+      "module": "ui/dist/workspace.js",
+      "driver": "neon",
+      "order": 30
     }
   ],
   "kind": "driver",

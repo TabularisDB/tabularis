@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import type {ReactNode, ComponentType} from 'react';
 
 export interface PluginModalOptions {
     title: string;
@@ -119,6 +119,9 @@ export type PluginTranslator = (key: string, options?: Record<string, unknown>) 
  * import the named hooks/helpers from `@tabularis/plugin-api` instead.
  */
 export interface TabularisHostApi {
+    PluginConnectionAction: ComponentType<PluginConnectionActionProps>;
+    PluginWorkspaceShell: ComponentType<PluginWorkspaceShellProps>;
+    usePluginWorkspace: (pluginId: string) => UsePluginWorkspaceReturn;
     usePluginRpc: (pluginId: string, connectionId?: string) => UsePluginRpcReturn;
     usePluginQuery: () => UsePluginQueryReturn;
     usePluginConnection: () => UsePluginConnectionReturn;
@@ -136,4 +139,40 @@ export interface UsePluginRpcReturn {
     saveSecrets: (secrets: Record<string, string>) => Promise<void>;
     secretFields: () => Promise<string[]>;
     deleteSecrets: () => Promise<void>;
+}
+
+/** Host-rendered entry point for a provider's connection tools. */
+export interface PluginConnectionActionProps {
+    providerName: string;
+    label: string;
+    description?: string;
+    icon?: ReactNode;
+    brandColor?: string;
+    disabled?: boolean;
+    onClick: () => void;
+}
+
+/** A persistent connection-bound editor workspace. Never put credentials in its ID or title. */
+export interface OpenPluginWorkspaceOptions {
+    id: string;
+    title: string;
+    /** Must match the currently active connection in the slot and editor. */
+    connectionId?: string;
+}
+
+export interface UsePluginWorkspaceReturn {
+    openWorkspace: (options: OpenPluginWorkspaceOptions) => string;
+}
+
+/** Native-themed layout for a provider workspace; data and navigation stay plugin-owned. */
+export interface PluginWorkspaceShellProps {
+    title: string;
+    subtitle?: string;
+    icon?: ReactNode;
+    brandColor?: string;
+    tabs: ReadonlyArray<{id: string; label: string; icon?: ReactNode}>;
+    activeTab: string;
+    onTabChange: (id: string) => void;
+    children: ReactNode;
+    actions?: ReactNode;
 }

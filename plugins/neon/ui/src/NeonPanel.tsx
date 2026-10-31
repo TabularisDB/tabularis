@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { openUrl, usePluginRpc, usePluginTranslation, type PluginQueryResult } from "@tabularis/plugin-api";
+import { openUrl, PluginWorkspaceShell, usePluginRpc, usePluginTranslation, type PluginQueryResult } from "@tabularis/plugin-api";
 import { useTask } from "./hooks/useTask";
 import { DataTable } from "./components/DataTable";
 import { credentialNames, CredentialParseError, parseCredentials, type CredentialError } from "./utils/credentials";
 import { objectRows } from "./utils/data";
 import { styles } from "./styles";
+import {NeonMark} from "./NeonMark";
 
 type Tab = "overview" | "database" | "users" | "storage" | "ai" | "functions" | "realtime" | "setup";
 interface ConnectedProps { connectionId: string }
@@ -31,19 +32,16 @@ export function NeonPanel({ connectionId, connectionName }: { connectionId: stri
   else content = <Setup connectionId={connectionId} />;
   return <div className="neon-panel">
     <style>{styles}</style>
-    <div className="neon-head"><div><strong title={connectionId ?? undefined}>{connectionName ?? t("selectedConnection")}</strong><p>{connectionId ? t("connectionTools") : t("selectConnection")}</p></div><ConsoleLink /></div>
-    <div className="neon-shell">
-      <nav className="neon-nav" role="tablist" aria-label={t("services")} aria-orientation="vertical">{tabs.map((item, index) => <button key={item} id={`neon-tab-${item}`} role="tab" aria-controls="neon-content" aria-selected={tab === item} tabIndex={tab === item ? 0 : -1} disabled={!connectionId} onClick={() => setTab(item)} onKeyDown={event => {
-        const offset = event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 0;
-        const target = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + offset + tabs.length) % tabs.length;
-        if (!offset && event.key !== "Home" && event.key !== "End") return;
-        event.preventDefault();
-        setTab(tabs[target]);
-        const buttons = event.currentTarget.parentElement?.querySelectorAll("button");
-        buttons?.[target]?.focus();
-      }}>{t(`tabs.${item}`)}</button>)}</nav>
-      <section className="neon-main" id="neon-content" role="tabpanel" aria-labelledby={`neon-tab-${tab}`}>{content}</section>
-    </div>
+    <PluginWorkspaceShell
+      title="Neon"
+      icon={<NeonMark />}
+      subtitle={connectionName ?? t('selectedConnection')}
+      brandColor="#00e599"
+      tabs={tabs.map(id => ({id,label:t(`tabs.${id}`)}))}
+      activeTab={tab}
+      onTabChange={id => { const selected = tabs.find(value => value === id); if (selected) setTab(selected); }}
+      actions={<ConsoleLink />}
+    >{content}</PluginWorkspaceShell>
   </div>;
 }
 

@@ -9,6 +9,7 @@
 export {
     usePluginQuery,
     usePluginRpc,
+    usePluginWorkspace,
     usePluginConnection,
     usePluginToast,
     usePluginSetting,
@@ -48,4 +49,12 @@ export type {
     UsePluginSettingReturn,
     UsePluginModalReturn,
     UsePluginThemeReturn,
+} from './types';
+
+export {PluginConnectionAction, PluginWorkspaceShell} from './components';
+export type {
+    PluginConnectionActionProps,
+    PluginWorkspaceShellProps,
+    OpenPluginWorkspaceOptions,
+    UsePluginWorkspaceReturn,
 } from './types';

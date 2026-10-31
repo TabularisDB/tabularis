@@ -1,4 +1,7 @@
 {
+  "pluginWorkspace": {
+    "unavailable": "Dieser Arbeitsbereich ist nicht verfügbar. Aktiviere das Plugin in den Einstellungen oder installiere es neu."
+  },
   "serverFilePicker": {
     "title": "Serverdateien durchsuchen",
     "subtitle": "Datei oder Ordner auf dem Tabularis-Host auswählen",

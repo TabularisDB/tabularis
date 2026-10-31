@@ -80,7 +80,7 @@ try {
     await assert.rejects(extension('neon_ai_models'), /Missing NEON_AI_GATEWAY/);
     await rpc('set_plugin_secrets', { ...scope, secrets });
   });
-  await check('Real Tabularis UI opens the Neon service panel and reads project data', async () => {
+  await check('Provider workspace tab opens, refocuses, restores and returns safely to SQL', async () => {
     browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/usr/bin/google-chrome-stable', headless: true });
     const context = await browser.newContext({ colorScheme: 'dark', viewport: { width: 1160, height: 754 } });
     const split = cookie.indexOf('=');
@@ -90,10 +90,12 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin);
     await page.getByRole('button', { name: 'Maybe later', exact: true }).click({ timeout: 10000 }).catch(() => {});
+    await page.getByRole('button', {name:'Dismiss',exact:true}).click().catch(() => {});
     await page.getByText('Neon Core E2E', { exact: true }).dblclick();
     const launcher = page.locator('[data-slot="explorer.connection.actions"]').getByRole('button', { name: 'Neon workspace', exact: true });
     await launcher.waitFor({ timeout: 30000 });
-    assert.equal(await page.locator('[data-slot="sidebar.footer.actions"] .neon-launch').count(), 0);
+    assert.equal(await page.locator('[data-slot="sidebar.footer.actions"] [data-provider-action]').count(), 0);
+    assert.equal(await launcher.evaluate(button => getComputedStyle(button).backgroundColor), 'rgb(0, 229, 153)');
     const buttonBounds = await launcher.boundingBox();
     const explorerBounds = await launcher.locator('xpath=ancestor::aside').boundingBox();
     assert(buttonBounds && explorerBounds && buttonBounds.x >= explorerBounds.x && buttonBounds.x + buttonBounds.width <= explorerBounds.x + explorerBounds.width + 1, 'Launcher overflows the connection explorer');
@@ -107,26 +109,47 @@ try {
     await page.locator('.neon-panel tbody tr').first().waitFor();
     await page.getByRole('tab', { name: 'Overview', exact: true }).click();
     await page.locator('.neon-panel .neon-service').nth(5).waitFor();
-    const assertPanelLayout = async () => {
-      const layout = await page.locator('.neon-panel').evaluate(panel => {
-        const nav = panel.querySelector('.neon-nav').getBoundingClientRect();
-        const head = panel.querySelector('.neon-head').getBoundingClientRect();
-        const main = panel.querySelector('.neon-main').getBoundingClientRect();
+    assert.equal(await page.locator('[data-plugin-workspace]').locator('xpath=ancestor::*[@role="dialog"]').count(), 0, 'Provider workspace must open as a main tab');
+    assert(await page.locator('[data-plugin-workspace] h2').evaluate(node => getComputedStyle(node).color !== getComputedStyle(node.closest('header')).backgroundColor), 'Provider heading is invisible against its background');
+    assert.equal(await page.locator('.monaco-editor:visible').count(), 0, 'SQL editor must not render over workspace');
+    await launcher.click();
+    assert.equal(await page.getByRole('button', {name:'Neon',exact:true}).count(), 1, 'Opening provider twice created duplicate tabs');
+    await page.getByRole('button', {name:'Console',exact:true}).click();
+    await page.locator('[data-plugin-workspace]').waitFor({state:'detached'});
+    await page.locator('.monaco-editor:visible').first().waitFor();
+    await launcher.click();
+    await page.locator('.neon-panel .neon-service').nth(5).waitFor();
+    let persisted = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const preferences = await rpc('load_editor_preferences', {connectionId});
+      const workspaces = preferences?.tabs?.filter(tab => tab.type === 'plugin-workspace') ?? [];
+      if (workspaces.length === 1 && workspaces[0].pluginId === 'neon' && workspaces[0].workspaceId === 'services' && preferences.active_tab_id === workspaces[0].id) { persisted = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    assert(persisted, 'Provider workspace metadata was not persisted');
+    await page.reload();
+    await page.locator('.neon-panel .neon-service').nth(5).waitFor();
+    const assertWorkspaceLayout = async () => {
+      const layout = await page.locator('[data-plugin-workspace]').evaluate(panel => {
+        const nav = panel.querySelector('[role="tablist"]').getBoundingClientRect();
+        const head = panel.querySelector('[data-workspace-header]').getBoundingClientRect();
+        const main = panel.querySelector('[data-workspace-content]').getBoundingClientRect();
         const bounds = panel.getBoundingClientRect();
-        const wrapper = panel.parentElement;
-        return { left: bounds.left, right: bounds.right, bottom: bounds.bottom, navTop: nav.top, headBottom: head.bottom, mainBottom: main.bottom, outerOverflow: wrapper.scrollHeight - wrapper.clientHeight, viewportWidth: innerWidth, viewportHeight: innerHeight };
+        return {left:bounds.left,right:bounds.right,bottom:bounds.bottom,navTop:nav.top,headBottom:head.bottom,mainBottom:main.bottom,viewportWidth:innerWidth,viewportHeight:innerHeight};
       });
-      assert(layout.left >= 0 && layout.right <= layout.viewportWidth && layout.bottom <= layout.viewportHeight, 'Dialog exceeds viewport');
-      assert(layout.navTop >= layout.headBottom - 1, 'Navigation overlaps panel header');
-      assert(layout.mainBottom <= layout.bottom + 1 && layout.outerOverflow <= 1, 'Nested modal overflow');
+      assert(layout.left >= 0 && layout.right <= layout.viewportWidth + 1 && layout.bottom <= layout.viewportHeight + 1, 'Workspace exceeds viewport');
+      assert(layout.navTop >= layout.headBottom - 1, 'Service navigation overlaps header');
+      assert(layout.mainBottom <= layout.bottom + 1, 'Service content overflows editor pane');
     };
-    await assertPanelLayout();
-    await page.setViewportSize({ width: 390, height: 700 });
-    await assertPanelLayout();
-    await page.screenshot({ path: fileURLToPath(new URL('../artifacts/core-neon-panel-mobile.png', import.meta.url)) });
-    await page.setViewportSize({ width: 1160, height: 754 });
-    await mkdir(new URL('../artifacts/', import.meta.url), { recursive: true });
-    await page.screenshot({ path: fileURLToPath(new URL('../artifacts/core-neon-panel.png', import.meta.url)) });
+    await assertWorkspaceLayout();
+    await page.getByRole('button', {name:'Collapse Explorer',exact:true}).click();
+    await page.setViewportSize({width:390,height:700});
+    await assertWorkspaceLayout();
+    await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-panel-mobile.png',import.meta.url))});
+    await page.setViewportSize({width:1160,height:754});
+    await page.getByRole('button', {name:/expand explorer/i}).click();
+    await mkdir(new URL('../artifacts/', import.meta.url), {recursive:true});
+    await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-panel.png',import.meta.url))});
     assert.deepEqual(errors, []);
   });
   await rpc('delete_connection', { id: connectionId }); connectionId = undefined;

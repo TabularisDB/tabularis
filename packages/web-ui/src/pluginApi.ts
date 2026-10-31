@@ -34,3 +34,14 @@ export function defineSlot(
 ): {readonly __slot: string; readonly component: unknown} {
     return {__slot: slot, component} as const;
 }
+
+export {PluginConnectionAction} from './components/plugins/PluginConnectionAction';
+export type {PluginConnectionActionProps} from './types/pluginWorkspace';
+
+export {usePluginWorkspace} from './hooks/usePluginWorkspace';
+export type {
+    OpenPluginWorkspaceOptions,
+    UsePluginWorkspaceReturn,
+} from './types/pluginWorkspaceTab';
+export {PluginWorkspaceShell} from './components/plugins/PluginWorkspaceShell';
+export type {PluginWorkspaceShellProps} from './types/pluginWorkspaceShell';

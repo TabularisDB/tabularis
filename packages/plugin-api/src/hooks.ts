@@ -1,6 +1,7 @@
 import {getHost} from './host';
 import type {
     UsePluginConnectionReturn,
+    UsePluginWorkspaceReturn,
     UsePluginRpcReturn,
     UsePluginModalReturn,
     UsePluginQueryReturn,
@@ -74,4 +75,9 @@ export async function openUrl(url: string): Promise<void> {
 /** Connection-scoped services; stored secret values cannot be read through this API. */
 export function usePluginRpc(pluginId: string, connectionId?: string): UsePluginRpcReturn {
     return getHost().usePluginRpc(pluginId, connectionId);
+}
+
+/** Open or focus a plugin-owned workspace on the current editor connection. */
+export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
+    return getHost().usePluginWorkspace(pluginId);
 }

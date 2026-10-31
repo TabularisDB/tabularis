@@ -298,6 +298,41 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
         (partial?: Partial<Tab>, options?: AddTabOptions) => {
             if (!activeConnectionId) return '';
 
+            if (partial?.type === 'plugin-workspace') {
+                // Explorer slots can have a different database scope than this editor.
+                if (
+                    !partial.pluginId ||
+                    !partial.workspaceId ||
+                    (partial.connectionId && partial.connectionId !== activeConnectionId)
+                )
+                    return '';
+                const existing = tabsRef.current.find(
+                    (tab) =>
+                        tab.type === 'plugin-workspace' &&
+                        tab.connectionId === activeConnectionId &&
+                        tab.pluginId === partial.pluginId &&
+                        tab.workspaceId === partial.workspaceId,
+                );
+                if (existing) {
+                    setActiveTabId(existing.id);
+                    return existing.id;
+                }
+                const tab = createInitialTab({
+                    ...partial,
+                    id: generateTabId(),
+                    connectionId: activeConnectionId,
+                    title: partial.title || 'Workspace',
+                    query: '',
+                    activeTable: null,
+                    readOnly: true,
+                });
+                // Reserve immediately so repeated opens before React renders still focus one tab.
+                tabsRef.current = [...tabsRef.current, tab];
+                setTabs((prev) => [...prev, tab]);
+                setActiveTabId(tab.id);
+                return tab.id;
+            }
+
             if (!options?.forceNew) {
                 const existing = findExistingTableTab(
                     tabsRef.current,

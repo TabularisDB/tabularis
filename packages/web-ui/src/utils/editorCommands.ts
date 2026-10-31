@@ -68,7 +68,8 @@ export function createActiveEditorCommands({
         !isReadOnly &&
         !isLoading &&
         tabType !== 'notebook' &&
-        tabType !== 'users';
+        tabType !== 'users' &&
+        tabType !== 'plugin-workspace';
 
     if (!canRun) return {...closeTabCommand, ...saveSqlFileCommand, ...aiCommands};
 

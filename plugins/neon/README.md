@@ -1,6 +1,6 @@
 # Neon integration prototype
 
-A Tabularis driver and service panel for an existing Neon project. Scaffolded
+A Tabularis driver and provider workspace for an existing Neon project. Scaffolded
 with the Tabularis CLI, then adapted to Node.js to use Neon's SDKs. Requires
 Node.js 22+, pnpm, and the `feat/neon-integration` Core changes on upstream
 Tabularis 0.30.0. The public 0.30.0 release alone does not yet include the new
@@ -43,8 +43,7 @@ Release publication/signing is outside this prototype.
 
 Select Neon in the connection picker and import its Postgres URL. SQL always
 uses the saved connection's credentials and verified TLS. Open **Neon** below the active connection in the
-explorer (or the plugin's settings action). The panel stays pinned to that
-connection even when another tab is selected.
+explorer (or the plugin's settings action). Neon opens as a main editor tab, beside SQL consoles and tables. Reopening the same workspace focuses its existing tab; connection scope is preserved across reloads.
 
 In **Connection / Setup**, paste a complete `.env` bundle or JSON object from
 `neon env pull`. Saving **replaces** that connection's bundle in the host's secret
@@ -96,12 +95,11 @@ use the connection picker and panel to import credentials.
   of databases, schemas, tables, columns, indexes, foreign keys, views and routines.
 - Visual EXPLAIN through the shared `@tabularis/explain` parser; `ANALYZE` runs only
   when explicitly requested by the host.
-- Panel tabs: service overview, demo SQL data, project Auth users, private Storage,
+- Workspace sections: service overview, demo SQL data, project Auth users, private Storage,
   AI model catalog/completions, deployed hello Function, bounded live SQL snapshot
   tests, and connection setup. All panel text has English/German translations.
 - Realtime waits run concurrently with SQL through the same process; subscriptions
-  close on completion or after 30 seconds. The panel discards stale UI results
-  after unmount. Closing it does not immediately cancel an in-flight backend call.
+  close on completion or after 30 seconds. Workspace content unmounts when backgrounded or closed and discards stale UI results. Closing it does not immediately cancel an in-flight backend call.
 
 Dedicated table/column DDL management stays hidden (`manage_tables: false`).
 Unsupported methods return JSON-RPC `-32601`. Pagination currently materializes
@@ -109,6 +107,20 @@ results before slicing, and each SQL request opens its own TLS connection; use
 the mature Postgres driver for large exports and session-dependent workflows.
 View/routine creation and alteration are not advertised. Auth user listing is
 administrative inspection; the separate demo implements end-user sign-in.
+
+## Reusable Core integration
+
+The Core owns `PluginConnectionAction` (prominent branded entry),
+`usePluginWorkspace` (connection-scoped tab lifecycle), `PluginWorkspaceShell`
+(header, accessible service navigation and layout), and the owner-filtered
+`editor.workspace.content` extension point. RPC transport and credential storage
+are shared with other plugins. Workspace tabs never execute SQL or show SQL
+toolbars/results, and persist only plugin/workspace metadata.
+
+Neon supplies its logo/color, supported sections and service implementations.
+Supabase, Firebase RTDB, Appwrite or other plugins can use the same Core pieces
+with their own sections and APIs; no SQL-shaped service contract is required by
+the workspace UI. Those provider integrations are not implemented in this plugin.
 
 ## Verification
 
@@ -127,7 +139,7 @@ unique names and are cleaned up. `test:scoped` exercises the Core RPC envelope
 against all six services and proves missing scoped credentials cannot use the
 process-wide environment. E2E makes a small billable AI request.
 
-`test:host` additionally starts the real compiled Core web server with an isolated encrypted secret store, authenticates, saves a connection, exercises all services through HTTP RPC, verifies credential clearing on retargeting, and opens the actual Tabularis Neon panel in Chrome. Build the Core and frontend first (`cargo build --manifest-path src-tauri/Cargo.toml`, `pnpm build`); Chrome and the root Playwright dependency must be installed. The test cleans its temporary connection/store.
+`test:host` additionally starts the real compiled Core web server with an isolated encrypted secret store, authenticates, saves a connection, exercises all services through HTTP RPC, verifies credential clearing on retargeting, and opens the actual Tabularis Neon main tab in Chrome, checks focus deduplication, return to SQL, persisted restoration and responsive layout. Build the Core and frontend first (`cargo build --manifest-path src-tauri/Cargo.toml`, `pnpm build`); Chrome and the root Playwright dependency must be installed. The test cleans its temporary connection/store.
 
 The demo adds browser/API tests, cross-user denials and real live updates. Its
 README documents the Vercel environment and exact trusted-origin setup.

@@ -1,4 +1,7 @@
 {
+  "pluginWorkspace": {
+    "unavailable": "Hindi available ang workspace na ito. I-enable o muling i-install ang plugin nito sa Mga Setting."
+  },
   "serverFilePicker": {
     "title": "Mag-browse ng mga file sa server",
     "subtitle": "Pumili ng file o folder sa Tabularis host",

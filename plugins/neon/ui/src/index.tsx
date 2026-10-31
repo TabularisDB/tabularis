@@ -1,27 +1,37 @@
-import { useState } from "react";
-import { usePluginConnection, usePluginModal, usePluginTranslation, usePluginRpc, type SlotComponentProps } from "@tabularis/plugin-api";
-import { NeonPanel } from "./NeonPanel";
-import { styles } from "./styles";
+import {useState} from 'react';
+import {PluginConnectionAction, usePluginConnection, usePluginTranslation, usePluginWorkspace, type SlotComponentProps} from '@tabularis/plugin-api';
+import {styles} from './styles';
+import {NeonMark} from './NeonMark';
 
-export default function NeonActions({ context }: SlotComponentProps) {
+export default function NeonActions({context}: SlotComponentProps) {
+  const t = usePluginTranslation('neon');
+  if (context.targetPluginId && context.targetPluginId !== 'neon') return null;
+  if (!context.targetPluginId && context.driver !== 'neon') return null;
+  if (typeof usePluginWorkspace !== 'function' || typeof PluginConnectionAction !== 'function') return <p role="status">{t('coreRequired')}</p>;
+  return <NeonWorkspaceAction context={context} />;
+}
+
+function NeonWorkspaceAction({context}: Pick<SlotComponentProps, 'context'>) {
+  const t = usePluginTranslation('neon');
   const active = usePluginConnection();
-  const t = usePluginTranslation("neon");
-  const { openModal } = usePluginModal();
-  const [openSequence, setOpenSequence] = useState(0);
-  const isSettings = context.targetPluginId === "neon";
-  if (context.targetPluginId && !isSettings) return null;
-  if (!isSettings && context.driver !== "neon") return null;
-  if (typeof usePluginRpc !== "function") return <p role="status">{t("coreRequired")}</p>;
-  const connectionId = context.connectionId ?? (active.driver === "neon" ? active.connectionId : null);
+  const {openWorkspace} = usePluginWorkspace('neon');
+  const [error, setError] = useState<string>();
+  const connectionId = context.connectionId ?? (active.driver === 'neon' ? active.connectionId : null);
   return <>
     <style>{styles}</style>
-    <button type="button" aria-label={t(isSettings ? "manage" : "open")} className={`neon-launch${isSettings ? " neon-launch-settings" : ""}`} onClick={() => {
-      const next = openSequence + 1;
-      setOpenSequence(next);
-      openModal({ title: t("title"), size: "xl", content: <NeonPanel key={next} connectionId={connectionId} connectionName={typeof context.connectionName === "string" ? context.connectionName : undefined} /> });
-    }}>
-      <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 16V4h10l4 4v8h-5V9l-5 7H3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
-      <span>{t(isSettings ? "manage" : "launcher")}</span>
-    </button>
+    <PluginConnectionAction
+      providerName="Neon"
+      label={t('open')}
+      description={connectionId ? t('projectServices') : t('selectConnection')}
+      brandColor="#00e599"
+      disabled={!connectionId}
+      icon={<NeonMark />}
+      onClick={() => {
+        if (!connectionId) return;
+        try { openWorkspace({id:'services',title:'Neon',connectionId}); setError(undefined); }
+        catch (cause) { setError(cause instanceof Error ? cause.message : t('requestFailed')); }
+      }}
+    />
+    {error && <p className="neon-error" role="alert">{error}</p>}
   </>;
 }

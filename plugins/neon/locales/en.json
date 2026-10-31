@@ -90,8 +90,10 @@
     "value": "Each credential must contain a non-empty text value.",
     "duplicate": "A credential appears more than once. Keep one value for each field."
   },
-  "coreRequired": "This Neon panel requires the Tabularis feature build with plugin API 0.2.0.",
+  "coreRequired": "This workspace requires the current Tabularis provider-workspace build.",
   "launcher": "Neon",
   "selectedConnection": "Selected connection",
-  "connectionTools": "Neon services for this connection"
+  "connectionTools": "Neon services for this connection",
+  "projectServices": "Project services",
+  "requestFailed": "Request failed"
 }

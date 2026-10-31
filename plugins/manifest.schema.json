@@ -15,7 +15,7 @@
   "properties": {
     "ui_extensions": {
       "type": "array",
-      "description": "Optional plugin UI contributions. Connection tools belong in explorer.connection.actions; sidebar.footer.actions is the narrow icon rail.",
+      "description": "Optional plugin UI contributions. Connection tools belong in explorer.connection.actions; persistent main editor workspaces use editor.workspace.content; sidebar.footer.actions is the narrow icon rail.",
       "items": {
         "type": "object",
         "required": [

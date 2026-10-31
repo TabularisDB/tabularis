@@ -1,4 +1,7 @@
 {
+  "pluginWorkspace": {
+    "unavailable": "Không thể sử dụng không gian làm việc này. Hãy bật hoặc cài đặt lại plugin trong Cài đặt."
+  },
   "serverFilePicker": {
     "title": "Duyệt tệp trên máy chủ",
     "subtitle": "Chọn một tệp hoặc thư mục trên máy chủ Tabularis",

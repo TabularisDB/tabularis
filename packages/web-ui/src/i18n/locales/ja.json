@@ -1,4 +1,7 @@
 {
+  "pluginWorkspace": {
+    "unavailable": "このワークスペースは利用できません。設定でプラグインを有効にするか、再インストールしてください。"
+  },
   "serverFilePicker": {
     "title": "サーバーファイルを参照",
     "subtitle": "Tabularis ホスト上のファイルまたはフォルダーを選択します",
