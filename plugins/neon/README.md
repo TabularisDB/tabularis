@@ -4,7 +4,7 @@ A Tabularis driver with native explorer services for an existing Neon project. S
 with the Tabularis CLI, then adapted to Node.js to use Neon's SDKs. Requires
 Node.js 22+, pnpm, and the `feat/neon-integration` Core changes on upstream
 Tabularis 0.30.0. The public 0.30.0 release alone does not yet include the new
-`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.0).
+`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.1).
 
 ## Build and install from this repository
 
@@ -126,8 +126,8 @@ use the connection picker and panel to import credentials.
   of databases, schemas, tables, columns, indexes, foreign keys, views and routines.
 - Visual EXPLAIN through the shared `@tabularis/explain` parser; `ANALYZE` runs only
   when explicitly requested by the host.
-- Workspace sections: service overview, demo SQL data, project Auth users, private Storage,
-  AI model catalog/completions, deployed hello Function, bounded live SQL snapshot
+- Workspace sections: service overview, demo SQL data, Auth user management, private Storage,
+  AI model catalog/completions, Functions management, bounded live SQL snapshot
   tests, and connection setup. All panel text has English/German translations.
 - Realtime waits run concurrently with SQL through the same process; subscriptions
   close on completion or after 30 seconds. Workspace content unmounts when backgrounded or closed and discards stale UI results. Closing it does not immediately cancel an in-flight backend call.
@@ -136,8 +136,44 @@ Dedicated table/column DDL management stays hidden (`manage_tables: false`).
 Unsupported methods return JSON-RPC `-32601`. Pagination currently materializes
 results before slicing, and each SQL request opens its own TLS connection; use
 the mature Postgres driver for large exports and session-dependent workflows.
-View/routine creation and alteration are not advertised. Auth user listing is
-administrative inspection; the separate demo implements end-user sign-in.
+View/routine creation and alteration are not advertised. The separate demo
+implements end-user sign-in.
+
+## Functions and Auth management
+
+Connect a Neon account with access to the saved connection's project. Existing
+connections resolve an exact stored branch ID, or the exact saved branch name
+for older imports. Missing project/branch metadata must be supplied in Setup;
+the manager never falls back to another branch.
+
+**Functions:** list deployed functions and open each in a normal editor tab.
+Create a function from the single-file JavaScript template, deploy it, rename
+its display name, invoke GET/POST, inspect available logs, or confirm deletion.
+The source editor shares the host's Monaco theme and font preferences. External
+packages are not bundled. Existing deployed source cannot be downloaded through
+this API: paste the original local source before replacing code. Source drafts
+survive tab switching in memory, but are lost when the app restarts.
+
+Environment changes are write-only JSON patches; omitted keys are preserved,
+`null` explicitly removes a key, and empty strings are rejected. Values never
+return through metadata. Local mutations to the same function are serialized;
+the provider does not expose an atomic create-only operation to prevent races
+with unrelated external clients.
+
+**Known activation failure:** live tests found that Neon reported a completed,
+active deployment 2 while fresh endpoint requests continued serving revision 1
+and previous environment values. This affected code and environment updates;
+closing HTTP connections did not resolve it. New function creation, initial
+execution, metadata changes and deletion worked. The UI warns before updating
+an existing function. Do not treat an accepted deployment as proof of updated
+runtime behavior; `tests/activation-diagnostic.mjs` reproduces the observed issue.
+
+**Auth:** search and paginate users, inspect identity/session metadata, create
+identities with name/email, update the supported user/admin role, and confirm
+deletion. Reads use the saved database connection; mutations use the account API.
+The account API does not expose profile edits, password setting/reset, invitation
+delivery or session revocation. Those controls are not fabricated, and the plugin
+does not write directly to internal Auth tables.
 
 ## Reusable Core integration
 
@@ -150,7 +186,9 @@ without a plaintext fallback when the secret store fails.
 The Core owns `PluginExplorerSection` (native collapsible explorer entries),
 `usePluginWorkspace` (connection-scoped service tabs), `PluginWorkspaceShell`
 (compact native toolbar/content layout), and `PluginDataGrid` (the real native
-read-only grid with the user's copy/privacy settings). `explorer.services` and
+read-only grid with the user's copy/privacy settings). `PluginResourceList` and
+`PluginCodeEditor` add reusable resource navigation and non-SQL source editing
+(runtime API 0.2.1). `explorer.services` and
 owner-filtered `editor.workspace.content` connect those pieces. RPC transport
 and credential storage remain shared with other plugins. Service tabs never
 execute SQL or show SQL toolbars/results; only safe metadata is persisted.
@@ -166,17 +204,17 @@ service contract. Those provider integrations are not implemented here.
 
 ## Next: full service management
 
-The next iteration expands the service views from inspection and smoke tests to
-everyday management. These are planned features, not existing capabilities.
+The first management iteration is implemented above. Remaining work and external
+limitations are tracked here.
 
-- [ ] **Functions:** list all functions on the selected branch, open each in a
+- [x] **Functions:** list all functions on the selected branch, open each in a
   normal editor tab, and show endpoint, deployment state and available logs/errors.
-- [ ] **Create and deploy functions:** start from a template, edit source, deploy
-  a new function, update an existing function, invoke it and inspect its response.
-- [ ] **Function configuration:** manage environment variables and secrets through
-  the host secret store; confirm destructive actions such as deleting a function.
-- [ ] **Auth users:** search and paginate users, open user details, create users,
-  edit supported profile fields and roles, and remove users with confirmation.
+- [x] **Create and deploy functions:** create/deploy/invoke/delete from native tabs.
+  Existing code-update activation remains blocked by the observed provider behavior.
+- [ ] **Function update activation:** resolve the live code/environment activation
+  failure before treating submitted updates as verified changes to running functions.
+- [x] **Auth users:** search/paginate, inspect details, create identities, update
+  supported roles and remove users with confirmation. Profile fields remain read-only.
 - [ ] **Auth administration:** add invitations, password-reset actions and session
   management where supported by the current Neon management API. Determine the
   supported actions before building each control; do not emulate writes to the
@@ -184,12 +222,10 @@ everyday management. These are planned features, not existing capabilities.
 - [ ] **Remove demo restrictions:** choose actual storage buckets and functions
   instead of requiring `assets` and `hello`; replace the demo-only Database view
   with navigation to the normal database explorer.
-- [ ] **Shared Core UI:** reuse provider-neutral resource lists, detail/editor
-  tabs, action states, confirmations and copyable error diagnostics. Keep Neon
-  API calls in the plugin so Supabase, Firebase and Appwrite can reuse the host UI.
-- [ ] **Verification:** test creation, editing, deployment and deletion end to end
-  using disposable test resources, including permission denials, failures and
-  cleanup. Preserve existing SQL and service flows.
+- [x] **Shared Core UI:** provider-neutral resource lists, code editors and tabs;
+  Neon API calls stay in the plugin. Copyable diagnostics remain a separate follow-up.
+- [x] **Verification:** disposable live lifecycle and browser tests with cleanup,
+  plus an explicit failed activation diagnostic. Existing SQL/service flows retained.
 
 Start with Functions creation/deployment and Auth user management. Broader
 Storage, Realtime and AI Gateway administration follows on the same foundations.
@@ -204,6 +240,11 @@ pnpm test:scoped
 pnpm test:host
 # Read-only real account/import checks; uses an existing API key:
 NEON_API_KEY=... node tests/account-host-e2e.mjs
+# Disposable live writes, including cleanup of test functions/users:
+NEON_API_KEY=... node tests/management-host-e2e.mjs
+NEON_API_KEY=... node tests/management-e2e.mjs
+# Expected to report the known activation failure in the tested environment:
+NEON_API_KEY=... node tests/activation-diagnostic.mjs
 ```
 
 E2E tests launch the real stdio executable. They cover SQL/metadata/CRUD/EXPLAIN,

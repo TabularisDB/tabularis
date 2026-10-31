@@ -49,6 +49,9 @@ export type {PluginWorkspaceShellProps} from './types/pluginWorkspaceShell';
 export {PluginExplorerSection} from './components/plugins/PluginExplorerSection';
 export type {PluginExplorerSectionProps} from './types/pluginExplorerSection';
 export {PluginDataGrid} from './components/plugins/PluginDataGrid';
+export {PluginResourceList} from './components/plugins/PluginResourceList';
+export {PluginCodeEditor} from './components/plugins/PluginCodeEditor';
+export type {PluginResourceListProps, PluginCodeEditorProps} from './types/pluginResources';
 export type {PluginDataGridProps} from './types/pluginDataGrid';
 
 export {usePluginAccount} from './hooks/usePluginAccount';

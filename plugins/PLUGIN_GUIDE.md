@@ -2083,3 +2083,17 @@ default. Existing callers can still pass `tabs: [{id, label, icon?}]`, `activeTa
 Pass `columns: string[]`, `rows: unknown[][]`, optional `connectionId`, and optional
 accessible `label`. It has a bounded height and uses native copy preferences,
 selection and column resizing. It exposes no mutation callbacks or generated SQL.
+
+API `0.2.1` adds `PluginResourceList` and `PluginCodeEditor`. Declare at least
+`api_version: "0.2.1"` before using them; API `0.2.0` hosts do not expose these
+components. Older plugin bundles remain supported by the newer host.
+
+`PluginResourceList` takes `items: [{id, title, subtitle?, status?}]`, `onOpen(id)`,
+`emptyMessage`, and an optional accessible `label`. Open resource details with
+`usePluginWorkspace`, keeping connection ownership and resource IDs explicit.
+
+`PluginCodeEditor` takes controlled `value`/`onChange`, optional `language`
+(`javascript`, `json`, or `plaintext`), `readOnly`, and an accessible `label`.
+Its parent supplies the height. It shares the host's lazy Monaco instance,
+editor theme and font preferences, and does not register SQL execution actions.
+Keep provider deployment, secrets and draft persistence policies in the plugin.

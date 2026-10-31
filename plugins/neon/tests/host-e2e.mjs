@@ -103,7 +103,7 @@ try {
     assert.equal(await page.locator('[data-plugin-workspace] [role="tablist"]').count(), 0, 'Provider has duplicate internal navigation');
     await services.getByRole('button', {name:'Auth',exact:true}).click();
     await page.locator('[data-workspace-header]').getByRole('heading', {name:'Auth',exact:true}).waitFor();
-    await page.getByRole('region', {name:'Service data',exact:true}).getByText('email',{exact:true}).first().waitFor();
+    await page.getByRole('list', {name:'Auth users',exact:true}).getByRole('button').first().waitFor();
     assert.equal(await services.getByRole('button', {name:'Auth',exact:true}).getAttribute('aria-pressed'),'true');
     await services.getByRole('button', {name:'Database',exact:true}).click();
     await page.getByRole('region', {name:'Service data',exact:true}).getByText('body',{exact:true}).first().waitFor();
@@ -162,10 +162,8 @@ try {
     await page.getByRole('button',{name:/expand explorer/i}).click();
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-panel.png',import.meta.url))});
     await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Auth',exact:true}).click();
-    await page.getByRole('region',{name:'Service data',exact:true}).getByText('email',{exact:true}).first().waitFor();
+    await page.getByRole('list',{name:'Auth users',exact:true}).getByRole('button').first().waitFor();
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-auth-grid.png',import.meta.url))});
-    const authBounds = await page.getByRole('region',{name:'Service data',exact:true}).boundingBox();
-    assert(authBounds && authBounds.height > 400,'Auth grid does not use the available editor height');
     const nav = page.locator('[data-slot="explorer.services"]');
     await nav.getByRole('button',{name:'AI Gateway',exact:true}).click();
     await page.getByRole('button',{name:'Load models',exact:true}).click();

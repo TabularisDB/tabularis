@@ -96,7 +96,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` | Initial release |
 | `0.1.1`         | `0.1.0` | Typed slots and automatic manifest compatibility gate |
-| `0.4.0`         | `0.2.0` | Connection-scoped extension calls and secret storage |
+| `0.4.0` (unreleased) | `0.2.1` | Account/service calls, resource lists and native code editing |
 
 ## Slot reference
 
@@ -138,3 +138,9 @@ Optional `brandColor` only affects their navigation indicator.
 `rows: unknown[][]`, optional `connectionId: string | null`, and optional `label`.
 It provides native copy settings and column resizing in a bounded view, without
 mutation callbacks or SQL generation. `PluginConnectionAction` remains supported.
+
+`PluginResourceList` provides ordinary host navigation for `{id,title,subtitle?,status?}`
+items and an `onOpen(id)` callback. `PluginCodeEditor` provides controlled non-SQL
+Monaco editing through `value`, `onChange`, `language`, `readOnly` and `label`; its
+parent supplies the height. Both require runtime API 0.2.1 and share host theme
+and accessibility behavior.

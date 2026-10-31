@@ -5,6 +5,8 @@ import type {
     PluginWorkspaceShellProps,
     PluginExplorerSectionProps,
     PluginDataGridProps,
+    PluginResourceListProps,
+    PluginCodeEditorProps,
 } from './types';
 
 /** A prominent, accessible provider action styled by the host. */
@@ -25,4 +27,14 @@ export function PluginExplorerSection(props: PluginExplorerSectionProps) {
 /** Native read-only data results with host copy and resizing behavior. */
 export function PluginDataGrid(props: PluginDataGridProps) {
     return createElement(getHost().PluginDataGrid, props);
+}
+
+/** Ordinary host resource navigation for provider-owned lists. */
+export function PluginResourceList(props: PluginResourceListProps) {
+    return createElement(getHost().PluginResourceList, props);
+}
+
+/** The host's themed Monaco editor for non-SQL source and configuration. */
+export function PluginCodeEditor(props: PluginCodeEditorProps) {
+    return createElement(getHost().PluginCodeEditor, props);
 }

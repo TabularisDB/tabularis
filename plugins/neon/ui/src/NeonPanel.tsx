@@ -20,6 +20,8 @@ import {styles} from './styles';
 import type {NeonService} from './services';
 import {databaseSummary} from './utils/status';
 import {PanelSection, ResultPlaceholder} from './components/PanelSection';
+import {FunctionsManager} from './FunctionsManager';
+import {AuthManager} from './AuthManager';
 
 interface ConnectedProps {
     connectionId: string;
@@ -36,21 +38,37 @@ export function NeonPanel({
     connectionId,
     connectionName,
     serviceId = 'overview',
+    functionSlug,
+    createFunction,
+    authUserId,
 }: {
     connectionId: string | null;
     connectionName?: string;
     serviceId?: NeonService;
+    functionSlug?: string;
+    createFunction?: boolean;
+    authUserId?: string;
 }) {
     const t = usePluginTranslation('neon');
     const tab = serviceId;
     let content: ReactNode;
     if (!connectionId) content = <div className="neon-empty">{t('noConnection')}</div>;
     else if (tab === 'overview') content = <Overview connectionId={connectionId} />;
-    else if (tab === 'database' || tab === 'users')
+    else if (tab === 'users')
+        content = <AuthManager connectionId={connectionId} userId={authUserId} />;
+    else if (tab === 'database')
         content = <QueryView key={tab} connectionId={connectionId} kind={tab} />;
     else if (tab === 'storage') content = <Storage connectionId={connectionId} />;
     else if (tab === 'ai') content = <Ai connectionId={connectionId} />;
-    else if (tab === 'functions') content = <Functions connectionId={connectionId} />;
+    else if (tab === 'functions')
+        content = (
+            <FunctionsManager
+                connectionId={connectionId}
+                slug={functionSlug}
+                create={createFunction}
+                fallback={<Functions connectionId={connectionId} />}
+            />
+        );
     else if (tab === 'realtime') content = <Realtime connectionId={connectionId} />;
     else content = <Setup connectionId={connectionId} />;
     return (

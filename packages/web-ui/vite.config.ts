@@ -15,8 +15,16 @@ export default defineConfig({
         postcss: webUiRoot,
     },
     server: {watch: {ignored: ['**/src-tauri/**']}},
-    // Prepare lazy connection-dialog dependencies before a WebView requests them.
-    optimizeDeps: {include: ['react-colorful', 'emoji-picker-react']},
+    // Discover lazy UI dependencies before WebViews cache their optimized import URLs.
+    optimizeDeps: {
+        entries: ['index.html', 'src/**/*.tsx'],
+        include: [
+            'react-colorful',
+            'emoji-picker-react',
+            '@tanstack/react-table',
+            '@tanstack/react-virtual',
+        ],
+    },
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url)),

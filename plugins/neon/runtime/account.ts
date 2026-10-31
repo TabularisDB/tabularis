@@ -1,5 +1,7 @@
 import { createNeonClient, isNeonError, type NeonClient } from '@neon/sdk';
 import type { Params } from './database.js';
+import { withFunctionMutation } from './managementQueue.js';
+import { manage, managementMethods, ManagementError } from './management.js';
 
 const methods = new Set(['account_projects', 'account_branches', 'account_resources', 'account_import']);
 const apiBase = 'https://console.neon.tech/api/v2';
@@ -66,7 +68,7 @@ export async function account(
   secrets: Record<string, string>,
   fetcher: typeof fetch = globalThis.fetch,
 ): Promise<unknown> {
-  if (!methods.has(method)) throw new Error('Unsupported Neon account method');
+  if (!methods.has(method) && !managementMethods.has(method)) throw new Error('Unsupported Neon account method');
   const key = secrets.NEON_API_KEY;
   if (!key || !key.trim() || /[\r\n\0]/.test(key)) throw new Error('A Neon account API key is required');
   const orgId = args.orgId === undefined || args.orgId === '' ? undefined : id(args.orgId, 'organization');
@@ -95,6 +97,12 @@ export async function account(
       return { branches: branches.map(({ id, name }) => ({ id, name })) };
     }
     const branchScope = { projectId: scope.projectId, branchId: id(args.branchId, 'branch') };
+    if (managementMethods.has(method)) {
+      const action = () => manage(client, method, args, branchScope, fetcher);
+      return await (['account_function_deploy', 'account_function_delete', 'account_function_rename'].includes(method)
+        ? withFunctionMutation(JSON.stringify([branchScope.projectId, branchScope.branchId, args.slug]), action)
+        : action());
+    }
     const [databases, roles, discovered] = await Promise.all([
       client.postgres.databases.list(branchScope),
       client.postgres.roles.list(branchScope),
@@ -113,7 +121,7 @@ export async function account(
     ]);
     const connection = new URL(connectionString);
     if (!['postgres:', 'postgresql:'].includes(connection.protocol) || !connection.hostname || !connection.username || !connection.password) throw new Error('Neon returned an incomplete connection URI');
-    const bundle: Record<string, string> = { NEON_PROJECT_ID: scope.projectId, NEON_BRANCH: branch.name };
+    const bundle: Record<string, string> = { NEON_PROJECT_ID: scope.projectId, NEON_BRANCH: branch.name, NEON_BRANCH_ID: branchScope.branchId };
     const warnings = serviceMetadata(discovered).flatMap(item => item.warning ? [item.warning] : []);
     if (discovered.auth.value?.base_url) {
       bundle.NEON_AUTH_BASE_URL = discovered.auth.value.base_url;
@@ -161,6 +169,7 @@ export async function account(
       warnings,
     };
   } catch (error) {
+    if (error instanceof ManagementError) throw error;
     // Remote response bodies and SDK error messages can carry tokens or connection URIs.
     throw failure(error);
   }

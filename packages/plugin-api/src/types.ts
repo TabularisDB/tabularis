@@ -119,6 +119,8 @@ export type PluginTranslator = (key: string, options?: Record<string, unknown>) 
  * import the named hooks/helpers from `@tabularis/plugin-api` instead.
  */
 export interface TabularisHostApi {
+    PluginResourceList: ComponentType<PluginResourceListProps>;
+    PluginCodeEditor: ComponentType<PluginCodeEditorProps>;
     PluginExplorerSection: ComponentType<PluginExplorerSectionProps>;
     PluginDataGrid: ComponentType<PluginDataGridProps>;
     PluginConnectionAction: ComponentType<PluginConnectionActionProps>;
@@ -213,4 +215,19 @@ export interface UsePluginAccountReturn {
     disconnect: () => Promise<void>;
     call: <T = unknown>(method: string, args?: Record<string, unknown>) => Promise<T>;
     importConnection: (args: Record<string, unknown>) => Promise<PluginAccountImportResult>;
+}
+
+export interface PluginResourceListProps {
+    items: ReadonlyArray<{id: string; title: string; subtitle?: string; status?: string}>;
+    onOpen: (id: string) => void;
+    emptyMessage: string;
+    label?: string;
+}
+
+export interface PluginCodeEditorProps {
+    value: string;
+    onChange: (value: string) => void;
+    language?: 'javascript' | 'json' | 'plaintext';
+    readOnly?: boolean;
+    label?: string;
 }

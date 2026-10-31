@@ -7,6 +7,8 @@
     "@neon/sdk": "7.6.1",
     "@tabularis/explain": "^0.2.0",
     "dotenv": "^18.0.9",
+    "esbuild": "^0.28.2",
+    "fflate": "^0.8.3",
     "jose": "^6.2.14",
     "pg": "^8.23.1",
     "ws": "^8.22.0"
@@ -27,7 +29,7 @@
   "scripts": {
     "build": "pnpm build:runtime && pnpm build:ui",
     "start": "node dist/driver.js",
-    "test": "node --test tests/unit.mjs tests/account.mjs",
+    "test": "node --test tests/unit.mjs tests/account.mjs tests/management.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "build:runtime": "tsc -p tsconfig.json",
     "build:ui": "pnpm --dir ui build",

@@ -59,11 +59,15 @@ export {
     PluginWorkspaceShell,
     PluginExplorerSection,
     PluginDataGrid,
+    PluginResourceList,
+    PluginCodeEditor,
 } from './components';
 export type {
     PluginConnectionActionProps,
     PluginExplorerSectionProps,
     PluginDataGridProps,
+    PluginResourceListProps,
+    PluginCodeEditorProps,
     PluginWorkspaceShellProps,
     OpenPluginWorkspaceOptions,
     UsePluginWorkspaceReturn,

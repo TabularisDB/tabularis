@@ -4,7 +4,7 @@ import { service } from './services.js';
 import { admin } from './admin.js';
 import { account } from './account.js';
 
-const operations = new Set(['neon_status', 'neon_auth_users', 'neon_demo_notes', 'neon_function', 'neon_ai_models', 'neon_ai_complete', 'neon_storage_list', 'neon_storage_put', 'neon_storage_get', 'neon_storage_delete', 'neon_realtime_snapshot', 'neon_project_branches']);
+const operations = new Set(['neon_status', 'neon_auth_users', 'neon_auth_users_page', 'neon_auth_user_details', 'neon_management_context', 'neon_demo_notes', 'neon_function', 'neon_ai_models', 'neon_ai_complete', 'neon_storage_list', 'neon_storage_put', 'neon_storage_get', 'neon_storage_delete', 'neon_realtime_snapshot', 'neon_project_branches']);
 
 export async function extension(request: Params): Promise<unknown> {
   const context = request.context as Params | undefined;
@@ -34,6 +34,7 @@ export async function extension(request: Params): Promise<unknown> {
   // Resolve SQL access from the active saved connection, never from the service bundle.
   const params = request.params as Params;
   if (!params || typeof params !== 'object' || params.driver !== 'neon') throw new Error('Neon driver connection required');
+  if (method === 'neon_management_context') return withCredentials(credentials, () => admin(method, {}, context));
   if (params.host) {
     const url = new URL('postgresql://localhost');
     url.hostname = text(params.host, 'host'); url.port = String(params.port ?? 5432);
@@ -44,7 +45,7 @@ export async function extension(request: Params): Promise<unknown> {
   } else throw new Error('Saved connection has no database host');
   const args = request.args && typeof request.args === 'object' && !Array.isArray(request.args) ? request.args as Params : {};
   return withCredentials(credentials, async () => {
-    if (method === 'neon_status' || method === 'neon_auth_users' || method === 'neon_demo_notes' || method === 'neon_project_branches') return admin(method, args, context);
+    if (method === 'neon_status' || method === 'neon_auth_users' || method === 'neon_auth_users_page' || method === 'neon_auth_user_details' || method === 'neon_management_context' || method === 'neon_demo_notes' || method === 'neon_project_branches') return admin(method, args, context);
     return service(method, args);
   });
 }

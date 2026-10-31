@@ -3,6 +3,7 @@ export const credentialNames = [
     'DATABASE_URL_UNPOOLED',
     'NEON_AUTH_JWKS_URL',
     'NEON_BRANCH',
+    'NEON_BRANCH_ID',
     'NEON_PROJECT_ID',
     'NEON_API_KEY',
     'NEON_AUTH_BASE_URL',
