@@ -273,5 +273,21 @@
     "missingBinding": "Save the Neon project and branch in Connection / Setup before managing services.",
     "connectRequired": "Connect a Neon account with permission for this project to manage services.",
     "branchMissing": "The saved branch could not be found in this project."
-  }
+  },
+  "connectionSetup": {
+    "title": "Connect your Neon workspace",
+    "description": "Choose your Neon project and branch, then manage its backend services directly in Tabularis. For a standalone PostgreSQL URL, use the PostgreSQL plugin.",
+    "branches": "Project and branch selection",
+    "identity": "Neon Auth and user management",
+    "backend": "Storage · Functions · Realtime · AI Gateway",
+    "linkedTitle": "Linked Neon connection",
+    "manageHint": "Open this connection to manage its Neon services in the explorer. Use a new Neon connection for another branch; appearance and connection metadata can be edited here.",
+    "project": "Project",
+    "notLinked": "Not linked",
+    "legacyHint": "This older connection has no complete Neon project binding. Add it again through the Neon project picker to attach its services.",
+    "accountStored": "Neon account credentials are stored securely. Service actions check access to this project.",
+    "reconnect": "Update Neon account access"
+  },
+  "databaseNativeHint": "Browse tables and run SQL in the normal Tabularis explorer and console. The former Neon demo-data tab has been retired.",
+  "databaseNativeHintShort": "Tables and SQL in the native explorer"
 }

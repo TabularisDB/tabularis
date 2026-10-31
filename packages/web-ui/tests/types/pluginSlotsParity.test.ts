@@ -18,6 +18,7 @@ const SLOT_ANCHORS: Readonly<Record<string, string>> = {
     'sidebar.footer.actions': 'components/layout/Sidebar.tsx',
     'settings.plugin.actions': 'components/settings/PluginsTab.tsx',
     'settings.plugin.before_settings': 'components/settings/PluginSettingsPage.tsx',
+    'connection-modal.setup': 'components/modals/NewConnectionModal.tsx',
     'connection-modal.connection_content': 'components/modals/NewConnectionModal.tsx',
     'connection-modal.extra_fields': 'components/modals/NewConnectionModal.tsx',
 };

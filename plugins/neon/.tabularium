@@ -2,7 +2,7 @@
   "id": "neon",
   "name": "Neon",
   "version": "0.2.0",
-  "description": "Neon PostgreSQL driver and local Neon service tools",
+  "description": "Neon projects and branches with Auth, Storage, Functions, Realtime and AI Gateway",
   "default_port": 5432,
   "default_username": "",
   "executable": "dist/driver.js",
@@ -19,8 +19,7 @@
     "create_foreign_keys": false,
     "manage_tables": false,
     "readonly": false,
-    "connection_string": true,
-    "connection_string_example": "postgresql://user:password@ep-example.eu-central-1.aws.neon.tech/neondb?sslmode=verify-full",
+    "connection_string": false,
     "supports_ssl": true,
     "sql_dialect": "postgres",
     "explain": true
@@ -83,34 +82,35 @@
   ],
   "interpreter": "node",
   "color": "#00e599",
-  "icon": "database",
-  "engine": "postgres",
+  "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSI+PHJlY3QgeD0iMSIgeT0iMSIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMyIgZmlsbD0iIzAwZTU5OSIvPjxwYXRoIGQ9Ik0zIDE2VjRoMTBsNCA0djhoLTVWOWwtNSA3SDNaIiBzdHJva2U9IiMwNTJlMjMiIHN0cm9rZS13aWR0aD0iMS42IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+",
+  "engine": "neon",
   "ui_extensions": [
     {
-      "slot": "connections.actions",
+      "slot": "connection-modal.setup",
       "module": "ui/dist/index.js",
+      "driver": "neon",
       "order": 30,
-      "api_version": "0.2.1"
+      "api_version": "0.2.2"
     },
     {
       "slot": "explorer.services",
       "module": "ui/dist/index.js",
       "driver": "neon",
       "order": 30,
-      "api_version": "0.2.1"
+      "api_version": "0.2.2"
     },
     {
       "slot": "settings.plugin.actions",
       "module": "ui/dist/index.js",
       "order": 30,
-      "api_version": "0.2.1"
+      "api_version": "0.2.2"
     },
     {
       "slot": "editor.workspace.content",
       "module": "ui/dist/workspace.js",
       "driver": "neon",
       "order": 30,
-      "api_version": "0.2.1"
+      "api_version": "0.2.2"
     }
   ],
   "kind": "driver",

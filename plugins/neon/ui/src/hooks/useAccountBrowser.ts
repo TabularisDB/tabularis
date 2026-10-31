@@ -184,8 +184,10 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
                     createServiceCredentials,
                 });
                 // A refresh failure must not invite a duplicate import of an already-saved connection.
-                if (current()) patch({imported});
-                await onConnected?.();
+                if (current()) {
+                    patch({imported});
+                    await onConnected?.();
+                }
                 return {imported};
             });
         },

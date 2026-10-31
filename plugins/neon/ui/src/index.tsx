@@ -12,18 +12,28 @@ import {styles} from './styles';
 import {NeonMark} from './NeonMark';
 import {serviceIds, serviceIcons} from './services';
 import {AccountWizard} from './AccountWizard';
+import {ConnectionSetup} from './ConnectionSetup';
 
 export default function NeonActions({context}: SlotComponentProps) {
     const t = usePluginTranslation('neon');
-    if (typeof context.onConnectionCreated === 'function') {
+    if (context.targetPluginId && context.targetPluginId !== 'neon') return null;
+    if (!context.targetPluginId && context.driver !== 'neon') return null;
+    if (
+        typeof context.isEditing === 'boolean' &&
+        typeof context.onConnectionCreated === 'function' &&
+        typeof context.onClose === 'function'
+    ) {
         return (
-            <NeonConnectAction
-                onConnected={context.onConnectionCreated as () => void | Promise<void>}
+            <ConnectionSetup
+                connectionId={
+                    typeof context.connectionId === 'string' ? context.connectionId : null
+                }
+                isEditing={context.isEditing}
+                onConnectionCreated={context.onConnectionCreated as () => void | Promise<void>}
+                onClose={context.onClose as () => void}
             />
         );
     }
-    if (context.targetPluginId && context.targetPluginId !== 'neon') return null;
-    if (!context.targetPluginId && context.driver !== 'neon') return null;
     if (typeof usePluginWorkspace !== 'function' || typeof PluginExplorerSection !== 'function')
         return <p role="status">{t('coreRequired')}</p>;
     return context.targetPluginId ? (

@@ -24,6 +24,25 @@ function deferred<T>() {
 }
 
 describe('Neon account browser', () => {
+    it('does not call a stale setup completion callback after the driver view closes', async () => {
+        account.secretFields.mockResolvedValue(['NEON_API_KEY']);
+        account.call.mockResolvedValue({organizations: [], projects: []});
+        const pending = deferred<{id: string; name: string; warnings: string[]}>();
+        account.importConnection.mockReturnValue(pending.promise);
+        const completed = vi.fn();
+        const {result, unmount} = renderHook(() => useAccountBrowser(completed));
+        await waitFor(() => expect(result.current.state.connected).toBe(true));
+        let request: Promise<void> | undefined;
+        act(() => {
+            request = result.current.importConnection(false);
+        });
+        unmount();
+        await act(async () => {
+            pending.resolve({id: 'saved', name: 'Imported', warnings: []});
+            await request;
+        });
+        expect(completed).not.toHaveBeenCalled();
+    });
     beforeEach(() => {
         vi.clearAllMocks();
         account.secretFields.mockResolvedValue(['NEON_API_KEY']);

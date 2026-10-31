@@ -4,7 +4,7 @@ A Tabularis driver with native explorer services for an existing Neon project. S
 with the Tabularis CLI, then adapted to Node.js to use Neon's SDKs. Requires
 Node.js 22+, pnpm, and the `feat/neon-integration` Core changes on upstream
 Tabularis 0.30.0. The public 0.30.0 release alone does not yet include the new
-`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.1).
+`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.2).
 
 ## Build and install from this repository
 
@@ -43,7 +43,9 @@ Release publication/signing is outside this prototype.
 
 ### Connect an existing Neon account
 
-On **Connections**, click **Connect Neon**. Enter a Neon API key with access to
+On **Connections**, choose **Add Connection → Neon**. Neon has its own catalogue
+entry and supplies its account/project setup inside the ordinary connection
+dialog; it has no global connection-page launcher. Enter a Neon API key with access to
 the intended organization/project. The key is stored in the host's secret store
 (OS keyring on desktop), separately from database connections. Select the
 organization, project, branch, database and role, then import the connection.
@@ -67,10 +69,17 @@ Neon's partner OAuth client is not available yet, so this entry uses an API key
 and does not pretend to perform a Neon browser sign-in. A later OAuth connector
 can use the same account/resource selection and host import interface.
 
-### Import credentials manually
+Neon deliberately does not offer raw connection-string or SQL login inputs.
+Use the PostgreSQL plugin for a standalone Postgres URL. The Neon integration
+adds project/branch selection and native Auth, Storage, Functions, Realtime and
+AI Gateway workspaces. Editing an existing Neon connection shows its project
+binding and account access; host name, appearance and privacy metadata remain
+editable without rewriting its SQL/service credentials or importing a duplicate.
 
-Select Neon in the connection picker and import its Postgres URL. SQL always
-uses the saved connection's credentials and verified TLS. Expand **Neon** in the
+### Update an existing connection's service credentials
+
+SQL uses the credentials generated internally during project import and verified
+TLS. Expand **Neon** in the
 Structure explorer and open a service. Each service has its own normal editor
 tab, beside SQL consoles and tables. Reopening a service focuses its existing
 tab; connection scope is preserved across reloads.
@@ -118,7 +127,7 @@ On Linux, after pulling the local environment, `pnpm dev:setup` uses `secret-too
 to save the DB password and service bundle in the OS keyring and adds
 **Neon Lab · production** to `connections.dev.json`. It preserves other development
 connections and leaves the release `connections.json` alone. For other platforms,
-use the connection picker and panel to import credentials.
+use **Add Connection → Neon** and the service setup panel.
 
 ## Supported prototype features
 
@@ -126,7 +135,7 @@ use the connection picker and panel to import credentials.
   of databases, schemas, tables, columns, indexes, foreign keys, views and routines.
 - Visual EXPLAIN through the shared `@tabularis/explain` parser; `ANALYZE` runs only
   when explicitly requested by the host.
-- Workspace sections: service overview, demo SQL data, Auth user management, private Storage,
+- Workspace sections: service overview, Auth user management, private Storage,
   AI model catalog/completions, Functions management, bounded live SQL snapshot
   tests, and connection setup. All panel text has English/German translations.
 - Realtime waits run concurrently with SQL through the same process; subscriptions
@@ -177,8 +186,13 @@ does not write directly to internal Auth tables.
 
 ## Reusable Core integration
 
-The generic `usePluginAccount` API and `connections.actions` slot let a provider
-connect before any database connection exists. The administrator-only Core
+The generic `usePluginAccount` API and `connection-modal.setup` slot let a provider
+own account authentication and resource selection before any database connection
+exists. The manifest opt-in replaces the generic new-connection form, is filtered
+to the selected driver owner, and fails closed when plugin UI is unavailable.
+Other SQL drivers retain their standard form. Neon owns the account/branch UI;
+the Core contains no Neon-specific onboarding code. Runtime API 0.2.2 is required.
+The administrator-only Core
 account command separates account credentials from connection service bundles,
 reserves the secret-bearing import method, and imports credentials atomically
 without a plaintext fallback when the secret store fails.
@@ -219,9 +233,9 @@ limitations are tracked here.
   management where supported by the current Neon management API. Determine the
   supported actions before building each control; do not emulate writes to the
   internal Auth tables.
-- [ ] **Remove demo restrictions:** choose actual storage buckets and functions
-  instead of requiring `assets` and `hello`; replace the demo-only Database view
-  with navigation to the normal database explorer.
+- [ ] **Remove remaining storage restriction:** choose actual storage buckets
+  instead of requiring `assets`. Functions now list actual branch resources;
+  the redundant demo Database entry is retired in favor of the native explorer.
 - [x] **Shared Core UI:** provider-neutral resource lists, code editors and tabs;
   Neon API calls stay in the plugin. Copyable diagnostics remain a separate follow-up.
 - [x] **Verification:** disposable live lifecycle and browser tests with cleanup,

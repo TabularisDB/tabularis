@@ -683,11 +683,8 @@ export const Connections = () => {
         }
     }, [location.state]);
 
-    const handleSave = () => {
-        void loadConnections();
-        setIsModalOpen(false);
-        setEditingConnection(null);
-    };
+    // The modal owns closing, so plugin setup can show import results and warnings first.
+    const handleSave = () => loadConnections();
 
     const handleConnect = async (conn: SavedConnection) => {
         setError(null);

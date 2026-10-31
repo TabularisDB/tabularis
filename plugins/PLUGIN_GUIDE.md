@@ -543,8 +543,46 @@ Add an optional `ui_extensions` array to your manifest:
 | `sidebar.footer.actions` | Narrow navigation icon rail footer (icon-sized controls) | `connectionId`, `driver` | Status indicators, quick actions |
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
 | `settings.plugin.before_settings` | Content above plugin settings form | `targetPluginId` | OAuth panels, status banners |
+| `connection-modal.setup` | Add Connection after choosing the driver; General when editing | `driver`, `connectionId`, `isEditing`, `onConnectionCreated`, `onClose` | Provider-owned login and connection import; only the selected driver plugin renders. Requires runtime API `0.2.2` |
 | `connection-modal.connection_content` | Inside the connection form | `driver` | Custom connection fields |
 | `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `credentialFieldsHidden`, `setCredentialFieldsHidden`, `secretFields`, `setSecretField` | Plugin-specific connection fields (e.g. AWS region), including values stored per connection in the OS keychain. `setCredentialFieldsHidden(true)` hides and clears the host username/password inputs for drivers that authenticate without a login; while hidden the host also ignores the login of an imported connection string and drops the stored password on save |
+
+### Provider-owned connection setup
+
+An external driver can own its Add Connection flow by declaring a
+`connection-modal.setup` entry in `ui_extensions` with `api_version: "0.2.2"`.
+Use this for provider login, project/branch selection and connection import.
+This is a UI opt-in; it does not require `no_connection_required` or a new
+backend capability. Declare the driver's real database capabilities normally.
+
+The host reads the selected driver's manifest, so a missing or incompatible
+bundle shows an unavailable message instead of generic SQL fields. The slot
+only accepts contributions owned by that driver. Existing `connection_content`
+and `extra_fields` integrations keep their current behavior.
+
+```tsx
+import {defineSlot} from "@tabularis/plugin-api";
+
+export default defineSlot("connection-modal.setup", ({context}) => {
+  // context: {driver: string, connectionId: string | null, isEditing: boolean,
+  //   onConnectionCreated: () => void | Promise<void>, onClose: () => void}
+  return <ProviderSetup context={context} />;
+}).component;
+```
+
+For a new connection, the plugin replaces the full form body and supplies its
+own actions; host name/environment inputs, tabs and Test/Save are hidden. Keep
+login and imports inside the plugin, for example through `usePluginAccount`.
+After a successful import, await `context.onConnectionCreated()` to refresh the
+host list. This marks the session saved without closing it, allowing success or
+warning messages. Call `context.onClose()` when the user finishes. The catalogue
+and Change database navigation stay available.
+
+When `context.isEditing` is true, display the existing binding identified by
+`connectionId` and offer account reconnection as needed; do not import another
+connection. The host renders the setup in General, retains name/environment,
+Appearance and Privacy, and saves metadata with existing connection parameters
+and secrets intact. Generic SQL/network fields and Test stay hidden.
 
 ### SlotContext
 

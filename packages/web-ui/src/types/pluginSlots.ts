@@ -17,6 +17,7 @@ export type SlotName =
     | 'editor.workspace.content'
     | 'settings.plugin.actions'
     | 'settings.plugin.before_settings'
+    | 'connection-modal.setup'
     | 'connection-modal.connection_content'
     | 'connection-modal.extra_fields';
 
@@ -38,6 +39,7 @@ export const VALID_SLOTS: ReadonlySet<string> = new Set<SlotName>([
     'editor.workspace.content',
     'settings.plugin.actions',
     'settings.plugin.before_settings',
+    'connection-modal.setup',
     'connection-modal.connection_content',
     'connection-modal.extra_fields',
 ]);
@@ -129,6 +131,13 @@ export interface UIExtensionDeclaration {
  * `SlotAnchor` uses these requirements for the slots listed here.
  */
 export type HostSlotContextRequirements = {
+    'connection-modal.setup': {
+        driver: string;
+        connectionId: string | null;
+        isEditing: boolean;
+        onConnectionCreated: () => void | Promise<void>;
+        onClose: () => void;
+    };
     'connections.actions': {onConnectionCreated: () => void | Promise<void>};
     'editor.workspace.content': {
         pluginId: string;

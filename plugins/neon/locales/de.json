@@ -273,5 +273,21 @@
     "missingBinding": "Speichere Neon-Projekt und Branch unter Verbindung / Einrichtung, bevor du Dienste verwaltest.",
     "connectRequired": "Verbinde ein Neon-Konto mit Zugriff auf dieses Projekt, um Dienste zu verwalten.",
     "branchMissing": "Der gespeicherte Branch wurde in diesem Projekt nicht gefunden."
-  }
+  },
+  "connectionSetup": {
+    "title": "Neon-Workspace verbinden",
+    "description": "Wähle dein Neon-Projekt und den Branch und verwalte die Backend-Dienste direkt in Tabularis. Für eine reine PostgreSQL-URL nutze das PostgreSQL-Plugin.",
+    "branches": "Projekt- und Branch-Auswahl",
+    "identity": "Neon Auth und Benutzerverwaltung",
+    "backend": "Storage · Functions · Realtime · AI Gateway",
+    "linkedTitle": "Verknüpfte Neon-Verbindung",
+    "manageHint": "Öffne diese Verbindung, um die Neon-Dienste im Explorer zu verwalten. Lege für einen anderen Branch eine neue Neon-Verbindung an; Darstellung und Verbindungsmetadaten kannst du hier bearbeiten.",
+    "project": "Projekt",
+    "notLinked": "Nicht verknüpft",
+    "legacyHint": "Dieser älteren Verbindung fehlt die vollständige Neon-Projektbindung. Füge sie über die Neon-Projektauswahl erneut hinzu, um ihre Dienste anzubinden.",
+    "accountStored": "Neon-Kontozugangsdaten sind sicher gespeichert. Dienstaktionen prüfen den Zugriff auf dieses Projekt.",
+    "reconnect": "Neon-Kontozugang aktualisieren"
+  },
+  "databaseNativeHint": "Tabellen und SQL findest du im normalen Tabularis-Explorer und in der Konsole. Der bisherige Neon-Tab für Demo-Daten wurde entfernt.",
+  "databaseNativeHintShort": "Tabellen und SQL im nativen Explorer"
 }

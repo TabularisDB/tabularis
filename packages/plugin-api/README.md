@@ -51,6 +51,12 @@ All hooks must run inside a React component loaded by Tabularis. Calling them ou
 
 ## Provider account connections
 
+`connection-modal.setup` lets a driver own login and import inside Add Connection
+(runtime API `0.2.2`). Its manifest declaration hides generic SQL fields even
+when the UI cannot load. It receives `{driver, connectionId, isEditing,
+onConnectionCreated, onClose}`; refresh after import with `onConnectionCreated`,
+then close with `onClose`. Editing keeps host metadata controls and Save.
+
 `connections.actions` mounts provider-owned actions beside Add Connection and supplies
 `onConnectionCreated()`. Use `usePluginAccount(pluginId)` there to store account
 credentials in the host secret store, list safe account metadata, and import a
@@ -96,7 +102,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` | Initial release |
 | `0.1.1`         | `0.1.0` | Typed slots and automatic manifest compatibility gate |
-| `0.4.0` (unreleased) | `0.2.1` | Account/service calls, resource lists and native code editing |
+| `0.4.0` (unreleased) | `0.2.2` | Account/service calls, resource lists, native code editing and provider-owned connection setup |
 
 ## Slot reference
 

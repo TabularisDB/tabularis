@@ -90,6 +90,13 @@ export const styles = `
 .neon-account-check {display:flex;align-items:flex-start;gap:8px;margin-top:18px;font-size:12px;color:var(--text-primary);line-height:1.5}
 .neon-account-check input {margin-top:3px;accent-color:var(--accent-primary);flex-shrink:0}
 .neon-account-warnings {font-size:12px;color:var(--text-secondary);line-height:1.6;padding-left:20px;margin:16px 0}
+.neon-provider-intro {padding:18px 20px;border-bottom:1px solid var(--border-default);color:var(--text-primary)}
+.neon-provider-intro h3 {font-size:14px;margin:0;font-weight:600}
+.neon-provider-intro p {font-size:12px;line-height:1.6;color:var(--text-secondary);margin:10px 0}
+.neon-provider-features {display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:12px 0 0;padding:0;font-size:11px;color:var(--text-secondary)}
+.neon-provider-features li {border-left:2px solid var(--accent-primary);padding-left:8px}
+.neon-existing-connection {padding:20px;height:auto;overflow:visible;box-sizing:border-box}
+.neon-existing-connection h3 {font-size:13px;margin:0 0 10px}
 .neon-account .neon-inline-actions {margin-top:20px}
 .neon-connect-action {display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-lg);background:var(--bg-elevated);color:var(--text-primary);font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .neon-connect-action:hover {background:var(--surface-hover);border-color:var(--accent-primary)}

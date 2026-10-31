@@ -57,7 +57,7 @@ export function NeonPanel({
     else if (tab === 'users')
         content = <AuthManager connectionId={connectionId} userId={authUserId} />;
     else if (tab === 'database')
-        content = <QueryView key={tab} connectionId={connectionId} kind={tab} />;
+        content = <p className="neon-description">{t('databaseNativeHint')}</p>;
     else if (tab === 'storage') content = <Storage connectionId={connectionId} />;
     else if (tab === 'ai') content = <Ai connectionId={connectionId} />;
     else if (tab === 'functions')
@@ -142,7 +142,6 @@ function Overview({connectionId}: ConnectedProps) {
     }, [load]);
     const database = task.data ? databaseSummary(task.data.database) : undefined;
     const destinations: Record<string, NeonService> = {
-        Postgres: 'database',
         Auth: 'users',
         Storage: 'storage',
         'AI Gateway': 'ai',
@@ -207,7 +206,11 @@ function Overview({connectionId}: ConnectedProps) {
                                         />
                                         <div className="neon-service-name">
                                             <strong>{name}</strong>
-                                            {target && <span>{t(`serviceHints.${target}`)}</span>}
+                                            {service.name === 'Postgres' ? (
+                                                <span>{t('databaseNativeHintShort')}</span>
+                                            ) : (
+                                                target && <span>{t(`serviceHints.${target}`)}</span>
+                                            )}
                                         </div>
                                         <span
                                             className={`neon-status ${service.configured ? 'is-configured' : 'is-missing'}`}
@@ -282,47 +285,6 @@ function Overview({connectionId}: ConnectedProps) {
                 <Feedback {...branches} />
                 {branches.data && <DataTable data={objectRows(branches.data)} />}
             </details>
-        </div>
-    );
-}
-
-function QueryView({connectionId, kind}: ConnectedProps & {kind: 'database' | 'users'}) {
-    const t = usePluginTranslation('neon');
-    const {call} = usePluginRpc('neon', connectionId);
-    const task = useTask<PluginQueryResult>();
-    const {run} = task;
-    const load = useCallback(
-        () =>
-            run(() =>
-                call<PluginQueryResult>(kind === 'users' ? 'neon_auth_users' : 'neon_demo_notes'),
-            ),
-        [call, kind, run],
-    );
-    useEffect(() => {
-        void Promise.resolve().then(load);
-    }, [load]);
-    return (
-        <div className="neon-data-view">
-            <div className="neon-toolbar">
-                <div>
-                    <p className="neon-description">{t(`${kind}Description`)}</p>
-                    <span className="neon-status">{t('readOnly')}</span>
-                </div>
-                <button className="neon-button" disabled={task.pending} onClick={() => void load()}>
-                    {t('refresh')}
-                </button>
-            </div>
-            <Feedback {...task} />
-            {task.data && (
-                <>
-                    <div className="neon-data-region">
-                        <DataTable data={task.data} fill />
-                    </div>
-                    <p className="neon-result-count">
-                        {t('rowCount', {count: task.data.rows.length})}
-                    </p>
-                </>
-            )}
         </div>
     );
 }

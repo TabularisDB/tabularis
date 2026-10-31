@@ -105,10 +105,8 @@ try {
     await page.locator('[data-workspace-header]').getByRole('heading', {name:'Auth',exact:true}).waitFor();
     await page.getByRole('list', {name:'Auth users',exact:true}).getByRole('button').first().waitFor();
     assert.equal(await services.getByRole('button', {name:'Auth',exact:true}).getAttribute('aria-pressed'),'true');
-    await services.getByRole('button', {name:'Database',exact:true}).click();
-    await page.getByRole('region', {name:'Service data',exact:true}).getByText('body',{exact:true}).first().waitFor();
+    assert.equal(await services.getByRole('button', {name:'Database',exact:true}).count(),0,'Redundant demo Database service remains in the explorer');
     assert.equal(await page.getByRole('button', {name:'Neon · Auth',exact:true}).count(), 1);
-    assert.equal(await page.getByRole('button', {name:'Neon · Database',exact:true}).count(), 1);
     const objectKey = `tabularis-host-native/${randomBytes(8).toString('hex')}.txt`;
     await extension('neon_storage_put',{key:objectKey,body:'Native storage selection'});
     try {
@@ -136,7 +134,7 @@ try {
       const preferences = await rpc('load_editor_preferences', {connectionId});
       const workspaces = preferences?.tabs?.filter(tab => tab.type === 'plugin-workspace') ?? [];
       const active = workspaces.find(tab => tab.workspaceId === 'services');
-      if (workspaces.length === 4 && active && preferences.active_tab_id === active.id) { persisted=true;break; }
+      if (workspaces.length === 3 && active && preferences.active_tab_id === active.id) { persisted=true;break; }
       await new Promise(resolve => setTimeout(resolve,100));
     }
     assert(persisted,'Service tab metadata was not persisted');

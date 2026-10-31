@@ -12,7 +12,9 @@ export default function NeonWorkspace({context}: SlotComponentProps) {
         ? resource.service
         : workspaceId === 'services'
           ? 'overview'
-          : serviceIds.find((id) => id === workspaceId);
+          : workspaceId === 'database'
+            ? 'database'
+            : serviceIds.find((id) => id === workspaceId);
     if (!serviceId) return <p role="status">{t('unknownService')}</p>;
     return (
         <NeonPanel
