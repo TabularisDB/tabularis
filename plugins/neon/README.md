@@ -164,6 +164,37 @@ Supabase, Firebase RTDB, Appwrite or other plugins can reuse these Core pieces
 with their own sections and APIs. The workspace UI requires no SQL-shaped
 service contract. Those provider integrations are not implemented here.
 
+## Next: full service management
+
+The next iteration expands the service views from inspection and smoke tests to
+everyday management. These are planned features, not existing capabilities.
+
+- [ ] **Functions:** list all functions on the selected branch, open each in a
+  normal editor tab, and show endpoint, deployment state and available logs/errors.
+- [ ] **Create and deploy functions:** start from a template, edit source, deploy
+  a new function, update an existing function, invoke it and inspect its response.
+- [ ] **Function configuration:** manage environment variables and secrets through
+  the host secret store; confirm destructive actions such as deleting a function.
+- [ ] **Auth users:** search and paginate users, open user details, create users,
+  edit supported profile fields and roles, and remove users with confirmation.
+- [ ] **Auth administration:** add invitations, password-reset actions and session
+  management where supported by the current Neon management API. Determine the
+  supported actions before building each control; do not emulate writes to the
+  internal Auth tables.
+- [ ] **Remove demo restrictions:** choose actual storage buckets and functions
+  instead of requiring `assets` and `hello`; replace the demo-only Database view
+  with navigation to the normal database explorer.
+- [ ] **Shared Core UI:** reuse provider-neutral resource lists, detail/editor
+  tabs, action states, confirmations and copyable error diagnostics. Keep Neon
+  API calls in the plugin so Supabase, Firebase and Appwrite can reuse the host UI.
+- [ ] **Verification:** test creation, editing, deployment and deletion end to end
+  using disposable test resources, including permission denials, failures and
+  cleanup. Preserve existing SQL and service flows.
+
+Start with Functions creation/deployment and Auth user management. Broader
+Storage, Realtime and AI Gateway administration follows on the same foundations.
+Partner OAuth remains a separate follow-up once Neon registers the client.
+
 ## Verification
 
 ```sh
