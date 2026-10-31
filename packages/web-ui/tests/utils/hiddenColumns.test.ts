@@ -10,6 +10,7 @@ import {
     hideColumns,
     mergeMeasuredColumnWidths,
     moveVisibleCellPosition,
+    navigateVisibleCell,
     nearestVisibleColumn,
     pickRenderedColumnWidths,
     projectVisibleColumns,
@@ -205,6 +206,45 @@ describe('hiddenColumns', () => {
             expect(stepVisibleColumn(4, visible, 1)).toBe(4);
             expect(stepVisibleColumn(2, visible, -1)).toBe(0);
             expect(stepVisibleColumn(0, visible, -1)).toBe(0);
+        });
+    });
+
+    describe('navigateVisibleCell', () => {
+        const visible = [0, 2, 4];
+
+        it('steps and jumps over hidden columns', () => {
+            const pos = {rowIndex: 1, colIndex: 0};
+            expect(navigateVisibleCell('ArrowRight', pos, 3, visible, 10)).toEqual({
+                rowIndex: 1,
+                colIndex: 2,
+            });
+            expect(navigateVisibleCell('End', pos, 3, visible, 10)).toEqual({
+                rowIndex: 1,
+                colIndex: 4,
+            });
+        });
+
+        it('steps over hidden fields when transposed (#561)', () => {
+            const pos = {rowIndex: 1, colIndex: 2};
+            expect(navigateVisibleCell('ArrowDown', pos, 3, visible, 10, true)).toEqual({
+                rowIndex: 1,
+                colIndex: 4,
+            });
+            expect(navigateVisibleCell('PageUp', pos, 3, visible, 10, true)).toEqual({
+                rowIndex: 1,
+                colIndex: 0,
+            });
+            expect(navigateVisibleCell('ArrowRight', pos, 3, visible, 10, true)).toEqual({
+                rowIndex: 2,
+                colIndex: 2,
+            });
+        });
+
+        it('ignores keys that do not move, and grids without visible columns', () => {
+            expect(navigateVisibleCell('a', {rowIndex: 0, colIndex: 0}, 3, visible, 10)).toBeNull();
+            expect(
+                navigateVisibleCell('ArrowDown', {rowIndex: 0, colIndex: 0}, 3, [], 10),
+            ).toBeNull();
         });
     });
 

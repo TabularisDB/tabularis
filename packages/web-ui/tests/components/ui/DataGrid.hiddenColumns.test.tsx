@@ -534,6 +534,46 @@ describe('DataGrid hidden columns (#1299)', () => {
         });
     });
 
+    describe('transposed (#561)', () => {
+        const fieldLabels = (container: HTMLElement) =>
+            Array.from(container.querySelectorAll('tbody th[scope="row"]')).map((th) =>
+                th.getAttribute('data-col-index'),
+            );
+        const transposedCell = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+            container.querySelector(
+                `td[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`,
+            )!;
+
+        it('leaves hidden fields out', () => {
+            const {container} = render(<HostedGrid transposed initialHidden={new Set([2, 3])} />);
+
+            expect(fieldLabels(container)).toEqual(['0', '1', '4']);
+            expect(screen.queryByText('ann')).toBeNull();
+        });
+
+        it('steps over hidden fields with the arrow keys', () => {
+            const {container} = render(<HostedGrid transposed initialHidden={new Set([2, 3])} />);
+            const grid = gridOf(container);
+
+            fireEvent.click(transposedCell(container, 0, 1));
+            fireEvent.keyDown(grid, {key: 'ArrowDown'});
+            expect(transposedCell(container, 0, 4)).toHaveClass('ring-2');
+            fireEvent.keyDown(grid, {key: 'ArrowUp'});
+            expect(transposedCell(container, 0, 1)).toHaveClass('ring-2');
+        });
+
+        it('freezes the first visible field', () => {
+            const {container} = render(<HostedGrid transposed initialHidden={new Set([0])} />);
+
+            fireEvent.contextMenu(headerOf(container, 1));
+            fireEvent.click(screen.getByText('dataGrid.freezeFirstRow'));
+
+            expect(headerOf(container, 1)).toHaveClass('sticky');
+            expect(transposedCell(container, 0, 1)).toHaveClass('sticky');
+            expect(transposedCell(container, 0, 2)).not.toHaveClass('sticky');
+        });
+    });
+
     it('freezes the first visible column', () => {
         const {container} = render(<HostedGrid initialHidden={new Set([0])} />);
 

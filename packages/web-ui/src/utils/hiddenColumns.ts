@@ -10,6 +10,7 @@ import {projectColumns} from './clipboard';
 import {
     extendCellRange,
     moveCellPosition,
+    navigateCell,
     type CellPosition,
     type CellRangeRect,
     type LockedColumnWidths,
@@ -212,6 +213,27 @@ export function moveVisibleCellPosition(
     if (visible.length === 0) return pos;
     const next = moveCellPosition(toViewCell(pos, visible), key, totalRows, visible.length, toEdge);
     return fromViewCell(next, visible);
+}
+
+/** `navigateCell` over the visible columns only: hidden columns are skipped. */
+export function navigateVisibleCell(
+    key: string,
+    pos: CellPosition,
+    totalRows: number,
+    visible: readonly number[],
+    pageStep: number,
+    transposed = false,
+): CellPosition | null {
+    if (visible.length === 0) return null;
+    const next = navigateCell(
+        key,
+        toViewCell(pos, visible),
+        totalRows,
+        visible.length,
+        pageStep,
+        transposed,
+    );
+    return next && fromViewCell(next, visible);
 }
 
 /** `extendCellRange` over the visible columns only: hidden columns are skipped. */

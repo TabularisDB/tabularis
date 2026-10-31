@@ -116,6 +116,7 @@ import {
     ExternalLink,
     CheckCircle2,
     WrapText,
+    Columns3,
 } from 'lucide-react';
 import {invoke} from '@tauri-apps/api/core';
 import {TableToolbar} from '@/components/ui/TableToolbar';
@@ -6099,9 +6100,36 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             )}
                                         </div>
 
+                                        {/* Shown for every grid result, not only table results, so
+                                            a transposed tab can always switch back. */}
+                                        {!showResultChart && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    updateTab(activeTab.id, {
+                                                        transposed: !activeTab.transposed,
+                                                    })
+                                                }
+                                                aria-pressed={!!activeTab.transposed}
+                                                aria-label={t('dataGrid.transpose')}
+                                                title={
+                                                    activeTab.transposed
+                                                        ? t('dataGrid.untranspose')
+                                                        : t('dataGrid.transpose')
+                                                }
+                                                className={`ml-auto flex items-center justify-center w-6 h-6 rounded shrink-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                                                    activeTab.transposed
+                                                        ? 'text-accent bg-accent-primary/15'
+                                                        : 'text-secondary hover:text-primary hover:bg-surface-secondary'
+                                                }`}
+                                            >
+                                                <Columns3 size={14} />
+                                            </button>
+                                        )}
+
                                         {resultChartEnabled && (
                                             <ResultViewToggle
-                                                className="ml-auto"
+                                                className={showResultChart ? 'ml-auto' : undefined}
                                                 view={resultChart.view}
                                                 onChange={resultChart.setView}
                                             />
@@ -6514,6 +6542,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 copyFormat={copyFormat}
                                                 csvDelimiter={csvDelimiter}
                                                 csvIncludeHeaders={csvIncludeHeaders}
+                                                transposed={!!activeTab.transposed}
                                                 sortClause={activeTab.sortClause}
                                                 onSort={
                                                     activeTab.type === 'table' &&

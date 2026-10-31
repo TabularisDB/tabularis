@@ -54,6 +54,10 @@ export interface DataGridCellProps {
     frozenLeft: number | null;
     /** Find in results (#1298): whether this cell is a match, or the current one. */
     findMatch?: FindMatchState;
+    /** Sticky `top` offset while this cell's row is frozen (transposed layout, #561). */
+    frozenTop?: number | null;
+    /** Zebra backdrop for a frozen cell; defaults to the row's zebra stripe. */
+    isZebra?: boolean;
     /** Width constraint applied to the cell when it isn't being edited. */
     widthClassName?: string;
     /** Extra classes, e.g. the record tint in the transposed layout. */
@@ -81,6 +85,8 @@ export function DataGridCell({
     expandedKind,
     frozenLeft,
     findMatch,
+    frozenTop = null,
+    isZebra,
     widthClassName = 'max-w-[300px]',
     className = '',
     style,
@@ -187,17 +193,17 @@ export function DataGridCell({
             `rcell-${getResultValueType(rawCellValue, colTypeForCell)}`;
     }
 
-    // Frozen first column (#1152): sticky after the gutter, on an opaque
-    // backdrop. Sticky already anchors the inline editor, so the cell
-    // must not switch to `relative` while editing, and its focus mark is
+    // Frozen first column (#1152), or first row when transposed: sticky, on
+    // an opaque backdrop. Sticky already anchors the inline editor, so the
+    // cell must not switch to `relative` while editing, and its focus mark is
     // an outline because an inset ring would sit under the backdrop.
-    const isFrozen = frozenLeft !== null;
+    const isFrozen = frozenLeft !== null || frozenTop !== null;
     const frozenClass = isFrozen
         ? `sticky z-[5] ${getFrozenCellBackdropClass({
               isSelected,
               isInsertion,
               isPendingDelete,
-              isZebra: isZebraStripedRow(rowIndex, zebraStripes),
+              isZebra: isZebra ?? isZebraStripedRow(rowIndex, zebraStripes),
           })}`
         : '';
     const focusClass = !isFocused
@@ -269,7 +275,11 @@ export function DataGridCell({
                 )
             }
             onContextMenu={(e) => handleContextMenu(e, rowOriginal, rowIndex, colIndex, colName)}
-            style={isFrozen ? {...style, left: frozenLeft} : style}
+            style={
+                isFrozen
+                    ? {...style, left: frozenLeft ?? undefined, top: frozenTop ?? undefined}
+                    : style
+            }
             className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : `whitespace-nowrap truncate ${widthClassName}`} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${stateClass} ${selectedColIndices.has(colIndex) || isInRange ? 'bg-accent-primary/15' : ''} ${focusClass} ${FIND_MATCH_CELL_CLASS} ${className}`}
             title={
                 // The hover tooltip would leak the real value of a masked cell.

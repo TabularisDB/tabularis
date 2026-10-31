@@ -20,6 +20,12 @@ interface UseGridFindOptions {
     scrollElementRef: RefObject<HTMLElement | null>;
     /** Scrolls a row to the middle of the viewport, which also mounts it in the virtualized body. */
     scrollToRow: (rowIndex: number) => void;
+    /**
+     * Scrolls a match into view in place of the row-based reveal, for layouts
+     * where rows aren't table rows (the transposed grid, #561). Returns a
+     * function that cancels any pending scroll.
+     */
+    revealMatch?: (match: GridCellPosition) => () => void;
 }
 
 export interface GridFind {
@@ -110,6 +116,7 @@ export function useGridFind({
     getRowTexts,
     scrollElementRef,
     scrollToRow,
+    revealMatch,
 }: UseGridFindOptions): GridFind {
     const [isOpen, setIsOpen] = useState(false);
     const [query, setQueryValue] = useState('');
@@ -144,8 +151,10 @@ export function useGridFind({
         const scrollElement = scrollElementRef.current;
         if (!currentMatch || !scrollElement) return;
         cancelRevealRef.current?.();
-        cancelRevealRef.current = revealCell(scrollElement, currentMatch, scrollToRow);
-    }, [revealRequest, currentMatch, scrollElementRef, scrollToRow]);
+        cancelRevealRef.current = revealMatch
+            ? revealMatch(currentMatch)
+            : revealCell(scrollElement, currentMatch, scrollToRow);
+    }, [revealRequest, currentMatch, scrollElementRef, scrollToRow, revealMatch]);
 
     useEffect(() => () => cancelRevealRef.current?.(), []);
 
