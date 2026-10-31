@@ -19,7 +19,7 @@ export function PluginConnectionAction({
             disabled={disabled}
             onClick={onClick}
             data-provider-action={providerName}
-            className="group flex w-full min-w-0 items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left shadow-sm transition hover:brightness-105 active:brightness-95 disabled:cursor-default disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            className="group flex w-full cursor-pointer min-w-0 items-center gap-3 rounded-lg border border-transparent px-3 py-3 text-left shadow-sm transition hover:brightness-105 active:brightness-95 disabled:cursor-default disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             style={{
                 backgroundColor: brand ?? 'var(--accent-primary)',
                 color: brand
