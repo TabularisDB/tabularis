@@ -20,6 +20,7 @@ import {SshAskpassGate} from './components/modals/SshAskpassGate';
 import {BrowserPlatformDialogs} from './components/modals/BrowserPlatformDialogs';
 import {useUpdate} from './hooks/useUpdate';
 import {useChangelog} from './hooks/useChangelog';
+import {useInterfaceScale} from './hooks/useInterfaceScale';
 import {useSettings} from './hooks/useSettings';
 import {useDeepLinkInstall} from './hooks/useDeepLinkInstall';
 import {useUiState, useUiStateReady} from './hooks/useUiState';
@@ -66,6 +67,7 @@ export function App() {
         error: updateError,
     } = useUpdate();
     const {settings, updateSetting, isLoading: isSettingsLoading} = useSettings();
+    useInterfaceScale(settings.interfaceScale, isSettingsLoading);
     useResultTypeColors();
     const [isDebugMode, setIsDebugMode] = useState(false);
     const deepLinkInstall = useDeepLinkInstall();

@@ -650,6 +650,9 @@
       "customPlaceholder": "e.g., Comic Sans MS",
       "enterFontName": "Enter font name above"
     },
+    "interfaceScale": "Interface scale",
+    "interfaceScaleDesc": "Resize the entire desktop interface, including tabs, icons, dialogs and editors. Try 125% on a large display.",
+    "interfaceScaleBrowser": "Use your browser’s zoom controls to resize the web interface.",
     "fontSize": "Font Size",
     "fontSizeLabel": "Font Size",
     "fontSizeDesc": "Adjust the base font size used throughout the application (10-20px).",

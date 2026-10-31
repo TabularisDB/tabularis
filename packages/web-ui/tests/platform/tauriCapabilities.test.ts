@@ -29,6 +29,7 @@ const createOperations = (): TauriPlatformOperations => ({
     restartApplication: vi.fn(),
     openStorageLocation: vi.fn(),
     setNativeWindowTheme: vi.fn(),
+    setInterfaceScale: vi.fn().mockResolvedValue(undefined),
     getSystemIsDark: vi.fn().mockResolvedValue(false),
     listenForSystemThemeChanges: vi.fn().mockResolvedValue(vi.fn()),
     currentWindowLabel: vi.fn(() => 'main'),
@@ -54,6 +55,12 @@ describe('TauriPlatformCapabilities', () => {
             ),
         ).toBe(true);
         expect(capabilities.supports('chooseInputFile')).toBe(true);
+    });
+
+    it('applies whole-interface zoom through the native engine', async () => {
+        const operations = createOperations();
+        await new TauriPlatformCapabilities(operations).setInterfaceScale(1.25);
+        expect(operations.setInterfaceScale).toHaveBeenCalledWith(1.25);
     });
 
     it('normalizes Tauri input and save dialog paths as opaque references', async () => {

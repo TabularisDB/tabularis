@@ -632,6 +632,9 @@
       "customPlaceholder": "z. B. Comic Sans MS",
       "enterFontName": "Schriftnamen oben eingeben"
     },
+    "interfaceScale": "Oberflächenskalierung",
+    "interfaceScaleDesc": "Vergrößert die gesamte Desktop-Oberfläche samt Tabs, Symbolen, Dialogen und Editoren. Für große Monitore sind 125 % ein guter Ausgangspunkt.",
+    "interfaceScaleBrowser": "Verwende die Zoomfunktion deines Browsers, um die Weboberfläche zu vergrößern.",
     "fontSize": "Schriftgröße",
     "fontSizeLabel": "Schriftgröße",
     "fontSizeDesc": "Passt die in der gesamten Anwendung verwendete Grundschriftgröße an (10-20 px).",
