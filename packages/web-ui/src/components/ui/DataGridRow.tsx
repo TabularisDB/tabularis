@@ -72,6 +72,10 @@ export interface RowCtx {
      * or null when it scrolls with the rest.
      */
     frozenFirstColumnLeft: number | null;
+    /** Column frozen while `frozenFirstColumnLeft` is set: the first visible one. */
+    frozenColIndex: number;
+    /** Columns hidden by the user: not rendered, but kept in the row data. */
+    hiddenColumns: ReadonlySet<number>;
     updateSelection: (s: Set<number>) => void;
     /** Sensitive-column masking (#485): columns rendered masked until revealed. */
     maskedColIndices: Set<number>;
@@ -192,6 +196,8 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         readonly: readonlyProp,
         zebraStripes,
         frozenFirstColumnLeft,
+        frozenColIndex,
+        hiddenColumns,
         maskedColIndices,
         revealedColIndices,
         revealedCells,
@@ -289,6 +295,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     {isInsertion ? 'NEW' : rowIndex + 1}
                 </td>
                 {columns.map((colName, colIndex) => {
+                    if (hiddenColumns.has(colIndex)) return null;
                     const cellValue = rowOriginal[colIndex];
                     const isEditing =
                         editingCell?.rowIndex === rowIndex && editingCell?.colIndex === colIndex;
@@ -363,7 +370,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     // backdrop. Sticky already anchors the inline editor, so the cell
                     // must not switch to `relative` while editing, and its focus mark is
                     // an outline because an inset ring would sit under the backdrop.
-                    const isFrozen = frozenFirstColumnLeft !== null && colIndex === 0;
+                    const isFrozen = frozenFirstColumnLeft !== null && colIndex === frozenColIndex;
                     const frozenClass = isFrozen
                         ? `sticky z-[5] ${getFrozenCellBackdropClass({
                               isSelected,

@@ -3666,3 +3666,117 @@ describe('DataGrid selected-row export (#1154)', () => {
         expect(decodedDownload(0)).toBe('id,name\n1,Alice\n');
     });
 });
+
+describe('DataGrid hidden columns (#1299)', () => {
+    const columns = ['id', 'created_by', 'name'];
+    const data: unknown[][] = [
+        [1, 'alice', 'First'],
+        [2, 'bob', 'Second'],
+        [3, 'carol', 'Third'],
+    ];
+
+    const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+        container.querySelector(
+            `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+        );
+    const headerAt = (container: HTMLElement, colIndex: number) =>
+        container.querySelector<HTMLElement>(`th[data-col-index="${colIndex}"]`)!;
+    const gridOf = (container: HTMLElement) => container.querySelector('div[tabindex="0"]')!;
+
+    const renderGrid = (selectedRows: Set<number> = new Set()) =>
+        render(
+            <DataGrid
+                columns={columns}
+                data={data}
+                selectedRows={selectedRows}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+    const hideColumn = async (container: HTMLElement, colIndex: number) => {
+        fireEvent.contextMenu(headerAt(container, colIndex));
+        fireEvent.click(await screen.findByText('dataGrid.hideColumn'));
+    };
+
+    beforeEach(() => {
+        downloadFileMock.mockReset().mockResolvedValue(true);
+    });
+
+    it('hides a column from the header menu and keeps the others in order', async () => {
+        const {container} = renderGrid();
+
+        await hideColumn(container, 1);
+
+        expect(headerAt(container, 1)).not.toBeVisible();
+        expect(cellAt(container, 0, 1)).toBeNull();
+        const cells = Array.from(
+            container.querySelectorAll('tr[data-row-index="0"] td[data-col-index]'),
+        ).map((cell) => cell.getAttribute('data-col-index'));
+        expect(cells).toEqual(['0', '2']);
+        expect(screen.getByRole('button', {name: 'dataGrid.hiddenColumns'})).toHaveTextContent('1');
+    });
+
+    it('shows hidden columns again from the indicator', async () => {
+        const {container} = renderGrid();
+        await hideColumn(container, 0);
+        await hideColumn(container, 1);
+
+        fireEvent.click(screen.getByRole('button', {name: 'dataGrid.hiddenColumns'}));
+        fireEvent.click(await screen.findByText('dataGrid.showAllColumns'));
+
+        expect(headerAt(container, 0)).toBeVisible();
+        expect(cellAt(container, 0, 1)).not.toBeNull();
+        expect(screen.queryByRole('button', {name: 'dataGrid.hiddenColumns'})).toBeNull();
+    });
+
+    it('does not allow hiding the last visible column', async () => {
+        const {container} = renderGrid();
+        await hideColumn(container, 0);
+        await hideColumn(container, 1);
+
+        fireEvent.contextMenu(headerAt(container, 2));
+        const entry = (await screen.findByText('dataGrid.hideColumn')).closest('button');
+
+        expect(entry).toBeDisabled();
+    });
+
+    it('leaves hidden columns out of a Shift+click header range', async () => {
+        const {container} = renderGrid();
+        await hideColumn(container, 1);
+
+        const selectHeader = (colIndex: number, shiftKey = false) =>
+            fireEvent.click(headerAt(container, colIndex).querySelector('[role="button"]')!, {
+                shiftKey,
+            });
+        selectHeader(0);
+        selectHeader(2, true);
+
+        expect(headerAt(container, 0)).toHaveClass('bg-accent-primary/20');
+        expect(headerAt(container, 2)).toHaveClass('bg-accent-primary/20');
+        expect(headerAt(container, 1)).not.toHaveClass('bg-accent-primary/20');
+    });
+
+    it('skips hidden columns with the arrow keys', async () => {
+        const {container} = renderGrid();
+        await hideColumn(container, 1);
+
+        fireEvent.click(cellAt(container, 0, 0)!);
+        fireEvent.keyDown(gridOf(container), {key: 'ArrowRight'});
+
+        expect(cellAt(container, 0, 2)).toHaveClass('ring-2');
+    });
+
+    it('exports only the visible columns of the selected rows', async () => {
+        const {container} = renderGrid(new Set([0, 2]));
+        await hideColumn(container, 1);
+
+        fireEvent.contextMenu(cellAt(container, 0, 0)!);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRows'));
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsCsv'));
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(new TextDecoder().decode(downloadFileMock.mock.calls[0][0].contents)).toBe(
+            'id,name\n1,First\n3,Third\n',
+        );
+    });
+});
