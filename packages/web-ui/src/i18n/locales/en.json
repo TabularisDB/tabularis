@@ -1499,6 +1499,8 @@
     "deselectColumn": "Deselect Column",
     "freezeFirstColumn": "Freeze first column",
     "unfreezeFirstColumn": "Unfreeze first column",
+    "freezeFirstRow": "Freeze first row",
+    "unfreezeFirstRow": "Unfreeze first row",
     "resetColumnWidths": "Reset column widths",
     "copySelectedColumns": "Copy Selected Columns ({{count}})",
     "copyRangeN": "Copy Range ({{rows}}×{{cols}})",
@@ -1594,6 +1596,8 @@
     "maskCell": "Mask cell",
     "revealColumn": "Reveal column",
     "maskColumn": "Mask column",
+    "transpose": "Transpose: show columns as rows",
+    "untranspose": "Show records as rows",
     "resizeColumn": "Resize column {{col}}"
   },
   "editRow": {

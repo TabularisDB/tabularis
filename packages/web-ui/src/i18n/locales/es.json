@@ -1458,6 +1458,8 @@
     "deselectColumn": "Deseleccionar Columna",
     "freezeFirstColumn": "Fijar la primera columna",
     "unfreezeFirstColumn": "Liberar la primera columna",
+    "freezeFirstRow": "Fijar la primera fila",
+    "unfreezeFirstRow": "Liberar la primera fila",
     "resetColumnWidths": "Restablecer ancho de columnas",
     "copySelectedColumns": "Copiar Columnas Seleccionadas ({{count}})",
     "copyRangeN": "Copiar Rango ({{rows}}×{{cols}})",
@@ -1546,6 +1548,8 @@
     "maskCell": "Enmascarar celda",
     "revealColumn": "Mostrar columna",
     "maskColumn": "Enmascarar columna",
+    "transpose": "Transponer: mostrar columnas como filas",
+    "untranspose": "Mostrar registros como filas",
     "resizeColumn": "Redimensionar columna {{col}}"
   },
   "editRow": {

@@ -1430,6 +1430,8 @@
     "deselectColumn": "Spalte abwählen",
     "freezeFirstColumn": "Erste Spalte fixieren",
     "unfreezeFirstColumn": "Erste Spalte lösen",
+    "freezeFirstRow": "Erste Zeile fixieren",
+    "unfreezeFirstRow": "Erste Zeile lösen",
     "resetColumnWidths": "Spaltenbreiten zurücksetzen",
     "copySelectedColumns": "Ausgewählte Spalten kopieren ({{count}})",
     "copyRangeN": "Bereich kopieren ({{rows}}×{{cols}})",
@@ -1524,6 +1526,8 @@
     "maskCell": "Zelle maskieren",
     "revealColumn": "Spalte anzeigen",
     "maskColumn": "Spalte maskieren",
+    "transpose": "Transponieren: Spalten als Zeilen anzeigen",
+    "untranspose": "Datensätze als Zeilen anzeigen",
     "resizeColumn": "Breite der Spalte {{col}} ändern"
   },
   "editRow": {
