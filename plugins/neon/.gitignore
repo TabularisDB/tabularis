@@ -1,0 +1,15 @@
+target/
+dist/
+*.zip
+ui/node_modules/
+ui/dist/
+.DS_Store
+.neon
+node_modules/
+.env.local
+
+.env
+.env.*
+!.env.example
+
+artifacts/

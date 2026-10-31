@@ -624,6 +624,27 @@ export interface CommandMap {
     // access configured registries, mutate the server plugin directory, and
     // start or stop subprocesses. Raw plugin paths and files are intentionally
     // excluded from the browser RPC contract.
+    /** Opaque extension methods can mutate resources and require administrator access. */
+    call_plugin_extension: CommandDefinition<
+        {pluginId: string; connectionId: string; method: string; args: Record<string, unknown>},
+        unknown,
+        'local-admin'
+    >;
+    set_plugin_secrets: CommandDefinition<
+        {pluginId: string; connectionId: string; secrets: Record<string, string>},
+        void,
+        'local-admin'
+    >;
+    get_plugin_secret_fields: CommandDefinition<
+        {pluginId: string; connectionId: string},
+        string[],
+        'database'
+    >;
+    delete_plugin_secrets: CommandDefinition<
+        {pluginId: string; connectionId: string},
+        void,
+        'local-admin'
+    >;
     fetch_plugin_registry: CommandDefinition<undefined, RegistryPluginWithStatus[], 'local-admin'>;
     fetch_tabularium_plugin_preview: CommandDefinition<
         {

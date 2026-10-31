@@ -3055,3 +3055,94 @@ async fn database_backup_rpc_requires_local_admin_and_uses_the_shared_applicatio
         }
     }
 }
+
+#[tokio::test]
+async fn plugin_extensions_enforce_web_authorization_and_reject_credential_injection() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let commands = [
+        (
+            "call_plugin_extension",
+            serde_json::json!({"pluginId":"test-plugin","connectionId":"first","method":"service_status","args":{}}),
+        ),
+        (
+            "set_plugin_secrets",
+            serde_json::json!({"pluginId":"test-plugin","connectionId":"first","secrets":{"TOKEN":"private"}}),
+        ),
+        (
+            "delete_plugin_secrets",
+            serde_json::json!({"pluginId":"test-plugin","connectionId":"first"}),
+        ),
+    ];
+    for (name, payload) in commands {
+        for authorization in [
+            AuthorizationLevel::Session,
+            AuthorizationLevel::Database,
+            AuthorizationLevel::Sensitive,
+        ] {
+            assert_eq!(
+                dispatch_json(
+                    &dispatcher,
+                    name,
+                    payload.clone(),
+                    Some(Uuid::new_v4()),
+                    authorization
+                )
+                .await
+                .status(),
+                StatusCode::FORBIDDEN
+            );
+        }
+        assert_eq!(
+            dispatch_json(
+                &dispatcher,
+                name,
+                payload.clone(),
+                Some(Uuid::new_v4()),
+                AuthorizationLevel::LocalAdmin
+            )
+            .await
+            .status(),
+            StatusCode::OK
+        );
+        let mut injected = payload;
+        injected["params"] = serde_json::json!({"host":"attacker.example","password":"secret"});
+        assert_eq!(
+            dispatch_json(
+                &dispatcher,
+                name,
+                injected,
+                Some(Uuid::new_v4()),
+                AuthorizationLevel::LocalAdmin
+            )
+            .await
+            .status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+    let fields = serde_json::json!({"pluginId":"test-plugin","connectionId":"first"});
+    assert_eq!(
+        dispatch_json(
+            &dispatcher,
+            "get_plugin_secret_fields",
+            fields.clone(),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::Session
+        )
+        .await
+        .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        dispatch_json(
+            &dispatcher,
+            "get_plugin_secret_fields",
+            fields,
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::Database
+        )
+        .await
+        .status(),
+        StatusCode::OK
+    );
+    assert!(RpcCommand::parse("get_plugin_secrets").is_none());
+}

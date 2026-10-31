@@ -17,6 +17,9 @@ export {
     openUrl,
 } from './hooks/usePluginApi';
 
+export {usePluginRpc} from './hooks/usePluginRpc';
+export type {UsePluginRpcReturn} from './types/pluginRpc';
+
 // Types
 export type {SlotComponentProps, SlotContext, SlotName} from './types/pluginSlots';
 export type {PluginModalOptions} from './contexts/PluginModalContext';

@@ -1,0 +1,42 @@
+{
+  "name": "tabularis-neon-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3008",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3008",
+    "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
+    "db:seed": "node --env-file=.env.local scripts/seed.mjs",
+    "test:e2e": "node --env-file=.env.local tests/e2e.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1160.0",
+    "@neon/auth": "^0.8.1",
+    "@neon/realtime": "^0.1.2",
+    "@neon/realtime-react": "^0.1.1",
+    "@neondatabase/serverless": "^1.2.0",
+    "jose": "^6.2.14",
+    "lucide-react": "^1.65.0",
+    "next": "^16.4.3",
+    "pg": "^8.23.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "ws": "^8.22.0"
+  }
+}

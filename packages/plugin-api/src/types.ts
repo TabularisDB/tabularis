@@ -119,6 +119,7 @@ export type PluginTranslator = (key: string, options?: Record<string, unknown>) 
  * import the named hooks/helpers from `@tabularis/plugin-api` instead.
  */
 export interface TabularisHostApi {
+    usePluginRpc: (pluginId: string, connectionId?: string) => UsePluginRpcReturn;
     usePluginQuery: () => UsePluginQueryReturn;
     usePluginConnection: () => UsePluginConnectionReturn;
     usePluginToast: () => UsePluginToastReturn;
@@ -127,4 +128,12 @@ export interface TabularisHostApi {
     usePluginModal: () => UsePluginModalReturn;
     usePluginTheme: () => UsePluginThemeReturn;
     openUrl: (url: string) => Promise<void>;
+}
+
+/** Connection-scoped calls to a trusted plugin process. Secrets are write-only from UI code. */
+export interface UsePluginRpcReturn {
+    call: <T = unknown>(method: string, args?: Record<string, unknown>) => Promise<T>;
+    saveSecrets: (secrets: Record<string, string>) => Promise<void>;
+    secretFields: () => Promise<string[]>;
+    deleteSecrets: () => Promise<void>;
 }

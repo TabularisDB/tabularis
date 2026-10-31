@@ -1,0 +1,106 @@
+{
+  "id": "neon",
+  "name": "Neon",
+  "version": "0.2.0",
+  "description": "Neon PostgreSQL driver and local Neon service tools",
+  "default_port": 5432,
+  "default_username": "",
+  "executable": "dist/driver.js",
+  "capabilities": {
+    "schemas": true,
+    "views": true,
+    "routines": true,
+    "file_based": false,
+    "folder_based": false,
+    "no_connection_required": false,
+    "identifier_quote": "\"",
+    "alter_primary_key": false,
+    "alter_column": false,
+    "create_foreign_keys": false,
+    "manage_tables": false,
+    "readonly": false,
+    "connection_string": true,
+    "connection_string_example": "postgresql://user:password@ep-example.eu-central-1.aws.neon.tech/neondb?sslmode=verify-full",
+    "supports_ssl": true,
+    "sql_dialect": "postgres",
+    "explain": true
+  },
+  "data_types": [
+    {
+      "name": "INTEGER",
+      "category": "numeric",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "BIGINT",
+      "category": "numeric",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "NUMERIC",
+      "category": "numeric",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "TEXT",
+      "category": "string",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "BOOLEAN",
+      "category": "other",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "UUID",
+      "category": "string",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "TIMESTAMPTZ",
+      "category": "date",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "JSONB",
+      "category": "json",
+      "requires_length": false,
+      "requires_precision": false
+    },
+    {
+      "name": "BYTEA",
+      "category": "binary",
+      "requires_length": false,
+      "requires_precision": false
+    }
+  ],
+  "interpreter": "node",
+  "color": "#00e599",
+  "icon": "database",
+  "engine": "postgres",
+  "ui_extensions": [
+    {
+      "slot": "sidebar.footer.actions",
+      "module": "ui/dist/index.js",
+      "driver": "neon",
+      "order": 30
+    },
+    {
+      "slot": "settings.plugin.actions",
+      "module": "ui/dist/index.js",
+      "order": 30
+    }
+  ],
+  "kind": "driver",
+  "paradigms": [
+    "sql"
+  ],
+  "min_runtime_version": "0.30.0"
+}

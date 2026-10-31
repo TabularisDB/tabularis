@@ -1,0 +1,14 @@
+build:
+    pnpm build
+
+test:
+    pnpm test
+
+e2e: build
+    pnpm test:e2e
+
+repl: build
+    pnpm start
+
+dev-install: build
+    node scripts/install.mjs

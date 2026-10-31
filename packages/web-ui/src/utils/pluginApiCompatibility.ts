@@ -30,6 +30,9 @@ export function isPluginApiCompatible(hostVersion: string, requiredVersion?: str
     const host = parseSemanticVersion(hostVersion);
     const required = parseSemanticVersion(requiredVersion);
     if (!host || !required || host.major !== required.major) return false;
-    if (host.major === 0 && host.minor !== required.minor) return false;
+    // API 0.2 adds services while retaining the published 0.1.0/0.1.1 surface.
+    const retainedApi =
+        host.major === 0 && host.minor === 2 && required.minor === 1 && required.patch <= 1;
+    if (host.major === 0 && host.minor !== required.minor && !retainedApi) return false;
     return compareVersions(host, required) >= 0;
 }

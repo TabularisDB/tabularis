@@ -8,6 +8,7 @@
 
 export {
     usePluginQuery,
+    usePluginRpc,
     usePluginConnection,
     usePluginToast,
     usePluginSetting,
@@ -41,6 +42,7 @@ export type {
     PluginTranslator,
     TabularisHostApi,
     UsePluginQueryReturn,
+    UsePluginRpcReturn,
     UsePluginConnectionReturn,
     UsePluginToastReturn,
     UsePluginSettingReturn,

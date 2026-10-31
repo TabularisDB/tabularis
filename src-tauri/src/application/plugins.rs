@@ -13,6 +13,7 @@ const MAX_PLUGIN_ID_LENGTH: usize = 128;
 
 #[derive(Clone, Debug)]
 pub enum PluginCommand {
+    Extension(super::plugin_extensions::ExtensionCommand),
     GetRuntimeWarnings,
     FetchRegistry,
     FetchPreview {
@@ -57,6 +58,16 @@ pub enum PluginCommand {
 
 pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result<Value, String> {
     match command {
+        PluginCommand::Extension(command) => {
+            super::plugin_extensions::execute(
+                runtime,
+                None,
+                super::AuthorizationLevel::LocalAdmin,
+                command,
+            )
+            .await
+        }
+
         PluginCommand::FetchRegistry => json(fetch_plugin_registry(runtime).await?),
         PluginCommand::FetchPreview {
             slug,

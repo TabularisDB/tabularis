@@ -747,6 +747,12 @@ pub(crate) fn bind_sql_builder_secrets(runtime: &RuntimeContext, connection: &mu
 }
 
 fn delete_plugin_secrets(runtime: &RuntimeContext, connection: &SavedConnection) {
+    let bundle =
+        crate::plugins::extension_policy::secret_key(&connection.params.driver, &connection.id);
+    if let Err(error) = runtime.secrets.delete(&bundle) {
+        log::warn!("Failed to remove plugin service credentials: {error}");
+    }
+
     for key in &connection.plugin_secret_keys {
         let account = plugin_secret_account(&connection.id, &connection.params.driver, key);
         if let Err(error) = runtime.secrets.delete(&account) {
@@ -943,6 +949,26 @@ fn update_connection(
     let mut writes = SecretWrites::default();
     let result = (|| {
         params.connection_id = None;
+        let old_target = serde_json::json!([
+            existing.params.driver,
+            existing.params.host,
+            existing.params.port,
+            existing.params.username,
+            existing.params.database
+        ]);
+        let new_target = serde_json::json!([
+            params.driver,
+            params.host,
+            params.port,
+            params.username,
+            params.database
+        ]);
+        if old_target != new_target {
+            writes.delete(
+                runtime,
+                crate::plugins::extension_policy::secret_key(&existing.params.driver, &id),
+            )?;
+        }
         let plugin_secret_keys = persist_plugin_secrets(
             runtime,
             &id,

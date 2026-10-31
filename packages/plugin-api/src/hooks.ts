@@ -1,6 +1,7 @@
 import {getHost} from './host';
 import type {
     UsePluginConnectionReturn,
+    UsePluginRpcReturn,
     UsePluginModalReturn,
     UsePluginQueryReturn,
     UsePluginSettingReturn,
@@ -68,4 +69,9 @@ export function usePluginTheme(): UsePluginThemeReturn {
  */
 export async function openUrl(url: string): Promise<void> {
     return getHost().openUrl(url);
+}
+
+/** Connection-scoped services; stored secret values cannot be read through this API. */
+export function usePluginRpc(pluginId: string, connectionId?: string): UsePluginRpcReturn {
+    return getHost().usePluginRpc(pluginId, connectionId);
 }

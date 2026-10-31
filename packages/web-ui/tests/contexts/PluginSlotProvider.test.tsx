@@ -124,7 +124,7 @@ describe('PluginSlotProvider', () => {
                 {
                     slot: 'sidebar.footer.actions',
                     module: 'ui/index.js',
-                    api_version: '0.2.0',
+                    api_version: '0.3.0',
                 },
             ],
         });
