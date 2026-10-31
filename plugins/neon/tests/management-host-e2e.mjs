@@ -101,7 +101,7 @@ try {
     await check('Functions list opens a native source tab and deploys a disposable function',async()=>{
       await page.getByRole('button',{name:'New function',exact:true}).click();
       await page.getByLabel('Function slug',{exact:true}).fill(slug);
-      await page.getByRole('region',{name:'JavaScript source',exact:true}).locator('.monaco-editor').waitFor();
+      await page.getByRole('region',{name:'Function source',exact:true}).locator('.monaco-editor').waitFor();
       const response=page.waitForResponse(response=>response.url().endsWith('/rpc/plugin_account')&&response.request().postDataJSON()?.method==='account_function_deploy');
       await page.getByRole('button',{name:'Deploy function',exact:true}).click();
       const envelope=await(await response).json();assert(envelope.ok,'UI deploy failed');functionCreated=true;

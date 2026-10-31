@@ -1,11 +1,11 @@
 import { isNeonError, type NeonClient, type NeonFunction } from '@neon/sdk';
-import { transform } from 'esbuild';
+import { compileFunction } from './functionCompiler.js';
 import { strToU8, zipSync } from 'fflate';
 import type { Params } from './database.js';
 
 export const managementMethods = new Set([
   'account_functions_list', 'account_function_get', 'account_function_deploy',
-  'account_function_rename', 'account_function_delete', 'account_function_invoke', 'account_function_logs',
+  'account_function_validate', 'account_function_rename', 'account_function_delete', 'account_function_invoke', 'account_function_logs',
   'account_auth_create_user', 'account_auth_set_role', 'account_auth_delete_user',
 ]);
 
@@ -13,9 +13,8 @@ export const managementMethods = new Set([
 export class ManagementError extends Error {}
 
 interface Scope { projectId: string; branchId: string }
-interface CachedSource { deploymentId: number; source: string }
+interface CachedSource { deploymentId: number; source: string; language: 'javascript' | 'typescript' }
 const sources = new Map<string, CachedSource>();
-const maxSourceBytes = 262144;
 
 function requireString(value: unknown, label: string, maxLength: number): string {
   if (typeof value !== 'string' || !value.trim() || value.length > maxLength || /[\0\r\n]/.test(value)) throw new ManagementError(`Invalid ${label}`);
@@ -53,15 +52,17 @@ function environmentPatch(value: unknown): Record<string, string> | undefined {
   return entries.length ? result : undefined;
 }
 
-async function zipSource(source: unknown): Promise<File | undefined> {
-  if (source === undefined) return undefined;
-  if (typeof source !== 'string' || !source.trim() || Buffer.byteLength(source) > maxSourceBytes) throw new ManagementError('Provide JavaScript source of at most 256 KiB');
-  let code: string;
-  try {
-    // Transform parses one string; it does not execute it or resolve imports on the host.
-    code = (await transform(source, { loader: 'js', format: 'esm', target: 'node24', sourcemap: false, legalComments: 'none' })).code;
-  } catch { throw new ManagementError('Function source is not valid JavaScript'); }
-  const zip = zipSync({ 'index.mjs': strToU8(code) });
+async function zipSource(source: unknown, language: unknown): Promise<File | undefined> {
+  if (source === undefined) {
+    if (language !== undefined) throw new ManagementError('Language changes require source code');
+    return undefined;
+  }
+  const compiled = await compileFunction(source, language);
+  if (!compiled.valid) {
+    const error = compiled.diagnostics[0];
+    throw new ManagementError(`Function validation failed (${error.line}:${error.column}): ${error.message}`);
+  }
+  const zip = zipSync({ 'index.mjs': strToU8(compiled.code!) });
   return new File([Buffer.from(zip)], 'function.zip', { type: 'application/zip' });
 }
 
@@ -114,12 +115,16 @@ export async function manage(client: NeonClient<true>, method: string, args: Par
     await client.auth.users.updateRole({ ...scope, authUserId, roles: [args.role] });
     return null;
   }
+  if (method === 'account_function_validate') {
+    const {valid, diagnostics, bundleBytes} = await compileFunction(args.source, args.language);
+    return {valid, diagnostics, bundleBytes};
+  }
   const slug = functionSlug(args.slug);
   const key = sourceKey(scope, slug);
   if (method === 'account_function_deploy') {
     if (args.createOnly !== undefined && typeof args.createOnly !== 'boolean') throw new ManagementError('Invalid function creation mode');
     const environment = environmentPatch(args.envChanges);
-    const zip = await zipSource(args.source);
+    const zip = await zipSource(args.source, args.language);
     if (!zip && !environment) throw new ManagementError('Provide source code or environment changes to deploy');
     if (args.createOnly === true) {
       if (!zip) throw new ManagementError('A new function requires source code');
@@ -139,7 +144,7 @@ export async function manage(client: NeonClient<true>, method: string, args: Par
     const deployment = await client.functions.deploy({ ...scope, slug, runtime: 'nodejs24', ...(zip ? { zip } : {}), ...(environment ? { environment: JSON.stringify(environment) } : {}) });
     if (rememberedSource !== undefined) {
       if (sources.size >= 100) sources.delete(sources.keys().next().value!);
-      sources.set(key, { deploymentId: deployment.id, source: rememberedSource });
+      sources.set(key, { deploymentId: deployment.id, source: rememberedSource, language: zip ? (args.language === 'typescript' ? 'typescript' : 'javascript') : cached!.language });
     }
     return { id: String(deployment.id), status: deployment.status };
   }
@@ -149,6 +154,7 @@ export async function manage(client: NeonClient<true>, method: string, args: Par
   if (method === 'account_function_get') {
     const cached = sources.get(key);
     return { ...item(value), source: cached && cached.deploymentId === value.current_deployment?.id ? cached.source : null,
+      language: cached && cached.deploymentId === value.current_deployment?.id ? cached.language : 'javascript',
       activeDeploymentId: value.active_deployment ? String(value.active_deployment.id) : null,
       environmentKeys: value.current_deployment?.environment ?? [], error: value.current_deployment?.error ?? null };
   }

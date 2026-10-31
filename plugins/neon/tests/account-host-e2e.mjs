@@ -106,6 +106,7 @@ try {
       const split = cookie.indexOf('=');
       await context.addCookies([{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,sameSite:'Strict'}]);
       const page = await context.newPage();
+      page.setDefaultTimeout(20000);
       const errors = [];
       page.on('pageerror',error=>errors.push(error.message));
       await account('disconnect'); connected=false;
@@ -159,6 +160,43 @@ try {
       assert.deepEqual(errors,[]);
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/account-connect-imported.png')});
       console.log('PASS Add Connection → Neon plugin auth, branch/service selection and immediate connection-list refresh');
+      if (process.env.NEON_ACCOUNT_TEST_EDITOR === '1') {
+        try {
+        await page.getByText(alias, {exact:true}).dblclick();
+        await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Functions',exact:true}).click();
+        await page.getByRole('button',{name:'New function',exact:true}).click();
+        await page.getByLabel('Language',{exact:true}).selectOption('typescript');
+        console.log('PASS Function editor opened in TypeScript mode');
+        const editor=page.getByRole('region',{name:'Function source',exact:true}).locator('.monaco-editor');
+        await editor.waitFor();
+        const replace=async source=>{
+          await editor.click({position:{x:100,y:40}});
+          await page.keyboard.press('ControlOrMeta+A');
+          await page.keyboard.insertText(source);
+        };
+        await replace('const value: number = "wrong"; export default {fetch(request: Request): Response {return Response.json({value, url:request.url, env:process.env.DATABASE_URL})}}');
+        await page.getByText("Type 'string' is not assignable to type 'number'.",{exact:false}).waitFor();
+        assert(await page.getByRole('button',{name:'Deploy function',exact:true}).isDisabled());
+        await replace('export default {fetch(request: Request): Response {return Response.json({url:request.url, env:process.env.DATABASE_URL})}}');
+        const validation=page.waitForResponse(response=>response.url().endsWith('/rpc/plugin_account') && response.request().postDataJSON()?.method==='account_function_validate');
+        await page.getByRole('button',{name:'Validate function',exact:true}).click();
+        const envelope=await(await validation).json();assert(envelope.ok && envelope.data.valid);
+        await page.getByText(/^Compilation passed/).waitFor();
+        await page.screenshot({path:resolve(root,'plugins/neon/artifacts/function-editor-typescript.png')});
+        await replace('export default = {');
+        const invalid=page.waitForResponse(response=>response.url().endsWith('/rpc/plugin_account') && response.request().postDataJSON()?.method==='account_function_validate');
+        await page.getByRole('button',{name:'Validate function',exact:true}).click();
+        assert.equal((await(await invalid).json()).data.valid,false);
+        assert.deepEqual(errors,[]);
+        console.log('PASS real Function tab: Monaco TypeScript/Node types, live errors, deployment guard and Core syntax validation; no deployment');
+        } catch(error) {
+          await page.screenshot({path:resolve(root,'plugins/neon/artifacts/function-editor-failure.png')});
+          console.log('Editor diagnostic:',(await page.locator('.neon-functions').innerText()).slice(0,2000));
+          console.log('Browser errors:',JSON.stringify(errors));
+          throw error;
+        }
+      }
+
     } else imported = await account('import', { args });
     assert.deepEqual(Object.keys(imported).sort(), ['id', 'name', 'warnings']);
     assert.equal(JSON.stringify(imported).includes(apiKey ?? '[no token in CLI test]'), false);

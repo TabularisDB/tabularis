@@ -109,7 +109,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` | Initial release |
 | `0.1.1`         | `0.1.0` | Typed slots and automatic manifest compatibility gate |
-| `0.4.0` (unreleased) | `0.2.3` | Account/service calls, provider setup/preparation, native resource UI and clipboard |
+| `0.4.0` (unreleased) | `0.2.4` | Account/service calls, provider setup/preparation, native resource UI and clipboard |
 
 ## Slot reference
 
@@ -156,4 +156,9 @@ mutation callbacks or SQL generation. `PluginConnectionAction` remains supported
 items and an `onOpen(id)` callback. `PluginCodeEditor` provides controlled non-SQL
 Monaco editing through `value`, `onChange`, `language`, `readOnly` and `label`; its
 parent supplies the height. Both require runtime API 0.2.1 and share host theme
-and accessibility behavior.
+and accessibility behavior. API 0.2.4 adds `typescript`, an optional `fileName`
+(display name, with an isolated host model), and `onDiagnostics(items)` where
+items contain `severity`, `message`, `line` and `column`. JS/TS syntax, completion,
+and type checking use the bundled Monaco worker and local Node.js declarations;
+no CDN or automatic npm package/type downloads are needed. Models are disposed
+when the editor closes or changes language.

@@ -8,7 +8,17 @@ export interface PluginResourceListProps {
 export interface PluginCodeEditorProps {
     value: string;
     onChange: (value: string) => void;
-    language?: 'javascript' | 'json' | 'plaintext';
+    language?: 'javascript' | 'typescript' | 'json' | 'plaintext';
+    /** A display filename; the host isolates the underlying model per editor. */
+    fileName?: string;
+    onDiagnostics?: (
+        diagnostics: ReadonlyArray<{
+            severity: 'error' | 'warning' | 'info';
+            message: string;
+            line: number;
+            column: number;
+        }>,
+    ) => void;
     readOnly?: boolean;
     label?: string;
 }

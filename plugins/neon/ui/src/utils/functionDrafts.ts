@@ -1,6 +1,7 @@
 export interface FunctionDraft {
     source: string;
     slug: string;
+    language?: 'javascript' | 'typescript';
 }
 
 // Keep source edits across background tabs without persisting code or secrets in host settings.

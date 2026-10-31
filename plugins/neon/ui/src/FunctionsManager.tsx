@@ -27,6 +27,7 @@ interface FunctionItem {
 }
 interface FunctionDetails extends FunctionItem {
     source: string | null;
+    language?: 'javascript' | 'typescript';
     environmentKeys: string[];
     error: string | null;
 }
@@ -214,6 +215,7 @@ function FunctionDetail({
             readFunctionDraft(connectionId, draftKey) ?? {
                 source: create ? functionTemplate : '',
                 slug: slug ?? '',
+                language: 'javascript' as const,
             },
     );
     const [name, setName] = useState('');
@@ -227,6 +229,34 @@ function FunctionDetail({
     const mutation = useTask<{message: string}>();
     const invocation = useTask<{status: number; body: string}>();
     const logs = useTask<FunctionLogs>();
+    const language = draft.language ?? 'javascript';
+    type Diagnostic = {
+        severity: 'error' | 'warning' | 'info';
+        message: string;
+        line: number;
+        column: number;
+    };
+    const [diagnostics, setDiagnostics] = useState<{
+        source: string;
+        language: string;
+        items: readonly Diagnostic[];
+    }>();
+    const validation = useTask<{
+        source: string;
+        language: string;
+        valid: boolean;
+        bundleBytes: number;
+        diagnostics: {message: string; line: number; column: number}[];
+    }>();
+    const currentDiagnostics =
+        diagnostics?.source === draft.source && diagnostics.language === language
+            ? diagnostics.items
+            : [];
+    const currentValidation =
+        validation.data?.source === draft.source && validation.data.language === language
+            ? validation.data
+            : undefined;
+    const hasErrors = currentDiagnostics.some((item) => item.severity === 'error');
     const {run: loadDetails} = details;
     const load = useCallback(async () => {
         if (!slug || create) return;
@@ -236,7 +266,7 @@ function FunctionDetail({
         if (!value) return;
         setName(value.name);
         if (!readFunctionDraft(connectionId, draftKey) && value.source !== null) {
-            const next = {source: value.source, slug};
+            const next = {source: value.source, slug, language: value.language ?? 'javascript'};
             writeFunctionDraft(connectionId, draftKey, next);
             setDraft(next);
         }
@@ -244,7 +274,12 @@ function FunctionDetail({
     useEffect(() => {
         void Promise.resolve().then(load);
     }, [load]);
-    const busy = details.pending || mutation.pending || invocation.pending || logs.pending;
+    const busy =
+        details.pending ||
+        mutation.pending ||
+        invocation.pending ||
+        logs.pending ||
+        validation.pending;
     const updateDraft = (next: typeof draft) => {
         writeFunctionDraft(connectionId, draftKey, next);
         setDraft(next);
@@ -267,6 +302,7 @@ function FunctionDetail({
             const result = await call<{id: string; status: string}>('account_function_deploy', {
                 slug: draft.slug,
                 source: draft.source,
+                language,
                 createOnly: create,
                 ...(Object.keys(envChanges).length ? {envChanges} : {}),
             });
@@ -277,6 +313,7 @@ function FunctionDetail({
                 writeFunctionDraft(connectionId, draft.slug, {
                     source: draft.source,
                     slug: draft.slug,
+                    language,
                 });
                 clearFunctionDraft(connectionId, draftKey);
                 openWorkspace({
@@ -413,22 +450,104 @@ function FunctionDetail({
                 {!create && details.data?.source === null && !draft.source && (
                     <p className="neon-hint">{t('functionsManager.sourceUnavailable')}</p>
                 )}
+                <div className="neon-inline-actions">
+                    <label className="neon-field-label" htmlFor={`${id}-language`}>
+                        {t('functionsManager.language')}
+                    </label>
+                    <select
+                        id={`${id}-language`}
+                        className="neon-field"
+                        value={language}
+                        disabled={busy}
+                        onChange={(event) =>
+                            updateDraft({
+                                ...draft,
+                                language:
+                                    event.target.value === 'typescript'
+                                        ? 'typescript'
+                                        : 'javascript',
+                            })
+                        }
+                    >
+                        <option value="javascript">JavaScript · index.js</option>
+                        <option value="typescript">TypeScript · index.ts</option>
+                    </select>
+                    <span className="neon-status">Node.js 24</span>
+                </div>
                 <div className="neon-functions-editor">
                     <PluginCodeEditor
                         label={t('functionsManager.source')}
-                        language="javascript"
+                        language={language}
+                        fileName={language === 'typescript' ? 'index.ts' : 'index.js'}
+                        onDiagnostics={(items) =>
+                            setDiagnostics({source: draft.source, language, items})
+                        }
                         value={draft.source}
                         onChange={(source) => updateDraft({...draft, source})}
                         readOnly={busy || (!create && !details.data)}
                     />
                 </div>
+                {currentDiagnostics.length > 0 && (
+                    <ul className="neon-functions-log" aria-label={t('functionsManager.problems')}>
+                        {currentDiagnostics.map((item, index) => (
+                            <li
+                                key={index}
+                                className={item.severity === 'error' ? 'neon-error' : ''}
+                            >
+                                {item.line}:{item.column} · {item.message}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                <OperationFeedback pending={validation.pending} error={validation.error} />
+                {currentValidation && (
+                    <div
+                        role="status"
+                        className={currentValidation.valid ? 'neon-success' : 'neon-error'}
+                    >
+                        {currentValidation.valid
+                            ? t('functionsManager.validationPassed', {
+                                  bytes: currentValidation.bundleBytes,
+                              })
+                            : t('functionsManager.validationFailed')}
+                        {!currentValidation.valid && (
+                            <ul className="neon-functions-log">
+                                {currentValidation.diagnostics.map((item, index) => (
+                                    <li key={index}>
+                                        {item.line}:{item.column} · {item.message}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
                 <div className="neon-actionbar">
                     <span className="neon-hint">{t('functionsManager.sessionDraftHint')}</span>
+                    <button
+                        type="button"
+                        className="neon-button"
+                        disabled={busy || !draft.source.trim()}
+                        onClick={() =>
+                            void validation.run(async () => ({
+                                ...(await call<{
+                                    valid: boolean;
+                                    bundleBytes: number;
+                                    diagnostics: {message: string; line: number; column: number}[];
+                                }>('account_function_validate', {source: draft.source, language})),
+                                source: draft.source,
+                                language,
+                            }))
+                        }
+                    >
+                        {t('functionsManager.validate')}
+                    </button>
                     <button
                         type="button"
                         className="neon-button neon-button-primary"
                         disabled={
                             busy ||
+                            hasErrors ||
+                            currentValidation?.valid === false ||
                             !validFunctionSlug(draft.slug) ||
                             !draft.source.trim() ||
                             new TextEncoder().encode(draft.source).byteLength > 262144 ||

@@ -10,6 +10,7 @@ import {loader} from '@monaco-editor/react';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
 import TypeScriptWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+import {configurePluginCodeLanguage} from './utils/pluginCodeLanguage';
 import {installMonacoInputAreaSelectionFix} from './utils/monacoInputArea';
 
 self.MonacoEnvironment = {
@@ -21,6 +22,7 @@ self.MonacoEnvironment = {
 };
 
 loader.config({monaco});
+configurePluginCodeLanguage(monaco);
 
 installMonacoInputAreaSelectionFix();
 

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef} from 'react';
+import {useCallback, useEffect, useId, useRef} from 'react';
 import type {BeforeMount} from '@monaco-editor/react';
 import {MonacoEditor} from '@/components/ui/LazyMonaco';
 import {useEditorTheme} from '@/hooks/useEditorTheme';
@@ -16,7 +16,14 @@ export function PluginCodeEditor({
     language = 'javascript',
     readOnly = false,
     label,
+    fileName,
+    onDiagnostics,
 }: PluginCodeEditorProps) {
+    const modelId = useId();
+    const extension = {javascript: 'js', typescript: 'ts', json: 'json', plaintext: 'txt'}[
+        language
+    ];
+    const path = `file:///tabularis-plugins/${encodeURIComponent(modelId)}/${encodeURIComponent(fileName ?? `index.${extension}`)}`;
     const theme = useEditorTheme();
     const {settings} = useSettings();
     const monaco = useRef<Parameters<BeforeMount>[0] | null>(null);
@@ -37,7 +44,24 @@ export function PluginCodeEditor({
             aria-label={label}
         >
             <MonacoEditor
+                key={path}
                 height="100%"
+                path={path}
+                onValidate={(markers) =>
+                    onDiagnostics?.(
+                        markers.map((marker) => ({
+                            severity:
+                                marker.severity === 8
+                                    ? 'error'
+                                    : marker.severity === 4
+                                      ? 'warning'
+                                      : 'info',
+                            message: marker.message,
+                            line: marker.startLineNumber,
+                            column: marker.startColumn,
+                        })),
+                    )
+                }
                 language={language}
                 value={value}
                 onChange={(next) => onChange(next ?? '')}
@@ -48,6 +72,10 @@ export function PluginCodeEditor({
                     domReadOnly: readOnly,
                     ariaLabel: label,
                     automaticLayout: true,
+                    renderValidationDecorations: 'on',
+                    bracketPairColorization: {enabled: true},
+                    formatOnPaste: true,
+                    formatOnType: true,
                     minimap: {enabled: false},
                     scrollBeyondLastLine: false,
                     fontSize: settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT,

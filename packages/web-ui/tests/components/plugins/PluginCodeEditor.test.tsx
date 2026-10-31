@@ -43,3 +43,33 @@ describe('PluginCodeEditor', () => {
         expect(onChange).toHaveBeenCalledWith('export default {fetch(){}}');
     });
 });
+
+it('provides isolated file models and forwards portable diagnostics', () => {
+    const onDiagnostics = vi.fn();
+    render(
+        <PluginCodeEditor
+            value="const value: number = 'bad'"
+            language="typescript"
+            fileName="index.ts"
+            onChange={vi.fn()}
+            onDiagnostics={onDiagnostics}
+        />,
+    );
+    const props = editor.mock.lastCall?.[0];
+    expect(props.path).toMatch(/\/index\.ts$/);
+    expect(props.options.renderValidationDecorations).toBe('on');
+    props.onValidate([
+        {
+            severity: 8,
+            message: 'Type mismatch',
+            startLineNumber: 1,
+            startColumn: 7,
+            endLineNumber: 1,
+            endColumn: 12,
+            resource: 'private-model',
+        },
+    ]);
+    expect(onDiagnostics).toHaveBeenCalledWith([
+        {severity: 'error', message: 'Type mismatch', line: 1, column: 7},
+    ]);
+});

@@ -81,6 +81,7 @@ describe('Functions manager', () => {
             expect(call).toHaveBeenCalledWith('account_function_deploy', {
                 slug: 'hello',
                 source: 'export default {};',
+                language: 'javascript',
                 createOnly: false,
             }),
         );
@@ -103,6 +104,36 @@ describe('Functions manager', () => {
                 connectionId: 'conn',
             }),
         );
+    });
+
+    it('validates the current TypeScript draft and clears stale results after editing', async () => {
+        call.mockResolvedValue({
+            valid: false,
+            bundleBytes: 0,
+            diagnostics: [{message: 'Unexpected token', line: 2, column: 3}],
+        });
+        render(createElement(FunctionsManager, {connectionId: 'conn', create: true}));
+        fireEvent.change(screen.getByLabelText('functionsManager.language'), {
+            target: {value: 'typescript'},
+        });
+        fireEvent.change(screen.getByLabelText('functionsManager.source'), {
+            target: {value: 'export default = {'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'functionsManager.validate'}));
+        await screen.findByText('2:3 · Unexpected token');
+        expect(call).toHaveBeenCalledWith('account_function_validate', {
+            source: 'export default = {',
+            language: 'typescript',
+        });
+        expect(call.mock.calls.some(([method]) => method === 'account_function_deploy')).toBe(
+            false,
+        );
+        fireEvent.change(screen.getByLabelText('functionsManager.source'), {
+            target: {
+                value: 'export default {fetch(request: Request) {return new Response(request.url)}}',
+            },
+        });
+        expect(screen.queryByText('2:3 · Unexpected token')).toBeNull();
     });
 
     it('sends only changed environment keys and clears their draft after save', async () => {

@@ -4,7 +4,7 @@ A Tabularis driver with native explorer services for an existing Neon project. S
 with the Tabularis CLI, then adapted to Node.js to use Neon's SDKs. Requires
 Node.js 22+, pnpm, and the `feat/neon-integration` Core changes on upstream
 Tabularis 0.30.0. The public 0.30.0 release alone does not yet include the new
-`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.3).
+`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.4).
 
 ## Build and install from this repository
 
@@ -184,11 +184,20 @@ for older imports. Missing project/branch metadata must be supplied in Setup;
 the manager never falls back to another branch.
 
 **Functions:** list deployed functions and open each in a normal editor tab.
-Create a function from the single-file JavaScript template, deploy it, rename
+Create a function from the single-file JavaScript template, switch to TypeScript, deploy it, rename
 its display name, invoke GET/POST, inspect available logs, or confirm deletion.
-The source editor shares the host's Monaco theme and font preferences. External
-packages are not bundled. Existing deployed source cannot be downloaded through
-this API: paste the original local source before replacing code. Source drafts
+The source editor shares the host's Monaco theme and font preferences, with
+JS/TS syntax highlighting, completion and live type checking for Node.js and
+Web Request/Response APIs. Problems show line/column positions. **Validate function**
+compiles the current buffer without uploading or executing it. Deployment repeats
+that compiler check, requires a default export, and strips TypeScript annotations
+before sending an ESM `index.mjs` bundle for Node.js 24. Node built-in imports work;
+external packages and additional local files must be bundled with the Neon CLI.
+The editor does not install packages or retrieve third-party type definitions.
+Source, language and validation state are isolated by function; stale validation
+results disappear after edits. Compilation success is separate from Monaco type
+checking and is not a guarantee that a handler will succeed at runtime.
+Existing deployed source cannot be downloaded through this API: paste the original local source before replacing code. Source drafts
 survive tab switching in memory, but are lost when the app restarts.
 
 Environment changes are write-only JSON patches; omitted keys are preserved,

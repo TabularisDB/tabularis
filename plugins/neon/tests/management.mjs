@@ -186,3 +186,32 @@ test('Auth directory tolerates absent optional role/session fields and bounds pa
   assert.deepEqual((await authDirectory('neon_auth_user_details', { userId: 'id' }, query)).sessions, []);
   for (const args of [{ limit: 101 }, { limit: 0 }, { offset: -1 }, { offset: 1000001 }, { search: 'x'.repeat(201) }]) await assert.rejects(authDirectory('neon_auth_users_page', args, query));
 });
+
+
+test('function validation compiles TypeScript without uploading or executing and reports positions', async () => {
+  const mock = mockApi();
+  const result = await account('account_function_validate', { ...scope, source: 'const value: string = "ok"; export default { fetch(request: Request) { return new Response(value); } };', language: 'typescript' }, credentials, mock.fetcher);
+  assert.equal(result.valid, true);
+  assert(result.bundleBytes > 0);
+  assert.equal(mock.calls.length, 0);
+  const invalid = await account('account_function_validate', { ...scope, source: 'export default = {', language: 'javascript' }, credentials, mock.fetcher);
+  assert.equal(invalid.valid, false);
+  assert.equal(invalid.diagnostics[0].line, 1);
+  assert(invalid.diagnostics[0].column > 0);
+  assert.equal(mock.calls.length, 0);
+});
+
+test('TypeScript deploy strips annotations and missing exports/imports fail before upload', async () => {
+  const mock = mockApi();
+  await account('account_function_deploy', { ...scope, slug: 'demo', source: 'export default {fetch(request: Request): Response { return new Response(request.url); }}', language: 'typescript' }, credentials, mock.fetcher);
+  const archive = unzipSync(new Uint8Array(await mock.calls[0].body.get('zip').arrayBuffer()));
+  assert(!strFromU8(archive['index.mjs']).includes(': Request'));
+  for (const source of ['const value = 1;', 'import value from "./env.js"; export default value;', 'import {z} from "zod"; export default z;', 'import value from "https://example.com/x.js"; export default value;']) {
+    const unsafe = mockApi();
+    await assert.rejects(account('account_function_deploy', { ...scope, slug: 'demo', source }, credentials, unsafe.fetcher));
+    assert.equal(unsafe.calls.length, 0);
+  }
+  const builtin = mockApi();
+  await account('account_function_deploy', { ...scope, slug: 'demo', source: 'import {randomUUID} from "node:crypto"; export default {fetch(){return new Response(randomUUID())}}' }, credentials, builtin.fetcher);
+  assert.equal(builtin.calls.length, 1);
+});
