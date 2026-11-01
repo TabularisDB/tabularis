@@ -2064,6 +2064,7 @@ export const NewConnectionModal = ({
             setK8sConnections(nextK8sConnections);
         };
         void init();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, initialConnection, canManageCredentialProfiles, client]);
 
     const handleDriverChange = (newDriver: string) => {
