@@ -55,7 +55,7 @@ import {useCreateSqliteDatabase} from '@/hooks/useCreateSqliteDatabase';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {saveGeneratedFile} from '@/utils/connectionFiles';
-import {buildEditorRoute} from '@/routing';
+import {buildEditorRoute, type ConnectionsRouteState} from '@/routing';
 import {
     useBuiltinPostgresMigration,
     type MigrationOutcome,
@@ -139,7 +139,12 @@ export const Connections = () => {
     };
     const [editingConnection, setEditingConnection] = useState<SavedConnection | null>(null);
     const connections = contextConnections as SavedConnection[];
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(() => {
+        const linkError = (location.state as ConnectionsRouteState | null)?.connectionLinkError;
+        return linkError === undefined
+            ? null
+            : `${t('connections.linkUnavailable')}\n\nError: ${linkError}`;
+    });
     const [connectingId, setConnectingId] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -671,7 +676,7 @@ export const Connections = () => {
     };
 
     useEffect(() => {
-        if ((location.state as {openNew?: boolean} | null)?.openNew) {
+        if ((location.state as ConnectionsRouteState | null)?.openNew) {
             setEditingConnection(null);
             setIsModalOpen(true);
         }

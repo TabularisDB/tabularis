@@ -1,0 +1,106 @@
+name: Update Download Stats
+
+on:
+  schedule:
+    # Daily at 06:23 UTC.
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/download-stats.yml
+
+permissions: {}
+
+concurrency:
+  group: download-stats
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.repository == 'TabularisDB/tabularis'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Count all release downloads and publish badge data
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const repository = context.repo;
+            const branch = 'download-stats';
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              ...repository,
+              per_page: 100,
+            });
+
+            let total = 0;
+            for (const release of releases) {
+              // Match the public badge: include prereleases, exclude drafts.
+              if (release.draft) continue;
+              const assets = await github.paginate(github.rest.repos.listReleaseAssets, {
+                ...repository,
+                release_id: release.id,
+                per_page: 100,
+              });
+              for (const asset of assets) total += asset.download_count;
+            }
+            core.info(`Total downloads across all published releases: ${total}`);
+
+            const content = JSON.stringify({
+              schemaVersion: 1,
+              label: 'downloads',
+              message: total.toLocaleString('en-US'),
+              color: 'brightgreen',
+            }, null, 2) + '\n';
+
+            let parentSha;
+            try {
+              const { data: ref } = await github.rest.git.getRef({
+                ...repository,
+                ref: `heads/${branch}`,
+              });
+              parentSha = ref.object.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            let parent;
+            if (parentSha) {
+              const { data: commit } = await github.rest.git.getCommit({
+                ...repository,
+                commit_sha: parentSha,
+              });
+              parent = commit;
+            }
+
+            // Bootstrap an independent branch containing only generated data.
+            const { data: tree } = await github.rest.git.createTree({
+              ...repository,
+              ...(parent ? { base_tree: parent.tree.sha } : {}),
+              tree: [{ path: 'downloads.json', mode: '100644', type: 'blob', content }],
+            });
+            if (parent && tree.sha === parent.tree.sha) {
+              core.info('Download stats have not changed.');
+              return;
+            }
+            const { data: commit } = await github.rest.git.createCommit({
+              ...repository,
+              message: 'chore: update download stats',
+              tree: tree.sha,
+              parents: parent ? [parent.sha] : [],
+            });
+            if (parent) {
+              await github.rest.git.updateRef({
+                ...repository,
+                ref: `heads/${branch}`,
+                sha: commit.sha,
+                force: false,
+              });
+            } else {
+              await github.rest.git.createRef({
+                ...repository,
+                ref: `refs/heads/${branch}`,
+                sha: commit.sha,
+              });
+            }

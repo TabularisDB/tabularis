@@ -110,4 +110,48 @@ describe('createAsyncResource', () => {
             expect(resource.getSnapshot()).toEqual({data: 2, loading: false, error: null});
         },
     );
+
+    it('adopts externally fetched data without another request', async () => {
+        const fetchData = vi.fn().mockResolvedValue(1);
+        const resource = createAsyncResource(0, fetchData);
+        resource.set(5);
+        await resource.load();
+        expect(fetchData).not.toHaveBeenCalled();
+        expect(resource.getSnapshot()).toEqual({data: 5, loading: false, error: null});
+    });
+
+    it('keeps adopted data when an older in-flight fetch resolves afterwards', async () => {
+        let resolveOld!: (value: number) => void;
+        const fetchData = vi.fn().mockImplementationOnce(
+            () =>
+                new Promise<number>((resolve) => {
+                    resolveOld = resolve;
+                }),
+        );
+        const resource = createAsyncResource(0, fetchData);
+        const load = resource.load();
+        await Promise.resolve();
+        resource.set(5);
+        resolveOld(1);
+        await load;
+        expect(fetchData).toHaveBeenCalledTimes(1);
+        expect(resource.getSnapshot()).toEqual({data: 5, loading: false, error: null});
+    });
+
+    it('ignores an older in-flight failure after adopting data', async () => {
+        let rejectOld!: (reason: Error) => void;
+        const fetchData = vi.fn().mockImplementationOnce(
+            () =>
+                new Promise<number>((_, reject) => {
+                    rejectOld = reject;
+                }),
+        );
+        const resource = createAsyncResource(0, fetchData);
+        const load = resource.load();
+        await Promise.resolve();
+        resource.set(5);
+        rejectOld(new Error('offline'));
+        await load;
+        expect(resource.getSnapshot()).toEqual({data: 5, loading: false, error: null});
+    });
 });

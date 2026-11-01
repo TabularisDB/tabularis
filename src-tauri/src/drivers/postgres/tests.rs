@@ -4,7 +4,8 @@ use super::binding::{
     PgValueOptions,
 };
 use super::helpers::{
-    enum_data_type, extract_base_type, is_implicit_cast_compatible, quote_qualified_type,
+    enum_data_type, extract_base_type, is_implicit_cast_compatible, postgres_column_types,
+    quote_qualified_type,
 };
 use super::primary_key_exists_expression;
 
@@ -836,6 +837,77 @@ mod enum_helpers_tests {
                 Some("'free','basic','pro'".to_string())
             ),
             "enum('free','basic','pro')"
+        );
+    }
+
+    #[test]
+    fn postgres_column_types_carries_format_type_as_full_type() {
+        assert_eq!(
+            postgres_column_types(
+                "character varying".to_string(),
+                None,
+                Some("character varying(255)".to_string())
+            ),
+            (
+                "character varying".to_string(),
+                Some("character varying(255)".to_string())
+            )
+        );
+        assert_eq!(
+            postgres_column_types(
+                "numeric".to_string(),
+                None,
+                Some("numeric(10,2)".to_string())
+            ),
+            ("numeric".to_string(), Some("numeric(10,2)".to_string()))
+        );
+        assert_eq!(
+            postgres_column_types("ARRAY".to_string(), None, Some("integer[]".to_string())),
+            ("ARRAY".to_string(), Some("integer[]".to_string()))
+        );
+        assert_eq!(
+            postgres_column_types(
+                "timestamp with time zone".to_string(),
+                None,
+                Some("timestamp(3) with time zone".to_string())
+            ),
+            (
+                "timestamp with time zone".to_string(),
+                Some("timestamp(3) with time zone".to_string())
+            )
+        );
+    }
+
+    #[test]
+    fn postgres_column_types_omits_full_type_for_plain_types() {
+        assert_eq!(
+            postgres_column_types("integer".to_string(), None, Some("integer".to_string())),
+            ("integer".to_string(), None)
+        );
+        assert_eq!(
+            postgres_column_types("text".to_string(), None, None),
+            ("text".to_string(), None)
+        );
+    }
+
+    #[test]
+    fn postgres_column_types_keeps_enum_values_without_full_type() {
+        assert_eq!(
+            postgres_column_types(
+                "plan".to_string(),
+                Some("'free','pro'".to_string()),
+                Some("plan".to_string())
+            ),
+            ("enum('free','pro')".to_string(), None)
+        );
+        // An enum without labels falls back to the plain type handling.
+        assert_eq!(
+            postgres_column_types(
+                "plan".to_string(),
+                Some(String::new()),
+                Some("plan".to_string())
+            ),
+            ("plan".to_string(), None)
         );
     }
 

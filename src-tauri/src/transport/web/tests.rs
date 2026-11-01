@@ -601,6 +601,155 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
 }
 
 #[tokio::test]
+async fn password_login_resumes_a_connection_link() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+    let public_origin = "https://tabularis.example.com";
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base_url = format!("http://{}", listener.local_addr().unwrap());
+    let security = LocalSessionSecurity::new_remote(
+        RemoteSessionSecurityConfig {
+            trusted_proxies: Vec::new(),
+            public_origin: public_origin.to_string(),
+            allowed_origins: vec![public_origin.to_string()],
+            session_ttl: Duration::from_secs(60),
+            max_body_bytes: 1_048_576,
+            authorization: AuthorizationLevel::Database,
+            rate_limit: LoginRateLimitConfig::default(),
+        },
+        RemoteAuthentication::password("correct horse battery staple"),
+    )
+    .unwrap();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let get = |path: &str| {
+        client
+            .get(format!("{base_url}{path}"))
+            .header(HOST, "tabularis.example.com")
+            .send()
+    };
+    let post_login = |body: &'static str| {
+        client
+            .post(format!("{base_url}/api/v1/auth/login"))
+            .header(HOST, "tabularis.example.com")
+            .header(ORIGIN, public_origin)
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .body(body)
+            .send()
+    };
+    let link = "/connections/6f1c2a4e-9b7d-4c61-8a53-2f0e9d7b1c34/editor";
+
+    // A connection link keeps its target through the redirect to /login.
+    let redirect = get(link).await.unwrap();
+    assert_eq!(redirect.status(), reqwest::StatusCode::SEE_OTHER);
+    assert_eq!(
+        redirect.headers().get(LOCATION).unwrap(),
+        "/login?next=%2Fconnections%2F6f1c2a4e-9b7d-4c61-8a53-2f0e9d7b1c34%2Feditor"
+    );
+    // Other pages keep the bare /login redirect.
+    let redirect = get("/settings").await.unwrap();
+    assert_eq!(redirect.headers().get(LOCATION).unwrap(), "/login");
+
+    // A `no-referrer` page makes browsers send `Origin: null` with the form
+    // POST, which the login origin check rejects.
+    let login_page = get("/login").await.unwrap();
+    assert_eq!(
+        login_page.headers().get("referrer-policy").unwrap(),
+        "same-origin"
+    );
+
+    // The form carries a valid target and drops anything else.
+    let page = get(&format!("/login?next={}", "%2Fconnections%2Fabc%2Feditor"))
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        page.contains("<input type=\"hidden\" name=\"next\" value=\"/connections/abc/editor\">")
+    );
+    for next in [
+        "%2F%2Fevil.example",
+        "https%3A%2F%2Fevil.example",
+        "%2Fsettings",
+    ] {
+        let page = get(&format!("/login?next={next}"))
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        assert!(!page.contains("name=\"next\""), "{next}");
+    }
+
+    // A failed attempt keeps the target in the re-rendered form.
+    let failed = post_login("password=wrong&next=%2Fconnections%2Fabc%2Feditor")
+        .await
+        .unwrap();
+    assert_eq!(failed.status(), reqwest::StatusCode::UNAUTHORIZED);
+    assert!(failed
+        .text()
+        .await
+        .unwrap()
+        .contains("value=\"/connections/abc/editor\""));
+
+    // An off-site target falls back to the root.
+    let login = post_login("password=correct%20horse%20battery%20staple&next=%2F%2Fevil.example")
+        .await
+        .unwrap();
+    assert_eq!(login.status(), reqwest::StatusCode::SEE_OTHER);
+    assert_eq!(login.headers().get(LOCATION).unwrap(), "/");
+
+    // A valid target is resumed after login.
+    let login = post_login(
+        "password=correct%20horse%20battery%20staple&next=%2Fconnections%2F6f1c2a4e-9b7d-4c61-8a53-2f0e9d7b1c34%2Feditor",
+    )
+    .await
+    .unwrap();
+    assert_eq!(login.status(), reqwest::StatusCode::SEE_OTHER);
+    assert_eq!(login.headers().get(LOCATION).unwrap(), link);
+    let cookie = login
+        .headers()
+        .get(SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+
+    // With the session, the link serves the app; the client opens the connection.
+    let page = client
+        .get(format!("{base_url}{link}"))
+        .header(HOST, "tabularis.example.com")
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(page.status(), reqwest::StatusCode::OK);
+    assert_eq!(page.text().await.unwrap(), "Tabularis");
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();

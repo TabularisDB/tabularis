@@ -14,6 +14,7 @@ import {
 import {Accordion} from './Accordion';
 import {MetadataErrorIndicator} from './MetadataErrorIndicator';
 import {SidebarTableItem} from './SidebarTableItem';
+import {TableFilterInput} from './TableFilterInput';
 import {SidebarViewItem} from './SidebarViewItem';
 import {SidebarRoutineItem} from './SidebarRoutineItem';
 import {SidebarRoutineGroupHeader} from './SidebarRoutineGroupHeader';
@@ -257,38 +258,15 @@ export const SidebarSchemaItem = ({
                                 }
                             >
                                 {tables.length > 0 && (
-                                    <div className="px-2 py-1">
-                                        <div className="relative flex items-center">
-                                            <Search
-                                                size={11}
-                                                className="absolute left-2 text-muted pointer-events-none"
-                                            />
-                                            <input
-                                                autoCorrect="off"
-                                                autoCapitalize="off"
-                                                autoComplete="off"
-                                                spellCheck={false}
-                                                type="text"
-                                                data-table-filter
-                                                value={tableFilter}
-                                                onChange={(e) => setTableFilter(e.target.value)}
-                                                placeholder={t('sidebar.filterTables')}
-                                                className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-focus/50"
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                            {tableFilter && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setTableFilter('');
-                                                    }}
-                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded hover:bg-surface-secondary"
-                                                >
-                                                    <X size={11} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
+                                    <TableFilterInput
+                                        value={tableFilter}
+                                        onChange={setTableFilter}
+                                        hasMatch={filteredTables.length > 0}
+                                        onOpenFirstMatch={() =>
+                                            onTableDoubleClick(filteredTables[0].name, schemaName)
+                                        }
+                                        stopPropagation
+                                    />
                                 )}
                                 {filteredTables.length === 0 ? (
                                     <div className="text-center p-2 text-xs text-muted italic">

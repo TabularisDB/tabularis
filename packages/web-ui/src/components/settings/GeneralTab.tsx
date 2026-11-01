@@ -3,6 +3,7 @@ import {useSettings} from '@/hooks/useSettings';
 import {
     DEFAULT_SETTINGS,
     type CopyFormat,
+    type CopyNullLabel,
     type ERDiagramLayout,
     type WindowDecorationsMode,
 } from '@/contexts/SettingsContext';
@@ -147,6 +148,21 @@ export function GeneralTab() {
                             settings.csvIncludeHeaders ?? DEFAULT_SETTINGS.csvIncludeHeaders ?? true
                         }
                         onChange={(v) => updateSetting('csvIncludeHeaders', v)}
+                    />
+                </SettingRow>
+
+                <SettingRow
+                    label={t('settings.copyNullLabel')}
+                    description={t('settings.copyNullLabelDesc')}
+                >
+                    <SettingButtonGroup<CopyNullLabel>
+                        value={settings.copyNullLabel ?? DEFAULT_SETTINGS.copyNullLabel ?? 'null'}
+                        onChange={(v) => updateSetting('copyNullLabel', v)}
+                        options={[
+                            {value: 'null', label: 'null'},
+                            {value: 'NULL', label: 'NULL'},
+                            {value: '', label: t('settings.copyNullLabelEmpty')},
+                        ]}
                     />
                 </SettingRow>
 

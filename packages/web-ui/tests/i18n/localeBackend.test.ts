@@ -5,6 +5,7 @@ import en from '@/i18n/locales/en.json';
 import itLocale from '@/i18n/locales/it.json';
 import tl from '@/i18n/locales/tl.json';
 import ptBR from '@/i18n/locales/pt-BR.json';
+import vi from '@/i18n/locales/vi.json';
 
 describe('bundled locale backend', () => {
     it('loads selected languages and Filipino aliases while retaining English fallback', async () => {
@@ -20,6 +21,7 @@ describe('bundled locale backend', () => {
             ['it', itLocale],
             ['fil', tl],
             ['pt-BR', ptBR],
+            ['vi-VN', vi],
         ] as const) {
             await i18n.changeLanguage(language);
             expect(i18n.t('common.cancel')).toBe(dictionary.common.cancel);

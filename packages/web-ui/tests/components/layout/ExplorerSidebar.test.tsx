@@ -43,11 +43,8 @@ vi.mock('@/hooks/useSecondaryWindows', () => ({
 vi.mock('@/hooks/usePlatformCapabilities', () => ({
     usePlatformCapabilities: () => ({chooseInputFile: vi.fn()}),
 }));
-vi.mock('@/hooks/useTabularisClient', () => ({
-    useTabularisClient: () => ({
-        call: (command: string, request: unknown) => invoke(command, request),
-    }),
-}));
+const sidebarClient = {call: (command: string, request: unknown) => invoke(command, request)};
+vi.mock('@/hooks/useTabularisClient', () => ({useTabularisClient: () => sidebarClient}));
 vi.mock('react-router-dom', () => ({useNavigate: () => vi.fn()}));
 vi.mock('@/utils/notebookStore', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@/utils/notebookStore')>();
@@ -807,6 +804,83 @@ describe('ExplorerSidebar — capabilities threading (issue #614)', () => {
             databaseState.activeCapabilities,
         );
     });
+    it.each(['index', 'foreign_key'] as const)(
+        'opens %s details from the menu for a read-only plugin using capabilities',
+        async (kind) => {
+            const capabilities = {
+                ...databaseState.activeCapabilities,
+                readonly: true,
+                manage_tables: false,
+            };
+            vi.mocked(useDatabase).mockReturnValue({
+                ...databaseState,
+                activeCapabilities: capabilities,
+            } as unknown as ReturnType<typeof useDatabase>);
+            vi.mocked(invoke).mockImplementation(async (command) => {
+                if (command === 'get_indexes')
+                    return [
+                        {
+                            name: 'orders_idx',
+                            column_name: 'customer_id',
+                            is_unique: true,
+                            is_primary: false,
+                        },
+                    ];
+                if (command === 'get_foreign_keys')
+                    return [
+                        {
+                            name: 'orders_fk',
+                            column_name: 'customer_id',
+                            ref_table: 'customers',
+                            ref_column: 'id',
+                            on_delete: 'CASCADE',
+                        },
+                    ];
+                if (command === 'get_create_index_sql')
+                    return ['CREATE UNIQUE INDEX "orders_idx" ON "orders" ("customer_id")'];
+                if (command === 'get_create_foreign_key_sql')
+                    return [
+                        'ALTER TABLE "orders" ADD CONSTRAINT "orders_fk" FOREIGN KEY ("customer_id") REFERENCES "customers" ("id")',
+                    ];
+                return [];
+            });
+            renderSidebar();
+            const table = screen.getByText('orders').closest('[data-table-name]')!;
+            fireEvent.click(table.querySelector('button')!);
+            await waitFor(() =>
+                expect(invoke).toHaveBeenCalledWith(
+                    'get_indexes',
+                    expect.objectContaining({connectionId: 'c1', tableName: 'orders'}),
+                ),
+            );
+            if (kind === 'index') {
+                fireEvent.click(screen.getByText('sidebar.indexes'));
+            } else {
+                fireEvent.click(screen.getByText('sidebar.foreignKeys').parentElement!);
+            }
+            const name = kind === 'index' ? 'orders_idx' : 'orders_fk';
+            fireEvent.contextMenu(await screen.findByText(name, {exact: false}));
+            expect(
+                screen.queryByText(kind === 'index' ? 'sidebar.deleteIndex' : 'sidebar.deleteFk'),
+            ).not.toBeInTheDocument();
+            fireEvent.click(screen.getByText('objectDetails.viewDetails'));
+            expect(screen.getByRole('dialog')).toHaveTextContent(name);
+            expect(screen.getByRole('dialog')).toHaveTextContent('1. customer_id');
+            await screen.findByRole('button', {
+                name: kind === 'index' ? 'objectDetails.copyCreate' : 'objectDetails.copyAlter',
+            });
+            expect(invoke).toHaveBeenCalledWith(
+                kind === 'index' ? 'get_create_index_sql' : 'get_create_foreign_key_sql',
+                expect.objectContaining({connectionId: 'c1', table: 'orders'}),
+            );
+            expect(
+                invoke.mock.calls.every(
+                    ([command]) =>
+                        !String(command).includes('execute') && !String(command).includes('drop_'),
+                ),
+            ).toBe(true);
+        },
+    );
 });
 
 describe('ExplorerSidebar — saved query actions', () => {

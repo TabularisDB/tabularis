@@ -26,8 +26,8 @@ pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{
     escape_identifier, inline_str_placeholders, is_raw_sql_function, is_wkt_geometry,
-    mysql_bytes_literal, mysql_row_max_length, mysql_row_str, mysql_row_str_opt,
-    mysql_string_literal,
+    mysql_bytes_literal, mysql_column_types, mysql_row_max_length, mysql_row_str,
+    mysql_row_str_opt, mysql_string_literal,
 };
 use row_identity::get_float_columns;
 use sqlx::{Column, Row};
@@ -352,16 +352,7 @@ pub async fn get_columns(
                 .flatten()
                 .and_then(|v| i32::try_from(v).ok());
 
-            // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
-            // while `column_type` returns the full definition with allowed values
-            // (e.g. "enum('pending','approved','rejected')").
-            let data_type = if raw_data_type.eq_ignore_ascii_case("enum")
-                || raw_data_type.eq_ignore_ascii_case("set")
-            {
-                column_type
-            } else {
-                raw_data_type
-            };
+            let (data_type, full_type) = mysql_column_types(raw_data_type, column_type);
 
             let is_auto_increment = extra.contains("auto_increment");
 
@@ -386,6 +377,7 @@ pub async fn get_columns(
                 numeric_precision,
                 numeric_scale,
                 comment: mysql_row_str_opt(r, 8),
+                full_type,
             }
         })
         .collect())
@@ -496,16 +488,7 @@ pub async fn get_all_columns_batch(
             .flatten()
             .and_then(|v| i32::try_from(v).ok());
 
-        // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
-        // while `column_type` returns the full definition with allowed values
-        // (e.g. "enum('pending','approved','rejected')").
-        let data_type = if raw_data_type.eq_ignore_ascii_case("enum")
-            || raw_data_type.eq_ignore_ascii_case("set")
-        {
-            column_type
-        } else {
-            raw_data_type
-        };
+        let (data_type, full_type) = mysql_column_types(raw_data_type, column_type);
 
         let is_auto_increment = extra.contains("auto_increment");
 
@@ -530,6 +513,7 @@ pub async fn get_all_columns_batch(
             numeric_precision,
             numeric_scale,
             comment: mysql_row_str_opt(row, 9),
+            full_type,
         };
 
         result
@@ -1230,16 +1214,7 @@ pub async fn get_view_columns(
                 .flatten()
                 .and_then(|v| i32::try_from(v).ok());
 
-            // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
-            // while `column_type` returns the full definition with allowed values
-            // (e.g. "enum('pending','approved','rejected')").
-            let data_type = if raw_data_type.eq_ignore_ascii_case("enum")
-                || raw_data_type.eq_ignore_ascii_case("set")
-            {
-                column_type
-            } else {
-                raw_data_type
-            };
+            let (data_type, full_type) = mysql_column_types(raw_data_type, column_type);
 
             let is_auto_increment = extra.contains("auto_increment");
 
@@ -1264,6 +1239,7 @@ pub async fn get_view_columns(
                 numeric_precision,
                 numeric_scale,
                 comment: None,
+                full_type,
             }
         })
         .collect())

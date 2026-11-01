@@ -8,21 +8,25 @@ import {
     AlertTriangle,
     X,
     ChevronDown,
+    Calendar,
     Pause,
 } from 'lucide-react';
 import {groupByDate, formatHistoryTime} from '@/utils/dateGroups';
 import {SqlHighlight} from '@/components/ui/SqlHighlight';
 import {formatSqlPreview} from '@/utils/sqlHighlight';
 import {useSettings} from '@/hooks/useSettings';
+import {openNativePicker} from '@/utils/nativePicker';
 import {
     filterQueryHistoryEntries,
     getQueryHistoryDatabaseChoices,
     isQueryHistoryDatabaseFilterAvailable,
     isQueryHistoryFilterActive,
     queryHistoryDatabaseFilterFor,
+    validateQueryHistoryDateRange,
     QUERY_HISTORY_OUTCOME_OPTIONS,
     QUERY_HISTORY_TIME_RANGE_OPTIONS,
     type QueryHistoryDatabaseFilter,
+    type QueryHistoryDateRangeError,
     type QueryHistoryOutcomeFilter,
     type QueryHistoryTimeRange,
 } from '@/utils/queryHistoryFilter';
@@ -43,6 +47,54 @@ interface QueryHistorySectionProps {
 const selectClassName =
     'w-full appearance-none bg-surface-secondary border border-default rounded px-1.5 pr-5 py-1 text-[11px] text-primary focus:outline-none focus:border-focus/50 cursor-pointer';
 
+// The date fields mirror the selects above: same box, background and text, the
+// label inside the box, and a calendar icon where the selects show a chevron.
+// The native WebKit indicator and the padding around the date parts are
+// removed so the value lines up with the select labels. WebKit sizes each date
+// part for its widest digits, so tabular figures keep "10/20" from gaining a
+// gap before the slash.
+const dateFieldClassName =
+    'relative flex-1 min-w-0 flex items-center gap-1 bg-input border border-default rounded pl-1.5 cursor-pointer focus-within:border-focus/50';
+
+const dateInputClassName =
+    'w-full min-w-0 appearance-none bg-transparent pr-5 py-1 text-[11px] text-primary tabular-nums focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-datetime-edit]:p-0 [&::-webkit-datetime-edit-fields-wrapper]:p-0 [&::-webkit-datetime-edit-month-field]:p-0 [&::-webkit-datetime-edit-day-field]:p-0 [&::-webkit-datetime-edit-year-field]:p-0';
+
+function HistoryDateField({
+    label,
+    value,
+    onChange,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    return (
+        // The label wraps the input, so a click anywhere in the box reaches it.
+        <label className={dateFieldClassName}>
+            <span className="text-[11px] text-muted shrink-0">{label}</span>
+            <input
+                type="date"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                // With the native indicator hidden, a click opens the picker.
+                onClick={(e) => openNativePicker(e.currentTarget)}
+                aria-label={label}
+                className={dateInputClassName}
+            />
+            <Calendar
+                size={10}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+            />
+        </label>
+    );
+}
+
+const RANGE_ERROR_LABEL_KEYS: Record<QueryHistoryDateRangeError, string> = {
+    invalidFrom: 'sidebar.historyDateRangeInvalidFrom',
+    invalidTo: 'sidebar.historyDateRangeInvalidTo',
+    inverted: 'sidebar.historyDateRangeInverted',
+};
+
 const OUTCOME_LABEL_KEYS: Record<QueryHistoryOutcomeFilter, string> = {
     any: 'sidebar.historyOutcomeAny',
     succeeded: 'sidebar.historyOutcomeSucceeded',
@@ -55,6 +107,7 @@ const TIME_RANGE_LABEL_KEYS: Record<QueryHistoryTimeRange, string> = {
     today: 'sidebar.historyTimeToday',
     last7Days: 'sidebar.historyTimeLast7Days',
     last30Days: 'sidebar.historyTimeLast30Days',
+    custom: 'sidebar.historyTimeCustom',
 };
 
 export function QueryHistorySection({
@@ -77,8 +130,16 @@ export function QueryHistorySection({
     const [search, setSearch] = useState('');
     const [outcome, setOutcome] = useState<QueryHistoryOutcomeFilter>('any');
     const [timeRange, setTimeRange] = useState<QueryHistoryTimeRange>('all');
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
     const [database, setDatabase] = useState<QueryHistoryDatabaseFilter>('all');
     const [selectedId, setSelectedId] = useState<string | null>(null);
+
+    // "custom" is a mode of the time-range select, not a second filter: the
+    // From/To inputs only exist while it is selected.
+    const isCustomRange = timeRange === 'custom';
+
+    const rangeError = validateQueryHistoryDateRange(from, to);
 
     const databaseChoices = useMemo(() => getQueryHistoryDatabaseChoices(entries), [entries]);
     // A database that is no longer among the loaded entries (another connection's
@@ -92,6 +153,8 @@ export function QueryHistorySection({
         outcome,
         timeRange,
         database,
+        from,
+        to,
     });
 
     const filteredEntries = useMemo(
@@ -101,9 +164,11 @@ export function QueryHistorySection({
                 outcome,
                 timeRange,
                 database,
+                from,
+                to,
                 timeZone: settings.displayTimezone,
             }),
-        [entries, search, outcome, timeRange, database, settings.displayTimezone],
+        [entries, search, outcome, timeRange, database, from, to, settings.displayTimezone],
     );
 
     const groupedEntries = useMemo(
@@ -311,7 +376,16 @@ export function QueryHistorySection({
                 <div className="relative flex-1 min-w-0">
                     <select
                         value={timeRange}
-                        onChange={(e) => setTimeRange(e.target.value as QueryHistoryTimeRange)}
+                        onChange={(e) => {
+                            const next = e.target.value as QueryHistoryTimeRange;
+                            setTimeRange(next);
+                            // Presets must not stack on top of dates the user can no
+                            // longer see: from/to only exist in the custom mode.
+                            if (next !== 'custom') {
+                                setFrom('');
+                                setTo('');
+                            }
+                        }}
                         aria-label={t('sidebar.historyTimeRangeFilter')}
                         className={selectClassName}
                     >
@@ -328,10 +402,50 @@ export function QueryHistorySection({
                 </div>
             </div>
 
+            {/* Custom date range (session-only, same as the filters above): the
+                inputs only exist while the custom mode is selected. */}
+            {isCustomRange && (
+                <div className="px-2 pb-1.5 flex items-center gap-1">
+                    <HistoryDateField
+                        label={t('sidebar.historyDateFrom')}
+                        value={from}
+                        onChange={setFrom}
+                    />
+                    <HistoryDateField
+                        label={t('sidebar.historyDateTo')}
+                        value={to}
+                        onChange={setTo}
+                    />
+                </div>
+            )}
+
+            {/* Explain a custom range that cannot be applied instead of widening it */}
+            {isCustomRange && rangeError && (
+                <div role="alert" className="px-3 pb-1 text-[10px] text-accent-warning">
+                    {t(RANGE_ERROR_LABEL_KEYS[rangeError])}
+                </div>
+            )}
+
             {/* Filtered / total counter whenever any filter is active */}
             {filterActive && (
-                <div className="px-3 pb-1 text-[10px] text-muted">
-                    {filteredEntries.length} / {entries.length}
+                <div className="px-3 pb-1 flex items-center justify-between gap-2 text-[10px] text-muted">
+                    <span>
+                        {filteredEntries.length} / {entries.length}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSearch('');
+                            setOutcome('any');
+                            setTimeRange('all');
+                            setDatabase('all');
+                            setFrom('');
+                            setTo('');
+                        }}
+                        className="shrink-0 underline hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                    >
+                        {t('sidebar.historyClearFilters')}
+                    </button>
                 </div>
             )}
 

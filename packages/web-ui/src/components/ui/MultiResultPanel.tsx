@@ -522,6 +522,7 @@ export function MultiResultPanel({
                             initialScrollTop={getInitialScrollTop?.(activeEntry.id)}
                             onScrollTopChange={(top) => onScrollTopChange?.(activeEntry.id, top)}
                             onCopyAllRows={() => onCopyAllRows(activeEntry.id)}
+                            allowChart
                         />
                     </div>
                 </>

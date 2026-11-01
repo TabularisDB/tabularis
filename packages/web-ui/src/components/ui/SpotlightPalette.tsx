@@ -104,6 +104,7 @@ export const SpotlightPalette = ({
             {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the dialog owns list navigation and its Tab focus trap; the rule exempts <dialog> but not role="dialog" */}
             <div
                 ref={dialogRef}
+                data-spotlight-palette=""
                 role="dialog"
                 aria-modal="true"
                 aria-label={ariaLabel}

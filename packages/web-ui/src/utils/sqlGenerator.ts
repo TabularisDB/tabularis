@@ -7,6 +7,7 @@
 import type {DriverCapabilities} from '@/types/plugins';
 import type {ForeignKey, Index} from '@/types/schema';
 import type {DatabaseDriver} from './connections';
+import {resolveTypeModifiers} from './columnType';
 import {quoteIdentifier, quoteTableRef} from './identifiers';
 import {toBindParamName} from './queryParameters';
 import type {TableQueryTab} from './tableQueryTemplates';
@@ -149,49 +150,6 @@ function resolveSerialType(serialType: string, dataType: string | undefined): st
         return 'SERIAL';
     }
     return serialType;
-}
-
-/**
- * Appends type modifiers to a bare column type when the backend reports them
- * as separate fields rather than embedding them in `data_type`.
- *
- * - `numeric`/`decimal` → `numeric(precision, scale)` when precision is present
- *   and the type string doesn't already carry a parenthesised modifier (#840).
- * - `varchar`/`character varying`/`char`/`character` → `type(length)` when
- *   `character_maximum_length` is present and the type isn't already sized.
- *
- * The "already carries a modifier" guard avoids producing `numeric(10,2)(10,2)`
- * for drivers (e.g. SQLite, whose `PRAGMA table_xinfo` returns the full type
- * declaration) whose `data_type` already embeds the precision/length. MySQL and
- * Postgres send the bare type name with precision/length as separate fields.
- */
-function resolveTypeModifiers(column: TableColumn): string {
-    const type = column.data_type;
-    const lower = type.toLowerCase();
-    const hasModifier = /\(\d+\s*,\s*\d+\)|\(\d+\)/.test(type);
-
-    // Numeric/decimal precision+scale. Scale defaults to 0 when precision is set
-    // but scale is absent (e.g. `numeric(38)`), matching PostgreSQL semantics.
-    if (!hasModifier && column.numeric_precision != null) {
-        if (lower === 'numeric' || lower === 'decimal') {
-            const scale = column.numeric_scale ?? 0;
-            return `${type}(${column.numeric_precision},${scale})`;
-        }
-    }
-
-    // Character-type length.
-    if (!hasModifier && column.character_maximum_length != null) {
-        if (
-            lower === 'varchar' ||
-            lower === 'character varying' ||
-            lower === 'char' ||
-            lower === 'character'
-        ) {
-            return `${type}(${column.character_maximum_length})`;
-        }
-    }
-
-    return type;
 }
 
 export function generateColumnDefinition(

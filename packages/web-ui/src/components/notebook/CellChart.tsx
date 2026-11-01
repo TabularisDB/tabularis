@@ -14,7 +14,11 @@ import {
     Legend,
     ResponsiveContainer,
 } from 'recharts';
-import {useTheme} from '@/hooks/useTheme';
+import {
+    chartTooltipStyle as tooltipStyle,
+    useChartPalette,
+    type ChartPalette,
+} from '@/hooks/useChartPalette';
 import type {QueryResult} from '@/types/editor';
 import type {CellChartConfig, ChartType} from '@/types/notebook';
 import {
@@ -23,51 +27,6 @@ import {
     getLabelColumns,
     transformResultToChartData,
 } from '@/utils/notebookChart';
-
-interface ChartPalette {
-    /** Series colors, cycled in order. */
-    series: string[];
-    grid: string;
-    tick: string;
-    tooltipBackground: string;
-    tooltipBorder: string;
-    tooltipText: string;
-    radius: string;
-}
-
-/** Chart colors follow the active theme so every palette keeps its own accents. */
-function useChartPalette(): ChartPalette {
-    const {currentTheme} = useTheme();
-    const {accent, semantic, bg, border, text} = currentTheme.colors;
-    return {
-        series: [
-            accent.primary,
-            accent.success,
-            accent.warning,
-            accent.error,
-            accent.secondary,
-            semantic.boolean,
-            accent.info,
-            semantic.string,
-        ],
-        grid: border.subtle,
-        tick: text.muted,
-        tooltipBackground: bg.tooltip,
-        tooltipBorder: border.default,
-        tooltipText: text.primary,
-        radius: currentTheme.layout.borderRadius.base,
-    };
-}
-
-function tooltipStyle(palette: ChartPalette) {
-    return {
-        backgroundColor: palette.tooltipBackground,
-        border: `1px solid ${palette.tooltipBorder}`,
-        borderRadius: palette.radius,
-        color: palette.tooltipText,
-        fontSize: 11,
-    };
-}
 
 interface ChartTypeSelectorProps {
     config: CellChartConfig;

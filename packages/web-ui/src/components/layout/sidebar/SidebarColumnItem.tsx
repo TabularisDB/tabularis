@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import {ContextMenu} from '@/components/ui/ContextMenu';
 import type {TableColumn} from '@/types/schema';
 import type {DriverCapabilities} from '@/types/plugins';
+import {formatColumnType} from '@/utils/columnType';
 import {quoteIdentifier, quoteTableRef} from '@/utils/identifiers';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 
@@ -46,6 +47,7 @@ export const SidebarColumnItem = ({
     const {t} = useTranslation();
     const platform = usePlatformCapabilities();
     const {showAlert} = useAlert();
+    const columnType = formatColumnType(column);
     const [contextMenu, setContextMenu] = useState<{
         x: number;
         y: number;
@@ -113,7 +115,12 @@ export const SidebarColumnItem = ({
                 >
                     {column.name}
                 </span>
-                <span className="text-muted text-[10px] ml-auto shrink-0">{column.data_type}</span>
+                <span
+                    title={columnType}
+                    className="text-muted text-[10px] ml-auto max-w-[55%] truncate"
+                >
+                    {columnType}
+                </span>
             </div>
             {contextMenu && !isView && canManage !== false && (
                 <ContextMenu

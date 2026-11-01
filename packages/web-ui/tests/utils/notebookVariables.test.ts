@@ -484,6 +484,40 @@ describe('notebookVariables', () => {
             expect(ansi.sql).toContain('AS "id"');
             expect(backtick.sql).toContain('AS `id`');
         });
+
+        it('should close bracket-quoted names with ] and double ] inside them', () => {
+            const bracketCells = [
+                makeCell({
+                    result: {
+                        columns: ['id', 'a]b', 'c[d'],
+                        rows: [[1, 'x', 'y']],
+                        affected_rows: 0,
+                    },
+                }),
+            ];
+            const {sql} = resolveQueryVariables('SELECT * FROM {{cell_1}}', bracketCells, {
+                identifierQuote: '[',
+            });
+            expect(sql).toContain("SELECT 1 AS [id], 'x' AS [a]]b], 'y' AS [c[d]");
+            expect(sql).not.toContain('[id[');
+        });
+
+        it('should close bracket-quoted empty-result columns with ]', () => {
+            const {sql} = resolveQueryVariables('SELECT * FROM {{cell_1}}', emptyCells, {
+                identifierQuote: '[',
+            });
+            expect(sql).toContain('SELECT NULL AS [id] WHERE 1=0');
+        });
+
+        it('should bracket-quote aliases for a plugin declaring identifier_quote "["', () => {
+            const caps = {identifier_quote: '[', sql_dialect: 'mssql'} as DriverCapabilities;
+            const {sql} = resolveQueryVariables(
+                'SELECT * FROM {{cell_1}}',
+                cells,
+                variableOptionsForDriver(caps),
+            );
+            expect(sql).toContain(`SELECT 1 AS [id], 'a' AS [we"ird\`col]`);
+        });
     });
 
     describe('variableOptionsForDriver', () => {

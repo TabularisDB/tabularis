@@ -6,6 +6,8 @@ import type {GlobalProxySettings, ProxyOverride} from '@/types/proxy';
 
 export type {AppLanguage};
 export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'markdown';
+/** How NULL is written when rows are copied as CSV or Markdown ("" writes an empty field). */
+export type CopyNullLabel = 'null' | 'NULL' | '';
 export type DefaultSortDirection = 'asc' | 'desc';
 export type AiProvider =
     | 'chatgpt'
@@ -84,6 +86,8 @@ export interface Settings {
     csvDelimiter?: string;
     /** Whether copied CSV output includes a header row. Default: true. */
     csvIncludeHeaders?: boolean;
+    /** How NULL is written when rows are copied as CSV or Markdown. Default: "null". */
+    copyNullLabel?: CopyNullLabel;
     /** Whether the row editor sidebar follows row selection. Default: true. */
     rowEditorFollowSelection?: boolean;
     groupSidebarConnectionsByFolder?: boolean;
@@ -191,7 +195,7 @@ export interface Settings {
     /** Per built-in driver id → migration mode. Defaults to "opt-in" when unset;
      * flipping an entry to "forced" is a separate, later decision. */
     migrationModeByDriver?: Record<string, MigrationMode>;
-    /** Global HTTP/SOCKS5 proxy and opt-in traffic scopes. */
+    /** Shared custom proxy endpoint and per-scope routing modes. */
     proxy?: GlobalProxySettings;
     /** Per AI-provider proxy overrides. */
     aiProviderProxies?: Partial<Record<AiProvider, ProxyOverride>>;
@@ -248,6 +252,7 @@ export const DEFAULT_SETTINGS: Settings = {
     copyFormat: 'csv',
     csvDelimiter: ',',
     csvIncludeHeaders: true,
+    copyNullLabel: 'null',
     erDiagramDefaultLayout: 'LR',
     editorFontFamily: 'JetBrains Mono',
     editorFontSize: 14,

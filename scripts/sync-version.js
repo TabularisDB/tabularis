@@ -4,6 +4,7 @@ import {resolve} from 'path';
 // File paths
 const paths = {
     package: resolve('package.json'),
+    webUiPackage: resolve('packages/web-ui/package.json'),
     tauri: resolve('src-tauri/tauri.conf.json'),
     cargo: resolve('src-tauri/Cargo.toml'),
     appVersion: resolve('packages/web-ui/src/version.ts'),
@@ -23,6 +24,12 @@ const newVersion = pkg.version;
 
 console.log(`🔄 Syncing version to ${newVersion}...`);
 
+// Keep the shared UI package aligned with the application version.
+const webUiPkg = JSON.parse(readFileSync(paths.webUiPackage, 'utf-8'));
+webUiPkg.version = newVersion;
+writeFileSync(paths.webUiPackage, `${JSON.stringify(webUiPkg, null, 2)}\n`);
+console.log('✅ Updated packages/web-ui/package.json');
+
 // 2. Update tauri.conf.json
 const tauriConf = JSON.parse(readFileSync(paths.tauri, 'utf-8'));
 tauriConf.version = newVersion;
@@ -39,7 +46,7 @@ writeFileSync(paths.cargo, cargo);
 console.log('✅ Updated Cargo.toml');
 
 // 4. Update packages/web-ui/src/version.ts
-const versionContent = `export const APP_VERSION = "${newVersion}";\n`;
+const versionContent = `export const APP_VERSION = '${newVersion}';\n`;
 writeFileSync(paths.appVersion, versionContent);
 console.log('✅ Updated packages/web-ui/src/version.ts');
 

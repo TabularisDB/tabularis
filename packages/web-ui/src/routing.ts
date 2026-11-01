@@ -17,6 +17,13 @@ export const BROWSER_ROUTES = {
 
 export const BROWSER_ROUTE_PATHS = Object.values(BROWSER_ROUTES);
 
+/** Navigation state read by the connections page. */
+export interface ConnectionsRouteState {
+    readonly openNew?: boolean;
+    /** Why a `/connections/:connectionId/editor` link could not be opened. */
+    readonly connectionLinkError?: string;
+}
+
 export interface SchemaDiagramRouteParams {
     readonly connectionId: string;
     readonly connectionName: string;

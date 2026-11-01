@@ -44,8 +44,9 @@ Single-database values and requests with no matching selection are unchanged.
    - **Windows:** `%APPDATA%\tabularis\plugins\`
 2. It reads each plugin's `.tabularium` manifest (or a legacy `manifest.json`) to discover its capabilities and data types.
 3. The plugin is registered as a driver and appears in the "Database Type" list.
-4. When the user opens a connection using the plugin's driver, Tabularis spawns the executable and begins sending JSON-RPC messages.
-5. The same process instance is reused for all operations in that session.
+4. Tabularis spawns the executable when it registers the driver, and sends JSON-RPC messages once a connection uses it. The desktop app and each `tabularis --mcp` server start their own process.
+5. The same process instance is reused for all connections and operations in that session.
+6. When the session ends, Tabularis kills the process. **Exit when `stdin` reaches EOF** as well: if Tabularis is killed (for example an MCP client force-quitting `tabularis --mcp`), EOF may be the only signal the plugin gets. On Windows, Tabularis also places the plugin in a job object that is killed with it.
 
 ---
 
@@ -1005,6 +1006,8 @@ Get column information for a table.
 > **Metadata comments:** `comment` is optional in both `get_tables` and `get_columns`. Older plugins may omit it or return `null`; Tabularis treats both forms as “description unavailable”. This is an additive response field and does not require a manifest capability or `min_runtime_version`. When present, the host displays it in the schema inspector, explorer tooltips, and table-browse grid headers.
 >
 > **Type precision/length fields:** `character_maximum_length`, `numeric_precision`, and `numeric_scale` are optional additive fields (same backward-compatibility rules as `comment`). When present, Tabularis preserves them in generated `CREATE TABLE` DDL — e.g. `numeric(10,2)` or `varchar(50)` instead of the bare type name — and the host may surface them in the column inspector. Omit them or return `null` for types that have no such modifier.
+>
+> **Full column type:** `full_type` is an optional additive field (same backward-compatibility rules as `comment`) carrying the full declared type with its modifiers, e.g. `varchar(255)`, `decimal(10,2)`, `int unsigned` or `integer[]`. When present, the explorer's Columns list, the table schema view and the ER diagram show it instead of `data_type`; keep the base type name in `data_type`, since value handling, editing and DDL generation match on it. Send it only when it says more than `data_type`. Without it, the host shows `data_type` with `character_maximum_length` / `numeric_precision` / `numeric_scale` appended when present (e.g. `varchar(50)`, `numeric(10,2)`), so a plugin whose `data_type` already embeds the modifiers needs no change.
 >
 > **JSON / JSONB columns:** Set `data_type` to `"JSON"` or `"JSONB"` (matched case-insensitively) to make Tabularis render the cell with syntax highlighting and expose the JSON editor window. In `execute_query` row data, send the cell as either a native JSON value (object/array/scalar) or a JSON-formatted string — both are accepted. For text-typed columns that hold JSON, end users can opt in per connection via the **Detect JSON in text columns** setting; no plugin change required.
 

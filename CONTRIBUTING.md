@@ -123,7 +123,7 @@ This section guides you through submitting an enhancement suggestion for tabular
 #### Before Submitting an Enhancement
 
 - Make sure that you are using the latest version.
-- Read the [documentation]() carefully and find out if the functionality is already covered, maybe by an individual configuration.
+- Read the [documentation](https://tabularis.dev/wiki) carefully and find out if the functionality is already covered, maybe by an individual configuration.
 - Perform a [search](https://github.com/TabularisDB/tabularis/issues) to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
 - Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. If you're just targeting a minority of users, consider writing an add-on/plugin library.
 
@@ -165,7 +165,7 @@ Understanding the codebase layout will help you navigate directly to the relevan
 tabularis/
 ├── src/                      # Frontend application (React 19, TypeScript, Tailwind CSS, Monaco editor)
 │   ├── components/           # UI components (modals, data grid, query editor, explorer)
-│   ├── locales/              # i18n translation catalogs (en, it, zh, etc.)
+│   ├── i18n/locales/         # i18n translation catalogs (en, it, zh, etc.)
 │   ├── theme/                # Theme tokens and CSS rules (see tokens.css)
 │   └── utils/                # Pure frontend helper and calculation utilities
 ├── tests/                    # Frontend tests (Vitest)
@@ -263,7 +263,7 @@ Before opening a pull request, ensure your branch satisfies the quality standard
 - [ ] **Typecheck**: `pnpm exec tsc -b` (or `pnpm typecheck`) completes with zero errors.
 - [ ] **Lint & Design Tokens**: `pnpm lint` passes cleanly. Use theme tokens from `src/theme/tokens.css` (never hardcode arbitrary hex/RGB colors).
 - [ ] **Accessibility**: Maintain keyboard navigation, visible focus outlines, and appropriate ARIA attributes for interactive elements ([Accessibility Rules](./.rules/accessibility.md)).
-- [ ] **Internationalization**: If adding user-visible strings, declare translation keys in `src/locales/` instead of hardcoding text in JSX.
+- [ ] **Internationalization**: If adding user-visible strings, declare translation keys in `packages/web-ui/src/i18n/locales/` instead of hardcoding text in JSX.
 - [ ] **Issue Reference**: Include `Closes #<issue-number>` or `Fixes #<issue-number>` in your PR description.
 
 ### Testing a Pull Request Build

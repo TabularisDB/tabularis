@@ -32,6 +32,8 @@ export default defineConfig({
         // Monaco editor ships pre-built web workers (ts.worker ~7MB, css.worker ~1MB)
         // that are loaded lazily on demand — bumping the limit accommodates them.
         chunkSizeWarningLimit: 8000,
+        // Nightly builds set TABULARIS_SOURCEMAP so bug reports carry readable stack traces.
+        sourcemap: process.env.TABULARIS_SOURCEMAP === 'true',
         rollupOptions: {
             output: {
                 // Shared React dependencies must not be absorbed by the editor chunk.

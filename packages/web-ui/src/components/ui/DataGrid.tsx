@@ -35,6 +35,8 @@ import {
     Ban,
     Eraser,
     FileDigit,
+    Download,
+    FileText,
     ExternalLink,
     Filter,
     PanelBottomOpen,
@@ -51,6 +53,9 @@ import {
     CaseSensitive,
     Table,
     ChartColumn,
+    Pin,
+    PinOff,
+    RotateCcw,
 } from 'lucide-react';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {getJsonViewerSessionHost} from '@/platform/secondaryWindowSessions';
@@ -88,6 +93,8 @@ import {
     type LockedColumnWidths,
     createDataGridResultCommands,
     type RangeExtendKey,
+    getFrozenFirstColumnLayout,
+    FROZEN_HEADER_CELL_CLASS,
 } from '@/utils/dataGrid';
 import {isTypingTarget} from '@/utils/keyboardEvents';
 import {getSortButtonAction} from '@/utils/tableToolbar';
@@ -130,16 +137,23 @@ import {
 } from '@/utils/clipboard';
 import {formatColumnNamesAsSqlList} from '@/utils/objectNameCopy';
 import {quoteIdentifier} from '@/utils/identifiers';
+import {buildExportFileName} from '@/utils/exportFileName';
+import {formatRowsForExport} from '@/utils/resultExport';
+import {downloadTextFile} from '@/utils/fileDownloads';
 import {DEFAULT_MASKING_PATTERNS, isColumnMasked} from '@/utils/columnMasking';
 import type {PendingInsertion, TableColumn, ForeignKey} from '@/types/editor';
 import type {ResultCommands} from '@/types/commands';
 import {MemoRow, type RowCtx} from './DataGridRow';
 import {ColumnResizeHandle} from './ColumnResizeHandle';
 import {useLockedColumnResize} from '@/hooks/useLockedColumnResize';
+import {getFitColumnWidth} from '@/utils/columnResize';
+import {resolveResultFontFamily} from '@/utils/settings';
 import {JumpToColumnModal} from '@/components/modals/JumpToColumnModal';
 import {SetCellsValueModal} from '@/components/modals/SetCellsValueModal';
 import {KeybindingsContext} from '@/contexts/KeybindingsContext';
 
+/** Horizontal padding of a grid cell (px-4 on both sides) plus its 1px border. */
+const FIT_COLUMN_PADDING = 33;
 export interface DataGridCommandTarget {
     getResultCommands: () => ResultCommands;
     isEditing: () => boolean;
@@ -263,6 +277,9 @@ const CELL_VALUE_FILTER_BADGES: Record<CellValueFilterOperator, string> = {
     '<': '<',
     '<=': '<=',
     contains: 'LIKE',
+    'not contains': 'NOT LIKE',
+    'starts with': 'LIKE',
+    'ends with': 'LIKE',
     'IS NULL': 'IS',
     'IS NOT NULL': 'IS NOT',
 };
@@ -283,6 +300,9 @@ const CELL_VALUE_FILTER_LABEL_KEYS: Record<CellValueFilterOperator, string> = {
     '<': 'dataGrid.filterLessThan',
     '<=': 'dataGrid.filterLessOrEqual',
     contains: 'dataGrid.filterContains',
+    'not contains': 'dataGrid.filterNotContains',
+    'starts with': 'dataGrid.filterStartsWith',
+    'ends with': 'dataGrid.filterEndsWith',
     'IS NULL': 'dataGrid.filterIsNull',
     'IS NOT NULL': 'dataGrid.filterIsNotNull',
 };
@@ -373,6 +393,7 @@ export const DataGrid = React.memo(function DataGrid({
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
     const zebraStripes = settings.resultZebraStripes ?? false;
     const defaultSortDirection = settings.defaultSortDirection ?? 'asc';
+    const copyNullLabel = settings.copyNullLabel ?? 'null';
 
     // Sensitive-column masking (#485): display-only — copy/export keep the
     // real values; only the rendered grid masks them.
@@ -426,6 +447,9 @@ export const DataGrid = React.memo(function DataGrid({
         colName: string;
         colIndex: number;
     } | null>(null);
+    // Keeps the first data column next to the gutter on wide results (#1152).
+    // Grid-local and not persisted.
+    const [isFirstColumnFrozen, setIsFirstColumnFrozen] = useState(false);
     const [columnStatsTarget, setColumnStatsTarget] = useState<{
         x: number;
         y: number;
@@ -850,9 +874,13 @@ export const DataGrid = React.memo(function DataGrid({
 
     useEffect(() => {
         if (editingCell && editInputRef.current) {
-            editInputRef.current.focus();
+            // A frozen cell's editor is already in view, and a scrolling focus
+            // would honor the scroll padding and jump back to the start (#1152).
+            editInputRef.current.focus({
+                preventScroll: isFirstColumnFrozen && editingCell.colIndex === 0,
+            });
         }
-    }, [editingCell]);
+    }, [editingCell, isFirstColumnFrozen]);
 
     const buildRowDataWithPending = useCallback(
         (rowArray: unknown[], isInsertion: boolean): Record<string, unknown> => {
@@ -1584,6 +1612,8 @@ export const DataGrid = React.memo(function DataGrid({
         columnLayoutKey,
         tableColumns.length + 1,
     );
+    const frozenLayout = isFirstColumnFrozen ? getFrozenFirstColumnLayout(columnWidths) : null;
+    const frozenFirstColumnLeft = frozenLayout?.left ?? null;
     useLayoutEffect(() => {
         if (columnWidths) return;
         // Wait until the grid is visible and its rows are rendered: a hidden
@@ -1611,6 +1641,64 @@ export const DataGrid = React.memo(function DataGrid({
         maxWidth: DATA_GRID_MAX_COLUMN_WIDTH,
         onResize: resizeColumn,
     });
+    // Double-clicking a resize handle fits that column to its header and the
+    // loaded rows (#1295). Cells are measured on a canvas, so the table never
+    // reflows; the header is measured at its natural width.
+    const fitColumnToContent = useCallback(
+        (index: number) => {
+            // Widths include the row-number column first.
+            const colIndex = index - 1;
+            const colName = columns[colIndex];
+            if (colName === undefined) return;
+            const ctx = document.createElement('canvas').getContext('2d');
+            if (!ctx) return;
+            // Cell font and padding are rem-based (text-sm, px-4) and follow the
+            // font-size setting, so read them from a rendered cell of the column
+            // instead of assuming a 16px root.
+            const headerCell = theadRowRef.current?.children[index] as HTMLElement | undefined;
+            const sampleCell =
+                tableRef.current?.querySelector<HTMLElement>(
+                    `tbody td[data-col-index="${colIndex}"]`,
+                ) ?? null;
+            const cellStyle = sampleCell ? getComputedStyle(sampleCell) : null;
+            ctx.font = cellStyle?.fontSize
+                ? `${cellStyle.fontWeight} ${cellStyle.fontSize} ${cellStyle.fontFamily}`
+                : `14px ${resolveResultFontFamily()}`;
+            // With no rendered body cell (an empty grid), the header cell has the
+            // same rem-based padding, so it still follows the font-size setting.
+            const paddingStyle = cellStyle ?? (headerCell ? getComputedStyle(headerCell) : null);
+            const padding = paddingStyle?.paddingLeft
+                ? parseFloat(paddingStyle.paddingLeft) +
+                  parseFloat(paddingStyle.paddingRight) +
+                  parseFloat(paddingStyle.borderRightWidth || '0')
+                : FIT_COLUMN_PADDING;
+            const colType = columnTypeMap?.get(colName);
+            const colLength = columnLengthMap?.get(colName);
+            const nullLabel = t('dataGrid.null');
+            const textWidths = mergedRows.map(
+                (row) =>
+                    ctx.measureText(
+                        formatCellValue(row.rowData[colIndex], nullLabel, colType, colLength),
+                    ).width,
+            );
+            const headerContent = headerCell?.firstElementChild as HTMLElement | null | undefined;
+            if (headerContent) {
+                headerContent.style.width = 'max-content';
+                textWidths.push(headerContent.getBoundingClientRect().width);
+                headerContent.style.width = '';
+            }
+            resizeColumn(
+                index,
+                getFitColumnWidth(
+                    textWidths,
+                    padding,
+                    DATA_GRID_MIN_COLUMN_WIDTH,
+                    DATA_GRID_MAX_COLUMN_WIDTH,
+                ),
+            );
+        },
+        [columns, columnTypeMap, columnLengthMap, mergedRows, resizeColumn, t],
+    );
     const resizedTableWidth = getResizedTableWidth(lockedColumnWidths, columnWidths);
 
     const handleContextMenu = useCallback(
@@ -1951,8 +2039,17 @@ export const DataGrid = React.memo(function DataGrid({
                 csvDelimiter,
                 tableName,
                 driver: copyDriver,
+                nullLabel: copyNullLabel,
             }),
-        [columns, copyFormat, csvDelimiter, csvIncludeHeaders, tableName, copyDriver],
+        [
+            columns,
+            copyFormat,
+            csvDelimiter,
+            csvIncludeHeaders,
+            tableName,
+            copyDriver,
+            copyNullLabel,
+        ],
     );
 
     // Rows the row context menu acts on: the selected rows (pending insertions
@@ -1988,6 +2085,72 @@ export const DataGrid = React.memo(function DataGrid({
             rowsCopiedToast(rows.length),
         );
     }, [getContextRows, columns, formatRows, writeToClipboard, rowsCopiedToast, platform]);
+
+    // Writes the rows the row context menu acts on to a file (#1154).
+    //
+    // The rows are read once, before the download starts: the grid keeps
+    // living while the dialog is up (a refresh can replace the rows), and the
+    // export has to stay the snapshot the user clicked on. Cancelling the
+    // dialog writes nothing, and no query is re-run and no page is fetched —
+    // only rows already loaded in the grid are ever exported.
+    const exportContextRows = useCallback(
+        async (format: 'csv' | 'json' | 'markdown' | 'sql-insert') => {
+            const rows = getContextRows();
+            if (!rows || rows.length === 0) return;
+            setContextMenu(null);
+
+            // File-facing details per format: extension, MIME type and the save
+            // dialog filter all have to agree with the serialisation below.
+            const extension =
+                format === 'markdown' ? 'md' : format === 'sql-insert' ? 'sql' : format;
+            const mimeType =
+                format === 'csv'
+                    ? 'text/csv'
+                    : format === 'json'
+                      ? 'application/json'
+                      : format === 'markdown'
+                        ? 'text/markdown'
+                        : 'application/sql';
+
+            try {
+                const downloaded = await downloadTextFile(platform, {
+                    fileName: buildExportFileName({tableName, extension}),
+                    contents: formatRowsForExport(
+                        rows,
+                        columns,
+                        format,
+                        csvDelimiter,
+                        tableName,
+                        copyDriver,
+                    ),
+                    mimeType,
+                    filters: [{name: format.toUpperCase(), extensions: [extension]}],
+                });
+                if (!downloaded) return;
+
+                showToast(t('dataGrid.exportedRows', {count: rows.length}), {
+                    kind: 'success',
+                });
+            } catch (e) {
+                console.error(`${format.toUpperCase()} export failed:`, e);
+                showAlert(t('common.error') + ': ' + e, {
+                    title: t('common.error'),
+                    kind: 'error',
+                });
+            }
+        },
+        [
+            getContextRows,
+            columns,
+            tableName,
+            csvDelimiter,
+            copyDriver,
+            platform,
+            showToast,
+            showAlert,
+            t,
+        ],
+    );
 
     // "Column statistics" (issue #1001). Masked columns only get counts:
     // min / max and top values would show the hidden values.
@@ -2119,6 +2282,7 @@ export const DataGrid = React.memo(function DataGrid({
                 csvDelimiter,
                 tableName,
                 driver: copyDriver,
+                nullLabel: copyNullLabel,
             }),
             rowsCopiedToast(rows.length),
         );
@@ -2131,6 +2295,7 @@ export const DataGrid = React.memo(function DataGrid({
         csvDelimiter,
         tableName,
         copyDriver,
+        copyNullLabel,
         copyToClipboard,
         rowsCopiedToast,
     ]);
@@ -2154,6 +2319,7 @@ export const DataGrid = React.memo(function DataGrid({
                 csvDelimiter,
                 tableName,
                 driver: copyDriver,
+                nullLabel: copyNullLabel,
             }),
             t('dataGrid.copiedCells', {
                 count: rangeRows.length * projected.columns.length,
@@ -2168,6 +2334,7 @@ export const DataGrid = React.memo(function DataGrid({
         csvDelimiter,
         tableName,
         copyDriver,
+        copyNullLabel,
         copyToClipboard,
         t,
     ]);
@@ -2186,6 +2353,7 @@ export const DataGrid = React.memo(function DataGrid({
                 includeHeader: csvIncludeHeaders,
                 tableName: tableName ?? 'table',
                 driver: copyDriver,
+                nullLabel: copyNullLabel,
             });
             await copyToClipboard(text);
         },
@@ -2198,6 +2366,7 @@ export const DataGrid = React.memo(function DataGrid({
             csvIncludeHeaders,
             tableName,
             copyDriver,
+            copyNullLabel,
             copyToClipboard,
         ],
     );
@@ -2803,14 +2972,19 @@ export const DataGrid = React.memo(function DataGrid({
         // outside the window is mounted on the next frame, so look the cell up
         // then rather than synchronously (a multi-row PageDown would miss it).
         const frame = requestAnimationFrame(() => {
-            parent
-                .querySelector<HTMLTableCellElement>(
-                    `tr[data-row-index="${focusedCell.rowIndex}"] td[data-col-index="${focusedCell.colIndex}"]`,
-                )
-                ?.scrollIntoView({block: 'nearest', inline: 'nearest'});
+            const cell = parent.querySelector<HTMLTableCellElement>(
+                `tr[data-row-index="${focusedCell.rowIndex}"] td[data-col-index="${focusedCell.colIndex}"]`,
+            );
+            if (!cell) return;
+            // A frozen cell is always in view horizontally (#1152), but the scroll
+            // padding would make the browser scroll it back to the start.
+            const keepScrollLeft =
+                isFirstColumnFrozen && focusedCell.colIndex === 0 ? parent.scrollLeft : null;
+            cell.scrollIntoView({block: 'nearest', inline: 'nearest'});
+            if (keepScrollLeft !== null) parent.scrollLeft = keepScrollLeft;
         });
         return () => cancelAnimationFrame(frame);
-    }, [focusedCell, rowVirtualizer]);
+    }, [focusedCell, rowVirtualizer, isFirstColumnFrozen]);
 
     // Handle keyboard shortcuts
     useEffect(() => {
@@ -2973,6 +3147,7 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            frozenFirstColumnLeft,
         }),
         [
             columns,
@@ -3018,6 +3193,7 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            frozenFirstColumnLeft,
         ],
     );
 
@@ -3068,6 +3244,9 @@ export const DataGrid = React.memo(function DataGrid({
                 onKeyDown={handleGridKeyDown}
                 onScroll={handleScroll}
                 className="h-full overflow-auto border border-default rounded bg-elevated relative focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                style={
+                    frozenLayout ? {scrollPaddingLeft: frozenLayout.scrollPaddingLeft} : undefined
+                }
             >
                 <table
                     ref={tableRef}
@@ -3103,7 +3282,16 @@ export const DataGrid = React.memo(function DataGrid({
                                     <th
                                         key={header.id}
                                         data-col-index={headerColIndex}
-                                        className={`relative px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
+                                        style={
+                                            frozenFirstColumnLeft !== null && headerColIndex === 0
+                                                ? {left: frozenFirstColumnLeft}
+                                                : undefined
+                                        }
+                                        className={`${
+                                            frozenFirstColumnLeft !== null && headerColIndex === 0
+                                                ? FROZEN_HEADER_CELL_CLASS
+                                                : 'relative'
+                                        } px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
                                             selectedColIndices.has(headerColIndex)
                                                 ? 'text-primary bg-accent-primary/20'
                                                 : 'text-secondary'
@@ -3169,6 +3357,7 @@ export const DataGrid = React.memo(function DataGrid({
                                                 })}
                                                 onMouseDown={startResize}
                                                 onKeyDown={onResizeKeyDown}
+                                                onDoubleClick={fitColumnToContent}
                                             />
                                         )}
                                     </th>
@@ -3488,6 +3677,45 @@ export const DataGrid = React.memo(function DataGrid({
                             action: copySelectedOrContextRowAsHtml,
                         });
 
+                        // "Export selected rows…" (issue #1154): the same scope as
+                        // the copy actions above, written to a file instead.
+                        menuItems.push({
+                            label: t('dataGrid.exportSelectedRows', {
+                                count: selectedRowIndices.size > 0 ? selectedRowIndices.size : 1,
+                            }),
+                            icon: Download,
+                            submenu: [
+                                {
+                                    label: t('dataGrid.exportSelectedRowsCsv'),
+                                    icon: FileText,
+                                    action: () => {
+                                        void exportContextRows('csv');
+                                    },
+                                },
+                                {
+                                    label: t('dataGrid.exportSelectedRowsJson'),
+                                    icon: Braces,
+                                    action: () => {
+                                        void exportContextRows('json');
+                                    },
+                                },
+                                {
+                                    label: t('dataGrid.exportSelectedRowsMarkdown'),
+                                    icon: FileText,
+                                    action: () => {
+                                        void exportContextRows('markdown');
+                                    },
+                                },
+                                {
+                                    label: t('dataGrid.exportSelectedRowsSqlInsert'),
+                                    icon: Braces,
+                                    action: () => {
+                                        void exportContextRows('sql-insert');
+                                    },
+                                },
+                            ],
+                        });
+
                         // Direct one-click path to copy the entire result set when the
                         // page is only part of it — kept next to "Copy Selected" so the
                         // two copy scopes read as a pair (count explicit when known).
@@ -3767,6 +3995,26 @@ export const DataGrid = React.memo(function DataGrid({
                                       } as ContextMenuItem,
                                   ]
                                 : []),
+                            {
+                                label: isFirstColumnFrozen
+                                    ? t('dataGrid.unfreezeFirstColumn')
+                                    : t('dataGrid.freezeFirstColumn'),
+                                icon: isFirstColumnFrozen ? PinOff : Pin,
+                                action: () => {
+                                    setIsFirstColumnFrozen((frozen) => !frozen);
+                                    setHeaderContextMenu(null);
+                                },
+                            },
+                            {
+                                label: t('dataGrid.resetColumnWidths'),
+                                icon: RotateCcw,
+                                action: () => {
+                                    // Dropping the locked widths makes the grid fall back
+                                    // to the automatic layout and measure it again.
+                                    setLockedColumnWidths(null);
+                                    setHeaderContextMenu(null);
+                                },
+                            },
                             {separator: true} as ContextMenuItem,
                             {
                                 label: t('dataGrid.copyColumnName'),

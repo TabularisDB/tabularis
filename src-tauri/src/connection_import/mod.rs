@@ -1,8 +1,7 @@
 //! Import database connections from other installed SQL clients.
 //!
-//! Ported from TablePro's `ForeignApp` importers. Each [`ForeignAppImporter`]
-//! reads a third-party client's on-disk config, decrypts any credentials and
-//! returns a neutral [`ImportEnvelope`]. [`analyzer`] annotates the result
+//! Each [`ForeignAppImporter`] reads a third-party client's on-disk config,
+//! decrypts any credentials and returns a neutral [`ImportEnvelope`]. [`analyzer`] annotates the result
 //! (duplicates / warnings) and [`convert`] turns it into Tabularis'
 //! `ExportPayload`, which is merged through the existing import path.
 

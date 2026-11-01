@@ -239,6 +239,59 @@ async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() 
 }
 
 #[tokio::test]
+async fn anthropic_skips_thinking_blocks_before_the_text_block() {
+    let fixture = Fixture::new(
+        true,
+        vec![(
+            200,
+            json!({"content":[
+                {"type":"thinking","thinking":"","signature":"fixture-signature"},
+                {"type":"text","text":"```sql\nSELECT COUNT(*) FROM authors;\n```"}
+            ]}),
+        )],
+    );
+    assert_eq!(
+        generate("anthropic", &fixture).await.unwrap(),
+        "SELECT COUNT(*) FROM authors;"
+    );
+    fixture.requests.join().unwrap();
+}
+
+#[tokio::test]
+async fn anthropic_without_a_text_block_is_an_invalid_response() {
+    let fixture = Fixture::new(
+        true,
+        vec![(
+            200,
+            json!({"content":[{"type":"thinking","thinking":"","signature":"fixture-signature"}]}),
+        )],
+    );
+    let error = generate("anthropic", &fixture).await.unwrap_err();
+    assert_eq!(error, "Invalid response format from Anthropic");
+    fixture.requests.join().unwrap();
+}
+
+#[tokio::test]
+async fn anthropic_reports_max_tokens_when_no_text_block_was_produced() {
+    let fixture = Fixture::new(
+        true,
+        vec![(
+            200,
+            json!({
+                "stop_reason":"max_tokens",
+                "content":[{"type":"thinking","thinking":"","signature":"fixture-signature"}]
+            }),
+        )],
+    );
+    let error = generate("anthropic", &fixture).await.unwrap_err();
+    assert_eq!(
+        error,
+        "Anthropic stopped at the max_tokens limit before producing an answer"
+    );
+    fixture.requests.join().unwrap();
+}
+
+#[tokio::test]
 async fn existing_providers_propagate_http_failures() {
     for provider in [
         "openai",

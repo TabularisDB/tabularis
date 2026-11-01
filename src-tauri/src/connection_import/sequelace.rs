@@ -1,6 +1,6 @@
 //! Sequel Ace importer (macOS). Reads `Favorites.plist` from the sandbox
 //! container and pulls passwords from the login Keychain. Sequel Ace is
-//! MySQL-only. Ported from TablePro's `SequelAceImporter.swift`.
+//! MySQL-only.
 
 use std::path::{Path, PathBuf};
 

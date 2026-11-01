@@ -4,6 +4,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import {PluginRegistryProvider} from '@/contexts/PluginRegistryProvider';
+import {useConnectionCatalogue} from '@/hooks/useConnectionCatalogue';
 import {usePluginRegistry} from '@/hooks/usePluginRegistry';
 import type {RegistryPluginWithStatus} from '@/types/plugins';
 
@@ -13,6 +14,7 @@ const settings = vi.hoisted(() => ({
     settings: {tabulariumRegistryUrl: 'https://registry.example'},
     isLoading: false,
 }));
+vi.mock('@/hooks/useDrivers', () => ({useDrivers: () => ({allDrivers: []})}));
 vi.mock('@/hooks/useSettings', () => ({useSettings: () => settings}));
 vi.mock('@tauri-apps/api/event', () => ({listen: vi.fn()}));
 
@@ -112,5 +114,28 @@ describe('PluginRegistryProvider', () => {
         act(() => result.current.refresh());
         await waitFor(() => expect(result.current.updates).toHaveLength(1));
         expect(result.current.error).toBeNull();
+    });
+
+    it('shares each registry result with the connection catalogue, including deep-link installs', async () => {
+        settings.settings.tabulariumRegistryUrl = 'https://catalogue.example';
+        const {result} = renderHook(
+            () => ({registry: usePluginRegistry(), catalogue: useConnectionCatalogue(false)}),
+            {wrapper},
+        );
+        await waitFor(() => expect(result.current.registry.loading).toBe(false));
+        expect(result.current.catalogue.registry).toEqual([plugin]);
+        expect(invoke).toHaveBeenCalledTimes(1);
+
+        const installed = {...plugin, installed_version: '2.0.0', update_available: false};
+        vi.mocked(invoke).mockResolvedValue([installed]);
+        const callback = vi
+            .mocked(listen)
+            .mock.calls.filter(([event]) => event === 'tabularis://plugin-installed')
+            .at(-1)![1];
+        await act(async () =>
+            callback({event: 'tabularis://plugin-installed', id: 1, payload: {}}),
+        );
+        expect(result.current.catalogue.registry).toEqual([installed]);
+        expect(invoke).toHaveBeenCalledTimes(2);
     });
 });

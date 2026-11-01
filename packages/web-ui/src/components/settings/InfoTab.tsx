@@ -271,7 +271,7 @@ export function InfoTab() {
                                 <button
                                     onClick={() =>
                                         void platform.openExternalUrl(
-                                            'https://github.com/TabularisDB/tabularis/blob/main/web-ui-project/docs/WEB_MODE_UPGRADES.md',
+                                            'https://github.com/TabularisDB/tabularis/blob/main/docs/web/WEB_MODE_UPGRADES.md',
                                         )
                                     }
                                     className="mt-3 flex items-center gap-2 text-sm font-medium text-accent hover:text-accent/90 hover:underline"

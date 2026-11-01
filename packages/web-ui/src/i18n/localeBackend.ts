@@ -11,6 +11,7 @@ const locales = {
     ko: () => import('./locales/ko.json'),
     tl: () => import('./locales/tl.json'),
     'pt-BR': () => import('./locales/pt-BR.json'),
+    vi: () => import('./locales/vi.json'),
 };
 
 /** Bundled language chunks, including the browser's Filipino alias. No CDN. */

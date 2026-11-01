@@ -218,3 +218,116 @@ describe('QueryHistorySection database filter', () => {
         expect(visibleIds()).toEqual(['b-hr']);
     });
 });
+
+const timeRangeSelect = () =>
+    screen.getByRole('combobox', {
+        name: 'sidebar.historyTimeRangeFilter',
+    }) as HTMLSelectElement;
+const fromInput = () => screen.queryByLabelText('sidebar.historyDateFrom');
+const toInput = () => screen.queryByLabelText('sidebar.historyDateTo');
+
+describe('QueryHistorySection custom date range (#1226)', () => {
+    it('keeps From/To hidden until custom is selected', () => {
+        render(<PausableSection />);
+
+        expect(fromInput()).toBeNull();
+        expect(toInput()).toBeNull();
+        // The mode replaces the old standalone date fields, so it has to be a
+        // visible option of the select, not a hidden extra filter.
+        expect(
+            within(timeRangeSelect())
+                .getAllByRole('option')
+                .map((option) => option.textContent),
+        ).toEqual([
+            'sidebar.historyTimeAll',
+            'sidebar.historyTimeLastHour',
+            'sidebar.historyTimeToday',
+            'sidebar.historyTimeLast7Days',
+            'sidebar.historyTimeLast30Days',
+            'sidebar.historyTimeCustom',
+        ]);
+    });
+
+    it('reveals the date inputs when custom is selected', () => {
+        render(<PausableSection />);
+
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+
+        expect(fromInput()).not.toBeNull();
+        expect(toInput()).not.toBeNull();
+    });
+
+    it('drops the dates when switching back to a preset', () => {
+        render(<PausableSection />);
+
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        fireEvent.change(fromInput()!, {target: {value: '2026-10-01'}});
+        fireEvent.change(toInput()!, {target: {value: '2026-10-17'}});
+
+        fireEvent.change(timeRangeSelect(), {target: {value: 'today'}});
+
+        // A hidden bound would keep narrowing the list with no way to see or
+        // clear it, so leaving the mode has to drop both dates.
+        expect(fromInput()).toBeNull();
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        expect((fromInput() as HTMLInputElement).value).toBe('');
+        expect((toInput() as HTMLInputElement).value).toBe('');
+    });
+
+    it('resets the mode to All when the filters are cleared', () => {
+        render(<PausableSection />);
+
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        fireEvent.change(fromInput()!, {target: {value: '2026-10-01'}});
+
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyClearFilters'}));
+
+        expect(timeRangeSelect().value).toBe('all');
+        expect(fromInput()).toBeNull();
+    });
+
+    it('leaves no hidden database filter behind either', () => {
+        renderSection(CONNECTION_A);
+
+        fireEvent.change(databaseSelect(), {target: {value: 'db:sales'}});
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        // A window in the past, so the entries (all "now") match neither bound.
+        fireEvent.change(fromInput()!, {target: {value: '2026-01-01'}});
+        fireEvent.change(toInput()!, {target: {value: '2026-01-31'}});
+        expect(visibleIds()).toEqual([]);
+
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyClearFilters'}));
+
+        expect(databaseSelect().value).toBe('all');
+        expect(timeRangeSelect().value).toBe('all');
+        expect(visibleIds()).toEqual(['a-sales', 'a-hr', 'a-legacy']);
+    });
+});
+
+describe('QueryHistorySection custom date fields', () => {
+    it('opens the native picker when a date field is clicked', () => {
+        render(<PausableSection />);
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        const from = fromInput() as HTMLInputElement;
+        const showPicker = vi.fn();
+        from.showPicker = showPicker;
+
+        fireEvent.click(from);
+
+        // The native indicator is hidden to match the selects, so the click
+        // is the way to reach the calendar.
+        expect(showPicker).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps each label inside its field', () => {
+        render(<PausableSection />);
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+
+        const fromField = (fromInput() as HTMLInputElement).closest('label');
+        const toField = (toInput() as HTMLInputElement).closest('label');
+
+        expect(fromField).toHaveTextContent('sidebar.historyDateFrom');
+        expect(toField).toHaveTextContent('sidebar.historyDateTo');
+        expect(fromField).not.toBe(toField);
+    });
+});
