@@ -958,6 +958,67 @@ mod sqlite_round_trip {
         assert_eq!(fixture.run("target", indexes).await.rows, source);
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelling_an_export_leaves_no_file() {
+        let fixture = fixture().await;
+        fixture
+            .run(
+                "source",
+                "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, price REAL, active INTEGER, note TEXT)",
+            )
+            .await;
+        fixture
+            .run(
+                "source",
+                "WITH RECURSIVE seq(v) AS (SELECT 1 UNION ALL SELECT v + 1 FROM seq WHERE v < 300000) INSERT INTO items SELECT v, printf('%.200c', 'x'), v, 1, NULL FROM seq",
+            )
+            .await;
+        let state = Arc::new(ExportCancellationState::default());
+        let path = fixture.dir.join("items.sql");
+        let task = {
+            let runtime = fixture.runtime.clone();
+            let state = state.clone();
+            let path = path.clone();
+            tokio::spawn(async move {
+                export_table(
+                    &runtime,
+                    &state,
+                    None,
+                    "source".to_string(),
+                    TableExportOptions {
+                        table: "items".to_string(),
+                        content: TableSqlContent::StructureAndData,
+                        schema: None,
+                        database: None,
+                    },
+                    TableExportDestination::ServerPath(path),
+                )
+                .await
+            })
+        };
+        // Cancel once rows are being written.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while fixture.leftovers().is_empty() && std::time::Instant::now() < deadline {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        assert!(!fixture.leftovers().is_empty(), "the export never started");
+        crate::application::generic_exports::cancel_export(&state, None, "source").unwrap();
+
+        let result = task.await.unwrap();
+        assert_eq!(result.unwrap_err(), TABLE_EXPORT_CANCELLED);
+        assert!(!path.exists());
+        // The aborted task drops its scratch files as it unwinds.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !fixture.leftovers().is_empty() && std::time::Instant::now() < deadline {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            fixture.leftovers().is_empty(),
+            "scratch files remain: {:?}",
+            fixture.leftovers()
+        );
+    }
+
     #[tokio::test]
     async fn exports_and_imports_structure_and_data() {
         let fixture = fixture().await;
