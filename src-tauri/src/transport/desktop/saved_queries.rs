@@ -1,4 +1,4 @@
-use crate::application::productivity::{self, ProductivityCommand};
+use crate::application::productivity::{self, ProductivityCommand, SavedQueryVersion};
 use crate::saved_queries::*;
 use crate::saved_query_folders::SavedQueryFolder;
 use serde_json::from_value;
@@ -87,6 +87,39 @@ pub async fn delete_saved_query<R: Runtime>(
     )
     .await?;
     Ok(())
+}
+
+/// Previous versions of a saved query, newest first.
+#[tauri::command]
+pub async fn get_saved_query_versions<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: Option<String>,
+    id: String,
+) -> Result<Vec<SavedQueryVersion>, String> {
+    execute_typed(
+        &app,
+        ProductivityCommand::GetSavedQueryVersions { connection_id, id },
+    )
+    .await
+}
+
+/// Saves a previous version as the current content; the replaced content becomes a version.
+#[tauri::command]
+pub async fn restore_saved_query_version<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: Option<String>,
+    id: String,
+    version_id: String,
+) -> Result<SavedQuery, String> {
+    execute_typed(
+        &app,
+        ProductivityCommand::RestoreSavedQueryVersion {
+            connection_id,
+            id,
+            version_id,
+        },
+    )
+    .await
 }
 
 pub fn backfill_missing_database_for_connection<R: Runtime>(

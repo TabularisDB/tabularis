@@ -33,7 +33,7 @@ import type {
 import type {ForeignKey, Index} from '@/types/schema';
 import type {MonacoThemeDefinition, Theme} from '@/types/theme';
 import type {Settings} from '@/contexts/SettingsContext';
-import type {SavedQuery, SavedQueryFolder} from '@/contexts/SavedQueriesContext';
+import type {SavedQuery, SavedQueryFolder, SavedQueryVersion} from '@/contexts/SavedQueriesContext';
 import type {ColumnStatsRequest, PluginColumnStats} from '@/utils/columnStats';
 import type {QueryHistoryEntry, QueryHistoryResponse} from '@/types/queryHistory';
 import type {UserOverrides} from '@/utils/keybindings';
@@ -959,6 +959,16 @@ export interface CommandMap {
         'database'
     >;
     delete_saved_query: CommandDefinition<ConnectionIdRequest & {id: string}, void, 'database'>;
+    get_saved_query_versions: CommandDefinition<
+        ConnectionIdRequest & {id: string},
+        SavedQueryVersion[],
+        'database'
+    >;
+    restore_saved_query_version: CommandDefinition<
+        ConnectionIdRequest & {id: string; versionId: string},
+        SavedQuery,
+        'database'
+    >;
     get_saved_query_folders: CommandDefinition<ConnectionIdRequest, SavedQueryFolder[], 'database'>;
     create_saved_query_folder: CommandDefinition<
         ConnectionIdRequest & {name: string},

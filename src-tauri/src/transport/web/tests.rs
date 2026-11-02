@@ -1785,6 +1785,30 @@ async fn executes_representative_commands_over_versioned_rpc() {
     )
     .await;
     assert_eq!(updated_query["name"], "Named users");
+    let versions = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_saved_query_versions",
+        serde_json::json!({"connectionId": "metadata-fixture", "id": saved_query_id}),
+    )
+    .await;
+    assert_eq!(versions[0]["sql"], "SELECT * FROM users");
+    let restored_query = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "restore_saved_query_version",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "id": saved_query_id,
+            "versionId": versions[0]["id"]
+        }),
+    )
+    .await;
+    assert_eq!(restored_query["sql"], "SELECT * FROM users");
 
     let history_entry = rpc_data(
         &client,

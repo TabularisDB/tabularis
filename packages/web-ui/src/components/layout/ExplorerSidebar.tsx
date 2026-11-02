@@ -47,6 +47,7 @@ import {
     FolderInput,
     Pin,
     PinOff,
+    History,
 } from 'lucide-react';
 import {bindPlatformConfirm} from '@/platform/dialogs';
 import {saveSqlFile} from '@/utils/sqlFileTransfer';
@@ -76,6 +77,7 @@ import {CreateTableModal} from '@/components/modals/CreateTableModal';
 import {QueryModal} from '@/components/modals/QueryModal';
 import {SavedQueryFolderModal} from '@/components/modals/SavedQueryFolderModal';
 import {MoveSavedQueryModal} from '@/components/modals/MoveSavedQueryModal';
+import {SavedQueryHistoryModal} from '@/components/modals/SavedQueryHistoryModal';
 import {ModifyColumnModal} from '@/components/modals/ModifyColumnModal';
 import {SchemaObjectDetailsModal} from '@/components/modals/SchemaObjectDetailsModal';
 import type {SchemaObjectDetails} from '@/types/schemaObjectDetails';
@@ -260,6 +262,8 @@ export const ExplorerSidebar = ({
         renameFolder,
         deleteFolder,
         moveQuery,
+        getQueryVersions,
+        restoreQueryVersion,
     } = useSavedQueries();
     const {
         entries: historyEntries,
@@ -345,6 +349,7 @@ export const ExplorerSidebar = ({
     const [folderModal, setFolderModal] = useState<{folder: SavedQueryFolder | null} | null>(null);
     const [folderDeleteConfirm, setFolderDeleteConfirm] = useState<SavedQueryFolder | null>(null);
     const [moveQueryTarget, setMoveQueryTarget] = useState<SavedQuery | null>(null);
+    const [historyQueryTarget, setHistoryQueryTarget] = useState<SavedQuery | null>(null);
     const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
     const exportSavedQueries = async (toExport: SavedQuery[], title: string) => {
@@ -4723,6 +4728,20 @@ export const ExplorerSidebar = ({
                                                             },
                                                         },
                                                         {
+                                                            label: t('sidebar.versionHistory'),
+                                                            icon: History,
+                                                            action: () => {
+                                                                if (
+                                                                    contextMenu.data &&
+                                                                    'sql' in contextMenu.data
+                                                                ) {
+                                                                    setHistoryQueryTarget(
+                                                                        contextMenu.data as SavedQuery,
+                                                                    );
+                                                                }
+                                                            },
+                                                        },
+                                                        {
                                                             label: t('sidebar.moveToFolder'),
                                                             icon: FolderInput,
                                                             action: () => {
@@ -4977,6 +4996,14 @@ export const ExplorerSidebar = ({
                 query={moveQueryTarget}
                 folders={folders}
                 onMove={moveQuery}
+            />
+
+            <SavedQueryHistoryModal
+                isOpen={historyQueryTarget !== null}
+                onClose={() => setHistoryQueryTarget(null)}
+                query={historyQueryTarget}
+                loadVersions={getQueryVersions}
+                onRestore={restoreQueryVersion}
             />
 
             <ConfirmModal
