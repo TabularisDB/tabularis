@@ -21,7 +21,7 @@ use uuid::Uuid;
 use super::connection_files::GeneratedFile;
 use super::database_transfers::{
     self, json_column_names, plugin_dump_has_more, plugin_row_cells, stream_sql_rows,
-    DumpCancellationState, ImportProgress, JobKind, JobRegistration,
+    DumpCancellationState, ImportProgress, JobKind, JobRegistration, SqlCell,
 };
 use super::file_transfers::{FileTransferStore, MAX_FILE_TRANSFER_BYTES};
 use super::generic_exports::{export_key, ExportRegistration};
@@ -179,7 +179,53 @@ pub(crate) fn check_import_target(
     Ok(())
 }
 
-/// `SELECT` of the insertable columns, ordered by the primary key when there
+/// How the export reads one column of a built-in driver, so its value
+/// comes back exactly on import.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ColumnRead {
+    /// As the driver extracts it.
+    Value,
+    /// As the engine's own text form (`col::text`), written as a string
+    /// literal: PostgreSQL reads that back into any type, including arrays,
+    /// `bytea`, ranges and `timestamptz` with its offset.
+    Text,
+    /// As hex (`HEX(col)`), written as `X'...'`: binary columns, whose
+    /// extracted value is a truncated preview.
+    Hex,
+}
+
+/// How each exported column of a built-in driver is read. Plugins render
+/// their own values (`render_insert_statements`), so they read every column
+/// as is.
+pub(crate) fn column_reads(driver: &str, columns: &[TableColumn]) -> Vec<ColumnRead> {
+    columns
+        .iter()
+        .filter(|column| !column.is_generated)
+        .map(|column| match driver {
+            "postgres" => ColumnRead::Text,
+            "mysql" | "sqlite" if is_binary_type(driver, &column.data_type) => ColumnRead::Hex,
+            _ => ColumnRead::Value,
+        })
+        .collect()
+}
+
+fn is_binary_type(driver: &str, data_type: &str) -> bool {
+    let data_type = data_type.trim().to_ascii_lowercase();
+    match driver {
+        // SQLite: a declared type containing BLOB, or none (BLOB affinity).
+        "sqlite" => data_type.is_empty() || data_type.contains("blob"),
+        _ => {
+            let base = data_type.split(['(', ' ']).next().unwrap_or_default();
+            matches!(
+                base,
+                "binary" | "varbinary" | "tinyblob" | "blob" | "mediumblob" | "longblob" | "bit"
+            )
+        }
+    }
+}
+
+/// `SELECT` of the insertable columns, each read the way `reads` says
+/// (`Value` for all when it is empty), ordered by the primary key when there
 /// is one so plugin paging is deterministic. Generated columns are left out:
 /// engines refuse values for them.
 pub(crate) fn export_select(
@@ -187,11 +233,23 @@ pub(crate) fn export_select(
     schema: Option<&str>,
     table: &str,
     columns: &[TableColumn],
+    reads: &[ColumnRead],
 ) -> String {
     let selected = columns
         .iter()
         .filter(|column| !column.is_generated)
-        .map(|column| dialect.quote_identifier(&column.name))
+        .enumerate()
+        .map(|(index, column)| {
+            let name = dialect.quote_identifier(&column.name);
+            match reads.get(index).copied().unwrap_or(ColumnRead::Value) {
+                ColumnRead::Value => name,
+                ColumnRead::Text => format!("{name}::text AS {name}"),
+                // SQLite's hex(NULL) is '', so NULL is kept apart from an empty value.
+                ColumnRead::Hex => {
+                    format!("CASE WHEN {name} IS NULL THEN NULL ELSE HEX({name}) END AS {name}")
+                }
+            }
+        })
         .collect::<Vec<_>>();
     let list = if selected.is_empty() {
         "*".to_string()
@@ -212,6 +270,23 @@ pub(crate) fn export_select(
         "SELECT {list} FROM {}{order}",
         dialect.table_ref(schema, table)
     )
+}
+
+/// One exported cell as SQL, following how its column was read.
+pub(crate) fn render_cell(cell: SqlCell, read: ColumnRead, dialect: &DumpDialect) -> String {
+    match (read, &cell.value) {
+        (ColumnRead::Text, _) => SqlCell {
+            is_json: false,
+            ..cell
+        }
+        .render(dialect),
+        (ColumnRead::Hex, serde_json::Value::String(hex))
+            if hex.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
+        {
+            format!("X'{hex}'")
+        }
+        _ => cell.render(dialect),
+    }
 }
 
 /// `shop.public.orders`: where an export came from, for the header.
@@ -401,7 +476,13 @@ async fn write_table_export(
     let mut rows = 0;
     if options.content.has_data() {
         writeln!(body, "{}", section_marker(SECTION_DATA)).map_err(io)?;
-        let query = export_select(&dialect, schema, table, &columns);
+        let builtin = is_builtin_driver(driver);
+        let reads = if builtin {
+            column_reads(driver, &columns)
+        } else {
+            Vec::new()
+        };
+        let query = export_select(&dialect, schema, table, &columns, &reads);
         let progress_runtime = runtime.clone();
         let progress_connection = connection_id.to_string();
         let mut progress = ProgressEmitter::new(DEFAULT_PROGRESS_INTERVAL, move |rows_processed| {
@@ -423,7 +504,7 @@ async fn write_table_export(
             batch: Vec::new(),
             columns: Vec::new(),
         };
-        if is_builtin_driver(driver) {
+        if builtin {
             stream_sql_rows(
                 &drv,
                 params,
@@ -438,7 +519,11 @@ async fn write_table_export(
                     writer.push(
                         cells
                             .into_iter()
-                            .map(|cell| cell.render(&dialect))
+                            .enumerate()
+                            .map(|(index, cell)| {
+                                let read = reads.get(index).copied().unwrap_or(ColumnRead::Value);
+                                render_cell(cell, read, &dialect)
+                            })
                             .collect(),
                     )?;
                     progress.tick();
@@ -863,6 +948,7 @@ pub fn cancel_table_import(
     database_transfers::cancel_job(state, session_id, JobKind::TableImport, connection_id)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_table_import(
     runtime: &RuntimeContext,
     session_id: Option<Uuid>,

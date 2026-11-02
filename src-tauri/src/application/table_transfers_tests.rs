@@ -207,7 +207,13 @@ mod select {
             column("doubled", false, true),
         ];
         assert_eq!(
-            export_select(&dialect("\"", true), Some("public"), "orders", &columns),
+            export_select(
+                &dialect("\"", true),
+                Some("public"),
+                "orders",
+                &columns,
+                &[]
+            ),
             "SELECT \"id\", \"total\" FROM \"public\".\"orders\" ORDER BY \"id\""
         );
     }
@@ -216,15 +222,130 @@ mod select {
     fn uses_the_plugin_identifier_quote() {
         let columns = [column("a", false, false)];
         assert_eq!(
-            export_select(&dialect("`", false), Some("ignored"), "t", &columns),
+            export_select(&dialect("`", false), Some("ignored"), "t", &columns, &[]),
             "SELECT `a` FROM `t`"
+        );
+    }
+
+    fn typed(name: &str, data_type: &str) -> TableColumn {
+        TableColumn {
+            data_type: data_type.to_string(),
+            ..column(name, false, false)
+        }
+    }
+
+    #[test]
+    fn reads_postgres_columns_as_text_and_binary_columns_as_hex() {
+        let columns = [
+            typed("id", "integer"),
+            typed("raw", "bytea"),
+            TableColumn {
+                is_generated: true,
+                ..typed("doubled", "integer")
+            },
+        ];
+        let reads = column_reads("postgres", &columns);
+        assert_eq!(reads, [ColumnRead::Text, ColumnRead::Text]);
+        assert_eq!(
+            export_select(&dialect("\"", true), Some("public"), "t", &columns, &reads),
+            "SELECT \"id\"::text AS \"id\", \"raw\"::text AS \"raw\" FROM \"public\".\"t\""
+        );
+
+        let columns = [
+            typed("id", "int"),
+            typed("raw", "BLOB"),
+            typed("hash", "varbinary(16)"),
+            typed("flags", "bit(8)"),
+            typed("name", "varchar(20)"),
+        ];
+        let reads = column_reads("mysql", &columns);
+        assert_eq!(
+            reads,
+            [
+                ColumnRead::Value,
+                ColumnRead::Hex,
+                ColumnRead::Hex,
+                ColumnRead::Hex,
+                ColumnRead::Value
+            ]
+        );
+        assert_eq!(
+            export_select(&dialect("`", false), None, "t", &columns[..2], &reads[..2]),
+            "SELECT `id`, CASE WHEN `raw` IS NULL THEN NULL ELSE HEX(`raw`) END AS `raw` FROM `t`"
+        );
+
+        let columns = [typed("a", "INTEGER"), typed("b", "blob"), typed("c", "")];
+        assert_eq!(
+            column_reads("sqlite", &columns),
+            [ColumnRead::Value, ColumnRead::Hex, ColumnRead::Hex]
+        );
+        // Plugins render their own values.
+        assert_eq!(
+            column_reads("duckdb", &[typed("raw", "blob")]),
+            [ColumnRead::Value]
+        );
+    }
+
+    #[test]
+    fn renders_hex_and_text_reads() {
+        let mysql = DumpDialect {
+            string_escape: LiteralStyle::Mysql,
+            ..dialect("`", false)
+        };
+        let cell = |value: serde_json::Value, is_json: bool| SqlCell { value, is_json };
+        assert_eq!(
+            render_cell(
+                cell(serde_json::json!("DEADBEEF00"), false),
+                ColumnRead::Hex,
+                &mysql
+            ),
+            "X'DEADBEEF00'"
+        );
+        assert_eq!(
+            render_cell(cell(serde_json::json!(""), false), ColumnRead::Hex, &mysql),
+            "X''"
+        );
+        assert_eq!(
+            render_cell(
+                cell(serde_json::Value::Null, false),
+                ColumnRead::Hex,
+                &mysql
+            ),
+            "NULL"
+        );
+        // Anything that isn't plain hex is written as a normal literal.
+        assert_eq!(
+            render_cell(
+                cell(serde_json::json!("x'; DROP"), false),
+                ColumnRead::Hex,
+                &mysql
+            ),
+            "'x''; DROP'"
+        );
+        // A JSON column read as text is already JSON text: written as is.
+        let postgres = dialect("\"", true);
+        assert_eq!(
+            render_cell(
+                cell(serde_json::json!("{\"k\": 1}"), true),
+                ColumnRead::Text,
+                &postgres
+            ),
+            "'{\"k\": 1}'"
+        );
+        assert_eq!(
+            render_cell(
+                cell(serde_json::json!("{\"k\": 1}"), true),
+                ColumnRead::Value,
+                &postgres
+            ),
+            "'\"{\\\"k\\\": 1}\"'"
         );
     }
 
     #[test]
     fn falls_back_to_star_without_column_metadata() {
         assert_eq!(
-            export_select(&dialect("\"", false), None, "t", &[]),
+            export_select(&dialect("\"", false), None, "t", &[], &[]),
             "SELECT * FROM \"t\""
         );
     }
@@ -468,6 +589,39 @@ mod sqlite_round_trip {
         let imported = fixture.import(&path, IfTableExists::Fail).await.unwrap();
         assert_eq!(imported.rows, 2);
         assert_eq!(fixture.rows("target").await, fixture.rows("source").await);
+    }
+
+    #[tokio::test]
+    async fn keeps_binary_values_past_the_read_preview() {
+        // The grid reads at most a 10 KB preview of a blob; the export must
+        // carry the whole value.
+        let fixture = fixture().await;
+        fixture
+            .run(
+                "source",
+                "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL, price REAL, active INTEGER, note BLOB)",
+            )
+            .await;
+        fixture
+            .run(
+                "source",
+                "INSERT INTO items VALUES (1, 'big', NULL, 1, zeroblob(20000)), (2, 'small', NULL, 0, X'DEADBEEF00'), (3, 'empty', NULL, 0, X''), (4, 'none', NULL, 0, NULL)",
+            )
+            .await;
+        fixture
+            .run(
+                "source",
+                "UPDATE items SET note = randomblob(20000) WHERE id = 1",
+            )
+            .await;
+        let (path, _) = fixture.export(TableSqlContent::StructureAndData).await;
+        fixture.import(&path, IfTableExists::Fail).await.unwrap();
+
+        let hex = "SELECT id, hex(note), length(note), typeof(note) FROM items ORDER BY id";
+        assert_eq!(
+            fixture.run("target", hex).await.rows,
+            fixture.run("source", hex).await.rows
+        );
     }
 
     #[tokio::test]

@@ -520,7 +520,7 @@ impl SqlScanRules {
             });
         }
         // Longer openers first, so `$$`-like or multi-character quotes win.
-        quotes.sort_by(|a, b| b.open.len().cmp(&a.open.len()));
+        quotes.sort_by_key(|quote| std::cmp::Reverse(quote.open.len()));
         Self {
             quotes,
             triple_quoted_strings: syntax.triple_quoted_strings,
@@ -579,7 +579,7 @@ impl<'a> Scanner<'a> {
             ScanState::Code => {
                 if rest.starts_with("--")
                     && (!rules.line_comment_requires_space
-                        || rest[2..].chars().next().is_none_or(char::is_whitespace))
+                        || rest[2..].chars().next().map_or(true, char::is_whitespace))
                 {
                     self.state = ScanState::LineComment;
                     return (2, None);

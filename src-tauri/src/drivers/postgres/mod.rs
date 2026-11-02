@@ -1034,7 +1034,10 @@ pub async fn get_table_ddl(
     let mut pks = Vec::new();
 
     for col in cols {
-        let mut def = format!("\"{}\" {}", col.name, col.data_type);
+        // `full_type` is `format_type()`: `text[]`, `numeric(10,2)`, ...;
+        // `data_type` alone says `ARRAY` or drops the precision.
+        let data_type = col.full_type.as_deref().unwrap_or(&col.data_type);
+        let mut def = format!("\"{}\" {}", col.name, data_type);
 
         if !col.is_nullable {
             def.push_str(" NOT NULL");
