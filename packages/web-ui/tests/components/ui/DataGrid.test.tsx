@@ -92,8 +92,13 @@ vi.mock('react-i18next', () => ({
     },
 }));
 
+// Settings read by the grid; a test may set a field and must reset it.
+const {settingsState} = vi.hoisted(() => ({
+    settingsState: {} as {nullDisplay?: 'default' | 'parenthesized' | 'emptySet' | 'empty'},
+}));
+
 vi.mock('@/hooks/useSettings', () => ({
-    useSettings: () => ({settings: {}}),
+    useSettings: () => ({settings: settingsState}),
 }));
 
 vi.mock('@/hooks/useRightSidebar', () => ({
@@ -198,6 +203,48 @@ describe('DataGrid layout', () => {
         expect(tooltips[1]).toHaveClass('hidden', 'right-0');
         expect(tooltips[1]).not.toHaveClass('left-0');
         expect(tooltips[1]).toHaveTextContent('Customer display name');
+    });
+});
+
+describe('DataGrid NULL display (#1300)', () => {
+    afterEach(() => {
+        delete settingsState.nullDisplay;
+    });
+
+    const renderGrid = () =>
+        render(
+            <DataGrid
+                columns={['id', 'note', 'title']}
+                data={[[1, null, '']]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+    const cell = (container: HTMLElement, colIndex: number) =>
+        container.querySelector<HTMLElement>(`td[data-col-index="${colIndex}"]`)!;
+
+    it('shows the translated NULL label by default', () => {
+        const {container} = renderGrid();
+        expect(cell(container, 1).querySelector('span.text-muted')).toHaveTextContent(
+            'dataGrid.null',
+        );
+    });
+
+    it('shows the chosen NULL label in the NULL style', () => {
+        settingsState.nullDisplay = 'emptySet';
+        const {container} = renderGrid();
+        expect(cell(container, 1).querySelector('span.text-muted.italic')).toHaveTextContent('∅');
+        expect(cell(container, 2).textContent).toBe('');
+        expect(cell(container, 2).querySelector('span.text-muted')).toBeNull();
+    });
+
+    it('keeps an empty-cell NULL apart from an empty string', () => {
+        settingsState.nullDisplay = 'empty';
+        const {container} = renderGrid();
+        expect(cell(container, 1).textContent).toBe('');
+        expect(cell(container, 1).querySelector('[data-null-marker]')).not.toBeNull();
+        expect(cell(container, 2).querySelector('[data-null-marker]')).toBeNull();
     });
 });
 

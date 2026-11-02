@@ -319,6 +319,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         schema_preferences,
         selected_schemas,
         max_blob_size,
+        null_display,
         copy_format,
         csv_delimiter,
         csv_include_headers,

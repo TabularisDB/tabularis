@@ -99,6 +99,7 @@ import {
 import {isTypingTarget} from '@/utils/keyboardEvents';
 import {getSortButtonAction} from '@/utils/tableToolbar';
 import {useSettings} from '@/hooks/useSettings';
+import {getNullDisplayLabel} from '@/utils/nullDisplay';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {useJsonEditorActivity} from '@/hooks/useJsonEditorActivity';
 import {isGeometricType, formatGeometricValue} from '@/utils/geometry';
@@ -407,6 +408,8 @@ export const DataGrid = React.memo(function DataGrid({
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
     const zebraStripes = settings.resultZebraStripes ?? false;
+    // Display only (#1300): copy and export keep their own NULL text.
+    const nullLabel = getNullDisplayLabel(settings.nullDisplay, t('dataGrid.null'));
     const defaultSortDirection = settings.defaultSortDirection ?? 'asc';
     const copyNullLabel = settings.copyNullLabel ?? 'null';
 
@@ -1689,7 +1692,6 @@ export const DataGrid = React.memo(function DataGrid({
                 : FIT_COLUMN_PADDING;
             const colType = columnTypeMap?.get(colName);
             const colLength = columnLengthMap?.get(colName);
-            const nullLabel = t('dataGrid.null');
             const textWidths = mergedRows.map(
                 (row) =>
                     ctx.measureText(
@@ -1712,7 +1714,7 @@ export const DataGrid = React.memo(function DataGrid({
                 ),
             );
         },
-        [columns, columnTypeMap, columnLengthMap, mergedRows, resizeColumn, t],
+        [columns, columnTypeMap, columnLengthMap, mergedRows, resizeColumn, nullLabel],
     );
     const resizedTableWidth = getResizedTableWidth(lockedColumnWidths, columnWidths);
 
@@ -3280,6 +3282,7 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            nullLabel,
             frozenFirstColumnLeft,
         }),
         [
@@ -3326,6 +3329,7 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            nullLabel,
             frozenFirstColumnLeft,
         ],
     );

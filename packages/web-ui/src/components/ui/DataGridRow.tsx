@@ -68,6 +68,8 @@ export interface RowCtx {
     readonly: boolean | undefined;
     /** Optional alternating row background (Settings > Appearance > Data Grid). */
     zebraStripes: boolean;
+    /** Label of NULL cells (Settings > General > Data Editor, #1300). */
+    nullLabel: string;
     /**
      * Sticky `left` offset of the first data column while it is frozen (#1152),
      * or null when it scrolls with the rest.
@@ -197,6 +199,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         pkIndexMaps,
         parentViewportWidth,
         readonly: readonlyProp,
+        nullLabel,
         zebraStripes,
         frozenFirstColumnLeft,
         maskedColIndices,
@@ -410,7 +413,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     // the rendered content (previously formatted twice).
                     const formattedDisplay = formatCellValue(
                         displayValue,
-                        t('dataGrid.null'),
+                        nullLabel,
                         colTypeForCell,
                         columnLengthMap?.get(colName),
                     );
