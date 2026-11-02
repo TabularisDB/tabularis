@@ -140,6 +140,7 @@ export function ResultEntryContent({
                     ref={commandTargetRef}
                     key={`${entry.id}-${entry.result.rows.length}`}
                     columns={entry.result.columns}
+                    hiddenColumnsKey={entry.id}
                     data={entry.result.rows}
                     tableName={null}
                     pkColumns={null}
@@ -220,6 +221,7 @@ export function ResultEntryContent({
                         ref={commandTargetRef}
                         key={`${entry.id}-${entry.result.rows.length}`}
                         columns={entry.result.columns}
+                        hiddenColumnsKey={entry.id}
                         data={entry.result.rows}
                         tableName={null}
                         pkColumns={null}

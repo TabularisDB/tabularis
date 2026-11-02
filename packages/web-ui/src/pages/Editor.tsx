@@ -6454,6 +6454,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 columns={activeTab.result?.columns || []}
                                                 data={activeTab.result?.rows || []}
                                                 tableName={activeTab.activeTable}
+                                                hiddenColumnsKey={activeTab.id}
                                                 pkColumns={rowIdentity?.columns ?? null}
                                                 autoIncrementColumns={
                                                     activeTab.autoIncrementColumns

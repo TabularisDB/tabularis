@@ -183,6 +183,8 @@ interface DataGridProps {
     columns: string[];
     data: unknown[][];
     tableName?: string | null;
+    /** Keeps hidden columns when the grid remounts with the same columns, e.g. after Submit. */
+    hiddenColumnsKey?: string;
     pkColumns?: string[] | null;
     autoIncrementColumns?: string[];
     defaultValueColumns?: string[];
@@ -337,6 +339,7 @@ export const DataGrid = React.memo(function DataGrid({
     columns,
     data,
     tableName,
+    hiddenColumnsKey,
     pkColumns,
     autoIncrementColumns,
     defaultValueColumns,
@@ -481,7 +484,7 @@ export const DataGrid = React.memo(function DataGrid({
         hide: hideGridColumn,
         show: showGridColumn,
         showAll: showAllGridColumns,
-    } = useHiddenColumns(columns);
+    } = useHiddenColumns(columns, hiddenColumnsKey);
     // With hidden columns, the frozen column is the first visible one.
     const frozenColIndex = visibleColumns[0] ?? 0;
     const [hiddenColumnsMenu, setHiddenColumnsMenu] = useState<{x: number; y: number} | null>(null);
@@ -2087,9 +2090,27 @@ export const DataGrid = React.memo(function DataGrid({
         [writeToClipboard],
     );
 
+    // SQL UPDATE needs the primary key for its WHERE clause, so row copies keep a hidden
+    // key column while still leaving the other hidden columns out of the SET list.
+    const hiddenNonKeyColumns = useMemo(
+        () =>
+            pkColumns && pkColumns.length > 0
+                ? new Set(
+                      Array.from(hiddenColumns).filter(
+                          (colIndex) => !pkColumns.includes(columns[colIndex]),
+                      ),
+                  )
+                : hiddenColumns,
+        [hiddenColumns, pkColumns, columns],
+    );
+
     const formatRows = useCallback(
         (rows: unknown[][], withHeaders = false) => {
-            const visible = projectVisibleColumns(rows, columns, hiddenColumns);
+            const visible = projectVisibleColumns(
+                rows,
+                columns,
+                copyFormat === 'sql-update' ? hiddenNonKeyColumns : hiddenColumns,
+            );
             return formatRowsForCopy(visible.rows, visible.columns, copyFormat ?? 'csv', {
                 withHeaders,
                 csvIncludeHeaders,
@@ -2103,6 +2124,7 @@ export const DataGrid = React.memo(function DataGrid({
         [
             columns,
             hiddenColumns,
+            hiddenNonKeyColumns,
             copyFormat,
             csvDelimiter,
             csvIncludeHeaders,
@@ -2114,13 +2136,19 @@ export const DataGrid = React.memo(function DataGrid({
     );
 
     // SQL UPDATE needs the primary key for its WHERE clause. Without it the copy falls
-    // back to SQL INSERT (see formatRowsForCopy), and the toast says so.
+    // back to SQL INSERT (see formatRowsForCopy), and the toast says so. Row copies are
+    // checked against the columns formatRows copies.
     const copiedRowsToast = useCallback(
-        (rows: unknown[][], copiedColumns: string[] = columns) =>
-            copyFormat === 'sql-update' && sqlUpdateBlocker(copiedColumns, pkColumns, rows) !== null
+        (rows: unknown[][], copiedColumns?: string[]) => {
+            const copied = copiedColumns
+                ? {rows, columns: copiedColumns}
+                : projectVisibleColumns(rows, columns, hiddenNonKeyColumns);
+            return copyFormat === 'sql-update' &&
+                sqlUpdateBlocker(copied.columns, pkColumns, copied.rows) !== null
                 ? t('dataGrid.copiedAsInsertNoKey', {count: rows.length})
-                : rowsCopiedToast(rows.length),
-        [columns, copyFormat, pkColumns, rowsCopiedToast, t],
+                : rowsCopiedToast(rows.length);
+        },
+        [columns, hiddenNonKeyColumns, copyFormat, pkColumns, rowsCopiedToast, t],
     );
 
     // Rows the row context menu acts on: the selected rows (pending insertions
@@ -2170,15 +2198,18 @@ export const DataGrid = React.memo(function DataGrid({
     // the default copy format is. The menu enables it only when sqlUpdateBlocker allows.
     const copySelectedOrContextRowAsSqlUpdate = useCallback(async () => {
         const rows = getContextRows();
-        if (!rows || !pkColumns || sqlUpdateBlocker(columns, pkColumns, rows) !== null) return;
+        if (!rows || !pkColumns) return;
+        const copied = projectVisibleColumns(rows, columns, hiddenNonKeyColumns);
+        if (sqlUpdateBlocker(copied.columns, pkColumns, copied.rows) !== null) return;
         await copyToClipboard(
-            rowsToSqlUpdate(rows, columns, tableName ?? 'table', pkColumns, copyDriver),
+            rowsToSqlUpdate(copied.rows, copied.columns, tableName ?? 'table', pkColumns, copyDriver),
             rowsCopiedToast(rows.length),
         );
     }, [
         getContextRows,
         pkColumns,
         columns,
+        hiddenNonKeyColumns,
         tableName,
         copyDriver,
         copyToClipboard,
@@ -2850,7 +2881,9 @@ export const DataGrid = React.memo(function DataGrid({
                 pending,
                 columnTypes: columnTypeMap,
                 columnLengths: columnLengthMap,
-                isExcluded: (colIndex) => isCellMasked(rowIndex, colIndex),
+                // Hidden columns can't show a match, so find skips them.
+                isExcluded: (colIndex) =>
+                    hiddenColumns.has(colIndex) || isCellMasked(rowIndex, colIndex),
             });
         },
         [
@@ -2862,6 +2895,7 @@ export const DataGrid = React.memo(function DataGrid({
             columnTypeMap,
             columnLengthMap,
             isCellMasked,
+            hiddenColumns,
         ],
     );
     const scrollRowToCenter = useCallback(
@@ -3983,10 +4017,16 @@ export const DataGrid = React.memo(function DataGrid({
 
                         // Shown even when it can't run, with the reason, so the format is
                         // discoverable and it's clear why a safe WHERE can't be built.
-                        const updateBlocker = sqlUpdateBlocker(
+                        const updateRows = getContextRows();
+                        const updateCopy = projectVisibleColumns(
+                            updateRows ?? [],
                             columns,
+                            hiddenNonKeyColumns,
+                        );
+                        const updateBlocker = sqlUpdateBlocker(
+                            updateCopy.columns,
                             pkColumns,
-                            getContextRows() ?? undefined,
+                            updateRows ? updateCopy.rows : undefined,
                         );
                         menuItems.push(
                             updateBlocker === null

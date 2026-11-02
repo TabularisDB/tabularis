@@ -3872,4 +3872,106 @@ describe('DataGrid hidden columns (#1299)', () => {
             'id,name\n1,First\n3,Third\n',
         );
     });
+
+    describe('SQL UPDATE copies', () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+
+        beforeEach(() => {
+            writeText.mockClear();
+            showToastMock.mockClear();
+            Object.defineProperty(navigator, 'clipboard', {
+                value: {writeText},
+                configurable: true,
+            });
+        });
+
+        const renderKeyedGrid = (copyFormat?: 'sql-update') =>
+            render(
+                <DataGrid
+                    columns={columns}
+                    data={data}
+                    tableName="users"
+                    pkColumns={['id']}
+                    copyFormat={copyFormat}
+                    selectedRows={new Set([0])}
+                    onSelectionChange={vi.fn()}
+                />,
+            );
+
+        it('keys Copy as SQL UPDATE on a hidden primary key and leaves other hidden columns out', async () => {
+            const {container} = renderKeyedGrid();
+            await hideColumn(container, 0);
+            await hideColumn(container, 1);
+
+            fireEvent.contextMenu(cellAt(container, 0, 2)!);
+            fireEvent.click(await screen.findByText('dataGrid.copyAsSqlUpdate'));
+
+            await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+            expect(writeText.mock.calls[0][0]).toBe(
+                "UPDATE `users` SET `name` = 'First' WHERE `id` = 1;",
+            );
+        });
+
+        it('keeps SQL UPDATE as the default copy format when the primary key is hidden', async () => {
+            const {container} = renderKeyedGrid('sql-update');
+            await hideColumn(container, 0);
+
+            fireEvent.contextMenu(cellAt(container, 0, 2)!);
+            fireEvent.click(await screen.findByText('dataGrid.copySelectedN'));
+
+            await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+            expect(writeText.mock.calls[0][0]).toBe(
+                "UPDATE `users` SET `created_by` = 'alice', `name` = 'First' WHERE `id` = 1;",
+            );
+            expect(showToastMock).not.toHaveBeenCalledWith(
+                'dataGrid.copiedAsInsertNoKey',
+                expect.anything(),
+            );
+        });
+    });
+
+    describe('remounting', () => {
+        const gridWithKey = (key: string, gridColumns: string[], hiddenColumnsKey?: string) => (
+            <DataGrid
+                key={key}
+                columns={gridColumns}
+                data={data}
+                hiddenColumnsKey={hiddenColumnsKey}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+            />
+        );
+
+        it('keeps hidden columns when the grid remounts with the same key and columns', async () => {
+            const {container, rerender} = render(gridWithKey('a', columns, 'remount-same'));
+            await hideColumn(container, 1);
+
+            // Submit refreshes the result with a new grid key, which remounts the grid.
+            rerender(gridWithKey('b', columns, 'remount-same'));
+
+            expect(headerAt(container, 1)).not.toBeVisible();
+            expect(screen.getByRole('button', {name: 'dataGrid.hiddenColumns'})).toHaveTextContent(
+                '1',
+            );
+        });
+
+        it('starts with every column visible when the remounted grid has other columns', async () => {
+            const {container, rerender} = render(gridWithKey('a', columns, 'remount-other'));
+            await hideColumn(container, 1);
+
+            rerender(gridWithKey('b', ['id', 'email', 'name'], 'remount-other'));
+
+            expect(headerAt(container, 1)).toBeVisible();
+            expect(screen.queryByRole('button', {name: 'dataGrid.hiddenColumns'})).toBeNull();
+        });
+
+        it('starts with every column visible after a remount without a key', async () => {
+            const {container, rerender} = render(gridWithKey('a', columns));
+            await hideColumn(container, 1);
+
+            rerender(gridWithKey('b', columns));
+
+            expect(headerAt(container, 1)).toBeVisible();
+        });
+    });
 });
