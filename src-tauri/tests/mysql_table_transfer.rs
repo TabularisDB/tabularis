@@ -2,7 +2,8 @@
 //! (#709) against a real MySQL/MariaDB server: a table exported from one
 //! database and imported into another comes back with the same values,
 //! including binary columns past the read preview size, JSON, text with
-//! quotes, backslashes and line breaks, and a commented definition.
+//! quotes, backslashes and line breaks, a commented definition, and the
+//! integer, decimal and floating-point extremes.
 //!
 //! Run against a disposable, TLS-enabled local MySQL/MariaDB server:
 //! `cargo test --test mysql_table_transfer -- --ignored --nocapture`
@@ -104,8 +105,13 @@ async fn rows(connection: &mut MySqlConnection, database: &str) -> Vec<Vec<Optio
          CAST(f AS CHAR), v FROM {}.orders ORDER BY id",
         quoted(database)
     );
+    text_rows(connection, &sql).await
+}
+
+/// The result of `sql`, every value as text.
+async fn text_rows(connection: &mut MySqlConnection, sql: &str) -> Vec<Vec<Option<String>>> {
     connection
-        .fetch_all(sqlx::raw_sql(&sql))
+        .fetch_all(sqlx::raw_sql(sql))
         .await
         .expect("read the table back")
         .iter()
@@ -115,6 +121,172 @@ async fn rows(connection: &mut MySqlConnection, database: &str) -> Vec<Vec<Optio
                 .collect()
         })
         .collect()
+}
+
+/// Exports `{source}.{table}` and imports it into `target`; the row counts.
+async fn transfer(
+    params: &ConnectionParams,
+    table: &str,
+    source: &str,
+    target: &str,
+) -> (u64, u64) {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = runtime(temp.path(), params);
+    let path = temp.path().join(format!("{table}.sql"));
+    let exported = export_table(
+        &runtime,
+        &ExportCancellationState::default(),
+        None,
+        "mysql".to_string(),
+        TableExportOptions {
+            table: table.to_string(),
+            content: TableSqlContent::StructureAndData,
+            schema: None,
+            database: Some(source.to_string()),
+        },
+        TableExportDestination::ServerPath(path.clone()),
+    )
+    .await
+    .expect("export");
+    let imported = import_table(
+        &runtime,
+        &DumpCancellationState::default(),
+        None,
+        "mysql".to_string(),
+        TableImportSource::ServerPath(path),
+        TableImportOptions {
+            if_exists: IfTableExists::Fail,
+            schema: None,
+            database: Some(target.to_string()),
+        },
+    )
+    .await
+    .expect("import");
+    (exported.rows, imported.rows)
+}
+
+/// Integer limits (signed and unsigned), `DECIMAL` with more digits than a
+/// double holds, and the double and float extremes come back unchanged.
+async fn exercise_numeric_extremes(
+    connection: &mut MySqlConnection,
+    params: &ConnectionParams,
+    source: &str,
+    target: &str,
+) {
+    execute(
+        connection,
+        &format!(
+            "CREATE TABLE {}.numbers (id int PRIMARY KEY, tiny tinyint, small smallint, \
+             big bigint, ubig bigint unsigned, uint int unsigned, exact decimal(65,30), \
+             d double, f float, b bit(64))",
+            quoted(source)
+        ),
+    )
+    .await;
+    execute(
+        connection,
+        &format!(
+            "INSERT INTO {}.numbers VALUES \
+             (1, 127, 32767, 9223372036854775807, 18446744073709551615, 4294967295, \
+              '12345678901234567890123456789012345.123456789012345678901234567890', \
+              1.7976931348623157e308, 3.40282e38, b'1111111111111111111111111111111111111111111111111111111111111111'), \
+             (2, -128, -32768, -9223372036854775808, 0, 0, \
+              '-12345678901234567890123456789012345.123456789012345678901234567890', \
+              -1.7976931348623157e308, -3.40282e38, b'0'), \
+             (3, 0, 0, 9007199254740993, 9007199254740993, 1, \
+              '0.000000000000000000000000000001', 2.2250738585072014e-308, 1.17549e-38, NULL), \
+             (4, NULL, NULL, -9007199254740993, NULL, NULL, NULL, -0.0, -0.0, NULL), \
+             (5, 1, 1, 0, 1, 1, 0.1, 0.30000000000000004, 0.1, b'101')",
+            quoted(source)
+        ),
+    )
+    .await;
+
+    assert_eq!(transfer(params, "numbers", source, target).await, (5, 5));
+    let compare = |database: &str| {
+        format!(
+            "SELECT CAST(id AS CHAR), CAST(tiny AS CHAR), CAST(small AS CHAR), \
+             CAST(big AS CHAR), CAST(ubig AS CHAR), CAST(uint AS CHAR), \
+             CAST(exact AS CHAR), CAST(d AS CHAR), CAST(f AS CHAR), HEX(b) \
+             FROM {}.numbers ORDER BY id",
+            quoted(database)
+        )
+    };
+    let target_rows = text_rows(connection, &compare(target)).await;
+    let source_rows = text_rows(connection, &compare(source)).await;
+    assert_eq!(target_rows, source_rows);
+    assert_eq!(
+        source_rows[0][4].as_deref(),
+        Some("18446744073709551615"),
+        "the unsigned maximum is in the source"
+    );
+
+    // Dates and times at their limits and with fractional seconds.
+    execute(
+        connection,
+        &format!(
+            "CREATE TABLE {}.moments (id int PRIMARY KEY, d date, dt datetime(6), \
+             ts timestamp(6) NULL, t time(6), y year)",
+            quoted(source)
+        ),
+    )
+    .await;
+    execute(
+        connection,
+        &format!(
+            "INSERT INTO {}.moments VALUES \
+             (1, '1000-01-01', '1000-01-01 00:00:00.000000', '1970-01-01 00:00:01.000001', \
+              '-838:59:59.000000', 1901), \
+             (2, '9999-12-31', '9999-12-31 23:59:59.999999', '2038-01-19 03:14:07.999999', \
+              '838:59:59.000000', 2155), \
+             (3, '2026-02-03', '2026-02-03 04:05:06.123456', NULL, '-00:00:00.500000', 0)",
+            quoted(source)
+        ),
+    )
+    .await;
+    assert_eq!(transfer(params, "moments", source, target).await, (3, 3));
+    let compare = |database: &str| {
+        format!(
+            "SELECT CAST(id AS CHAR), CAST(d AS CHAR), CAST(dt AS CHAR), CAST(ts AS CHAR), \
+             CAST(t AS CHAR), CAST(y AS CHAR) FROM {}.moments ORDER BY id",
+            quoted(database)
+        )
+    };
+    assert_eq!(
+        text_rows(connection, &compare(target)).await,
+        text_rows(connection, &compare(source)).await
+    );
+
+    // Spatial values with their SRID.
+    execute(
+        connection,
+        &format!(
+            "CREATE TABLE {}.shapes (id int PRIMARY KEY, g geometry, p point)",
+            quoted(source)
+        ),
+    )
+    .await;
+    execute(
+        connection,
+        &format!(
+            "INSERT INTO {}.shapes VALUES \
+             (1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 0))', 4326), ST_GeomFromText('POINT(1.5 -2.25)')), \
+             (2, NULL, NULL)",
+            quoted(source)
+        ),
+    )
+    .await;
+    assert_eq!(transfer(params, "shapes", source, target).await, (2, 2));
+    let compare = |database: &str| {
+        format!(
+            "SELECT CAST(id AS CHAR), HEX(g), HEX(p) FROM {}.shapes ORDER BY id",
+            quoted(database)
+        )
+    };
+    assert_eq!(
+        text_rows(connection, &compare(target)).await,
+        text_rows(connection, &compare(source)).await
+    );
 }
 
 async fn exercise_round_trip(
@@ -142,7 +314,8 @@ async fn exercise_round_trip(
               '{{\"k\": [1, \"x\"]}}', X'DEADBEEF00', 'b', 1.5, 'q'), \
              (NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL), \
              ('', 0, NULL, NULL, '\"text\"', UNHEX(REPEAT('AB', 20000)), 'a', -0.25, ''), \
-             ('empty blob', NULL, NULL, NULL, NULL, X'', NULL, NULL, NULL)",
+             ('empty blob', NULL, NULL, NULL, NULL, X'', NULL, NULL, NULL), \
+             ('caf\u{e9} \u{1f600} \u{4e2d}\u{6587}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '\u{1f600}')",
             quoted(source)
         ),
     )
@@ -166,7 +339,7 @@ async fn exercise_round_trip(
     )
     .await
     .expect("export");
-    assert_eq!(exported.rows, 4);
+    assert_eq!(exported.rows, 5);
     let imported = import_table(
         &runtime,
         &DumpCancellationState::default(),
@@ -181,7 +354,7 @@ async fn exercise_round_trip(
     )
     .await
     .expect("import");
-    assert_eq!(imported.rows, 4);
+    assert_eq!(imported.rows, 5);
     assert_eq!(
         rows(connection, target).await,
         rows(connection, source).await
@@ -245,6 +418,7 @@ async fn table_round_trips_into_another_database() {
             created.push(database.clone());
         }
         exercise_round_trip(&mut connection, &params, &source, &target).await;
+        exercise_numeric_extremes(&mut connection, &params, &source, &target).await;
     })
     .catch_unwind()
     .await;

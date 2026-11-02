@@ -111,7 +111,9 @@ async fn test_table_round_trips_into_another_schema() {
           '{{\"k\": [1, \"x\"]}}', '\\xdeadbeef', ARRAY['a', 'b;c'], '2026-02-03'), \
          (2, 2, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL), \
          (3, 1, '', 0, NULL, '2026-06-01 10:00:00+05:30', '\"text\"', \
-          decode(repeat('ab', 20000), 'hex'), '{{}}', NULL)"
+          decode(repeat('ab', 20000), 'hex'), '{{}}', NULL), \
+         (4, 2, 'caf\u{e9} \u{1f600} \u{4e2d}\u{6587}', NULL, NULL, NULL, NULL, NULL, \
+          ARRAY['\u{1f600}', NULL], NULL)"
     ))
     .await;
 
@@ -160,7 +162,95 @@ async fn test_table_round_trips_into_another_schema() {
     run(&format!("DROP SCHEMA {source} CASCADE")).await;
     run(&format!("DROP SCHEMA {target} CASCADE")).await;
 
-    assert_eq!(exported.expect("export").rows, 3);
-    assert_eq!(imported.expect("import").rows, 3);
+    assert_eq!(exported.expect("export").rows, 4);
+    assert_eq!(imported.expect("import").rows, 4);
+    assert_eq!(target_rows.unwrap(), source_rows);
+}
+
+/// Exports `{source}.{table}` and imports it into `target`.
+async fn round_trip(table: &str, source: &str, target: &str) -> Result<u64, String> {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = runtime(temp.path());
+    let path = temp.path().join(format!("{table}.sql"));
+    export_table(
+        &runtime,
+        &ExportCancellationState::default(),
+        None,
+        "pg".to_string(),
+        TableExportOptions {
+            table: table.to_string(),
+            content: TableSqlContent::StructureAndData,
+            schema: Some(source.to_string()),
+            database: None,
+        },
+        TableExportDestination::ServerPath(path.clone()),
+    )
+    .await?;
+    import_table(
+        &runtime,
+        &DumpCancellationState::default(),
+        None,
+        "pg".to_string(),
+        TableImportSource::ServerPath(path),
+        TableImportOptions {
+            if_exists: IfTableExists::Fail,
+            schema: Some(target.to_string()),
+            database: None,
+        },
+    )
+    .await
+    .map(|imported| imported.rows)
+}
+
+/// Integer limits, `numeric` with more digits than a double holds, and the
+/// float edge values (infinities, NaN, negative zero, the smallest and
+/// largest doubles) come back bit for bit.
+#[tokio::test]
+#[ignore]
+async fn test_numeric_extremes_round_trip() {
+    require_pg!();
+    tabularis_lib::drivers::registry::register_driver(postgres::PostgresDriver::new()).await;
+    let suffix = uuid::Uuid::new_v4().simple().to_string();
+    let source = format!("table_transfer_num_src_{suffix}");
+    let target = format!("table_transfer_num_dst_{suffix}");
+    run(&format!("CREATE SCHEMA {source}")).await;
+    run(&format!("CREATE SCHEMA {target}")).await;
+    run(&format!(
+        "CREATE TABLE {source}.numbers (id integer PRIMARY KEY, small smallint, \
+         big bigint, exact numeric, scaled numeric(60,30), double float8, single float4)"
+    ))
+    .await;
+    run(&format!(
+        "INSERT INTO {source}.numbers VALUES \
+         (1, 32767, 9223372036854775807, \
+          '123456789012345678901234567890.123456789012345678901234567890', \
+          '-123456789012345678901234567890.123456789012345678901234567890', \
+          'Infinity', 'Infinity'), \
+         (2, -32768, -9223372036854775808, 'NaN', 0, '-Infinity', '-Infinity'), \
+         (3, 0, 9007199254740993, '-0.000000000000000000000000000001', NULL, 'NaN', 'NaN'), \
+         (4, NULL, -9007199254740993, 1e-130, 1, '-0', '-0'), \
+         (5, 1, NULL, NULL, NULL, 1.7976931348623157e308, 3.4028235e38), \
+         (6, 2, 0, 0.1, 0.1, 5e-324, 1.4e-45), \
+         (7, 3, 1, 0, NULL, 0.30000000000000004, 0.1)"
+    ))
+    .await;
+
+    let imported = round_trip("numbers", &source, &target).await;
+    let compare = |schema: &str| {
+        format!(
+            "SELECT id, small, big::text, exact::text, scaled::text, double::text, \
+             encode(float8send(double), 'hex'), single::text, \
+             encode(float4send(single), 'hex') FROM {schema}.numbers ORDER BY id"
+        )
+    };
+    let source_rows = run(&compare(&source)).await;
+    let target_rows = match imported {
+        Ok(_) => Some(run(&compare(&target)).await),
+        Err(_) => None,
+    };
+    run(&format!("DROP SCHEMA {source} CASCADE")).await;
+    run(&format!("DROP SCHEMA {target} CASCADE")).await;
+
+    assert_eq!(imported.expect("round trip"), 7);
     assert_eq!(target_rows.unwrap(), source_rows);
 }

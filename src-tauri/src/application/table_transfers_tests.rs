@@ -257,6 +257,7 @@ mod select {
             typed("hash", "varbinary(16)"),
             typed("flags", "bit(8)"),
             typed("name", "varchar(20)"),
+            typed("amount", "decimal(65,30)"),
         ];
         let reads = column_reads("mysql", &columns);
         assert_eq!(
@@ -266,24 +267,34 @@ mod select {
                 ColumnRead::Hex,
                 ColumnRead::Hex,
                 ColumnRead::Hex,
-                ColumnRead::Value
+                ColumnRead::Value,
+                ColumnRead::Text
             ]
         );
         assert_eq!(
             export_select(&dialect("`", false), None, "t", &columns[..2], &reads[..2]),
             "SELECT `id`, CASE WHEN `raw` IS NULL THEN NULL ELSE HEX(`raw`) END AS `raw` FROM `t`"
         );
+        assert_eq!(
+            export_select(&dialect("`", false), None, "t", &columns[5..], &reads[5..]),
+            "SELECT CAST(`amount` AS CHAR) AS `amount` FROM `t`"
+        );
 
         // Any SQLite column can hold a blob, whatever its declared type.
         let columns = [typed("a", "INTEGER"), typed("b", "blob"), typed("c", "")];
         let reads = column_reads("sqlite", &columns);
-        assert_eq!(reads, [ColumnRead::StorageClass; 3]);
+        assert_eq!(reads, [ColumnRead::Quoted; 3]);
         assert_eq!(
-            export_select(&dialect("\"", false), None, "t", &columns[1..], &reads[1..]),
-            "SELECT \"b\", \"c\", \
-             CASE WHEN typeof(\"b\") IN ('blob', 'integer') THEN quote(\"b\") END AS \"__tabularis_literal_0\", \
-             CASE WHEN typeof(\"c\") IN ('blob', 'integer') THEN quote(\"c\") END AS \"__tabularis_literal_1\" \
-             FROM \"t\""
+            export_select(
+                &dialect("\"", false),
+                None,
+                "t",
+                &columns[1..2],
+                &reads[1..2]
+            ),
+            "SELECT CASE WHEN typeof(\"b\") = 'real' AND abs(\"b\") = 9e999 \
+             THEN CASE WHEN \"b\" > 0 THEN '9e999' ELSE '-9e999' END \
+             ELSE quote(\"b\") END AS \"b\" FROM \"t\""
         );
         // Plugins render their own values.
         assert_eq!(
@@ -313,6 +324,11 @@ mod select {
         assert_eq!(
             render_cell(cell(serde_json::json!(""), false), ColumnRead::Hex, &mysql),
             "X''"
+        );
+        // A BIT value's hex has no leading zero.
+        assert_eq!(
+            render_cell(cell(serde_json::json!("5"), false), ColumnRead::Hex, &mysql),
+            "X'05'"
         );
         assert_eq!(
             render_cell(
@@ -352,54 +368,36 @@ mod select {
     }
 
     #[test]
-    fn renders_sqlite_values_by_their_storage_class() {
+    fn writes_sqlite_quote_literals_as_they_are() {
         let sqlite = dialect("\"", false);
-        let cell = |value: serde_json::Value| SqlCell {
-            value,
+        let cell = |value: &str| SqlCell {
+            value: serde_json::json!(value),
             is_json: false,
         };
-        let reads = [ColumnRead::StorageClass; 7];
-        // The row's own values, then the `quote()` copy of each, set only
-        // for blobs and integers.
-        let row = vec![
-            cell(serde_json::json!("hello")),
-            cell(serde_json::json!(42)),
-            cell(serde_json::json!(1.5)),
-            cell(serde_json::json!(
-                "BLOB:4:application/octet-stream:3q2+7w=="
-            )),
-            cell(serde_json::Value::Null),
-            cell(serde_json::json!("9007199254740993")),
-            cell(serde_json::json!("-9223372036854775808")),
-            cell(serde_json::Value::Null),
-            cell(serde_json::json!("42")),
-            cell(serde_json::Value::Null),
-            cell(serde_json::json!("X'DEADBEEF'")),
-            cell(serde_json::Value::Null),
-            cell(serde_json::json!("9007199254740993")),
-            cell(serde_json::json!("-9223372036854775808")),
+        let literals = [
+            "NULL",
+            "'hello'",
+            "'it''s\né'",
+            "''",
+            "42",
+            "-9223372036854775808",
+            "3.00000000000000044e-01",
+            "1.0e+300",
+            "9e999",
+            "-9e999",
+            "X'DEADBEEF'",
+            "X''",
         ];
+        let row = literals.iter().map(|literal| cell(literal)).collect();
         assert_eq!(
-            render_row(row, &reads, &sqlite),
-            [
-                "'hello'",
-                "42",
-                "1.5",
-                "X'DEADBEEF'",
-                "NULL",
-                "9007199254740993",
-                "-9223372036854775808"
-            ]
+            render_row(row, &[ColumnRead::Quoted; 12], &sqlite),
+            literals
         );
-        // A copy that isn't a blob or integer literal is never written as is.
-        for copy in ["X'GG'", "1; DROP TABLE t", "-", "", "'text'"] {
+        // Anything that isn't a `quote()` literal is written as a string.
+        for value in ["X'GG'", "1; DROP TABLE t", "-", "'a'b'", "Inf", "1e"] {
             assert_eq!(
-                render_row(
-                    vec![cell(serde_json::json!("v")), cell(serde_json::json!(copy))],
-                    &[ColumnRead::StorageClass],
-                    &sqlite
-                ),
-                ["'v'"]
+                render_row(vec![cell(value)], &[ColumnRead::Quoted], &sqlite),
+                [format!("'{}'", value.replace('\'', "''"))]
             );
         }
     }
@@ -689,49 +687,89 @@ mod sqlite_round_trip {
     #[tokio::test]
     async fn keeps_the_storage_class_of_every_value() {
         // SQLite stores text, numbers and blobs in any column, whatever its
-        // declared type; each value must come back as it was stored.
+        // declared type; each value must come back exactly as it was
+        // stored, in every column affinity.
         let fixture = fixture().await;
         fixture
             .run(
                 "source",
-                "CREATE TABLE items (id INTEGER PRIMARY KEY, payload BLOB, untyped)",
+                "CREATE TABLE items (id INTEGER PRIMARY KEY, i INTEGER, r REAL, n NUMERIC, t TEXT, b BLOB, u)",
             )
             .await;
+        let values = [
+            "'hello'",
+            "42",
+            "1.5",
+            "X'DEADBEEF'",
+            "NULL",
+            "9223372036854775807",
+            "-9223372036854775808",
+            "9007199254740993",
+            "1e999",
+            "-1e999",
+            "-0.0",
+            "2.0",
+            "0.30000000000000004",
+            "1e300",
+            "5e-324",
+            "'007'",
+            "''",
+            "X''",
+            "X'00'",
+            "'it''s' || char(10) || 'caf\u{e9} \u{1f600}'",
+            "'Inf'",
+            "'{\"k\":  1}'",
+        ];
+        for (id, value) in values.iter().enumerate() {
+            fixture
+                .run(
+                    "source",
+                    &format!(
+                        "INSERT INTO items VALUES ({id}, {value}, {value}, {value}, {value}, {value}, {value})"
+                    ),
+                )
+                .await;
+        }
+        // 20 KB, past the grid's blob preview.
         fixture
             .run(
                 "source",
-                "INSERT INTO items VALUES (1, 'hello', 'hello'), (2, 42, 42), (3, 1.5, 1.5), (4, X'DEADBEEF', X'DEADBEEF'), (5, NULL, NULL), (6, 9007199254740993, 9007199254740993), (7, -9223372036854775808, -9223372036854775808)",
+                "INSERT INTO items (id, b, u) VALUES (100, randomblob(20000), zeroblob(20000))",
             )
             .await;
         let (path, _) = fixture.export(TableSqlContent::StructureAndData).await;
         fixture.import(&path, IfTableExists::Fail).await.unwrap();
 
-        let values = "SELECT id, quote(payload), typeof(payload), quote(untyped), typeof(untyped) FROM items ORDER BY id";
-        let source = fixture.run("source", values).await.rows;
-        assert_eq!(fixture.run("target", values).await.rows, source);
+        let columns = ["i", "r", "n", "t", "b", "u"]
+            .iter()
+            .map(|column| format!("quote({column}), typeof({column})"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let compare = format!("SELECT id, {columns} FROM items ORDER BY id");
+        let source = fixture.run("source", &compare).await.rows;
+        assert_eq!(source.len(), values.len() + 1);
+        assert_eq!(fixture.run("target", &compare).await.rows, source);
+
+        // The untyped and BLOB columns hold every storage class.
+        let classes = "SELECT group_concat(DISTINCT typeof(u)), group_concat(DISTINCT typeof(b)) FROM (SELECT u, b FROM items ORDER BY id)";
         assert_eq!(
-            serde_json::to_value(&source).unwrap(),
+            fixture.run("source", classes).await.rows,
+            [[
+                serde_json::json!("text,integer,real,blob,null"),
+                serde_json::json!("text,integer,real,blob,null")
+            ]]
+        );
+        let edges =
+            "SELECT quote(u), typeof(u) FROM items WHERE id IN (5, 6, 7, 8, 9, 12) ORDER BY id";
+        assert_eq!(
+            serde_json::to_value(fixture.run("target", edges).await.rows).unwrap(),
             serde_json::json!([
-                [1, "'hello'", "text", "'hello'", "text"],
-                [2, "42", "integer", "42", "integer"],
-                [3, "1.5", "real", "1.5", "real"],
-                [4, "X'DEADBEEF'", "blob", "X'DEADBEEF'", "blob"],
-                [5, "NULL", "null", "NULL", "null"],
-                // Past JavaScript's safe range, read as a string.
-                [
-                    6,
-                    "9007199254740993",
-                    "integer",
-                    "9007199254740993",
-                    "integer"
-                ],
-                [
-                    7,
-                    "-9223372036854775808",
-                    "integer",
-                    "-9223372036854775808",
-                    "integer"
-                ]
+                ["9223372036854775807", "integer"],
+                ["-9223372036854775808", "integer"],
+                ["9007199254740993", "integer"],
+                ["9.0e+999", "real"],
+                ["-9.0e+999", "real"],
+                ["3.00000000000000044e-01", "real"]
             ])
         );
     }

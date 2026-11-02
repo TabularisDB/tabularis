@@ -185,25 +185,21 @@ pub(crate) fn check_import_target(
 pub(crate) enum ColumnRead {
     /// As the driver extracts it.
     Value,
-    /// As the engine's own text form (`col::text`), written as a string
-    /// literal: PostgreSQL reads that back into any type, including arrays,
-    /// `bytea`, ranges and `timestamptz` with its offset.
+    /// As the engine's own text form (`col::text`, MySQL `CAST(col AS
+    /// CHAR)`), written as a string literal: PostgreSQL reads that back into
+    /// any type, including arrays, `bytea`, ranges and `timestamptz` with its
+    /// offset; MySQL keeps `DECIMAL` digits a double can't hold and `TIME`
+    /// values past a day.
     Text,
     /// As hex (`HEX(col)`), written as `X'...'`: binary columns, whose
     /// extracted value is a truncated preview.
     Hex,
-    /// SQLite: as is, plus a hidden `quote()` copy of the value when its
-    /// storage class is `blob` or `integer`. Any SQLite column can hold
-    /// values of every storage class, so the class is taken from each value:
-    /// blobs are written in full as `X'...'`, integers with their exact
-    /// digits (the driver reads those past ±2^53 as strings), and text and
-    /// reals keep their type.
-    StorageClass,
-}
-
-/// Name of the hidden literal copy of a `StorageClass` column.
-fn literal_copy_alias(index: usize) -> String {
-    format!("\"__tabularis_literal_{index}\"")
+    /// SQLite: as SQLite's own `quote()` literal, written as is. Any SQLite
+    /// column can hold values of every storage class, so the class is kept
+    /// per value: text, integers (including those past ±2^53, which the
+    /// driver reads as strings), reals with every digit, and blobs in full.
+    /// Infinity, which `quote()` spells `Inf`, is written as `9e999`.
+    Quoted,
 }
 
 /// How each exported column of a built-in driver is read. Plugins render
@@ -215,20 +211,57 @@ pub(crate) fn column_reads(driver: &str, columns: &[TableColumn]) -> Vec<ColumnR
         .filter(|column| !column.is_generated)
         .map(|column| match driver {
             "postgres" => ColumnRead::Text,
-            "sqlite" => ColumnRead::StorageClass,
+            "sqlite" => ColumnRead::Quoted,
             "mysql" if is_binary_type(&column.data_type) => ColumnRead::Hex,
+            "mysql" if is_text_read_type(&column.data_type) => ColumnRead::Text,
             _ => ColumnRead::Value,
         })
         .collect()
 }
 
-/// MySQL binary types, whose values are read as hex.
+/// MySQL types whose extracted value can lose information, read as their
+/// own text instead: exact numerics (extracted as a double) and dates and
+/// times (`TIME` spans -838:59:59 to 838:59:59).
+fn is_text_read_type(data_type: &str) -> bool {
+    let data_type = data_type.trim().to_ascii_lowercase();
+    let base = data_type.split(['(', ' ']).next().unwrap_or_default();
+    matches!(
+        base,
+        "decimal"
+            | "numeric"
+            | "dec"
+            | "fixed"
+            | "date"
+            | "datetime"
+            | "timestamp"
+            | "time"
+            | "year"
+    )
+}
+
+/// MySQL binary types, whose values are read as hex: binary strings, bits,
+/// and spatial values in MySQL's internal format (SRID and WKB).
 fn is_binary_type(data_type: &str) -> bool {
     let data_type = data_type.trim().to_ascii_lowercase();
     let base = data_type.split(['(', ' ']).next().unwrap_or_default();
     matches!(
         base,
-        "binary" | "varbinary" | "tinyblob" | "blob" | "mediumblob" | "longblob" | "bit"
+        "binary"
+            | "varbinary"
+            | "tinyblob"
+            | "blob"
+            | "mediumblob"
+            | "longblob"
+            | "bit"
+            | "geometry"
+            | "point"
+            | "linestring"
+            | "polygon"
+            | "multipoint"
+            | "multilinestring"
+            | "multipolygon"
+            | "geometrycollection"
+            | "geomcollection"
     )
 }
 
@@ -250,32 +283,20 @@ pub(crate) fn export_select(
         .map(|(index, column)| {
             let name = dialect.quote_identifier(&column.name);
             match reads.get(index).copied().unwrap_or(ColumnRead::Value) {
-                ColumnRead::Value | ColumnRead::StorageClass => name,
-                ColumnRead::Text => format!("{name}::text AS {name}"),
+                ColumnRead::Value => name,
+                ColumnRead::Quoted => format!(
+                    "CASE WHEN typeof({name}) = 'real' AND abs({name}) = 9e999 \
+                     THEN CASE WHEN {name} > 0 THEN '9e999' ELSE '-9e999' END \
+                     ELSE quote({name}) END AS {name}"
+                ),
+                ColumnRead::Text if dialect.postgres => format!("{name}::text AS {name}"),
+                ColumnRead::Text => format!("CAST({name} AS CHAR) AS {name}"),
                 // NULL stays NULL, apart from an empty value.
                 ColumnRead::Hex => {
                     format!("CASE WHEN {name} IS NULL THEN NULL ELSE HEX({name}) END AS {name}")
                 }
             }
         })
-        .collect::<Vec<_>>();
-    // The hidden literal copies of `StorageClass` columns follow the real
-    // columns.
-    let literal_copies = columns
-        .iter()
-        .filter(|column| !column.is_generated)
-        .enumerate()
-        .filter(|(index, _)| reads.get(*index) == Some(&ColumnRead::StorageClass))
-        .map(|(index, column)| {
-            let name = dialect.quote_identifier(&column.name);
-            format!(
-                "CASE WHEN typeof({name}) IN ('blob', 'integer') THEN quote({name}) END AS {}",
-                literal_copy_alias(index)
-            )
-        });
-    let selected = selected
-        .into_iter()
-        .chain(literal_copies)
         .collect::<Vec<_>>();
     let list = if selected.is_empty() {
         "*".to_string()
@@ -299,76 +320,81 @@ pub(crate) fn export_select(
 }
 
 /// One exported row as SQL values, following how each column was read.
-/// `cells` holds the real columns first, then the hidden literal copies of
-/// the `StorageClass` columns (see `export_select`), which are not part of the row.
 pub(crate) fn render_row(
     cells: Vec<SqlCell>,
     reads: &[ColumnRead],
     dialect: &DumpDialect,
 ) -> Vec<String> {
-    let real = if reads.is_empty() {
-        cells.len()
-    } else {
-        reads.len().min(cells.len())
-    };
-    let mut cells = cells.into_iter();
-    let row = cells.by_ref().take(real).collect::<Vec<_>>();
-    let mut literal_copies = cells;
-    row.into_iter()
+    cells
+        .into_iter()
         .enumerate()
         .map(|(index, cell)| {
             let read = reads.get(index).copied().unwrap_or(ColumnRead::Value);
-            let literal = if read == ColumnRead::StorageClass {
-                literal_copies.next().map(|copy| copy.value)
-            } else {
-                None
-            };
-            render_cell(cell, read, literal, dialect)
+            render_cell(cell, read, dialect)
         })
         .collect()
 }
 
-fn render_cell(
-    cell: SqlCell,
-    read: ColumnRead,
-    literal_copy: Option<serde_json::Value>,
-    dialect: &DumpDialect,
-) -> String {
-    let hex_literal = |hex: &str| {
-        hex.bytes()
-            .all(|byte| byte.is_ascii_hexdigit())
-            .then(|| format!("X'{hex}'"))
-    };
+fn render_cell(cell: SqlCell, read: ColumnRead, dialect: &DumpDialect) -> String {
     match (read, &cell.value) {
         (ColumnRead::Text, _) => SqlCell {
             is_json: false,
             ..cell
         }
         .render(dialect),
-        (ColumnRead::Hex, serde_json::Value::String(hex)) => {
-            hex_literal(hex).unwrap_or_else(|| cell.render(dialect))
+        (ColumnRead::Hex, serde_json::Value::String(hex))
+            if hex.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
+        {
+            // `HEX()` of a BIT value is a number (`b'101'` is `5`); a hex
+            // literal needs whole bytes.
+            let pad = if hex.len() % 2 == 1 { "0" } else { "" };
+            format!("X'{pad}{hex}'")
         }
-        (ColumnRead::StorageClass, _) => match literal_copy {
-            Some(serde_json::Value::String(literal)) if is_blob_or_integer_literal(&literal) => {
-                literal
-            }
-            _ => cell.render(dialect),
-        },
+        (ColumnRead::Quoted, serde_json::Value::String(literal)) if is_sqlite_literal(literal) => {
+            literal.clone()
+        }
         _ => cell.render(dialect),
     }
 }
 
-/// `X'...'` or a whole number, as SQLite's `quote()` writes a blob or an
-/// integer. Anything else is written as a normal literal instead.
-fn is_blob_or_integer_literal(literal: &str) -> bool {
+/// A literal as SQLite's `quote()` writes it: `NULL`, a number, `X'<hex>'`
+/// or a `'...'` string with its quotes doubled. Anything else is written as
+/// a normal literal instead.
+fn is_sqlite_literal(literal: &str) -> bool {
+    if literal == "NULL" {
+        return true;
+    }
     if let Some(hex) = literal
         .strip_prefix("X'")
         .and_then(|rest| rest.strip_suffix('\''))
     {
         return hex.bytes().all(|byte| byte.is_ascii_hexdigit());
     }
-    let digits = literal.strip_prefix('-').unwrap_or(literal);
-    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+    if let Some(text) = literal
+        .strip_prefix('\'')
+        .and_then(|rest| rest.strip_suffix('\''))
+    {
+        return !text.replace("''", "").contains('\'');
+    }
+    is_sqlite_number(literal)
+}
+
+/// `-12`, `1.5`, `3.00000000000000044e-01`, `9e999`.
+fn is_sqlite_number(literal: &str) -> bool {
+    let unsigned = literal.strip_prefix('-').unwrap_or(literal);
+    let (mantissa, exponent) = match unsigned.split_once(['e', 'E']) {
+        Some((mantissa, exponent)) => (mantissa, Some(exponent)),
+        None => (unsigned, None),
+    };
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit());
+    let mantissa_ok = match mantissa.split_once('.') {
+        Some((whole, fraction)) => digits(whole) && digits(fraction),
+        None => digits(mantissa),
+    };
+    let exponent_ok = exponent.map_or(true, |exponent| {
+        digits(exponent.strip_prefix(['+', '-']).unwrap_or(exponent))
+    });
+    mantissa_ok && exponent_ok
 }
 
 /// `shop.public.orders`: where an export came from, for the header.
@@ -596,13 +622,7 @@ async fn write_table_export(
                 schema,
                 |names, cells| {
                     if writer.columns.is_empty() {
-                        // The hidden literal copies are not columns of the table.
-                        let real = if reads.is_empty() {
-                            names.len()
-                        } else {
-                            reads.len().min(names.len())
-                        };
-                        writer.columns = names[..real].to_vec();
+                        writer.columns = names.to_vec();
                     }
                     writer.push(render_row(cells, &reads, &dialect))?;
                     progress.tick();
