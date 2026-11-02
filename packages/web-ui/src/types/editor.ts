@@ -19,7 +19,11 @@ export interface TableColumn {
     is_generated?: boolean;
     default_value?: string;
     character_maximum_length?: number;
+    numeric_precision?: number;
+    numeric_scale?: number;
     comment?: string | null;
+    /** Full declared type for display, see `TableColumn` in `types/schema.ts`. */
+    full_type?: string;
 }
 
 export interface TableSchema {
@@ -139,6 +143,8 @@ export interface Tab {
     /** Content last read from / written to `sourceFilePath`; dirty = query differs from it. */
     sourceFileContent?: string;
     sourceFileDirty?: boolean;
+    /** Pinned tabs come first in the tab bar, and bulk close actions skip them. */
+    pinned?: boolean;
 }
 
 export interface EditorPreferences {

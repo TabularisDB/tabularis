@@ -863,3 +863,86 @@ export function getResizedTableWidth(
     if (!locked?.resized || !widths) return undefined;
     return widths.reduce((sum, w) => sum + w, 0);
 }
+
+/** Row-number gutter width before the grid has measured its columns. */
+export const DATA_GRID_GUTTER_FALLBACK_WIDTH = 50;
+
+/**
+ * Width of the collapsed border between the gutter and the first column. The
+ * table paints it where the column started, inside the column's box, so a
+ * sticky cell at the full gutter width leaves a 1px strip of scrolled content
+ * showing at the gutter edge.
+ */
+const DATA_GRID_GUTTER_BORDER_WIDTH = 1;
+
+export interface FrozenFirstColumnLayout {
+    /**
+     * Sticky `left` offset of the frozen column: right after the gutter, pulled
+     * under its shared border so the border strip is covered too.
+     */
+    left: number;
+    /**
+     * Scroll padding that keeps `scrollIntoView` from parking the active cell
+     * under the gutter and the frozen column.
+     */
+    scrollPaddingLeft: number;
+}
+
+/**
+ * Offsets for the frozen first data column (#1152). `columnWidths` are the
+ * locked widths (gutter first); before they are measured the gutter falls back
+ * to its CSS width and the frozen column adds no scroll padding.
+ */
+export function getFrozenFirstColumnLayout(
+    columnWidths: readonly number[] | null,
+): FrozenFirstColumnLayout {
+    const gutter = columnWidths?.[0] ?? DATA_GRID_GUTTER_FALLBACK_WIDTH;
+    return {
+        left: gutter - DATA_GRID_GUTTER_BORDER_WIDTH,
+        scrollPaddingLeft: gutter + (columnWidths?.[1] ?? 0),
+    };
+}
+
+export interface FrozenCellRowState {
+    isSelected: boolean;
+    isInsertion: boolean;
+    isPendingDelete: boolean;
+    isZebra: boolean;
+}
+
+// Both layers sit under the cell content. `::before` is the opaque row
+// background, `::after` repaints the cell's own tint (selection, edits) on top.
+// Collapsed table borders stay where the column started, so `::before` also
+// draws the frozen column's right border.
+const FROZEN_CELL_LAYERS =
+    'before:absolute before:inset-0 before:-z-10 before:pointer-events-none before:transition-colors before:border-r before:border-default after:absolute after:inset-0 after:-z-10 after:pointer-events-none after:bg-inherit';
+
+/**
+ * Frozen header cell: the header background under its own tint, stacked below
+ * the gutter header (z-20).
+ */
+export const FROZEN_HEADER_CELL_CLASS = `sticky z-[15] ${FROZEN_CELL_LAYERS} before:bg-base`;
+
+/**
+ * Backdrop for a frozen (sticky) body cell. The row tints are translucent, so
+ * a sticky cell would show the cells scrolling under it; this paints the same
+ * tint pre-mixed over the grid background instead. Mirrors the row classes in
+ * DataGridRow, in the same precedence.
+ */
+export function getFrozenCellBackdropClass(row: FrozenCellRowState): string {
+    let backdrop: string;
+    if (row.isSelected) {
+        backdrop = 'before:bg-[color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-elevated))]';
+    } else if (row.isInsertion) {
+        backdrop = 'before:bg-[color-mix(in_srgb,var(--semantic-new)_8%,var(--bg-elevated))]';
+    } else if (row.isPendingDelete) {
+        backdrop = 'before:bg-[color-mix(in_srgb,var(--semantic-deleted)_10%,var(--bg-elevated))]';
+    } else if (row.isZebra) {
+        backdrop =
+            'before:bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_90%,var(--bg-elevated))]';
+    } else {
+        backdrop =
+            'before:bg-elevated group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_50%,var(--bg-elevated))]';
+    }
+    return `${FROZEN_CELL_LAYERS} ${backdrop}`;
+}

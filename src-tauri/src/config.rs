@@ -132,9 +132,14 @@ pub struct AppConfig {
     pub selected_schemas: Option<HashMap<String, Vec<String>>>,
     pub max_blob_size: Option<u64>,
     pub copy_format: Option<String>,
+    /// How NULL values are shown in the data grid: `"default"`, `"parenthesized"`,
+    /// `"emptySet"` or `"empty"`. Display only; copy and export are unchanged.
+    pub null_display: Option<String>,
     pub csv_delimiter: Option<String>,
     /// Whether copied CSV output includes a header row. Default: true.
     pub csv_include_headers: Option<bool>,
+    /// How NULL is written when rows are copied as CSV or Markdown. Default: "null".
+    pub copy_null_label: Option<String>,
     pub active_external_drivers: Option<Vec<String>>,
     /// COMPAT(registry-ga): legacy config key from before the Tabularium API
     /// cutover. Read once by `compat::migrate_legacy_config`, then cleared.
@@ -307,7 +312,7 @@ pub struct AppConfig {
     pub migration_mode_by_driver: Option<HashMap<String, MigrationMode>>,
 
     // ----- Network / Proxy -----
-    /// Global HTTP/SOCKS5 proxy and opt-in traffic scopes.
+    /// Shared custom proxy endpoint and per-scope routing modes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<crate::proxy::GlobalProxySettings>,
     /// Per AI-provider proxy overrides (`openai`, `anthropic`, …).
@@ -831,6 +836,17 @@ mod tests {
         assert!(json.contains("defaultSortDirection"));
         let parsed: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.default_sort_direction.as_deref(), Some("desc"));
+    }
+
+    #[test]
+    fn copy_null_label_serializes_with_camel_case_and_keeps_empty_value() {
+        let mut config = AppConfig::default();
+        assert!(config.copy_null_label.is_none());
+        config.copy_null_label = Some(String::new());
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"copyNullLabel\":\"\""));
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.copy_null_label.as_deref(), Some(""));
     }
 
     #[test]

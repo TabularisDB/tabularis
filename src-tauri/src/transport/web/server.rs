@@ -5,6 +5,7 @@ use super::auth::{
 };
 use super::contract::SessionNegotiation;
 use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
+use super::login_target::{login_return_target, LOGIN_TARGET_PARAM};
 use super::rpc::{RequestId, RpcAccessPolicy, RpcDispatcher};
 use crate::application::file_transfers::{
     FileTransferStore, TransferReader, UploadError, MAX_FILE_TRANSFER_BYTES,
@@ -82,6 +83,11 @@ struct WebServerState {
 #[derive(Deserialize)]
 struct BootstrapQuery {
     token: String,
+}
+
+#[derive(Deserialize)]
+struct LoginPageQuery {
+    next: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -411,11 +417,15 @@ async fn bootstrap(
     response
 }
 
-async fn login_page(State(state): State<WebServerState>) -> Response {
+async fn login_page(
+    State(state): State<WebServerState>,
+    Query(query): Query<LoginPageQuery>,
+) -> Response {
     if !state.security.password_authentication() {
         return status_response(StatusCode::NOT_FOUND);
     }
-    login_page_response(StatusCode::OK, None)
+    let target = query.next.as_deref().and_then(login_return_target);
+    login_page_response(StatusCode::OK, None, target)
 }
 
 async fn login(
@@ -428,14 +438,20 @@ async fn login(
     if !state.security.password_authentication() {
         return status_response(StatusCode::NOT_FOUND);
     }
-    let Some(password) = form_password(&body) else {
+    let requested_target = form_field(&body, LOGIN_TARGET_PARAM);
+    let target = requested_target.as_deref().and_then(login_return_target);
+    let Some(password) = form_field(&body, "password") else {
         audit_event(
             "authentication",
             &request_id.0,
             None,
             "method=password outcome=denied",
         );
-        return login_page_response(StatusCode::UNAUTHORIZED, Some("Invalid credentials"));
+        return login_page_response(
+            StatusCode::UNAUTHORIZED,
+            Some("Invalid credentials"),
+            target,
+        );
     };
     let client = state.security.login_client(
         peer.map(|ConnectInfo(address)| address.ip()),
@@ -452,9 +468,9 @@ async fn login(
                 "method=password outcome=success",
             );
             let mut response = StatusCode::SEE_OTHER.into_response();
-            response
-                .headers_mut()
-                .insert(LOCATION, HeaderValue::from_static("/"));
+            let location = HeaderValue::from_str(target.unwrap_or("/"))
+                .expect("login return targets contain only valid header characters");
+            response.headers_mut().insert(LOCATION, location);
             response
                 .headers_mut()
                 .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -466,7 +482,7 @@ async fn login(
         }
         Err(error) => {
             audit_authentication_error(&request_id.0, "password", error);
-            authentication_error_response(error, true)
+            authentication_error_response(error, true, target)
         }
     }
 }
@@ -1114,16 +1130,12 @@ async fn security_gate(
                 }
                 Err(error) => {
                     audit_authentication_error(request_id, "proxy", error);
-                    return authentication_error_response(error, false);
+                    return authentication_error_response(error, false, None);
                 }
             }
         }
         None if state.security.password_authentication() && request.method() == Method::GET => {
-            let mut response = StatusCode::SEE_OTHER.into_response();
-            response
-                .headers_mut()
-                .insert(LOCATION, HeaderValue::from_static(LOGIN_PAGE_PATH));
-            return response;
+            return login_redirect_response(login_return_target(path));
         }
         None => return status_response(StatusCode::UNAUTHORIZED),
     };
@@ -1213,17 +1225,44 @@ fn session_cookie(session: &IssuedSession, secure: bool) -> HeaderValue {
     .expect("generated session cookies contain only valid header characters")
 }
 
-fn form_password(body: &[u8]) -> Option<String> {
+fn form_field(body: &[u8], field: &str) -> Option<String> {
     url::form_urlencoded::parse(body)
-        .find_map(|(name, value)| (name == "password").then(|| value.into_owned()))
+        .find_map(|(name, value)| (name == field).then(|| value.into_owned()))
 }
 
-fn login_page_response(status: StatusCode, error: Option<&str>) -> Response {
+/// Sends an unauthenticated browser to `/login`, carrying the page it asked
+/// for when that page is a supported return target.
+fn login_redirect_response(target: Option<&str>) -> Response {
+    let location = match target {
+        Some(target) => format!(
+            "{LOGIN_PAGE_PATH}?{}",
+            url::form_urlencoded::Serializer::new(String::new())
+                .append_pair(LOGIN_TARGET_PARAM, target)
+                .finish()
+        ),
+        None => LOGIN_PAGE_PATH.to_string(),
+    };
+    let mut response = StatusCode::SEE_OTHER.into_response();
+    response.headers_mut().insert(
+        LOCATION,
+        HeaderValue::from_str(&location).expect("an encoded login URL is a valid header value"),
+    );
+    response
+}
+
+/// `target` must come from `login_return_target`, whose character set needs
+/// no HTML escaping.
+fn login_page_response(status: StatusCode, error: Option<&str>, target: Option<&str>) -> Response {
     let error = error
         .map(|message| format!("<p role=\"alert\">{message}</p>"))
         .unwrap_or_default();
+    let target = target
+        .map(|target| {
+            format!("<input type=\"hidden\" name=\"{LOGIN_TARGET_PARAM}\" value=\"{target}\">")
+        })
+        .unwrap_or_default();
     let body = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>Tabularis Web sign in</title></head><body><main><h1>Sign in to Tabularis Web</h1>{error}<form method=\"post\" action=\"{LOGIN_PATH}\"><label>Password <input type=\"password\" name=\"password\" required autofocus autocomplete=\"current-password\"></label><button type=\"submit\">Sign in</button></form></main></body></html>"
+        "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>Tabularis Web sign in</title></head><body><main><h1>Sign in to Tabularis Web</h1>{error}<form method=\"post\" action=\"{LOGIN_PATH}\">{target}<label>Password <input type=\"password\" name=\"password\" required autofocus autocomplete=\"current-password\"></label><button type=\"submit\">Sign in</button></form></main></body></html>"
     );
     let mut response = (status, body).into_response();
     let headers = response.headers_mut();
@@ -1232,7 +1271,9 @@ fn login_page_response(status: StatusCode, error: Option<&str>) -> Response {
         CONTENT_TYPE,
         HeaderValue::from_static("text/html; charset=utf-8"),
     );
-    headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    // Not `no-referrer`: with it, browsers send `Origin: null` on the form
+    // POST and the login origin check rejects every sign-in.
+    headers.insert(REFERRER_POLICY, HeaderValue::from_static("same-origin"));
     headers.insert(
         CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(
@@ -1242,13 +1283,18 @@ fn login_page_response(status: StatusCode, error: Option<&str>) -> Response {
     response
 }
 
-fn authentication_error_response(error: AuthenticationError, html: bool) -> Response {
+fn authentication_error_response(
+    error: AuthenticationError,
+    html: bool,
+    target: Option<&str>,
+) -> Response {
     match error {
         AuthenticationError::SessionLimitReached => {
             if html {
                 login_page_response(
                     StatusCode::SERVICE_UNAVAILABLE,
                     Some("The server has reached its session limit. Try again later."),
+                    target,
                 )
             } else {
                 status_response(StatusCode::SERVICE_UNAVAILABLE)
@@ -1256,7 +1302,11 @@ fn authentication_error_response(error: AuthenticationError, html: bool) -> Resp
         }
         AuthenticationError::RateLimited => {
             let mut response = if html {
-                login_page_response(StatusCode::TOO_MANY_REQUESTS, Some("Too many attempts"))
+                login_page_response(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Some("Too many attempts"),
+                    target,
+                )
             } else {
                 status_response(StatusCode::TOO_MANY_REQUESTS)
             };
@@ -1267,7 +1317,11 @@ fn authentication_error_response(error: AuthenticationError, html: bool) -> Resp
         }
         AuthenticationError::InvalidCredentials | AuthenticationError::UnsupportedMode => {
             if html {
-                login_page_response(StatusCode::UNAUTHORIZED, Some("Invalid credentials"))
+                login_page_response(
+                    StatusCode::UNAUTHORIZED,
+                    Some("Invalid credentials"),
+                    target,
+                )
             } else {
                 status_response(StatusCode::UNAUTHORIZED)
             }

@@ -1,3 +1,4 @@
+use crate::drivers::common::full_type_if_distinct;
 use sqlx::Row;
 
 // Helper function to escape backticks in identifiers for MySQL
@@ -163,4 +164,25 @@ pub(super) fn is_raw_sql_function(s: &str) -> bool {
         || trimmed.starts_with("GEOMFROMWKB(")
         || trimmed.starts_with("POINTFROMTEXT(")
         || trimmed.starts_with("POINTFROMWKB(")
+}
+
+/// Maps MySQL's `DATA_TYPE` / `COLUMN_TYPE` pair to the `(data_type, full_type)`
+/// reported on a `TableColumn`.
+///
+/// For ENUM and SET, `DATA_TYPE` is only the base name (`enum`) while
+/// `COLUMN_TYPE` carries the allowed values (`enum('pending','approved')`), so
+/// `COLUMN_TYPE` becomes `data_type` and the UI can offer the values. Every
+/// other type keeps the base name in `data_type`, which value handling and
+/// SQL generation match on, and `COLUMN_TYPE` (`varchar(255)`,
+/// `decimal(10,2)`, `tinyint(1)`, `int unsigned`) goes to `full_type` for
+/// display (#1277).
+pub(super) fn mysql_column_types(
+    data_type: String,
+    column_type: String,
+) -> (String, Option<String>) {
+    if data_type.eq_ignore_ascii_case("enum") || data_type.eq_ignore_ascii_case("set") {
+        return (column_type, None);
+    }
+    let full_type = full_type_if_distinct(&data_type, Some(column_type));
+    (data_type, full_type)
 }

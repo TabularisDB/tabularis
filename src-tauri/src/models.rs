@@ -495,6 +495,11 @@ pub struct TableColumn {
     pub numeric_scale: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
+    /// Full declared type with its modifiers (`varchar(255)`, `decimal(10,2)`,
+    /// `int unsigned`), for display only. Set when it says more than
+    /// `data_type`, which keeps the base name other code matches on (#1277).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub full_type: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

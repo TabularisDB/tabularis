@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis представляет собой настольную среду для работы с SQL с открытым исходным кодом, с 3 встроенными драйверами баз данных и 24 выпущенными плагинами, включая DuckDB, ClickHouse, Redis и Firestore. Встроенный MCP-сервер позволяет Claude, Cursor и Devin (ранее Windsurf) читать вашу схему и выполнять запросы прямо в том приложении, которым вы уже пользуетесь.
+Tabularis представляет собой настольную среду для работы с SQL с открытым исходным кодом, с 3 встроенными драйверами баз данных и 26 выпущенными плагинами, включая DuckDB, ClickHouse, Redis и Firestore. Встроенный MCP-сервер позволяет Claude, Cursor и Devin (ранее Windsurf) читать вашу схему и выполнять запросы прямо в том приложении, которым вы уже пользуетесь.
 
 <p align="center">
   <b><a href="https://tabularis.dev">Сайт</a></b> ·
@@ -20,7 +20,7 @@ Tabularis представляет собой настольную среду д
 <p align="center">
   <img src="https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat" alt="Release" />
   <img src="https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat" alt="Stars" />
-  <img src="https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat" alt="Downloads" />
+  <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTabularisDB%2Ftabularis%2Fdownload-stats%2Fdownloads.json&amp;style=flat" alt="Downloads" />
   <img src="https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg" alt="Build & Release" />
   <a href="https://discord.com/invite/K2hmhfHRSt"><img src="https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://gitster.dev/repo/TabularisDB/tabularis"><img src="https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e" alt="Gitster" /></a>
@@ -70,11 +70,11 @@ sudo snap install tabularis       # Linux
 
 Или скачайте установщик напрямую:
 
-- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_x64-setup.exe)
+- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_x64-setup.exe)
 
-- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_x64.dmg)
+- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_x64.dmg)
 
-- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis-0.29.0-1.x86_64.rpm)
+- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis-0.30.0-1.x86_64.rpm)
 
 Интерфейс приложения доступен на английском, итальянском, испанском, китайском (упрощённом), французском, немецком, японском, русском, корейском, тагальском и бразильском португальском языках.
 
@@ -91,7 +91,7 @@ sudo snap install tabularis       # Linux
 | Плагины на **любом языке** (JSON-RPC через stdio)                         |                  ✅                  |        Плагины Java/Eclipse         | Плагины JavaScript |            ❌            |
 | AI text-to-SQL с **локальными моделями** (Ollama)                         |                  ✅                  |        Облачный AI-ассистент        |         ❌         |            ❌            |
 | Visual EXPLAIN с интерактивными графами планов                            |                  ✅                  |                 ✅                  |         ❌         |            ❌            |
-| Баз данных «из коробки»                                                   | 3 встроенных + 24 официальных плагина |                100+                 |        20+         |           ~10            |
+| Баз данных «из коробки»                                                   | 3 встроенных + 26 плагинов-драйверов |                100+                 |        20+         |           ~10            |
 
 > [!NOTE]
 > Сравнение по состоянию на июнь 2026 года; возможности других инструментов с тех пор могли измениться. Если вам нужны десятки драйверов, используйте DBeaver. Tabularis сосредоточен на том, чтобы хорошо поддерживать несколько баз данных.
@@ -104,6 +104,7 @@ PostgreSQL, MySQL/MariaDB и SQLite встроены изначально. Вс�
 
 | База данных              | Плагин                                                                                          | База данных    | Плагин                                                                                          |
 | ------------------------ | ----------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| Google BigQuery          | [tabularis-bigquery-plugin](https://github.com/TabularisDB/tabularis-bigquery-plugin)           | CockroachDB    | [tabularis-cockroachdb-plugin](https://github.com/TabularisDB/tabularis-cockroachdb-plugin)     |
 | ClickHouse               | [tabularis-clickhouse-plugin](https://github.com/TabularisDB/tabularis-clickhouse-plugin)       | LibSQL / Turso | [tabularis-libsql-plugin](https://github.com/TabularisDB/tabularis-libsql-plugin)               |
 | Cloudflare D1            | [tabularis_cloudflare_d1_plugin](https://github.com/josejorge/tabularis_cloudflare_d1_plugin)   | MongoDB        | [tabularis-mongodb-plugin](https://github.com/danielnuld/tabularis-mongodb-plugin)              |
 | Cloudflare D1 (HTTP API) | [cloudflare-tabularis](https://github.com/GabrielMalava/cloudflare-tabularis)                   | MongoDB Atlas  | [tabularis-mongodb-plugin](https://github.com/TabularisDB/tabularis-mongodb-plugin)             |
@@ -121,10 +122,9 @@ PostgreSQL, MySQL/MariaDB и SQLite встроены изначально. Вс�
 
 | Статус        | Базы данных                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| В разработке  | Amazon Redshift, Google BigQuery, Meilisearch                                |
-| Запланировано | CockroachDB, TiDB                                                            |
-| Скоро         | Snowflake                                                                    |
-| Открыто       | Etcd, Firebird, SQL Anywhere, SurrealDB                                      |
+| В разработке  | Amazon Redshift, Etcd, Meilisearch, Snowflake, SQL Anywhere                                |
+| Запланировано | TiDB                                                            |
+| Открыто       | Firebird, SurrealDB                                      |
 
 > [!NOTE]
 > Драйверы со статусом **Выпущено** можно установить из [реестра плагинов](https://tabularis.dev/plugins). Всё остальное находится на [доске задач](https://tabularis.dev/plugins/bounties): возьмите задачу, спонсируйте её или [запросите базу данных](https://github.com/TabularisDB/tabularis/discussions).

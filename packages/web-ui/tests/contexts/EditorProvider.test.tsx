@@ -2,6 +2,7 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {renderHook, waitFor, act} from '@testing-library/react';
 import {EditorProvider} from '@/contexts/EditorProvider';
 import {useEditor} from '@/hooks/useEditor';
+import {useResultChartState} from '@/hooks/useResultChartState';
 import {buildDuplicatedTab} from '@/utils/editor';
 import {getAdjacentTabGap} from '@/utils/tabDnd';
 import {DatabaseContext} from '@/contexts/DatabaseContext';
@@ -376,6 +377,40 @@ describe('EditorProvider', () => {
             'release_query_session',
             expect.objectContaining({sessionId: result.current.tabs[0].id}),
         );
+    });
+
+    it("forgets a closed tab's result chart view", async () => {
+        const wrapper = createWrapper('conn-1');
+        const {result} = renderHook(() => useEditor(), {wrapper});
+        // Wait for the preferences load to create the initial tab, or it
+        // replaces the tabs added below.
+        await waitFor(() => expect(result.current.tabs).toHaveLength(1));
+
+        act(() => {
+            result.current.addTab({type: 'console'});
+        });
+        act(() => {
+            result.current.addTab({type: 'console'});
+        });
+        const [closed, kept] = result.current.tabs.slice(-2).map((tab) => tab.id);
+        const chart = renderHook(() => ({
+            closed: useResultChartState(closed),
+            closedEntry: useResultChartState(`${closed}-result-0`),
+            kept: useResultChartState(kept),
+        }));
+        act(() => {
+            chart.result.current.closed.setView('chart');
+            chart.result.current.closedEntry.setView('chart');
+            chart.result.current.kept.setView('chart');
+        });
+
+        act(() => {
+            result.current.closeTab(closed);
+        });
+
+        await waitFor(() => expect(chart.result.current.closed.view).toBe('grid'));
+        expect(chart.result.current.closedEntry.view).toBe('grid');
+        expect(chart.result.current.kept.view).toBe('chart');
     });
 
     it('should return empty tabs when closing last tab', () => {
@@ -832,6 +867,146 @@ describe('EditorProvider', () => {
         });
 
         expect(result.current.tabs.map((t) => t.id)).toEqual([keepId, secondId, thirdId]);
+    });
+
+    it('pins a tab to the front and keeps it open on Close all tabs (#1304)', () => {
+        const wrapper = createWrapper('conn-1');
+        const {result} = renderHook(() => useEditor(), {wrapper});
+
+        for (let i = 0; i < 3; i++) {
+            act(() => {
+                result.current.addTab({type: 'console'});
+            });
+        }
+        const [firstId, secondId, thirdId] = result.current.tabs.map((t) => t.id);
+
+        act(() => {
+            result.current.setTabPinned(thirdId, true);
+        });
+        expect(result.current.tabs.map((t) => t.id)).toEqual([thirdId, firstId, secondId]);
+
+        act(() => {
+            result.current.setActiveTabId(firstId);
+        });
+        act(() => {
+            result.current.closeAllTabs();
+        });
+
+        // The pinned tab stays open and takes over from the closed active tab.
+        expect(result.current.tabs.map((t) => t.id)).toEqual([thirdId]);
+        expect(result.current.activeTabId).toBe(thirdId);
+
+        // Only the closed tabs can be reopened.
+        act(() => {
+            result.current.reopenClosedTab();
+        });
+        act(() => {
+            result.current.reopenClosedTab();
+        });
+        expect(result.current.canReopenClosedTab).toBe(false);
+        expect(result.current.tabs.map((t) => t.id)).toEqual([thirdId, firstId, secondId]);
+    });
+
+    it('opens a duplicate of a pinned tab after every pinned tab (#1304)', () => {
+        const wrapper = createWrapper('conn-1');
+        const {result} = renderHook(() => useEditor(), {wrapper});
+
+        for (let i = 0; i < 3; i++) {
+            act(() => {
+                result.current.addTab({type: 'console'});
+            });
+        }
+        const [firstId, secondId, thirdId] = result.current.tabs.map((t) => t.id);
+        act(() => {
+            result.current.setTabPinned(firstId, true);
+        });
+        act(() => {
+            result.current.setTabPinned(secondId, true);
+        });
+
+        let copyId = '';
+        act(() => {
+            copyId = result.current.addTab(
+                {type: 'console'},
+                {insertAfterId: firstId, forceNew: true},
+            );
+        });
+
+        expect(result.current.tabs.map((t) => t.id)).toEqual([firstId, secondId, copyId, thirdId]);
+    });
+});
+
+describe('EditorProvider pinned tabs in storage (#1304)', () => {
+    beforeEach(() => {
+        vi.resetAllMocks();
+        vi.mocked(invoke).mockImplementation((cmd: string) => {
+            if (cmd === 'load_editor_preferences') {
+                return Promise.resolve({
+                    tabs: [
+                        {id: 'scratch', title: 'Scratch', type: 'console', connectionId: 'conn-1'},
+                        {
+                            id: 'sessions',
+                            title: 'Sessions',
+                            type: 'console',
+                            connectionId: 'conn-1',
+                            pinned: true,
+                        },
+                    ],
+                    active_tab_id: 'scratch',
+                });
+            }
+            if (cmd === 'save_editor_preferences') {
+                return Promise.resolve(undefined);
+            }
+            return Promise.resolve(null);
+        });
+    });
+
+    it('restores pinned tabs first and saves the pinned state', async () => {
+        const client = new TabularisClient(new TauriTransport());
+        const wrapper = ({children}: {children: React.ReactNode}) =>
+            React.createElement(
+                TabularisClientProvider,
+                {client},
+                React.createElement(
+                    DatabaseContext.Provider,
+                    {
+                        value: {
+                            activeConnectionId: 'conn-1',
+                            activeDriver: 'mysql',
+                            activeTable: null,
+                            activeConnectionName: 'Test Connection',
+                            activeDatabaseName: 'testdb',
+                            tables: [],
+                            isLoadingTables: false,
+                            connect: vi.fn(),
+                            disconnect: vi.fn(),
+                            setActiveTable: vi.fn(),
+                            refreshTables: vi.fn(),
+                        },
+                    },
+                    React.createElement(EditorProvider, null, children),
+                ),
+            );
+        const {result} = renderHook(() => useEditor(), {wrapper});
+
+        await waitFor(() => expect(result.current.tabs).toHaveLength(2));
+        expect(result.current.tabs.map((t) => [t.id, t.pinned])).toEqual([
+            ['sessions', true],
+            ['scratch', undefined],
+        ]);
+
+        await waitFor(() => {
+            const saves = vi
+                .mocked(invoke)
+                .mock.calls.filter(([cmd]) => cmd === 'save_editor_preferences');
+            const saved = saves.at(-1)?.[1] as
+                {preferences: {tabs: Array<{id: string; pinned?: boolean}>}} | undefined;
+            expect(saved?.preferences.tabs.map((t) => [t.id, t.pinned])).toEqual([
+                ['sessions', true],
+                ['scratch', undefined],
+            ]);
+        });
     });
 });
 

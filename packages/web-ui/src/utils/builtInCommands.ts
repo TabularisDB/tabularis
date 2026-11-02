@@ -254,6 +254,18 @@ export function createBuiltInCommandItems(
         );
     }
 
+    if (editorCommands?.aiGenerate) {
+        addEditorCommand('editor.ai-generate', editorCommands.aiGenerate, [
+            'ai',
+            'generate',
+            'sql',
+            'prompt',
+        ]);
+    }
+    if (editorCommands?.aiExplain) {
+        addEditorCommand('editor.ai-explain', editorCommands.aiExplain, ['ai', 'explain', 'query']);
+    }
+
     const resultCommands = scope.getResultCommands?.();
     const addResultCommand = (
         id: string,

@@ -13,7 +13,7 @@ use crate::drivers::registry as driver_registry;
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::heartbeat;
 use crate::keychain_utils;
-use crate::models::{ConnectionParams, DatabaseSelection, K8sConnection, SshConnection};
+use crate::models::{ConnectionParams, K8sConnection, SshConnection};
 use crate::paths;
 use crate::persistence;
 use crate::plugins;
@@ -23,12 +23,15 @@ use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
 mod cooldown;
+mod database_scope;
 pub mod install;
 mod keychain;
 mod output;
 pub mod preflight;
 pub mod protocol;
+mod termination;
 use cooldown::{DISABLE_CHECK_COOLDOWN, RELOAD_COOLDOWN};
+use database_scope::apply_database_override;
 use keychain::{read_stored_secret, StoredSecret};
 use output::{OutputFormatError, ToolOutputFormat};
 use protocol::*;
@@ -479,6 +482,7 @@ fn resolve_default_schema<'a>(
 pub async fn run_mcp_server() {
     eprintln!("[MCP] Starting Tabularis MCP Server...");
 
+    termination::stop_plugins_on_termination_signal();
     register_drivers_for_mcp().await;
 
     let stdin = io::stdin();
@@ -1015,15 +1019,6 @@ fn database_arg(args: &serde_json::Map<String, Value>) -> Option<&str> {
         .filter(|d| !d.is_empty())
 }
 
-/// Point `params` at `database` when the caller names one, the same way the
-/// GUI's query commands apply their `database` argument. Without it a
-/// connection with several databases selected always runs against the first.
-fn apply_database_override(params: &mut ConnectionParams, database: Option<&str>) {
-    if let Some(db) = database {
-        params.database = DatabaseSelection::Single(db.to_string());
-    }
-}
-
 async fn tool_list_tables(
     args: &serde_json::Map<String, Value>,
     config: &AppConfig,
@@ -1047,7 +1042,7 @@ async fn tool_list_tables(
     audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
-    apply_database_override(&mut db_params, database);
+    apply_database_override(&mut db_params, database, &driver.manifest().capabilities)?;
 
     let effective_schema = resolve_default_schema(&driver, schema);
     let tables = driver
@@ -1129,7 +1124,7 @@ async fn tool_describe_table(
     audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
-    apply_database_override(&mut db_params, database);
+    apply_database_override(&mut db_params, database, &driver.manifest().capabilities)?;
 
     let effective_schema = resolve_default_schema(&driver, schema);
     // Run the three metadata fetches concurrently so a slow driver costs one
@@ -1195,7 +1190,7 @@ async fn tool_run_query(
     audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
-    apply_database_override(&mut db_params, database);
+    apply_database_override(&mut db_params, database, &capabilities)?;
 
     // Read-only enforcement (fail-closed: unknown counts as write).
     if config::is_connection_readonly(config, &conn.id) && kind != "select" {

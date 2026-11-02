@@ -19,6 +19,7 @@ anthropic:
   - claude-opus-4-5
 
 minimax:
+  - MiniMax-M3.1-Flash
   - MiniMax-M3
   - MiniMax-M2.7
   - MiniMax-M2.7-highspeed
@@ -42,6 +43,8 @@ openrouter:
   - deepseek/deepseek-v3.2
   - openai/gpt-oss-120b:free
   - z-ai/glm-4.5-air:free
+  - minimax/minimax-m3.1-flash
+  - minimax/minimax-m3
 
 requesty:
   - openai/gpt-4o-mini
@@ -61,3 +64,5 @@ requesty:
   - glm-5.2
   - gpt-5-mini@eu
   - claude-sonnet-4-6@eu
+  - minimax-m3.1-flash
+  - minimax-m3

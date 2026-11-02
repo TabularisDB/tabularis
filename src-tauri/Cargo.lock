@@ -6721,7 +6721,7 @@ dependencies = [
 
 [[package]]
 name = "tabularis"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -6794,6 +6794,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "which",
+ "windows-sys 0.61.2",
  "zbus 5.14.0",
  "zeroize",
  "zip",

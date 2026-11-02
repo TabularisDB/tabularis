@@ -1,5 +1,5 @@
-import {describe, it, expect, vi, beforeEach} from 'vitest';
-import {render, screen, fireEvent, waitFor, act} from '@testing-library/react';
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
+import {render, screen, fireEvent, waitFor, act, within} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import {ExplorerSidebar} from '@/components/layout/ExplorerSidebar';
 import {useDatabase} from '@/hooks/useDatabase';
@@ -13,6 +13,7 @@ import {useSettings} from '@/hooks/useSettings';
 import {useDatabaseObjectNavigation} from '@/hooks/useDatabaseObjectNavigation';
 import {openEditor} from '@/utils/editorNavigation';
 import {FOLDERS_FILE_UNREADABLE} from '@/utils/savedQueryFolders';
+import {UI_STATE_KEYS, uiStateStore} from '@/utils/uiStateStore';
 
 const translateMock = vi.hoisted(() => (key: string) => key);
 const toastSpy = vi.hoisted(() => vi.fn());
@@ -43,11 +44,8 @@ vi.mock('@/hooks/useSecondaryWindows', () => ({
 vi.mock('@/hooks/usePlatformCapabilities', () => ({
     usePlatformCapabilities: () => ({chooseInputFile: vi.fn()}),
 }));
-vi.mock('@/hooks/useTabularisClient', () => ({
-    useTabularisClient: () => ({
-        call: (command: string, request: unknown) => invoke(command, request),
-    }),
-}));
+const sidebarClient = {call: (command: string, request: unknown) => invoke(command, request)};
+vi.mock('@/hooks/useTabularisClient', () => ({useTabularisClient: () => sidebarClient}));
 vi.mock('react-router-dom', () => ({useNavigate: () => vi.fn()}));
 vi.mock('@/utils/notebookStore', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@/utils/notebookStore')>();
@@ -166,6 +164,8 @@ describe('ExplorerSidebar — schema load error block', () => {
             queries: [],
             folders: [],
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
             saveQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
@@ -303,6 +303,8 @@ describe('ExplorerSidebar — database object navigation', () => {
             queries: [],
             folders: [],
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
             saveQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
@@ -705,6 +707,50 @@ describe('ExplorerSidebar — database object navigation', () => {
             }),
         ).toBeDisabled();
     });
+
+    describe('pinned objects (#1306)', () => {
+        const pinnedGroup = () => screen.queryByRole('group', {name: 'sidebar.pinned'});
+
+        beforeEach(() => uiStateStore.reset());
+        afterEach(() => uiStateStore.reset());
+
+        it('context menu — pin lists the table in a Pinned group and unpin removes it', () => {
+            openContextMenuOn('orders');
+            fireEvent.click(screen.getByText('sidebar.pin'));
+
+            expect(within(pinnedGroup()!).getByText('orders')).toBeInTheDocument();
+            expect(screen.getAllByText('orders')).toHaveLength(2);
+            expect(uiStateStore.get(UI_STATE_KEYS.explorerPins.key, null)).toEqual({
+                c1: {'[null,null]': [{kind: 'table', name: 'orders'}]},
+            });
+
+            fireEvent.contextMenu(within(pinnedGroup()!).getByText('orders'));
+            fireEvent.click(screen.getByText('sidebar.unpin'));
+            expect(pinnedGroup()).toBeNull();
+            expect(uiStateStore.get(UI_STATE_KEYS.explorerPins.key, null)).toEqual({});
+        });
+
+        it('context menu — pins a view', () => {
+            openContextMenuOn('active_orders');
+            fireEvent.click(screen.getByText('sidebar.pin'));
+            expect(within(pinnedGroup()!).getByText('active_orders')).toBeInTheDocument();
+        });
+
+        it('opens a pinned table like its regular item', () => {
+            uiStateStore.set(UI_STATE_KEYS.explorerPins.key, {
+                c1: {'[null,null]': [{kind: 'table', name: 'orders'}]},
+            });
+            renderSidebar();
+            fireEvent.doubleClick(within(pinnedGroup()!).getByText('orders'));
+            expect(objectNavigation.open).toHaveBeenCalledWith('orders', undefined);
+        });
+
+        it('disables pinning without an active connection', () => {
+            databaseState.activeConnectionId = null;
+            openContextMenuOn('orders');
+            expect(screen.getByRole('button', {name: 'sidebar.pin'})).toBeDisabled();
+        });
+    });
 });
 
 describe('ExplorerSidebar — capabilities threading (issue #614)', () => {
@@ -752,6 +798,8 @@ describe('ExplorerSidebar — capabilities threading (issue #614)', () => {
             queries: [],
             folders: [],
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
             saveQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
@@ -807,6 +855,83 @@ describe('ExplorerSidebar — capabilities threading (issue #614)', () => {
             databaseState.activeCapabilities,
         );
     });
+    it.each(['index', 'foreign_key'] as const)(
+        'opens %s details from the menu for a read-only plugin using capabilities',
+        async (kind) => {
+            const capabilities = {
+                ...databaseState.activeCapabilities,
+                readonly: true,
+                manage_tables: false,
+            };
+            vi.mocked(useDatabase).mockReturnValue({
+                ...databaseState,
+                activeCapabilities: capabilities,
+            } as unknown as ReturnType<typeof useDatabase>);
+            vi.mocked(invoke).mockImplementation(async (command) => {
+                if (command === 'get_indexes')
+                    return [
+                        {
+                            name: 'orders_idx',
+                            column_name: 'customer_id',
+                            is_unique: true,
+                            is_primary: false,
+                        },
+                    ];
+                if (command === 'get_foreign_keys')
+                    return [
+                        {
+                            name: 'orders_fk',
+                            column_name: 'customer_id',
+                            ref_table: 'customers',
+                            ref_column: 'id',
+                            on_delete: 'CASCADE',
+                        },
+                    ];
+                if (command === 'get_create_index_sql')
+                    return ['CREATE UNIQUE INDEX "orders_idx" ON "orders" ("customer_id")'];
+                if (command === 'get_create_foreign_key_sql')
+                    return [
+                        'ALTER TABLE "orders" ADD CONSTRAINT "orders_fk" FOREIGN KEY ("customer_id") REFERENCES "customers" ("id")',
+                    ];
+                return [];
+            });
+            renderSidebar();
+            const table = screen.getByText('orders').closest('[data-table-name]')!;
+            fireEvent.click(table.querySelector('button')!);
+            await waitFor(() =>
+                expect(invoke).toHaveBeenCalledWith(
+                    'get_indexes',
+                    expect.objectContaining({connectionId: 'c1', tableName: 'orders'}),
+                ),
+            );
+            if (kind === 'index') {
+                fireEvent.click(screen.getByText('sidebar.indexes'));
+            } else {
+                fireEvent.click(screen.getByText('sidebar.foreignKeys').parentElement!);
+            }
+            const name = kind === 'index' ? 'orders_idx' : 'orders_fk';
+            fireEvent.contextMenu(await screen.findByText(name, {exact: false}));
+            expect(
+                screen.queryByText(kind === 'index' ? 'sidebar.deleteIndex' : 'sidebar.deleteFk'),
+            ).not.toBeInTheDocument();
+            fireEvent.click(screen.getByText('objectDetails.viewDetails'));
+            expect(screen.getByRole('dialog')).toHaveTextContent(name);
+            expect(screen.getByRole('dialog')).toHaveTextContent('1. customer_id');
+            await screen.findByRole('button', {
+                name: kind === 'index' ? 'objectDetails.copyCreate' : 'objectDetails.copyAlter',
+            });
+            expect(invoke).toHaveBeenCalledWith(
+                kind === 'index' ? 'get_create_index_sql' : 'get_create_foreign_key_sql',
+                expect.objectContaining({connectionId: 'c1', table: 'orders'}),
+            );
+            expect(
+                invoke.mock.calls.every(
+                    ([command]) =>
+                        !String(command).includes('execute') && !String(command).includes('drop_'),
+                ),
+            ).toBe(true);
+        },
+    );
 });
 
 describe('ExplorerSidebar — saved query actions', () => {
@@ -856,6 +981,8 @@ describe('ExplorerSidebar — saved query actions', () => {
             folders: [],
             saveQuery,
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
         vi.mocked(useQueryHistory).mockReturnValue({
@@ -1023,6 +1150,8 @@ describe('ExplorerSidebar — saved query actions', () => {
                 folders,
                 saveQuery,
                 deleteQuery: vi.fn(),
+                getQueryVersions: vi.fn(),
+                restoreQueryVersion: vi.fn(),
                 updateQuery: vi.fn(),
                 createFolder,
                 renameFolder,
@@ -1295,6 +1424,8 @@ describe('ExplorerSidebar — saved query actions', () => {
                 folders: [],
                 saveQuery,
                 deleteQuery: vi.fn(),
+                getQueryVersions: vi.fn(),
+                restoreQueryVersion: vi.fn(),
                 updateQuery: vi.fn(),
             } as unknown as ReturnType<typeof useSavedQueries>);
             renderFavorites();

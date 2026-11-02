@@ -1,11 +1,12 @@
 import type {QueryHistoryEntry} from '@/types/queryHistory';
-import {resolveZone, zonedYmd} from './dateGroups';
+import {calendarDayNumber, parseCalendarDay, resolveZone, zonedYmd} from './dateGroups';
 
 /** Outcome filter for the Query History panel. */
 export type QueryHistoryOutcomeFilter = 'any' | 'succeeded' | 'failed';
 
 /** Time-range filter for the Query History panel. */
-export type QueryHistoryTimeRange = 'all' | 'lastHour' | 'today' | 'last7Days' | 'last30Days';
+export type QueryHistoryTimeRange =
+    'all' | 'lastHour' | 'today' | 'last7Days' | 'last30Days' | 'custom';
 
 /**
  * Database filter for the Query History panel: every entry (`"all"`), only
@@ -35,6 +36,7 @@ export const QUERY_HISTORY_TIME_RANGE_OPTIONS: readonly QueryHistoryTimeRange[] 
     'today',
     'last7Days',
     'last30Days',
+    'custom',
 ] as const;
 
 export interface QueryHistoryFilterOptions {
@@ -54,6 +56,39 @@ export interface QueryHistoryFilterOptions {
      * timezone is used.
      */
     timeZone?: string;
+    /**
+     * Inclusive calendar-day lower bound as `YYYY-MM-DD`, compared in
+     * `timeZone`. Empty or undefined means "no lower bound".
+     */
+    from?: string;
+    /** Inclusive calendar-day upper bound as `YYYY-MM-DD`. */
+    to?: string;
+}
+
+/** Why a custom `from` / `to` range cannot be applied. */
+export type QueryHistoryDateRangeError = 'invalidFrom' | 'invalidTo' | 'inverted';
+
+/**
+ * Validates the optional custom date range and returns `null` when it can be
+ * applied — including when one or both sides are empty. Callers should surface
+ * the returned reason instead of silently widening the range.
+ */
+export function validateQueryHistoryDateRange(
+    from?: string,
+    to?: string,
+): QueryHistoryDateRangeError | null {
+    const fromRaw = from?.trim() ?? '';
+    const toRaw = to?.trim() ?? '';
+
+    const fromDay = fromRaw ? parseCalendarDay(fromRaw) : null;
+    if (fromRaw && fromDay === null) return 'invalidFrom';
+
+    const toDay = toRaw ? parseCalendarDay(toRaw) : null;
+    if (toRaw && toDay === null) return 'invalidTo';
+
+    if (fromDay !== null && toDay !== null && fromDay > toDay) return 'inverted';
+
+    return null;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -77,7 +112,9 @@ function matchesTimeRange(
     nowMs: number,
     zone: string | undefined,
 ): boolean {
-    if (timeRange === 'all') return true;
+    // "custom" has no rolling window of its own: the inclusive `from` / `to`
+    // bounds are applied by `matchesDateRange`.
+    if (timeRange === 'all' || timeRange === 'custom') return true;
 
     const executed = new Date(entry.executedAt);
     if (Number.isNaN(executed.getTime())) return false;
@@ -90,6 +127,24 @@ function matchesTimeRange(
     if (timeRange === 'lastHour') return ageMs >= 0 && ageMs <= HOUR_MS;
     if (timeRange === 'last7Days') return ageMs >= 0 && ageMs <= 7 * DAY_MS;
     return ageMs >= 0 && ageMs <= 30 * DAY_MS;
+}
+
+/** Applies the optional custom range: both bounds are inclusive calendar days. */
+function matchesDateRange(
+    entry: QueryHistoryEntry,
+    fromDay: number | null,
+    toDay: number | null,
+    zone: string | undefined,
+): boolean {
+    if (fromDay === null && toDay === null) return true;
+
+    const executed = new Date(entry.executedAt);
+    if (Number.isNaN(executed.getTime())) return false;
+
+    const day = calendarDayNumber(executed, zone);
+    if (fromDay !== null && day < fromDay) return false;
+    if (toDay !== null && day > toDay) return false;
+    return true;
 }
 
 /** The entry's recorded database, or null when none was recorded. */
@@ -150,24 +205,32 @@ function matchesSearch(entry: QueryHistoryEntry, search: string): boolean {
 }
 
 /**
- * True when any Query History filter (text, outcome, time range, or database)
- * is active. Used to show the filtered/total counter.
+ * True when any Query History filter (text, outcome, time range, database, or
+ * custom date range) is active. Used to show the filtered/total counter.
  */
 export function isQueryHistoryFilterActive(
-    options: Pick<QueryHistoryFilterOptions, 'search' | 'outcome' | 'timeRange' | 'database'>,
+    options: Pick<
+        QueryHistoryFilterOptions,
+        'search' | 'outcome' | 'timeRange' | 'database' | 'from' | 'to'
+    >,
 ): boolean {
     const searchActive = Boolean(options.search?.trim());
     const outcomeActive = (options.outcome ?? 'any') !== 'any';
-    const timeActive = (options.timeRange ?? 'all') !== 'all';
+    // `custom` is a mode of the time-range select, not a range of its own:
+    // picking it without dates filters nothing, and once a date is set
+    // `rangeActive` already covers the filter.
+    const timeActive = (options.timeRange ?? 'all') !== 'all' && options.timeRange !== 'custom';
     const databaseActive = (options.database ?? 'all') !== 'all';
-    return searchActive || outcomeActive || timeActive || databaseActive;
+    const rangeActive = Boolean(options.from?.trim()) || Boolean(options.to?.trim());
+    return searchActive || outcomeActive || timeActive || databaseActive || rangeActive;
 }
 
 /**
  * Filter query-history entries by optional text search, outcome, time range,
- * and database.
+ * database, and custom `from` / `to` calendar dates.
  * Filters combine with AND. Relative ranges are rolling windows from `now`;
- * `today` is the calendar day in `timeZone`.
+ * `today` and the custom range use the calendar day in `timeZone`, with both
+ * boundaries inclusive.
  */
 export function filterQueryHistoryEntries(
     entries: QueryHistoryEntry[],
@@ -178,13 +241,26 @@ export function filterQueryHistoryEntries(
         outcome = 'any',
         timeRange = 'all',
         database = 'all',
+        from = '',
+        to = '',
         now = Date.now(),
         timeZone,
     } = options;
 
-    if (!isQueryHistoryFilterActive({search, outcome, timeRange, database})) {
+    if (!isQueryHistoryFilterActive({search, outcome, timeRange, database, from, to})) {
         return entries;
     }
+
+    // An unusable custom range (unparseable boundary, or `from` after `to`)
+    // matches nothing; the UI explains the reason rather than widening it.
+    if (validateQueryHistoryDateRange(from, to) !== null) {
+        return [];
+    }
+
+    const fromRaw = from.trim();
+    const toRaw = to.trim();
+    const fromDay = fromRaw ? parseCalendarDay(fromRaw) : null;
+    const toDay = toRaw ? parseCalendarDay(toRaw) : null;
 
     const nowMs = typeof now === 'number' ? now : now.getTime();
     const zone = resolveZone(timeZone);
@@ -194,6 +270,7 @@ export function filterQueryHistoryEntries(
             matchesSearch(entry, search) &&
             matchesOutcome(entry, outcome) &&
             matchesDatabase(entry, database) &&
-            matchesTimeRange(entry, timeRange, nowMs, zone),
+            matchesTimeRange(entry, timeRange, nowMs, zone) &&
+            matchesDateRange(entry, fromDay, toDay, zone),
     );
 }

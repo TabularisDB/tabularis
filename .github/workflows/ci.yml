@@ -16,7 +16,11 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'eslint.config.js'
-      - 'web-ui-project/**'
+      - 'docs/web/**'
+      - 'docs/architecture/decisions/**'
+      - 'e2e/web/**'
+      - 'scripts/web/**'
+      - 'tests/web/**'
       - '.github/workflows/**'
   pull_request:
     branches: [main]
@@ -29,7 +33,11 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'eslint.config.js'
-      - 'web-ui-project/**'
+      - 'docs/web/**'
+      - 'docs/architecture/decisions/**'
+      - 'e2e/web/**'
+      - 'scripts/web/**'
+      - 'tests/web/**'
       - '.github/workflows/**'
 
 jobs:
@@ -66,9 +74,6 @@ jobs:
 
       - name: Lint
         run: pnpm run lint
-
-      - name: Check web API inventory
-        run: pnpm run web:inventory
 
       - name: Check web frontend boundaries
         run: pnpm run web:boundaries
@@ -167,8 +172,8 @@ jobs:
 
       - name: Upload browser E2E artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-e2e-artifacts
-          path: web-ui-project/.runtime/e2e
+          path: e2e/web/.runtime
           if-no-files-found: ignore

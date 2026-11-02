@@ -1,5 +1,5 @@
 //! Minimal JDBC connection-string parser, extracting host/port/database from
-//! the URL forms DataGrip writes. Ported from TablePro's `JDBCConnectionString`.
+//! the URL forms DataGrip writes.
 
 pub struct Endpoint {
     pub host: String,

@@ -1,11 +1,11 @@
 use super::{
     build_paginated_query, calculate_query_timing, calculate_query_timing_from_start,
-    decode_blob_wire_format, encode_blob, encode_blob_full, i64_to_json, is_explainable_query,
-    is_explainable_query_for, is_select_query, is_select_query_for, parse_unsafe_bigint_string,
-    returns_result_set, returns_result_set_for, strip_leading_sql_comments,
-    strip_leading_sql_comments_for, strip_limit_offset, transaction_effect, u64_to_json,
-    TransactionEffect, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,
-    MAX_BLOB_PREVIEW_SIZE,
+    decode_blob_wire_format, encode_blob, encode_blob_full, full_type_if_distinct, i64_to_json,
+    is_explainable_query, is_explainable_query_for, is_select_query, is_select_query_for,
+    parse_unsafe_bigint_string, returns_result_set, returns_result_set_for,
+    strip_leading_sql_comments, strip_leading_sql_comments_for, strip_limit_offset,
+    transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER,
+    JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
 };
 
 #[test]
@@ -976,5 +976,46 @@ fn transaction_effect_does_not_match_plpgsql_block_bodies() {
     assert_eq!(
         transaction_effect("DO $$ BEGIN RAISE NOTICE 'hi'; END $$"),
         TransactionEffect::None
+    );
+}
+
+#[test]
+fn full_type_if_distinct_keeps_types_with_modifiers() {
+    assert_eq!(
+        full_type_if_distinct("varchar", Some("varchar(255)".into())),
+        Some("varchar(255)".into())
+    );
+    assert_eq!(
+        full_type_if_distinct("decimal", Some("decimal(10,2)".into())),
+        Some("decimal(10,2)".into())
+    );
+    assert_eq!(
+        full_type_if_distinct("int", Some("int unsigned".into())),
+        Some("int unsigned".into())
+    );
+    assert_eq!(
+        full_type_if_distinct("ARRAY", Some("integer[]".into())),
+        Some("integer[]".into())
+    );
+}
+
+#[test]
+fn full_type_if_distinct_drops_repeats_and_blanks() {
+    assert_eq!(full_type_if_distinct("text", Some("text".into())), None);
+    assert_eq!(full_type_if_distinct("TEXT", Some("text".into())), None);
+    assert_eq!(
+        full_type_if_distinct("integer", Some(" integer ".into())),
+        None
+    );
+    assert_eq!(full_type_if_distinct("int", Some(String::new())), None);
+    assert_eq!(full_type_if_distinct("int", Some("   ".into())), None);
+    assert_eq!(full_type_if_distinct("int", None), None);
+}
+
+#[test]
+fn full_type_if_distinct_trims_the_kept_value() {
+    assert_eq!(
+        full_type_if_distinct("char", Some(" char(10) ".into())),
+        Some("char(10)".into())
     );
 }

@@ -15,7 +15,12 @@ import {
     resolveTabPageSize,
 } from '@/utils/editor';
 import {shouldShowStatementSuccess} from '@/utils/resultPresentation';
-import {formatRowsForCopy, copyTextToClipboard} from '@/utils/clipboard';
+import {
+    formatRowsForCopy,
+    copyTextToClipboard,
+    sqlUpdateBlocker,
+    type CopyFormat,
+} from '@/utils/clipboard';
 import {onActivationKey, isTypingTarget} from '@/utils/keyboardEvents';
 import {
     formatResultForExport,
@@ -99,6 +104,8 @@ import {
     BookOpen,
     UsersRound,
     Pencil,
+    Pin,
+    PinOff,
     Hash,
     Loader2,
     Copy,
@@ -115,7 +122,11 @@ import {TableToolbar} from '@/components/ui/TableToolbar';
 import {DataGrid, type DataGridCommandTarget} from '@/components/ui/DataGrid';
 import {MultiResultPanel} from '@/components/ui/MultiResultPanel';
 import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
+import {PageIndicator} from '@/components/ui/PageIndicator';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
+import {LazyResultChart} from '@/components/ui/LazyResultChart';
+import {totalPageCount} from '@/utils/pagination';
+import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
 import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
@@ -156,6 +167,7 @@ import {
 import {extractQueryParams, interpolateQueryParams} from '@/utils/queryParameters';
 import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
 import {useTimingLabels} from '@/hooks/useTimingLabels';
+import {useResultChartState} from '@/hooks/useResultChartState';
 import {notifyQueryFinished} from '@/utils/queryNotification';
 import {
     buildSyncPayload,
@@ -224,7 +236,8 @@ import {
     type PluginColumnStatsFetcher,
 } from '@/utils/columnStats';
 import {getNextSortClause} from '@/utils/tableToolbar';
-import {getAdjacentTabGap} from '@/utils/tabDnd';
+import {clampTabGap, getAdjacentTabGap} from '@/utils/tabDnd';
+import {getBulkClosedTabIds} from '@/utils/tabPins';
 import {
     createSqlFileTab,
     getSqlFileName,
@@ -246,6 +259,7 @@ const LOADED_ROWS_EXPORT_MIME_TYPES: Record<ResultExportFormat, string> = {
     json: 'application/json',
     ndjson: 'application/x-ndjson',
     markdown: 'text/markdown',
+    'sql-insert': 'application/sql',
     html: 'text/html',
 };
 
@@ -308,6 +322,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         activeTabId,
         updateTab,
         reorderTab,
+        setTabPinned,
         updateResultEntry: patchResultEntry,
         addTab,
         setActiveTabId,
@@ -588,13 +603,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [explainSelectableQueries, setExplainSelectableQueries] = useState<
         {query: string; index: number}[]
     >([]);
-    const [isEditingPage, setIsEditingPage] = useState(false);
-    const [tempPage, setTempPage] = useState('1');
     const [isCountLoading, setIsCountLoading] = useState(false);
     const [applyToAll, setApplyToAll] = useState(false);
-    const [copyFormat, setCopyFormat] = useState<'csv' | 'json' | 'sql-insert' | 'markdown'>(
-        settings.copyFormat ?? 'csv',
-    );
+    const [copyFormat, setCopyFormat] = useState<CopyFormat>(settings.copyFormat ?? 'csv');
     const [csvDelimiter, setCsvDelimiter] = useState(settings.csvDelimiter ?? ',');
     const [csvIncludeHeaders, setCsvIncludeHeaders] = useState(settings.csvIncludeHeaders ?? true);
 
@@ -604,6 +615,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const isNotebookTab = activeTab?.type === 'notebook';
     // Users tabs render full-height like notebooks: no SQL toolbar, no results panel.
     const isUsersTab = activeTab?.type === 'users';
+    // Grid | Chart toggle for a query tab's single result (table tabs keep the grid).
+    const resultChartEnabled =
+        !!activeTab && !isTableTab && (activeTab.result?.columns.length ?? 0) > 0;
+    const resultChart = useResultChartState(resultChartEnabled ? activeTab.id : null);
+    const showResultChart = resultChartEnabled && resultChart.view === 'chart';
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
     const tabStripId = useId();
     // Full name behind a truncated tab title (tooltip and accessible name).
@@ -880,21 +896,32 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         stopTabAutoScroll();
     }, [stopTabAutoScroll]);
 
+    // Pixel offset of the insertion line for a gap: the left edge of the tab after it,
+    // or the right edge of the last tab.
+    const tabGapLeft = useCallback((gap: number): number => {
+        const tabEls = Array.from(
+            tabScrollRef.current?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [],
+        );
+        const next = tabEls[gap];
+        if (next) return next.offsetLeft;
+        const last = tabEls.at(-1);
+        return last ? last.offsetLeft + last.offsetWidth : 0;
+    }, []);
+
     const handleTabDragOver = useCallback(
         (index: number) => (e: React.DragEvent<HTMLDivElement>) => {
             if (!dragTabId) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            // Left half of the tab drops before it, right half drops after it.
-            const target = e.currentTarget;
-            const rect = target.getBoundingClientRect();
+            // Left half of the tab drops before it, right half drops after it. Pinned
+            // tabs stay before unpinned ones, so the gap is kept in the dragged tab's group.
+            const rect = e.currentTarget.getBoundingClientRect();
             const after = e.clientX > rect.left + rect.width / 2;
-            setDropPos(after ? index + 1 : index);
-            setDropIndicatorLeft(
-                after ? target.offsetLeft + target.offsetWidth : target.offsetLeft,
-            );
+            const gap = clampTabGap(tabs, dragTabId, after ? index + 1 : index);
+            setDropPos(gap);
+            setDropIndicatorLeft(tabGapLeft(gap));
         },
-        [dragTabId],
+        [dragTabId, tabs, tabGapLeft],
     );
 
     // Drive edge auto-scroll from the scroll container, and fall back to
@@ -915,12 +942,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 autoScrollRafRef.current = requestAnimationFrame(stepTabAutoScroll);
             }
             if (e.target === container) {
-                const lastTab = container.children[tabs.length - 1] as HTMLElement | undefined;
-                setDropPos(tabs.length);
-                setDropIndicatorLeft(lastTab ? lastTab.offsetLeft + lastTab.offsetWidth : 0);
+                const gap = clampTabGap(tabs, dragTabId, tabs.length);
+                setDropPos(gap);
+                setDropIndicatorLeft(tabGapLeft(gap));
             }
         },
-        [dragTabId, tabs.length, stepTabAutoScroll],
+        [dragTabId, tabs, stepTabAutoScroll, tabGapLeft],
     );
 
     const handleTabsDrop = useCallback(
@@ -1007,6 +1034,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [activeTab?.gridHistory],
     );
     const showPendingChangesBar = hasPendingChanges || canUndoGridActiveTab || canRedoGridActiveTab;
+    // Row and copy actions act on the grid, so Chart view leaves them out. It keeps the
+    // pending-changes bar while there is something to submit or roll back.
+    const showDataToolbar =
+        !!activeTab?.activeTable && !!activeTab.result && (!showResultChart || hasPendingChanges);
 
     useLayoutEffect(() => {
         tabsRef.current = tabs;
@@ -1062,9 +1093,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [clearEntryScrollTops, closeTab, requestTabClosure],
     );
 
+    // Bulk close actions leave pinned tabs open, so only the tabs they close are
+    // checked for unsaved changes.
     const handleCloseOtherTabs = useCallback(
         (tabId: string) => {
-            const tabIds = tabsRef.current.filter((tab) => tab.id !== tabId).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'others', tabId);
             requestTabClosure(tabIds, () => closeOtherTabs(tabId));
         },
         [closeOtherTabs, requestTabClosure],
@@ -1072,8 +1105,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const handleCloseTabsToRight = useCallback(
         (tabId: string) => {
-            const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
-            const tabIds = index < 0 ? [] : tabsRef.current.slice(index + 1).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'right', tabId);
             requestTabClosure(tabIds, () => closeTabsToRight(tabId));
         },
         [closeTabsToRight, requestTabClosure],
@@ -1081,18 +1113,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const handleCloseTabsToLeft = useCallback(
         (tabId: string) => {
-            const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
-            const tabIds = index < 0 ? [] : tabsRef.current.slice(0, index).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'left', tabId);
             requestTabClosure(tabIds, () => closeTabsToLeft(tabId));
         },
         [closeTabsToLeft, requestTabClosure],
     );
 
     const handleCloseAllTabs = useCallback(() => {
-        requestTabClosure(
-            tabsRef.current.map((tab) => tab.id),
-            closeAllTabs,
-        );
+        requestTabClosure(getBulkClosedTabIds(tabsRef.current, 'all'), closeAllTabs);
     }, [closeAllTabs, requestTabClosure]);
 
     const cancelPendingTabClosure = useCallback(() => {
@@ -2216,6 +2244,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             tableName: string | null,
             sessionId: string,
             database?: string | null,
+            pkColumns?: string[] | null,
         ): Promise<CopiedRows | null> => {
             const columns = result?.columns ?? [];
             if (!activeConnectionId || columns.length === 0 || !query.trim()) {
@@ -2250,8 +2279,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 csvDelimiter,
                 tableName,
                 driver: activeCapabilities,
+                nullLabel: settings.copyNullLabel ?? 'null',
+                pkColumns,
             });
-            return {text, count: rows.length};
+            const asInsert =
+                copyFormat === 'sql-update' && sqlUpdateBlocker(fetchedColumns, pkColumns) !== null;
+            return {text, count: rows.length, ...(asInsert ? {asInsert} : {})};
         },
         [
             client,
@@ -2260,6 +2293,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             copyFormat,
             csvDelimiter,
             csvIncludeHeaders,
+            settings.copyNullLabel,
         ],
     );
 
@@ -2293,6 +2327,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     tab.activeTable,
                     tab.id,
                     tab.database,
+                    tab.pkColumns,
                 );
             if (tab.type !== 'table') return fetch();
 
@@ -2325,6 +2360,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 entry.activeTable,
                 tab.id,
                 tab.database,
+                entry.pkColumns,
             );
         },
         [activeSchema, fetchAllRows],
@@ -2336,9 +2372,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 const copied = await rows;
                 if (!copied) return;
                 await copyTextToClipboard(copied.text);
-                showToast(t('dataGrid.copiedRows', {count: copied.count}), {
-                    kind: 'success',
-                });
+                showToast(
+                    t(copied.asInsert ? 'dataGrid.copiedAsInsertNoKey' : 'dataGrid.copiedRows', {
+                        count: copied.count,
+                    }),
+                    {kind: 'success'},
+                );
             } catch (e) {
                 showAlert(t('common.error') + ': ' + e, {
                     title: t('common.error'),
@@ -2646,17 +2685,22 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             isLoading: activeTab.isLoading === true,
             canSaveSqlFile: canSaveSqlFile(activeTab),
             statementCount: splitBatchQueries(editorText, activeDialect).length,
+            aiEnabled: settings.aiEnabled === true,
             labels: {
                 run: runLabel,
                 runAll: t('editor.runAll'),
                 saveSqlFile: t('editor.saveSqlFile'),
                 closeTab: t('editor.closeTab'),
+                aiGenerate: `${t('ai.assist')}: ${t('ai.generateSql')}`,
+                aiExplain: t('ai.explainQuery'),
             },
             actions: {
                 run: handleRunButton,
                 runAll: handleRunAll,
                 saveSqlFile: () => handleSaveSqlFile(activeTab),
                 closeTab: () => handleCloseTab(activeTab.id),
+                aiGenerate: () => setIsAiModalOpen(true),
+                aiExplain: () => setIsAiExplainModalOpen(true),
             },
         });
     }, [
@@ -2669,6 +2713,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         handleRunButton,
         handleSaveSqlFile,
         runLabel,
+        settings.aiEnabled,
         t,
     ]);
 
@@ -4742,6 +4787,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             return;
         }
 
+        // SQL INSERT serialises client-side from the loaded rows, like NDJSON:
+        // the backend exporter does not know the format.
+        if (format === 'sql-insert') {
+            if (!activeExportResult) return;
+            await handleExportLoadedRows(activeExportResult, 'sql-insert');
+            return;
+        }
+
         const extension = format === 'markdown' ? 'md' : format;
         const multiResult = activeResultEntry?.result;
         if (multiResult?.rows.length) {
@@ -4969,6 +5022,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {tabs.map((tab, index) => (
                         <div
                             key={tab.id}
+                            data-tab-id={tab.id}
                             draggable
                             onDragStart={(e) => handleTabDragStart(e, tab.id)}
                             onDragEnd={handleTabDragEnd}
@@ -4979,6 +5033,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                             aria-label={tabFullTitle(tab)}
                             aria-describedby={
                                 [
+                                    tab.pinned ? `${tabStripId}-pinned-${tab.id}` : null,
                                     tab.sourceFileDirty ? `${tabStripId}-dirty-${tab.id}` : null,
                                     transactionTabIds.has(tab.id)
                                         ? `${tabStripId}-transaction-${tab.id}`
@@ -5121,6 +5176,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             {t('editor.transactionOpen')}
                                         </span>
                                     )}
+                                </span>
+                            )}
+                            {tab.pinned && (
+                                // The tab's aria-label replaces its text, so the pinned state
+                                // reaches screen readers as a description instead.
+                                <span className="flex shrink-0 text-muted">
+                                    <Pin size={11} aria-hidden="true" />
+                                    <span id={`${tabStripId}-pinned-${tab.id}`} className="sr-only">
+                                        {t('editor.pinnedTab')}
+                                    </span>
                                 </span>
                             )}
                             <button
@@ -6019,6 +6084,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             )}
                                         </div>
 
+                                        {resultChartEnabled && (
+                                            <ResultViewToggle
+                                                className="ml-auto"
+                                                view={resultChart.view}
+                                                onChange={resultChart.setView}
+                                            />
+                                        )}
+
                                         {/* Pagination Controls */}
                                         {(activeTab.result.pagination ||
                                             activeTab.pageSize === 0) && (
@@ -6045,7 +6118,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                             }
                                                             onClick={() => runQuery(undefined, 1)}
                                                             className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="First Page"
+                                                            title={t('pagination.firstPage')}
+                                                            aria-label={t('pagination.firstPage')}
                                                         >
                                                             <ChevronsLeft size={14} />
                                                         </button>
@@ -6062,108 +6136,27 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Previous Page"
+                                                            title={t('pagination.previousPage')}
+                                                            aria-label={t(
+                                                                'pagination.previousPage',
+                                                            )}
                                                         >
                                                             <ChevronLeft size={14} />
                                                         </button>
 
-                                                        {isEditingPage ? (
-                                                            <div
-                                                                className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap"
-                                                                title={t('editor.jumpToPage')}
-                                                            >
-                                                                <input
-                                                                    autoCorrect="off"
-                                                                    autoCapitalize="off"
-                                                                    autoComplete="off"
-                                                                    spellCheck={false}
-                                                                    autoFocus
-                                                                    type="text"
-                                                                    className="w-full bg-transparent text-center focus:outline-none text-primary p-0 m-0 border-none h-full"
-                                                                    value={tempPage}
-                                                                    onChange={(e) =>
-                                                                        setTempPage(e.target.value)
-                                                                    }
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') {
-                                                                            const newPage =
-                                                                                parseInt(tempPage);
-                                                                            const totalRows =
-                                                                                activeTab.result!
-                                                                                    .pagination!
-                                                                                    .total_rows;
-                                                                            if (
-                                                                                !isNaN(newPage) &&
-                                                                                newPage >= 1
-                                                                            ) {
-                                                                                if (
-                                                                                    totalRows ===
-                                                                                        null ||
-                                                                                    newPage <=
-                                                                                        Math.ceil(
-                                                                                            totalRows /
-                                                                                                activeTab
-                                                                                                    .result!
-                                                                                                    .pagination!
-                                                                                                    .page_size,
-                                                                                        )
-                                                                                ) {
-                                                                                    runQuery(
-                                                                                        undefined,
-                                                                                        newPage,
-                                                                                    );
-                                                                                }
-                                                                            }
-                                                                            setIsEditingPage(false);
-                                                                        } else if (
-                                                                            e.key === 'Escape'
-                                                                        ) {
-                                                                            setIsEditingPage(false);
-                                                                        }
-                                                                        e.stopPropagation();
-                                                                    }}
-                                                                    onBlur={() =>
-                                                                        setIsEditingPage(false)
-                                                                    }
-                                                                />
-                                                            </div>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
-                                                                onClick={() => {
-                                                                    setIsEditingPage(true);
-                                                                    setTempPage(
-                                                                        String(
-                                                                            activeTab.result!
-                                                                                .pagination!.page,
-                                                                        ),
-                                                                    );
-                                                                }}
-                                                                title={t('editor.jumpToPage')}
-                                                            >
-                                                                {activeTab.result.pagination
-                                                                    .total_rows !== null
-                                                                    ? t('editor.pageOf', {
-                                                                          current:
-                                                                              activeTab.result
-                                                                                  .pagination.page,
-                                                                          total: Math.ceil(
-                                                                              activeTab.result
-                                                                                  .pagination
-                                                                                  .total_rows /
-                                                                                  activeTab.result
-                                                                                      .pagination
-                                                                                      .page_size,
-                                                                          ),
-                                                                      })
-                                                                    : t('editor.page', {
-                                                                          current:
-                                                                              activeTab.result
-                                                                                  .pagination.page,
-                                                                      })}
-                                                            </button>
-                                                        )}
+                                                        <PageIndicator
+                                                            page={activeTab.result.pagination.page}
+                                                            totalPages={totalPageCount(
+                                                                activeTab.result.pagination
+                                                                    .total_rows,
+                                                                activeTab.result.pagination
+                                                                    .page_size,
+                                                            )}
+                                                            disabled={!!activeTab.isLoading}
+                                                            onPageChange={(nextPage) =>
+                                                                runQuery(undefined, nextPage)
+                                                            }
+                                                        />
 
                                                         {activeTab.result.pagination.total_rows ===
                                                         null ? (
@@ -6206,7 +6199,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Next Page"
+                                                            title={t('pagination.nextPage')}
+                                                            aria-label={t('pagination.nextPage')}
                                                         >
                                                             <ChevronRight size={14} />
                                                         </button>
@@ -6230,7 +6224,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Last Page"
+                                                            title={t('pagination.lastPage')}
+                                                            aria-label={t('pagination.lastPage')}
                                                         >
                                                             <ChevronsRight size={14} />
                                                         </button>
@@ -6242,9 +6237,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 )}
 
                                 {/* Data Manipulation Toolbar (Below Header) */}
-                                {activeTab.activeTable && activeTab.result && (
+                                {showDataToolbar && (
                                     <div className="@container p-1 px-2 bg-elevated border-b border-default flex items-center gap-2 flex-wrap">
-                                        {!driverReadonly && (
+                                        {!showResultChart && !driverReadonly && (
                                             <div className="flex items-center gap-1">
                                                 <button
                                                     onClick={handleNewRow}
@@ -6269,77 +6264,78 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             </div>
                                         )}
 
-                                        <div className="w-[1px] h-4 bg-surface-secondary mx-1"></div>
+                                        {!showResultChart && (
+                                            <div className="w-[1px] h-4 bg-surface-secondary mx-1"></div>
+                                        )}
 
-                                        <div className="flex items-center gap-1 text-secondary">
-                                            <Copy size={13} className="shrink-0" />
-                                            <select
-                                                value={copyFormat}
-                                                onChange={(e) =>
-                                                    setCopyFormat(
-                                                        e.target.value as
-                                                            | 'csv'
-                                                            | 'json'
-                                                            | 'sql-insert'
-                                                            | 'markdown',
-                                                    )
-                                                }
-                                                className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
-                                                title={t('settings.copyFormat')}
-                                                style={CHEVRON_SELECT_STYLE}
-                                            >
-                                                <option value="csv">CSV</option>
-                                                <option value="json">JSON</option>
-                                                <option value="sql-insert">SQL INSERT</option>
-                                                <option value="markdown">Markdown</option>
-                                            </select>
-                                            {copyFormat === 'csv' && (
+                                        {!showResultChart && (
+                                            <div className="flex items-center gap-1 text-secondary">
+                                                <Copy size={13} className="shrink-0" />
                                                 <select
-                                                    value={csvDelimiter}
+                                                    value={copyFormat}
                                                     onChange={(e) =>
-                                                        setCsvDelimiter(e.target.value)
+                                                        setCopyFormat(e.target.value as CopyFormat)
                                                     }
-                                                    className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium tracking-wide"
-                                                    title={t('settings.csvDelimiter')}
+                                                    className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
+                                                    title={t('settings.copyFormat')}
                                                     style={CHEVRON_SELECT_STYLE}
                                                 >
-                                                    <option value=",">
-                                                        {t('settings.delimiterComma')}
-                                                    </option>
-                                                    <option value=";">
-                                                        {t('settings.delimiterSemicolon')}
-                                                    </option>
-                                                    <option value={'\t'}>
-                                                        {t('settings.delimiterTab')}
-                                                    </option>
-                                                    <option value="|">
-                                                        {t('settings.delimiterPipe')}
-                                                    </option>
+                                                    <option value="csv">CSV</option>
+                                                    <option value="json">JSON</option>
+                                                    <option value="sql-insert">SQL INSERT</option>
+                                                    <option value="sql-update">SQL UPDATE</option>
+                                                    <option value="markdown">Markdown</option>
                                                 </select>
-                                            )}
-                                            {(copyFormat === 'csv' ||
-                                                copyFormat === 'markdown') && (
-                                                <label
-                                                    className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
-                                                    title={t('settings.csvIncludeHeaders')}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={csvIncludeHeaders}
+                                                {copyFormat === 'csv' && (
+                                                    <select
+                                                        value={csvDelimiter}
                                                         onChange={(e) =>
-                                                            setCsvIncludeHeaders(e.target.checked)
+                                                            setCsvDelimiter(e.target.value)
                                                         }
-                                                        className="w-3 h-3 cursor-pointer accent-accent-primary"
-                                                    />
-                                                    <span className="hidden @[440px]:inline font-medium tracking-wide whitespace-nowrap">
-                                                        {t('settings.csvHeaders')}
-                                                    </span>
-                                                </label>
-                                            )}
-                                        </div>
+                                                        className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium tracking-wide"
+                                                        title={t('settings.csvDelimiter')}
+                                                        style={CHEVRON_SELECT_STYLE}
+                                                    >
+                                                        <option value=",">
+                                                            {t('settings.delimiterComma')}
+                                                        </option>
+                                                        <option value=";">
+                                                            {t('settings.delimiterSemicolon')}
+                                                        </option>
+                                                        <option value={'\t'}>
+                                                            {t('settings.delimiterTab')}
+                                                        </option>
+                                                        <option value="|">
+                                                            {t('settings.delimiterPipe')}
+                                                        </option>
+                                                    </select>
+                                                )}
+                                                {(copyFormat === 'csv' ||
+                                                    copyFormat === 'markdown') && (
+                                                    <label
+                                                        className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
+                                                        title={t('settings.csvIncludeHeaders')}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={csvIncludeHeaders}
+                                                            onChange={(e) =>
+                                                                setCsvIncludeHeaders(
+                                                                    e.target.checked,
+                                                                )
+                                                            }
+                                                            className="w-3 h-3 cursor-pointer accent-accent-primary"
+                                                        />
+                                                        <span className="hidden @[440px]:inline font-medium tracking-wide whitespace-nowrap">
+                                                            {t('settings.csvHeaders')}
+                                                        </span>
+                                                    </label>
+                                                )}
+                                            </div>
+                                        )}
 
                                         {/* Separator */}
-                                        {showPendingChangesBar && (
+                                        {!showResultChart && showPendingChangesBar && (
                                             <div className="w-[1px] h-4 bg-surface-secondary mx-1"></div>
                                         )}
 
@@ -6442,80 +6438,96 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 )}
 
                                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                                    <div className="flex-1 min-h-0 overflow-hidden">
-                                        <DataGrid
-                                            ref={dataGridCommandTargetRef}
-                                            key={`${activeTab.id}-${activeTab.sortClause || 'none'}-${activeTab.filterClause || 'none'}-${activeTab.type === 'table' ? 'table' : activeTab.result?.rows.length || 0}-${Object.keys(activeTab.pendingInsertions || {}).length}`}
-                                            columns={activeTab.result?.columns || []}
-                                            data={activeTab.result?.rows || []}
-                                            tableName={activeTab.activeTable}
-                                            pkColumns={rowIdentity?.columns ?? null}
-                                            autoIncrementColumns={activeTab.autoIncrementColumns}
-                                            defaultValueColumns={activeTab.defaultValueColumns}
-                                            nullableColumns={activeTab.nullableColumns}
-                                            columnMetadata={activeTab.columnMetadata}
-                                            foreignKeys={activeTab.foreignKeys}
-                                            onForeignKeyNavigate={handleForeignKeyNavigate}
-                                            onForeignKeyShowPanel={handleForeignKeyShowPanel}
-                                            onForeignKeyHidePanel={() => setActiveFkQuery(null)}
-                                            onFilterByValue={
-                                                activeTab.type === 'table'
-                                                    ? handleFilterByValue
-                                                    : undefined
-                                            }
-                                            onLoadColumnStats={
-                                                activeTab.type === 'table' && columnStatsSource
-                                                    ? handleLoadColumnStats
-                                                    : undefined
-                                            }
-                                            connectionId={activeConnectionId}
-                                            schema={activeTab.schema ?? activeSchema}
-                                            database={activeTab.database}
-                                            onRefresh={handleRefresh}
-                                            onEditingChange={handleEditingChange}
-                                            pendingChanges={activeTab.pendingChanges}
-                                            pendingDeletions={activeTab.pendingDeletions}
-                                            pendingInsertions={activeTab.pendingInsertions}
-                                            onPendingChange={handlePendingChange}
-                                            onPendingInsertionChange={handlePendingInsertionChange}
-                                            onDiscardInsertion={handleDiscardInsertion}
-                                            onRevertDeletion={handleRevertDeletion}
-                                            onMarkForDeletion={handleMarkForDeletion}
-                                            onMarkMultipleForDeletion={
-                                                handleMarkMultipleForDeletion
-                                            }
-                                            onDuplicateRow={handleDuplicateRow}
-                                            selectedRows={new Set(activeTab.selectedRows || [])}
-                                            onSelectionChange={handleSelectionChange}
-                                            copyFormat={copyFormat}
-                                            csvDelimiter={csvDelimiter}
-                                            csvIncludeHeaders={csvIncludeHeaders}
-                                            sortClause={activeTab.sortClause}
-                                            onSort={
-                                                activeTab.type === 'table' &&
-                                                (activeTab.result?.rows.length ?? 0) > 0
-                                                    ? handleSort
-                                                    : undefined
-                                            }
-                                            readonly={driverReadonly || !!activeTab.materialized}
-                                            totalRows={activeTab.result?.pagination?.total_rows}
-                                            hasMore={activeTab.result?.pagination?.has_more}
-                                            onCopyAllRows={() =>
-                                                copyAllRows(fetchTabAllRows(activeTab.id))
-                                            }
-                                            initialScrollTop={scrollTopByTabIdRef.current.get(
-                                                activeTab.id,
-                                            )}
-                                            onScrollTopChange={handleScrollTopChange}
-                                            scrollToNewInsertion={scrollToNewInsertion}
-                                            onUndo={handleUndoGrid}
-                                            onRedo={handleRedoGrid}
-                                            canUndo={canUndoGrid(activeTab.gridHistory)}
-                                            canRedo={canRedoGrid(activeTab.gridHistory)}
-                                            onBeginBatchEdit={handleBeginBatchEdit}
-                                            onEndBatchEdit={handleEndBatchEdit}
+                                    {showResultChart && activeTab.result ? (
+                                        <LazyResultChart
+                                            result={activeTab.result}
+                                            config={resultChart.config}
+                                            onConfigChange={resultChart.setConfig}
+                                            onShowGrid={() => resultChart.setView('grid')}
+                                            isRefreshing={!!activeTab.isLoading}
                                         />
-                                    </div>
+                                    ) : (
+                                        <div className="flex-1 min-h-0 overflow-hidden">
+                                            <DataGrid
+                                                ref={dataGridCommandTargetRef}
+                                                key={`${activeTab.id}-${activeTab.sortClause || 'none'}-${activeTab.filterClause || 'none'}-${activeTab.type === 'table' ? 'table' : activeTab.result?.rows.length || 0}-${Object.keys(activeTab.pendingInsertions || {}).length}`}
+                                                columns={activeTab.result?.columns || []}
+                                                data={activeTab.result?.rows || []}
+                                                tableName={activeTab.activeTable}
+                                                pkColumns={rowIdentity?.columns ?? null}
+                                                autoIncrementColumns={
+                                                    activeTab.autoIncrementColumns
+                                                }
+                                                defaultValueColumns={activeTab.defaultValueColumns}
+                                                nullableColumns={activeTab.nullableColumns}
+                                                columnMetadata={activeTab.columnMetadata}
+                                                foreignKeys={activeTab.foreignKeys}
+                                                onForeignKeyNavigate={handleForeignKeyNavigate}
+                                                onForeignKeyShowPanel={handleForeignKeyShowPanel}
+                                                onForeignKeyHidePanel={() => setActiveFkQuery(null)}
+                                                onFilterByValue={
+                                                    activeTab.type === 'table'
+                                                        ? handleFilterByValue
+                                                        : undefined
+                                                }
+                                                onLoadColumnStats={
+                                                    activeTab.type === 'table' && columnStatsSource
+                                                        ? handleLoadColumnStats
+                                                        : undefined
+                                                }
+                                                connectionId={activeConnectionId}
+                                                schema={activeTab.schema ?? activeSchema}
+                                                database={activeTab.database}
+                                                onRefresh={handleRefresh}
+                                                onEditingChange={handleEditingChange}
+                                                pendingChanges={activeTab.pendingChanges}
+                                                pendingDeletions={activeTab.pendingDeletions}
+                                                pendingInsertions={activeTab.pendingInsertions}
+                                                onPendingChange={handlePendingChange}
+                                                onPendingInsertionChange={
+                                                    handlePendingInsertionChange
+                                                }
+                                                onDiscardInsertion={handleDiscardInsertion}
+                                                onRevertDeletion={handleRevertDeletion}
+                                                onMarkForDeletion={handleMarkForDeletion}
+                                                onMarkMultipleForDeletion={
+                                                    handleMarkMultipleForDeletion
+                                                }
+                                                onDuplicateRow={handleDuplicateRow}
+                                                selectedRows={new Set(activeTab.selectedRows || [])}
+                                                onSelectionChange={handleSelectionChange}
+                                                copyFormat={copyFormat}
+                                                csvDelimiter={csvDelimiter}
+                                                csvIncludeHeaders={csvIncludeHeaders}
+                                                sortClause={activeTab.sortClause}
+                                                onSort={
+                                                    activeTab.type === 'table' &&
+                                                    (activeTab.result?.rows.length ?? 0) > 0
+                                                        ? handleSort
+                                                        : undefined
+                                                }
+                                                readonly={
+                                                    driverReadonly || !!activeTab.materialized
+                                                }
+                                                totalRows={activeTab.result?.pagination?.total_rows}
+                                                hasMore={activeTab.result?.pagination?.has_more}
+                                                onCopyAllRows={() =>
+                                                    copyAllRows(fetchTabAllRows(activeTab.id))
+                                                }
+                                                initialScrollTop={scrollTopByTabIdRef.current.get(
+                                                    activeTab.id,
+                                                )}
+                                                onScrollTopChange={handleScrollTopChange}
+                                                scrollToNewInsertion={scrollToNewInsertion}
+                                                onUndo={handleUndoGrid}
+                                                onRedo={handleRedoGrid}
+                                                canUndo={canUndoGrid(activeTab.gridHistory)}
+                                                canRedo={canRedoGrid(activeTab.gridHistory)}
+                                                onBeginBatchEdit={handleBeginBatchEdit}
+                                                onEndBatchEdit={handleEndBatchEdit}
+                                            />
+                                        </div>
+                                    )}
                                     {activeFkQuery && activeConnectionId && (
                                         <RelatedRecordsPanel
                                             activeFkQuery={activeFkQuery}
@@ -6735,6 +6747,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                               icon: Copy,
                                               action: () =>
                                                   handleDuplicateTab(tabContextMenu.tabId),
+                                          },
+                                      ]
+                                    : []),
+                                ...(contextTab
+                                    ? [
+                                          {
+                                              label: contextTab.pinned
+                                                  ? t('editor.unpinTab')
+                                                  : t('editor.pinTab'),
+                                              icon: contextTab.pinned ? PinOff : Pin,
+                                              action: () =>
+                                                  setTabPinned(contextTab.id, !contextTab.pinned),
                                           },
                                       ]
                                     : []),

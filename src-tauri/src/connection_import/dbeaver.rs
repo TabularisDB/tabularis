@@ -1,7 +1,6 @@
 //! DBeaver importer. Reads `data-sources.json` from a DBeaver workspace and
 //! decrypts `credentials-config.json` (AES-128-CBC, hardcoded key). DBeaver is
-//! cross-platform; the workspace lives under a per-OS data root. Ported from
-//! TablePro's `DBeaverImporter.swift`.
+//! cross-platform; the workspace lives under a per-OS data root.
 
 use std::path::{Path, PathBuf};
 

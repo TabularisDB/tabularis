@@ -30,6 +30,8 @@ export interface EditorCommands {
     runAll?: EditorCommand;
     saveSqlFile?: EditorCommand;
     closeTab?: EditorCommand;
+    aiGenerate?: EditorCommand;
+    aiExplain?: EditorCommand;
 }
 
 interface CountedResultCommand extends ResultCommand {

@@ -13,6 +13,7 @@ pub mod integrity;
 pub(crate) mod layout;
 pub mod manager;
 pub(crate) mod package_kind;
+pub(crate) mod process_lifetime;
 pub mod registry;
 mod registry_kind;
 pub mod rpc;

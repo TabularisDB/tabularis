@@ -112,6 +112,21 @@ pub async fn shutdown_external_drivers() {
     }
 }
 
+/// Stop every external driver process at once, without draining in-flight
+/// calls or unregistering the drivers. For a host that is about to exit.
+pub async fn terminate_external_drivers() {
+    let external = REGISTRY
+        .read()
+        .await
+        .values()
+        .filter(|driver| !driver.manifest().is_builtin)
+        .cloned()
+        .collect::<Vec<_>>();
+    for driver in external {
+        driver.terminate().await;
+    }
+}
+
 /// Register the manifest of a UI-only plugin (no driver process).
 pub async fn register_manifest(manifest: PluginManifest) {
     let id = manifest.id.clone();

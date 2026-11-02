@@ -1,8 +1,7 @@
 //! Import database connections from other installed SQL clients.
 //!
-//! Ported from TablePro's `ForeignApp` importers. Each [`ForeignAppImporter`]
-//! reads a third-party client's on-disk config, decrypts any credentials and
-//! returns a neutral [`ImportEnvelope`]. [`analyzer`] annotates the result
+//! Each [`ForeignAppImporter`] reads a third-party client's on-disk config,
+//! decrypts any credentials and returns a neutral [`ImportEnvelope`]. [`analyzer`] annotates the result
 //! (duplicates / warnings) and [`convert`] turns it into Tabularis'
 //! `ExportPayload`, which is merged through the existing import path.
 
@@ -19,6 +18,9 @@ pub mod types;
 mod beekeeper;
 mod dbeaver;
 mod datagrip;
+mod heidisql;
+mod mysql_workbench;
+mod navicat;
 mod sequelace;
 mod tableplus;
 
@@ -103,6 +105,9 @@ pub fn all_importers() -> Vec<Box<dyn ForeignAppImporter>> {
         Box::new(tableplus::TablePlusImporter::default()),
         Box::new(datagrip::DataGripImporter::default()),
         Box::new(sequelace::SequelAceImporter::default()),
+        Box::new(heidisql::HeidiSqlImporter::default()),
+        Box::new(mysql_workbench::MySqlWorkbenchImporter::default()),
+        Box::new(navicat::NavicatImporter::default()),
     ]
 }
 

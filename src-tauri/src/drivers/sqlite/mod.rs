@@ -51,6 +51,9 @@ fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> 
         numeric_precision: None,
         numeric_scale: None,
         comment: None,
+        // `type` from PRAGMA table_xinfo is already the declared type
+        // (`VARCHAR(255)`, `DECIMAL(10,2)`), so there is nothing to add.
+        full_type: None,
     })
 }
 
