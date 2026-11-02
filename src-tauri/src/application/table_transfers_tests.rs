@@ -292,9 +292,28 @@ mod select {
                 &columns[1..2],
                 &reads[1..2]
             ),
-            "SELECT CASE WHEN typeof(\"b\") = 'real' AND abs(\"b\") = 9e999 \
+            "SELECT CASE typeof(\"b\") \
+             WHEN 'text' THEN 'T' || (SELECT encoding FROM pragma_encoding) || ':' || hex(\"b\") \
+             WHEN 'real' THEN CASE WHEN abs(\"b\") = 9e999 \
              THEN CASE WHEN \"b\" > 0 THEN '9e999' ELSE '-9e999' END \
+             WHEN CAST(printf('%!.15g', \"b\") AS REAL) = \"b\" THEN printf('%!.15g', \"b\") \
+             WHEN CAST(printf('%!.16g', \"b\") AS REAL) = \"b\" THEN printf('%!.16g', \"b\") \
+             WHEN CAST(printf('%!.17g', \"b\") AS REAL) = \"b\" THEN printf('%!.17g', \"b\") \
+             ELSE quote(\"b\") END \
              ELSE quote(\"b\") END AS \"b\" FROM \"t\""
+        );
+        // The key is the table's own column, not the text alias of the same
+        // name: rows stay in key order and the key's index can be used.
+        let keyed = [column("id", true, false), typed("v", "")];
+        let reads = column_reads("sqlite", &keyed);
+        assert!(
+            export_select(&dialect("\"", false), None, "t", &keyed, &reads)
+                .ends_with(" FROM \"t\" ORDER BY \"t\".\"id\"")
+        );
+        let reads = column_reads("postgres", &keyed);
+        assert!(
+            export_select(&dialect("\"", true), Some("public"), "t", &keyed, &reads)
+                .ends_with(" FROM \"public\".\"t\" ORDER BY \"public\".\"t\".\"id\"")
         );
         // Plugins render their own values.
         assert_eq!(
@@ -393,8 +412,37 @@ mod select {
             render_row(row, &[ColumnRead::Quoted; 12], &sqlite),
             literals
         );
-        // Anything that isn't a `quote()` literal is written as a string.
-        for value in ["X'GG'", "1; DROP TABLE t", "-", "'a'b'", "Inf", "1e"] {
+        // Text read as hex: a string when it is valid text without a NUL,
+        // else its exact bytes.
+        for (value, literal) in [
+            ("TUTF-8:6869", "'hi'"),
+            ("TUTF-8:", "''"),
+            ("TUTF-8:69742773", "'it''s'"),
+            ("TUTF-8:F09F9880", "'\u{1f600}'"),
+            ("TUTF-8:FF", "CAST(X'FF' AS TEXT)"),
+            ("TUTF-8:610062", "CAST(X'610062' AS TEXT)"),
+            ("TUTF-16le:68006900", "'hi'"),
+            ("TUTF-16be:00680069", "'hi'"),
+            ("TUTF-16le:00D8", "CAST(X'00D8' AS TEXT)"),
+        ] {
+            assert_eq!(
+                render_row(vec![cell(value)], &[ColumnRead::Quoted], &sqlite),
+                [literal]
+            );
+        }
+        // Anything that isn't one of those forms is written as a string.
+        for value in [
+            "X'GG'",
+            "1; DROP TABLE t",
+            "-",
+            "'a'b'",
+            "Inf",
+            "1e",
+            "TUTF-8:6",
+            "TUTF-8:ZZ",
+            "TUTF-32:00",
+            "T",
+        ] {
             assert_eq!(
                 render_row(vec![cell(value)], &[ColumnRead::Quoted], &sqlite),
                 [format!("'{}'", value.replace('\'', "''"))]
@@ -724,6 +772,13 @@ mod sqlite_round_trip {
             "'it''s' || char(10) || 'caf\u{e9} \u{1f600}'",
             "'Inf'",
             "'{\"k\":  1}'",
+            "1.7976931348623157e308",
+            "-1.7976931348623157e308",
+            "2.2250738585072014e-308",
+            "123456789012345678.0",
+            "CAST(X'FF' AS TEXT)",
+            "CAST(X'C328' AS TEXT)",
+            "'a' || char(0) || 'b'",
         ];
         for (id, value) in values.iter().enumerate() {
             fixture
@@ -747,7 +802,7 @@ mod sqlite_round_trip {
 
         let columns = ["i", "r", "n", "t", "b", "u"]
             .iter()
-            .map(|column| format!("quote({column}), typeof({column})"))
+            .map(|column| format!("quote({column}), typeof({column}), hex({column})"))
             .collect::<Vec<_>>()
             .join(", ");
         let compare = format!("SELECT id, {columns} FROM items ORDER BY id");
@@ -777,6 +832,45 @@ mod sqlite_round_trip {
                 ["3.00000000000000044e-01", "real"]
             ])
         );
+        // The largest doubles stay finite.
+        let reals = "SELECT quote(u), typeof(u) FROM items WHERE id BETWEEN 22 AND 25 ORDER BY id";
+        assert_eq!(
+            serde_json::to_value(fixture.run("target", reals).await.rows).unwrap(),
+            serde_json::json!([
+                ["1.797693134862315708e+308", "real"],
+                ["-1.797693134862315708e+308", "real"],
+                ["2.22507385850720138e-308", "real"],
+                ["1.2345678901234568e+17", "real"]
+            ])
+        );
+        // Text that isn't valid UTF-8 or holds a NUL keeps every byte.
+        let texts = "SELECT typeof(u), hex(u) FROM items WHERE id BETWEEN 26 AND 28 ORDER BY id";
+        assert_eq!(
+            serde_json::to_value(fixture.run("target", texts).await.rows).unwrap(),
+            serde_json::json!([["text", "FF"], ["text", "C328"], ["text", "610062"]])
+        );
+
+        // Rows come out in key order (10 after 9, not after 1).
+        let text = fs::read_to_string(&path).unwrap();
+        let ids = text
+            .lines()
+            .filter_map(|line| line.strip_prefix('('))
+            .map(|line| line.split(',').next().unwrap().parse::<i64>().unwrap())
+            .collect::<Vec<_>>();
+        let mut sorted = ids.clone();
+        sorted.sort();
+        assert_eq!(ids.len(), values.len() + 1);
+        assert_eq!(ids, sorted);
+        // ...read along the key, without sorting the whole table.
+        let columns =
+            ["id", "i", "r", "n", "t", "b", "u"].map(|name| column(name, name == "id", false));
+        let reads = column_reads("sqlite", &columns);
+        let select = export_select(&dialect("\"", false), None, "items", &columns, &reads);
+        let plan = fixture
+            .run("source", &format!("EXPLAIN QUERY PLAN {select}"))
+            .await
+            .rows;
+        assert!(!format!("{plan:?}").contains("TEMP B-TREE"), "{plan:?}");
     }
 
     /// A plugin driver as the host sees it, over JSON-RPC, answered by the

@@ -187,6 +187,27 @@ async fn test_table_round_trips_into_another_schema() {
 
 /// Exports `{source}.{table}` and imports it into `target`.
 async fn round_trip(table: &str, source: &str, target: &str) -> Result<u64, String> {
+    round_trip_file(table, source, target)
+        .await
+        .map(|(rows, _)| rows)
+}
+
+/// The first value of each exported row, in file order.
+fn exported_keys(file: &str) -> Vec<String> {
+    file.lines()
+        .filter_map(|line| line.strip_prefix('('))
+        .map(|line| {
+            line.split(',')
+                .next()
+                .unwrap()
+                .trim_matches('\'')
+                .to_string()
+        })
+        .collect()
+}
+
+/// [`round_trip`], also returning the exported file.
+async fn round_trip_file(table: &str, source: &str, target: &str) -> Result<(u64, String), String> {
     let temp = tempfile::tempdir().unwrap();
     let runtime = runtime(temp.path());
     let path = temp.path().join(format!("{table}.sql"));
@@ -204,6 +225,7 @@ async fn round_trip(table: &str, source: &str, target: &str) -> Result<u64, Stri
         TableExportDestination::ServerPath(path.clone()),
     )
     .await?;
+    let file = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
     import_table(
         &runtime,
         &DumpCancellationState::default(),
@@ -217,7 +239,7 @@ async fn round_trip(table: &str, source: &str, target: &str) -> Result<u64, Stri
         },
     )
     .await
-    .map(|imported| imported.rows)
+    .map(|imported| (imported.rows, file))
 }
 
 /// Integer limits, `numeric` with more digits than a double holds, and the
@@ -258,6 +280,16 @@ async fn test_numeric_extremes_round_trip() {
     run(&format!("ANALYZE {source}.numbers")).await;
     let analyzed = postgres::get_approximate_row_count(&pg_params(), "numbers", &source).await;
     let imported = round_trip("numbers", &source, &target).await;
+    // Rows come out in key order, not in the order of the key's text.
+    run(&format!(
+        "CREATE TABLE {source}.keyed (id integer PRIMARY KEY, v text)"
+    ))
+    .await;
+    run(&format!(
+        "INSERT INTO {source}.keyed SELECT g, g::text FROM generate_series(12, 1, -1) g"
+    ))
+    .await;
+    let keyed = round_trip_file("keyed", &source, &target).await;
     let compare = |schema: &str| {
         format!(
             "SELECT id, small, big::text, exact::text, scaled::text, double::text, \
@@ -277,4 +309,10 @@ async fn test_numeric_extremes_round_trip() {
     assert_eq!(analyzed, Ok(Some(7)));
     assert_eq!(imported.expect("round trip"), 7);
     assert_eq!(target_rows.unwrap(), source_rows);
+    let (rows, file) = keyed.expect("keyed round trip");
+    assert_eq!(rows, 12);
+    assert_eq!(
+        exported_keys(&file),
+        (1..=12).map(|id| id.to_string()).collect::<Vec<_>>()
+    );
 }

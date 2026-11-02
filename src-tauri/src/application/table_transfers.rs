@@ -194,11 +194,15 @@ pub(crate) enum ColumnRead {
     /// As hex (`HEX(col)`), written as `X'...'`: binary columns, whose
     /// extracted value is a truncated preview.
     Hex,
-    /// SQLite: as SQLite's own `quote()` literal, written as is. Any SQLite
-    /// column can hold values of every storage class, so the class is kept
-    /// per value: text, integers (including those past ±2^53, which the
-    /// driver reads as strings), reals with every digit, and blobs in full.
-    /// Infinity, which `quote()` spells `Inf`, is written as `9e999`.
+    /// SQLite: each value as a literal of its own storage class, so the
+    /// class is kept per value whatever the column's declared type.
+    /// Integers (including those past ±2^53, which the driver reads as
+    /// strings) and blobs in full come from `quote()`. Reals are the
+    /// shortest `printf('%!.<n>g')` form SQLite reads back to the same
+    /// double (`quote()` can round `DBL_MAX` up to infinity), and infinity
+    /// is `9e999`. Text is read as hex with the database encoding
+    /// (`T<encoding>:<hex>`, see [`sqlite_text`]), because `quote()` stops
+    /// at a NUL and the driver can't return text that isn't valid UTF-8.
     Quoted,
 }
 
@@ -284,11 +288,24 @@ pub(crate) fn export_select(
             let name = dialect.quote_identifier(&column.name);
             match reads.get(index).copied().unwrap_or(ColumnRead::Value) {
                 ColumnRead::Value => name,
-                ColumnRead::Quoted => format!(
-                    "CASE WHEN typeof({name}) = 'real' AND abs({name}) = 9e999 \
-                     THEN CASE WHEN {name} > 0 THEN '9e999' ELSE '-9e999' END \
-                     ELSE quote({name}) END AS {name}"
-                ),
+                ColumnRead::Quoted => {
+                    let real = |digits: u8| format!("printf('%!.{digits}g', {name})");
+                    let shortest = [15, 16, 17]
+                        .map(|digits| {
+                            let text = real(digits);
+                            format!("WHEN CAST({text} AS REAL) = {name} THEN {text} ")
+                        })
+                        .concat();
+                    format!(
+                        "CASE typeof({name}) \
+                         WHEN 'text' THEN 'T' || (SELECT encoding FROM pragma_encoding) \
+                         || ':' || hex({name}) \
+                         WHEN 'real' THEN CASE WHEN abs({name}) = 9e999 \
+                         THEN CASE WHEN {name} > 0 THEN '9e999' ELSE '-9e999' END \
+                         {shortest}ELSE quote({name}) END \
+                         ELSE quote({name}) END AS {name}"
+                    )
+                }
                 ColumnRead::Text if dialect.postgres => format!("{name}::text AS {name}"),
                 ColumnRead::Text => format!("CAST({name} AS CHAR) AS {name}"),
                 // NULL stays NULL, apart from an empty value.
@@ -303,20 +320,29 @@ pub(crate) fn export_select(
     } else {
         selected.join(", ")
     };
+    // A built-in read aliases each column to its own name, and a bare name
+    // in ORDER BY means the alias: sorting would follow the text form
+    // (`10` before `2`) and could no longer use the key's index. The table's
+    // own column is named in full instead.
+    let table_ref = dialect.table_ref(schema, table);
     let keys = columns
         .iter()
         .filter(|column| column.is_pk)
-        .map(|column| dialect.quote_identifier(&column.name))
+        .map(|column| {
+            let name = dialect.quote_identifier(&column.name);
+            if reads.is_empty() {
+                name
+            } else {
+                format!("{table_ref}.{name}")
+            }
+        })
         .collect::<Vec<_>>();
     let order = if keys.is_empty() {
         String::new()
     } else {
         format!(" ORDER BY {}", keys.join(", "))
     };
-    format!(
-        "SELECT {list} FROM {}{order}",
-        dialect.table_ref(schema, table)
-    )
+    format!("SELECT {list} FROM {table_ref}{order}")
 }
 
 /// One exported row as SQL values, following how each column was read.
@@ -350,11 +376,57 @@ fn render_cell(cell: SqlCell, read: ColumnRead, dialect: &DumpDialect) -> String
             let pad = if hex.len() % 2 == 1 { "0" } else { "" };
             format!("X'{pad}{hex}'")
         }
+        (ColumnRead::Quoted, serde_json::Value::String(literal)) if literal.starts_with('T') => {
+            match sqlite_text(literal, dialect) {
+                Some(text) => text,
+                None => cell.render(dialect),
+            }
+        }
         (ColumnRead::Quoted, serde_json::Value::String(literal)) if is_sqlite_literal(literal) => {
             literal.clone()
         }
         _ => cell.render(dialect),
     }
+}
+
+/// A SQLite text value read as `T<encoding>:<hex>` (`TUTF-8:6869`), as a
+/// literal: a normal string when its bytes are valid text without a NUL,
+/// else `CAST(X'<hex>' AS TEXT)`, which keeps every byte (for a target with
+/// the same encoding). `None` when it isn't in that form.
+fn sqlite_text(literal: &str, dialect: &DumpDialect) -> Option<String> {
+    let (encoding, hex) = literal.strip_prefix('T')?.split_once(':')?;
+    if hex.len() % 2 == 1 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    let bytes = (0..hex.len())
+        .step_by(2)
+        .map(|at| u8::from_str_radix(&hex[at..at + 2], 16))
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    let utf16 = |unit: fn([u8; 2]) -> u16| {
+        if bytes.len() % 2 == 1 {
+            return None;
+        }
+        let units = bytes
+            .chunks_exact(2)
+            .map(|pair| unit([pair[0], pair[1]]))
+            .collect::<Vec<_>>();
+        String::from_utf16(&units).ok()
+    };
+    let text = match encoding {
+        "UTF-8" => String::from_utf8(bytes.clone()).ok(),
+        "UTF-16le" => utf16(u16::from_le_bytes),
+        "UTF-16be" => utf16(u16::from_be_bytes),
+        _ => return None,
+    };
+    Some(match text.filter(|text| !text.contains('\0')) {
+        Some(text) => SqlCell {
+            value: serde_json::Value::String(text),
+            is_json: false,
+        }
+        .render(dialect),
+        None => format!("CAST(X'{hex}' AS TEXT)"),
+    })
 }
 
 /// A literal as SQLite's `quote()` writes it: `NULL`, a number, `X'<hex>'`

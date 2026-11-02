@@ -130,6 +130,17 @@ async fn transfer(
     source: &str,
     target: &str,
 ) -> (u64, u64) {
+    let (exported, imported, _) = transfer_file(params, table, source, target).await;
+    (exported, imported)
+}
+
+/// [`transfer`], also returning the exported file.
+async fn transfer_file(
+    params: &ConnectionParams,
+    table: &str,
+    source: &str,
+    target: &str,
+) -> (u64, u64, String) {
     let temp = tempfile::tempdir().unwrap();
     let runtime = runtime(temp.path(), params);
     let path = temp.path().join(format!("{table}.sql"));
@@ -148,6 +159,7 @@ async fn transfer(
     )
     .await
     .expect("export");
+    let file = std::fs::read_to_string(&path).expect("read the export");
     let imported = import_table(
         &runtime,
         &DumpCancellationState::default(),
@@ -162,7 +174,7 @@ async fn transfer(
     )
     .await
     .expect("import");
-    (exported.rows, imported.rows)
+    (exported.rows, imported.rows, file)
 }
 
 /// Integer limits (signed and unsigned), `DECIMAL` with more digits than a
@@ -235,6 +247,41 @@ async fn exercise_numeric_extremes(
         Some("18446744073709551615"),
         "the unsigned maximum is in the source"
     );
+
+    // Rows come out in key order, not in the order of the key's text (a
+    // DECIMAL key is read as text).
+    execute(
+        connection,
+        &format!(
+            "CREATE TABLE {}.keyed (id decimal(5,0) PRIMARY KEY, v int)",
+            quoted(source)
+        ),
+    )
+    .await;
+    let values = (1..=12)
+        .rev()
+        .map(|id| format!("({id}, {id})"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    execute(
+        connection,
+        &format!("INSERT INTO {}.keyed VALUES {values}", quoted(source)),
+    )
+    .await;
+    let (_, imported, file) = transfer_file(params, "keyed", source, target).await;
+    assert_eq!(imported, 12);
+    let keys = file
+        .lines()
+        .filter_map(|line| line.strip_prefix('('))
+        .map(|line| {
+            line.split(',')
+                .next()
+                .unwrap()
+                .trim_matches('\'')
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(keys, (1..=12).map(|id| id.to_string()).collect::<Vec<_>>());
 
     // Dates and times at their limits and with fractional seconds.
     execute(
