@@ -755,6 +755,8 @@ pub async fn import_table(
     };
     let runtime_for_task = runtime.clone();
     let connection_for_task = connection_id.clone();
+    let created = CreatedTableSlot::default();
+    let created_for_task = created.clone();
     let task = tokio::spawn(async move {
         let _claimed = claimed;
         run_table_import(
@@ -765,6 +767,7 @@ pub async fn import_table(
             &params,
             &driver,
             &options,
+            &created_for_task,
         )
         .await
     });
@@ -775,7 +778,70 @@ pub async fn import_table(
     );
     let result = task.await;
     registration.complete();
+    // Cancelling aborts the task, so it never reaches its own cleanup: a
+    // table this import created is removed here instead. A table that
+    // existed before the import is never armed, so it stays.
+    let cancelled = matches!(&result, Err(error) if error.is_cancelled());
+    if cancelled {
+        if let Some(table) = created.take() {
+            if !table.remove().await {
+                return Err(format!(
+                    "Import cancelled. The table \"{}\" created by this import could not be removed.",
+                    table.table
+                ));
+            }
+        }
+    }
     database_transfers::join_job(result, "Import")
+}
+
+/// The table an import is creating, kept outside the import task so a
+/// cancelled import can still remove it. Armed just before the structure
+/// section runs, cleared once the import ends on its own.
+#[derive(Clone, Default)]
+struct CreatedTableSlot(Arc<std::sync::Mutex<Option<CreatedTable>>>);
+
+impl CreatedTableSlot {
+    fn arm(&self, table: CreatedTable) {
+        *self.0.lock().unwrap_or_else(|error| error.into_inner()) = Some(table);
+    }
+
+    fn take(&self) -> Option<CreatedTable> {
+        self.0
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .take()
+    }
+
+    fn is_armed(&self) -> bool {
+        self.0
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .is_some()
+    }
+}
+
+struct CreatedTable {
+    drv: Arc<dyn DatabaseDriver>,
+    params: ConnectionParams,
+    dialect: DumpDialect,
+    capabilities: DriverCapabilities,
+    table: String,
+    schema: Option<String>,
+}
+
+impl CreatedTable {
+    async fn remove(&self) -> bool {
+        remove_created_table(
+            &self.drv,
+            &self.params,
+            &self.dialect,
+            &self.capabilities,
+            &self.table,
+            self.schema.as_deref(),
+        )
+        .await
+    }
 }
 
 pub fn cancel_table_import(
@@ -794,6 +860,7 @@ async fn run_table_import(
     params: &ConnectionParams,
     driver: &str,
     options: &TableImportOptions,
+    created_table: &CreatedTableSlot,
 ) -> Result<TableImportResult, String> {
     let file =
         File::open(path).map_err(|error| format!("Failed to open {}: {error}", path.display()))?;
@@ -842,6 +909,7 @@ async fn run_table_import(
             Ok(Some(item)) => item,
             Ok(None) => break,
             Err(error) => {
+                created_table.take();
                 let removed = created
                     && remove_created_table(&drv, params, &dialect, capabilities, table, schema)
                         .await;
@@ -856,6 +924,16 @@ async fn run_table_import(
             TableSqlItem::Statement { sql, line } => {
                 if section == SECTION_STRUCTURE && !plan.run_structure {
                     continue;
+                }
+                if section == SECTION_STRUCTURE && !created_table.is_armed() {
+                    created_table.arm(CreatedTable {
+                        drv: drv.clone(),
+                        params: params.clone(),
+                        dialect: dialect.clone(),
+                        capabilities: capabilities.clone(),
+                        table: table.to_string(),
+                        schema: schema.map(str::to_string),
+                    });
                 }
                 match drv.execute_query(params, &sql, None, 1, schema).await {
                     Ok(result) => {
@@ -874,6 +952,7 @@ async fn run_table_import(
                         }
                     }
                     Err(error) => {
+                        created_table.take();
                         let removed = created
                             && remove_created_table(
                                 &drv,
@@ -890,6 +969,7 @@ async fn run_table_import(
             }
         }
     }
+    created_table.take();
     progress.emit(executed, "Import completed".to_string(), true);
     Ok(TableImportResult {
         table: header.table,

@@ -519,6 +519,154 @@ mod sqlite_round_trip {
         assert_eq!(fixture.rows("target").await, fixture.rows("source").await);
     }
 
+    impl Fixture {
+        /// A valid export of `items` with one INSERT per row, so the import
+        /// runs long enough to be cancelled half way.
+        fn long_export(&self, rows: usize) -> PathBuf {
+            let path = self.dir.join("items-long.sql");
+            let mut text = header(TableSqlContent::StructureAndData).render();
+            text.push_str(&section_marker(SECTION_STRUCTURE));
+            text.push_str("\nCREATE TABLE \"items\" (id INTEGER PRIMARY KEY, name TEXT);\n");
+            text.push('\n');
+            text.push_str(&section_marker(SECTION_DATA));
+            text.push('\n');
+            for id in 1..=rows {
+                text.push_str(&format!(
+                    "INSERT INTO \"items\" (\"id\", \"name\") VALUES ({id}, 'row {id}');\n"
+                ));
+            }
+            text.push_str(end_marker());
+            text.push('\n');
+            fs::write(&path, text).unwrap();
+            path
+        }
+
+        /// Starts an import of `path` into the target, waits until `ready`
+        /// says it is under way, cancels it and returns its result.
+        async fn cancel_import_when<F, Fut>(
+            &self,
+            path: &Path,
+            if_exists: IfTableExists,
+            ready: F,
+        ) -> Result<TableImportResult, String>
+        where
+            F: Fn() -> Fut,
+            Fut: std::future::Future<Output = bool>,
+        {
+            let state = DumpCancellationState::default();
+            let runtime = self.runtime.clone();
+            let task_state = DumpCancellationState {
+                handles: state.handles.clone(),
+            };
+            let task_path = path.to_path_buf();
+            let import = tokio::spawn(async move {
+                import_table(
+                    &runtime,
+                    &task_state,
+                    None,
+                    "target".to_string(),
+                    TableImportSource::ServerPath(task_path),
+                    TableImportOptions {
+                        if_exists,
+                        schema: None,
+                        database: None,
+                    },
+                )
+                .await
+            });
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            while !ready().await {
+                if import.is_finished() {
+                    panic!(
+                        "the import ended before it could be cancelled: {:?}",
+                        import.await.unwrap()
+                    );
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "the import never got under way"
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            cancel_table_import(&state, None, "target").unwrap();
+            import.await.unwrap()
+        }
+
+        async fn target_tables(&self) -> Vec<Vec<serde_json::Value>> {
+            self.run(
+                "target",
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'items'",
+            )
+            .await
+            .rows
+        }
+
+        /// Rows in the target's `items`, or none while the import holds the
+        /// database or the table isn't there yet.
+        async fn target_count(&self) -> Option<i64> {
+            crate::drivers::sqlite::execute_query(
+                &self.params("target"),
+                "SELECT COUNT(*) FROM items",
+                None,
+                1,
+            )
+            .await
+            .ok()
+            .and_then(|result| result.rows.first()?.first()?.as_i64())
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelling_removes_the_table_the_import_created() {
+        let fixture = fixture().await;
+        let path = fixture.long_export(50_000);
+
+        let error = fixture
+            .cancel_import_when(&path, IfTableExists::Fail, || async {
+                fixture.target_count().await.is_some()
+            })
+            .await
+            .unwrap_err();
+
+        assert_eq!(error, "Import cancelled");
+        assert!(
+            fixture.target_tables().await.is_empty(),
+            "the table created by the cancelled import is still there"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cancelling_keeps_a_table_that_existed_before() {
+        let fixture = fixture().await;
+        fixture
+            .run(
+                "target",
+                "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)",
+            )
+            .await;
+        fixture
+            .run("target", "INSERT INTO items VALUES (-1, 'kept')")
+            .await;
+        let path = fixture.long_export(50_000);
+
+        let error = fixture
+            .cancel_import_when(&path, IfTableExists::Append, || async {
+                fixture.target_count().await.is_some_and(|count| count > 1)
+            })
+            .await
+            .unwrap_err();
+
+        assert_eq!(error, "Import cancelled");
+        assert_eq!(fixture.target_tables().await.len(), 1);
+        assert_eq!(
+            fixture
+                .run("target", "SELECT name FROM items WHERE id = -1")
+                .await
+                .rows,
+            vec![vec![serde_json::json!("kept")]]
+        );
+    }
+
     #[tokio::test]
     async fn applies_the_if_exists_modes() {
         let fixture = fixture().await;
