@@ -69,6 +69,23 @@ describe('createDataGridResultCommands', () => {
         expect(actions.copyColumnValuesAsSqlIn).toHaveBeenCalledWith(1);
     });
 
+    it('counts only the visible columns of a cell range (#1299)', () => {
+        const commands = createDataGridResultCommands({
+            cellRange: {minRow: 0, maxRow: 1, minCol: 0, maxCol: 3},
+            focusedCell: {rowIndex: 0, colIndex: 0},
+            selectedRowIndices: new Set(),
+            selectedColIndices: new Set(),
+            columns: ['id', 'name', 'email', 'city'],
+            dataLength: 2,
+            totalRows: 2,
+            hasRowsBeyondLoadedPage: false,
+            hiddenColIndices: new Set([1, 2]),
+            ...callbacks(),
+        });
+
+        expect(commands.copySelectedCells?.count).toBe(4);
+    });
+
     it('uses the full-fetch action only when rows exist beyond the loaded page', async () => {
         const actions = callbacks();
         const copyAllRows = vi.fn();

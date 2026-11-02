@@ -238,6 +238,8 @@ interface DataGridResultCommandsInput {
     copySelectedColumns: () => void | Promise<void>;
     copyColumnValuesAsSqlIn: (columnIndex: number) => void | Promise<void>;
     copyAllLoadedRows: () => void | Promise<void>;
+    /** Hidden columns (#1299): a cell range copies only its visible columns. */
+    hiddenColIndices?: ReadonlySet<number>;
 }
 
 export function createDataGridResultCommands({
@@ -256,14 +258,17 @@ export function createDataGridResultCommands({
     copySelectedColumns,
     copyColumnValuesAsSqlIn,
     copyAllLoadedRows,
+    hiddenColIndices,
 }: DataGridResultCommandsInput): ResultCommands {
     const commands: ResultCommands = {};
 
     if (cellRange) {
+        let rangeColumns = 0;
+        for (let col = cellRange.minCol; col <= cellRange.maxCol; col++) {
+            if (!hiddenColIndices?.has(col)) rangeColumns++;
+        }
         commands.copySelectedCells = {
-            count:
-                (cellRange.maxRow - cellRange.minRow + 1) *
-                (cellRange.maxCol - cellRange.minCol + 1),
+            count: (cellRange.maxRow - cellRange.minRow + 1) * rangeColumns,
             execute: copyCellRange,
         };
     } else if (focusedCell) {
