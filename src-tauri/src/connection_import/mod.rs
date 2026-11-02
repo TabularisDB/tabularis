@@ -19,6 +19,7 @@ mod beekeeper;
 mod dbeaver;
 mod datagrip;
 mod heidisql;
+mod mysql_workbench;
 mod sequelace;
 mod tableplus;
 
@@ -104,6 +105,7 @@ pub fn all_importers() -> Vec<Box<dyn ForeignAppImporter>> {
         Box::new(datagrip::DataGripImporter::default()),
         Box::new(sequelace::SequelAceImporter::default()),
         Box::new(heidisql::HeidiSqlImporter::default()),
+        Box::new(mysql_workbench::MySqlWorkbenchImporter::default()),
     ]
 }
 
