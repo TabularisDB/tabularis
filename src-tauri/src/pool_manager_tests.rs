@@ -4,8 +4,8 @@ mod tests {
     use crate::pool_manager::{
         build_connection_key, build_mysql_options, connect_timeout, connection_pool_prefix,
         format_error_chain, is_pipes_as_concat_unsupported, mysql_connect_timeout,
-        postgres_pool_max_size_from_value, remove_pools_with_prefix, with_connect_timeout,
-        DEFAULT_POSTGRES_POOL_MAX_SIZE,
+        postgres_pool_max_size_from_value, postgres_startup_script_timeout,
+        remove_pools_with_prefix, with_connect_timeout, DEFAULT_POSTGRES_POOL_MAX_SIZE,
     };
     use std::time::Duration;
     use sqlx::mysql::MySqlSslMode;
@@ -365,6 +365,27 @@ mod tests {
 
         params.connect_timeout_secs = Some(0);
         assert_eq!(mysql_connect_timeout(&params), global);
+    }
+
+    #[test]
+    fn postgres_startup_script_timeout_uses_the_connect_timeout() {
+        let mut params = connection_params("postgres", None);
+        assert_eq!(
+            postgres_startup_script_timeout(&params),
+            Duration::from_secs(30)
+        );
+
+        params.connect_timeout_secs = Some(0);
+        assert_eq!(
+            postgres_startup_script_timeout(&params),
+            Duration::from_secs(30)
+        );
+
+        params.connect_timeout_secs = Some(2);
+        assert_eq!(
+            postgres_startup_script_timeout(&params),
+            Duration::from_secs(2)
+        );
     }
 
     #[test]
@@ -1673,5 +1694,133 @@ mod startup_script_tests {
         );
 
         close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+}
+
+/// Live checks that the connect timeout bounds a slow PostgreSQL startup
+/// script, both in the preflight and in each new pooled connection's hook.
+/// Run against a local server:
+///   TABULARIS_TEST_PG=1 cargo test --lib live_pg_connect_timeout -- --ignored
+/// Override TABULARIS_TEST_PG_{HOST,PORT,USER,PASSWORD,DB} for a non-default setup.
+#[cfg(test)]
+mod live_pg_connect_timeout {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use crate::pool_manager::{close_pool_with_id, get_postgres_pool_with_id};
+    use std::time::{Duration, Instant};
+
+    fn test_params() -> Option<ConnectionParams> {
+        if std::env::var("TABULARIS_TEST_PG").is_err() {
+            return None;
+        }
+        Some(ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some(
+                std::env::var("TABULARIS_TEST_PG_HOST").unwrap_or_else(|_| "localhost".to_string()),
+            ),
+            port: std::env::var("TABULARIS_TEST_PG_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .or(Some(55432)),
+            username: Some(
+                std::env::var("TABULARIS_TEST_PG_USER").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            password: Some(
+                std::env::var("TABULARIS_TEST_PG_PASSWORD")
+                    .unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            database: DatabaseSelection::Single(
+                std::env::var("TABULARIS_TEST_PG_DB").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            ssl_mode: Some("disable".to_string()),
+            ..Default::default()
+        })
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_connect_timeout_bounds_a_slow_startup_preflight() {
+        let Some(mut params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let conn_id = format!("timeout-preflight-{}", ulid::Ulid::new());
+        params.connect_timeout_secs = Some(1);
+        params.startup_script = Some("SELECT pg_sleep(3);".to_string());
+
+        let started = Instant::now();
+        let result = get_postgres_pool_with_id(&params, Some(&conn_id)).await;
+
+        let err = result.expect_err("a 3 s startup script must fail a 1 s budget");
+        assert!(
+            err.contains("Timed out running PostgreSQL startup script after 1000 ms"),
+            "{err}"
+        );
+        assert!(
+            started.elapsed() < Duration::from_millis(2500),
+            "{:?}",
+            started.elapsed()
+        );
+        close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_connect_timeout_bounds_a_slow_startup_hook() {
+        let Some(mut params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let conn_id = format!("timeout-hook-{}", ulid::Ulid::new());
+        let sequence = format!("tabularis_startup_runs_{}", ulid::Ulid::new()).to_lowercase();
+        let setup = get_postgres_pool_with_id(&params, Some(&format!("{conn_id}-setup")))
+            .await
+            .expect("connect to test postgres");
+        setup
+            .get()
+            .await
+            .expect("setup client")
+            .batch_execute(&format!("CREATE SEQUENCE {sequence};"))
+            .await
+            .expect("create sequence");
+
+        // nextval is not rolled back, so the preflight (first run, inside a
+        // rolled-back transaction) is fast and the pooled connection's hook
+        // (second run) sleeps for 3 s.
+        params.connect_timeout_secs = Some(1);
+        params.startup_script = Some(format!(
+            "SELECT pg_sleep(CASE WHEN nextval('{sequence}') > 1 THEN 3 ELSE 0 END);"
+        ));
+        let pool = get_postgres_pool_with_id(&params, Some(&conn_id))
+            .await
+            .expect("the preflight run is fast");
+
+        let started = Instant::now();
+        let err = pool
+            .get()
+            .await
+            .expect_err("a 3 s hook must fail a 1 s budget");
+        assert!(
+            err.to_string()
+                .contains("Timed out running PostgreSQL startup script after 1000 ms"),
+            "{err}"
+        );
+        assert!(
+            started.elapsed() < Duration::from_millis(2500),
+            "{:?}",
+            started.elapsed()
+        );
+
+        close_pool_with_id(&params, Some(&conn_id)).await;
+        setup
+            .get()
+            .await
+            .expect("setup client")
+            .batch_execute(&format!("DROP SEQUENCE {sequence};"))
+            .await
+            .expect("drop sequence");
+        let mut setup_params = params.clone();
+        setup_params.connect_timeout_secs = None;
+        setup_params.startup_script = None;
+        close_pool_with_id(&setup_params, Some(&format!("{conn_id}-setup"))).await;
     }
 }
