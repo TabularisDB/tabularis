@@ -20,6 +20,7 @@ import {
     toViewColumn,
     visibleColumnsInRange,
     withoutHiddenColumns,
+    withoutKeyColumns,
 } from '@/utils/hiddenColumns';
 
 const columns = ['id', 'customer_id', 'created_by', 'updated_at', 'total'];
@@ -138,6 +139,22 @@ describe('hiddenColumns', () => {
             const selected = new Set([0, 1]);
             expect(withoutHiddenColumns(selected, new Set([4]))).toBe(selected);
             expect(withoutHiddenColumns(selected, NO_HIDDEN_COLUMNS)).toBe(selected);
+        });
+    });
+
+    describe('withoutKeyColumns', () => {
+        const cols = ['id', 'tenant', 'name', 'note'];
+
+        it('keeps hidden key columns out of the hidden set', () => {
+            expect([...withoutKeyColumns(new Set([0, 1, 3]), cols, ['id', 'tenant'])]).toEqual([3]);
+        });
+
+        it('returns the same set when no key column is hidden or there is no key', () => {
+            const hidden = new Set([2, 3]);
+            expect(withoutKeyColumns(hidden, cols, ['id'])).toBe(hidden);
+            expect(withoutKeyColumns(hidden, cols, null)).toBe(hidden);
+            expect(withoutKeyColumns(hidden, cols, [])).toBe(hidden);
+            expect(withoutKeyColumns(NO_HIDDEN_COLUMNS, cols, ['id'])).toBe(NO_HIDDEN_COLUMNS);
         });
     });
 

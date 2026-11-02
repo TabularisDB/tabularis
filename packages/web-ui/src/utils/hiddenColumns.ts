@@ -117,6 +117,23 @@ export function showColumns(
     return next.size === hidden.size ? hidden : next;
 }
 
+/**
+ * `hidden` without the primary key columns, for copies that need the key (SQL UPDATE
+ * builds its WHERE clause from it). The same set when no key column is hidden.
+ */
+export function withoutKeyColumns(
+    hidden: ReadonlySet<number>,
+    columns: readonly string[],
+    pkColumns?: readonly string[] | null,
+): ReadonlySet<number> {
+    if (hidden.size === 0 || !pkColumns || pkColumns.length === 0) return hidden;
+    const next = new Set<number>();
+    for (const i of hidden) {
+        if (!pkColumns.includes(columns[i])) next.add(i);
+    }
+    return next.size === hidden.size ? hidden : next;
+}
+
 /** `indices` without the hidden columns; the same set when none of them is hidden. */
 export function withoutHiddenColumns(
     indices: Set<number>,

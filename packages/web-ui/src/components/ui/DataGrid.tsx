@@ -159,6 +159,7 @@ import {
     nearestVisibleColumn,
     pickRenderedColumnWidths,
     projectVisibleColumns,
+    withoutKeyColumns,
     stepVisibleColumn,
     toViewColumn,
     visibleColumnsInRange,
@@ -2168,6 +2169,15 @@ export const DataGrid = React.memo(function DataGrid({
         [writeToClipboard],
     );
 
+    // SQL UPDATE needs the primary key for its WHERE clause, so its row copies keep a
+    // hidden key column and leave only the other hidden columns out of SET.
+    const hiddenNonKeyColIndices = useMemo(
+        () => withoutKeyColumns(hiddenColIndices, columns, pkColumns),
+        [hiddenColIndices, columns, pkColumns],
+    );
+    const rowCopyHiddenColIndices =
+        copyFormat === 'sql-update' ? hiddenNonKeyColIndices : hiddenColIndices;
+
     const formatRows = useCallback(
         (rows: unknown[][], withHeaders = false, rowColumns: string[] = columns) =>
             formatRowsForCopy(rows, rowColumns, copyFormat ?? 'csv', {
@@ -2218,12 +2228,19 @@ export const DataGrid = React.memo(function DataGrid({
         const rows = getContextRows();
         if (!rows) return;
 
-        const visible = projectVisibleColumns(rows, columns, hiddenColIndices);
+        const visible = projectVisibleColumns(rows, columns, rowCopyHiddenColIndices);
         await copyToClipboard(
             formatRows(visible.rows, true, visible.columns),
-            rowsCopiedToast(rows.length),
+            copiedRowsToast(visible.rows, visible.columns),
         );
-    }, [getContextRows, columns, hiddenColIndices, formatRows, copyToClipboard, rowsCopiedToast]);
+    }, [
+        getContextRows,
+        columns,
+        rowCopyHiddenColIndices,
+        formatRows,
+        copyToClipboard,
+        copiedRowsToast,
+    ]);
 
     // Copies the selected rows (or the right-clicked row) as an HTML table, with
     // the regular copy output as the plain-text flavor.
@@ -2232,11 +2249,13 @@ export const DataGrid = React.memo(function DataGrid({
         if (!rows) return;
 
         const visible = projectVisibleColumns(rows, columns, hiddenColIndices);
+        // The plain-text flavor follows the copy format, so SQL UPDATE keeps a hidden key.
+        const plain = projectVisibleColumns(rows, columns, rowCopyHiddenColIndices);
         await writeToClipboard(
             () =>
                 platform.writeClipboardHtml(
                     rowsToHtmlTable(visible.rows, visible.columns, 'null'),
-                    formatRows(visible.rows, true, visible.columns),
+                    formatRows(plain.rows, true, plain.columns),
                 ),
             rowsCopiedToast(rows.length),
         );
@@ -2244,6 +2263,7 @@ export const DataGrid = React.memo(function DataGrid({
         getContextRows,
         columns,
         hiddenColIndices,
+        rowCopyHiddenColIndices,
         formatRows,
         writeToClipboard,
         rowsCopiedToast,
@@ -2253,16 +2273,23 @@ export const DataGrid = React.memo(function DataGrid({
     // Copies the selected rows (or the right-clicked row) as UPDATE statements, whatever
     // the default copy format is. The menu enables it only when sqlUpdateBlocker allows.
     const copySelectedOrContextRowAsSqlUpdate = useCallback(async () => {
-        const rows = getContextRows();
-        if (!rows || !pkColumns || sqlUpdateBlocker(columns, pkColumns, rows) !== null) return;
+        const contextRows = getContextRows();
+        if (!contextRows || !pkColumns) return;
+        const {rows, columns: copiedColumns} = projectVisibleColumns(
+            contextRows,
+            columns,
+            hiddenNonKeyColIndices,
+        );
+        if (sqlUpdateBlocker(copiedColumns, pkColumns, rows) !== null) return;
         await copyToClipboard(
-            rowsToSqlUpdate(rows, columns, tableName ?? 'table', pkColumns, copyDriver),
+            rowsToSqlUpdate(rows, copiedColumns, tableName ?? 'table', pkColumns, copyDriver),
             rowsCopiedToast(rows.length),
         );
     }, [
         getContextRows,
         pkColumns,
         columns,
+        hiddenNonKeyColIndices,
         tableName,
         copyDriver,
         copyToClipboard,
@@ -2464,19 +2491,19 @@ export const DataGrid = React.memo(function DataGrid({
             mergedRows.map((row) => row.rowData),
             selectedRowIndices,
         );
-        const visible = projectVisibleColumns(rows, columns, hiddenColIndices);
+        const visible = projectVisibleColumns(rows, columns, rowCopyHiddenColIndices);
         await copyToClipboard(
             formatRows(visible.rows, true, visible.columns),
-            rowsCopiedToast(rows.length),
+            copiedRowsToast(visible.rows, visible.columns),
         );
     }, [
         selectedRowIndices,
         mergedRows,
         columns,
-        hiddenColIndices,
+        rowCopyHiddenColIndices,
         formatRows,
         copyToClipboard,
-        rowsCopiedToast,
+        copiedRowsToast,
     ]);
 
     // Copies one column for the selected rows, or every visible row when
@@ -2965,7 +2992,9 @@ export const DataGrid = React.memo(function DataGrid({
                 pending,
                 columnTypes: columnTypeMap,
                 columnLengths: columnLengthMap,
-                isExcluded: (colIndex) => isCellMasked(rowIndex, colIndex),
+                // Hidden columns (#1299) aren't on screen, so they never match.
+                isExcluded: (colIndex) =>
+                    hiddenColIndices.has(colIndex) || isCellMasked(rowIndex, colIndex),
             });
         },
         [
@@ -2976,6 +3005,7 @@ export const DataGrid = React.memo(function DataGrid({
             columns,
             columnTypeMap,
             columnLengthMap,
+            hiddenColIndices,
             isCellMasked,
         ],
     );
@@ -4104,10 +4134,16 @@ export const DataGrid = React.memo(function DataGrid({
 
                         // Shown even when it can't run, with the reason, so the format is
                         // discoverable and it's clear why a safe WHERE can't be built.
-                        const updateBlocker = sqlUpdateBlocker(
+                        // Hidden columns stay out of SET, a hidden key still builds the WHERE.
+                        const updateTarget = projectVisibleColumns(
+                            getContextRows() ?? [],
                             columns,
+                            hiddenNonKeyColIndices,
+                        );
+                        const updateBlocker = sqlUpdateBlocker(
+                            updateTarget.columns,
                             pkColumns,
-                            getContextRows() ?? undefined,
+                            updateTarget.rows,
                         );
                         menuItems.push(
                             updateBlocker === null

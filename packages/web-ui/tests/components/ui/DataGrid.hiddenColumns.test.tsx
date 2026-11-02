@@ -331,6 +331,46 @@ describe('DataGrid hidden columns (#1299)', () => {
             expect(writeText.mock.calls[0][0]).toBe('customer_id,total\n10,99.5\n11,12');
         });
 
+        it('keeps a hidden primary key in SQL UPDATE row copies', async () => {
+            const {container} = render(
+                <HostedGrid
+                    initialHidden={new Set([0, 2])}
+                    selectedRows={new Set([0])}
+                    copyFormat="sql-update"
+                    tableName="orders"
+                    pkColumns={['id']}
+                />,
+            );
+
+            fireEvent.contextMenu(cellAt(container, 0, 1));
+            fireEvent.click(await screen.findByText('dataGrid.copySelectedN:1'));
+
+            await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+            // created_by is hidden and stays out of SET; the hidden id still builds the WHERE.
+            expect(writeText.mock.calls[0][0]).toBe(
+                "UPDATE `orders` SET `customer_id` = 10, `updated_at` = '2026-01-01', `total` = 99.5 WHERE `id` = 1;",
+            );
+        });
+
+        it('offers "Copy as SQL UPDATE" with the key hidden, leaving hidden columns out of SET', async () => {
+            const {container} = render(
+                <HostedGrid
+                    initialHidden={new Set([0, 3])}
+                    selectedRows={new Set([1])}
+                    tableName="orders"
+                    pkColumns={['id']}
+                />,
+            );
+
+            fireEvent.contextMenu(cellAt(container, 1, 1));
+            fireEvent.click(await screen.findByText('dataGrid.copyAsSqlUpdate'));
+
+            await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+            expect(writeText.mock.calls[0][0]).toBe(
+                "UPDATE `orders` SET `customer_id` = 11, `created_by` = 'bob', `total` = 12 WHERE `id` = 2;",
+            );
+        });
+
         it('keeps every column in "Copy all"', async () => {
             const ref = createRef<DataGridCommandTarget>();
             render(<HostedGrid ref={ref} initialHidden={new Set([2, 3])} />);
