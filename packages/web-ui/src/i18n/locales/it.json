@@ -293,6 +293,8 @@
     "pinned": "Fissati",
     "pin": "Fissa",
     "unpin": "Sgancia",
+    "exportHistory": "Esporta cronologia in SQL",
+    "exportHistoryError": "Impossibile esportare la cronologia delle query",
     "pauseHistoryCapture": "Metti in pausa la registrazione della cronologia",
     "resumeHistoryCapture": "Riprendi la registrazione della cronologia",
     "historyCapturePausedNotice": "Registrazione della cronologia query in pausa",

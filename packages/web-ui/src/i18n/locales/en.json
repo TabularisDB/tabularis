@@ -299,6 +299,8 @@
     "pinned": "Pinned",
     "pin": "Pin",
     "unpin": "Unpin",
+    "exportHistory": "Export history as SQL",
+    "exportHistoryError": "Failed to export query history",
     "pauseHistoryCapture": "Pause history capture",
     "resumeHistoryCapture": "Resume history capture",
     "historyCapturePausedNotice": "Query history capture paused",

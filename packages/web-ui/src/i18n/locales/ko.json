@@ -276,6 +276,8 @@
     "pinned": "고정됨",
     "pin": "고정",
     "unpin": "고정 해제",
+    "exportHistory": "기록을 SQL로 내보내기",
+    "exportHistoryError": "쿼리 기록을 내보내지 못했습니다",
     "pauseHistoryCapture": "기록 수집 일시 중지",
     "resumeHistoryCapture": "기록 수집 재개",
     "historyCapturePausedNotice": "쿼리 기록 수집이 일시 중지됨",
