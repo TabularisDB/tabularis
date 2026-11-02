@@ -311,6 +311,104 @@ async fn existing_providers_propagate_http_failures() {
 }
 
 #[tokio::test]
+async fn minimax_model_selection_reaches_the_http_boundary_unchanged() {
+    for (provider, model, expected) in [
+        ("minimax", "", "MiniMax-M3.1-Flash"),
+        ("minimax", "MiniMax-M3", "MiniMax-M3"),
+        ("minimax", "MiniMax-M2.7", "MiniMax-M2.7"),
+        (
+            "openrouter",
+            "minimax/minimax-m3.1-flash:free",
+            "minimax/minimax-m3.1-flash:free",
+        ),
+        ("requesty", "minimax-m3.1-flash", "minimax-m3.1-flash"),
+        (
+            "requesty",
+            "minimaxi/minimax-m3.1-flash",
+            "minimaxi/minimax-m3.1-flash",
+        ),
+        ("custom-openai", "my-custom-model", "my-custom-model"),
+    ] {
+        let fixture = Fixture::new(true, vec![(200, success(provider))]);
+        let req = AiGenerateRequest {
+            provider: provider.into(),
+            model: resolve_model(provider, model, &config::AppConfig::default(), 11434)
+                .await
+                .unwrap(),
+            prompt: "Count authors".into(),
+            schema: String::new(),
+        };
+        let result = match provider {
+            "minimax" => {
+                generate_minimax(&fixture.client, "fixture-key", &req, "SQL instructions").await
+            }
+            "openrouter" => {
+                generate_openrouter(&fixture.client, "fixture-key", &req, "SQL instructions").await
+            }
+            "requesty" => {
+                generate_requesty(&fixture.client, "fixture-key", &req, "SQL instructions").await
+            }
+            "custom-openai" => {
+                generate_custom_openai(
+                    &fixture.client,
+                    "fixture-key",
+                    &req,
+                    "SQL instructions",
+                    "https://fixture.invalid/v1/",
+                )
+                .await
+            }
+            _ => unreachable!(),
+        };
+        assert_eq!(result.unwrap(), "SELECT COUNT(*) FROM authors;");
+        let requests = fixture.requests.join().unwrap();
+        let request = &requests[0];
+        match provider {
+            "minimax" => assert!(matches!(
+                request.target.as_str(),
+                "CONNECT api.minimax.io:443 HTTP/1.1" | "CONNECT api.minimaxi.com:443 HTTP/1.1"
+            )),
+            "openrouter" => assert_eq!(request.target, "CONNECT openrouter.ai:443 HTTP/1.1"),
+            "requesty" => assert_eq!(request.target, "CONNECT router.requesty.ai:443 HTTP/1.1"),
+            "custom-openai" => assert_eq!(request.target, "CONNECT fixture.invalid:443 HTTP/1.1"),
+            _ => unreachable!(),
+        }
+        assert!(
+            request.headers.starts_with("POST /v1/chat/completions ")
+                || request
+                    .headers
+                    .starts_with("POST /api/v1/chat/completions ")
+        );
+        assert!(request
+            .headers
+            .to_ascii_lowercase()
+            .contains("authorization: bearer fixture-key"));
+        assert_eq!(request.body["model"], expected);
+        assert_eq!(
+            request.body["messages"],
+            json!([
+                {"role": "system", "content": "SQL instructions"},
+                {"role": "user", "content": "Count authors"}
+            ])
+        );
+        // This SQL-generation API accepts text only; it has no tool, image, or history inputs.
+        for unsupported in [
+            "tools",
+            "thinking",
+            "reasoning_effort",
+            "service_tier",
+            "reasoning_split",
+            "previous_response_id",
+        ] {
+            assert!(
+                request.body.get(unsupported).is_none(),
+                "{provider}: {unsupported}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn minimax_retries_its_other_region_after_a_failure() {
     let fixture = Fixture::new(
         true,
@@ -319,11 +417,34 @@ async fn minimax_retries_its_other_region_after_a_failure() {
             (200, success("minimax")),
         ],
     );
+    let req = AiGenerateRequest {
+        provider: "minimax".into(),
+        model: resolve_model("minimax", "", &config::AppConfig::default(), 11434)
+            .await
+            .unwrap(),
+        prompt: "Count authors".into(),
+        schema: String::new(),
+    };
     assert_eq!(
-        generate("minimax", &fixture).await.unwrap(),
+        generate_minimax(&fixture.client, "fixture-key", &req, "SQL instructions")
+            .await
+            .unwrap(),
         "SELECT COUNT(*) FROM authors;"
     );
     let requests = fixture.requests.join().unwrap();
     assert_eq!(requests.len(), 2);
-    assert_ne!(requests[0].target, requests[1].target);
+    let mut targets: Vec<&str> = requests
+        .iter()
+        .map(|request| request.target.as_str())
+        .collect();
+    targets.sort();
+    assert_eq!(
+        targets,
+        [
+            "CONNECT api.minimax.io:443 HTTP/1.1",
+            "CONNECT api.minimaxi.com:443 HTTP/1.1"
+        ]
+    );
+    assert_eq!(requests[0].body, requests[1].body);
+    assert_eq!(requests[0].body["model"], "MiniMax-M3.1-Flash");
 }
