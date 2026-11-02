@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {render, screen, fireEvent} from '@testing-library/react';
+import {render, screen, fireEvent, within} from '@testing-library/react';
 import type {ExplainPlan, ExplainMetrics, ExplainDiagnostic} from '@tabularis/explain';
 import {computeExplainMetrics} from '@tabularis/explain';
 import {ExplainTableView} from '@tabularis/explain/react';
@@ -135,6 +135,64 @@ describe('ExplainTableView', () => {
         expect(screen.getByText('20')).toBeInTheDocument();
         expect(screen.getByText('2.00 ms')).toBeInTheDocument();
         expect(screen.getByText('5.00x')).toBeInTheDocument();
+    });
+
+    it('shows how many times each node ran when the plan has ANALYZE data', () => {
+        const plan = makePlan();
+        const probe = {
+            ...plan.root,
+            id: 'node_1',
+            node_type: 'Index Scan',
+            actual_rows: 1,
+            actual_time_ms: 0.002,
+            actual_loops: 331603,
+        };
+        plan.root = {
+            ...plan.root,
+            actual_rows: 20,
+            actual_time_ms: 2,
+            actual_loops: null,
+            children: [probe],
+        };
+        plan.has_analyze_data = true;
+        const metrics: ExplainMetrics = computeExplainMetrics(plan);
+
+        render(
+            <ExplainTableView
+                plan={plan}
+                metrics={metrics}
+                diagnostics={new Map<string, ExplainDiagnostic[]>()}
+                selectedId={null}
+                onSelect={vi.fn()}
+            />,
+        );
+
+        const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
+        const loopsColumn = headers.indexOf('editor.visualExplain.loops');
+        expect(loopsColumn).toBeGreaterThan(-1);
+
+        const bodyRows = screen.getAllByRole('row').slice(1);
+        const loopsCells = bodyRows.map(
+            (row) => within(row).getAllByRole('cell')[loopsColumn].textContent,
+        );
+        expect(loopsCells).toEqual(['-', '331603']);
+    });
+
+    it('does not show a loops column for an estimates-only plan', () => {
+        const plan = makePlan();
+        const metrics: ExplainMetrics = computeExplainMetrics(plan);
+
+        render(
+            <ExplainTableView
+                plan={plan}
+                metrics={metrics}
+                diagnostics={new Map<string, ExplainDiagnostic[]>()}
+                selectedId={null}
+                onSelect={vi.fn()}
+            />,
+        );
+
+        expect(screen.queryByRole('columnheader', {name: 'editor.visualExplain.loops'})).toBeNull();
     });
 
     it('shows placeholders instead of zero when metrics are unavailable', () => {
