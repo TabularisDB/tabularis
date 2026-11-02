@@ -1039,6 +1039,7 @@
       "extendCellRange": "Extender rango de celdas",
       "jumpToEdge": "Saltar al borde de la cuadrícula",
       "jumpToColumn": "Ir a columna",
+      "findInGrid": "Buscar en los resultados",
       "extendCellRangeToEdge": "Extender rango hasta el borde",
       "selectRow": "Seleccionar fila",
       "selectColumn": "Seleccionar columna"
@@ -1423,6 +1424,19 @@
     "jumpToColumn": "Ir a columna",
     "searchColumns": "Buscar columnas",
     "noMatchingColumns": "No hay columnas coincidentes",
+    "find": {
+      "label": "Buscar en los resultados",
+      "matchCase": "Distinguir mayúsculas y minúsculas",
+      "previous": "Coincidencia anterior",
+      "next": "Coincidencia siguiente",
+      "close": "Cerrar búsqueda",
+      "position": "{{current}} de {{total}}",
+      "announcement": "Coincidencia {{current}} de {{total}}",
+      "noResults": "Sin resultados",
+      "loadedRowsOnly": "Solo filas cargadas ({{loaded}})",
+      "loadedRowsOfTotal": "Solo filas cargadas ({{loaded}} de {{total}})",
+      "loadedRowsHint": "La búsqueda solo recorre las filas ya cargadas en la cuadrícula. Filtra la tabla o ajusta la consulta para buscar en todas las filas."
+    },
     "noRowIdentity": "No se pueden editar las filas: \"{{table}}\" no tiene clave primaria, por lo que la edición requiere que el resultado incluya todas las columnas de la tabla. Selecciona todas las columnas (p. ej. SELECT *) o añade una clave primaria.",
     "resizeRelatedPanel": "Arrastra para redimensionar el panel",
     "keylessRowNotFound": "Ninguna fila coincidió con los valores originales al actualizar \"{{column}}\". La tabla no tiene clave primaria y los datos pueden haber cambiado: actualiza y vuelve a intentarlo.",

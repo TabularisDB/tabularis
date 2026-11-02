@@ -1028,6 +1028,7 @@
       "extendCellRange": "Estender intervalo de células",
       "jumpToEdge": "Ir para a borda da grade",
       "jumpToColumn": "Ir para coluna",
+      "findInGrid": "Localizar nos resultados",
       "extendCellRangeToEdge": "Estender intervalo até a borda",
       "selectRow": "Selecionar linha",
       "selectColumn": "Selecionar coluna"
@@ -1411,6 +1412,19 @@
     "jumpToColumn": "Ir para coluna",
     "searchColumns": "Buscar colunas",
     "noMatchingColumns": "Nenhuma coluna correspondente",
+    "find": {
+      "label": "Localizar nos resultados",
+      "matchCase": "Diferenciar maiúsculas e minúsculas",
+      "previous": "Ocorrência anterior",
+      "next": "Próxima ocorrência",
+      "close": "Fechar busca",
+      "position": "{{current}} de {{total}}",
+      "announcement": "Ocorrência {{current}} de {{total}}",
+      "noResults": "Nenhum resultado",
+      "loadedRowsOnly": "Somente linhas carregadas ({{loaded}})",
+      "loadedRowsOfTotal": "Somente linhas carregadas ({{loaded}} de {{total}})",
+      "loadedRowsHint": "A busca considera apenas as linhas já carregadas na grade. Filtre a tabela ou refine a consulta para buscar em todas as linhas."
+    },
     "noRowIdentity": "Não é possível editar as linhas: \"{{table}}\" não tem chave primária, então a edição exige que o resultado inclua todas as colunas da tabela. Selecione todas as colunas (ex.: SELECT *) ou adicione uma chave primária.",
     "resizeRelatedPanel": "Arraste para redimensionar o painel",
     "keylessRowNotFound": "Nenhuma linha correspondeu aos valores originais ao atualizar \"{{column}}\". A tabela não tem chave primária e os dados podem ter mudado: atualize e tente novamente.",

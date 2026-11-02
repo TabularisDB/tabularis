@@ -155,6 +155,9 @@ import {resolveResultFontFamily} from '@/utils/settings';
 import {JumpToColumnModal} from '@/components/modals/JumpToColumnModal';
 import {SetCellsValueModal} from '@/components/modals/SetCellsValueModal';
 import {KeybindingsContext} from '@/contexts/KeybindingsContext';
+import {GridFindBar} from './GridFindBar';
+import {useGridFind} from '@/hooks/useGridFind';
+import {getFindRowTexts} from '@/utils/gridFind';
 
 /** Horizontal padding of a grid cell (px-4 on both sides) plus its 1px border. */
 const FIT_COLUMN_PADDING = 33;
@@ -2763,6 +2766,59 @@ export const DataGrid = React.memo(function DataGrid({
         ],
     );
 
+    // Find in results (#1298) searches the loaded rows as the grid shows them,
+    // pending edits included; NULLs and masked cells never match.
+    const getFindRowTextsAt = useCallback(
+        (rowIndex: number) => {
+            const mergedRow = mergedRows[rowIndex];
+            if (!mergedRow) return [];
+            const pending =
+                mergedRow.type === 'existing' && pendingChanges && pkIndexMaps.length > 0
+                    ? pendingChanges[
+                          serializePkKey(buildPkMap(pkColumns!, mergedRow.rowData, pkIndexMaps))
+                      ]?.changes
+                    : undefined;
+            return getFindRowTexts(mergedRow.rowData, columns, {
+                pending,
+                columnTypes: columnTypeMap,
+                columnLengths: columnLengthMap,
+                isExcluded: (colIndex) => isCellMasked(rowIndex, colIndex),
+            });
+        },
+        [
+            mergedRows,
+            pendingChanges,
+            pkColumns,
+            pkIndexMaps,
+            columns,
+            columnTypeMap,
+            columnLengthMap,
+            isCellMasked,
+        ],
+    );
+    const scrollRowToCenter = useCallback(
+        (rowIndex: number) => rowVirtualizer.scrollToIndex(rowIndex, {align: 'center'}),
+        [rowVirtualizer],
+    );
+    const gridFind = useGridFind({
+        rowCount: mergedRows.length,
+        getRowTexts: getFindRowTextsAt,
+        scrollElementRef: parentRef,
+        scrollToRow: scrollRowToCenter,
+    });
+    const {isOpen: isFindOpen, open: openFind, close: closeFindBar} = gridFind;
+    // Closing from the bar leaves the grid focused on the match it was on, the
+    // way a browser leaves the selection on the text it found.
+    const closeFind = useCallback(() => {
+        const match = closeFindBar();
+        if (match) {
+            setCellRange(null);
+            setFocusedCell(match);
+        } else {
+            parentRef.current?.focus({preventScroll: true});
+        }
+    }, [closeFindBar]);
+
     // Arrow-key cell navigation. Bound to the grid container instead of the
     // document so that pages rendering several grids (e.g. a notebook with
     // multiple SQL cells) only move the one the user is actually inside.
@@ -2778,6 +2834,22 @@ export const DataGrid = React.memo(function DataGrid({
                 e.stopPropagation();
                 setJumpToColumnOpen(true);
                 return;
+            }
+
+            // Editors inside the grid (Monaco, text areas) keep their own keys.
+            if (!isTypingTarget(e.target)) {
+                if (keybindings?.matchesShortcut(e.nativeEvent, 'find_in_grid')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openFind(focusedCell);
+                    return;
+                }
+                // Not when a menu inside the grid already took this Escape.
+                if (e.key === 'Escape' && isFindOpen && !e.defaultPrevented) {
+                    e.preventDefault();
+                    closeFindBar();
+                    return;
+                }
             }
 
             // Let anything that handles keys itself keep them: text inputs, and the
@@ -2982,6 +3054,9 @@ export const DataGrid = React.memo(function DataGrid({
             updateSelection,
             rowVirtualizer,
             keybindings,
+            openFind,
+            isFindOpen,
+            closeFindBar,
         ],
     );
 
@@ -3274,7 +3349,7 @@ export const DataGrid = React.memo(function DataGrid({
     const totalColumnCount = tableColumns.length + 1;
 
     return (
-        <>
+        <div className="h-full flex flex-col">
             {jumpToColumnOpen && (
                 <JumpToColumnModal
                     isOpen
@@ -3292,6 +3367,23 @@ export const DataGrid = React.memo(function DataGrid({
                         setValuePromptSelection(null);
                     }}
                     onClose={() => setValuePromptSelection(null)}
+                />
+            )}
+            {isFindOpen && (
+                <GridFindBar
+                    inputRef={gridFind.inputRef}
+                    query={gridFind.query}
+                    caseSensitive={gridFind.caseSensitive}
+                    matchCount={gridFind.matchCount}
+                    currentIndex={gridFind.currentIndex}
+                    hasUnloadedRows={hasRowsBeyondLoadedPage}
+                    loadedRowCount={data.length}
+                    totalRowCount={totalRows}
+                    onQueryChange={gridFind.setQuery}
+                    onToggleCaseSensitive={gridFind.toggleCaseSensitive}
+                    onNext={gridFind.goToNext}
+                    onPrevious={gridFind.goToPrevious}
+                    onClose={closeFind}
                 />
             )}
             {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- focus host for the spreadsheet keyboard model (arrows, ranges, copy); a full ARIA grid needs per-cell roles and activedescendant */}
@@ -3471,6 +3563,14 @@ export const DataGrid = React.memo(function DataGrid({
                                     focusedColIndex={isRowFocused ? focusedCell!.colIndex : null}
                                     expandedColIndex={isRowExpanded ? expandedCell!.colIndex : null}
                                     expandedKind={isRowExpanded ? expandedCell!.kind : null}
+                                    findMatchColIndices={
+                                        gridFind.matchesByRow.get(rowIndex) ?? null
+                                    }
+                                    currentFindColIndex={
+                                        gridFind.currentMatch?.rowIndex === rowIndex
+                                            ? gridFind.currentMatch.colIndex
+                                            : null
+                                    }
                                 />
                             );
                         })}
@@ -4184,6 +4284,6 @@ export const DataGrid = React.memo(function DataGrid({
 
                 {/* Row Editor Sidebar is now rendered in the RightSidebar layout component */}
             </div>
-        </>
+        </div>
     );
 });

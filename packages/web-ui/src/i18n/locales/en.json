@@ -1080,6 +1080,7 @@
       "extendCellRange": "Extend cell range",
       "jumpToEdge": "Jump to grid edge",
       "jumpToColumn": "Jump to column",
+      "findInGrid": "Find in results",
       "extendCellRangeToEdge": "Extend cell range to edge",
       "selectRow": "Select row",
       "selectColumn": "Select column"
@@ -1462,6 +1463,19 @@
     "jumpToColumn": "Jump to column",
     "searchColumns": "Search columns",
     "noMatchingColumns": "No matching columns",
+    "find": {
+      "label": "Find in results",
+      "matchCase": "Match case",
+      "previous": "Previous match",
+      "next": "Next match",
+      "close": "Close find",
+      "position": "{{current}} of {{total}}",
+      "announcement": "Match {{current}} of {{total}}",
+      "noResults": "No results",
+      "loadedRowsOnly": "Loaded rows only ({{loaded}})",
+      "loadedRowsOfTotal": "Loaded rows only ({{loaded}} of {{total}})",
+      "loadedRowsHint": "Find searches the rows already loaded in the grid. Filter the table or refine the query to search every row."
+    },
     "noRowIdentity": "Rows can't be edited: \"{{table}}\" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.",
     "resizeRelatedPanel": "Drag to resize panel",
     "keylessRowNotFound": "No row matched the original values while updating \"{{column}}\". The table has no primary key and its data may have changed — refresh and retry.",

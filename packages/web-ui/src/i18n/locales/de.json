@@ -1014,6 +1014,7 @@
       "extendCellRange": "Zellbereich erweitern",
       "jumpToEdge": "Zum Rand des Rasters springen",
       "jumpToColumn": "Zu Spalte springen",
+      "findInGrid": "In Ergebnissen suchen",
       "extendCellRangeToEdge": "Zellbereich bis zum Rand erweitern",
       "selectRow": "Zeile auswählen",
       "selectColumn": "Spalte auswählen"
@@ -1395,6 +1396,19 @@
     "jumpToColumn": "Zu Spalte springen",
     "searchColumns": "Spalten suchen",
     "noMatchingColumns": "Keine passenden Spalten",
+    "find": {
+      "label": "In Ergebnissen suchen",
+      "matchCase": "Groß-/Kleinschreibung beachten",
+      "previous": "Vorheriger Treffer",
+      "next": "Nächster Treffer",
+      "close": "Suche schließen",
+      "position": "{{current}} von {{total}}",
+      "announcement": "Treffer {{current}} von {{total}}",
+      "noResults": "Keine Treffer",
+      "loadedRowsOnly": "Nur geladene Zeilen ({{loaded}})",
+      "loadedRowsOfTotal": "Nur geladene Zeilen ({{loaded}} von {{total}})",
+      "loadedRowsHint": "Die Suche umfasst nur die bereits im Ergebnisraster geladenen Zeilen. Zum Durchsuchen aller Zeilen die Tabelle filtern oder die Abfrage eingrenzen."
+    },
     "noRowIdentity": "Zeilen können nicht bearbeitet werden: \"{{table}}\" hat keinen Primärschlüssel, daher muss das Ergebnis alle Spalten der Tabelle enthalten. Wählen Sie alle Spalten aus (z. B. SELECT *) oder fügen Sie einen Primärschlüssel hinzu.",
     "resizeRelatedPanel": "Ziehen, um die Größe des Bereichs zu ändern",
     "keylessRowNotFound": "Beim Aktualisieren von \"{{column}}\" stimmte keine Zeile mit den ursprünglichen Werten überein. Die Tabelle hat keinen Primärschlüssel und die Daten haben sich möglicherweise geändert – aktualisieren und erneut versuchen.",

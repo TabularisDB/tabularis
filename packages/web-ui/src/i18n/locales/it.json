@@ -1074,6 +1074,7 @@
       "extendCellRange": "Estendi intervallo di celle",
       "jumpToEdge": "Salta al bordo della griglia",
       "jumpToColumn": "Vai alla colonna",
+      "findInGrid": "Cerca nei risultati",
       "extendCellRangeToEdge": "Estendi intervallo fino al bordo",
       "selectRow": "Seleziona riga",
       "selectColumn": "Seleziona colonna"
@@ -1458,6 +1459,19 @@
     "jumpToColumn": "Vai alla colonna",
     "searchColumns": "Cerca colonne",
     "noMatchingColumns": "Nessuna colonna corrispondente",
+    "find": {
+      "label": "Cerca nei risultati",
+      "matchCase": "Maiuscole/minuscole",
+      "previous": "Corrispondenza precedente",
+      "next": "Corrispondenza successiva",
+      "close": "Chiudi ricerca",
+      "position": "{{current}} di {{total}}",
+      "announcement": "Corrispondenza {{current}} di {{total}}",
+      "noResults": "Nessun risultato",
+      "loadedRowsOnly": "Solo righe caricate ({{loaded}})",
+      "loadedRowsOfTotal": "Solo righe caricate ({{loaded}} di {{total}})",
+      "loadedRowsHint": "La ricerca considera solo le righe già caricate nella griglia. Filtra la tabella o affina la query per cercare in tutte le righe."
+    },
     "noRowIdentity": "Impossibile modificare le righe: \"{{table}}\" non ha una chiave primaria, quindi la modifica richiede che il risultato includa tutte le colonne della tabella. Seleziona tutte le colonne (es. SELECT *) o aggiungi una chiave primaria.",
     "resizeRelatedPanel": "Trascina per ridimensionare il pannello",
     "keylessRowNotFound": "Nessuna riga corrisponde ai valori originali durante l'aggiornamento di \"{{column}}\". La tabella non ha una chiave primaria e i dati potrebbero essere cambiati: aggiorna e riprova.",

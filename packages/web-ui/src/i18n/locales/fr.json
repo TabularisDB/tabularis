@@ -1048,6 +1048,7 @@
       "extendCellRange": "Étendre la plage de cellules",
       "jumpToEdge": "Aller au bord de la grille",
       "jumpToColumn": "Aller à la colonne",
+      "findInGrid": "Rechercher dans les résultats",
       "extendCellRangeToEdge": "Étendre la plage jusqu'au bord",
       "selectRow": "Sélectionner la ligne",
       "selectColumn": "Sélectionner la colonne"
@@ -1432,6 +1433,19 @@
     "jumpToColumn": "Aller à la colonne",
     "searchColumns": "Rechercher des colonnes",
     "noMatchingColumns": "Aucune colonne correspondante",
+    "find": {
+      "label": "Rechercher dans les résultats",
+      "matchCase": "Respecter la casse",
+      "previous": "Occurrence précédente",
+      "next": "Occurrence suivante",
+      "close": "Fermer la recherche",
+      "position": "{{current}} sur {{total}}",
+      "announcement": "Occurrence {{current}} sur {{total}}",
+      "noResults": "Aucun résultat",
+      "loadedRowsOnly": "Lignes chargées uniquement ({{loaded}})",
+      "loadedRowsOfTotal": "Lignes chargées uniquement ({{loaded}} sur {{total}})",
+      "loadedRowsHint": "La recherche ne porte que sur les lignes déjà chargées dans la grille. Filtrez la table ou affinez la requête pour rechercher dans toutes les lignes."
+    },
     "noRowIdentity": "Impossible de modifier les lignes : \"{{table}}\" n'a pas de clé primaire, la modification nécessite donc que le résultat inclue toutes les colonnes de la table. Sélectionnez toutes les colonnes (p. ex. SELECT *) ou ajoutez une clé primaire.",
     "resizeRelatedPanel": "Faites glisser pour redimensionner le panneau",
     "keylessRowNotFound": "Aucune ligne ne correspond aux valeurs d'origine lors de la mise à jour de \"{{column}}\". La table n'a pas de clé primaire et les données ont peut-être changé : actualisez puis réessayez.",
