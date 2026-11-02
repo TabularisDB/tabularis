@@ -2660,7 +2660,8 @@
     "approve": "Approve",
     "deny": "Deny",
     "notificationTitle": "MCP approval needed",
-    "notificationBody": "Open Tabularis to review the pending MCP approval."
+    "notificationBody": "Open Tabularis to review the pending MCP approval.",
+    "decisionFailed": "Couldn't submit the decision: {{error}}"
   },
   "discordCallout": {
     "title": "Brand-new Discord community!",

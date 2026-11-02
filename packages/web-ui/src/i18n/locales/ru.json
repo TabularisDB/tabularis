@@ -2630,7 +2630,8 @@
     "approve": "Подтвердить",
     "deny": "Отклонить",
     "notificationTitle": "Требуется подтверждение MCP",
-    "notificationBody": "Откройте Tabularis, чтобы проверить ожидающее подтверждение MCP."
+    "notificationBody": "Откройте Tabularis, чтобы проверить ожидающее подтверждение MCP.",
+    "decisionFailed": "Не удалось отправить решение: {{error}}"
   },
   "discordCallout": {
     "title": "Новое сообщество в Discord!",

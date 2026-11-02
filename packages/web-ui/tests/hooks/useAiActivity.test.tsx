@@ -97,6 +97,28 @@ describe('useAiActivity', () => {
         });
     });
 
+    it('drops an approval that no longer exists when deciding on it fails', async () => {
+        let listed: PendingApproval[] = [pending];
+        invokeMock.mockImplementation((command) => {
+            if (command === 'list_pending_approvals') return Promise.resolve(listed);
+            if (command === 'decide_pending_approval') {
+                return Promise.reject('The pending AI approval no longer exists');
+            }
+            return Promise.resolve(undefined);
+        });
+        const {result} = renderHook(() => usePendingApprovals());
+        await waitFor(() => expect(result.current.pending).toEqual([pending]));
+
+        listed = [];
+        await act(async () => {
+            await expect(
+                result.current.decide({approvalId: pending.id, decision: 'approve'}),
+            ).rejects.toThrow('The pending AI approval no longer exists');
+        });
+
+        expect(result.current.pending).toEqual([]);
+    });
+
     it('clears activity through the typed client', async () => {
         invokeMock.mockResolvedValue(undefined);
         await clearAiActivity(client);

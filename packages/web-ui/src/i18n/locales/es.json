@@ -2484,7 +2484,8 @@
     "approve": "Aprobar",
     "deny": "Denegar",
     "notificationTitle": "Se necesita aprobación MCP",
-    "notificationBody": "Abrí Tabularis para revisar la aprobación MCP pendiente."
+    "notificationBody": "Abrí Tabularis para revisar la aprobación MCP pendiente.",
+    "decisionFailed": "No se pudo enviar la decisión: {{error}}"
   },
   "discordCallout": {
     "title": "¡Nueva comunidad Discord!",

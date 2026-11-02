@@ -2543,7 +2543,8 @@
     "approve": "Freigeben",
     "deny": "Ablehnen",
     "notificationTitle": "MCP-Freigabe erforderlich",
-    "notificationBody": "Öffne Tabularis, um die ausstehende MCP-Freigabe zu prüfen."
+    "notificationBody": "Öffne Tabularis, um die ausstehende MCP-Freigabe zu prüfen.",
+    "decisionFailed": "Die Entscheidung konnte nicht übermittelt werden: {{error}}"
   },
   "discordCallout": {
     "title": "Neue Discord-Community!",
