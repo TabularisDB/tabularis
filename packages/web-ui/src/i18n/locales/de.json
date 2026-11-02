@@ -1641,7 +1641,11 @@
       "retry": "Erneut versuchen",
       "closeCurrentTab": "Aktuellen Tab schließen",
       "backToConnections": "Zurück zu den Verbindungen",
-      "showDetails": "Technische Details anzeigen"
+      "showDetails": "Technische Details anzeigen",
+      "copyReport": "Bericht kopieren",
+      "reportCopied": "Bericht kopiert",
+      "copyFailed": "Der Bericht konnte nicht in die Zwischenablage kopiert werden.",
+      "createIssue": "Issue erstellen"
     },
     "newVisualQuery": "Neue visuelle Abfrage",
     "activeDatabase": "Aktive Datenbank",

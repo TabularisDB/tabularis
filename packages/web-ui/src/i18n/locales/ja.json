@@ -1653,7 +1653,11 @@
       "retry": "再試行",
       "closeCurrentTab": "現在のタブを閉じる",
       "backToConnections": "接続一覧に戻る",
-      "showDetails": "技術的な詳細を表示"
+      "showDetails": "技術的な詳細を表示",
+      "copyReport": "レポートをコピー",
+      "reportCopied": "レポートをコピーしました",
+      "copyFailed": "レポートをクリップボードにコピーできませんでした。",
+      "createIssue": "Issue を作成"
     },
     "newVisualQuery": "新規ビジュアルクエリ",
     "activeDatabase": "アクティブなデータベース",

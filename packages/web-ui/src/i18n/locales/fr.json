@@ -1663,7 +1663,11 @@
       "retry": "Réessayer",
       "closeCurrentTab": "Fermer l’onglet actuel",
       "backToConnections": "Retour aux connexions",
-      "showDetails": "Afficher les détails techniques"
+      "showDetails": "Afficher les détails techniques",
+      "copyReport": "Copier le rapport",
+      "reportCopied": "Rapport copié",
+      "copyFailed": "Impossible de copier le rapport dans le presse-papiers.",
+      "createIssue": "Créer une issue"
     },
     "newVisualQuery": "Nouvelle requête visuelle",
     "activeDatabase": "Base de données active",

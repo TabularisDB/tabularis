@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
-import {render, screen, fireEvent} from '@testing-library/react';
+import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {MemoryRouter, Routes, Route} from 'react-router-dom';
 import {EditorErrorBoundary} from '@/components/ui/EditorErrorBoundary';
 import {EditorContext} from '@/contexts/EditorContext';
@@ -9,6 +9,14 @@ vi.mock('@/components/layout/CommandPaletteScopeBridge', () => ({
     CommandPaletteScopeBridge: ({scopeId}: {scopeId: string}) => (
         <div data-testid={`command-scope-${scopeId}`} />
     ),
+}));
+
+const openExternalUrl = vi.fn(async (_url: string) => {});
+vi.mock('@/hooks/usePlatformCapabilities', () => ({
+    usePlatformCapabilities: () => ({
+        negotiation: {environment: 'tauri'},
+        openExternalUrl,
+    }),
 }));
 
 const HappyChild = () => <div data-testid="happy">happy editor</div>;
@@ -139,5 +147,46 @@ describe('EditorErrorBoundary', () => {
 
         expect(screen.queryByText('editor.errorBoundary.closeCurrentTab')).not.toBeInTheDocument();
         expect(screen.getByText('editor.errorBoundary.retry')).toBeInTheDocument();
+    });
+
+    it('copies the crash report while the details are collapsed', async () => {
+        const writeText = vi.fn(async (_text: string) => {});
+        Object.assign(navigator, {clipboard: {writeText}});
+
+        renderAtEditor(<Crasher />);
+        fireEvent.click(screen.getByText('editor.errorBoundary.copyReport'));
+
+        await waitFor(() =>
+            expect(screen.getByText('editor.errorBoundary.reportCopied')).toBeInTheDocument(),
+        );
+        const text = writeText.mock.calls[0][0];
+        expect(text).toContain('Message: boom');
+        expect(text).toContain('Mode: desktop');
+        expect(text).toContain('Error stack:\nError: boom');
+    });
+
+    it('says so when the clipboard write fails', async () => {
+        Object.assign(navigator, {
+            clipboard: {writeText: vi.fn(async () => Promise.reject(new Error('denied')))},
+        });
+
+        renderAtEditor(<Crasher />);
+        fireEvent.click(screen.getByText('editor.errorBoundary.copyReport'));
+
+        expect(await screen.findByText('editor.errorBoundary.copyFailed')).toBeInTheDocument();
+        expect(screen.getByText('editor.errorBoundary.copyReport')).toBeInTheDocument();
+    });
+
+    it('opens a prefilled bug report when the user clicks create issue', () => {
+        openExternalUrl.mockClear();
+
+        renderAtEditor(<Crasher />);
+        fireEvent.click(screen.getByText('editor.errorBoundary.createIssue'));
+
+        expect(openExternalUrl).toHaveBeenCalledTimes(1);
+        const url = new URL(openExternalUrl.mock.calls[0][0]);
+        expect(url.pathname).toBe('/TabularisDB/tabularis/issues/new');
+        expect(url.searchParams.get('template')).toBe('bug_report.yml');
+        expect(url.searchParams.get('logs')).toContain('Message: boom');
     });
 });

@@ -1693,7 +1693,11 @@
       "retry": "Try again",
       "closeCurrentTab": "Close current tab",
       "backToConnections": "Back to connections",
-      "showDetails": "Show technical details"
+      "showDetails": "Show technical details",
+      "copyReport": "Copy report",
+      "reportCopied": "Report copied",
+      "copyFailed": "Couldn't copy the report to the clipboard.",
+      "createIssue": "Create issue"
     },
     "newVisualQuery": "New Visual Query",
     "activeDatabase": "Active database",

@@ -1684,7 +1684,11 @@
       "retry": "Riprova",
       "closeCurrentTab": "Chiudi scheda corrente",
       "backToConnections": "Torna alle connessioni",
-      "showDetails": "Mostra dettagli tecnici"
+      "showDetails": "Mostra dettagli tecnici",
+      "copyReport": "Copia report",
+      "reportCopied": "Report copiato",
+      "copyFailed": "Impossibile copiare il report negli appunti.",
+      "createIssue": "Crea issue"
     },
     "newVisualQuery": "Nuova Query Visuale",
     "activeDatabase": "Database attivo",
