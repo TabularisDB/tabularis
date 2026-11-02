@@ -831,16 +831,27 @@ struct CreatedTable {
 }
 
 impl CreatedTable {
+    /// Drops the table. The slot is armed before `CREATE TABLE` runs, so a
+    /// cancel can land before the table exists: a failed drop counts as
+    /// done when the table isn't there.
     async fn remove(&self) -> bool {
-        remove_created_table(
+        let schema = self.schema.as_deref();
+        if remove_created_table(
             &self.drv,
             &self.params,
             &self.dialect,
             &self.capabilities,
             &self.table,
-            self.schema.as_deref(),
+            schema,
         )
         .await
+        {
+            return true;
+        }
+        self.drv
+            .get_tables(&self.params, schema)
+            .await
+            .is_ok_and(|tables| tables.iter().all(|existing| existing.name != self.table))
     }
 }
 

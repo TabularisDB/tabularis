@@ -667,6 +667,37 @@ mod sqlite_round_trip {
         );
     }
 
+    impl Fixture {
+        async fn created_table(&self, table: &str) -> CreatedTable {
+            let params = self.params("target");
+            let drv = crate::drivers::registry::get_connection_driver(&params)
+                .await
+                .unwrap();
+            let capabilities = drv.manifest().capabilities.clone();
+            CreatedTable {
+                dialect: DumpDialect::from_capabilities("sqlite", &capabilities),
+                drv,
+                params,
+                capabilities,
+                table: table.to_string(),
+                schema: None,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn cleanup_counts_a_table_that_was_never_created_as_removed() {
+        // A cancel can land after the slot is armed but before CREATE TABLE ran.
+        let fixture = fixture().await;
+        assert!(fixture.created_table("items").await.remove().await);
+
+        fixture
+            .run("target", "CREATE TABLE items (id INTEGER PRIMARY KEY)")
+            .await;
+        assert!(fixture.created_table("items").await.remove().await);
+        assert!(fixture.target_tables().await.is_empty());
+    }
+
     #[tokio::test]
     async fn applies_the_if_exists_modes() {
         let fixture = fixture().await;
