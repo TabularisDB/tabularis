@@ -970,10 +970,10 @@ export const DataGrid = React.memo(function DataGrid({
             // A frozen cell's editor is already in view, and a scrolling focus
             // would honor the scroll padding and jump back to the start (#1152).
             editInputRef.current.focus({
-                preventScroll: isFirstColumnFrozen && editingCell.colIndex === 0,
+                preventScroll: isFirstColumnFrozen && editingCell.colIndex === visibleColIndices[0],
             });
         }
-    }, [editingCell, isFirstColumnFrozen]);
+    }, [editingCell, isFirstColumnFrozen, visibleColIndices]);
 
     const buildRowDataWithPending = useCallback(
         (rowArray: unknown[], isInsertion: boolean): Record<string, unknown> => {
@@ -3309,12 +3309,14 @@ export const DataGrid = React.memo(function DataGrid({
             // A frozen cell is always in view horizontally (#1152), but the scroll
             // padding would make the browser scroll it back to the start.
             const keepScrollLeft =
-                isFirstColumnFrozen && focusedCell.colIndex === 0 ? parent.scrollLeft : null;
+                isFirstColumnFrozen && focusedCell.colIndex === visibleColIndices[0]
+                    ? parent.scrollLeft
+                    : null;
             cell.scrollIntoView({block: 'nearest', inline: 'nearest'});
             if (keepScrollLeft !== null) parent.scrollLeft = keepScrollLeft;
         });
         return () => cancelAnimationFrame(frame);
-    }, [focusedCell, rowVirtualizer, isFirstColumnFrozen]);
+    }, [focusedCell, rowVirtualizer, isFirstColumnFrozen, visibleColIndices]);
 
     // Handle keyboard shortcuts
     useEffect(() => {

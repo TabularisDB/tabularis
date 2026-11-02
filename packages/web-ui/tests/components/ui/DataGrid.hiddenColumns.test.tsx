@@ -505,6 +505,54 @@ describe('DataGrid hidden columns (#1299)', () => {
         expect(headerOf(container, 2)).not.toHaveClass('sticky');
     });
 
+    it('keeps the scroll when the frozen first visible column gets focus', async () => {
+        const {container} = render(<HostedGrid initialHidden={new Set([0])} />);
+        fireEvent.contextMenu(headerOf(container, 1));
+        fireEvent.click(screen.getByText('dataGrid.freezeFirstColumn'));
+        const grid = gridOf(container) as HTMLElement;
+        grid.scrollLeft = 300;
+        // Scroll padding makes the browser scroll a sticky cell back to the start (#1152).
+        const scrollIntoView = vi
+            .spyOn(Element.prototype, 'scrollIntoView')
+            .mockImplementation(() => {
+                grid.scrollLeft = 0;
+            });
+
+        fireEvent.click(cellAt(container, 1, 1));
+        await waitFor(() =>
+            expect(scrollIntoView.mock.contexts).toContain(cellAt(container, 1, 1)),
+        );
+        expect(grid.scrollLeft).toBe(300);
+
+        fireEvent.click(cellAt(container, 1, 2));
+        await waitFor(() => expect(grid.scrollLeft).toBe(0));
+        scrollIntoView.mockRestore();
+    });
+
+    it("focuses the frozen first visible column's editor without scrolling", () => {
+        const {container} = render(
+            <HostedGrid
+                readonly={false}
+                tableName="orders"
+                pkColumns={['id']}
+                columnMetadata={metadata}
+                initialHidden={new Set([0])}
+                onPendingChange={vi.fn()}
+            />,
+        );
+        fireEvent.contextMenu(headerOf(container, 1));
+        fireEvent.click(screen.getByText('dataGrid.freezeFirstColumn'));
+        const focus = vi.spyOn(HTMLTextAreaElement.prototype, 'focus');
+
+        fireEvent.doubleClick(cellAt(container, 0, 1));
+        expect(focus).toHaveBeenLastCalledWith({preventScroll: true});
+
+        fireEvent.keyDown(container.querySelector('textarea')!, {key: 'Escape'});
+        fireEvent.doubleClick(cellAt(container, 0, 2));
+        expect(focus).toHaveBeenLastCalledWith({preventScroll: false});
+        focus.mockRestore();
+    });
+
     it('lists only visible columns in Jump to column', () => {
         const {container} = render(
             <KeybindingsContext.Provider
