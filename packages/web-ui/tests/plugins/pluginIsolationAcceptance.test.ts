@@ -33,7 +33,7 @@ describe('plugin isolation acceptance contract', () => {
         });
         expect(tauri.app.security.dangerousDisableAssetCspModification).toContain('style-src');
 
-        const protocol = projectFile('src-tauri/src/plugins/sandbox_protocol.rs');
+        const protocol = projectFile('src-tauri/src/transport/desktop/sandbox_protocol.rs');
         expect(protocol).toMatch(/sandbox allow-scripts/);
         expect(protocol).toMatch(/connect-src 'none'/);
         expect(protocol).toMatch(/frame-src 'none'/);
@@ -98,6 +98,8 @@ describe('plugin isolation acceptance contract', () => {
             expect(host).toMatch(new RegExp(`["']${method.replaceAll('.', '\\.')}["']`));
         }
         expect(host).toContain('isReadOnlyQuery(query)');
+        expect(host).toContain('navigator.userActivation?.isActive');
+        expect(host).toContain("t('plugins.closePluginOverlay')");
         expect(host).toContain('execute_plugin_read_only_query');
         expect(host).toContain('setSecretField');
         expect(host).toContain('100dvh');
@@ -147,10 +149,10 @@ describe('plugin isolation acceptance contract', () => {
         expect(guest).toContain('getHost: () => guestApi');
         expect(projectFile('src-tauri/resources/guest/__guest__.html')).toContain('__runtime__.js');
         expect(projectFile('src-tauri/resources/guest/__guest__.html')).toContain('__host.css__');
-        expect(projectFile('src-tauri/src/plugins/sandbox_protocol.rs')).toContain(
+        expect(projectFile('src-tauri/src/transport/desktop/sandbox_protocol.rs')).toContain(
             '"__runtime__.js"',
         );
-        expect(projectFile('src-tauri/src/plugins/sandbox_protocol.rs')).not.toContain(
+        expect(projectFile('src-tauri/src/transport/desktop/sandbox_protocol.rs')).not.toContain(
             '"runtime.js" |',
         );
         expect(guest).not.toMatch(/@tauri-apps\/api\/core/);

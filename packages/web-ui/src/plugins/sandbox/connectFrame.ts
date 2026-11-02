@@ -1,7 +1,5 @@
-import {convertFileSrc} from '@tauri-apps/api/core';
+import {getActivePlatformCapabilities} from '@/platform/activeCapabilities';
 import {RpcPort} from './rpc';
-
-const PLUGIN_BASE = convertFileSrc('x', 'tabularis-plugin').slice(0, -1);
 
 export function pluginFrameUrl(
     pluginId: string,
@@ -9,7 +7,7 @@ export function pluginFrameUrl(
     mode: 'ui' | 'explain' = 'ui',
 ): string {
     const query = new URLSearchParams({module: modulePath, mode});
-    return `${PLUGIN_BASE}${encodeURIComponent(pluginId)}/__guest__.html?${query}`;
+    return `${getActivePlatformCapabilities().pluginFrameBaseUrl()}${encodeURIComponent(pluginId)}/__guest__.html?${query}`;
 }
 
 export type PluginHostHandler = (...args: unknown[]) => unknown | Promise<unknown>;

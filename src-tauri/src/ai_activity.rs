@@ -537,8 +537,7 @@ fn has_complete_end_before_terminal_statement(upper_sql: &str) -> bool {
             continue;
         }
         cursor += 1;
-        while cursor < bytes.len()
-            && (bytes[cursor].is_ascii_whitespace() || bytes[cursor] == b';')
+        while cursor < bytes.len() && (bytes[cursor].is_ascii_whitespace() || bytes[cursor] == b';')
         {
             cursor += 1;
         }

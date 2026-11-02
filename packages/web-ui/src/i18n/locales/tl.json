@@ -953,6 +953,7 @@
       "disabled": "Naka-disable",
       "openFolder": "Buksan ang folder ng mga plugin",
       "legacyGoogleSheetsOAuthHint": "I-update ang Google Sheets plugin upang maibalik ang Google sign-in sa bersyong ito ng Tabularis.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "Nabigo ang Pag-install",
         "subtitle": "May error habang ini-install ang plugin. Tingnan ang mga detalye sa ibaba.",

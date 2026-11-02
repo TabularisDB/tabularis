@@ -5,9 +5,9 @@ mod tests {
         poll_decision_with_liveness_in, read_decision_in, read_pending_in, write_decision_in,
         write_pending_in, ApprovalDecision, PendingApproval, PollOutcome,
     };
+    use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
-    use std::path::Path;
     use tempfile::TempDir;
     use tokio::time::Duration;
 
@@ -237,7 +237,8 @@ mod tests {
         let old_time = std::time::SystemTime::now()
             .checked_sub(Duration::from_secs(3600))
             .unwrap();
-        let _ = filetime::set_file_mtime(&stale_path, filetime::FileTime::from_system_time(old_time));
+        let _ =
+            filetime::set_file_mtime(&stale_path, filetime::FileTime::from_system_time(old_time));
         let deleted = cleanup_expired_in(tmp.path(), 60).unwrap();
         assert_eq!(deleted, 1);
         assert!(!stale_path.exists());

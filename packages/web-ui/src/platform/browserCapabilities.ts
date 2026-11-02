@@ -206,6 +206,10 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
         return Promise.resolve(`/api/v1/assets/connection-icons/${encodeURIComponent(match[1])}`);
     }
 
+    pluginFrameBaseUrl(): string {
+        return '/api/v1/sandbox/plugins/';
+    }
+
     async readClipboard(): Promise<string> {
         try {
             if (!navigator.clipboard?.readText) {

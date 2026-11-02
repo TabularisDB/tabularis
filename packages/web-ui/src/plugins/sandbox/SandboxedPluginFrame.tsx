@@ -80,6 +80,10 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
         const handlers = {
             'ui.modal': (open: unknown) => {
                 if (typeof open !== 'boolean') throw new Error('Modal state must be a boolean');
+                if (open && !navigator.userActivation?.isActive) {
+                    // Expansion needs a recent user gesture (propagated from the frame to the host).
+                    throw new Error('Modal expansion requires a user interaction');
+                }
                 setModalOpen(open);
             },
             'ui.resize': (value: unknown) => {
@@ -306,6 +310,15 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             .catch(() => undefined);
     }, [guestContext]);
 
+    useEffect(() => {
+        if (!modalOpen) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setModalOpen(false);
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [modalOpen]);
+
     const iframe = (
         <iframe
             ref={frameRef}
@@ -344,6 +357,20 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 style={{width: '100%', height, pointerEvents: 'none'}}
             />
             {createPortal(iframe, document.body)}
+            {modalOpen &&
+                createPortal(
+                    <button
+                        type="button"
+                        aria-label={t('plugins.closePluginOverlay')}
+                        title={t('plugins.closePluginOverlay')}
+                        onClick={() => setModalOpen(false)}
+                        className="fixed top-3 right-3 h-8 w-8 rounded-full bg-surface-secondary text-primary border border-default shadow-lg hover:bg-surface-tertiary"
+                        style={{zIndex: 2_147_483_647}}
+                    >
+                        ×
+                    </button>,
+                    document.body,
+                )}
         </>
     );
 }

@@ -135,7 +135,12 @@ pub async fn fetch_plugin_registry(
         .into_iter()
         // Unknown or ambiguous kinds have no install path; keep them out of the
         // Plugin Center so the kind filter only ever offers drivers and themes.
-        .filter(|plugin| matches!(plugin.kind.as_deref(), None | Some("driver") | Some("theme")))
+        .filter(|plugin| {
+            matches!(
+                plugin.kind.as_deref(),
+                None | Some("driver") | Some("theme")
+            )
+        })
         .map(|plugin| {
             let (installed_version, platform) = if plugin.kind.as_deref() == Some("theme") {
                 (themes.version_of(&plugin.id), "universal")
@@ -213,7 +218,8 @@ pub async fn install_plugin(
         match resolve_api_install_asset(&base, &plugin_id, version.as_deref(), &platform).await {
             Ok(resolved) => resolved,
             Err(api_error)
-                if has_selected_registry || api_error == crate::plugins::package_kind::KIND_ERROR =>
+                if has_selected_registry
+                    || api_error == crate::plugins::package_kind::KIND_ERROR =>
             {
                 return Err(api_error)
             }
@@ -291,7 +297,8 @@ pub fn get_plugin_manifest(
     plugin_id: String,
 ) -> Result<PluginManifest, String> {
     validate_plugin_id(&plugin_id)?;
-    let plugin_dir = crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), &plugin_id)?;
+    let plugin_dir =
+        crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), &plugin_id)?;
     let config: ConfigManifest = installer::read_manifest(&plugin_dir)
         .map_err(|error| format!("Failed to read manifest for '{plugin_id}': {error}"))?;
     Ok(plugin_manifest(config))
@@ -455,7 +462,8 @@ async fn load_plugin(
     config: &AppConfig,
     plugin_id: &str,
 ) -> Result<(), String> {
-    let plugin_dir = crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), plugin_id)?;
+    let plugin_dir =
+        crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), plugin_id)?;
     let (interpreter_override, settings) = plugin_configuration(config, plugin_id);
     crate::plugins::manager::load_plugin_from_dir(&plugin_dir, interpreter_override, settings).await
 }

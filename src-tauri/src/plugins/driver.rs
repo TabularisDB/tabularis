@@ -511,7 +511,9 @@ impl PluginProcess {
 
         let (tx, rx) = oneshot::channel();
         if !self.accepting_calls.load(Ordering::Acquire) {
-            return Err("Plugin is shutting down; new RPC calls are rejected".to_string().into());
+            return Err("Plugin is shutting down; new RPC calls are rejected"
+                .to_string()
+                .into());
         }
         let permit = self.sender.reserve().await.map_err(|_| {
             if self.accepting_calls.load(Ordering::Acquire) {
@@ -521,18 +523,18 @@ impl PluginProcess {
             }
         })?;
         if !self.accepting_calls.load(Ordering::Acquire) {
-            return Err("Plugin is shutting down; new RPC calls are rejected".to_string().into());
+            return Err("Plugin is shutting down; new RPC calls are rejected"
+                .to_string()
+                .into());
         }
         permit.send(PluginCommand::Call(req, tx));
 
         let Some(timeout) = timeout else {
-            return rx
-                .await
-                .unwrap_or_else(|_| {
-                    Err(dropped_plugin_response_error(
-                        !self.accepting_calls.load(Ordering::Acquire),
-                    ))
-                });
+            return rx.await.unwrap_or_else(|_| {
+                Err(dropped_plugin_response_error(
+                    !self.accepting_calls.load(Ordering::Acquire),
+                ))
+            });
         };
 
         match tokio::time::timeout(timeout, rx).await {
@@ -660,7 +662,9 @@ impl RpcDriver {
         // schema selection (route_selected_plugin_database in call()). The
         // array must survive to that point — flattening it here to a single
         // primary would destroy the selection before it can be applied.
-        if self.process.route_selected_database && matches!(params.database, DatabaseSelection::Multiple(_)) {
+        if self.process.route_selected_database
+            && matches!(params.database, DatabaseSelection::Multiple(_))
+        {
             // Only resolve an empty primary to the maintenance database so
             // the pool can connect; leave a non-empty Multiple intact.
             if params.database.primary().is_empty() {
@@ -2234,7 +2238,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn selected_plugin_database_routing_only_changes_multi_database_requests() {
         let mut multi = json!({
@@ -2293,8 +2296,7 @@ mod tests {
             // for schema-based plugins; route_selected_database is false so
             // route_selected_plugin_database does not run.
             assert_eq!(
-                req.params["params"]["database"],
-                "sales",
+                req.params["params"]["database"], "sales",
                 "a SQL schema with the same name as a database must not select it"
             );
             json!({
@@ -2308,8 +2310,7 @@ mod tests {
             .unwrap()
             .route_selected_database = false;
         let mut params = test_connection_params();
-        params.database =
-            DatabaseSelection::Multiple(vec!["sales".into(), "analytics".into()]);
+        params.database = DatabaseSelection::Multiple(vec!["sales".into(), "analytics".into()]);
         let (result, _) = driver
             .execute_query_in_session(
                 &params,
@@ -2348,9 +2349,20 @@ mod tests {
         let mut params = test_connection_params();
         params.database = DatabaseSelection::Multiple(vec!["0".to_string(), "3".to_string()]);
 
-        assert!(driver.get_tables(&params, Some("3")).await.unwrap().is_empty());
+        assert!(driver
+            .get_tables(&params, Some("3"))
+            .await
+            .unwrap()
+            .is_empty());
         let (query_result, _in_tx) = driver
-            .execute_query_in_session(&params, "GET db3-key", None, 1, Some("3"), Some("db3-session"))
+            .execute_query_in_session(
+                &params,
+                "GET db3-key",
+                None,
+                1,
+                Some("3"),
+                Some("db3-session"),
+            )
             .await
             .unwrap();
         assert_eq!(query_result.rows.len(), 1);
@@ -2419,8 +2431,12 @@ mod tests {
 
         let results = driver
             .execute_batch(
-                &params, &["GET db3-only-key".to_string()],
-                None, 1, Some("3"), None,
+                &params,
+                &["GET db3-only-key".to_string()],
+                None,
+                1,
+                Some("3"),
+                None,
             )
             .await
             .expect("batch request");
@@ -2437,7 +2453,11 @@ mod tests {
         });
         let mut params = test_connection_params();
         params.database = DatabaseSelection::Single("0".to_string());
-        assert!(driver.get_tables(&params, Some("3")).await.unwrap().is_empty());
+        assert!(driver
+            .get_tables(&params, Some("3"))
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     fn test_connection_params() -> ConnectionParams {

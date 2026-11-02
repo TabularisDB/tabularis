@@ -436,6 +436,10 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
         return convertFileSrc(await join(await this.operations.getAppDataDir(), relativePath));
     }
 
+    pluginFrameBaseUrl(): string {
+        return convertFileSrc('x', 'tabularis-plugin').slice(0, -1);
+    }
+
     async readClipboard(): Promise<string> {
         this.require('readClipboard');
         return this.operations.readClipboardText();

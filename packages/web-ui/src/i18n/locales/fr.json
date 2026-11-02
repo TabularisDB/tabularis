@@ -953,6 +953,7 @@
       "disabled": "Désactivé",
       "openFolder": "Ouvrir le dossier des plugins",
       "legacyGoogleSheetsOAuthHint": "Mettez à jour le plugin Google Sheets pour rétablir la connexion Google dans cette version de Tabularis.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "Échec de l’installation",
         "subtitle": "Une erreur s’est produite lors de l’installation du plugin. Voir les détails ci-dessous.",

@@ -898,6 +898,7 @@
       "disabled": "비활성화됨",
       "openFolder": "플러그인 폴더 열기",
       "legacyGoogleSheetsOAuthHint": "이 Tabularis 버전에서 Google 로그인을 복원하려면 Google Sheets 플러그인을 업데이트하세요.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "설치 실패",
         "subtitle": "플러그인을 설치하는 중 오류가 발생했습니다. 아래 세부 정보를 확인하세요.",

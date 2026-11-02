@@ -165,6 +165,8 @@ export interface PlatformCapabilities {
     fetchBlobReference(value: unknown): Promise<FetchedBlob>;
     fetchDatabaseBlob(request: BlobRecordRequest): Promise<FetchedBlob>;
     resolveAppAsset(relativePath: string): Promise<string>;
+    /** Base URL (ending in `/`) under which sandboxed plugin frames are served. */
+    pluginFrameBaseUrl(): string;
     readClipboard(): Promise<string>;
     writeClipboard(text: string): Promise<void>;
     /** Writes an HTML flavor with `altText` as the plain-text flavor (same capability as writeClipboard). */

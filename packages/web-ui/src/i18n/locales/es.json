@@ -945,6 +945,7 @@
       "disabled": "Deshabilitado",
       "openFolder": "Abrir carpeta de plugins",
       "legacyGoogleSheetsOAuthHint": "Actualiza el plugin de Google Sheets para restaurar el inicio de sesión de Google en esta versión de Tabularis.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "Instalación fallida",
         "subtitle": "Ocurrió un error al instalar el plugin. Consulta los detalles a continuación.",

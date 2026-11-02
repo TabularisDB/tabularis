@@ -6,7 +6,6 @@ pub mod ai_approval_watcher;
 pub mod ai_commands;
 pub mod askpass;
 pub mod backup;
-pub mod database_backup;
 pub mod chatgpt;
 pub mod clipboard_import;
 pub mod commands;
@@ -14,6 +13,9 @@ pub mod config;
 pub mod connection_appearance;
 pub mod connection_import_commands;
 pub mod connection_window;
+#[cfg(test)]
+mod connection_window_tests;
+pub mod database_backup;
 pub mod dump_commands;
 #[cfg(feature = "e2e-testing")]
 pub mod e2e_dialog_mock;
@@ -35,16 +37,14 @@ pub mod sqlite_database;
 pub mod storage_location;
 pub mod system_theme;
 pub mod task_manager;
+#[cfg(test)]
+mod tests;
 pub mod theme_commands;
 pub mod theme_packages;
 pub mod ui_state_commands;
 pub mod updater;
 pub mod window_decorations;
 pub mod window_placement;
-#[cfg(test)]
-mod connection_window_tests;
-#[cfg(test)]
-mod tests;
 
 use tauri::Manager;
 

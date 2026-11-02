@@ -934,6 +934,7 @@
       "disabled": "無効",
       "openFolder": "プラグインフォルダーを開く",
       "legacyGoogleSheetsOAuthHint": "この Tabularis バージョンで Google ログインを再開するには、Google Sheets プラグインを更新してください。",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "インストール失敗",
         "subtitle": "プラグインのインストール中にエラーが発生しました。詳細は下記を参照してください。",

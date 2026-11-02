@@ -191,7 +191,9 @@ pub fn has_legacy_manifest(dir: &Path) -> bool {
 /// COMPAT(registry-ga): reads a legacy `manifest.json` bundle manifest for
 /// plugins published before the `.tabularium` cutover. Same JSON shape — the
 /// canonical structs tolerate the old flat fields via `#[serde(default)]`.
-pub fn read_legacy_manifest<T: serde::de::DeserializeOwned>(dir: &Path) -> Option<Result<T, String>> {
+pub fn read_legacy_manifest<T: serde::de::DeserializeOwned>(
+    dir: &Path,
+) -> Option<Result<T, String>> {
     let path = dir.join("manifest.json");
     if !path.exists() {
         return None;
@@ -356,9 +358,14 @@ mod tests {
     #[tokio::test]
     async fn resolve_static_asset_returns_none_for_non_json_base() {
         // Non-.json base must defer to the API path (None), no network hit.
-        assert!(resolve_static_asset("https://registry.tabularis.dev", "firestore", None, "linux-x64")
-            .await
-            .is_none());
+        assert!(resolve_static_asset(
+            "https://registry.tabularis.dev",
+            "firestore",
+            None,
+            "linux-x64"
+        )
+        .await
+        .is_none());
     }
 
     fn registry_with_ids(ids: &[&str]) -> PluginRegistry {
@@ -390,7 +397,10 @@ mod tests {
         let ids: Vec<&str> = merged.plugins.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids, vec!["firestore", "duckdb", "csv"]); // API firestore first, legacy-only appended
         let fs = merged.plugins.iter().find(|p| p.id == "firestore").unwrap();
-        assert_eq!(fs.latest_version, "0.5.0", "API entry must win on id conflict");
+        assert_eq!(
+            fs.latest_version, "0.5.0",
+            "API entry must win on id conflict"
+        );
     }
 
     // Regression: a plugin that only exists in the legacy registry (e.g. redis,
@@ -450,8 +460,12 @@ mod tests {
     #[tokio::test]
     async fn unresolvable_slugs_are_skipped_not_fatal() {
         let mut reg = registry_with_ids(&["firestore"]);
-        readd_unlisted_installed(&mut reg, "http://127.0.0.1:0", &["my-local-plugin".to_string()])
-            .await;
+        readd_unlisted_installed(
+            &mut reg,
+            "http://127.0.0.1:0",
+            &["my-local-plugin".to_string()],
+        )
+        .await;
         assert_eq!(
             reg.plugins.len(),
             1,
@@ -479,7 +493,10 @@ mod tests {
             cfg.tabularium_registry_url.as_deref(),
             Some("https://old.example/registry.json")
         );
-        assert!(cfg.custom_registry_url.is_none(), "legacy key must be cleared");
+        assert!(
+            cfg.custom_registry_url.is_none(),
+            "legacy key must be cleared"
+        );
     }
 
     #[test]
@@ -490,7 +507,10 @@ mod tests {
             ..Default::default()
         };
         migrate_legacy_config(&mut cfg);
-        assert_eq!(cfg.tabularium_registry_url.as_deref(), Some("https://new.example"));
+        assert_eq!(
+            cfg.tabularium_registry_url.as_deref(),
+            Some("https://new.example")
+        );
         assert!(cfg.custom_registry_url.is_none());
     }
 

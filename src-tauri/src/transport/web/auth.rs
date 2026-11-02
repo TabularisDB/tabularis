@@ -493,13 +493,20 @@ impl LocalSessionSecurity {
 }
 
 /// Only explicitly configured proxies may supply the client address.
-pub(crate) fn login_client(peer: Option<IpAddr>, forwarded_for: Option<&str>, trusted_proxies: &[ipnet::IpNet]) -> IpAddr {
+pub(crate) fn login_client(
+    peer: Option<IpAddr>,
+    forwarded_for: Option<&str>,
+    trusted_proxies: &[ipnet::IpNet],
+) -> IpAddr {
     let peer = peer.unwrap_or(IpAddr::from([0, 0, 0, 0]));
     let address = match peer {
         IpAddr::V6(address) => address.to_ipv4_mapped().map(IpAddr::V4).unwrap_or(peer),
         _ => peer,
     };
-    if !trusted_proxies.iter().any(|network| network.contains(&address)) {
+    if !trusted_proxies
+        .iter()
+        .any(|network| network.contains(&address))
+    {
         return peer;
     }
     forwarded_for

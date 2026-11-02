@@ -881,6 +881,7 @@
       "disabled": "已禁用",
       "openFolder": "打开插件文件夹",
       "legacyGoogleSheetsOAuthHint": "请更新 Google Sheets 插件，以在此 Tabularis 版本中恢复 Google 登录。",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "安装失败",
         "subtitle": "安装插件时发生错误。请参阅下面的详细信息。",

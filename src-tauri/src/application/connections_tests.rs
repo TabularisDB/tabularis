@@ -416,7 +416,16 @@ fn keychain_failure_persists_passwords_and_reports_fallback_without_exposing_the
     let mut params = connection_params("db-secret");
     params.ssh_enabled = Some(true);
     params.ssh_password = Some("ssh-secret".into());
-    let saved = save_connection(&runtime, &state, "Fallback".into(), params, Default::default(), None, None).unwrap();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Fallback".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
     assert_eq!(saved.params.save_in_keychain, Some(false));
     assert_eq!(saved.params.password, None);
     let persisted = find_connection(&load_file(&runtime).unwrap(), &saved.id).unwrap();
@@ -459,8 +468,16 @@ fn duplicate_clears_a_missing_uri_marker() {
     let (_temp, runtime, state) = fixture();
     let mut params = connection_params("secret");
     params.connection_uri = Some("postgres://user:secret@localhost/db".into());
-    let original =
-        save_connection(&runtime, &state, "Original".into(), params, Default::default(), None, None).unwrap();
+    let original = save_connection(
+        &runtime,
+        &state,
+        "Original".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
     runtime
         .secrets
         .delete(&secret_account(&original.id, CONNECTION_URI_SUFFIX))
@@ -585,7 +602,16 @@ fn switching_driver_does_not_keep_the_previous_drivers_uri() {
     let (_temp, runtime, state) = fixture();
     let mut params = connection_params("secret");
     params.connection_uri = Some("postgres://user:secret@localhost/db".into());
-    let saved = save_connection(&runtime, &state, "Original".into(), params, Default::default(), None, None).unwrap();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Original".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
     let mut params = saved.params;
     params.driver = "mysql".into();
     let updated = update_connection(
@@ -652,8 +678,16 @@ fn plugin_secrets_live_in_the_keychain_for_the_whole_connection_lifecycle() {
         .extra
         .insert("token".to_string(), "inline-token".to_string());
     let changes = HashMap::from([("token".to_string(), Some("stored-token".to_string()))]);
-    let saved =
-        save_connection(&runtime, &state, "Plugin".into(), params, changes, None, None).unwrap();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Plugin".into(),
+        params,
+        changes,
+        None,
+        None,
+    )
+    .unwrap();
     let account = |id: &str| format!("{id}:plugin:test-plugin:token");
 
     assert_eq!(saved.plugin_secret_keys, vec!["token"]);

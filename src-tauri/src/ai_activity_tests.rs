@@ -52,9 +52,18 @@ mod tests {
     #[test]
     fn read_returns_events_in_chronological_order() {
         let tmp = TempDir::new().unwrap();
-        append(tmp.path(), make_event("1", "s", "run_query", "2026-04-24T10:00:00Z"));
-        append(tmp.path(), make_event("2", "s", "run_query", "2026-04-24T10:01:00Z"));
-        append(tmp.path(), make_event("3", "s", "run_query", "2026-04-24T10:02:00Z"));
+        append(
+            tmp.path(),
+            make_event("1", "s", "run_query", "2026-04-24T10:00:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("2", "s", "run_query", "2026-04-24T10:01:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("3", "s", "run_query", "2026-04-24T10:02:00Z"),
+        );
         let events = read_events_in(tmp.path(), &EventFilter::default()).unwrap();
         let ids: Vec<&str> = events.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(ids, vec!["1", "2", "3"]);
@@ -63,7 +72,10 @@ mod tests {
     #[test]
     fn read_skips_unparsable_lines() {
         let tmp = TempDir::new().unwrap();
-        append(tmp.path(), make_event("ok", "s", "list_tables", "2026-04-24T10:00:00Z"));
+        append(
+            tmp.path(),
+            make_event("ok", "s", "list_tables", "2026-04-24T10:00:00Z"),
+        );
         let path = tmp.path().join("ai_activity.jsonl");
         let mut content = std::fs::read_to_string(&path).unwrap();
         content.push_str("not-json\n\n{}\n");
@@ -80,8 +92,14 @@ mod tests {
     #[test]
     fn filter_by_session_id() {
         let tmp = TempDir::new().unwrap();
-        append(tmp.path(), make_event("a", "s1", "run_query", "2026-04-24T10:00:00Z"));
-        append(tmp.path(), make_event("b", "s2", "run_query", "2026-04-24T10:01:00Z"));
+        append(
+            tmp.path(),
+            make_event("a", "s1", "run_query", "2026-04-24T10:00:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("b", "s2", "run_query", "2026-04-24T10:01:00Z"),
+        );
         let f = EventFilter {
             session_id: Some("s2".into()),
             ..Default::default()
@@ -112,8 +130,14 @@ mod tests {
     #[test]
     fn filter_by_tool() {
         let tmp = TempDir::new().unwrap();
-        append(tmp.path(), make_event("a", "s", "list_tables", "2026-04-24T10:00:00Z"));
-        append(tmp.path(), make_event("b", "s", "run_query", "2026-04-24T10:01:00Z"));
+        append(
+            tmp.path(),
+            make_event("a", "s", "list_tables", "2026-04-24T10:00:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("b", "s", "run_query", "2026-04-24T10:01:00Z"),
+        );
         let f = EventFilter {
             tool: Some("run_query".into()),
             ..Default::default()
@@ -161,9 +185,18 @@ mod tests {
     #[test]
     fn filter_by_since_until_range() {
         let tmp = TempDir::new().unwrap();
-        append(tmp.path(), make_event("1", "s", "run_query", "2026-04-24T09:00:00Z"));
-        append(tmp.path(), make_event("2", "s", "run_query", "2026-04-24T10:00:00Z"));
-        append(tmp.path(), make_event("3", "s", "run_query", "2026-04-24T11:00:00Z"));
+        append(
+            tmp.path(),
+            make_event("1", "s", "run_query", "2026-04-24T09:00:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("2", "s", "run_query", "2026-04-24T10:00:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("3", "s", "run_query", "2026-04-24T11:00:00Z"),
+        );
         let f = EventFilter {
             since: Some("2026-04-24T10:00:00Z".into()),
             until: Some("2026-04-24T10:30:00Z".into()),
@@ -181,9 +214,18 @@ mod tests {
     #[test]
     fn read_sessions_groups_by_session_id() {
         let tmp = TempDir::new().unwrap();
-        append(tmp.path(), make_event("1", "s1", "list_tables", "2026-04-24T10:00:00Z"));
-        append(tmp.path(), make_event("2", "s1", "run_query", "2026-04-24T10:05:00Z"));
-        append(tmp.path(), make_event("3", "s2", "run_query", "2026-04-24T11:00:00Z"));
+        append(
+            tmp.path(),
+            make_event("1", "s1", "list_tables", "2026-04-24T10:00:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("2", "s1", "run_query", "2026-04-24T10:05:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("3", "s2", "run_query", "2026-04-24T11:00:00Z"),
+        );
         let sessions = read_sessions_in(tmp.path()).unwrap();
         assert_eq!(sessions.len(), 2);
         let s1 = sessions.iter().find(|s| s.session_id == "s1").unwrap();
@@ -196,9 +238,18 @@ mod tests {
     #[test]
     fn read_session_events_filters_and_sorts() {
         let tmp = TempDir::new().unwrap();
-        append(tmp.path(), make_event("a", "x", "run_query", "2026-04-24T10:01:00Z"));
-        append(tmp.path(), make_event("b", "x", "run_query", "2026-04-24T10:00:00Z"));
-        append(tmp.path(), make_event("c", "y", "run_query", "2026-04-24T10:02:00Z"));
+        append(
+            tmp.path(),
+            make_event("a", "x", "run_query", "2026-04-24T10:01:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("b", "x", "run_query", "2026-04-24T10:00:00Z"),
+        );
+        append(
+            tmp.path(),
+            make_event("c", "y", "run_query", "2026-04-24T10:02:00Z"),
+        );
         let events = read_session_events_in(tmp.path(), "x").unwrap();
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].id, "b");
@@ -536,8 +587,14 @@ mod tests {
     #[test]
     fn classify_plain_explain_is_select() {
         assert_eq!(classify_query_kind("EXPLAIN SELECT 1"), "select");
-        assert_eq!(classify_query_kind("EXPLAIN VERBOSE SELECT * FROM t"), "select");
-        assert_eq!(classify_query_kind("EXPLAIN (FORMAT JSON) SELECT 1"), "select");
+        assert_eq!(
+            classify_query_kind("EXPLAIN VERBOSE SELECT * FROM t"),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind("EXPLAIN (FORMAT JSON) SELECT 1"),
+            "select"
+        );
         assert_eq!(classify_query_kind("EXPLAIN QUERY PLAN SELECT 1"), "select");
         // Plain EXPLAIN of a write does not run it — Postgres only plans.
         assert_eq!(classify_query_kind("EXPLAIN DELETE FROM t"), "select");
@@ -551,7 +608,10 @@ mod tests {
     #[test]
     fn classify_explain_analyze_write_is_gated_like_the_write() {
         // Legacy bare syntax.
-        assert_eq!(classify_query_kind("EXPLAIN ANALYZE DELETE FROM t"), "write");
+        assert_eq!(
+            classify_query_kind("EXPLAIN ANALYZE DELETE FROM t"),
+            "write"
+        );
         assert_eq!(
             classify_query_kind("EXPLAIN ANALYZE INSERT INTO t VALUES (1)"),
             "write"
@@ -578,10 +638,7 @@ mod tests {
     #[test]
     fn classify_explain_analyze_ddl_is_ddl() {
         assert_eq!(classify_query_kind("EXPLAIN ANALYZE DROP TABLE t"), "ddl");
-        assert_eq!(
-            classify_query_kind("EXPLAIN (ANALYZE) TRUNCATE t"),
-            "ddl"
-        );
+        assert_eq!(classify_query_kind("EXPLAIN (ANALYZE) TRUNCATE t"), "ddl");
     }
 
     #[test]
@@ -597,9 +654,7 @@ mod tests {
     #[test]
     fn classify_explain_analyze_cte_write_is_write() {
         assert_eq!(
-            classify_query_kind(
-                "EXPLAIN ANALYZE WITH x AS (SELECT 1) DELETE FROM o WHERE id IN x"
-            ),
+            classify_query_kind("EXPLAIN ANALYZE WITH x AS (SELECT 1) DELETE FROM o WHERE id IN x"),
             "write"
         );
     }
@@ -679,10 +734,7 @@ mod tests {
 
     #[test]
     fn classify_handles_leading_comment_then_select() {
-        assert_eq!(
-            classify_query_kind("-- audit\nSELECT 1"),
-            "select"
-        );
+        assert_eq!(classify_query_kind("-- audit\nSELECT 1"), "select");
     }
 
     #[test]
@@ -709,7 +761,10 @@ mod tests {
     #[test]
     fn classify_word_boundary_avoids_false_positive() {
         // CREATETABLE shouldn't match CREATE; it's gibberish.
-        assert_eq!(classify_query_kind("WITH x AS (SELECT createtable FROM y) SELECT * FROM x"), "select");
+        assert_eq!(
+            classify_query_kind("WITH x AS (SELECT createtable FROM y) SELECT * FROM x"),
+            "select"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -896,10 +951,7 @@ mod tests {
             "write"
         );
         assert_eq!(
-            classify_query_kind_for_dialect(
-                "SELECT dblink_exec('dbname=x', 'DROP TABLE t')",
-                pg
-            ),
+            classify_query_kind_for_dialect("SELECT dblink_exec('dbname=x', 'DROP TABLE t')", pg),
             "write"
         );
         assert_eq!(
@@ -940,7 +992,11 @@ mod tests {
             "SELECT \"pg_terminate_backend\"(pid) FROM pg_stat_activity",
             "SELECT `lo_export`(16409, '/tmp/x')",
         ] {
-            assert_ne!(classify_query_kind_for_dialect(q, pg), "select", "query: {q}");
+            assert_ne!(
+                classify_query_kind_for_dialect(q, pg),
+                "select",
+                "query: {q}"
+            );
         }
     }
 
@@ -959,7 +1015,11 @@ mod tests {
             "SELECT U&'\\0041\\\\', lo_export(16409, '/tmp/x')",
             "SELECT U&'d!0061t!+000061' UESCAPE '!', lo_export(16409, '/tmp/x')",
         ] {
-            assert_ne!(classify_query_kind_for_dialect(q, pg), "select", "query: {q}");
+            assert_ne!(
+                classify_query_kind_for_dialect(q, pg),
+                "select",
+                "query: {q}"
+            );
         }
     }
 
@@ -1124,11 +1184,7 @@ mod tests {
     #[test]
     fn compute_session_id_corrupt_state_starts_fresh() {
         let tmp = TempDir::new().unwrap();
-        std::fs::write(
-            tmp.path().join(".mcp_session_state.json"),
-            "not-valid-json",
-        )
-        .unwrap();
+        std::fs::write(tmp.path().join(".mcp_session_state.json"), "not-valid-json").unwrap();
         let id = compute_or_rotate_session_id_in(tmp.path(), 10);
         assert!(!id.is_empty());
     }
@@ -1177,13 +1233,20 @@ mod tests {
         for tz in [Some("auto"), Some("Not/AZone"), Some(""), None] {
             let out = to_local_rfc3339(input, tz);
             let out_instant = chrono::DateTime::parse_from_rfc3339(&out).unwrap();
-            assert_eq!(in_instant, out_instant, "tz={:?} should preserve instant", tz);
+            assert_eq!(
+                in_instant, out_instant,
+                "tz={:?} should preserve instant",
+                tz
+            );
         }
     }
 
     #[test]
     fn to_local_rfc3339_returns_input_when_unparseable() {
-        assert_eq!(to_local_rfc3339("not-a-date", Some("Asia/Tokyo")), "not-a-date");
+        assert_eq!(
+            to_local_rfc3339("not-a-date", Some("Asia/Tokyo")),
+            "not-a-date"
+        );
     }
 
     // Target database -------------------------------------------------------

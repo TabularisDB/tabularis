@@ -12,7 +12,13 @@ const guestWindow = window as unknown as GuestGlobal;
 const params = new URLSearchParams(location.search);
 const modulePath = params.get('module') ?? '';
 const mode = params.get('mode') ?? 'ui';
-const pluginId = decodeURIComponent(location.pathname.split('/')[1] ?? '');
+const pluginId = decodeURIComponent(
+    location.pathname.match(/([^/]+)\/__guest__\.html$/)?.[1] ?? '',
+);
+// Resolved against the guest page so it works under any transport base path.
+function pluginModuleUrl(): string {
+    return new URL(modulePath.replace(/^\.\//, '').replace(/^\//, ''), location.href).href;
+}
 const QUERY_RPC_TIMEOUT_MS = 5 * 60_000;
 let currentContext: Record<string, unknown> = {};
 let renderPlugin: (() => void) | undefined;
@@ -335,7 +341,7 @@ function loadExplainModule(): Promise<Record<string, unknown>[]> {
     if (explainModulePromise) return explainModulePromise;
     explainModulePromise = new Promise((resolve, reject) => {
         const pluginScript = document.createElement('script');
-        pluginScript.src = `/${encodeURIComponent(pluginId)}/${modulePath.replace(/^\.\//, '').replace(/^\//, '')}`;
+        pluginScript.src = pluginModuleUrl();
         pluginScript.onload = () => {
             const raw = guestWindow.__tabularis_explain_parser__;
             const exported =
@@ -414,7 +420,7 @@ function start(port: MessagePort): void {
     if (mode === 'explain') return;
 
     const pluginScript = document.createElement('script');
-    pluginScript.src = `/${encodeURIComponent(pluginId)}/${modulePath.replace(/^\.\//, '').replace(/^\//, '')}`;
+    pluginScript.src = pluginModuleUrl();
     pluginScript.onload = () => {
         const raw = guestWindow.__tabularis_plugin__;
         const component =

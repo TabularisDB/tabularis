@@ -2289,7 +2289,10 @@ impl ConnectionFilesRpcCommand {
             Self::ListImportSources
             | Self::PreviewForeignImport
             | Self::ApplyForeignImport
-            | Self::GetBackupStatus | Self::GetDatabaseBackupStatus | Self::RunDatabaseBackup | Self::CancelDatabaseBackup => AuthorizationLevel::LocalAdmin,
+            | Self::GetBackupStatus
+            | Self::GetDatabaseBackupStatus
+            | Self::RunDatabaseBackup
+            | Self::CancelDatabaseBackup => AuthorizationLevel::LocalAdmin,
             Self::Export
             | Self::PreviewTabularisImport
             | Self::ApplyPreparedTabularisImport

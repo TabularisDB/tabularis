@@ -1,3 +1,5 @@
+import {registerActivePlatformCapabilities} from '../../../src/platform/activeCapabilities';
+import type {PlatformCapabilities} from '../../../src/platform/capabilities';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {screen, waitFor} from '@testing-library/react';
 import {RowEditorPanel} from '../../../src/components/ui/RowEditorPanel';
@@ -17,6 +19,10 @@ vi.mock('../../../src/plugins/sandbox/connectFrame', async () => {
     const transport = await import('../../fixtures/pluginSlotProbeTransport');
     return {...actual, connectFrame: transport.connectFrameMock};
 });
+
+registerActivePlatformCapabilities({
+    pluginFrameBaseUrl: () => '/api/v1/sandbox/plugins/',
+} as unknown as PlatformCapabilities);
 
 vi.mock('../../../src/hooks/useDatabase', () => ({useDatabase: vi.fn()}));
 

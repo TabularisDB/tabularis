@@ -920,6 +920,7 @@
       "disabled": "Deaktiviert",
       "openFolder": "Plugin-Ordner öffnen",
       "legacyGoogleSheetsOAuthHint": "Aktualisieren Sie das Google-Sheets-Plugin, um die Google-Anmeldung mit dieser Tabularis-Version wiederherzustellen.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "Installation fehlgeschlagen",
         "subtitle": "Bei der Installation des Plugins ist ein Fehler aufgetreten. Siehe Details unten.",
