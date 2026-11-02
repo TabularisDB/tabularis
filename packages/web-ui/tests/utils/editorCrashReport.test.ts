@@ -1,7 +1,9 @@
 import {describe, it, expect} from 'vitest';
 import {
     buildEditorCrashIssueUrl,
+    CRASH_LOG_TRUNCATED_NOTE,
     formatEditorCrashReport,
+    MAX_CRASH_ISSUE_URL_LENGTH,
     redactCrashText,
     type EditorCrashReport,
 } from '@/utils/editorCrashReport';
@@ -32,6 +34,16 @@ describe('redactCrashText', () => {
         );
         expect(redactCrashText('Authorization: Bearer abc.def.ghi')).toBe(
             'Authorization: Bearer [redacted]',
+        );
+    });
+
+    it('removes values whose key ends in a credential word', () => {
+        expect(
+            redactCrashText(
+                'access_token=abc client_secret=def DB_PASSWORD=ghi refresh-token: jkl {"db_password":"mno"}',
+            ),
+        ).toBe(
+            'access_token=[redacted] client_secret=[redacted] DB_PASSWORD=[redacted] refresh-token: [redacted] {"db_password":"[redacted]"}',
         );
     });
 
@@ -88,9 +100,44 @@ describe('buildEditorCrashIssueUrl', () => {
         expect(url.searchParams.has('reproduction')).toBe(false);
     });
 
-    it('keeps long reports within a URL GitHub accepts', () => {
-        const url = buildEditorCrashIssueUrl(report({stack: 'x'.repeat(50_000)}));
-        expect(url.length).toBeLessThan(8192);
+    it.each([
+        ['a long ASCII stack', {stack: 'x'.repeat(50_000)}],
+        ['a non-ASCII stack', {stack: '界'.repeat(6000), componentStack: null}],
+        [
+            'a multi-line stack',
+            {
+                stack: Array.from(
+                    {length: 2000},
+                    (_, i) => `    at frame${i} (a "b" c.tsx:1:2)`,
+                ).join('\n'),
+            },
+        ],
+        ['a long message', {message: 'x'.repeat(10_000), stack: null, componentStack: null}],
+        ['a long non-ASCII message', {message: '界'.repeat(10_000)}],
+    ])('keeps the encoded URL within GitHub limits for %s', (_, overrides) => {
+        const url = buildEditorCrashIssueUrl(report(overrides));
+        expect(url.length).toBeLessThanOrEqual(MAX_CRASH_ISSUE_URL_LENGTH);
+        expect(MAX_CRASH_ISSUE_URL_LENGTH).toBeLessThan(8192);
+    });
+
+    it('marks a shortened log and keeps as much of it as fits', () => {
+        const url = buildEditorCrashIssueUrl(report({stack: '界'.repeat(6000)}));
+        const logs = new URL(url).searchParams.get('logs') ?? '';
+        expect(logs.startsWith('Message: Importing a module script failed.')).toBe(true);
+        expect(logs.endsWith(CRASH_LOG_TRUNCATED_NOTE)).toBe(true);
+        expect(logs.length).toBeGreaterThan(500);
+    });
+
+    it('caps the message in the title and description', () => {
+        const url = new URL(buildEditorCrashIssueUrl(report({message: 'x'.repeat(10_000)})));
+        expect(url.searchParams.get('title')!.length).toBeLessThanOrEqual(110);
+        expect(url.searchParams.get('description')!.length).toBeLessThanOrEqual(330);
+    });
+
+    it('does not split a surrogate pair when shortening', () => {
+        const url = buildEditorCrashIssueUrl(report({stack: '😀'.repeat(6000)}));
+        const logs = new URL(url).searchParams.get('logs') ?? '';
+        expect(logs).not.toContain('\uFFFD');
     });
 
     it('never puts a credential in the URL', () => {
