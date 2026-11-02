@@ -1,4 +1,4 @@
-import {useState, useEffect, useRef, useCallback} from 'react';
+import {useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import {copyTextToClipboard} from '@/utils/clipboard';
 import {useNavigate} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
@@ -151,6 +151,8 @@ import {openEditor} from '@/utils/editorNavigation';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {useSecondaryWindows} from '@/hooks/useSecondaryWindows';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {useRegisterTableTransferCommands} from '@/hooks/useTableTransferCommands';
+import type {TableTransferCommands} from '@/utils/tableTransferCommands';
 import type {ChosenInputFile} from '@/platform/capabilities';
 import {
     DEFAULT_CREATE_TABLE_TARGET,
@@ -938,6 +940,46 @@ export const ExplorerSidebar = ({
     // database the user actually has open. Confirmed live: clicking "View ER
     // Diagram" there opened a diagram with no schema and no tables.
     const isNestedMultiDb = isSchemaBasedMultiDb(activeCapabilities, selectedDatabases);
+
+    // Command palette entries (#709) for the selected sidebar node: export
+    // the selected table, import into its database (and schema). The nested
+    // multi-database tree keeps them in its own menus, since the selected
+    // table there does not say which database it belongs to.
+    const importTableRef = useRef(handleImportTable);
+    importTableRef.current = handleImportTable;
+    const tableTransferCommands = useMemo<TableTransferCommands>(() => {
+        if (!activeConnectionId || isNestedMultiDb) return {};
+        const database = isMultiDb ? (activeSchema ?? undefined) : activeDatabaseName || undefined;
+        const schema = isMultiDb ? undefined : (activeSchema ?? undefined);
+        if (isMultiDb && !database) return {};
+        const target = [database, schema].filter(Boolean).join('.');
+        return {
+            exportTable:
+                activeTable && supportsTableExport(activeCapabilities)
+                    ? {
+                          description: target ? `${target}.${activeTable}` : activeTable,
+                          run: () => setExportTableModal({table: activeTable, schema, database}),
+                      }
+                    : undefined,
+            importTable: supportsTableImport(activeCapabilities)
+                ? {
+                      description: target || undefined,
+                      run: () => {
+                          void importTableRef.current(database, schema);
+                      },
+                  }
+                : undefined,
+        };
+    }, [
+        activeCapabilities,
+        activeConnectionId,
+        activeDatabaseName,
+        activeSchema,
+        activeTable,
+        isMultiDb,
+        isNestedMultiDb,
+    ]);
+    useRegisterTableTransferCommands(activeConnectionId, tableTransferCommands);
 
     useEffect(() => {
         if (!activeTable) return;
