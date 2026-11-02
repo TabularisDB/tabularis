@@ -447,6 +447,30 @@ mod sqlite_round_trip {
     }
 
     #[tokio::test]
+    async fn imports_a_table_whose_definition_has_comments() {
+        // SQLite keeps the user's comments in the stored CREATE TABLE text,
+        // and the export writes that text as is.
+        let fixture = fixture().await;
+        fixture
+            .run(
+                "source",
+                "CREATE TABLE items (\n  id INTEGER PRIMARY KEY, -- the user's id; never reused\n  name TEXT NOT NULL, /* shown; required */\n  price REAL, active INTEGER, note TEXT\n)",
+            )
+            .await;
+        fixture
+            .run(
+                "source",
+                "INSERT INTO items VALUES (1, 'a', 1.5, 1, NULL), (2, 'b', NULL, 0, 'x')",
+            )
+            .await;
+        let (path, _) = fixture.export(TableSqlContent::StructureAndData).await;
+
+        let imported = fixture.import(&path, IfTableExists::Fail).await.unwrap();
+        assert_eq!(imported.rows, 2);
+        assert_eq!(fixture.rows("target").await, fixture.rows("source").await);
+    }
+
+    #[tokio::test]
     async fn exports_and_imports_structure_and_data() {
         let fixture = fixture().await;
         fixture.seed().await;

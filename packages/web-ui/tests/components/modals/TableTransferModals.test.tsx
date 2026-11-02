@@ -152,6 +152,50 @@ describe('ExportTableModal', () => {
         });
         expect(mocks.call).toHaveBeenCalledWith('cancel_export', {connectionId: 'connection-1'});
     });
+
+    it('cancels instead of closing when Escape is pressed during an export', async () => {
+        mocks.platform.chooseSaveTarget.mockResolvedValue({reference: '/tmp/orders.sql'});
+        mocks.call.mockImplementation((command: string) =>
+            command === 'export_table_to_sql' ? new Promise(() => {}) : Promise.resolve(undefined),
+        );
+        const callbacks = props();
+        render(<ExportTableModal {...callbacks} />);
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.export'}));
+        });
+        await act(async () => {
+            fireEvent.keyDown(window, {key: 'Escape'});
+        });
+        expect(mocks.call).toHaveBeenCalledWith('cancel_export', {connectionId: 'connection-1'});
+        expect(callbacks.onClose).not.toHaveBeenCalled();
+    });
+
+    it('keeps one progress subscription while rows come in', async () => {
+        mocks.platform.chooseSaveTarget.mockResolvedValue({reference: '/tmp/orders.sql'});
+        mocks.call.mockImplementation((command: string) =>
+            command === 'export_table_to_sql' ? new Promise(() => {}) : Promise.resolve(undefined),
+        );
+        render(<ExportTableModal {...props()} />);
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.export'}));
+        });
+        const onProgress = mocks.subscribe.mock.calls[0][1];
+        await act(async () => {
+            onProgress({connection_id: 'connection-1', rows_processed: 500});
+            onProgress({connection_id: 'connection-1', rows_processed: 1000});
+        });
+        expect(mocks.subscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows an error when the save dialog fails', async () => {
+        mocks.platform.chooseSaveTarget.mockRejectedValue(new Error('dialog unavailable'));
+        render(<ExportTableModal {...props()} />);
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.export'}));
+        });
+        expect(await screen.findByText(/dialog unavailable/)).toBeInTheDocument();
+        expect(mocks.call).not.toHaveBeenCalled();
+    });
 });
 
 describe('ImportTableModal', () => {
@@ -269,6 +313,51 @@ describe('ImportTableModal', () => {
         expect(
             screen.queryByRole('option', {name: 'tableTransfer.ifExistsAppend'}),
         ).not.toBeInTheDocument();
+    });
+
+    it('shows the real error when a failure mentions "cancelled" but nobody cancelled', async () => {
+        mocks.call.mockImplementation((command: string) =>
+            command === 'read_table_sql_header'
+                ? Promise.resolve(preview())
+                : Promise.reject('Import failed in data: table "cancelled_orders" is locked'),
+        );
+        render(<ImportTableModal {...props()} />);
+        await screen.findByText('CREATE TABLE "orders" ("id" integer);');
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.import'}));
+        });
+        expect(screen.getByText('tableTransfer.importFailed')).toBeInTheDocument();
+        expect(screen.queryByText('tableTransfer.importCancelled')).not.toBeInTheDocument();
+        expect(
+            screen.getByText('Import failed in data: table "cancelled_orders" is locked'),
+        ).toBeInTheDocument();
+    });
+
+    it('says the import was cancelled after Cancel', async () => {
+        let reject: (reason: string) => void = () => {};
+        mocks.call.mockImplementation((command: string) => {
+            if (command === 'read_table_sql_header') return Promise.resolve(preview());
+            if (command === 'import_table_from_sql')
+                return new Promise((_, fail) => {
+                    reject = fail;
+                });
+            return Promise.resolve(undefined);
+        });
+        render(<ImportTableModal {...props()} />);
+        await screen.findByText('CREATE TABLE "orders" ("id" integer);');
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.import'}));
+        });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'common.cancel'}));
+        });
+        await act(async () => {
+            reject('Import was stopped');
+        });
+        expect(mocks.call).toHaveBeenCalledWith('cancel_table_import', {
+            connectionId: 'connection-1',
+        });
+        expect(screen.getByText('tableTransfer.importCancelled')).toBeInTheDocument();
     });
 
     it('shows a refused plain script', async () => {

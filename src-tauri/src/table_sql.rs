@@ -12,7 +12,7 @@ use std::io::BufRead;
 
 use serde::{Deserialize, Serialize};
 
-use crate::drivers::sql_syntax::LiteralStyle;
+use crate::drivers::sql_syntax::{LiteralStyle, QuoteEscape, QuoteKind, SqlSyntax};
 use crate::dump_utils::DumpDialect;
 
 #[cfg(test)]
@@ -146,6 +146,12 @@ impl TableSqlHeader {
         let mut fields = BTreeMap::new();
         let mut started = false;
         for _ in 0..MAX_HEADER_LINES {
+            // Once the title is read, look at the next line before taking it:
+            // the line that ends the header (a blank line, a section marker,
+            // a statement) stays in the reader for the statement reader.
+            if started && !next_line_is_header(reader)? {
+                break;
+            }
             let mut line = String::new();
             let read = std::io::Read::take(&mut *reader, MAX_HEADER_LINE_BYTES)
                 .read_line(&mut line)
@@ -153,6 +159,7 @@ impl TableSqlHeader {
             if read == 0 {
                 break;
             }
+            let line_complete = line.ends_with('\n');
             let line = line.trim_end_matches(['\r', '\n']).trim();
             if !started {
                 if line.is_empty() {
@@ -166,6 +173,11 @@ impl TableSqlHeader {
             }
             if line.is_empty() || line.starts_with("-- @") || !line.starts_with("--") {
                 break;
+            }
+            if read as u64 == MAX_HEADER_LINE_BYTES && !line_complete {
+                return Err(format!(
+                    "The table export header has a line longer than {MAX_HEADER_LINE_BYTES} bytes"
+                ));
             }
             if let Some((key, value)) = line.trim_start_matches('-').trim().split_once(':') {
                 fields.insert(key.trim().to_ascii_lowercase(), value.trim().to_string());
@@ -216,6 +228,18 @@ impl TableSqlHeader {
     }
 }
 
+/// Whether the next line in `reader` is a `-- Key: value` header line,
+/// without consuming it.
+fn next_line_is_header<R: BufRead>(reader: &mut R) -> Result<bool, String> {
+    let buffer = reader.fill_buf().map_err(|error| error.to_string())?;
+    let start = buffer
+        .iter()
+        .position(|byte| *byte != b' ' && *byte != b'\t')
+        .unwrap_or(buffer.len());
+    let line = &buffer[start..];
+    Ok(line.starts_with(b"--") && !line.starts_with(b"-- @"))
+}
+
 fn parse_format(value: &str) -> Result<u32, String> {
     let (name, version) = value
         .split_once('/')
@@ -252,23 +276,45 @@ pub fn end_marker() -> &'static str {
     END_MARKER
 }
 
-/// Removes the schema qualification from the table name in a driver's DDL
-/// (`CREATE TABLE "public"."orders"` becomes `CREATE TABLE "orders"`), so
-/// the file can be imported into any schema. Only the exact qualified name
-/// the dialect would write is replaced; DDL that doesn't contain it is
-/// returned unchanged.
+/// Removes the source schema from a driver's DDL (`CREATE TABLE
+/// "public"."orders"` becomes `CREATE TABLE "orders"`), so the file can be
+/// imported into any schema. Every `<schema>.` qualifier the dialect would
+/// write is removed, so references to other tables of the same schema (a
+/// foreign key's `REFERENCES "public"."customers"`) resolve in the target
+/// schema too. Text inside string literals and comments is left alone, and
+/// DDL without the qualifier is returned unchanged.
 pub fn unqualify_ddl(
     ddl: &str,
     dialect: &DumpDialect,
+    rules: &SqlScanRules,
     schema: Option<&str>,
     table: &str,
 ) -> String {
     let qualified = dialect.table_ref(schema, table);
     let bare = dialect.quote_identifier(table);
-    if qualified == bare {
+    let Some(prefix) = qualified
+        .strip_suffix(bare.as_str())
+        .filter(|prefix| !prefix.is_empty())
+    else {
         return ddl.to_string();
+    };
+    let mut out = String::with_capacity(ddl.len());
+    let mut scanner = Scanner::new(rules);
+    let mut at = 0;
+    while at < ddl.len() {
+        if scanner.in_code()
+            && ddl[at..].starts_with(prefix)
+            && !ddl[..at].ends_with('.')
+            && !previous_is_word(ddl, at)
+        {
+            at += prefix.len();
+            continue;
+        }
+        let (len, _) = scanner.step(ddl, at);
+        out.push_str(&ddl[at..at + len]);
+        at += len;
     }
-    ddl.replace(&qualified, &bare)
+    out
 }
 
 /// Each DDL statement ends with `;`, so the import can split the section.
@@ -320,8 +366,7 @@ pub enum TableSqlItem {
 /// Comment lines between statements are skipped; `-- @end` stops it.
 pub struct TableSqlReader<R: BufRead> {
     reader: R,
-    identifier_quote: char,
-    backslash_escapes: bool,
+    rules: SqlScanRules,
     line_number: usize,
     finished: bool,
     /// What followed a `;` on the line a statement ended on.
@@ -329,11 +374,10 @@ pub struct TableSqlReader<R: BufRead> {
 }
 
 impl<R: BufRead> TableSqlReader<R> {
-    pub fn new(reader: R, dialect: &DumpDialect) -> Self {
+    pub fn new(reader: R, rules: SqlScanRules) -> Self {
         Self {
             reader,
-            identifier_quote: dialect.identifier_quote.chars().next().unwrap_or('"'),
-            backslash_escapes: dialect.string_escape != LiteralStyle::Standard,
+            rules,
             line_number: 0,
             finished: false,
             pending: String::new(),
@@ -346,7 +390,7 @@ impl<R: BufRead> TableSqlReader<R> {
         }
         let mut statement = String::new();
         let mut start_line = 0;
-        let mut state = QuoteState::None;
+        let mut scanner = Scanner::new(&self.rules);
         let mut line = String::new();
         loop {
             line.clear();
@@ -386,62 +430,274 @@ impl<R: BufRead> TableSqlReader<R> {
                 if let Some(name) = trimmed.strip_prefix(SECTION_PREFIX) {
                     return Ok(Some(TableSqlItem::Section(name.trim().to_string())));
                 }
-                if trimmed.starts_with("--") {
+                if trimmed.starts_with("--")
+                    || (self.rules.hash_comments && trimmed.starts_with('#'))
+                {
                     continue;
                 }
                 start_line = self.line_number;
             }
-            let mut chars = line.char_indices().peekable();
-            while let Some((index, ch)) = chars.next() {
-                match state {
-                    QuoteState::None => {
-                        if ch == '\'' {
-                            state = QuoteState::Literal;
-                        } else if ch == self.identifier_quote {
-                            state = QuoteState::Identifier;
-                        } else if ch == ';' {
-                            statement.push_str(&line[..index]);
-                            let rest = &line[index + 1..];
-                            if !rest.trim().is_empty() {
-                                self.pending = rest.to_string();
-                            }
-                            return Ok(Some(TableSqlItem::Statement {
-                                sql: statement.trim().to_string(),
-                                line: start_line,
-                            }));
-                        }
+            let mut at = 0;
+            while at < line.len() {
+                let (len, code) = scanner.step(&line, at);
+                if code == Some(';') {
+                    statement.push_str(&line[..at]);
+                    let rest = &line[at + len..];
+                    if !rest.trim().is_empty() {
+                        self.pending = rest.to_string();
                     }
-                    QuoteState::Literal => {
-                        if self.backslash_escapes && ch == '\\' {
-                            chars.next();
-                        } else if ch == '\'' {
-                            if matches!(chars.peek(), Some((_, '\''))) {
-                                chars.next();
-                            } else {
-                                state = QuoteState::None;
-                            }
-                        }
-                    }
-                    QuoteState::Identifier => {
-                        if ch == self.identifier_quote {
-                            if matches!(chars.peek(), Some((_, next)) if *next == self.identifier_quote)
-                            {
-                                chars.next();
-                            } else {
-                                state = QuoteState::None;
-                            }
-                        }
-                    }
+                    return Ok(Some(TableSqlItem::Statement {
+                        sql: statement.trim().to_string(),
+                        line: start_line,
+                    }));
                 }
+                at += len;
             }
             statement.push_str(&line);
         }
     }
 }
 
-#[derive(Clone, Copy)]
-enum QuoteState {
-    None,
-    Literal,
-    Identifier,
+/// How a driver's SQL is lexed, enough to find where statements end and
+/// which text is code: its quotes, comments and dollar quoting. Built from
+/// the driver's resolved [`SqlSyntax`] and its dump dialect.
+#[derive(Debug, Clone)]
+pub struct SqlScanRules {
+    quotes: Vec<ScanQuote>,
+    triple_quoted_strings: bool,
+    hash_comments: bool,
+    line_comment_requires_space: bool,
+    nested_block_comments: bool,
+    dollar_quoting: bool,
+    e_strings: bool,
+}
+
+#[derive(Debug, Clone)]
+struct ScanQuote {
+    open: String,
+    close: String,
+    string: bool,
+    doubled: bool,
+    backslash: bool,
+}
+
+impl SqlScanRules {
+    pub fn new(syntax: &SqlSyntax, dialect: &DumpDialect) -> Self {
+        // Literals the host renders with backslash escapes must read back
+        // the same way, even where the quote rule itself only doubles.
+        let backslash_literals = dialect.string_escape != LiteralStyle::Standard;
+        let mut quotes = syntax
+            .quotes
+            .iter()
+            .filter(|rule| !rule.open.is_empty() && !rule.close.is_empty())
+            .map(|rule| {
+                let string = rule.kind == QuoteKind::String;
+                ScanQuote {
+                    open: rule.open.clone(),
+                    close: rule.close.clone(),
+                    string,
+                    doubled: matches!(rule.escape, QuoteEscape::Double | QuoteEscape::Both),
+                    backslash: rule.escape.backslash()
+                        || (string && rule.open == "'" && backslash_literals),
+                }
+            })
+            .collect::<Vec<_>>();
+        // The identifier quote the dump writes is always a quote, also for a
+        // plugin whose syntax doesn't list it.
+        let identifier = dialect.identifier_quote.clone();
+        if !identifier.is_empty() && !quotes.iter().any(|quote| quote.open == identifier) {
+            let close = if identifier == "[" {
+                "]".to_string()
+            } else {
+                identifier.clone()
+            };
+            quotes.push(ScanQuote {
+                open: identifier,
+                close,
+                string: false,
+                doubled: true,
+                backslash: false,
+            });
+        }
+        // Longer openers first, so `$$`-like or multi-character quotes win.
+        quotes.sort_by(|a, b| b.open.len().cmp(&a.open.len()));
+        Self {
+            quotes,
+            triple_quoted_strings: syntax.triple_quoted_strings,
+            hash_comments: syntax.hash_comments,
+            line_comment_requires_space: syntax.line_comment_requires_space,
+            nested_block_comments: syntax.nested_block_comments,
+            dollar_quoting: syntax.dollar_quoting,
+            e_strings: syntax.e_strings,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ScanState {
+    Code,
+    Quote {
+        close: String,
+        doubled: bool,
+        backslash: bool,
+    },
+    LineComment,
+    BlockComment(usize),
+    DollarQuote(String),
+}
+
+/// Walks SQL text one token start at a time and keeps the lexer state
+/// across calls, so it can be fed a file line by line.
+struct Scanner<'a> {
+    rules: &'a SqlScanRules,
+    state: ScanState,
+}
+
+impl<'a> Scanner<'a> {
+    fn new(rules: &'a SqlScanRules) -> Self {
+        Self {
+            rules,
+            state: ScanState::Code,
+        }
+    }
+
+    fn in_code(&self) -> bool {
+        self.state == ScanState::Code
+    }
+
+    /// Reads from byte `at` of `text`. Returns how many bytes it read and,
+    /// when they are a plain code character (not part of a quote or a
+    /// comment), that character.
+    fn step(&mut self, text: &str, at: usize) -> (usize, Option<char>) {
+        let rest = &text[at..];
+        let Some(ch) = rest.chars().next() else {
+            return (0, None);
+        };
+        let len = ch.len_utf8();
+        let rules = self.rules;
+        match &mut self.state {
+            ScanState::Code => {
+                if rest.starts_with("--")
+                    && (!rules.line_comment_requires_space
+                        || rest[2..].chars().next().is_none_or(char::is_whitespace))
+                {
+                    self.state = ScanState::LineComment;
+                    return (2, None);
+                }
+                if rules.hash_comments && ch == '#' {
+                    self.state = ScanState::LineComment;
+                    return (1, None);
+                }
+                if rest.starts_with("/*") {
+                    self.state = ScanState::BlockComment(1);
+                    return (2, None);
+                }
+                if rules.dollar_quoting && ch == '$' && !previous_is_word(text, at) {
+                    if let Some(tag) = dollar_tag(rest) {
+                        let tag_len = tag.len();
+                        self.state = ScanState::DollarQuote(tag.to_string());
+                        return (tag_len, None);
+                    }
+                }
+                for quote in &rules.quotes {
+                    if rules.triple_quoted_strings && quote.string {
+                        let triple = quote.open.repeat(3);
+                        if rest.starts_with(&triple) {
+                            self.state = ScanState::Quote {
+                                close: quote.close.repeat(3),
+                                doubled: false,
+                                backslash: quote.backslash,
+                            };
+                            return (triple.len(), None);
+                        }
+                    }
+                    if rest.starts_with(&quote.open) {
+                        let escape_string = rules.e_strings
+                            && quote.string
+                            && quote.open == "'"
+                            && (text[..at].ends_with('e') || text[..at].ends_with('E'))
+                            && !previous_is_word(text, at - 1);
+                        self.state = ScanState::Quote {
+                            close: quote.close.clone(),
+                            doubled: quote.doubled,
+                            backslash: quote.backslash || escape_string,
+                        };
+                        return (quote.open.len(), None);
+                    }
+                }
+                (len, Some(ch))
+            }
+            ScanState::Quote {
+                close,
+                doubled,
+                backslash,
+            } => {
+                if *backslash && ch == '\\' {
+                    let escaped = rest[1..].chars().next().map_or(0, char::len_utf8);
+                    return (1 + escaped, None);
+                }
+                if rest.starts_with(close.as_str()) {
+                    let close_len = close.len();
+                    if *doubled && rest[close_len..].starts_with(close.as_str()) {
+                        return (close_len * 2, None);
+                    }
+                    self.state = ScanState::Code;
+                    return (close_len, None);
+                }
+                (len, None)
+            }
+            ScanState::LineComment => {
+                if ch == '\n' {
+                    self.state = ScanState::Code;
+                }
+                (len, None)
+            }
+            ScanState::BlockComment(depth) => {
+                if rules.nested_block_comments && rest.starts_with("/*") {
+                    *depth += 1;
+                    return (2, None);
+                }
+                if rest.starts_with("*/") {
+                    *depth -= 1;
+                    if *depth == 0 {
+                        self.state = ScanState::Code;
+                    }
+                    return (2, None);
+                }
+                (len, None)
+            }
+            ScanState::DollarQuote(tag) => {
+                if rest.starts_with(tag.as_str()) {
+                    let tag_len = tag.len();
+                    self.state = ScanState::Code;
+                    return (tag_len, None);
+                }
+                (len, None)
+            }
+        }
+    }
+}
+
+/// Whether the character before byte `at` is part of a word, so a `$` or
+/// a qualifier there doesn't start a token.
+fn previous_is_word(text: &str, at: usize) -> bool {
+    text[..at]
+        .chars()
+        .next_back()
+        .is_some_and(|ch| ch.is_alphanumeric() || ch == '_' || ch == '$')
+}
+
+/// The `$tag$` opening a PostgreSQL dollar quote at the start of `text`.
+fn dollar_tag(text: &str) -> Option<&str> {
+    let mut chars = text.char_indices().skip(1);
+    for (index, ch) in chars.by_ref() {
+        if ch == '$' {
+            return Some(&text[..index + 1]);
+        }
+        let valid = ch.is_alphabetic() || ch == '_' || (index > 1 && ch.is_ascii_digit());
+        if !valid {
+            return None;
+        }
+    }
+    None
 }

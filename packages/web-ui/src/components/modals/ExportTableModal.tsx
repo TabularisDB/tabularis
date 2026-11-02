@@ -49,9 +49,18 @@ export const ExportTableModal = ({
     const [isChoosingTarget, setIsChoosingTarget] = useState(false);
     const [run, setRun] = useState<ExportRun | null>(null);
     const runningRef = useRef(false);
+    const mountedRef = useRef(false);
+    const runStatus = run?.status;
 
     useEffect(() => {
-        if (!run || run.status !== 'exporting') return;
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (runStatus !== 'exporting') return;
         const subscription = client.subscribe('export_progress', (update) => {
             if (runningRef.current && update.connection_id === connectionId) {
                 setRun((current) =>
@@ -64,7 +73,7 @@ export const ExportTableModal = ({
         return () => {
             void subscription.then((unsubscribe) => unsubscribe());
         };
-    }, [client, connectionId, run]);
+    }, [client, connectionId, runStatus]);
 
     if (!isOpen) return null;
 
@@ -76,6 +85,9 @@ export const ExportTableModal = ({
         let target: {filePath?: string} | null;
         try {
             target = await chooseTableExportTarget(platform, fileName);
+        } catch (e) {
+            setRun({status: 'error', fileName, rows: 0, error: String(e)});
+            return;
         } finally {
             setIsChoosingTarget(false);
         }
@@ -101,7 +113,10 @@ export const ExportTableModal = ({
                     cancellationId: crypto.randomUUID(),
                 },
             );
+            // A result that arrives after the dialog is gone is not delivered.
+            if (!mountedRef.current) return;
             await deliverTableExport(client, platform, result);
+            if (!mountedRef.current) return;
             setRun((current) => ({
                 status: 'completed',
                 fileName: current?.fileName ?? fileName,
@@ -113,6 +128,7 @@ export const ExportTableModal = ({
                         : undefined,
             }));
         } catch (e) {
+            if (!mountedRef.current) return;
             setRun((current) => ({
                 status: 'error',
                 fileName: current?.fileName ?? fileName,
@@ -143,7 +159,7 @@ export const ExportTableModal = ({
                 warningMessage={run.warning}
                 detailMessage={run.detail}
                 onCancel={handleCancelRun}
-                onClose={onClose}
+                onClose={run.status === 'exporting' ? handleCancelRun : onClose}
             />
         );
     }

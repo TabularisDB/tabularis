@@ -26,12 +26,13 @@ use super::database_transfers::{
 use super::file_transfers::{FileTransferStore, MAX_FILE_TRANSFER_BYTES};
 use super::generic_exports::{export_key, ExportRegistration};
 use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities};
+use crate::drivers::sql_syntax::SqlSyntax;
 use crate::dump_utils::DumpDialect;
 use crate::export::{ExportCancellationState, ProgressEmitter, DEFAULT_PROGRESS_INTERVAL};
 use crate::models::{ColumnDefinition, ConnectionParams, DatabaseSelection, TableColumn};
 use crate::runtime::RuntimeContext;
 use crate::table_sql::{
-    end_marker, render_insert, section_marker, terminate_statements, unqualify_ddl,
+    end_marker, render_insert, section_marker, terminate_statements, unqualify_ddl, SqlScanRules,
     StructureSource, TableSqlContent, TableSqlHeader, TableSqlItem, TableSqlReader, FORMAT_VERSION,
     INSERT_BATCH_ROWS, SECTION_DATA, SECTION_STRUCTURE,
 };
@@ -383,12 +384,13 @@ async fn write_table_export(
         );
     }
     let dialect = DumpDialect::from_capabilities(driver, &manifest.capabilities);
+    let rules = SqlScanRules::new(&SqlSyntax::resolve(&manifest.capabilities), &dialect);
     let resolved_schema = dialect.resolve_schema(options.schema.as_deref());
     let schema = dialect.scoped_schema(resolved_schema.as_deref());
     let table = options.table.as_str();
     let columns = drv.get_columns(params, table, schema).await?;
     let (structure, structure_source) =
-        table_structure(&drv, params, &dialect, table, schema, &columns).await?;
+        table_structure(&drv, params, &dialect, &rules, table, schema, &columns).await?;
 
     let body_path = sibling_path(destination, "rows");
     let _body_guard = RemoveOnDrop::new(body_path.clone());
@@ -507,13 +509,14 @@ async fn table_structure(
     drv: &Arc<dyn DatabaseDriver>,
     params: &ConnectionParams,
     dialect: &DumpDialect,
+    rules: &SqlScanRules,
     table: &str,
     schema: Option<&str>,
     columns: &[TableColumn],
 ) -> Result<(String, StructureSource), String> {
     if let Ok(ddl) = drv.get_table_ddl(params, table, schema).await {
         if !ddl.trim().is_empty() {
-            let ddl = unqualify_ddl(&ddl, dialect, schema, table);
+            let ddl = unqualify_ddl(&ddl, dialect, rules, schema, table);
             return Ok((terminate_statements(&ddl), StructureSource::Driver));
         }
     }
@@ -828,7 +831,8 @@ async fn run_table_import(
             .map_err(|error| format!("Could not drop the existing table \"{table}\": {error}"))?;
     }
 
-    let mut statements = TableSqlReader::new(reader, &dialect);
+    let rules = SqlScanRules::new(&SqlSyntax::resolve(capabilities), &dialect);
+    let mut statements = TableSqlReader::new(reader, rules);
     let mut section = String::new();
     let mut created = false;
     let mut executed: u64 = 0;

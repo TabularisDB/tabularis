@@ -1,7 +1,8 @@
 use std::io::Cursor;
 
 use super::*;
-use crate::drivers::sql_syntax::LiteralStyle;
+use crate::drivers::driver_trait::SqlDialect;
+use crate::drivers::sql_syntax::{LiteralStyle, SqlSyntax};
 use crate::dump_utils::DumpDialect;
 
 fn dialect(quote: &str, escape: LiteralStyle, postgres: bool) -> DumpDialect {
@@ -37,8 +38,26 @@ fn header() -> TableSqlHeader {
     }
 }
 
+fn sqlite() -> DumpDialect {
+    dialect("\"", LiteralStyle::Standard, false)
+}
+
+/// The scan rules of the built-in driver a test dialect stands for.
+fn rules(dialect: &DumpDialect) -> SqlScanRules {
+    let preset = if dialect.postgres {
+        SqlDialect::Postgres
+    } else if dialect.identifier_quote == "`" {
+        SqlDialect::Mysql
+    } else if dialect.identifier_quote == "\"" {
+        SqlDialect::Sqlite
+    } else {
+        SqlDialect::Generic
+    };
+    SqlScanRules::new(&SqlSyntax::preset(Some(preset)), dialect)
+}
+
 fn items(sql: &str, dialect: &DumpDialect) -> Vec<TableSqlItem> {
-    let mut reader = TableSqlReader::new(Cursor::new(sql.as_bytes().to_vec()), dialect);
+    let mut reader = TableSqlReader::new(Cursor::new(sql.as_bytes().to_vec()), rules(dialect));
     let mut out = Vec::new();
     while let Some(item) = reader.next_item().unwrap() {
         out.push(item);
@@ -177,6 +196,40 @@ mod header {
     }
 }
 
+mod header_end {
+    use super::*;
+
+    #[test]
+    fn leaves_a_section_marker_right_after_the_header_for_the_reader() {
+        let sql = "-- Tabularis table export\n-- Format: tabularis-table-sql/1\n-- Driver: postgres\n-- Table: t\n-- Content: structure_and_data\n-- @section structure\nCREATE TABLE \"t\" (id int);\n-- @end\n";
+        let mut reader = Cursor::new(sql.as_bytes().to_vec());
+        let header = TableSqlHeader::parse(&mut reader).unwrap();
+        assert_eq!(header.table, "t");
+        let mut statements = TableSqlReader::new(reader, rules(&postgres()));
+        assert_eq!(
+            statements.next_item().unwrap(),
+            Some(TableSqlItem::Section("structure".to_string()))
+        );
+        assert_eq!(
+            statements.next_item().unwrap(),
+            Some(TableSqlItem::Statement {
+                sql: "CREATE TABLE \"t\" (id int)".to_string(),
+                line: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn refuses_a_header_line_longer_than_the_limit() {
+        let sql = format!(
+            "-- Tabularis table export\n-- Format: tabularis-table-sql/1\n-- Source: {}\n-- Driver: postgres\n-- Table: t\n-- Content: structure_only\n\n",
+            "x".repeat(5000)
+        );
+        let error = TableSqlHeader::parse(&mut Cursor::new(sql.into_bytes())).unwrap_err();
+        assert!(error.contains("longer than"), "{error}");
+    }
+}
+
 mod ddl {
     use super::*;
 
@@ -184,7 +237,13 @@ mod ddl {
     fn strips_the_schema_from_postgres_ddl() {
         let ddl = "CREATE TABLE \"public\".\"orders\" (\n  \"id\" integer NOT NULL\n);";
         assert_eq!(
-            unqualify_ddl(ddl, &postgres(), Some("public"), "orders"),
+            unqualify_ddl(
+                ddl,
+                &postgres(),
+                &rules(&postgres()),
+                Some("public"),
+                "orders"
+            ),
             "CREATE TABLE \"orders\" (\n  \"id\" integer NOT NULL\n);"
         );
     }
@@ -192,8 +251,14 @@ mod ddl {
     #[test]
     fn leaves_unqualified_ddl_alone() {
         let ddl = "CREATE TABLE `orders` (\n  `id` int NOT NULL\n);";
-        assert_eq!(unqualify_ddl(ddl, &mysql(), Some("shop"), "orders"), ddl);
-        assert_eq!(unqualify_ddl(ddl, &postgres(), None, "orders"), ddl);
+        assert_eq!(
+            unqualify_ddl(ddl, &mysql(), &rules(&mysql()), Some("shop"), "orders"),
+            ddl
+        );
+        assert_eq!(
+            unqualify_ddl(ddl, &postgres(), &rules(&postgres()), None, "orders"),
+            ddl
+        );
     }
 
     #[test]
@@ -208,8 +273,26 @@ mod ddl {
             dialect.table_ref(Some("dbo"), "t")
         );
         assert_eq!(
-            unqualify_ddl(&ddl, &dialect, Some("dbo"), "t"),
+            unqualify_ddl(&ddl, &dialect, &rules(&dialect), Some("dbo"), "t"),
             format!("CREATE TABLE {} (x int);", dialect.quote_identifier("t"))
+        );
+    }
+
+    #[test]
+    fn unqualifies_references_to_other_tables_of_the_schema() {
+        let ddl = "CREATE TABLE \"public\".\"orders\" (\n  \"customer\" int REFERENCES \"public\".\"customers\" (\"id\")\n);\nCREATE INDEX \"orders_customer\" ON \"public\".\"orders\" (\"customer\");";
+        assert_eq!(
+            unqualify_ddl(ddl, &postgres(), &rules(&postgres()), Some("public"), "orders"),
+            "CREATE TABLE \"orders\" (\n  \"customer\" int REFERENCES \"customers\" (\"id\")\n);\nCREATE INDEX \"orders_customer\" ON \"orders\" (\"customer\");"
+        );
+    }
+
+    #[test]
+    fn leaves_the_schema_name_inside_literals_and_comments() {
+        let ddl = "CREATE TABLE \"public\".\"orders\" (\n  \"note\" text DEFAULT '\"public\".\"orders\"', -- from \"public\".\"orders\"\n  \"id\" int /* \"public\".\"x\" */\n);";
+        assert_eq!(
+            unqualify_ddl(ddl, &postgres(), &rules(&postgres()), Some("public"), "orders"),
+            "CREATE TABLE \"orders\" (\n  \"note\" text DEFAULT '\"public\".\"orders\"', -- from \"public\".\"orders\"\n  \"id\" int /* \"public\".\"x\" */\n);"
         );
     }
 
@@ -333,6 +416,65 @@ mod reader {
             vec![
                 "CREATE TABLE t (id int)".to_string(),
                 "CREATE INDEX i ON t (id)".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn ignores_quotes_and_semicolons_in_comments_inside_a_statement() {
+        // SQLite keeps the user's comments in the stored CREATE TABLE text.
+        let sql = "CREATE TABLE \"t\" (\n  a int, -- user's id; primary\n  b text /* it's; here */\n);\nINSERT INTO \"t\" (\"a\") VALUES\n(1);\n";
+        assert_eq!(
+            statements(sql, &sqlite()),
+            vec![
+                "CREATE TABLE \"t\" (\n  a int, -- user's id; primary\n  b text /* it's; here */\n)".to_string(),
+                "INSERT INTO \"t\" (\"a\") VALUES\n(1)".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn follows_mysql_comment_rules() {
+        let sql = "CREATE TABLE `t` (\n  a int, # user's id; x\n  b int -- it's; y\n) COMMENT='a--b;c';\nSELECT 1--2;\n";
+        assert_eq!(
+            statements(sql, &mysql()),
+            vec![
+                "CREATE TABLE `t` (\n  a int, # user's id; x\n  b int -- it's; y\n) COMMENT='a--b;c'".to_string(),
+                "SELECT 1--2".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn keeps_mysql_double_quoted_strings_together() {
+        let sql = "INSERT INTO `t` VALUES (\"it's; \\\" ok\");\n";
+        assert_eq!(
+            statements(sql, &mysql()),
+            vec!["INSERT INTO `t` VALUES (\"it's; \\\" ok\")".to_string()]
+        );
+    }
+
+    #[test]
+    fn keeps_postgres_dollar_quoted_bodies_together() {
+        let sql = "CREATE FUNCTION f() RETURNS trigger AS $$\nBEGIN\n  RAISE NOTICE 'it''s; done';\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\nCREATE FUNCTION g() RETURNS int AS $body$ SELECT 1; $body$ LANGUAGE sql;\nSELECT $1, a$b;\n";
+        assert_eq!(
+            statements(sql, &postgres()),
+            vec![
+                "CREATE FUNCTION f() RETURNS trigger AS $$\nBEGIN\n  RAISE NOTICE 'it''s; done';\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql".to_string(),
+                "CREATE FUNCTION g() RETURNS int AS $body$ SELECT 1; $body$ LANGUAGE sql".to_string(),
+                "SELECT $1, a$b".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn follows_postgres_escape_strings_and_nested_comments() {
+        let sql = "SELECT E'it\\'s; x', 'plain\\' /* a /* b; */ c; */;\nSELECT 2;\n";
+        assert_eq!(
+            statements(sql, &postgres()),
+            vec![
+                "SELECT E'it\\'s; x', 'plain\\' /* a /* b; */ c; */".to_string(),
+                "SELECT 2".to_string(),
             ]
         );
     }

@@ -61,6 +61,7 @@ export const ImportTableModal = ({
     const [progress, setProgress] = useState<EventPayload<'import_progress'> | null>(null);
     const [result, setResult] = useState<TableImportResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [cancelRequested, setCancelRequested] = useState(false);
     const startedRef = useRef(false);
     const importingRef = useRef(false);
 
@@ -125,6 +126,7 @@ export const ImportTableModal = ({
         importingRef.current = true;
         setProgress(null);
         setError(null);
+        setCancelRequested(false);
         setPhase('importing');
         try {
             const imported = await client.call(
@@ -155,6 +157,7 @@ export const ImportTableModal = ({
     };
 
     const handleCancelImport = async () => {
+        setCancelRequested(true);
         try {
             await client.call('cancel_table_import', {connectionId});
         } catch (e) {
@@ -377,11 +380,11 @@ export const ImportTableModal = ({
                     {phase === 'failed' && error && (
                         <div className="space-y-2">
                             <div className="text-center text-accent-error text-sm font-medium">
-                                {error.includes('cancelled')
+                                {cancelRequested
                                     ? t('tableTransfer.importCancelled')
                                     : t('tableTransfer.importFailed')}
                             </div>
-                            {!error.includes('cancelled') && (
+                            {!cancelRequested && (
                                 <div className="max-h-40 overflow-y-auto bg-accent-error/5 border border-accent-error/20 rounded-lg p-3 text-xs text-accent-error font-mono whitespace-pre-wrap break-words">
                                     {error}
                                 </div>
