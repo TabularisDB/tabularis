@@ -1748,6 +1748,32 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    /// Optional RPC method (#709): a plugin with non-standard literals
+    /// renders its own `INSERT` statements. A plugin without it (-32601)
+    /// gets the host renderer, driven by its manifest capabilities.
+    async fn render_insert_statements(
+        &self,
+        table: &str,
+        schema: Option<&str>,
+        columns: &[String],
+        rows: &[Vec<serde_json::Value>],
+    ) -> Result<Option<Vec<String>>, String> {
+        let res = self
+            .process
+            .call_detailed(
+                "render_insert_statements",
+                json!({ "table": table, "schema": schema, "columns": columns, "rows": rows }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v)
+                .map(Some)
+                .map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
     async fn drop_index(
         &self,
         params: &ConnectionParams,
@@ -3229,6 +3255,63 @@ mod tests {
             .expect("fallback returns empty vec");
 
         assert!(views.is_empty());
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_falls_back_when_method_missing() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            Err("Method not found (-32601)".to_string())
+        });
+
+        let rendered = driver
+            .render_insert_statements("users", None, &["id".to_string()], &[vec![json!(1)]])
+            .await
+            .expect("a missing method falls back to the host renderer");
+
+        assert!(rendered.is_none());
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_forwards_the_batch() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            assert_eq!(request.params["table"], "users");
+            assert_eq!(request.params["schema"], "dbo");
+            assert_eq!(request.params["columns"], json!(["id", "name"]));
+            assert_eq!(request.params["rows"], json!([[1, "Ann"], [2, null]]));
+            Ok(json!([
+                "INSERT INTO [users] ([id], [name]) VALUES (1, N'Ann'), (2, NULL);"
+            ]))
+        });
+
+        let rendered = driver
+            .render_insert_statements(
+                "users",
+                Some("dbo"),
+                &["id".to_string(), "name".to_string()],
+                &[vec![json!(1), json!("Ann")], vec![json!(2), json!(null)]],
+            )
+            .await
+            .expect("the plugin renders the batch");
+
+        assert_eq!(
+            rendered,
+            Some(vec![
+                "INSERT INTO [users] ([id], [name]) VALUES (1, N'Ann'), (2, NULL);".to_string()
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_reports_other_errors() {
+        let driver = test_driver_result(|_| Err("boom".to_string()));
+
+        let result = driver
+            .render_insert_statements("users", None, &["id".to_string()], &[vec![json!(1)]])
+            .await;
+
+        assert!(result.is_err());
     }
 
     /// Regression: the ER diagram against a plugin lacking `get_schema_snapshot`

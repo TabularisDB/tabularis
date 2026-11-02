@@ -155,6 +155,8 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
+| `table_export` | bool | Offers **Export table to SQL...** on table nodes. Defaults to `true`; set `false` for non-SQL plugins. See [Table Export and Import](#table-export-and-import). |
+| `table_import` | bool | Offers **Import table from SQL...** on database and schema nodes. Defaults to `true`; set `false` for non-SQL plugins. Always off when `readonly` is `true`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
 
@@ -1881,6 +1883,62 @@ the flag and always run the generic statement.
 **Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "constraint_name": string }`
 
 **Result:** `null` on success, or an error.
+
+---
+
+### Table Export and Import
+
+**Export table to SQL...** writes one table, its structure and optionally its
+rows, to a `.sql` file in your driver's dialect; **Import table from SQL...**
+reads such a file back into a connection that uses the same driver. Both work
+for a plugin that implements nothing new:
+
+- **Structure:** the host calls `get_table_ddl` below; without it, it builds
+  `CREATE TABLE` from `get_columns` and `get_create_table_sql`, and marks the
+  file `Structure-Source: generated` (indexes, constraints and defaults may be
+  missing).
+- **Rows:** the host pages `execute_query` with 1000 rows per page, ordered by
+  the primary key. Your paging must be deterministic and report
+  `pagination.has_more` correctly, or rows are lost or repeated.
+- **Literals:** without `render_insert_statements` below, the host renders
+  `INSERT` statements from `identifier_quote`, `sql_dialect` and
+  `sql_syntax` (string escaping and boolean literals).
+- **Import:** the host runs each statement through `execute_query` with the
+  target `schema`, and drops the table again when an import that created it
+  fails. Without `manage_tables` only **Append rows** into an existing table
+  is possible.
+
+Identifiers in the file are not schema-qualified, so a file can be imported
+into any database or schema of a server using the same driver. Set
+`table_export` and `table_import` to `false` when your engine has no SQL.
+
+#### `get_table_ddl` *(optional)*
+
+The engine's own `CREATE TABLE` (and index statements) for an existing table,
+also used by **Dump Database**. Return it unqualified, or qualified exactly as
+`<quoted schema>.<quoted table>` with your `identifier_quote` (the host strips
+that prefix). Answer `-32601` Method not found when you can't.
+
+**Params:** `{ "params": ConnectionParams, "table": string, "schema": string | null }`
+
+**Result:** `"CREATE TABLE [orders] (\n  [id] int NOT NULL PRIMARY KEY\n);"`
+
+---
+
+#### `render_insert_statements` *(optional)*
+
+Renders complete `INSERT` statements for one batch of up to 500 rows, for
+engines whose literals the host can't write (dates, decimals, binary, arrays,
+JSON, `N'...'` strings). `rows` are positional arrays matching `columns`, with
+values as your own `execute_query` returned them. No database access: this is
+pure rendering. Each statement may end with `;` or not.
+
+**Params:** `{ "table": string, "schema": string | null, "columns": string[], "rows": any[][] }`
+
+**Result:** `["INSERT INTO [orders] ([id], [note]) VALUES (1, N'it''s'), (2, NULL);"]`
+
+A `-32601` Method not found error makes the host render this and every later
+batch itself. Any other error stops the export.
 
 ---
 

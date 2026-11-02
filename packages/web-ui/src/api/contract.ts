@@ -437,6 +437,77 @@ export interface DatabaseImportRequest extends ConnectionIdRequest {
     uploadToken?: string;
 }
 
+export type TableSqlContent = 'structure_and_data' | 'structure_only';
+export type TableSqlStructureSource = 'driver' | 'generated';
+/** What "Import table from SQL" does when the table already exists. */
+export type IfTableExists = 'fail' | 'drop_and_recreate' | 'append';
+
+export interface TableExportOptions {
+    table: string;
+    content: TableSqlContent;
+    schema?: string;
+    database?: string;
+}
+
+export interface TableExportRequest extends ConnectionIdRequest {
+    options: TableExportOptions;
+    /** Desktop-only save path. Browser requests omit this and receive a download. */
+    filePath?: string;
+}
+
+export interface TableExportResult {
+    rows: number;
+    bytes: number;
+    structureSource: TableSqlStructureSource;
+    /** The browser download; `null` when the desktop app wrote `filePath`. */
+    file: GeneratedFile | null;
+}
+
+/** The metadata header of a table export file. */
+export interface TableSqlHeader {
+    formatVersion: number;
+    tabularisVersion: string;
+    driver: string;
+    driverVersion: string | null;
+    source: string;
+    table: string;
+    content: TableSqlContent;
+    structureSource: TableSqlStructureSource;
+    rows: number;
+    exported: string;
+}
+
+export interface TableImportFileRequest extends ConnectionIdRequest {
+    /** Desktop-only source path. */
+    filePath?: string;
+    /** Browser-only opaque upload token. */
+    uploadToken?: string;
+}
+
+export interface TableImportPreview {
+    header: TableSqlHeader;
+    structure: string;
+    structureTruncated: boolean;
+    /** Why this connection can't import the file, or `null` when it can. */
+    problem: string | null;
+}
+
+export interface TableImportOptions {
+    ifExists: IfTableExists;
+    schema?: string;
+    database?: string;
+}
+
+export interface TableImportRequest extends TableImportFileRequest {
+    options: TableImportOptions;
+}
+
+export interface TableImportResult {
+    table: string;
+    statements: number;
+    rows: number;
+}
+
 export interface QueryExportRequest extends ConnectionIdRequest {
     sessionId?: string;
     query: string;
@@ -717,6 +788,14 @@ export interface CommandMap {
     cancel_dump: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
     import_database: CommandDefinition<DatabaseImportRequest, void, 'sensitive'>;
     cancel_import: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
+    export_table_to_sql: CommandDefinition<TableExportRequest, TableExportResult, 'sensitive'>;
+    read_table_sql_header: CommandDefinition<
+        TableImportFileRequest,
+        TableImportPreview,
+        'sensitive'
+    >;
+    import_table_from_sql: CommandDefinition<TableImportRequest, TableImportResult, 'sensitive'>;
+    cancel_table_import: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
 
     get_ssh_connections: CommandDefinition<undefined, SshConnection[], 'local-admin'>;
     save_ssh_connection: CommandDefinition<

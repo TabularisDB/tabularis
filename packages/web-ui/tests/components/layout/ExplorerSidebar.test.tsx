@@ -689,6 +689,28 @@ describe('ExplorerSidebar — database object navigation', () => {
         expect(screen.getByRole('button', {name: 'sidebar.generateSQL'})).toBeDisabled();
     });
 
+    it('offers Export table to SQL on tables and opens its dialog', () => {
+        openContextMenuOn('orders');
+
+        fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.exportMenu'}));
+
+        expect(screen.getByText('tableTransfer.exportTitle')).toBeInTheDocument();
+        expect(screen.getByText('orders', {selector: 'div[title="orders"]'})).toBeInTheDocument();
+    });
+
+    it('hides Export table to SQL for drivers that opt out', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...databaseState,
+            activeCapabilities: {...databaseState.activeCapabilities, table_export: false},
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        openContextMenuOn('orders');
+
+        expect(
+            screen.queryByRole('button', {name: 'tableTransfer.exportMenu'}),
+        ).not.toBeInTheDocument();
+    });
+
     it('disables trigger definition without trigger metadata', () => {
         databaseState.triggers = [
             {

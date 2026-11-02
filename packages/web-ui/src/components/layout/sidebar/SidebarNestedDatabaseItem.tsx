@@ -12,6 +12,7 @@ import {
     Settings2,
     Download,
     Upload,
+    FileUp,
     Network,
 } from 'lucide-react';
 import {SidebarSchemaItem} from './SidebarSchemaItem';
@@ -65,6 +66,8 @@ interface SidebarNestedDatabaseItemProps {
      * within that database. */
     onDump?: (database: string, schema: string) => void;
     onImport?: (database: string, schema: string) => void;
+    /** "Import table from SQL" into this database's active schema. */
+    onImportTable?: (database: string, schema: string) => void;
     /** The nested tree has no context menu on the database/schema row itself
      * (only on a table, once one exists) to reach the flat multi-db tree's
      * "View ER Diagram" — and the connection-level header button that used
@@ -112,6 +115,7 @@ export const SidebarNestedDatabaseItem = ({
     onCreateTrigger,
     onDump,
     onImport,
+    onImportTable,
     onViewERDiagram,
     showTriggers = false,
 }: SidebarNestedDatabaseItemProps) => {
@@ -176,6 +180,19 @@ export const SidebarNestedDatabaseItem = ({
                                 aria-label={t('dump.importDatabase')}
                             >
                                 <Upload size={12} />
+                            </button>
+                        )}
+                        {onImportTable && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onImportTable(databaseName, activeSchema ?? 'public');
+                                }}
+                                className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                                title={t('tableTransfer.importMenu')}
+                                aria-label={t('tableTransfer.importMenu')}
+                            >
+                                <FileUp size={12} />
                             </button>
                         )}
                         {onDump && (

@@ -30,6 +30,10 @@ pub enum GenericExportCommand {
         database: Option<String>,
         query_session_id: Option<String>,
     },
+    ExportTable {
+        connection_id: String,
+        options: super::table_transfers::TableExportOptions,
+    },
     CancelExport {
         connection_id: String,
     },
@@ -53,6 +57,23 @@ pub async fn execute(
     command: GenericExportCommand,
 ) -> Result<serde_json::Value, String> {
     match command {
+        GenericExportCommand::ExportTable {
+            connection_id,
+            options,
+        } => {
+            let owner = session_id.ok_or_else(|| "A browser session is required".to_string())?;
+            json(
+                super::table_transfers::export_table(
+                    runtime,
+                    state,
+                    session_id,
+                    connection_id,
+                    options,
+                    super::table_transfers::TableExportDestination::SessionDownload(owner),
+                )
+                .await?,
+            )
+        }
         GenericExportCommand::ExportQuery {
             connection_id,
             query,
@@ -411,7 +432,7 @@ fn sanitize_query(query: &str) -> String {
     query.trim().trim_end_matches(';').to_string()
 }
 
-fn export_key(session_id: Option<Uuid>, connection_id: &str) -> String {
+pub(crate) fn export_key(session_id: Option<Uuid>, connection_id: &str) -> String {
     session_id.map_or_else(
         || connection_id.to_string(),
         |session_id| format!("{session_id}:{connection_id}"),
@@ -501,7 +522,7 @@ impl<W: Write> Write for LimitedWriter<W> {
     }
 }
 
-struct ExportRegistration {
+pub(crate) struct ExportRegistration {
     handles: Arc<std::sync::Mutex<crate::commands::AbortHandleMap>>,
     key: String,
     handle: Arc<tokio::task::AbortHandle>,
@@ -509,7 +530,7 @@ struct ExportRegistration {
 }
 
 impl ExportRegistration {
-    fn new(
+    pub(crate) fn new(
         handles: Arc<std::sync::Mutex<crate::commands::AbortHandleMap>>,
         key: String,
         handle: Arc<tokio::task::AbortHandle>,
@@ -523,7 +544,7 @@ impl ExportRegistration {
         }
     }
 
-    fn complete(&mut self) {
+    pub(crate) fn complete(&mut self) {
         unregister_abort_handle(&self.handles, &self.key, &self.handle);
         self.completed = true;
     }

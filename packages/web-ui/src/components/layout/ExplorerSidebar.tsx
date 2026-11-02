@@ -48,6 +48,8 @@ import {
     Pin,
     PinOff,
     History,
+    FileDown,
+    FileUp,
 } from 'lucide-react';
 import {bindPlatformConfirm} from '@/platform/dialogs';
 import {saveSqlFile} from '@/utils/sqlFileTransfer';
@@ -86,6 +88,8 @@ import {CreateForeignKeyModal} from '@/components/modals/CreateForeignKeyModal';
 import {GenerateSQLModal} from '@/components/modals/GenerateSQLModal';
 import {DumpDatabaseModal} from '@/components/modals/DumpDatabaseModal';
 import {ImportDatabaseModal} from '@/components/modals/ImportDatabaseModal';
+import {ExportTableModal} from '@/components/modals/ExportTableModal';
+import {ImportTableModal} from '@/components/modals/ImportTableModal';
 import {ClipboardImportModal} from '@/components/modals/ClipboardImportModal';
 import {ViewEditorModal} from '@/components/modals/ViewEditorModal';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
@@ -137,7 +141,11 @@ import {
     usesMultiDatabaseLayout,
     reconcileDatabaseSelection,
 } from '@/utils/database';
-import {supportsManageTables} from '@/utils/driverCapabilities';
+import {
+    supportsManageTables,
+    supportsTableExport,
+    supportsTableImport,
+} from '@/utils/driverCapabilities';
 import {newConsoleForDatabase} from '@/utils/newConsole';
 import {openEditor} from '@/utils/editorNavigation';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
@@ -388,6 +396,18 @@ export const ExplorerSidebar = ({
         inputFile: ChosenInputFile;
         database: string;
         schema?: string;
+    } | null>(null);
+    const [exportTableModal, setExportTableModal] = useState<{
+        table: string;
+        schema?: string;
+        database?: string;
+    } | null>(null);
+    const [importTableModal, setImportTableModal] = useState<{
+        inputFile: ChosenInputFile;
+        database?: string;
+        schema?: string;
+        /** Picked from a database of the nested (schema-based multi-db) tree. */
+        nested: boolean;
     } | null>(null);
     const [pendingImport, setPendingImport] = useState<{
         inputFile: ChosenInputFile;
@@ -897,6 +917,17 @@ export const ExplorerSidebar = ({
         }
     };
 
+    // "Import table from SQL": the file is validated against this connection
+    // before anything runs, so any .sql file can be picked here.
+    const handleImportTable = async (database?: string, schema?: string, nested = false) => {
+        const inputFile = await platform.chooseInputFile({
+            filters: [{name: 'SQL File', extensions: ['sql']}],
+        });
+        if (inputFile) {
+            setImportTableModal({inputFile, database, schema, nested});
+        }
+    };
+
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
     // The nested schema-based multi-db tree (Postgres) also has its own
     // per-database action icons (SidebarNestedDatabaseItem), same as the flat
@@ -1169,6 +1200,24 @@ export const ExplorerSidebar = ({
                                                     />
                                                     <span>{t('dump.importDatabase')}</span>
                                                 </button>
+                                                {supportsTableImport(activeCapabilities) && (
+                                                    <button
+                                                        onClick={() => {
+                                                            handleImportTable(
+                                                                activeDatabaseName || undefined,
+                                                                activeSchema ?? undefined,
+                                                            );
+                                                            setIsActionsDropdownOpen(false);
+                                                        }}
+                                                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
+                                                    >
+                                                        <FileUp
+                                                            size={16}
+                                                            className="text-accent-success shrink-0"
+                                                        />
+                                                        <span>{t('tableTransfer.importMenu')}</span>
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => {
                                                         setDumpModal({
@@ -1243,6 +1292,21 @@ export const ExplorerSidebar = ({
                                     >
                                         <Upload size={16} />
                                     </button>
+                                    {supportsTableImport(activeCapabilities) && (
+                                        <button
+                                            onClick={() =>
+                                                handleImportTable(
+                                                    activeDatabaseName || undefined,
+                                                    activeSchema ?? undefined,
+                                                )
+                                            }
+                                            className="text-muted hover:text-accent-success transition-colors p-1 hover:bg-surface-secondary rounded"
+                                            title={t('tableTransfer.importMenu')}
+                                            aria-label={t('tableTransfer.importMenu')}
+                                        >
+                                            <FileUp size={16} />
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() =>
                                             setDumpModal({database: activeDatabaseName ?? ''})
@@ -2825,6 +2889,16 @@ export const ExplorerSidebar = ({
                                                               handleImportDatabase(database, schema)
                                                         : undefined
                                                 }
+                                                onImportTable={
+                                                    supportsTableImport(activeCapabilities)
+                                                        ? (database, schema) =>
+                                                              handleImportTable(
+                                                                  database,
+                                                                  schema,
+                                                                  true,
+                                                              )
+                                                        : undefined
+                                                }
                                                 onViewERDiagram={handleViewNestedERDiagram}
                                                 onEditColumn={(t_name, c, schema, database) =>
                                                     setModifyColumnModal({
@@ -3507,6 +3581,20 @@ export const ExplorerSidebar = ({
                                                     setClipboardImportSchema(ctxSchema);
                                                     setIsClipboardImportOpen(true);
                                                 },
+                                            }
+                                          : null,
+                                      supportsTableExport(activeCapabilities)
+                                          ? {
+                                                label: t('tableTransfer.exportMenu'),
+                                                icon: FileDown,
+                                                disabled: !activeConnectionId,
+                                                action: () =>
+                                                    setExportTableModal({
+                                                        table: contextMenu.id,
+                                                        schema:
+                                                            ctxSchema ?? activeSchema ?? undefined,
+                                                        database: ctxDatabase,
+                                                    }),
                                             }
                                           : null,
                                       createCopyNameItem(contextMenu.id, ctxSchema),
@@ -4401,6 +4489,20 @@ export const ExplorerSidebar = ({
                                                           action: () =>
                                                               handleImportDatabase(contextMenu.id),
                                                       },
+                                                      ...(supportsTableImport(activeCapabilities)
+                                                          ? [
+                                                                {
+                                                                    label: t(
+                                                                        'tableTransfer.importMenu',
+                                                                    ),
+                                                                    icon: FileUp,
+                                                                    action: () =>
+                                                                        handleImportTable(
+                                                                            contextMenu.id,
+                                                                        ),
+                                                                },
+                                                            ]
+                                                          : []),
                                                       {
                                                           label: t('dump.dumpDatabase'),
                                                           icon: Download,
@@ -4932,6 +5034,45 @@ export const ExplorerSidebar = ({
                             refreshNestedSchemaData(importModal.database, importModal.schema);
                         } else if (refreshTables) {
                             refreshTables();
+                        }
+                    }}
+                />
+            )}
+
+            {exportTableModal && activeConnectionId && (
+                <ExportTableModal
+                    isOpen={true}
+                    onClose={() => setExportTableModal(null)}
+                    connectionId={activeConnectionId}
+                    table={exportTableModal.table}
+                    schema={exportTableModal.schema}
+                    database={exportTableModal.database}
+                />
+            )}
+
+            {importTableModal && activeConnectionId && (
+                <ImportTableModal
+                    isOpen={true}
+                    onClose={() => setImportTableModal(null)}
+                    connectionId={activeConnectionId}
+                    connectionName={activeConnectionName || activeConnectionId}
+                    inputFile={importTableModal.inputFile}
+                    database={importTableModal.database}
+                    schema={importTableModal.schema}
+                    schemaEditable={activeCapabilities?.schemas === true}
+                    onSuccess={(result, schema, database) => {
+                        if (importTableModal.nested && database) {
+                            refreshNestedSchemaData(database, schema ?? 'public');
+                            setActiveTable(result.table, schema);
+                        } else if (isMultiDb && database) {
+                            refreshDatabaseData(database);
+                            setActiveTable(result.table, database);
+                        } else if (schema && activeCapabilities?.schemas === true) {
+                            refreshSchemaData(schema);
+                            setActiveTable(result.table, schema);
+                        } else {
+                            if (refreshTables) refreshTables();
+                            setActiveTable(result.table, schema);
                         }
                     }}
                 />

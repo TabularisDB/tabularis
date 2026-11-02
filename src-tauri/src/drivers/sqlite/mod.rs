@@ -1074,6 +1074,8 @@ impl SqliteDriver {
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    table_export: None,
+                    table_import: None,
                     triggers: true,
                     supports_ssl: false,
                     user_management: false,

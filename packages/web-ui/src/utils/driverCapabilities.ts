@@ -80,6 +80,17 @@ export function supportsManageTables(capabilities?: DriverCapabilities | null): 
     return capabilities?.manage_tables !== false;
 }
 
+/** "Export table to SQL" is offered unless the driver opts out. */
+export function supportsTableExport(capabilities?: DriverCapabilities | null): boolean {
+    return capabilities?.table_export !== false;
+}
+
+/** "Import table from SQL" needs a writable driver that doesn't opt out. */
+export function supportsTableImport(capabilities?: DriverCapabilities | null): boolean {
+    if (capabilities?.readonly === true) return false;
+    return capabilities?.table_import !== false;
+}
+
 export function getCapabilitiesForDriver(
     driverId: string,
     drivers: PluginManifest[],
