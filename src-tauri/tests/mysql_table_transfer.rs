@@ -202,6 +202,21 @@ async fn exercise_numeric_extremes(
     )
     .await;
 
+    // The export dialog's estimate, from the table statistics.
+    execute(
+        connection,
+        &format!("ANALYZE TABLE {}.numbers", quoted(source)),
+    )
+    .await;
+    assert_eq!(
+        mysql::get_approximate_row_count(params, "numbers", Some(source)).await,
+        Ok(Some(5))
+    );
+    assert_eq!(
+        mysql::get_approximate_row_count(params, "missing", Some(source)).await,
+        Ok(None)
+    );
+
     assert_eq!(transfer(params, "numbers", source, target).await, (5, 5));
     let compare = |database: &str| {
         format!(

@@ -2246,6 +2246,7 @@
     "importTitle": "Tabelle aus SQL importieren",
     "table": "Tabelle",
     "location": "Datenbank / Schema",
+    "approximateRows": "Ungefähre Zeilenanzahl: {{rows}}",
     "content": "Inhalt",
     "structureAndData": "Struktur und Daten",
     "structureOnly": "Nur Struktur",

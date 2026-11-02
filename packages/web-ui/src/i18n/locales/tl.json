@@ -2310,6 +2310,7 @@
     "importTitle": "Mag-import ng table mula sa SQL",
     "table": "Table",
     "location": "Database / schema",
+    "approximateRows": "Tinatayang bilang ng row: {{rows}}",
     "content": "Nilalaman",
     "structureAndData": "Istruktura at data",
     "structureOnly": "Istruktura lang",

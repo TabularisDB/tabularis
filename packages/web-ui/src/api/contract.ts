@@ -861,6 +861,7 @@ export interface CommandMap {
     get_schemas: CommandDefinition<MetadataRequest, string[], 'database'>;
     get_tables: CommandDefinition<MetadataRequest, TableInfo[], 'database'>;
     get_columns: CommandDefinition<TableMetadataRequest, TableColumn[], 'database'>;
+    get_approximate_row_count: CommandDefinition<TableMetadataRequest, number | null, 'database'>;
     get_foreign_keys: CommandDefinition<TableMetadataRequest, ForeignKey[], 'database'>;
     get_indexes: CommandDefinition<TableMetadataRequest, Index[], 'database'>;
     get_views: CommandDefinition<MetadataRequest, ViewInfo[], 'database'>;

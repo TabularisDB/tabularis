@@ -235,6 +235,10 @@ async fn test_numeric_extremes_round_trip() {
     ))
     .await;
 
+    // The export dialog's estimate: none before the first ANALYZE.
+    let unanalyzed = postgres::get_approximate_row_count(&pg_params(), "numbers", &source).await;
+    run(&format!("ANALYZE {source}.numbers")).await;
+    let analyzed = postgres::get_approximate_row_count(&pg_params(), "numbers", &source).await;
     let imported = round_trip("numbers", &source, &target).await;
     let compare = |schema: &str| {
         format!(
@@ -251,6 +255,8 @@ async fn test_numeric_extremes_round_trip() {
     run(&format!("DROP SCHEMA {source} CASCADE")).await;
     run(&format!("DROP SCHEMA {target} CASCADE")).await;
 
+    assert_eq!(unanalyzed, Ok(None));
+    assert_eq!(analyzed, Ok(Some(7)));
     assert_eq!(imported.expect("round trip"), 7);
     assert_eq!(target_rows.unwrap(), source_rows);
 }

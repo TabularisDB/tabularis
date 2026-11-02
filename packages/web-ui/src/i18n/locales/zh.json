@@ -2199,6 +2199,7 @@
     "importTitle": "从 SQL 导入表",
     "table": "表",
     "location": "数据库 / 模式",
+    "approximateRows": "大约行数：{{rows}}",
     "content": "内容",
     "structureAndData": "结构和数据",
     "structureOnly": "仅结构",

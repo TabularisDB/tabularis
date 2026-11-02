@@ -410,6 +410,7 @@ enum MetadataRpcCommand {
     GetSchemas,
     GetTables,
     GetColumns,
+    GetApproximateRowCount,
     GetForeignKeys,
     GetIndexes,
     GetViews,
@@ -2513,6 +2514,7 @@ impl MetadataRpcCommand {
             "get_schemas" => Self::GetSchemas,
             "get_tables" => Self::GetTables,
             "get_columns" => Self::GetColumns,
+            "get_approximate_row_count" => Self::GetApproximateRowCount,
             "get_foreign_keys" => Self::GetForeignKeys,
             "get_indexes" => Self::GetIndexes,
             "get_views" => Self::GetViews,
@@ -3799,6 +3801,15 @@ fn decode_metadata_command(
         MetadataRpcCommand::GetColumns => {
             let request: TableMetadataRequest = decode_payload(body)?;
             MetadataCommand::GetColumns {
+                connection_id: request.connection_id,
+                table_name: request.table_name,
+                schema: request.schema,
+                database: request.database,
+            }
+        }
+        MetadataRpcCommand::GetApproximateRowCount => {
+            let request: TableMetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetApproximateRowCount {
                 connection_id: request.connection_id,
                 table_name: request.table_name,
                 schema: request.schema,

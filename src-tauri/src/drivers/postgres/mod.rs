@@ -1403,6 +1403,30 @@ pub async fn get_views(params: &ConnectionParams, schema: &str) -> Result<Vec<Vi
     Ok(views)
 }
 
+/// `pg_class.reltuples`, the planner's row estimate; `None` before the
+/// table was first vacuumed or analyzed (-1 since PostgreSQL 14).
+pub async fn get_approximate_row_count(
+    params: &ConnectionParams,
+    table_name: &str,
+    schema: &str,
+) -> Result<Option<u64>, String> {
+    let pool = get_postgres_pool(params).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    let row = client
+        .query_opt(
+            "SELECT c.reltuples::float8 FROM pg_catalog.pg_class c \
+             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace \
+             WHERE n.nspname = $1 AND c.relname = $2",
+            &[&schema, &table_name],
+        )
+        .await
+        .map_err(|e| format!("Failed to read the row estimate: {}", e))?;
+    let estimate = row.and_then(|row| row.try_get::<_, f64>(0).ok());
+    Ok(estimate
+        .filter(|rows| *rows >= 0.0)
+        .map(|rows| rows.round() as u64))
+}
+
 pub async fn get_view_definition(
     params: &ConnectionParams,
     view_name: &str,
@@ -2980,6 +3004,15 @@ impl DatabaseDriver for PostgresDriver {
         schema: Option<&str>,
     ) -> Result<String, String> {
         get_table_ddl(params, table, &self.resolve_schema(schema)).await
+    }
+
+    async fn get_approximate_row_count(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        get_approximate_row_count(params, table, &self.resolve_schema(schema)).await
     }
 
     async fn drop_index(

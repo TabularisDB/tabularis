@@ -1071,6 +1071,18 @@ pub trait DatabaseDriver: Send + Sync {
         Err("Fetching existing table DDL is not supported by this driver".into())
     }
 
+    /// The table's approximate row count from the engine's own statistics,
+    /// shown when exporting a table (#709). Cheap: no table scan. `Ok(None)`
+    /// when the driver has no such estimate.
+    async fn get_approximate_row_count(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        Ok(None)
+    }
+
     /// Renders complete `INSERT` statements for one batch of rows in the
     /// driver's own dialect, for "Export table to SQL" (#709). `rows` are
     /// positional and match `columns`, with values as the driver's own

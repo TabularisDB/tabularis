@@ -45,8 +45,13 @@ function preview(overrides: Partial<TableImportPreview> = {}): TableImportPrevie
     };
 }
 
+// The export dialog asks for the row estimate when it opens.
+const isEstimate = (call: unknown[]) => call[0] === 'get_approximate_row_count';
+const exportCalls = () => mocks.call.mock.calls.filter((call) => !isEstimate(call));
+
 beforeEach(() => {
     mocks.call.mockReset();
+    mocks.call.mockResolvedValue(null);
     mocks.uploadFile.mockReset();
     mocks.requestDownload.mockReset();
     mocks.subscribe.mockClear();
@@ -109,7 +114,7 @@ describe('ExportTableModal', () => {
         await act(async () => {
             fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.export'}));
         });
-        expect(mocks.call).not.toHaveBeenCalled();
+        expect(exportCalls()).toEqual([]);
         expect(screen.getByRole('button', {name: 'tableTransfer.export'})).toBeInTheDocument();
     });
 
@@ -131,7 +136,7 @@ describe('ExportTableModal', () => {
         await act(async () => {
             fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.export'}));
         });
-        expect(mocks.call.mock.calls[0][1]).not.toHaveProperty('filePath');
+        expect(exportCalls()[0][1]).not.toHaveProperty('filePath');
         expect(mocks.requestDownload).toHaveBeenCalledWith('download-token');
         expect(
             await screen.findByText('tableTransfer.generatedStructureExported'),
@@ -194,7 +199,32 @@ describe('ExportTableModal', () => {
             fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.export'}));
         });
         expect(await screen.findByText(/dialog unavailable/)).toBeInTheDocument();
-        expect(mocks.call).not.toHaveBeenCalled();
+        expect(exportCalls()).toEqual([]);
+    });
+
+    it('shows the approximate row count when the driver has one', async () => {
+        mocks.call.mockImplementation((command: string) =>
+            Promise.resolve(command === 'get_approximate_row_count' ? 128400 : null),
+        );
+        render(<ExportTableModal {...props()} />);
+        expect(
+            await screen.findByText(
+                `tableTransfer.approximateRows ${JSON.stringify({rows: (128400).toLocaleString()})}`,
+            ),
+        ).toBeInTheDocument();
+        expect(mocks.call).toHaveBeenCalledWith('get_approximate_row_count', {
+            connectionId: 'connection-1',
+            tableName: 'orders',
+            schema: 'public',
+            database: 'shop',
+        });
+    });
+
+    it('shows no row count when the driver has none or the call fails', async () => {
+        mocks.call.mockRejectedValue(new Error('not supported'));
+        render(<ExportTableModal {...props()} />);
+        await act(async () => {});
+        expect(screen.queryByText(/tableTransfer.approximateRows/)).not.toBeInTheDocument();
     });
 });
 

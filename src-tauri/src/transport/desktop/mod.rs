@@ -406,6 +406,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::set_selected_databases,
             commands::get_tables,
             commands::get_columns,
+            commands::get_approximate_row_count,
             commands::get_foreign_keys,
             commands::get_indexes,
             commands::delete_record,

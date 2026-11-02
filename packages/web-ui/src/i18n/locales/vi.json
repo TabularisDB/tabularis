@@ -2334,6 +2334,7 @@
     "importTitle": "Nhập bảng từ SQL",
     "table": "Bảng",
     "location": "Cơ sở dữ liệu / schema",
+    "approximateRows": "Số dòng ước tính: {{rows}}",
     "content": "Nội dung",
     "structureAndData": "Cấu trúc và dữ liệu",
     "structureOnly": "Chỉ cấu trúc",

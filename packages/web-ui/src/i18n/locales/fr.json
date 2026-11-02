@@ -2320,6 +2320,7 @@
     "importTitle": "Importer une table depuis SQL",
     "table": "Table",
     "location": "Base de données / schéma",
+    "approximateRows": "Nombre de lignes approximatif : {{rows}}",
     "content": "Contenu",
     "structureAndData": "Structure et données",
     "structureOnly": "Structure seule",

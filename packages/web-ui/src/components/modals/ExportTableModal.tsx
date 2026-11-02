@@ -48,6 +48,7 @@ export const ExportTableModal = ({
     const [content, setContent] = useState<TableSqlContent>('structure_and_data');
     const [isChoosingTarget, setIsChoosingTarget] = useState(false);
     const [run, setRun] = useState<ExportRun | null>(null);
+    const [approximateRows, setApproximateRows] = useState<number | null>(null);
     const runningRef = useRef(false);
     const mountedRef = useRef(false);
     const runStatus = run?.status;
@@ -58,6 +59,28 @@ export const ExportTableModal = ({
             mountedRef.current = false;
         };
     }, []);
+
+    // The engine's own row estimate, when the driver has one (#709).
+    useEffect(() => {
+        if (!isOpen) return;
+        let current = true;
+        client
+            .call('get_approximate_row_count', {
+                connectionId,
+                tableName: table,
+                ...(schema ? {schema} : {}),
+                ...(database ? {database} : {}),
+            })
+            .then((rows) => {
+                if (current) setApproximateRows(typeof rows === 'number' ? rows : null);
+            })
+            .catch(() => {
+                if (current) setApproximateRows(null);
+            });
+        return () => {
+            current = false;
+        };
+    }, [client, connectionId, database, isOpen, schema, table]);
 
     useEffect(() => {
         if (runStatus !== 'exporting') return;
@@ -211,6 +234,13 @@ export const ExportTableModal = ({
                             <div className="font-medium text-primary truncate" title={table}>
                                 {table}
                             </div>
+                            {approximateRows !== null && (
+                                <div className="text-xs text-secondary">
+                                    {t('tableTransfer.approximateRows', {
+                                        rows: approximateRows.toLocaleString(),
+                                    })}
+                                </div>
+                            )}
                         </div>
                         {location && (
                             <div className="min-w-0 text-right">

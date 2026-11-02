@@ -1084,6 +1084,29 @@ pub async fn get_table_ddl(params: &ConnectionParams, table_name: &str) -> Resul
     Ok(format!("{};", create_sql))
 }
 
+/// `information_schema.TABLES.TABLE_ROWS`: exact for MyISAM, an estimate
+/// for InnoDB.
+pub async fn get_approximate_row_count(
+    params: &ConnectionParams,
+    table_name: &str,
+    schema: Option<&str>,
+) -> Result<Option<u64>, String> {
+    let db_name = schema.unwrap_or_else(|| params.database.primary());
+    let pool = get_mysql_pool(params).await?;
+    let text = resolve_text_proto(&pool, params).await?;
+    let rows = fetch_all_rows(
+        &pool,
+        text,
+        "SELECT CAST(table_rows AS CHAR) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
+        &[db_name, table_name],
+    )
+    .await?;
+    Ok(rows
+        .first()
+        .and_then(|row| mysql_row_str_opt(row, 0))
+        .and_then(|rows| rows.parse().ok()))
+}
+
 pub async fn get_views(
     params: &ConnectionParams,
     schema: Option<&str>,
@@ -2690,6 +2713,15 @@ impl DatabaseDriver for MysqlDriver {
         _schema: Option<&str>,
     ) -> Result<String, String> {
         get_table_ddl(params, table).await
+    }
+
+    async fn get_approximate_row_count(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        get_approximate_row_count(params, table, schema).await
     }
 
     async fn drop_index(

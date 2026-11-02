@@ -2294,6 +2294,7 @@
     "importTitle": "Importar tabela de SQL",
     "table": "Tabela",
     "location": "Banco de dados / esquema",
+    "approximateRows": "Linhas aproximadas: {{rows}}",
     "content": "Conteúdo",
     "structureAndData": "Estrutura e dados",
     "structureOnly": "Somente estrutura",

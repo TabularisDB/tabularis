@@ -1272,6 +1272,10 @@ async fn routes_all_metadata_commands_through_the_shared_application_api() {
             serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
         ),
         (
+            "get_approximate_row_count",
+            serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
+        ),
+        (
             "get_foreign_keys",
             serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
         ),

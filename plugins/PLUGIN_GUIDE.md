@@ -1942,6 +1942,18 @@ batch itself. Any other error stops the export.
 
 ---
 
+#### `get_approximate_row_count` *(optional)*
+
+The table's approximate row count from the engine's own statistics, shown in
+the **Export table to SQL...** dialog. Keep it cheap: no table scan. Return
+`null` when there is no estimate; `-32601` Method not found shows none.
+
+**Params:** `{ "params": ConnectionParams, "table": string, "schema": string | null }`
+
+**Result:** `128400`
+
+---
+
 ## 6. Example: Building a Minimal Plugin in Rust
 
 Here is a minimal but functional skeleton for a plugin executable in Rust.

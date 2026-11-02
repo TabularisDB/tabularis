@@ -2295,6 +2295,7 @@
     "importTitle": "Импорт таблицы из SQL",
     "table": "Таблица",
     "location": "База данных / схема",
+    "approximateRows": "Примерное число строк: {{rows}}",
     "content": "Содержимое",
     "structureAndData": "Структура и данные",
     "structureOnly": "Только структура",

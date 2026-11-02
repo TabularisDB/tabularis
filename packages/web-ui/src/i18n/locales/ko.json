@@ -2254,6 +2254,7 @@
     "importTitle": "SQL에서 테이블 가져오기",
     "table": "테이블",
     "location": "데이터베이스 / 스키마",
+    "approximateRows": "대략적인 행 수: {{rows}}",
     "content": "내용",
     "structureAndData": "구조 및 데이터",
     "structureOnly": "구조만",

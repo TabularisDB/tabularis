@@ -2291,6 +2291,7 @@
     "importTitle": "SQL からテーブルをインポート",
     "table": "テーブル",
     "location": "データベース / スキーマ",
+    "approximateRows": "おおよその行数: {{rows}}",
     "content": "内容",
     "structureAndData": "構造とデータ",
     "structureOnly": "構造のみ",
