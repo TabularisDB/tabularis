@@ -2209,6 +2209,19 @@ where
     }
 }
 
+/// Like [`test_driver_result`], with the plugin's own manifest: its id is
+/// the driver id connections use, and its capabilities drive the host.
+#[cfg(test)]
+pub(crate) fn test_driver_with_manifest<F>(manifest: PluginManifest, handle_request: F) -> RpcDriver
+where
+    F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
+{
+    RpcDriver {
+        manifest,
+        ..test_driver_result(handle_request)
+    }
+}
+
 /// Like [`test_driver_result`], but lets the handler return a raw
 /// [`PluginCallError`] instead of always getting wrapped into `Transport` —
 /// needed to simulate a real JSON-RPC `Remote` error (with a `code`) for

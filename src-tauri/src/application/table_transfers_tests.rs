@@ -491,6 +491,11 @@ mod sqlite_round_trip {
     async fn fixture() -> Fixture {
         crate::drivers::registry::register_driver(crate::drivers::sqlite::SqliteDriver::new())
             .await;
+        fixture_for("sqlite")
+    }
+
+    /// Two SQLite files saved as connections `source` and `target` of `driver`.
+    fn fixture_for(driver: &str) -> Fixture {
         let temp = tempfile::tempdir().unwrap();
         let dir = temp.path().to_path_buf();
         let runtime = RuntimeContext::new(
@@ -506,7 +511,7 @@ mod sqlite_round_trip {
                 crate::models::SavedConnection {
                     id: id.to_string(),
                     name: id.to_string(),
-                    params: params_for(&path),
+                    params: params_for(&path, driver),
                     plugin_secret_keys: Vec::new(),
                     group_id: None,
                     sort_order: None,
@@ -532,9 +537,9 @@ mod sqlite_round_trip {
         }
     }
 
-    fn params_for(path: &Path) -> ConnectionParams {
+    fn params_for(path: &Path, driver: &str) -> ConnectionParams {
         ConnectionParams {
-            driver: "sqlite".to_string(),
+            driver: driver.to_string(),
             database: DatabaseSelection::Single(path.to_string_lossy().into_owned()),
             ..Default::default()
         }
@@ -542,7 +547,7 @@ mod sqlite_round_trip {
 
     impl Fixture {
         fn params(&self, id: &str) -> ConnectionParams {
-            params_for(&self.dir.join(format!("{id}.sqlite")))
+            params_for(&self.dir.join(format!("{id}.sqlite")), "sqlite")
         }
 
         async fn run(&self, id: &str, sql: &str) -> crate::models::QueryResult {
@@ -772,6 +777,165 @@ mod sqlite_round_trip {
                 ["3.00000000000000044e-01", "real"]
             ])
         );
+    }
+
+    /// A plugin driver as the host sees it, over JSON-RPC, answered by the
+    /// built-in SQLite driver. With `own_methods` it also implements the
+    /// optional `get_table_ddl` and `render_insert_statements`; its INSERTs
+    /// then carry a `/* plugin */` marker, one row each.
+    async fn register_sqlite_plugin(id: &str, own_methods: bool) {
+        use crate::drivers::sqlite::SqliteDriver;
+
+        let mut manifest = SqliteDriver::new().manifest().clone();
+        manifest.id = id.to_string();
+        manifest.name = id.to_string();
+        manifest.is_builtin = false;
+        let driver = crate::plugins::driver::test_driver_with_manifest(manifest, move |request| {
+            let sqlite = SqliteDriver::new();
+            let args = request.params;
+            let text = |key: &str| args[key].as_str().map(str::to_string);
+            let params = || {
+                let mut params: ConnectionParams =
+                    serde_json::from_value(args["params"].clone()).unwrap();
+                params.driver = "sqlite".to_string();
+                params
+            };
+            fn to_json(value: impl serde::Serialize) -> Result<serde_json::Value, String> {
+                serde_json::to_value(value).map_err(|e| e.to_string())
+            }
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let schema = text("schema");
+                    match request.method.as_str() {
+                        "get_tables" => {
+                            to_json(sqlite.get_tables(&params(), schema.as_deref()).await?)
+                        }
+                        "get_columns" => to_json(
+                            sqlite
+                                .get_columns(&params(), &text("table").unwrap(), schema.as_deref())
+                                .await?,
+                        ),
+                        "execute_query" => to_json(
+                            sqlite
+                                .execute_query(
+                                    &params(),
+                                    &text("query").unwrap(),
+                                    args["limit"].as_u64().map(|limit| limit as u32),
+                                    args["page"].as_u64().unwrap_or(1) as u32,
+                                    schema.as_deref(),
+                                )
+                                .await?,
+                        ),
+                        "get_create_table_sql" => to_json(
+                            sqlite
+                                .get_create_table_sql(
+                                    &text("table_name").unwrap(),
+                                    serde_json::from_value(args["columns"].clone()).unwrap(),
+                                    schema.as_deref(),
+                                )
+                                .await?,
+                        ),
+                        "get_table_ddl" if own_methods => to_json(
+                            sqlite
+                                .get_table_ddl(&params(), &text("table").unwrap(), schema.as_deref())
+                                .await?,
+                        ),
+                        "render_insert_statements" if own_methods => {
+                            let columns: Vec<String> =
+                                serde_json::from_value(args["columns"].clone()).unwrap();
+                            let rows: Vec<Vec<serde_json::Value>> =
+                                serde_json::from_value(args["rows"].clone()).unwrap();
+                            let dialect = dialect("\"", false);
+                            let names = columns
+                                .iter()
+                                .map(|column| dialect.quote_identifier(column))
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            let table = dialect.quote_identifier(&text("table").unwrap());
+                            to_json(
+                                rows.into_iter()
+                                    .map(|row| {
+                                        let values = row
+                                            .into_iter()
+                                            .map(|value| {
+                                                SqlCell {
+                                                    value,
+                                                    is_json: false,
+                                                }
+                                                .render(&dialect)
+                                            })
+                                            .collect::<Vec<_>>()
+                                            .join(", ");
+                                        format!(
+                                            "/* plugin */ INSERT INTO {table} ({names}) VALUES ({values});"
+                                        )
+                                    })
+                                    .collect::<Vec<_>>(),
+                            )
+                        }
+                        _ => Err("Method not found (-32601)".to_string()),
+                    }
+                })
+            })
+        });
+        crate::drivers::registry::register_driver(driver).await;
+    }
+
+    /// Exports and imports a table through a fake plugin driver and returns
+    /// the file plus `query`'s rows on the target and the source. The driver
+    /// is registered only for the round trip, under the registry test lock,
+    /// so the registry's own tests never see it.
+    async fn plugin_round_trip(
+        id: &str,
+        own_methods: bool,
+        query: &str,
+    ) -> (
+        String,
+        Vec<Vec<serde_json::Value>>,
+        Vec<Vec<serde_json::Value>>,
+    ) {
+        let _guard = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+        register_sqlite_plugin(id, own_methods).await;
+        let fixture = fixture_for(id);
+        fixture.seed().await;
+        let (path, result) = fixture.export(TableSqlContent::StructureAndData).await;
+        assert_eq!(result.rows, 1203);
+        let imported = fixture.import(&path, IfTableExists::Fail).await.unwrap();
+        assert_eq!(imported.rows, 1203);
+        assert_eq!(fixture.rows("target").await, fixture.rows("source").await);
+        let target = fixture.run("target", query).await.rows;
+        let source = fixture.run("source", query).await.rows;
+        crate::drivers::registry::unregister_driver(id).await;
+        (fs::read_to_string(&path).unwrap(), target, source)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn round_trips_through_a_plugin_without_optional_methods() {
+        // The generated structure keeps the primary key.
+        let pk = "SELECT name FROM pragma_table_info('items') WHERE pk = 1";
+        let (text, target, _) = plugin_round_trip("table-transfer-plain-plugin", false, pk).await;
+
+        assert!(text.contains("-- Driver: table-transfer-plain-plugin\n"));
+        assert!(text.contains("-- Driver-Version: "));
+        assert!(text.contains("-- Structure-Source: generated\n"));
+        assert!(!text.contains("/* plugin */"));
+        // The host renderer batches 500 rows per INSERT.
+        assert_eq!(text.matches("INSERT INTO").count(), 3);
+        assert_eq!(target, [[serde_json::json!("id")]]);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn round_trips_through_a_plugin_with_its_own_ddl_and_literals() {
+        let ddl = "SELECT sql FROM sqlite_master WHERE name = 'items'";
+        let (text, target, source) =
+            plugin_round_trip("table-transfer-own-plugin", true, ddl).await;
+
+        assert!(text.contains("-- Driver: table-transfer-own-plugin\n"));
+        assert!(text.contains("-- Structure-Source: driver\n"));
+        // Every INSERT is the plugin's own.
+        assert_eq!(text.matches("/* plugin */ INSERT INTO").count(), 1203);
+        assert_eq!(text.matches("INSERT INTO").count(), 1203);
+        assert_eq!(target, source);
     }
 
     #[tokio::test]
