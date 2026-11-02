@@ -135,6 +135,11 @@
           "default": false,
           "description": "Column statistics popover through the optional get_column_stats RPC. When false, plugins with a postgres, mysql or sqlite sql_dialect keep the host's generic SQL and the others don't show the entry."
         },
+        "unix_socket": {
+          "type": "boolean",
+          "default": false,
+          "description": "true if the driver supports connecting through a local Unix socket file instead of TCP host:port."
+        },
         "no_connection_required": {
           "type": "boolean",
           "description": "API-based driver with no host/port/credentials. Hides the connection form entirely."

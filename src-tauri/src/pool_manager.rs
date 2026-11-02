@@ -262,11 +262,20 @@ pub(crate) fn build_connection_key(
         // targets behind a single host:port and pick the backend from the
         // username, so without it two different targets would share one pool and
         // serve each other's databases.
+        // A local socket replaces host:port as the endpoint, so it must key the
+        // pool the same way host:port does.
+        let endpoint = match params.local_unix_socket_path() {
+            Some(socket) => format!("socket:{socket}"),
+            None => format!(
+                "{}:{}",
+                params.host.as_deref().unwrap_or("localhost"),
+                params.port.unwrap_or(0)
+            ),
+        };
         format!(
-            "{}:{}:{}:{}:{}",
+            "{}:{}:{}:{}",
             params.driver,
-            params.host.as_deref().unwrap_or("localhost"),
-            params.port.unwrap_or(0),
+            endpoint,
             params.username.as_deref().unwrap_or(""),
             params.database
         )
@@ -304,6 +313,24 @@ pub(crate) fn build_mysql_options(
     let port = params.port.unwrap_or(3306);
     let database = override_db.unwrap_or_else(|| params.database.primary());
     let timezone = mysql_string_setting("timezone", DEFAULT_MYSQL_TIMEZONE);
+    // A local Unix socket replaces host:port (`None` while a tunnel is enabled:
+    // the tunnel owns the route then, see `local_unix_socket_path`).
+    let local_socket = params.local_unix_socket_path();
+
+    if local_socket.is_some() {
+        if cfg!(windows) {
+            return Err("Unix socket connections are not supported on Windows. \
+                 Connect with host and port instead."
+                .to_string());
+        }
+        if params.use_iam_auth.unwrap_or(false) {
+            return Err(
+                "AWS IAM authentication requires a TLS connection to RDS and \
+                 cannot be used over a Unix socket."
+                    .to_string(),
+            );
+        }
+    }
 
     // ssl_mode: user-selected, with auto-escalation to VerifyCa when an ssl_ca
     // is supplied under Required/Preferred. sqlx-mysql only forwards the CA
@@ -317,8 +344,14 @@ pub(crate) fn build_mysql_options(
     // Unset keeps the historical default (`required`): encrypted, certificate
     // not verified. An unrecognised value is an error — it must not silently
     // fall back to that default.
-    let mut ssl_mode =
-        parse_mysql_ssl_mode(non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("required"))?;
+    // TLS cannot be negotiated over a local Unix socket (and the traffic never
+    // leaves the machine): the TCP default `required` would fail the handshake
+    // there, so a socket connection forces it off and ignores the SSL files.
+    let mut ssl_mode = if local_socket.is_some() {
+        MySqlSslMode::Disabled
+    } else {
+        parse_mysql_ssl_mode(non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("required"))?
+    };
     // Auto-escalate Required/Preferred + ssl_ca to VerifyCa only for IAM
     // connections. For IAM the chain must be validated because the
     // pre-signed RDS auth token only travels safely over a verified
@@ -369,9 +402,10 @@ pub(crate) fn build_mysql_options(
     }
 
     log::info!(
-        "build_mysql_options: driver=mysql host={host} port={port} \
+        "build_mysql_options: driver=mysql host={host} port={port} socket={:?} \
          ssl_mode_param={:?} ssl_ca_present={} effective_ssl_mode={:?} \
          iam_auth={} password_len={}",
+        local_socket,
         params.ssl_mode,
         has_user_ca,
         ssl_mode,
@@ -379,9 +413,11 @@ pub(crate) fn build_mysql_options(
         password.len(),
     );
 
-    let mut options = MySqlConnectOptions::new()
-        .host(host)
-        .port(port)
+    let options = match local_socket {
+        Some(socket) => MySqlConnectOptions::new().socket(socket),
+        None => MySqlConnectOptions::new().host(host).port(port),
+    };
+    let mut options = options
         .username(username)
         .timezone(timezone)
         .ssl_mode(ssl_mode);
@@ -400,26 +436,31 @@ pub(crate) fn build_mysql_options(
         options = options.password(password);
     }
 
-    if let Some(ca) = &params.ssl_ca {
-        options = options.ssl_ca(ca);
-    }
-    if let Some(cert) = &params.ssl_cert {
-        options = options.ssl_client_cert(cert);
-    }
-    if let Some(key) = &params.ssl_key {
-        options = options.ssl_client_key(key);
+    if local_socket.is_none() {
+        if let Some(ca) = &params.ssl_ca {
+            options = options.ssl_ca(ca);
+        }
+        if let Some(cert) = &params.ssl_cert {
+            options = options.ssl_client_cert(cert);
+        }
+        if let Some(key) = &params.ssl_key {
+            options = options.ssl_client_key(key);
+        }
     }
 
     // Optionally enable the mysql_clear_password (cleartext) auth plugin, used by
     // bastions like Warpgate. Cleartext credentials must never be sent over an
     // unencrypted link, so require a TLS mode that actually guarantees
     // encryption. `Preferred` only attempts TLS and silently falls back to
-    // plaintext, so it is rejected alongside `Disabled`.
+    // plaintext, so it is rejected alongside `Disabled`. A local Unix socket is
+    // exempt: its traffic never crosses a network link.
     if params.enable_cleartext_plugin.unwrap_or(false) {
-        if !matches!(
-            ssl_mode,
-            MySqlSslMode::Required | MySqlSslMode::VerifyCa | MySqlSslMode::VerifyIdentity
-        ) {
+        if local_socket.is_none()
+            && !matches!(
+                ssl_mode,
+                MySqlSslMode::Required | MySqlSslMode::VerifyCa | MySqlSslMode::VerifyIdentity
+            )
+        {
             return Err(
                 "Cleartext password plugin requires an enforced TLS/SSL mode \
                 (Required, Verify CA, or Verify Identity). Preferred is not enough \
@@ -507,13 +548,54 @@ pub(crate) fn is_pipes_as_concat_unsupported(err: &str) -> bool {
     err.contains("pipes_as_concat") || err.contains("no_engine_substitution")
 }
 
+/// Split a user-entered PostgreSQL socket path into what tokio_postgres wants:
+/// the *directory* holding the socket plus the port that names it. Users point
+/// at the socket file (`/var/run/postgresql/.s.PGSQL.5432`), matching the SSH
+/// forward field; a path whose last component is not `.s.PGSQL.<port>` is
+/// taken as the directory itself, paired with `default_port`.
+#[cfg_attr(not(unix), allow(dead_code))]
+pub(crate) fn split_postgres_socket_path(path: &str, default_port: u16) -> (String, u16) {
+    if let Some((dir, file)) = path.rsplit_once('/') {
+        if let Some(port) = file
+            .strip_prefix(".s.PGSQL.")
+            .and_then(|p| p.parse::<u16>().ok())
+        {
+            let dir = if dir.is_empty() { "/" } else { dir };
+            return (dir.to_string(), port);
+        }
+    }
+    (path.to_string(), default_port)
+}
+
 pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> Result<PgConfig, String> {
     let mut cfg = PgConfig::new();
     cfg.user(params.username.as_deref().unwrap_or_default())
         .password(params.password.as_deref().unwrap_or_default())
-        .port(params.port.unwrap_or(5432))
-        .host(params.host.as_deref().unwrap_or_default())
         .dbname(&format!("{}", params.database));
+
+    if let Some(socket) = params.local_unix_socket_path() {
+        // tokio_postgres only dials Unix sockets on Unix platforms.
+        #[cfg(unix)]
+        {
+            let (dir, port) = split_postgres_socket_path(socket, params.port.unwrap_or(5432));
+            cfg.host_path(dir).port(port);
+            // TLS cannot be negotiated over a local Unix socket, and the traffic
+            // never leaves the machine: force it off so `prefer`-style defaults
+            // don't stall the handshake.
+            cfg.ssl_mode(PgSslMode::Disable);
+            return Ok(cfg);
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = socket;
+            return Err("Unix socket connections are not supported on Windows. \
+                 Connect with host and port instead."
+                .to_string());
+        }
+    }
+
+    cfg.port(params.port.unwrap_or(5432))
+        .host(params.host.as_deref().unwrap_or_default());
 
     // Unset leaves tokio_postgres's default (`Prefer`). A set but unknown
     // mode is a connection error rather than that default.

@@ -293,6 +293,7 @@ fn plugin_manifest() -> PluginManifest {
             alter_column: true,
             create_foreign_keys: true,
             no_connection_required: false,
+            unix_socket: false,
             manage_tables: true,
             explain: true,
             readonly: false,

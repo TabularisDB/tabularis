@@ -138,6 +138,11 @@
           "default": "",
           "description": "CamelCase alias of connection_string_example."
         },
+        "unix_socket": {
+          "type": "boolean",
+          "default": false,
+          "description": "true if the driver supports connecting through a local Unix socket file instead of TCP host:port."
+        },
         "connection_string_examples": {
           "type": "array",
           "description": "Optional connection string presets shown in the connection form.",

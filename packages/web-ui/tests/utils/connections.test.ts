@@ -14,6 +14,10 @@ import {
     planGroupDrop,
     connectionDropZone,
     groupDropZone,
+    unixSocketPathIssue,
+    effectiveLocalSocketPath,
+    hasUnixSockets,
+    isSocketEligible,
     type ConnectionParams,
     type DatabaseDriver,
 } from '@/utils/connections';
@@ -1036,6 +1040,248 @@ describe('connections', () => {
 
         it('does nothing when dropped on itself', () => {
             expect(planGroupDrop(groups, 'pg', 'pg', 'before')).toBeNull();
+        });
+    });
+    describe('hasUnixSockets', () => {
+        it('is false only on Windows', () => {
+            expect(hasUnixSockets('Win32')).toBe(false);
+            expect(hasUnixSockets('MacIntel')).toBe(true);
+            expect(hasUnixSockets('Linux x86_64')).toBe(true);
+        });
+    });
+
+    describe('isSocketEligible', () => {
+        const socketCaps: DriverCapabilities = {
+            ...makeRemoteCaps(),
+            unix_socket: true,
+        };
+
+        it('is true for a unix_socket capable driver on a unix platform', () => {
+            expect(isSocketEligible(socketCaps, null, 'Linux x86_64')).toBe(true);
+            expect(isSocketEligible(socketCaps, null, 'MacIntel')).toBe(true);
+        });
+
+        it('is false for a local socket on Windows', () => {
+            expect(isSocketEligible(socketCaps, null, 'Win32')).toBe(false);
+            expect(isSocketEligible(socketCaps, {ssh_enabled: false}, 'Win32')).toBe(false);
+        });
+
+        it('is true on Windows when SSH tunnel is enabled', () => {
+            expect(isSocketEligible(socketCaps, {ssh_enabled: true}, 'Win32')).toBe(true);
+        });
+
+        it('is true when SSH is enabled even if driver lacks local unix_socket capability', () => {
+            expect(isSocketEligible(makeRemoteCaps(), {ssh_enabled: true}, 'Linux x86_64')).toBe(
+                true,
+            );
+            expect(isSocketEligible(null, {ssh_enabled: true}, 'Win32')).toBe(true);
+        });
+
+        it('is false when driver lacks unix_socket capability and SSH is not enabled', () => {
+            expect(isSocketEligible(makeRemoteCaps(), null, 'Linux x86_64')).toBe(false);
+            expect(isSocketEligible(null, null, 'Linux x86_64')).toBe(false);
+        });
+
+        it('is false when Kubernetes tunnel is enabled', () => {
+            expect(isSocketEligible(socketCaps, {k8s_enabled: true}, 'Linux x86_64')).toBe(false);
+            expect(
+                isSocketEligible(
+                    socketCaps,
+                    {ssh_enabled: true, k8s_enabled: true},
+                    'Linux x86_64',
+                ),
+            ).toBe(false);
+        });
+
+        it('is false when AWS SSM tunnel is enabled', () => {
+            expect(isSocketEligible(socketCaps, {ssm_enabled: true}, 'Linux x86_64')).toBe(false);
+            expect(
+                isSocketEligible(
+                    socketCaps,
+                    {ssh_enabled: true, ssm_enabled: true},
+                    'Linux x86_64',
+                ),
+            ).toBe(false);
+        });
+
+        it('is false when URI passthrough is active', () => {
+            const uriCaps: DriverCapabilities = {
+                ...socketCaps,
+                connection_uri: true,
+            };
+            expect(isSocketEligible(uriCaps, null, 'Linux x86_64')).toBe(false);
+            expect(isSocketEligible(uriCaps, {ssh_enabled: true}, 'Linux x86_64')).toBe(false);
+
+            const camelUriCaps: DriverCapabilities = {
+                ...socketCaps,
+                connectionUri: true,
+            };
+            expect(isSocketEligible(camelUriCaps, null, 'Linux x86_64')).toBe(false);
+        });
+    });
+
+    describe('unixSocketPathIssue', () => {
+        it('should accept an empty path', () => {
+            expect(unixSocketPathIssue('')).toBeNull();
+            expect(unixSocketPathIssue('   ')).toBeNull();
+        });
+
+        it('should accept an absolute socket file path', () => {
+            expect(unixSocketPathIssue('/var/run/mysqld/mysqld.sock')).toBeNull();
+            expect(unixSocketPathIssue('/var/run/postgresql/.s.PGSQL.5432')).toBeNull();
+        });
+
+        it('should flag a relative path', () => {
+            expect(unixSocketPathIssue('mysqld.sock')).toBe('notAbsolute');
+            expect(unixSocketPathIssue('run/mysqld/mysqld.sock')).toBe('notAbsolute');
+        });
+
+        it('should flag a directory-looking path', () => {
+            expect(unixSocketPathIssue('/var/run/mysqld/')).toBe('looksLikeDirectory');
+            expect(unixSocketPathIssue('/')).toBe('looksLikeDirectory');
+        });
+
+        it('should trim surrounding whitespace before checking', () => {
+            expect(unixSocketPathIssue('  /tmp/db.sock  ')).toBeNull();
+            expect(unixSocketPathIssue('  tmp/db.sock  ')).toBe('notAbsolute');
+        });
+    });
+
+    describe('effectiveLocalSocketPath', () => {
+        it('should return the trimmed socket path when set', () => {
+            expect(effectiveLocalSocketPath({unix_socket_path: ' /tmp/mysql.sock '})).toBe(
+                '/tmp/mysql.sock',
+            );
+        });
+
+        it('should return null when unset or blank', () => {
+            expect(effectiveLocalSocketPath({})).toBeNull();
+            expect(effectiveLocalSocketPath({unix_socket_path: ''})).toBeNull();
+            expect(effectiveLocalSocketPath({unix_socket_path: '   '})).toBeNull();
+        });
+
+        it('should return null while an SSH, K8s, or AWS SSM tunnel is enabled', () => {
+            expect(
+                effectiveLocalSocketPath({unix_socket_path: '/tmp/mysql.sock', ssh_enabled: true}),
+            ).toBeNull();
+            expect(
+                effectiveLocalSocketPath({unix_socket_path: '/tmp/mysql.sock', k8s_enabled: true}),
+            ).toBeNull();
+            expect(
+                effectiveLocalSocketPath({unix_socket_path: '/tmp/mysql.sock', ssm_enabled: true}),
+            ).toBeNull();
+        });
+    });
+
+    describe('local unix socket connections', () => {
+        it('formatConnectionString should show the socket path instead of host:port', () => {
+            const params: ConnectionParams = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+            };
+            expect(formatConnectionString(params)).toBe('/tmp/mysql.sock (mydb)');
+        });
+
+        it('formatConnectionString should ignore the socket while a tunnel is enabled', () => {
+            const params: ConnectionParams = {
+                driver: 'mysql',
+                database: 'mydb',
+                host: 'db.host',
+                port: 3306,
+                unix_socket_path: '/tmp/mysql.sock',
+                ssh_enabled: true,
+            };
+            expect(formatConnectionString(params)).toBe('db.host:3306/mydb');
+        });
+
+        it('validateConnectionParams should not require host when a socket is set', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+            };
+            expect(validateConnectionParams(params).isValid).toBe(true);
+        });
+
+        it('validateConnectionParams should not require host for an SSH-forwarded socket', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/var/run/mysqld/mysqld.sock',
+                ssh_enabled: true,
+                ssh_host: 'bastion.example.com',
+                ssh_user: 'deploy',
+                ssh_password: 'secret',
+            };
+            expect(validateConnectionParams(params).isValid).toBe(true);
+        });
+
+        it('validateConnectionParams should ignore a socket path for Kubernetes', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+                k8s_enabled: true,
+            };
+            const result = validateConnectionParams(params);
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Host is required for remote databases');
+        });
+
+        it('validateConnectionParams should capability-gate a local socket', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'custom',
+                database: 'mydb',
+                unix_socket_path: '/tmp/custom.sock',
+            };
+            const result = validateConnectionParams(params, makeRemoteCaps());
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Host is required for remote databases');
+        });
+
+        it('validateConnectionParams should still require host when the socket is blank', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '   ',
+            };
+            const result = validateConnectionParams(params);
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Host is required for remote databases');
+        });
+
+        it('validateConnectionParams should require host when socket is set but K8s or SSM tunnel is enabled', () => {
+            const k8sParams: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+                k8s_enabled: true,
+            };
+            expect(validateConnectionParams(k8sParams).isValid).toBe(false);
+
+            const ssmParams: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+                ssm_enabled: true,
+            };
+            expect(validateConnectionParams(ssmParams).isValid).toBe(false);
+        });
+
+        it('connectionSubtitle should show the socket path instead of host:port', () => {
+            const conn: SavedConnection = {
+                id: '1',
+                name: 'test',
+                params: {
+                    driver: 'postgres',
+                    database: 'mydb',
+                    unix_socket_path: '/var/run/postgresql/.s.PGSQL.5432',
+                },
+            };
+            expect(connectionSubtitle(conn, makeRemoteCaps())).toBe(
+                '/var/run/postgresql/.s.PGSQL.5432  ·  mydb',
+            );
         });
     });
 });
