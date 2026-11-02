@@ -209,6 +209,13 @@ describe('DataGrid find in results (#1298)', () => {
         expect(findState()).toEqual(['0:2:current', '1:2:match', '3:2:match']);
     });
 
+    it('never matches cells of hidden columns', () => {
+        const {search, findState} = renderFindGrid({hiddenColumns: new Set([1])});
+        search('refund');
+        expect(findState()).toEqual([]);
+        expect(screen.getAllByText('dataGrid.find.noResults').length).toBeGreaterThan(0);
+    });
+
     it('never matches NULL cells', () => {
         const {search, findState} = renderFindGrid({columns: ['id', 'status', 'note']});
         search('null');
