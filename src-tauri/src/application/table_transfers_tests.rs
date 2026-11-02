@@ -939,6 +939,26 @@ mod sqlite_round_trip {
     }
 
     #[tokio::test]
+    async fn keeps_the_table_indexes() {
+        let fixture = fixture().await;
+        fixture.seed().await;
+        for index in [
+            "CREATE INDEX items_name ON items (name)",
+            "CREATE UNIQUE INDEX items_note ON items (note, id)",
+            "CREATE INDEX items_active ON items (price DESC) WHERE active = 1",
+        ] {
+            fixture.run("source", index).await;
+        }
+        let (path, _) = fixture.export(TableSqlContent::StructureAndData).await;
+        fixture.import(&path, IfTableExists::Fail).await.unwrap();
+
+        let indexes = "SELECT name, sql FROM sqlite_master WHERE type = 'index' ORDER BY name";
+        let source = fixture.run("source", indexes).await.rows;
+        assert_eq!(source.len(), 3);
+        assert_eq!(fixture.run("target", indexes).await.rows, source);
+    }
+
+    #[tokio::test]
     async fn exports_and_imports_structure_and_data() {
         let fixture = fixture().await;
         fixture.seed().await;

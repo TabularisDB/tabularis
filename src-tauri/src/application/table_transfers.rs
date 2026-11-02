@@ -579,6 +579,11 @@ async fn write_table_export(
     let _body_guard = RemoveOnDrop::new(body_path.clone());
     let mut body = BufWriter::new(create_private_file(&body_path)?);
     let io = |error: std::io::Error| error.to_string();
+    if driver == "mysql" {
+        // The `mysql` client reads a file in its own default character set,
+        // which may not be UTF-8; mysqldump starts the same way.
+        writeln!(body, "SET NAMES utf8mb4;\n").map_err(io)?;
+    }
     writeln!(body, "{}", section_marker(SECTION_STRUCTURE)).map_err(io)?;
     writeln!(body, "{structure}\n").map_err(io)?;
     let mut rows = 0;

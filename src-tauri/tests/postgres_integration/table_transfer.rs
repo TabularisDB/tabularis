@@ -106,6 +106,14 @@ async fn test_table_round_trips_into_another_schema() {
     ))
     .await;
     run(&format!(
+        "CREATE INDEX orders_note ON {source}.orders (note)"
+    ))
+    .await;
+    run(&format!(
+        "CREATE UNIQUE INDEX orders_customer ON {source}.orders (customer, id) WHERE paid"
+    ))
+    .await;
+    run(&format!(
         "INSERT INTO {source}.orders VALUES \
          (1, 1, E'it''s; a \\\\ back\\nslash', 12.50, true, '2026-01-02 03:04:05+00', \
           '{{\"k\": [1, \"x\"]}}', '\\xdeadbeef', ARRAY['a', 'b;c'], '2026-02-03'), \
@@ -159,12 +167,22 @@ async fn test_table_round_trips_into_another_schema() {
         Some(sql) => Some(run(&sql).await),
         None => None,
     };
+    let indexes = |schema: &str| {
+        format!(
+            "SELECT indexname, replace(indexdef, '{schema}.', '') FROM pg_indexes \
+             WHERE schemaname = '{schema}' AND tablename = 'orders' ORDER BY indexname"
+        )
+    };
+    let source_indexes = run(&indexes(&source)).await;
+    let target_indexes = run(&indexes(&target)).await;
     run(&format!("DROP SCHEMA {source} CASCADE")).await;
     run(&format!("DROP SCHEMA {target} CASCADE")).await;
 
     assert_eq!(exported.expect("export").rows, 4);
     assert_eq!(imported.expect("import").rows, 4);
     assert_eq!(target_rows.unwrap(), source_rows);
+    assert_eq!(source_indexes.len(), 3, "the primary key and two indexes");
+    assert_eq!(target_indexes, source_indexes);
 }
 
 /// Exports `{source}.{table}` and imports it into `target`.

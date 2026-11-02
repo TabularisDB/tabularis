@@ -288,6 +288,27 @@ mod ddl {
     }
 
     #[test]
+    fn unqualifies_a_plain_schema_name_written_without_quotes() {
+        let ddl = "CREATE TABLE \"shop_1\".\"orders\" (\"id\" int);\nCREATE UNIQUE INDEX orders_note ON shop_1.orders USING btree (note) WHERE (note <> 'shop_1.x'::text);\nCREATE INDEX \"shop_1.y\" ON myshop_1.orders (id);";
+        assert_eq!(
+            unqualify_ddl(ddl, &postgres(), &rules(&postgres()), Some("shop_1"), "orders"),
+            "CREATE TABLE \"orders\" (\"id\" int);\nCREATE UNIQUE INDEX orders_note ON orders USING btree (note) WHERE (note <> 'shop_1.x'::text);\nCREATE INDEX \"shop_1.y\" ON myshop_1.orders (id);"
+        );
+        // A name that needs quotes is only ever written quoted.
+        let ddl = "CREATE INDEX i ON Shop.orders (id);";
+        assert_eq!(
+            unqualify_ddl(
+                ddl,
+                &postgres(),
+                &rules(&postgres()),
+                Some("Shop"),
+                "orders"
+            ),
+            ddl
+        );
+    }
+
+    #[test]
     fn leaves_the_schema_name_inside_literals_and_comments() {
         let ddl = "CREATE TABLE \"public\".\"orders\" (\n  \"note\" text DEFAULT '\"public\".\"orders\"', -- from \"public\".\"orders\"\n  \"id\" int /* \"public\".\"x\" */\n);";
         assert_eq!(

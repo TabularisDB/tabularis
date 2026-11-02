@@ -1053,12 +1053,33 @@ pub async fn get_table_ddl(
         defs.push(format!("PRIMARY KEY ({})", pks.join(", ")));
     }
 
-    Ok(format!(
+    let mut ddl = format!(
         "CREATE TABLE \"{}\".\"{}\" (\n  {}\n);",
         escape_identifier(schema),
         escape_identifier(table_name),
         defs.join(",\n  ")
-    ))
+    );
+    // The table's other indexes (unique ones included), as PostgreSQL
+    // writes them; the primary key is part of the table above.
+    let pool = get_postgres_pool(params).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    let indexes = client
+        .query(
+            "SELECT pg_catalog.pg_get_indexdef(ix.indexrelid) FROM pg_catalog.pg_index ix \
+             JOIN pg_catalog.pg_class t ON t.oid = ix.indrelid \
+             JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid \
+             JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace \
+             WHERE n.nspname = $1 AND t.relname = $2 AND NOT ix.indisprimary \
+             ORDER BY i.relname",
+            &[&schema, &table_name],
+        )
+        .await
+        .map_err(|e| format!("Failed to read the table's indexes: {}", e))?;
+    for index in indexes {
+        let definition: String = index.try_get(0).map_err(|e| e.to_string())?;
+        ddl.push_str(&format!("\n{definition};"));
+    }
+    Ok(ddl)
 }
 
 /// Acquires a single PostgreSQL client from the pool and applies the

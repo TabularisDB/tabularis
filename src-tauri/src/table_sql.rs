@@ -298,17 +298,29 @@ pub fn unqualify_ddl(
     else {
         return ddl.to_string();
     };
+    // Engines write a plain lowercase name without quotes (PostgreSQL's
+    // `pg_get_indexdef`: `ON shop.orders`), so that form goes too.
+    let plain = schema
+        .filter(|schema| {
+            schema.starts_with(|c: char| c.is_ascii_lowercase() || c == '_')
+                && schema
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        })
+        .map(|schema| format!("{schema}."));
     let mut out = String::with_capacity(ddl.len());
     let mut scanner = Scanner::new(rules);
     let mut at = 0;
     while at < ddl.len() {
-        if scanner.in_code()
-            && ddl[at..].starts_with(prefix)
-            && !ddl[..at].ends_with('.')
-            && !previous_is_word(ddl, at)
-        {
-            at += prefix.len();
-            continue;
+        if scanner.in_code() && !ddl[..at].ends_with('.') && !previous_is_word(ddl, at) {
+            let matched = [Some(prefix), plain.as_deref()]
+                .into_iter()
+                .flatten()
+                .find(|candidate| ddl[at..].starts_with(candidate));
+            if let Some(matched) = matched {
+                at += matched.len();
+                continue;
+            }
         }
         let (len, _) = scanner.step(ddl, at);
         out.push_str(&ddl[at..at + len]);
