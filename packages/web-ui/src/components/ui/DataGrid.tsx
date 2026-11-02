@@ -99,6 +99,7 @@ import {
 import {isTypingTarget} from '@/utils/keyboardEvents';
 import {getSortButtonAction} from '@/utils/tableToolbar';
 import {useSettings} from '@/hooks/useSettings';
+import {getNullDisplayLabel} from '@/utils/nullDisplay';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {useJsonEditorActivity} from '@/hooks/useJsonEditorActivity';
 import {isGeometricType, formatGeometricValue} from '@/utils/geometry';
@@ -134,6 +135,10 @@ import {
     rowsToHtmlTable,
     columnNamesAsLines,
     columnNamesAsJson,
+    rowsToSqlUpdate,
+    sqlUpdateBlocker,
+    type CopyFormat,
+    type SqlUpdateBlocker,
 } from '@/utils/clipboard';
 import {formatColumnNamesAsSqlList} from '@/utils/objectNameCopy';
 import {quoteIdentifier} from '@/utils/identifiers';
@@ -151,6 +156,9 @@ import {resolveResultFontFamily} from '@/utils/settings';
 import {JumpToColumnModal} from '@/components/modals/JumpToColumnModal';
 import {SetCellsValueModal} from '@/components/modals/SetCellsValueModal';
 import {KeybindingsContext} from '@/contexts/KeybindingsContext';
+import {GridFindBar} from './GridFindBar';
+import {useGridFind} from '@/hooks/useGridFind';
+import {getFindRowTexts} from '@/utils/gridFind';
 
 /** Horizontal padding of a grid cell (px-4 on both sides) plus its 1px border. */
 const FIT_COLUMN_PADDING = 33;
@@ -217,7 +225,7 @@ interface DataGridProps {
     canRedo?: boolean;
     onBeginBatchEdit?: () => void;
     onEndBatchEdit?: () => void;
-    copyFormat?: 'csv' | 'json' | 'sql-insert' | 'markdown';
+    copyFormat?: CopyFormat;
     csvDelimiter?: string;
     csvIncludeHeaders?: boolean;
     sortClause?: string;
@@ -307,6 +315,14 @@ const CELL_VALUE_FILTER_LABEL_KEYS: Record<CellValueFilterOperator, string> = {
     'IS NOT NULL': 'dataGrid.filterIsNotNull',
 };
 
+// Why "Copy as SQL UPDATE" is disabled: there is no safe WHERE clause to build.
+const SQL_UPDATE_BLOCKER_REASONS: Record<SqlUpdateBlocker, string> = {
+    'no-key': 'dataGrid.editSelectionNoKey',
+    'key-not-in-result': 'dataGrid.sqlUpdateKeyNotInResult',
+    'only-key-columns': 'dataGrid.sqlUpdateOnlyKeyColumns',
+    'row-without-key-value': 'dataGrid.sqlUpdateRowWithoutKeyValue',
+};
+
 export const DataGrid = React.memo(function DataGrid({
     ref,
     columns,
@@ -392,6 +408,8 @@ export const DataGrid = React.memo(function DataGrid({
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
     const zebraStripes = settings.resultZebraStripes ?? false;
+    // Display only (#1300): copy and export keep their own NULL text.
+    const nullLabel = getNullDisplayLabel(settings.nullDisplay, t('dataGrid.null'));
     const defaultSortDirection = settings.defaultSortDirection ?? 'asc';
     const copyNullLabel = settings.copyNullLabel ?? 'null';
 
@@ -1674,7 +1692,6 @@ export const DataGrid = React.memo(function DataGrid({
                 : FIT_COLUMN_PADDING;
             const colType = columnTypeMap?.get(colName);
             const colLength = columnLengthMap?.get(colName);
-            const nullLabel = t('dataGrid.null');
             const textWidths = mergedRows.map(
                 (row) =>
                     ctx.measureText(
@@ -1697,7 +1714,7 @@ export const DataGrid = React.memo(function DataGrid({
                 ),
             );
         },
-        [columns, columnTypeMap, columnLengthMap, mergedRows, resizeColumn, t],
+        [columns, columnTypeMap, columnLengthMap, mergedRows, resizeColumn, nullLabel],
     );
     const resizedTableWidth = getResizedTableWidth(lockedColumnWidths, columnWidths);
 
@@ -2040,6 +2057,7 @@ export const DataGrid = React.memo(function DataGrid({
                 tableName,
                 driver: copyDriver,
                 nullLabel: copyNullLabel,
+                pkColumns,
             }),
         [
             columns,
@@ -2049,7 +2067,18 @@ export const DataGrid = React.memo(function DataGrid({
             tableName,
             copyDriver,
             copyNullLabel,
+            pkColumns,
         ],
+    );
+
+    // SQL UPDATE needs the primary key for its WHERE clause. Without it the copy falls
+    // back to SQL INSERT (see formatRowsForCopy), and the toast says so.
+    const copiedRowsToast = useCallback(
+        (rows: unknown[][], copiedColumns: string[] = columns) =>
+            copyFormat === 'sql-update' && sqlUpdateBlocker(copiedColumns, pkColumns, rows) !== null
+                ? t('dataGrid.copiedAsInsertNoKey', {count: rows.length})
+                : rowsCopiedToast(rows.length),
+        [columns, copyFormat, pkColumns, rowsCopiedToast, t],
     );
 
     // Rows the row context menu acts on: the selected rows (pending insertions
@@ -2067,8 +2096,8 @@ export const DataGrid = React.memo(function DataGrid({
         const rows = getContextRows();
         if (!rows) return;
 
-        await copyToClipboard(formatRows(rows, true), rowsCopiedToast(rows.length));
-    }, [getContextRows, formatRows, copyToClipboard, rowsCopiedToast]);
+        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows));
+    }, [getContextRows, formatRows, copyToClipboard, copiedRowsToast]);
 
     // Copies the selected rows (or the right-clicked row) as an HTML table, with
     // the regular copy output as the plain-text flavor.
@@ -2085,6 +2114,25 @@ export const DataGrid = React.memo(function DataGrid({
             rowsCopiedToast(rows.length),
         );
     }, [getContextRows, columns, formatRows, writeToClipboard, rowsCopiedToast, platform]);
+
+    // Copies the selected rows (or the right-clicked row) as UPDATE statements, whatever
+    // the default copy format is. The menu enables it only when sqlUpdateBlocker allows.
+    const copySelectedOrContextRowAsSqlUpdate = useCallback(async () => {
+        const rows = getContextRows();
+        if (!rows || !pkColumns || sqlUpdateBlocker(columns, pkColumns, rows) !== null) return;
+        await copyToClipboard(
+            rowsToSqlUpdate(rows, columns, tableName ?? 'table', pkColumns, copyDriver),
+            rowsCopiedToast(rows.length),
+        );
+    }, [
+        getContextRows,
+        pkColumns,
+        columns,
+        tableName,
+        copyDriver,
+        copyToClipboard,
+        rowsCopiedToast,
+    ]);
 
     // Writes the rows the row context menu acts on to a file (#1154).
     //
@@ -2265,8 +2313,8 @@ export const DataGrid = React.memo(function DataGrid({
             mergedRows.map((row) => row.rowData),
             selectedRowIndices,
         );
-        await copyToClipboard(formatRows(rows, true), rowsCopiedToast(rows.length));
-    }, [selectedRowIndices, mergedRows, formatRows, copyToClipboard, rowsCopiedToast]);
+        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows));
+    }, [selectedRowIndices, mergedRows, formatRows, copyToClipboard, copiedRowsToast]);
 
     // Copies one column for the selected rows, or every visible row when
     // nothing is selected, using the same export format as other copy actions.
@@ -2283,8 +2331,9 @@ export const DataGrid = React.memo(function DataGrid({
                 tableName,
                 driver: copyDriver,
                 nullLabel: copyNullLabel,
+                pkColumns,
             }),
-            rowsCopiedToast(rows.length),
+            copiedRowsToast(projected.rows, projected.columns),
         );
     }, [
         selectedColIndices,
@@ -2296,8 +2345,9 @@ export const DataGrid = React.memo(function DataGrid({
         tableName,
         copyDriver,
         copyNullLabel,
+        pkColumns,
         copyToClipboard,
-        rowsCopiedToast,
+        copiedRowsToast,
     ]);
 
     // Copies the rectangular cell range (anchor..Shift+click target) in the
@@ -2320,10 +2370,14 @@ export const DataGrid = React.memo(function DataGrid({
                 tableName,
                 driver: copyDriver,
                 nullLabel: copyNullLabel,
+                pkColumns,
             }),
-            t('dataGrid.copiedCells', {
-                count: rangeRows.length * projected.columns.length,
-            }),
+            copyFormat === 'sql-update' &&
+                sqlUpdateBlocker(projected.columns, pkColumns, projected.rows) !== null
+                ? t('dataGrid.copiedAsInsertNoKey', {count: rangeRows.length})
+                : t('dataGrid.copiedCells', {
+                      count: rangeRows.length * projected.columns.length,
+                  }),
         );
     }, [
         cellRange,
@@ -2335,6 +2389,7 @@ export const DataGrid = React.memo(function DataGrid({
         tableName,
         copyDriver,
         copyNullLabel,
+        pkColumns,
         copyToClipboard,
         t,
     ]);
@@ -2355,7 +2410,14 @@ export const DataGrid = React.memo(function DataGrid({
                 driver: copyDriver,
                 nullLabel: copyNullLabel,
             });
-            await copyToClipboard(text);
+            // One column can't hold both a key and a value, so SQL UPDATE copies it as
+            // INSERT (see columnValuesForCopy); the toast says so.
+            await copyToClipboard(
+                text,
+                copyFormat === 'sql-update'
+                    ? t('dataGrid.copiedAsInsertNoKey', {count: rows.length})
+                    : undefined,
+            );
         },
         [
             selectedRowIndices,
@@ -2368,6 +2430,7 @@ export const DataGrid = React.memo(function DataGrid({
             copyDriver,
             copyNullLabel,
             copyToClipboard,
+            t,
         ],
     );
 
@@ -2400,8 +2463,8 @@ export const DataGrid = React.memo(function DataGrid({
 
     const copyAllLoadedRows = useCallback(async () => {
         const rows = mergedRows.map((row) => row.rowData);
-        await copyToClipboard(formatRows(rows, true), rowsCopiedToast(rows.length));
-    }, [copyToClipboard, formatRows, mergedRows, rowsCopiedToast]);
+        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows));
+    }, [copyToClipboard, formatRows, mergedRows, copiedRowsToast]);
 
     const getResultCommands = useCallback(
         (): ResultCommands =>
@@ -2705,6 +2768,59 @@ export const DataGrid = React.memo(function DataGrid({
         ],
     );
 
+    // Find in results (#1298) searches the loaded rows as the grid shows them,
+    // pending edits included; NULLs and masked cells never match.
+    const getFindRowTextsAt = useCallback(
+        (rowIndex: number) => {
+            const mergedRow = mergedRows[rowIndex];
+            if (!mergedRow) return [];
+            const pending =
+                mergedRow.type === 'existing' && pendingChanges && pkIndexMaps.length > 0
+                    ? pendingChanges[
+                          serializePkKey(buildPkMap(pkColumns!, mergedRow.rowData, pkIndexMaps))
+                      ]?.changes
+                    : undefined;
+            return getFindRowTexts(mergedRow.rowData, columns, {
+                pending,
+                columnTypes: columnTypeMap,
+                columnLengths: columnLengthMap,
+                isExcluded: (colIndex) => isCellMasked(rowIndex, colIndex),
+            });
+        },
+        [
+            mergedRows,
+            pendingChanges,
+            pkColumns,
+            pkIndexMaps,
+            columns,
+            columnTypeMap,
+            columnLengthMap,
+            isCellMasked,
+        ],
+    );
+    const scrollRowToCenter = useCallback(
+        (rowIndex: number) => rowVirtualizer.scrollToIndex(rowIndex, {align: 'center'}),
+        [rowVirtualizer],
+    );
+    const gridFind = useGridFind({
+        rowCount: mergedRows.length,
+        getRowTexts: getFindRowTextsAt,
+        scrollElementRef: parentRef,
+        scrollToRow: scrollRowToCenter,
+    });
+    const {isOpen: isFindOpen, open: openFind, close: closeFindBar} = gridFind;
+    // Closing from the bar leaves the grid focused on the match it was on, the
+    // way a browser leaves the selection on the text it found.
+    const closeFind = useCallback(() => {
+        const match = closeFindBar();
+        if (match) {
+            setCellRange(null);
+            setFocusedCell(match);
+        } else {
+            parentRef.current?.focus({preventScroll: true});
+        }
+    }, [closeFindBar]);
+
     // Arrow-key cell navigation. Bound to the grid container instead of the
     // document so that pages rendering several grids (e.g. a notebook with
     // multiple SQL cells) only move the one the user is actually inside.
@@ -2720,6 +2836,22 @@ export const DataGrid = React.memo(function DataGrid({
                 e.stopPropagation();
                 setJumpToColumnOpen(true);
                 return;
+            }
+
+            // Editors inside the grid (Monaco, text areas) keep their own keys.
+            if (!isTypingTarget(e.target)) {
+                if (keybindings?.matchesShortcut(e.nativeEvent, 'find_in_grid')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openFind(focusedCell);
+                    return;
+                }
+                // Not when a menu inside the grid already took this Escape.
+                if (e.key === 'Escape' && isFindOpen && !e.defaultPrevented) {
+                    e.preventDefault();
+                    closeFindBar();
+                    return;
+                }
             }
 
             // Let anything that handles keys itself keep them: text inputs, and the
@@ -2924,6 +3056,9 @@ export const DataGrid = React.memo(function DataGrid({
             updateSelection,
             rowVirtualizer,
             keybindings,
+            openFind,
+            isFindOpen,
+            closeFindBar,
         ],
     );
 
@@ -3147,6 +3282,7 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            nullLabel,
             frozenFirstColumnLeft,
         }),
         [
@@ -3193,6 +3329,7 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            nullLabel,
             frozenFirstColumnLeft,
         ],
     );
@@ -3216,7 +3353,7 @@ export const DataGrid = React.memo(function DataGrid({
     const totalColumnCount = tableColumns.length + 1;
 
     return (
-        <>
+        <div className="h-full flex flex-col">
             {jumpToColumnOpen && (
                 <JumpToColumnModal
                     isOpen
@@ -3234,6 +3371,23 @@ export const DataGrid = React.memo(function DataGrid({
                         setValuePromptSelection(null);
                     }}
                     onClose={() => setValuePromptSelection(null)}
+                />
+            )}
+            {isFindOpen && (
+                <GridFindBar
+                    inputRef={gridFind.inputRef}
+                    query={gridFind.query}
+                    caseSensitive={gridFind.caseSensitive}
+                    matchCount={gridFind.matchCount}
+                    currentIndex={gridFind.currentIndex}
+                    hasUnloadedRows={hasRowsBeyondLoadedPage}
+                    loadedRowCount={data.length}
+                    totalRowCount={totalRows}
+                    onQueryChange={gridFind.setQuery}
+                    onToggleCaseSensitive={gridFind.toggleCaseSensitive}
+                    onNext={gridFind.goToNext}
+                    onPrevious={gridFind.goToPrevious}
+                    onClose={closeFind}
                 />
             )}
             {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- focus host for the spreadsheet keyboard model (arrows, ranges, copy); a full ARIA grid needs per-cell roles and activedescendant */}
@@ -3413,6 +3567,14 @@ export const DataGrid = React.memo(function DataGrid({
                                     focusedColIndex={isRowFocused ? focusedCell!.colIndex : null}
                                     expandedColIndex={isRowExpanded ? expandedCell!.colIndex : null}
                                     expandedKind={isRowExpanded ? expandedCell!.kind : null}
+                                    findMatchColIndices={
+                                        gridFind.matchesByRow.get(rowIndex) ?? null
+                                    }
+                                    currentFindColIndex={
+                                        gridFind.currentMatch?.rowIndex === rowIndex
+                                            ? gridFind.currentMatch.colIndex
+                                            : null
+                                    }
                                 />
                             );
                         })}
@@ -3676,6 +3838,29 @@ export const DataGrid = React.memo(function DataGrid({
                             icon: Table,
                             action: copySelectedOrContextRowAsHtml,
                         });
+
+                        // Shown even when it can't run, with the reason, so the format is
+                        // discoverable and it's clear why a safe WHERE can't be built.
+                        const updateBlocker = sqlUpdateBlocker(
+                            columns,
+                            pkColumns,
+                            getContextRows() ?? undefined,
+                        );
+                        menuItems.push(
+                            updateBlocker === null
+                                ? {
+                                      label: t('dataGrid.copyAsSqlUpdate'),
+                                      icon: Braces,
+                                      action: copySelectedOrContextRowAsSqlUpdate,
+                                  }
+                                : {
+                                      label: t('dataGrid.copyAsSqlUpdateUnavailable', {
+                                          reason: t(SQL_UPDATE_BLOCKER_REASONS[updateBlocker]),
+                                      }),
+                                      icon: Braces,
+                                      disabled: true,
+                                  },
+                        );
 
                         // "Export selected rows…" (issue #1154): the same scope as
                         // the copy actions above, written to a file instead.
@@ -4103,6 +4288,6 @@ export const DataGrid = React.memo(function DataGrid({
 
                 {/* Row Editor Sidebar is now rendered in the RightSidebar layout component */}
             </div>
-        </>
+        </div>
     );
 });

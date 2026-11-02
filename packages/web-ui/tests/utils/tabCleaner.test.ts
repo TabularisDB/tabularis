@@ -14,6 +14,11 @@ describe('tabCleaner', () => {
         expect(restored.autoRefreshError).toBe('');
         expect(restoreTabFromStorage({}).autoRefreshIntervalMs).toBe(0);
     });
+    it('keeps the pinned state through a save and a restore (#1304)', () => {
+        const tab = {...restoreTabFromStorage({id: 'tab-1'}), pinned: true};
+        expect(cleanTabForStorage(tab).pinned).toBe(true);
+        expect(restoreTabFromStorage(cleanTabForStorage(tab)).pinned).toBe(true);
+    });
     describe('cleanTabForStorage', () => {
         it('should preserve persistent fields', () => {
             const tab: Tab = {

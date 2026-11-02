@@ -15,7 +15,12 @@ import {
     resolveTabPageSize,
 } from '@/utils/editor';
 import {shouldShowStatementSuccess} from '@/utils/resultPresentation';
-import {formatRowsForCopy, copyTextToClipboard} from '@/utils/clipboard';
+import {
+    formatRowsForCopy,
+    copyTextToClipboard,
+    sqlUpdateBlocker,
+    type CopyFormat,
+} from '@/utils/clipboard';
 import {onActivationKey, isTypingTarget} from '@/utils/keyboardEvents';
 import {
     formatResultForExport,
@@ -99,6 +104,8 @@ import {
     BookOpen,
     UsersRound,
     Pencil,
+    Pin,
+    PinOff,
     Hash,
     Loader2,
     Copy,
@@ -229,7 +236,8 @@ import {
     type PluginColumnStatsFetcher,
 } from '@/utils/columnStats';
 import {getNextSortClause} from '@/utils/tableToolbar';
-import {getAdjacentTabGap} from '@/utils/tabDnd';
+import {clampTabGap, getAdjacentTabGap} from '@/utils/tabDnd';
+import {getBulkClosedTabIds} from '@/utils/tabPins';
 import {
     createSqlFileTab,
     getSqlFileName,
@@ -314,6 +322,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         activeTabId,
         updateTab,
         reorderTab,
+        setTabPinned,
         updateResultEntry: patchResultEntry,
         addTab,
         setActiveTabId,
@@ -596,9 +605,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     >([]);
     const [isCountLoading, setIsCountLoading] = useState(false);
     const [applyToAll, setApplyToAll] = useState(false);
-    const [copyFormat, setCopyFormat] = useState<'csv' | 'json' | 'sql-insert' | 'markdown'>(
-        settings.copyFormat ?? 'csv',
-    );
+    const [copyFormat, setCopyFormat] = useState<CopyFormat>(settings.copyFormat ?? 'csv');
     const [csvDelimiter, setCsvDelimiter] = useState(settings.csvDelimiter ?? ',');
     const [csvIncludeHeaders, setCsvIncludeHeaders] = useState(settings.csvIncludeHeaders ?? true);
 
@@ -889,21 +896,32 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         stopTabAutoScroll();
     }, [stopTabAutoScroll]);
 
+    // Pixel offset of the insertion line for a gap: the left edge of the tab after it,
+    // or the right edge of the last tab.
+    const tabGapLeft = useCallback((gap: number): number => {
+        const tabEls = Array.from(
+            tabScrollRef.current?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [],
+        );
+        const next = tabEls[gap];
+        if (next) return next.offsetLeft;
+        const last = tabEls.at(-1);
+        return last ? last.offsetLeft + last.offsetWidth : 0;
+    }, []);
+
     const handleTabDragOver = useCallback(
         (index: number) => (e: React.DragEvent<HTMLDivElement>) => {
             if (!dragTabId) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            // Left half of the tab drops before it, right half drops after it.
-            const target = e.currentTarget;
-            const rect = target.getBoundingClientRect();
+            // Left half of the tab drops before it, right half drops after it. Pinned
+            // tabs stay before unpinned ones, so the gap is kept in the dragged tab's group.
+            const rect = e.currentTarget.getBoundingClientRect();
             const after = e.clientX > rect.left + rect.width / 2;
-            setDropPos(after ? index + 1 : index);
-            setDropIndicatorLeft(
-                after ? target.offsetLeft + target.offsetWidth : target.offsetLeft,
-            );
+            const gap = clampTabGap(tabs, dragTabId, after ? index + 1 : index);
+            setDropPos(gap);
+            setDropIndicatorLeft(tabGapLeft(gap));
         },
-        [dragTabId],
+        [dragTabId, tabs, tabGapLeft],
     );
 
     // Drive edge auto-scroll from the scroll container, and fall back to
@@ -924,12 +942,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 autoScrollRafRef.current = requestAnimationFrame(stepTabAutoScroll);
             }
             if (e.target === container) {
-                const lastTab = container.children[tabs.length - 1] as HTMLElement | undefined;
-                setDropPos(tabs.length);
-                setDropIndicatorLeft(lastTab ? lastTab.offsetLeft + lastTab.offsetWidth : 0);
+                const gap = clampTabGap(tabs, dragTabId, tabs.length);
+                setDropPos(gap);
+                setDropIndicatorLeft(tabGapLeft(gap));
             }
         },
-        [dragTabId, tabs.length, stepTabAutoScroll],
+        [dragTabId, tabs, stepTabAutoScroll, tabGapLeft],
     );
 
     const handleTabsDrop = useCallback(
@@ -1075,9 +1093,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [clearEntryScrollTops, closeTab, requestTabClosure],
     );
 
+    // Bulk close actions leave pinned tabs open, so only the tabs they close are
+    // checked for unsaved changes.
     const handleCloseOtherTabs = useCallback(
         (tabId: string) => {
-            const tabIds = tabsRef.current.filter((tab) => tab.id !== tabId).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'others', tabId);
             requestTabClosure(tabIds, () => closeOtherTabs(tabId));
         },
         [closeOtherTabs, requestTabClosure],
@@ -1085,8 +1105,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const handleCloseTabsToRight = useCallback(
         (tabId: string) => {
-            const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
-            const tabIds = index < 0 ? [] : tabsRef.current.slice(index + 1).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'right', tabId);
             requestTabClosure(tabIds, () => closeTabsToRight(tabId));
         },
         [closeTabsToRight, requestTabClosure],
@@ -1094,18 +1113,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const handleCloseTabsToLeft = useCallback(
         (tabId: string) => {
-            const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
-            const tabIds = index < 0 ? [] : tabsRef.current.slice(0, index).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'left', tabId);
             requestTabClosure(tabIds, () => closeTabsToLeft(tabId));
         },
         [closeTabsToLeft, requestTabClosure],
     );
 
     const handleCloseAllTabs = useCallback(() => {
-        requestTabClosure(
-            tabsRef.current.map((tab) => tab.id),
-            closeAllTabs,
-        );
+        requestTabClosure(getBulkClosedTabIds(tabsRef.current, 'all'), closeAllTabs);
     }, [closeAllTabs, requestTabClosure]);
 
     const cancelPendingTabClosure = useCallback(() => {
@@ -2229,6 +2244,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             tableName: string | null,
             sessionId: string,
             database?: string | null,
+            pkColumns?: string[] | null,
         ): Promise<CopiedRows | null> => {
             const columns = result?.columns ?? [];
             if (!activeConnectionId || columns.length === 0 || !query.trim()) {
@@ -2264,8 +2280,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 tableName,
                 driver: activeCapabilities,
                 nullLabel: settings.copyNullLabel ?? 'null',
+                pkColumns,
             });
-            return {text, count: rows.length};
+            const asInsert =
+                copyFormat === 'sql-update' && sqlUpdateBlocker(fetchedColumns, pkColumns) !== null;
+            return {text, count: rows.length, ...(asInsert ? {asInsert} : {})};
         },
         [
             client,
@@ -2308,6 +2327,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     tab.activeTable,
                     tab.id,
                     tab.database,
+                    tab.pkColumns,
                 );
             if (tab.type !== 'table') return fetch();
 
@@ -2340,6 +2360,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 entry.activeTable,
                 tab.id,
                 tab.database,
+                entry.pkColumns,
             );
         },
         [activeSchema, fetchAllRows],
@@ -2351,9 +2372,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 const copied = await rows;
                 if (!copied) return;
                 await copyTextToClipboard(copied.text);
-                showToast(t('dataGrid.copiedRows', {count: copied.count}), {
-                    kind: 'success',
-                });
+                showToast(
+                    t(copied.asInsert ? 'dataGrid.copiedAsInsertNoKey' : 'dataGrid.copiedRows', {
+                        count: copied.count,
+                    }),
+                    {kind: 'success'},
+                );
             } catch (e) {
                 showAlert(t('common.error') + ': ' + e, {
                     title: t('common.error'),
@@ -4998,6 +5022,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {tabs.map((tab, index) => (
                         <div
                             key={tab.id}
+                            data-tab-id={tab.id}
                             draggable
                             onDragStart={(e) => handleTabDragStart(e, tab.id)}
                             onDragEnd={handleTabDragEnd}
@@ -5008,6 +5033,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                             aria-label={tabFullTitle(tab)}
                             aria-describedby={
                                 [
+                                    tab.pinned ? `${tabStripId}-pinned-${tab.id}` : null,
                                     tab.sourceFileDirty ? `${tabStripId}-dirty-${tab.id}` : null,
                                     transactionTabIds.has(tab.id)
                                         ? `${tabStripId}-transaction-${tab.id}`
@@ -5150,6 +5176,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             {t('editor.transactionOpen')}
                                         </span>
                                     )}
+                                </span>
+                            )}
+                            {tab.pinned && (
+                                // The tab's aria-label replaces its text, so the pinned state
+                                // reaches screen readers as a description instead.
+                                <span className="flex shrink-0 text-muted">
+                                    <Pin size={11} aria-hidden="true" />
+                                    <span id={`${tabStripId}-pinned-${tab.id}`} className="sr-only">
+                                        {t('editor.pinnedTab')}
+                                    </span>
                                 </span>
                             )}
                             <button
@@ -6238,13 +6274,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 <select
                                                     value={copyFormat}
                                                     onChange={(e) =>
-                                                        setCopyFormat(
-                                                            e.target.value as
-                                                                | 'csv'
-                                                                | 'json'
-                                                                | 'sql-insert'
-                                                                | 'markdown',
-                                                        )
+                                                        setCopyFormat(e.target.value as CopyFormat)
                                                     }
                                                     className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
                                                     title={t('settings.copyFormat')}
@@ -6253,6 +6283,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                     <option value="csv">CSV</option>
                                                     <option value="json">JSON</option>
                                                     <option value="sql-insert">SQL INSERT</option>
+                                                    <option value="sql-update">SQL UPDATE</option>
                                                     <option value="markdown">Markdown</option>
                                                 </select>
                                                 {copyFormat === 'csv' && (
@@ -6716,6 +6747,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                               icon: Copy,
                                               action: () =>
                                                   handleDuplicateTab(tabContextMenu.tabId),
+                                          },
+                                      ]
+                                    : []),
+                                ...(contextTab
+                                    ? [
+                                          {
+                                              label: contextTab.pinned
+                                                  ? t('editor.unpinTab')
+                                                  : t('editor.pinTab'),
+                                              icon: contextTab.pinned ? PinOff : Pin,
+                                              action: () =>
+                                                  setTabPinned(contextTab.id, !contextTab.pinned),
                                           },
                                       ]
                                     : []),

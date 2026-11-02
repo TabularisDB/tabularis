@@ -310,7 +310,8 @@ export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string 
  *
  * `labels` carries the translated strings the subtitle may need: the
  * "all databases" label (multi-db connection with no explicit selection)
- * and the "{{n}} databases" counter. Untranslated fallbacks apply when
+ * and the "{{n}} databases" counter for two or more selected databases (a
+ * single selected one is shown by name). Untranslated fallbacks apply when
  * omitted.
  *
  * "All databases" is detected with `hasOptedIntoDatabaseSelection`, the same
@@ -330,11 +331,12 @@ export function connectionSubtitle(
     const selection = Array.isArray(db) ? db : typeof db === 'string' ? db.trim() : '';
     const isAllDatabases =
         selection.length === 0 && hasOptedIntoDatabaseSelection(capabilities, selection);
-    const dbStr = isAllDatabases
-        ? (labels?.allDatabases ?? 'All databases')
-        : Array.isArray(db)
-          ? (labels?.databaseCount?.(db.length) ?? `${db.length} databases`)
-          : db;
+    let dbStr: string;
+    if (isAllDatabases) dbStr = labels?.allDatabases ?? 'All databases';
+    else if (!Array.isArray(db)) dbStr = db;
+    // A single selected database is named, as when it is stored as a string.
+    else if (db.length === 1) dbStr = db[0];
+    else dbStr = labels?.databaseCount?.(db.length) ?? `${db.length} databases`;
     return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
 }
 

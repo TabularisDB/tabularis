@@ -49,6 +49,11 @@ export const UI_STATE_KEYS = {
         key: 'tabularis:discord-callout-v2-dismissed',
         parseLegacy: parseTrue,
     },
+    // Pinned explorer tables and views of every connection (see utils/explorerPins).
+    explorerPins: {
+        key: 'tabularis:explorer-pins',
+        parseLegacy: (): undefined => undefined,
+    },
 } satisfies Record<string, UiStateKeyDefinition<unknown>>;
 
 const DEFINITIONS: UiStateKeyDefinition<unknown>[] = Object.values(UI_STATE_KEYS);

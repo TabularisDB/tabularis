@@ -45,6 +45,8 @@ import {
     FolderPlus,
     Pencil,
     FolderInput,
+    Pin,
+    PinOff,
 } from 'lucide-react';
 import {bindPlatformConfirm} from '@/platform/dialogs';
 import {saveSqlFile} from '@/utils/sqlFileTransfer';
@@ -102,6 +104,9 @@ import {SidebarDatabaseItem} from './sidebar/SidebarDatabaseItem';
 import {SidebarNestedDatabaseItem} from './sidebar/SidebarNestedDatabaseItem';
 import {SidebarTriggerItem} from './sidebar/SidebarTriggerItem';
 import {QueryHistorySection} from './sidebar/QueryHistorySection';
+import {SidebarPinnedGroup} from './sidebar/SidebarPinnedGroup';
+import {useExplorerPins} from '@/hooks/useExplorerPins';
+import {resolvePins, type PinnedObject} from '@/utils/explorerPins';
 import {NotebooksSection} from './sidebar/NotebooksSection';
 import {
     renameNotebook,
@@ -268,6 +273,7 @@ export const ExplorerSidebar = ({
     } = useQueryHistory();
     const {showAlert} = useAlert();
     const {showToast} = useToast();
+    const {pinsFor, isPinned: isObjectPinned, togglePin} = useExplorerPins(activeConnectionId);
     const navigate = useNavigate();
     const objectNavigation = useDatabaseObjectNavigation(
         activeConnectionId,
@@ -920,6 +926,147 @@ export const ExplorerSidebar = ({
         });
         return () => cancelAnimationFrame(rafId);
     }, [activeTable, activeSchema]);
+
+    const renderFlatTable = (table: (typeof tables)[number]) => (
+        <SidebarTableItem
+            key={table.name}
+            table={table}
+            activeTable={activeTable}
+            onTableClick={handleTableClick}
+            onTableDoubleClick={handleOpenTable}
+            onContextMenu={handleContextMenu}
+            connectionId={activeConnectionId!}
+            driver={activeDriver!}
+            capabilities={activeCapabilities}
+            canManage={supportsManageTables(activeCapabilities)}
+            onAddColumn={(t_name) =>
+                setModifyColumnModal({
+                    isOpen: true,
+                    tableName: t_name,
+                    column: null,
+                })
+            }
+            onEditColumn={(t_name, c) =>
+                setModifyColumnModal({
+                    isOpen: true,
+                    tableName: t_name,
+                    column: c,
+                })
+            }
+            onAddIndex={(t_name) =>
+                setCreateIndexModal({
+                    isOpen: true,
+                    tableName: t_name,
+                })
+            }
+            onDropIndex={async (t_name, name) => {
+                if (
+                    await ask(t('sidebar.deleteIndexConfirm', {name}), {
+                        title: t('sidebar.deleteIndex'),
+                        kind: 'warning',
+                    })
+                ) {
+                    try {
+                        await client.call('drop_index_action', {
+                            connectionId: activeConnectionId!,
+                            table: t_name,
+                            indexName: name,
+                        });
+                        setSchemaVersion((v) => v + 1);
+                    } catch (e) {
+                        showAlert(t('sidebar.failDeleteIndex') + toErrorMessage(e), {
+                            title: t('common.error'),
+                            kind: 'error',
+                        });
+                    }
+                }
+            }}
+            onAddForeignKey={(t_name) =>
+                setCreateForeignKeyModal({
+                    isOpen: true,
+                    tableName: t_name,
+                })
+            }
+            onDropForeignKey={async (t_name, name) => {
+                if (
+                    await ask(t('sidebar.deleteFkConfirm', {name}), {
+                        title: t('sidebar.deleteFk'),
+                        kind: 'warning',
+                    })
+                ) {
+                    try {
+                        await client.call('drop_foreign_key_action', {
+                            connectionId: activeConnectionId!,
+                            table: t_name,
+                            fkName: name,
+                        });
+                        setSchemaVersion((v) => v + 1);
+                    } catch (e) {
+                        showAlert(toErrorMessage(e), {
+                            title: t('common.error'),
+                            kind: 'error',
+                        });
+                    }
+                }
+            }}
+            schemaVersion={schemaVersion}
+        />
+    );
+
+    const renderFlatView = (view: (typeof views)[number]) => (
+        <SidebarViewItem
+            key={view.name}
+            view={view}
+            activeView={activeView}
+            onViewClick={handleViewClick}
+            onViewDoubleClick={handleOpenView}
+            onContextMenu={handleContextMenu}
+            connectionId={activeConnectionId!}
+            driver={activeDriver!}
+            capabilities={activeCapabilities}
+        />
+    );
+
+    // Flat layout (#1306): its items pass neither a schema nor a database, so its pins
+    // use that scope too. The same items render in the Pinned group and in their lists.
+    const renderFlatPinnedGroup = () => {
+        const byName = (object: {name: string}) => object.name;
+        const pinned = pinsFor(undefined, undefined);
+        const pinnedTables = resolvePins(
+            pinned,
+            'table',
+            fuzzyFilter(tables, tableFilter, byName),
+            byName,
+        );
+        const pinnedViews = resolvePins(
+            pinned,
+            'view',
+            fuzzyFilter(views, tableFilter, byName),
+            byName,
+        );
+        if (pinnedTables.length + pinnedViews.length === 0) return null;
+        return (
+            <SidebarPinnedGroup>
+                {pinnedTables.map((table) => renderFlatTable(table))}
+                {pinnedViews.map((view) => renderFlatView(view))}
+            </SidebarPinnedGroup>
+        );
+    };
+
+    // Pin / Unpin in the table and view context menus, scoped like the item's own data.
+    const pinMenuItem = (
+        object: PinnedObject,
+        database?: string | null,
+        schema?: string | null,
+    ) => {
+        const pinned = isObjectPinned(object, database, schema);
+        return {
+            label: pinned ? t('sidebar.unpin') : t('sidebar.pin'),
+            icon: pinned ? PinOff : Pin,
+            disabled: !activeConnectionId,
+            action: () => togglePin(object, database, schema),
+        };
+    };
 
     return (
         <>
@@ -2833,6 +2980,8 @@ export const ExplorerSidebar = ({
                                             </span>
                                         </div>
 
+                                        {renderFlatPinnedGroup()}
+
                                         {/* Tables */}
                                         <Accordion
                                             title={`${t('sidebar.tables')} (${tables.length})`}
@@ -2899,162 +3048,9 @@ export const ExplorerSidebar = ({
                                                             </div>
                                                         ) : (
                                                             <div>
-                                                                {filteredTables.map((table) => (
-                                                                    <SidebarTableItem
-                                                                        key={table.name}
-                                                                        table={table}
-                                                                        activeTable={activeTable}
-                                                                        onTableClick={
-                                                                            handleTableClick
-                                                                        }
-                                                                        onTableDoubleClick={
-                                                                            handleOpenTable
-                                                                        }
-                                                                        onContextMenu={
-                                                                            handleContextMenu
-                                                                        }
-                                                                        connectionId={
-                                                                            activeConnectionId!
-                                                                        }
-                                                                        driver={activeDriver!}
-                                                                        capabilities={
-                                                                            activeCapabilities
-                                                                        }
-                                                                        canManage={supportsManageTables(
-                                                                            activeCapabilities,
-                                                                        )}
-                                                                        onAddColumn={(t_name) =>
-                                                                            setModifyColumnModal({
-                                                                                isOpen: true,
-                                                                                tableName: t_name,
-                                                                                column: null,
-                                                                            })
-                                                                        }
-                                                                        onEditColumn={(t_name, c) =>
-                                                                            setModifyColumnModal({
-                                                                                isOpen: true,
-                                                                                tableName: t_name,
-                                                                                column: c,
-                                                                            })
-                                                                        }
-                                                                        onAddIndex={(t_name) =>
-                                                                            setCreateIndexModal({
-                                                                                isOpen: true,
-                                                                                tableName: t_name,
-                                                                            })
-                                                                        }
-                                                                        onDropIndex={async (
-                                                                            t_name,
-                                                                            name,
-                                                                        ) => {
-                                                                            if (
-                                                                                await ask(
-                                                                                    t(
-                                                                                        'sidebar.deleteIndexConfirm',
-                                                                                        {name},
-                                                                                    ),
-                                                                                    {
-                                                                                        title: t(
-                                                                                            'sidebar.deleteIndex',
-                                                                                        ),
-                                                                                        kind: 'warning',
-                                                                                    },
-                                                                                )
-                                                                            ) {
-                                                                                try {
-                                                                                    await client.call(
-                                                                                        'drop_index_action',
-                                                                                        {
-                                                                                            connectionId:
-                                                                                                activeConnectionId!,
-                                                                                            table: t_name,
-                                                                                            indexName:
-                                                                                                name,
-                                                                                        },
-                                                                                    );
-                                                                                    setSchemaVersion(
-                                                                                        (v) =>
-                                                                                            v + 1,
-                                                                                    );
-                                                                                } catch (e) {
-                                                                                    showAlert(
-                                                                                        t(
-                                                                                            'sidebar.failDeleteIndex',
-                                                                                        ) +
-                                                                                            toErrorMessage(
-                                                                                                e,
-                                                                                            ),
-                                                                                        {
-                                                                                            title: t(
-                                                                                                'common.error',
-                                                                                            ),
-                                                                                            kind: 'error',
-                                                                                        },
-                                                                                    );
-                                                                                }
-                                                                            }
-                                                                        }}
-                                                                        onAddForeignKey={(t_name) =>
-                                                                            setCreateForeignKeyModal(
-                                                                                {
-                                                                                    isOpen: true,
-                                                                                    tableName:
-                                                                                        t_name,
-                                                                                },
-                                                                            )
-                                                                        }
-                                                                        onDropForeignKey={async (
-                                                                            t_name,
-                                                                            name,
-                                                                        ) => {
-                                                                            if (
-                                                                                await ask(
-                                                                                    t(
-                                                                                        'sidebar.deleteFkConfirm',
-                                                                                        {name},
-                                                                                    ),
-                                                                                    {
-                                                                                        title: t(
-                                                                                            'sidebar.deleteFk',
-                                                                                        ),
-                                                                                        kind: 'warning',
-                                                                                    },
-                                                                                )
-                                                                            ) {
-                                                                                try {
-                                                                                    await client.call(
-                                                                                        'drop_foreign_key_action',
-                                                                                        {
-                                                                                            connectionId:
-                                                                                                activeConnectionId!,
-                                                                                            table: t_name,
-                                                                                            fkName: name,
-                                                                                        },
-                                                                                    );
-                                                                                    setSchemaVersion(
-                                                                                        (v) =>
-                                                                                            v + 1,
-                                                                                    );
-                                                                                } catch (e) {
-                                                                                    showAlert(
-                                                                                        toErrorMessage(
-                                                                                            e,
-                                                                                        ),
-                                                                                        {
-                                                                                            title: t(
-                                                                                                'common.error',
-                                                                                            ),
-                                                                                            kind: 'error',
-                                                                                        },
-                                                                                    );
-                                                                                }
-                                                                            }
-                                                                        }}
-                                                                        schemaVersion={
-                                                                            schemaVersion
-                                                                        }
-                                                                    />
-                                                                ))}
+                                                                {filteredTables.map((table) =>
+                                                                    renderFlatTable(table),
+                                                                )}
                                                             </div>
                                                         )}
                                                     </>
@@ -3108,19 +3104,7 @@ export const ExplorerSidebar = ({
                                                     </div>
                                                 ) : (
                                                     <div>
-                                                        {views.map((view) => (
-                                                            <SidebarViewItem
-                                                                key={view.name}
-                                                                view={view}
-                                                                activeView={activeView}
-                                                                onViewClick={handleViewClick}
-                                                                onViewDoubleClick={handleOpenView}
-                                                                onContextMenu={handleContextMenu}
-                                                                connectionId={activeConnectionId!}
-                                                                driver={activeDriver!}
-                                                                capabilities={activeCapabilities}
-                                                            />
-                                                        ))}
+                                                        {views.map((view) => renderFlatView(view))}
                                                     </div>
                                                 )}
                                             </Accordion>
@@ -3421,6 +3405,11 @@ export const ExplorerSidebar = ({
                                               );
                                           },
                                       },
+                                      pinMenuItem(
+                                          {kind: 'table', name: contextMenu.id},
+                                          ctxDatabase,
+                                          ctxSchema,
+                                      ),
                                       {
                                           label: t('sidebar.newConsole'),
                                           icon: FileCode,
@@ -3862,6 +3851,11 @@ export const ExplorerSidebar = ({
                                                         );
                                                     },
                                                 },
+                                                pinMenuItem(
+                                                    {kind: 'view', name: contextMenu.id},
+                                                    viewCtxDatabase,
+                                                    viewCtxSchema,
+                                                ),
                                                 {
                                                     label: t('sidebar.countRows'),
                                                     icon: Hash,
@@ -3977,6 +3971,11 @@ export const ExplorerSidebar = ({
                                                           );
                                                       },
                                                   },
+                                                  pinMenuItem(
+                                                      {kind: 'view', name: contextMenu.id},
+                                                      mvCtxDatabase,
+                                                      mvCtxSchema,
+                                                  ),
                                                   {
                                                       label: t('sidebar.countRows'),
                                                       icon: Hash,

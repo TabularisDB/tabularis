@@ -1,4 +1,4 @@
-import {describe, it, expect} from 'vitest';
+import {describe, it, expect, vi} from 'vitest';
 import {
     formatConnectionString,
     getDefaultPort,
@@ -692,6 +692,43 @@ describe('connections', () => {
                 expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
                     'localhost:5432  ·  2 databases',
                 );
+            });
+
+            it('names the only selected database on PostgreSQL', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: ['app']});
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  app',
+                );
+            });
+
+            it('names the only selected database on MySQL, as for a string', () => {
+                const asArray = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: ['app'],
+                });
+                const asString = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: 'app',
+                });
+                expect(connectionSubtitle(asArray, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  app',
+                );
+                expect(connectionSubtitle(asArray, makeRemoteCaps(), labels)).toBe(
+                    connectionSubtitle(asString, makeRemoteCaps(), labels),
+                );
+            });
+
+            it('does not use the counter for a single selected database', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: ['app']});
+                const databaseCount = vi.fn((count: number) => `${count} databases`);
+                expect(
+                    connectionSubtitle(conn, makeSchemaRemoteCaps(), {...labels, databaseCount}),
+                ).toBe('localhost:5432  ·  app');
+                expect(databaseCount).not.toHaveBeenCalled();
             });
 
             it('counts multiple selected databases on MySQL', () => {
