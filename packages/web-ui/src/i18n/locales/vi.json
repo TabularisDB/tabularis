@@ -297,6 +297,8 @@
     "pinned": "Đã ghim",
     "pin": "Ghim",
     "unpin": "Bỏ ghim",
+    "exportHistory": "Xuất lịch sử dưới dạng SQL",
+    "exportHistoryError": "Không thể xuất lịch sử truy vấn",
     "pauseHistoryCapture": "Tạm dừng ghi lịch sử",
     "resumeHistoryCapture": "Tiếp tục ghi lịch sử",
     "historyCapturePausedNotice": "Đã tạm dừng ghi lịch sử truy vấn",
