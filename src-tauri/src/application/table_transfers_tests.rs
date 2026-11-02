@@ -277,12 +277,12 @@ mod select {
         // Any SQLite column can hold a blob, whatever its declared type.
         let columns = [typed("a", "INTEGER"), typed("b", "blob"), typed("c", "")];
         let reads = column_reads("sqlite", &columns);
-        assert_eq!(reads, [ColumnRead::BlobAware; 3]);
+        assert_eq!(reads, [ColumnRead::StorageClass; 3]);
         assert_eq!(
             export_select(&dialect("\"", false), None, "t", &columns[1..], &reads[1..]),
             "SELECT \"b\", \"c\", \
-             CASE WHEN typeof(\"b\") = 'blob' THEN hex(\"b\") END AS \"__tabularis_blob_hex_0\", \
-             CASE WHEN typeof(\"c\") = 'blob' THEN hex(\"c\") END AS \"__tabularis_blob_hex_1\" \
+             CASE WHEN typeof(\"b\") IN ('blob', 'integer') THEN quote(\"b\") END AS \"__tabularis_literal_0\", \
+             CASE WHEN typeof(\"c\") IN ('blob', 'integer') THEN quote(\"c\") END AS \"__tabularis_literal_1\" \
              FROM \"t\""
         );
         // Plugins render their own values.
@@ -358,8 +358,9 @@ mod select {
             value,
             is_json: false,
         };
-        let reads = [ColumnRead::BlobAware; 5];
-        // The row's own values, then the hex copy of each, set only for blobs.
+        let reads = [ColumnRead::StorageClass; 7];
+        // The row's own values, then the `quote()` copy of each, set only
+        // for blobs and integers.
         let row = vec![
             cell(serde_json::json!("hello")),
             cell(serde_json::json!(42)),
@@ -368,16 +369,39 @@ mod select {
                 "BLOB:4:application/octet-stream:3q2+7w=="
             )),
             cell(serde_json::Value::Null),
+            cell(serde_json::json!("9007199254740993")),
+            cell(serde_json::json!("-9223372036854775808")),
             cell(serde_json::Value::Null),
+            cell(serde_json::json!("42")),
             cell(serde_json::Value::Null),
+            cell(serde_json::json!("X'DEADBEEF'")),
             cell(serde_json::Value::Null),
-            cell(serde_json::json!("DEADBEEF")),
-            cell(serde_json::Value::Null),
+            cell(serde_json::json!("9007199254740993")),
+            cell(serde_json::json!("-9223372036854775808")),
         ];
         assert_eq!(
             render_row(row, &reads, &sqlite),
-            ["'hello'", "42", "1.5", "X'DEADBEEF'", "NULL"]
+            [
+                "'hello'",
+                "42",
+                "1.5",
+                "X'DEADBEEF'",
+                "NULL",
+                "9007199254740993",
+                "-9223372036854775808"
+            ]
         );
+        // A copy that isn't a blob or integer literal is never written as is.
+        for copy in ["X'GG'", "1; DROP TABLE t", "-", "", "'text'"] {
+            assert_eq!(
+                render_row(
+                    vec![cell(serde_json::json!("v")), cell(serde_json::json!(copy))],
+                    &[ColumnRead::StorageClass],
+                    &sqlite
+                ),
+                ["'v'"]
+            );
+        }
     }
 
     #[test]
@@ -676,7 +700,7 @@ mod sqlite_round_trip {
         fixture
             .run(
                 "source",
-                "INSERT INTO items VALUES (1, 'hello', 'hello'), (2, 42, 42), (3, 1.5, 1.5), (4, X'DEADBEEF', X'DEADBEEF'), (5, NULL, NULL)",
+                "INSERT INTO items VALUES (1, 'hello', 'hello'), (2, 42, 42), (3, 1.5, 1.5), (4, X'DEADBEEF', X'DEADBEEF'), (5, NULL, NULL), (6, 9007199254740993, 9007199254740993), (7, -9223372036854775808, -9223372036854775808)",
             )
             .await;
         let (path, _) = fixture.export(TableSqlContent::StructureAndData).await;
@@ -692,7 +716,22 @@ mod sqlite_round_trip {
                 [2, "42", "integer", "42", "integer"],
                 [3, "1.5", "real", "1.5", "real"],
                 [4, "X'DEADBEEF'", "blob", "X'DEADBEEF'", "blob"],
-                [5, "NULL", "null", "NULL", "null"]
+                [5, "NULL", "null", "NULL", "null"],
+                // Past JavaScript's safe range, read as a string.
+                [
+                    6,
+                    "9007199254740993",
+                    "integer",
+                    "9007199254740993",
+                    "integer"
+                ],
+                [
+                    7,
+                    "-9223372036854775808",
+                    "integer",
+                    "-9223372036854775808",
+                    "integer"
+                ]
             ])
         );
     }
