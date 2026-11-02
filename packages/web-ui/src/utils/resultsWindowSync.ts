@@ -1,4 +1,5 @@
 import type {QueryResult, QueryResultEntry, Tab} from '@/types/editor';
+import type {CopyFormat} from '@/utils/clipboard';
 
 /**
  * Protocol for syncing query results between the main editor window and a
@@ -25,7 +26,7 @@ export const resultsCopyEvent = (tabId: string) => `results-window:copy:${tabId}
  * entry-based detached view. */
 export const SINGLE_RESULT_ENTRY_ID = '__single__';
 
-export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'markdown';
+export type {CopyFormat};
 
 /** Display settings the detached window needs but cannot read from main-window
  * React state. */
@@ -67,6 +68,8 @@ export interface ResultsClosedPayload {
 export interface CopiedRows {
     text: string;
     count: number;
+    /** SQL UPDATE was asked for, but the result has no usable primary key, so INSERT was copied. */
+    asInsert?: boolean;
 }
 
 /** Copy-all result the main window sends back to the detached window that

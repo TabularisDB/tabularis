@@ -118,6 +118,7 @@ export function GeneralTab() {
                             {value: 'csv', label: 'CSV'},
                             {value: 'json', label: 'JSON'},
                             {value: 'sql-insert', label: 'SQL INSERT'},
+                            {value: 'sql-update', label: 'SQL UPDATE'},
                             {value: 'markdown', label: 'Markdown'},
                         ]}
                     />

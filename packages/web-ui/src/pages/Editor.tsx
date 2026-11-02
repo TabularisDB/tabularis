@@ -15,7 +15,12 @@ import {
     resolveTabPageSize,
 } from '@/utils/editor';
 import {shouldShowStatementSuccess} from '@/utils/resultPresentation';
-import {formatRowsForCopy, copyTextToClipboard} from '@/utils/clipboard';
+import {
+    formatRowsForCopy,
+    copyTextToClipboard,
+    sqlUpdateBlocker,
+    type CopyFormat,
+} from '@/utils/clipboard';
 import {onActivationKey, isTypingTarget} from '@/utils/keyboardEvents';
 import {
     formatResultForExport,
@@ -596,9 +601,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     >([]);
     const [isCountLoading, setIsCountLoading] = useState(false);
     const [applyToAll, setApplyToAll] = useState(false);
-    const [copyFormat, setCopyFormat] = useState<'csv' | 'json' | 'sql-insert' | 'markdown'>(
-        settings.copyFormat ?? 'csv',
-    );
+    const [copyFormat, setCopyFormat] = useState<CopyFormat>(settings.copyFormat ?? 'csv');
     const [csvDelimiter, setCsvDelimiter] = useState(settings.csvDelimiter ?? ',');
     const [csvIncludeHeaders, setCsvIncludeHeaders] = useState(settings.csvIncludeHeaders ?? true);
 
@@ -2229,6 +2232,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             tableName: string | null,
             sessionId: string,
             database?: string | null,
+            pkColumns?: string[] | null,
         ): Promise<CopiedRows | null> => {
             const columns = result?.columns ?? [];
             if (!activeConnectionId || columns.length === 0 || !query.trim()) {
@@ -2264,8 +2268,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 tableName,
                 driver: activeCapabilities,
                 nullLabel: settings.copyNullLabel ?? 'null',
+                pkColumns,
             });
-            return {text, count: rows.length};
+            const asInsert =
+                copyFormat === 'sql-update' && sqlUpdateBlocker(fetchedColumns, pkColumns) !== null;
+            return {text, count: rows.length, ...(asInsert ? {asInsert} : {})};
         },
         [
             client,
@@ -2308,6 +2315,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     tab.activeTable,
                     tab.id,
                     tab.database,
+                    tab.pkColumns,
                 );
             if (tab.type !== 'table') return fetch();
 
@@ -2340,6 +2348,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 entry.activeTable,
                 tab.id,
                 tab.database,
+                entry.pkColumns,
             );
         },
         [activeSchema, fetchAllRows],
@@ -2351,9 +2360,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 const copied = await rows;
                 if (!copied) return;
                 await copyTextToClipboard(copied.text);
-                showToast(t('dataGrid.copiedRows', {count: copied.count}), {
-                    kind: 'success',
-                });
+                showToast(
+                    t(copied.asInsert ? 'dataGrid.copiedAsInsertNoKey' : 'dataGrid.copiedRows', {
+                        count: copied.count,
+                    }),
+                    {kind: 'success'},
+                );
             } catch (e) {
                 showAlert(t('common.error') + ': ' + e, {
                     title: t('common.error'),
@@ -6238,13 +6250,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 <select
                                                     value={copyFormat}
                                                     onChange={(e) =>
-                                                        setCopyFormat(
-                                                            e.target.value as
-                                                                | 'csv'
-                                                                | 'json'
-                                                                | 'sql-insert'
-                                                                | 'markdown',
-                                                        )
+                                                        setCopyFormat(e.target.value as CopyFormat)
                                                     }
                                                     className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
                                                     title={t('settings.copyFormat')}
@@ -6253,6 +6259,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                     <option value="csv">CSV</option>
                                                     <option value="json">JSON</option>
                                                     <option value="sql-insert">SQL INSERT</option>
+                                                    <option value="sql-update">SQL UPDATE</option>
                                                     <option value="markdown">Markdown</option>
                                                 </select>
                                                 {copyFormat === 'csv' && (
