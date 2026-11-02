@@ -192,6 +192,16 @@ pub(crate) enum ColumnRead {
     /// As hex (`HEX(col)`), written as `X'...'`: binary columns, whose
     /// extracted value is a truncated preview.
     Hex,
+    /// SQLite: as is, plus a hidden hex copy of the value when its storage
+    /// class is `blob`. Any SQLite column can hold values of every storage
+    /// class, so only actual blobs are written as `X'...'`; text, integers
+    /// and reals keep their type.
+    BlobAware,
+}
+
+/// Name of the hidden hex copy of a `BlobAware` column.
+fn blob_hex_alias(index: usize) -> String {
+    format!("\"__tabularis_blob_hex_{index}\"")
 }
 
 /// How each exported column of a built-in driver is read. Plugins render
@@ -203,25 +213,21 @@ pub(crate) fn column_reads(driver: &str, columns: &[TableColumn]) -> Vec<ColumnR
         .filter(|column| !column.is_generated)
         .map(|column| match driver {
             "postgres" => ColumnRead::Text,
-            "mysql" | "sqlite" if is_binary_type(driver, &column.data_type) => ColumnRead::Hex,
+            "sqlite" => ColumnRead::BlobAware,
+            "mysql" if is_binary_type(&column.data_type) => ColumnRead::Hex,
             _ => ColumnRead::Value,
         })
         .collect()
 }
 
-fn is_binary_type(driver: &str, data_type: &str) -> bool {
+/// MySQL binary types, whose values are read as hex.
+fn is_binary_type(data_type: &str) -> bool {
     let data_type = data_type.trim().to_ascii_lowercase();
-    match driver {
-        // SQLite: a declared type containing BLOB, or none (BLOB affinity).
-        "sqlite" => data_type.is_empty() || data_type.contains("blob"),
-        _ => {
-            let base = data_type.split(['(', ' ']).next().unwrap_or_default();
-            matches!(
-                base,
-                "binary" | "varbinary" | "tinyblob" | "blob" | "mediumblob" | "longblob" | "bit"
-            )
-        }
-    }
+    let base = data_type.split(['(', ' ']).next().unwrap_or_default();
+    matches!(
+        base,
+        "binary" | "varbinary" | "tinyblob" | "blob" | "mediumblob" | "longblob" | "bit"
+    )
 }
 
 /// `SELECT` of the insertable columns, each read the way `reads` says
@@ -242,15 +248,29 @@ pub(crate) fn export_select(
         .map(|(index, column)| {
             let name = dialect.quote_identifier(&column.name);
             match reads.get(index).copied().unwrap_or(ColumnRead::Value) {
-                ColumnRead::Value => name,
+                ColumnRead::Value | ColumnRead::BlobAware => name,
                 ColumnRead::Text => format!("{name}::text AS {name}"),
-                // SQLite's hex(NULL) is '', so NULL is kept apart from an empty value.
+                // NULL stays NULL, apart from an empty value.
                 ColumnRead::Hex => {
                     format!("CASE WHEN {name} IS NULL THEN NULL ELSE HEX({name}) END AS {name}")
                 }
             }
         })
         .collect::<Vec<_>>();
+    // The hidden hex copies of `BlobAware` columns follow the real columns.
+    let hex_copies = columns
+        .iter()
+        .filter(|column| !column.is_generated)
+        .enumerate()
+        .filter(|(index, _)| reads.get(*index) == Some(&ColumnRead::BlobAware))
+        .map(|(index, column)| {
+            let name = dialect.quote_identifier(&column.name);
+            format!(
+                "CASE WHEN typeof({name}) = 'blob' THEN hex({name}) END AS {}",
+                blob_hex_alias(index)
+            )
+        });
+    let selected = selected.into_iter().chain(hex_copies).collect::<Vec<_>>();
     let list = if selected.is_empty() {
         "*".to_string()
     } else {
@@ -272,19 +292,62 @@ pub(crate) fn export_select(
     )
 }
 
-/// One exported cell as SQL, following how its column was read.
-pub(crate) fn render_cell(cell: SqlCell, read: ColumnRead, dialect: &DumpDialect) -> String {
+/// One exported row as SQL values, following how each column was read.
+/// `cells` holds the real columns first, then the hidden hex copies of the
+/// `BlobAware` columns (see `export_select`), which are not part of the row.
+pub(crate) fn render_row(
+    cells: Vec<SqlCell>,
+    reads: &[ColumnRead],
+    dialect: &DumpDialect,
+) -> Vec<String> {
+    let real = if reads.is_empty() {
+        cells.len()
+    } else {
+        reads.len().min(cells.len())
+    };
+    let mut cells = cells.into_iter();
+    let row = cells.by_ref().take(real).collect::<Vec<_>>();
+    let mut hex_copies = cells;
+    row.into_iter()
+        .enumerate()
+        .map(|(index, cell)| {
+            let read = reads.get(index).copied().unwrap_or(ColumnRead::Value);
+            let hex = if read == ColumnRead::BlobAware {
+                hex_copies.next().map(|copy| copy.value)
+            } else {
+                None
+            };
+            render_cell(cell, read, hex, dialect)
+        })
+        .collect()
+}
+
+fn render_cell(
+    cell: SqlCell,
+    read: ColumnRead,
+    hex_copy: Option<serde_json::Value>,
+    dialect: &DumpDialect,
+) -> String {
+    let hex_literal = |hex: &str| {
+        hex.bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+            .then(|| format!("X'{hex}'"))
+    };
     match (read, &cell.value) {
         (ColumnRead::Text, _) => SqlCell {
             is_json: false,
             ..cell
         }
         .render(dialect),
-        (ColumnRead::Hex, serde_json::Value::String(hex))
-            if hex.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
-        {
-            format!("X'{hex}'")
+        (ColumnRead::Hex, serde_json::Value::String(hex)) => {
+            hex_literal(hex).unwrap_or_else(|| cell.render(dialect))
         }
+        (ColumnRead::BlobAware, _) => match hex_copy {
+            Some(serde_json::Value::String(hex)) => {
+                hex_literal(&hex).unwrap_or_else(|| cell.render(dialect))
+            }
+            _ => cell.render(dialect),
+        },
         _ => cell.render(dialect),
     }
 }
@@ -514,18 +577,15 @@ async fn write_table_export(
                 schema,
                 |names, cells| {
                     if writer.columns.is_empty() {
-                        writer.columns = names.to_vec();
+                        // The hidden hex copies are not columns of the table.
+                        let real = if reads.is_empty() {
+                            names.len()
+                        } else {
+                            reads.len().min(names.len())
+                        };
+                        writer.columns = names[..real].to_vec();
                     }
-                    writer.push(
-                        cells
-                            .into_iter()
-                            .enumerate()
-                            .map(|(index, cell)| {
-                                let read = reads.get(index).copied().unwrap_or(ColumnRead::Value);
-                                render_cell(cell, read, &dialect)
-                            })
-                            .collect(),
-                    )?;
+                    writer.push(render_row(cells, &reads, &dialect))?;
                     progress.tick();
                     Ok(())
                 },

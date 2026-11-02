@@ -274,10 +274,16 @@ mod select {
             "SELECT `id`, CASE WHEN `raw` IS NULL THEN NULL ELSE HEX(`raw`) END AS `raw` FROM `t`"
         );
 
+        // Any SQLite column can hold a blob, whatever its declared type.
         let columns = [typed("a", "INTEGER"), typed("b", "blob"), typed("c", "")];
+        let reads = column_reads("sqlite", &columns);
+        assert_eq!(reads, [ColumnRead::BlobAware; 3]);
         assert_eq!(
-            column_reads("sqlite", &columns),
-            [ColumnRead::Value, ColumnRead::Hex, ColumnRead::Hex]
+            export_select(&dialect("\"", false), None, "t", &columns[1..], &reads[1..]),
+            "SELECT \"b\", \"c\", \
+             CASE WHEN typeof(\"b\") = 'blob' THEN hex(\"b\") END AS \"__tabularis_blob_hex_0\", \
+             CASE WHEN typeof(\"c\") = 'blob' THEN hex(\"c\") END AS \"__tabularis_blob_hex_1\" \
+             FROM \"t\""
         );
         // Plugins render their own values.
         assert_eq!(
@@ -293,6 +299,9 @@ mod select {
             ..dialect("`", false)
         };
         let cell = |value: serde_json::Value, is_json: bool| SqlCell { value, is_json };
+        let render_cell = |cell: SqlCell, read: ColumnRead, dialect: &DumpDialect| {
+            render_row(vec![cell], &[read], dialect).remove(0)
+        };
         assert_eq!(
             render_cell(
                 cell(serde_json::json!("DEADBEEF00"), false),
@@ -339,6 +348,35 @@ mod select {
                 &postgres
             ),
             "'\"{\\\"k\\\": 1}\"'"
+        );
+    }
+
+    #[test]
+    fn renders_sqlite_values_by_their_storage_class() {
+        let sqlite = dialect("\"", false);
+        let cell = |value: serde_json::Value| SqlCell {
+            value,
+            is_json: false,
+        };
+        let reads = [ColumnRead::BlobAware; 5];
+        // The row's own values, then the hex copy of each, set only for blobs.
+        let row = vec![
+            cell(serde_json::json!("hello")),
+            cell(serde_json::json!(42)),
+            cell(serde_json::json!(1.5)),
+            cell(serde_json::json!(
+                "BLOB:4:application/octet-stream:3q2+7w=="
+            )),
+            cell(serde_json::Value::Null),
+            cell(serde_json::Value::Null),
+            cell(serde_json::Value::Null),
+            cell(serde_json::Value::Null),
+            cell(serde_json::json!("DEADBEEF")),
+            cell(serde_json::Value::Null),
+        ];
+        assert_eq!(
+            render_row(row, &reads, &sqlite),
+            ["'hello'", "42", "1.5", "X'DEADBEEF'", "NULL"]
         );
     }
 
@@ -621,6 +659,41 @@ mod sqlite_round_trip {
         assert_eq!(
             fixture.run("target", hex).await.rows,
             fixture.run("source", hex).await.rows
+        );
+    }
+
+    #[tokio::test]
+    async fn keeps_the_storage_class_of_every_value() {
+        // SQLite stores text, numbers and blobs in any column, whatever its
+        // declared type; each value must come back as it was stored.
+        let fixture = fixture().await;
+        fixture
+            .run(
+                "source",
+                "CREATE TABLE items (id INTEGER PRIMARY KEY, payload BLOB, untyped)",
+            )
+            .await;
+        fixture
+            .run(
+                "source",
+                "INSERT INTO items VALUES (1, 'hello', 'hello'), (2, 42, 42), (3, 1.5, 1.5), (4, X'DEADBEEF', X'DEADBEEF'), (5, NULL, NULL)",
+            )
+            .await;
+        let (path, _) = fixture.export(TableSqlContent::StructureAndData).await;
+        fixture.import(&path, IfTableExists::Fail).await.unwrap();
+
+        let values = "SELECT id, quote(payload), typeof(payload), quote(untyped), typeof(untyped) FROM items ORDER BY id";
+        let source = fixture.run("source", values).await.rows;
+        assert_eq!(fixture.run("target", values).await.rows, source);
+        assert_eq!(
+            serde_json::to_value(&source).unwrap(),
+            serde_json::json!([
+                [1, "'hello'", "text", "'hello'", "text"],
+                [2, "42", "integer", "42", "integer"],
+                [3, "1.5", "real", "1.5", "real"],
+                [4, "X'DEADBEEF'", "blob", "X'DEADBEEF'", "blob"],
+                [5, "NULL", "null", "NULL", "null"]
+            ])
         );
     }
 
