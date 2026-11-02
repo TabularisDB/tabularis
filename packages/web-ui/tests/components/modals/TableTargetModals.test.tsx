@@ -153,6 +153,46 @@ describe('table target modals', () => {
         expect(screen.getByText(/"schema":"sales"/)).toBeInTheDocument();
     });
 
+    it('should open the console on the target database of a multi-database connection', async () => {
+        invokeMock.mockResolvedValue([]);
+        const openEditor = vi.fn();
+
+        render(
+            <MemoryRouter>
+                <GenerateSQLModal
+                    isOpen
+                    target={{
+                        connectionId: 'connection-b',
+                        tableName: 'users',
+                        schema: 'dbo',
+                        database: 'shop_db',
+                    }}
+                    openEditor={openEditor}
+                    onClose={vi.fn()}
+                />
+            </MemoryRouter>,
+        );
+
+        await waitFor(() =>
+            expect(screen.queryByText('generateSQL.loading')).not.toBeInTheDocument(),
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'generateSQL.runInConsole',
+            }),
+        );
+
+        expect(openEditor).toHaveBeenCalledWith(
+            expect.objectContaining({
+                kind: 'console',
+                schema: 'dbo',
+                database: 'shop_db',
+                targetConnectionId: 'connection-b',
+            }),
+        );
+    });
+
     it('should open the console through the scope runtime when one is given', async () => {
         invokeMock.mockResolvedValue([]);
         const openEditor = vi.fn();
