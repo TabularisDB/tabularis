@@ -1694,7 +1694,11 @@
       "retry": "Subukan muli",
       "closeCurrentTab": "Isara ang kasalukuyang tab",
       "backToConnections": "Bumalik sa mga connection",
-      "showDetails": "Ipakita ang teknikal na detalye"
+      "showDetails": "Ipakita ang teknikal na detalye",
+      "copyReport": "Kopyahin ang ulat",
+      "reportCopied": "Nakopya ang ulat",
+      "copyFailed": "Hindi makopya ang ulat sa clipboard.",
+      "createIssue": "Gumawa ng issue"
     },
     "newVisualQuery": "Bagong Visual Query",
     "activeDatabase": "Aktibong database",

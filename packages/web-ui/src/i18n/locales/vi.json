@@ -1722,7 +1722,11 @@
       "retry": "Thử lại",
       "closeCurrentTab": "Đóng tab hiện tại",
       "backToConnections": "Quay về danh sách kết nối",
-      "showDetails": "Hiện chi tiết kỹ thuật"
+      "showDetails": "Hiện chi tiết kỹ thuật",
+      "copyReport": "Sao chép báo cáo",
+      "reportCopied": "Đã sao chép báo cáo",
+      "copyFailed": "Không thể sao chép báo cáo vào bộ nhớ tạm.",
+      "createIssue": "Tạo issue"
     },
     "newVisualQuery": "Truy vấn trực quan mới",
     "activeDatabase": "Cơ sở dữ liệu đang dùng",

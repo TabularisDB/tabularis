@@ -1656,7 +1656,11 @@
       "retry": "重试",
       "closeCurrentTab": "关闭当前标签",
       "backToConnections": "返回连接",
-      "showDetails": "显示技术细节"
+      "showDetails": "显示技术细节",
+      "copyReport": "复制报告",
+      "reportCopied": "已复制报告",
+      "copyFailed": "无法将报告复制到剪贴板。",
+      "createIssue": "创建 Issue"
     },
     "newVisualQuery": "新建可视化查询",
     "activeDatabase": "当前数据库",

@@ -1638,7 +1638,11 @@
       "retry": "다시 시도",
       "closeCurrentTab": "현재 탭 닫기",
       "backToConnections": "연결 목록으로 돌아가기",
-      "showDetails": "기술적 세부 정보 표시"
+      "showDetails": "기술적 세부 정보 표시",
+      "copyReport": "보고서 복사",
+      "reportCopied": "보고서를 복사했습니다",
+      "copyFailed": "보고서를 클립보드에 복사하지 못했습니다.",
+      "createIssue": "이슈 만들기"
     },
     "newVisualQuery": "새 비주얼 쿼리",
     "activeDatabase": "활성 데이터베이스",

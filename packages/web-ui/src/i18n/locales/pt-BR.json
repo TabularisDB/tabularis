@@ -1680,7 +1680,11 @@
       "retry": "Tentar novamente",
       "closeCurrentTab": "Fechar aba atual",
       "backToConnections": "Voltar para conexões",
-      "showDetails": "Mostrar detalhes técnicos"
+      "showDetails": "Mostrar detalhes técnicos",
+      "copyReport": "Copiar relatório",
+      "reportCopied": "Relatório copiado",
+      "copyFailed": "Não foi possível copiar o relatório para a área de transferência.",
+      "createIssue": "Criar issue"
     },
     "newVisualQuery": "Nova Consulta Visual",
     "activeDatabase": "Banco de dados ativo",

@@ -1709,7 +1709,11 @@
       "retry": "Reintentar",
       "closeCurrentTab": "Cerrar pestaña actual",
       "backToConnections": "Volver a conexiones",
-      "showDetails": "Mostrar detalles técnicos"
+      "showDetails": "Mostrar detalles técnicos",
+      "copyReport": "Copiar informe",
+      "reportCopied": "Informe copiado",
+      "copyFailed": "No se pudo copiar el informe al portapapeles.",
+      "createIssue": "Crear issue"
     },
     "newVisualQuery": "Nueva Consulta Visual",
     "activeDatabase": "Base de datos activa",
