@@ -3879,6 +3879,23 @@ describe('DataGrid hidden columns (#1299)', () => {
         beforeEach(() => {
             writeText.mockClear();
             showToastMock.mockClear();
+            // Earlier suites leave another dialect behind, so these copies set MySQL explicitly.
+            databaseMock.mockReset();
+            databaseMock.mockReturnValue({
+                activeSchema: null,
+                connections: [],
+                activeDriver: 'mysql',
+                activeCapabilities: {
+                    schemas: false,
+                    views: true,
+                    routines: true,
+                    file_based: false,
+                    folder_based: false,
+                    identifier_quote: '`',
+                    alter_primary_key: true,
+                },
+                getConnectionData: vi.fn(),
+            });
             Object.defineProperty(navigator, 'clipboard', {
                 value: {writeText},
                 configurable: true,
