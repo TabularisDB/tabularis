@@ -104,6 +104,11 @@ export function ExplainTableView({
                                         {t('editor.visualExplain.actualRows')}
                                     </th>
                                 )}
+                                {plan.has_analyze_data && (
+                                    <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
+                                        {t('editor.visualExplain.loops')}
+                                    </th>
+                                )}
                                 <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
                                     {t('editor.visualExplain.selfTime')}
                                 </th>
@@ -186,6 +191,7 @@ function TreeRows({
 
     const rowsStr = row.planRows != null ? formatRows(row.planRows) : '-';
     const actualRowsStr = row.actualRows != null ? formatRows(row.actualRows) : '-';
+    const loopsStr = row.actualLoops != null ? String(row.actualLoops) : '-';
     const ratioStr = row.estimateGap != null ? formatRatio(row.estimateGap) : '-';
 
     return (
@@ -240,6 +246,11 @@ function TreeRows({
                 {hasAnalyzeData && (
                     <td className="px-3 py-1.5 text-right text-secondary font-mono whitespace-nowrap">
                         {actualRowsStr}
+                    </td>
+                )}
+                {hasAnalyzeData && (
+                    <td className="px-3 py-1.5 text-right text-secondary font-mono whitespace-nowrap">
+                        {loopsStr}
                     </td>
                 )}
                 <td className="px-3 py-1.5 text-right text-secondary font-mono whitespace-nowrap">
