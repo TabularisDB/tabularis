@@ -1448,6 +1448,7 @@
     "rotatePassword": "Nova senha",
     "rotatePasswordPlaceholder": "Digite uma nova senha",
     "rotatePasswordHint": "Deixe em branco para manter a senha atual no chaveiro do sistema.",
+    "rotateReconnect": "Senha atualizada. Reconecte estas conexões abertas para usá-la.",
     "edit": "Editar",
     "delete": "Excluir",
     "save": "Salvar",

@@ -1445,6 +1445,7 @@
     "rotatePassword": "新しいパスワード",
     "rotatePasswordPlaceholder": "新しいパスワードを入力",
     "rotatePasswordHint": "空欄のままにすると、システムキーチェーンに保存されている現在のパスワードを保持します。",
+    "rotateReconnect": "パスワードを更新しました。反映するには、開いている接続に再接続してください。",
     "edit": "編集",
     "delete": "削除",
     "save": "保存",

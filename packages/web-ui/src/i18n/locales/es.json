@@ -1460,6 +1460,7 @@
     "rotatePassword": "Nueva contraseña",
     "rotatePasswordPlaceholder": "Introduce una nueva contraseña",
     "rotatePasswordHint": "Déjalo vacío para conservar la contraseña actual en el llavero del sistema.",
+    "rotateReconnect": "Contraseña actualizada. Vuelve a conectar estas conexiones abiertas para usarla.",
     "edit": "Editar",
     "delete": "Eliminar",
     "save": "Guardar",

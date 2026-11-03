@@ -1406,6 +1406,7 @@
     "rotatePassword": "새 비밀번호",
     "rotatePasswordPlaceholder": "새 비밀번호 입력",
     "rotatePasswordHint": "비워 두면 시스템 키체인에 저장된 현재 비밀번호를 유지합니다.",
+    "rotateReconnect": "비밀번호가 업데이트되었습니다. 적용하려면 열려 있는 연결에 다시 연결하세요.",
     "edit": "편집",
     "delete": "삭제",
     "save": "저장",

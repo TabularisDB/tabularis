@@ -1469,6 +1469,7 @@
     "rotatePassword": "Nouveau mot de passe",
     "rotatePasswordPlaceholder": "Saisir un nouveau mot de passe",
     "rotatePasswordHint": "Laissez vide pour conserver le mot de passe actuel dans le trousseau système.",
+    "rotateReconnect": "Mot de passe mis à jour. Reconnectez ces connexions ouvertes pour l'utiliser.",
     "edit": "Modifier",
     "delete": "Supprimer",
     "save": "Enregistrer",

@@ -1491,6 +1491,7 @@
     "rotatePassword": "Mật khẩu mới",
     "rotatePasswordPlaceholder": "Nhập mật khẩu mới",
     "rotatePasswordHint": "Để trống để giữ mật khẩu hiện tại đã lưu trong keychain của hệ thống.",
+    "rotateReconnect": "Đã cập nhật mật khẩu. Hãy kết nối lại các kết nối đang mở để dùng mật khẩu mới.",
     "edit": "Sửa",
     "delete": "Xóa",
     "save": "Lưu",

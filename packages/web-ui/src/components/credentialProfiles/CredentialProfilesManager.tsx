@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useId, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {Plus, Edit2, Trash2, Check, Eye, EyeOff, X} from 'lucide-react';
+import {Plus, Edit2, Trash2, Check, Eye, EyeOff, Info, X} from 'lucide-react';
 import clsx from 'clsx';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
+import {useDatabase} from '@/hooks/useDatabase';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {
     createCredentialProfile,
@@ -94,6 +95,7 @@ export function CredentialProfilesManager({
     onProfilesChanged,
 }: CredentialProfilesManagerProps) {
     const client = useTabularisClient();
+    const {isConnectionOpenAnywhere} = useDatabase();
     const {t} = useTranslation();
     const [profiles, setProfiles] = useState<CredentialProfile[]>([]);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -101,8 +103,11 @@ export function CredentialProfilesManager({
     const [name, setName] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [status, setStatus] = useState<'idle' | 'error'>('idle');
+    const [status, setStatus] = useState<'idle' | 'error' | 'info'>('idle');
     const [statusMessage, setStatusMessage] = useState('');
+    const [reconnectConnections, setReconnectConnections] = useState<
+        CredentialProfileDependentConnection[]
+    >([]);
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
     const [deleteDependents, setDeleteDependents] = useState<
         CredentialProfileDependentConnection[] | null
@@ -140,6 +145,7 @@ export function CredentialProfilesManager({
         setIsCreating(false);
         setStatus('idle');
         setStatusMessage('');
+        setReconnectConnections([]);
     };
 
     const handleEdit = (profile: CredentialProfile) => {
@@ -163,15 +169,13 @@ export function CredentialProfilesManager({
             return;
         }
 
+        const nextPassword = password.trim() ? password : undefined;
+        // An unchanged password is omitted. Only a real rotation can leave an
+        // open pool on the previous secret.
+        const rotatedProfileId = editingId && nextPassword ? editingId : null;
         try {
             if (editingId) {
-                await updateCredentialProfile(
-                    editingId,
-                    name,
-                    username,
-                    password.trim() ? password : undefined,
-                    client,
-                );
+                await updateCredentialProfile(editingId, name, username, nextPassword, client);
             } else {
                 await createCredentialProfile(name, username, password, client);
             }
@@ -180,6 +184,22 @@ export function CredentialProfilesManager({
         } catch (error) {
             setStatus('error');
             setStatusMessage(t('credentialProfiles.failSave', {error: toErrorMessage(error)}));
+            return;
+        }
+
+        if (!rotatedProfileId) return;
+        try {
+            const dependents = await getCredentialProfileDependents(rotatedProfileId, client);
+            const openConnections = dependents.filter((connection) =>
+                isConnectionOpenAnywhere(connection.id),
+            );
+            if (openConnections.length === 0) return;
+            setReconnectConnections(openConnections);
+            setStatus('info');
+            setStatusMessage(t('credentialProfiles.rotateReconnect'));
+        } catch {
+            // The new password is already stored. Failing to name open
+            // connections must not report the update itself as failed.
         }
     };
 
@@ -265,13 +285,33 @@ export function CredentialProfilesManager({
                         </button>
                     </div>
 
-                    {status === 'error' && statusMessage && (
+                    {status !== 'idle' && statusMessage && (
                         <div
-                            role="alert"
-                            className="mb-4 p-3 rounded-lg flex items-start gap-2 text-sm border bg-accent-error/10 text-accent-error border-accent-error/25"
+                            role={status === 'error' ? 'alert' : 'status'}
+                            className={clsx(
+                                'mb-4 p-3 rounded-lg flex items-start gap-2 text-sm border',
+                                status === 'error'
+                                    ? 'bg-accent-error/10 text-accent-error border-accent-error/25'
+                                    : 'bg-accent-info/10 text-accent-info border-accent-info/25',
+                            )}
                         >
-                            <X size={16} className="mt-0.5 shrink-0" />
-                            <span>{statusMessage}</span>
+                            {status === 'error' ? (
+                                <X size={16} className="mt-0.5 shrink-0" />
+                            ) : (
+                                <Info size={16} className="mt-0.5 shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                                <span>{statusMessage}</span>
+                                {status === 'info' && reconnectConnections.length > 0 && (
+                                    <ul className="mt-1 space-y-1">
+                                        {reconnectConnections.map((connection) => (
+                                            <li key={connection.id} className="truncate">
+                                                {connection.name}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
                         </div>
                     )}
 

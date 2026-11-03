@@ -1495,6 +1495,7 @@
     "rotatePassword": "Nuova password",
     "rotatePasswordPlaceholder": "Inserisci una nuova password",
     "rotatePasswordHint": "Lascia vuoto per mantenere la password attuale nel portachiavi di sistema.",
+    "rotateReconnect": "Password aggiornata. Riconnetti queste connessioni aperte per usarla.",
     "edit": "Modifica",
     "delete": "Elimina",
     "save": "Salva",

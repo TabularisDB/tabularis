@@ -1499,6 +1499,7 @@
     "rotatePassword": "New password",
     "rotatePasswordPlaceholder": "Enter a new password",
     "rotatePasswordHint": "Leave empty to keep the current password stored in the system keychain.",
+    "rotateReconnect": "Password updated. Reconnect these open connections to use it.",
     "edit": "Edit",
     "delete": "Delete",
     "save": "Save",

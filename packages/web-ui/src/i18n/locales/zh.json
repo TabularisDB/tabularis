@@ -1407,6 +1407,7 @@
     "rotatePassword": "新密码",
     "rotatePasswordPlaceholder": "输入新密码",
     "rotatePasswordHint": "留空以保留系统钥匙串中的当前密码。",
+    "rotateReconnect": "密码已更新。请重新连接这些已打开的连接才能使用新密码。",
     "edit": "编辑",
     "delete": "删除",
     "save": "保存",

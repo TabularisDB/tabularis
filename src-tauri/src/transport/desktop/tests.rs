@@ -333,3 +333,74 @@ async fn health_check_failure_closes_pool_when_profile_password_is_missing() {
         "pool cleanup must run even when the credential profile cannot be resolved"
     );
 }
+
+/// Pools are keyed by connection id, so rotating a profile password only drops
+/// the cached secret. The open pool keeps its credentials until reconnect.
+#[tokio::test]
+async fn rotating_a_credential_profile_password_leaves_the_sqlite_pool_open() {
+    use crate::transport::desktop::commands::update_credential_profile;
+
+    let root = tempfile::tempdir().unwrap();
+    let database = tempfile::NamedTempFile::new().unwrap();
+    let database_path = database.path().to_str().unwrap().to_string();
+    let connection_id = format!("rotate-profile-pool-{}", uuid::Uuid::new_v4());
+    let mut saved = linked_connection(&connection_id, "profile-1");
+    saved.params.driver = "sqlite".to_string();
+    saved.params.database = DatabaseSelection::Single(database_path.clone());
+
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    let file = ConnectionsFile {
+        connections: vec![saved.clone()],
+        credential_profiles: vec![CredentialProfile {
+            id: "profile-1".to_string(),
+            name: "Shared".to_string(),
+            username: "shared-user".to_string(),
+        }],
+        ..ConnectionsFile::default()
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+
+    let state = Arc::new(crate::runtime::state::ApplicationState::default());
+    state.connection_cache.populate(&[saved]);
+    let app = tauri::test::mock_builder()
+        .manage(runtime)
+        .manage(state)
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+
+    let pool_params = ConnectionParams {
+        driver: "sqlite".to_string(),
+        database: DatabaseSelection::Single(database_path),
+        ..ConnectionParams::default()
+    };
+    crate::pool_manager::get_sqlite_pool_with_id(&pool_params, Some(&connection_id))
+        .await
+        .expect("sqlite pool");
+    assert!(
+        crate::pool_manager::has_pool(&pool_params, Some(&connection_id)).await,
+        "the pool must be open before the password rotation"
+    );
+
+    update_credential_profile(
+        app.handle().clone(),
+        "profile-1".to_string(),
+        "Shared".to_string(),
+        "shared-user".to_string(),
+        Some("rotated-secret".to_string()),
+    )
+    .await
+    .expect("profile password rotation");
+
+    assert!(
+        crate::pool_manager::has_pool(&pool_params, Some(&connection_id)).await,
+        "rotating a profile password must not close the open pool"
+    );
+    crate::pool_manager::close_pools_for_connection_id("sqlite", &connection_id).await;
+}

@@ -34,8 +34,19 @@ vi.mock('lucide-react', () => ({
     Check: () => null,
     Eye: () => null,
     EyeOff: () => null,
+    Info: () => null,
     X: () => null,
     AlertTriangle: () => null,
+}));
+
+const databaseMocks = vi.hoisted(() => ({
+    isConnectionOpenAnywhere: vi.fn((_id: string) => false),
+}));
+
+vi.mock('@/hooks/useDatabase', () => ({
+    useDatabase: () => ({
+        isConnectionOpenAnywhere: (id: string) => databaseMocks.isConnectionOpenAnywhere(id),
+    }),
 }));
 
 vi.mock('@/utils/credentialProfiles', () => ({
@@ -96,6 +107,7 @@ describe('CredentialProfilesManager', () => {
         profileMocks.updateCredentialProfile.mockResolvedValue(undefined);
         profileMocks.deleteCredentialProfile.mockResolvedValue(undefined);
         profileMocks.getCredentialProfileDependents.mockResolvedValue([]);
+        databaseMocks.isConnectionOpenAnywhere.mockReturnValue(false);
     });
 
     it('shows the empty state when no profiles exist', async () => {
@@ -180,6 +192,71 @@ describe('CredentialProfilesManager', () => {
                 'rotated-secret',
             );
         });
+    });
+
+    it('names open linked connections that need a reconnect after a password rotation', async () => {
+        profileMocks.getCredentialProfileDependents.mockResolvedValue([
+            {id: 'conn-1', name: 'Linked DB'},
+            {id: 'conn-2', name: 'Closed DB'},
+        ]);
+        databaseMocks.isConnectionOpenAnywhere.mockImplementation((id: string) => id === 'conn-1');
+        render(<CredentialProfilesManager />);
+        await screen.findByText('Shared login');
+        fireEvent.click(screen.getByTitle('credentialProfiles.edit'));
+        fireEvent.change(
+            screen.getByPlaceholderText('credentialProfiles.rotatePasswordPlaceholder'),
+            {target: {value: 'rotated-secret'}},
+        );
+        fireEvent.click(screen.getByRole('button', {name: 'credentialProfiles.update'}));
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+            'credentialProfiles.rotateReconnect',
+        );
+        expect(screen.getByRole('status')).toHaveTextContent('Linked DB');
+        expect(screen.getByRole('status')).not.toHaveTextContent('Closed DB');
+    });
+
+    it('shows no reconnect notice when no linked connection is open', async () => {
+        profileMocks.getCredentialProfileDependents.mockResolvedValue([
+            {id: 'conn-1', name: 'Linked DB'},
+        ]);
+        render(<CredentialProfilesManager />);
+        await screen.findByText('Shared login');
+        fireEvent.click(screen.getByTitle('credentialProfiles.edit'));
+        fireEvent.change(
+            screen.getByPlaceholderText('credentialProfiles.rotatePasswordPlaceholder'),
+            {target: {value: 'rotated-secret'}},
+        );
+        fireEvent.click(screen.getByRole('button', {name: 'credentialProfiles.update'}));
+        await waitFor(() => {
+            expect(profileMocks.updateCredentialProfile).toHaveBeenCalled();
+        });
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.queryByText(/rotateReconnect/)).not.toBeInTheDocument();
+    });
+
+    it('shows no reconnect notice when a profile is renamed without a new password', async () => {
+        profileMocks.getCredentialProfileDependents.mockResolvedValue([
+            {id: 'conn-1', name: 'Linked DB'},
+        ]);
+        databaseMocks.isConnectionOpenAnywhere.mockReturnValue(true);
+        render(<CredentialProfilesManager />);
+        await screen.findByText('Shared login');
+        fireEvent.click(screen.getByTitle('credentialProfiles.edit'));
+        fireEvent.change(screen.getByPlaceholderText('credentialProfiles.namePlaceholder'), {
+            target: {value: 'Renamed login'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'credentialProfiles.update'}));
+        await waitFor(() => {
+            expect(profileMocks.updateCredentialProfile).toHaveBeenCalledWith(
+                'profile-1',
+                'Renamed login',
+                'db_user',
+                undefined,
+            );
+        });
+        expect(profileMocks.getCredentialProfileDependents).not.toHaveBeenCalled();
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
     it('deletes an unused profile after confirmation', async () => {
