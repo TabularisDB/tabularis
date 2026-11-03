@@ -208,19 +208,87 @@ describe('DataGrid find in results (#1298)', () => {
             ]);
         });
 
-        it("scrolls the current match's record, then its cell, into view", async () => {
+        // JSDOM has no layout: give the grid an 800x400 view, under a 35px
+        // sticky record header and beside 220px field labels, and the next
+        // match (record 2, field 1) a 220x35 box at `matchRect`.
+        const moveToMatchAt = async (
+            matchRect: {left: number; top: number},
+            {freezeFirstField = false} = {},
+        ) => {
             const scrollIntoView = vi
                 .spyOn(Element.prototype, 'scrollIntoView')
                 .mockImplementation(() => {});
-            const {container, search} = renderFindGrid({transposed: true});
+            const {container, grid, search} = renderFindGrid({transposed: true});
+            if (freezeFirstField) {
+                fireEvent.contextMenu(
+                    container.querySelector('th[scope="row"][data-col-index="1"]')!,
+                );
+                fireEvent.click(await screen.findByText('dataGrid.freezeFirstRow'));
+            }
+            Object.defineProperty(grid, 'clientWidth', {configurable: true, value: 800});
+            Object.defineProperty(grid, 'clientHeight', {configurable: true, value: 400});
+            const match = container.querySelector<HTMLElement>(
+                'td[data-row-index="2"][data-col-index="1"]',
+            )!;
+            const {left, top} = matchRect;
+            vi.spyOn(match, 'getBoundingClientRect').mockReturnValue(
+                DOMRect.fromRect({x: left, y: top, width: 220, height: 35}),
+            );
+            vi.spyOn(grid, 'getBoundingClientRect').mockReturnValue(
+                DOMRect.fromRect({x: 0, y: 0, width: 800, height: 400}),
+            );
             search('refund');
             scrollToIndexMock.mockClear();
+            scrollIntoView.mockClear();
             fireEvent.keyDown(screen.getByRole('searchbox'), {key: 'Enter'});
+            return {match, scrollIntoView};
+        };
 
-            expect(scrollToIndexMock).toHaveBeenCalledWith(2, {align: 'center'});
-            const match = container.querySelector('td[data-row-index="2"][data-col-index="1"]');
-            await waitFor(() => expect(scrollIntoView.mock.contexts).toContain(match));
-            scrollIntoView.mockRestore();
+        afterEach(() => vi.restoreAllMocks());
+
+        it('does not scroll when the match is fully visible', async () => {
+            const {scrollIntoView} = await moveToMatchAt({left: 400, top: 100});
+
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            expect(scrollToIndexMock).not.toHaveBeenCalled();
+            expect(scrollIntoView).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['beyond the right edge', {left: 700, top: 100}],
+            ['under the sticky field labels', {left: 100, top: 100}],
+        ])(
+            "centers the match's record, then scrolls its cell into view, when it is %s",
+            async (_, matchRect) => {
+                const {match, scrollIntoView} = await moveToMatchAt(matchRect);
+
+                expect(scrollToIndexMock).toHaveBeenCalledWith(2, {align: 'center'});
+                await waitFor(() => expect(scrollIntoView.mock.contexts).toContain(match));
+            },
+        );
+
+        it.each([
+            ['below the view', {left: 400, top: 380}],
+            ['under the sticky record header', {left: 400, top: 10}],
+        ])(
+            'scrolls only the field into view when the record is visible and the match is %s',
+            async (_, matchRect) => {
+                const {match, scrollIntoView} = await moveToMatchAt(matchRect);
+
+                expect(scrollToIndexMock).not.toHaveBeenCalled();
+                expect(scrollIntoView.mock.contexts).toEqual([match]);
+            },
+        );
+
+        it('keeps the match clear of a frozen first field', async () => {
+            // Visible below the record header, but under the frozen row (35-70px).
+            const {match, scrollIntoView} = await moveToMatchAt(
+                {left: 400, top: 50},
+                {freezeFirstField: true},
+            );
+
+            expect(scrollToIndexMock).not.toHaveBeenCalled();
+            expect(scrollIntoView.mock.contexts).toEqual([match]);
         });
     });
 

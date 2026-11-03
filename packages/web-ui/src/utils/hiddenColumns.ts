@@ -181,17 +181,6 @@ export function nearestVisibleColumn(colIndex: number, visible: readonly number[
     return visible[toViewColumn(colIndex, visible)] ?? colIndex;
 }
 
-/** The visible column `step` positions away from `colIndex`, clamped to the first and last. */
-export function stepVisibleColumn(
-    colIndex: number,
-    visible: readonly number[],
-    step: number,
-): number {
-    if (visible.length === 0) return colIndex;
-    const position = toViewColumn(colIndex, visible) + step;
-    return visible[Math.min(visible.length - 1, Math.max(0, position))];
-}
-
 const toViewCell = (cell: CellPosition, visible: readonly number[]): CellPosition => ({
     rowIndex: cell.rowIndex,
     colIndex: toViewColumn(cell.colIndex, visible),
