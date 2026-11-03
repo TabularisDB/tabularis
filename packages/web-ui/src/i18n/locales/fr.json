@@ -1829,6 +1829,9 @@
       "tableView": "Tableau",
       "tableTitle": "Arborescence du plan",
       "exportCsv": "Exporter en CSV",
+      "resetColumnOrder": "Réinitialiser l’ordre des colonnes",
+      "moveColumnHint": "Faites glisser pour réorganiser, ou appuyez sur Alt+Gauche / Alt+Droite",
+      "openInWindow": "Ouvrir dans une nouvelle fenêtre",
       "exportingCsv": "Exportation...",
       "exportCsvSuccess": "Tableau d'explain exporté en CSV",
       "exportCsvError": "Échec de l'exportation du tableau d'explain en CSV",
@@ -2419,7 +2422,8 @@
     "openFile": "Ouvrir un fichier",
     "reload": "Recharger",
     "loading": "Chargement du plan d'exécution…",
-    "emptyHint": "Sélectionnez un fichier contenant un plan EXPLAIN (format JSON ou texte PostgreSQL) pour le visualiser."
+    "emptyHint": "Sélectionnez un fichier contenant un plan EXPLAIN (format JSON ou texte PostgreSQL) pour le visualiser.",
+    "sessionExpired": "Ce plan n’est plus disponible. Rouvrez-le depuis l’éditeur."
   },
   "taskManager": {
     "header": {

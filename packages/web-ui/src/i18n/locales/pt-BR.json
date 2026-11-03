@@ -1807,6 +1807,9 @@
       "tableView": "Tabela",
       "tableTitle": "Árvore do plano",
       "exportCsv": "Exportar CSV",
+      "resetColumnOrder": "Redefinir ordem das colunas",
+      "moveColumnHint": "Arraste para reordenar, ou pressione Alt+Esquerda / Alt+Direita",
+      "openInWindow": "Abrir em nova janela",
       "exportingCsv": "Exportando...",
       "exportCsvSuccess": "Tabela de explain exportada como CSV",
       "exportCsvError": "Falha ao exportar a tabela de explain como CSV",
@@ -2393,7 +2396,8 @@
     "openFile": "Abrir arquivo",
     "reload": "Recarregar",
     "loading": "Carregando plano de explicação…",
-    "emptyHint": "Selecione um arquivo contendo um plano EXPLAIN (formato JSON ou texto do Postgres) para visualizá-lo."
+    "emptyHint": "Selecione um arquivo contendo um plano EXPLAIN (formato JSON ou texto do Postgres) para visualizá-lo.",
+    "sessionExpired": "Este plano não está mais disponível. Abra-o novamente pelo editor."
   },
   "taskManager": {
     "header": {

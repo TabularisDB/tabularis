@@ -24,6 +24,10 @@ vi.mock('@/hooks/useDrivers', () => ({
     useDrivers: () => ({allDrivers: [{id: 'postgres', name: 'PostgreSQL'}]}),
 }));
 vi.mock('@/utils/driverUI', () => ({getConnectionIcon: () => null}));
+const sessionHost = vi.hoisted(() => ({open: vi.fn()}));
+vi.mock('@/platform/visualExplainSessions', () => ({
+    getVisualExplainSessionHost: () => sessionHost,
+}));
 vi.mock('@/components/explain/VisualExplainView', () => ({
     VisualExplainView: (props: VisualExplainViewProps) => (
         <section data-testid="explain-view">
@@ -425,6 +429,104 @@ describe('VisualExplainModal display-only viewState', () => {
         expect(screen.getByRole('alert')).toHaveTextContent('Query plan is outdated');
         expect(screen.getByTestId('mode')).toHaveTextContent('table');
         expect(screen.getByTestId('selection')).toHaveTextContent('none');
+        expect(mockInvoke).not.toHaveBeenCalled();
+    });
+});
+
+describe('VisualExplainModal open in a new window', () => {
+    const openInWindow = () =>
+        screen.getByRole('button', {name: 'editor.visualExplain.openInWindow'});
+
+    beforeEach(() => {
+        mockInvoke.mockReset().mockResolvedValue({kind: 'plan', plan: makePlan()});
+        database.getConnectionData.mockReset().mockReturnValue({
+            driver: 'postgres',
+            connectionName: 'Live connection',
+            databaseName: 'warehouse',
+            activeSchema: 'public',
+        });
+        sessionHost.open.mockReset().mockResolvedValue('session-1');
+        vi.mocked(defaults.onClose).mockClear();
+    });
+
+    it('hands the plan on screen, its view and selection to a new window, then closes', async () => {
+        render(<VisualExplainModal {...defaults} />);
+        await settle();
+        fireEvent.click(screen.getByRole('button', {name: 'Table view'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Select child'}));
+
+        await act(async () => {
+            fireEvent.click(openInWindow());
+        });
+
+        expect(sessionHost.open).toHaveBeenCalledExactlyOnceWith({
+            plan: expect.objectContaining({original_query: 'resolved'}),
+            viewMode: 'table',
+            selectedNodeId: 'child',
+            label: 'Live connection · warehouse / public',
+        });
+        expect(defaults.onClose).toHaveBeenCalledTimes(1);
+        // The plan is handed over, not run again.
+        expect(mockInvoke).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays open when the new window cannot be opened', async () => {
+        sessionHost.open.mockRejectedValue(new Error('window refused'));
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        render(<VisualExplainModal {...defaults} />);
+        await settle();
+
+        await act(async () => {
+            fireEvent.click(openInWindow());
+        });
+
+        expect(sessionHost.open).toHaveBeenCalledTimes(1);
+        expect(defaults.onClose).not.toHaveBeenCalled();
+        expect(openInWindow()).not.toBeDisabled();
+        consoleError.mockRestore();
+    });
+
+    it('is disabled while there is no plan to hand over', async () => {
+        mockInvoke.mockReset().mockReturnValue(new Promise(() => {}));
+        render(<VisualExplainModal {...defaults} />);
+        await settle();
+
+        expect(openInWindow()).toBeDisabled();
+        fireEvent.click(openInWindow());
+        expect(sessionHost.open).not.toHaveBeenCalled();
+    });
+
+    it('hands over a supplied display-only plan as it is shown', async () => {
+        database.getConnectionData.mockReturnValue(undefined);
+        const viewState: VisualExplainViewProps = {
+            plan: makePlan('activity plan'),
+            isLoading: false,
+            error: null,
+            viewMode: 'raw',
+            selectedNodeId: 'supplied-node',
+            onViewModeChange: vi.fn(),
+            onSelectNode: vi.fn(),
+            aiEnabled: false,
+        };
+        render(
+            <VisualExplainModal
+                {...defaults}
+                connectionLabel="Activity connection"
+                viewState={viewState}
+            />,
+        );
+        await settle();
+
+        await act(async () => {
+            fireEvent.click(openInWindow());
+        });
+
+        expect(sessionHost.open).toHaveBeenCalledExactlyOnceWith({
+            plan: viewState.plan,
+            viewMode: 'raw',
+            selectedNodeId: 'supplied-node',
+            label: 'Activity connection',
+        });
         expect(mockInvoke).not.toHaveBeenCalled();
     });
 });
