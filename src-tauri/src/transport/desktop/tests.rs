@@ -262,3 +262,74 @@ async fn desktop_connections_execution_read_resolves_and_fails_closed() {
         "the failure must name the credential profile: {error}"
     );
 }
+
+/// A missing profile password fails the execution read, and used to skip pool
+/// close inside the health-check failure handler (#1065). Cleanup only needs
+/// the driver, id, and tunnel flags from the metadata read.
+#[tokio::test]
+async fn health_check_failure_closes_pool_when_profile_password_is_missing() {
+    use crate::transport::desktop::commands::find_connection_by_id;
+    use crate::transport::desktop::health_check::handle_connection_failure;
+
+    let root = tempfile::tempdir().unwrap();
+    let database = tempfile::NamedTempFile::new().unwrap();
+    let database_path = database.path().to_str().unwrap().to_string();
+    let connection_id = format!("health-missing-profile-{}", uuid::Uuid::new_v4());
+    let mut saved = linked_connection(&connection_id, "profile-1");
+    saved.params.driver = "sqlite".to_string();
+    saved.params.database = DatabaseSelection::Single(database_path.clone());
+
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    let file = ConnectionsFile {
+        connections: vec![saved.clone()],
+        credential_profiles: vec![CredentialProfile {
+            id: "profile-1".to_string(),
+            name: "Shared".to_string(),
+            username: "shared-user".to_string(),
+        }],
+        ..ConnectionsFile::default()
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+
+    let connection_cache = Arc::new(crate::connection_cache::ConnectionCache::default());
+    connection_cache.populate(&[saved]);
+    let app = tauri::test::mock_builder()
+        .manage(runtime)
+        .manage(connection_cache)
+        .manage(Arc::new(crate::credential_cache::CredentialCache::default()))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+
+    let pool_params = ConnectionParams {
+        driver: "sqlite".to_string(),
+        database: DatabaseSelection::Single(database_path),
+        ..ConnectionParams::default()
+    };
+    crate::pool_manager::get_sqlite_pool_with_id(&pool_params, Some(&connection_id))
+        .await
+        .expect("sqlite pool");
+    assert!(
+        crate::pool_manager::has_pool(&pool_params, Some(&connection_id)).await,
+        "the pool must be open before the failure handler runs"
+    );
+    let resolve_error = find_connection_by_id(app.handle(), &connection_id)
+        .expect_err("the profile password is missing, so the execution read fails closed");
+    assert!(
+        resolve_error.contains("profile-1"),
+        "the execution read must name the unresolved profile: {resolve_error}"
+    );
+
+    handle_connection_failure(app.handle(), &connection_id, "ping failed").await;
+
+    assert!(
+        !crate::pool_manager::has_pool(&pool_params, Some(&connection_id)).await,
+        "pool cleanup must run even when the credential profile cannot be resolved"
+    );
+}
