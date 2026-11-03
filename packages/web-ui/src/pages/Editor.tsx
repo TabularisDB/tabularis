@@ -116,7 +116,6 @@ import {
     ExternalLink,
     CheckCircle2,
     WrapText,
-    Columns3,
 } from 'lucide-react';
 import {invoke} from '@tauri-apps/api/core';
 import {TableToolbar} from '@/components/ui/TableToolbar';
@@ -128,6 +127,7 @@ import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
 import {totalPageCount} from '@/utils/pagination';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
+import {TransposeIcon} from '@/components/icons/TransposeIcon';
 import {HiddenColumnsIndicator} from '@/components/ui/HiddenColumnsIndicator';
 import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
@@ -6123,7 +6123,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                         : 'text-secondary hover:text-primary hover:bg-surface-secondary'
                                                 }`}
                                             >
-                                                <Columns3 size={14} />
+                                                <TransposeIcon size={14} />
                                             </button>
                                         )}
 
