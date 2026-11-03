@@ -1366,6 +1366,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "プーラーモード",
     "poolerModeTransactionHint": "PgBouncer をトランザクションモードでカスタム型（enum、複合型、拡張型）と共に使用する場合、pgbouncer.ini で max_prepared_statements > 0 を設定してください。これによりサーバー側のプリペアドステートメントキャッシュが有効になり、名前付きステートメントが接続の再割り当てを保持します。",
+    "connectTimeout": "接続タイムアウト（秒）",
+    "connectTimeoutHint": "サーバーの応答を待つ時間です。空欄の場合は既定値を使用します。",
     "poolerModes": {
       "none": "なし（直接接続）",
       "transaction": "PgBouncer トランザクション",
@@ -1487,6 +1489,23 @@
     "deselectColumn": "列の選択を解除",
     "freezeFirstColumn": "最初の列を固定",
     "unfreezeFirstColumn": "最初の列の固定を解除",
+    "columnVisibility": {
+      "hideColumn": "カラムを非表示",
+      "hideColumns_one": "{{count}} 個のカラムを非表示",
+      "hideColumns_other": "{{count}} 個のカラムを非表示",
+      "showAllColumns": "非表示のカラムを表示 ({{count}})",
+      "chooseColumns": "表示するカラムを選択…",
+      "title": "カラム",
+      "shown": "{{total}} 個中 {{visible}} 個を表示",
+      "showAll": "すべて表示",
+      "lastVisible": "少なくとも 1 つのカラムは表示されたままです",
+      "hiddenCount_one": "{{count}} 個非表示",
+      "hiddenCount_other": "{{count}} 個非表示",
+      "hiddenLabel_one": "{{count}} 個の非表示カラム",
+      "hiddenLabel_other": "{{count}} 個の非表示カラム"
+    },
+    "freezeFirstRow": "最初の行を固定",
+    "unfreezeFirstRow": "最初の行の固定を解除",
     "resetColumnWidths": "列幅をリセット",
     "copySelectedColumns": "選択した列をコピー（{{count}}）",
     "copyRangeN": "範囲をコピー（{{rows}}×{{cols}}）",
@@ -1581,6 +1600,8 @@
     "maskCell": "セルをマスク",
     "revealColumn": "列を表示",
     "maskColumn": "列をマスク",
+    "transpose": "行と列を入れ替えて表示",
+    "untranspose": "レコードを行として表示",
     "resizeColumn": "列 {{col}} のサイズを変更"
   },
   "editRow": {
@@ -1705,7 +1726,11 @@
       "copyReport": "レポートをコピー",
       "reportCopied": "レポートをコピーしました",
       "copyFailed": "レポートをクリップボードにコピーできませんでした。",
-      "createIssue": "Issue を作成"
+      "createIssue": "Issue を作成",
+      "analyzeWithAi": "AIで分析",
+      "aiAnalyzing": "分析中…",
+      "aiAnalysisTitle": "AIによる分析",
+      "aiAnalysisFailed": "AIによる分析に失敗しました。代わりにレポートをコピーするか、Issueを作成してください。"
     },
     "newVisualQuery": "新規ビジュアルクエリ",
     "activeDatabase": "アクティブなデータベース",
@@ -1793,6 +1818,9 @@
       "tableView": "テーブル",
       "tableTitle": "実行計画ツリー",
       "exportCsv": "CSVエクスポート",
+      "resetColumnOrder": "列の順序をリセット",
+      "moveColumnHint": "ドラッグで並べ替え、または Alt+← / Alt+→ を押します",
+      "openInWindow": "新しいウィンドウで開く",
       "exportingCsv": "エクスポート中...",
       "exportCsvSuccess": "ExplainテーブルをCSVとしてエクスポートしました",
       "exportCsvError": "ExplainテーブルのCSVエクスポートに失敗しました",
@@ -2354,7 +2382,8 @@
     "openFile": "ファイルを開く",
     "reload": "再読み込み",
     "loading": "実行計画を読み込み中…",
-    "emptyHint": "EXPLAIN プランを含むファイル (Postgres JSON またはテキスト形式) を選択して可視化します。"
+    "emptyHint": "EXPLAIN プランを含むファイル (Postgres JSON またはテキスト形式) を選択して可視化します。",
+    "sessionExpired": "このプランは利用できなくなりました。エディターからもう一度開いてください。"
   },
   "taskManager": {
     "header": {
@@ -2597,7 +2626,8 @@
     "approve": "承認",
     "deny": "拒否",
     "notificationTitle": "MCP の承認が必要です",
-    "notificationBody": "保留中の MCP 承認を確認するには Tabularis を開いてください。"
+    "notificationBody": "保留中の MCP 承認を確認するには Tabularis を開いてください。",
+    "decisionFailed": "判断を送信できませんでした: {{error}}"
   },
   "discordCallout": {
     "title": "Discord コミュニティが新登場！",

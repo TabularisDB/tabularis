@@ -784,6 +784,57 @@ pub async fn analyze_explain_plan(
     result
 }
 
+const CRASH_ANALYSIS_SYSTEM_PROMPT: &str = "You help users of Tabularis, a desktop and web database client, after its SQL editor crashed. \
+The user message is a crash report with the error message, stack traces, app version, platform and mode (desktop or web). \
+Secrets in it were replaced with [redacted]. Do not ask for them. \
+Reply in {{LANGUAGE}} with plain text, no Markdown headings. \
+First explain in two or three sentences what most likely went wrong. \
+Then list up to five concrete recovery steps the user can try, such as retrying, closing the tab, reloading or restarting the app, or updating Tabularis. \
+If the report points to a bug in Tabularis, say so and suggest reporting it.";
+
+fn crash_analysis_system_prompt(language: &str) -> String {
+    CRASH_ANALYSIS_SYSTEM_PROMPT.replace("{{LANGUAGE}}", language)
+}
+
+pub async fn analyze_crash_report(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    mut req: AiExplainRequest,
+) -> Result<String, String> {
+    log::info!(
+        "Analyzing editor crash report using AI provider: {}",
+        req.provider
+    );
+
+    let app_config = crate::application::persistence::load_config(runtime);
+    let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
+    req.model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
+
+    let gen_req = AiGenerateRequest {
+        provider: req.provider.clone(),
+        model: req.model.clone(),
+        prompt: req.query.clone(),
+        schema: String::new(),
+    };
+
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        &crash_analysis_system_prompt(&req.language),
+        ollama_port,
+    )
+    .await;
+
+    match &result {
+        Ok(_) => log::info!("Crash report analysis generated using {}", req.model),
+        Err(e) => log::error!("Crash report analysis failed: {}", e),
+    }
+
+    result
+}
+
 async fn generate_with_simple_prompt(
     runtime: &RuntimeContext,
     cache: &CredentialCache,
@@ -1250,6 +1301,13 @@ mod provider_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn crash_analysis_prompt_names_the_reply_language() {
+        let prompt = crash_analysis_system_prompt("Italian");
+        assert!(prompt.contains("Reply in Italian"));
+        assert!(!prompt.contains("{{LANGUAGE}}"));
+    }
 
     #[test]
     fn test_load_default_models() {

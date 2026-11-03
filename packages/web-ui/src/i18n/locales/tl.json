@@ -1382,6 +1382,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Pooler mode",
     "poolerModeTransactionHint": "Kapag gumagamit ng PgBouncer sa transaction mode na may custom types (enums, composites, extension types), itakda ang max_prepared_statements > 0 sa pgbouncer.ini. Ito ay nag-e-enable ng server-side prepared statement caching para makaligtas ang named statements sa connection reassignment.",
+    "connectTimeout": "Connect timeout (segundo)",
+    "connectTimeoutHint": "Gaano katagal maghihintay sa server bago sumuko. Iwanang blangko para gamitin ang default.",
     "poolerModes": {
       "none": "Wala (direktang koneksyon)",
       "transaction": "PgBouncer transaction",
@@ -1506,6 +1508,23 @@
     "deselectColumn": "Alisin ang Pagpili ng Column",
     "freezeFirstColumn": "I-freeze ang unang column",
     "unfreezeFirstColumn": "I-unfreeze ang unang column",
+    "columnVisibility": {
+      "hideColumn": "Itago ang column",
+      "hideColumns_one": "Itago ang {{count}} column",
+      "hideColumns_other": "Itago ang {{count}} na column",
+      "showAllColumns": "Ipakita ang mga nakatagong column ({{count}})",
+      "chooseColumns": "Pumili ng mga column…",
+      "title": "Mga column",
+      "shown": "{{visible}} sa {{total}} ang nakikita",
+      "showAll": "Ipakita lahat",
+      "lastVisible": "May isang column na laging nakikita",
+      "hiddenCount_one": "{{count}} nakatago",
+      "hiddenCount_other": "{{count}} nakatago",
+      "hiddenLabel_one": "{{count}} nakatagong column",
+      "hiddenLabel_other": "{{count}} na nakatagong column"
+    },
+    "freezeFirstRow": "I-freeze ang unang row",
+    "unfreezeFirstRow": "I-unfreeze ang unang row",
     "resetColumnWidths": "I-reset ang lapad ng mga column",
     "copySelectedColumns": "Kopyahin ang Napiling Columns ({{count}})",
     "copyRangeN": "Kopyahin ang Range ({{rows}}×{{cols}})",
@@ -1600,6 +1619,8 @@
     "maskCell": "I-mask ang cell",
     "revealColumn": "Ipakita ang column",
     "maskColumn": "I-mask ang column",
+    "transpose": "I-transpose: ipakita ang mga column bilang row",
+    "untranspose": "Ipakita ang mga record bilang row",
     "resizeColumn": "Baguhin ang laki ng column na {{col}}"
   },
   "editRow": {
@@ -1706,7 +1727,11 @@
       "copyReport": "Kopyahin ang ulat",
       "reportCopied": "Nakopya ang ulat",
       "copyFailed": "Hindi makopya ang ulat sa clipboard.",
-      "createIssue": "Gumawa ng issue"
+      "createIssue": "Gumawa ng issue",
+      "analyzeWithAi": "Suriin gamit ang AI",
+      "aiAnalyzing": "Sinusuri…",
+      "aiAnalysisTitle": "Pagsusuri ng AI",
+      "aiAnalysisFailed": "Nabigo ang pagsusuri ng AI. Kopyahin ang ulat o gumawa ng issue sa halip."
     },
     "newVisualQuery": "Bagong Visual Query",
     "activeDatabase": "Aktibong database",
@@ -1813,6 +1838,9 @@
       "tableView": "Table",
       "tableTitle": "Tree ng Plano",
       "exportCsv": "I-export ang CSV",
+      "resetColumnOrder": "I-reset ang ayos ng mga column",
+      "moveColumnHint": "I-drag para ayusin, o pindutin ang Alt+Left / Alt+Right",
+      "openInWindow": "Buksan sa bagong window",
       "exportingCsv": "Nag-e-export...",
       "exportCsvSuccess": "Na-export ang explain table bilang CSV",
       "exportCsvError": "Nabigong i-export ang explain table bilang CSV",
@@ -2402,7 +2430,8 @@
     "openFile": "Buksan ang file",
     "reload": "I-reload",
     "loading": "Naglo-load ng explain plan…",
-    "emptyHint": "Pumili ng file na may EXPLAIN plan (Postgres JSON o text format) para i-visualize ito."
+    "emptyHint": "Pumili ng file na may EXPLAIN plan (Postgres JSON o text format) para i-visualize ito.",
+    "sessionExpired": "Hindi na available ang plan na ito. Buksan itong muli mula sa editor."
   },
   "taskManager": {
     "header": {
@@ -2645,7 +2674,8 @@
     "approve": "Aprubahan",
     "deny": "Tanggihan",
     "notificationTitle": "Kailangan ng MCP approval",
-    "notificationBody": "Buksan ang Tabularis para suriin ang nakabinbing MCP approval."
+    "notificationBody": "Buksan ang Tabularis para suriin ang nakabinbing MCP approval.",
+    "decisionFailed": "Hindi maipadala ang desisyon: {{error}}"
   },
   "discordCallout": {
     "title": "Bagong Discord community!",

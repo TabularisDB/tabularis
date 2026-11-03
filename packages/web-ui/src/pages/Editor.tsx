@@ -127,6 +127,8 @@ import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
 import {totalPageCount} from '@/utils/pagination';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
+import {TransposeIcon} from '@/components/icons/TransposeIcon';
+import {HiddenColumnsIndicator} from '@/components/ui/HiddenColumnsIndicator';
 import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
@@ -168,6 +170,7 @@ import {extractQueryParams, interpolateQueryParams} from '@/utils/queryParameter
 import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
 import {useTimingLabels} from '@/hooks/useTimingLabels';
 import {useResultChartState} from '@/hooks/useResultChartState';
+import {useHiddenColumns} from '@/hooks/useHiddenColumns';
 import {notifyQueryFinished} from '@/utils/queryNotification';
 import {
     buildSyncPayload,
@@ -620,6 +623,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         !!activeTab && !isTableTab && (activeTab.result?.columns.length ?? 0) > 0;
     const resultChart = useResultChartState(resultChartEnabled ? activeTab.id : null);
     const showResultChart = resultChartEnabled && resultChart.view === 'chart';
+    // Columns hidden in the active tab's grid (#1299).
+    const resultHiddenColumns = useHiddenColumns(
+        activeTab?.id ?? null,
+        activeTab?.result?.columns ?? [],
+    );
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
     const tabStripId = useId();
     // Full name behind a truncated tab title (tooltip and accessible name).
@@ -6077,6 +6085,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 )}
                                             </span>
 
+                                            {!showResultChart && (
+                                                <HiddenColumnsIndicator
+                                                    columns={activeTab.result.columns}
+                                                    hidden={resultHiddenColumns.hidden}
+                                                    onChange={resultHiddenColumns.setHidden}
+                                                />
+                                            )}
+
                                             {activeTab.result.pagination?.has_more && (
                                                 <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0">
                                                     {t('editor.autoPaginated')}
@@ -6084,9 +6100,36 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             )}
                                         </div>
 
+                                        {/* Shown for every grid result, not only table results, so
+                                            a transposed tab can always switch back. */}
+                                        {!showResultChart && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    updateTab(activeTab.id, {
+                                                        transposed: !activeTab.transposed,
+                                                    })
+                                                }
+                                                aria-pressed={!!activeTab.transposed}
+                                                aria-label={t('dataGrid.transpose')}
+                                                title={
+                                                    activeTab.transposed
+                                                        ? t('dataGrid.untranspose')
+                                                        : t('dataGrid.transpose')
+                                                }
+                                                className={`ml-auto flex items-center justify-center w-6 h-6 rounded shrink-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                                                    activeTab.transposed
+                                                        ? 'text-accent bg-accent-primary/15'
+                                                        : 'text-secondary hover:text-primary hover:bg-surface-secondary'
+                                                }`}
+                                            >
+                                                <TransposeIcon size={14} />
+                                            </button>
+                                        )}
+
                                         {resultChartEnabled && (
                                             <ResultViewToggle
-                                                className="ml-auto"
+                                                className={showResultChart ? 'ml-auto' : undefined}
                                                 view={resultChart.view}
                                                 onChange={resultChart.setView}
                                             />
@@ -6499,6 +6542,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 copyFormat={copyFormat}
                                                 csvDelimiter={csvDelimiter}
                                                 csvIncludeHeaders={csvIncludeHeaders}
+                                                transposed={!!activeTab.transposed}
                                                 sortClause={activeTab.sortClause}
                                                 onSort={
                                                     activeTab.type === 'table' &&
@@ -6525,6 +6569,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 canRedo={canRedoGrid(activeTab.gridHistory)}
                                                 onBeginBatchEdit={handleBeginBatchEdit}
                                                 onEndBatchEdit={handleEndBatchEdit}
+                                                hiddenColumns={resultHiddenColumns.hidden}
+                                                onHiddenColumnsChange={
+                                                    resultHiddenColumns.setHidden
+                                                }
                                             />
                                         </div>
                                     )}

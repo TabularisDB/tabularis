@@ -12,6 +12,13 @@ import {useSettings} from '@/hooks/useSettings';
 import {useExplainPlan} from '@/hooks/useExplainPlan';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import type {ChosenInputFile} from '@/platform/capabilities';
+import {
+    requestVisualExplainSession,
+    type VisualExplainSession,
+} from '@/platform/visualExplainSessions';
+
+/** How long a detached window waits for the window that opened it to answer. */
+const SESSION_RESPONSE_TIMEOUT_MS = 2_000;
 
 export interface VisualExplainPageProps {
     /// When provided, render in embedded mode: skip the page header, use the
@@ -33,6 +40,8 @@ export const VisualExplainPage = ({
     const initialParamPath = nativeHandoffs ? parseExplainFileParam(search) : null;
     const deepLink = parseVisualExplainDeepLink(search);
     const isDeepLink = !!deepLink.query && !!deepLink.connectionId;
+    const sessionId = new URLSearchParams(search).get('session');
+    const [sessionLabel, setSessionLabel] = useState<string | null>(null);
 
     const [filePath, setFilePath] = useState<string | null>(initialParamPath);
     const sourceVersion = useRef(0);
@@ -65,8 +74,8 @@ export const VisualExplainPage = ({
         [loadPlan],
     );
 
-    // On mount: prefer initialPlan (embedded mode), then deep link, then file
-    // path, then any pending CLI handoff.
+    // On mount: prefer initialPlan (embedded mode), then a plan handed over by
+    // another window, then deep link, then file path, then any pending CLI handoff.
     useEffect(() => {
         let cancelled = false;
         const source = sourceVersion;
@@ -75,6 +84,24 @@ export const VisualExplainPage = ({
         const bootstrap = async () => {
             await Promise.resolve();
             if (cancelled || version !== source.current || initialPlan) return;
+            if (sessionId) {
+                let session: VisualExplainSession | null = null;
+                await loadPlan(async () => {
+                    session = await requestVisualExplainSession(
+                        platform,
+                        sessionId,
+                        SESSION_RESPONSE_TIMEOUT_MS,
+                    );
+                    if (!session) throw new Error(t('visualExplainPage.sessionExpired'));
+                    return session.plan;
+                });
+                const received = session as VisualExplainSession | null;
+                if (!received || cancelled || version !== source.current) return;
+                setSessionLabel(received.label || null);
+                setViewMode(received.viewMode);
+                if (received.selectedNodeId) setSelectedNodeId(received.selectedNodeId);
+                return;
+            }
             if (isDeepLink) {
                 await runExplain({
                     connectionId: deepLink.connectionId!,
@@ -115,6 +142,11 @@ export const VisualExplainPage = ({
         nativeHandoffs,
         initialPlan,
         initialParamPath,
+        sessionId,
+        platform,
+        t,
+        setViewMode,
+        setSelectedNodeId,
         isDeepLink,
         deepLink.connectionId,
         deepLink.query,
@@ -187,7 +219,11 @@ export const VisualExplainPage = ({
                             <h1 className="text-base font-semibold text-primary truncate">
                                 {t('visualExplainPage.title')}
                             </h1>
-                            {fileLabel ? (
+                            {sessionLabel ? (
+                                <p className="text-xs text-muted font-mono truncate">
+                                    {sessionLabel}
+                                </p>
+                            ) : fileLabel ? (
                                 <p
                                     className="text-xs text-muted font-mono truncate"
                                     title={filePath ?? undefined}
@@ -222,7 +258,7 @@ export const VisualExplainPage = ({
             )}
 
             <div className="flex-1 min-h-0">
-                {!compactMode && !filePath && !plan && !isLoading && !error ? (
+                {!compactMode && !sessionId && !filePath && !plan && !isLoading && !error ? (
                     <div className="flex flex-col items-center justify-center h-full gap-3 text-muted">
                         <FileJson size={32} className="opacity-30" />
                         <p className="text-sm">{t('visualExplainPage.emptyHint')}</p>

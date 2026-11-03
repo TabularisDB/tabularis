@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import type {ComponentProps} from 'react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
@@ -192,6 +192,38 @@ describe('DataGrid find in results (#1298)', () => {
         expect(findState()).toEqual(['0:1:match', '2:1:current', '3:1:match']);
     });
 
+    describe('transposed (#561)', () => {
+        const transposedState = (container: HTMLElement) =>
+            Array.from(container.querySelectorAll<HTMLElement>('td[data-find-match]')).map(
+                (td) => `${td.dataset.rowIndex}:${td.dataset.colIndex}:${td.dataset.findMatch}`,
+            );
+
+        it('highlights the matching cells', () => {
+            const {container, search} = renderFindGrid({transposed: true});
+            search('refund');
+            expect(transposedState(container).sort()).toEqual([
+                '0:1:current',
+                '2:1:match',
+                '3:1:match',
+            ]);
+        });
+
+        it("scrolls the current match's record, then its cell, into view", async () => {
+            const scrollIntoView = vi
+                .spyOn(Element.prototype, 'scrollIntoView')
+                .mockImplementation(() => {});
+            const {container, search} = renderFindGrid({transposed: true});
+            search('refund');
+            scrollToIndexMock.mockClear();
+            fireEvent.keyDown(screen.getByRole('searchbox'), {key: 'Enter'});
+
+            expect(scrollToIndexMock).toHaveBeenCalledWith(2, {align: 'center'});
+            const match = container.querySelector('td[data-row-index="2"][data-col-index="1"]');
+            await waitFor(() => expect(scrollIntoView.mock.contexts).toContain(match));
+            scrollIntoView.mockRestore();
+        });
+    });
+
     it('matches case-sensitively when asked', () => {
         const {search, findState} = renderFindGrid();
         search('Refund');
@@ -207,6 +239,13 @@ describe('DataGrid find in results (#1298)', () => {
 
         fireEvent.click(container.querySelector('button[title="dataGrid.revealColumn"]')!);
         expect(findState()).toEqual(['0:2:current', '1:2:match', '3:2:match']);
+    });
+
+    it('never matches cells of hidden columns', () => {
+        const {search, findState} = renderFindGrid({hiddenColumns: new Set([1])});
+        search('refund');
+        expect(findState()).toEqual([]);
+        expect(screen.getAllByText('dataGrid.find.noResults').length).toBeGreaterThan(0);
     });
 
     it('never matches NULL cells', () => {

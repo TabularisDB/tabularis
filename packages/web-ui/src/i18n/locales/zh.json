@@ -1328,6 +1328,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "连接池模式",
     "poolerModeTransactionHint": "在事务模式下使用 PgBouncer 且涉及自定义类型（枚举、复合类型、扩展类型）时，请在 pgbouncer.ini 中设置 max_prepared_statements > 0。这会启用服务端预处理语句缓存，使具名语句在连接重新分配后仍然有效。",
+    "connectTimeout": "连接超时（秒）",
+    "connectTimeoutHint": "等待服务器响应的时长，超时即放弃。留空则使用默认值。",
     "poolerModes": {
       "none": "无（直连）",
       "transaction": "PgBouncer 事务",
@@ -1450,6 +1452,23 @@
     "deselectColumn": "取消选择列",
     "freezeFirstColumn": "冻结首列",
     "unfreezeFirstColumn": "取消冻结首列",
+    "columnVisibility": {
+      "hideColumn": "隐藏列",
+      "hideColumns_one": "隐藏 {{count}} 列",
+      "hideColumns_other": "隐藏 {{count}} 列",
+      "showAllColumns": "显示隐藏的列 ({{count}})",
+      "chooseColumns": "选择列…",
+      "title": "列",
+      "shown": "显示 {{visible}} / {{total}}",
+      "showAll": "全部显示",
+      "lastVisible": "至少保留一列可见",
+      "hiddenCount_one": "已隐藏 {{count}}",
+      "hiddenCount_other": "已隐藏 {{count}}",
+      "hiddenLabel_one": "已隐藏 {{count}} 列",
+      "hiddenLabel_other": "已隐藏 {{count}} 列"
+    },
+    "freezeFirstRow": "冻结首行",
+    "unfreezeFirstRow": "取消冻结首行",
     "resetColumnWidths": "重置列宽",
     "copySelectedColumns": "复制选中列（{{count}}）",
     "copyRangeN": "复制范围（{{rows}}×{{cols}}）",
@@ -1544,6 +1563,8 @@
     "maskCell": "掩码单元格",
     "revealColumn": "显示列",
     "maskColumn": "掩码列",
+    "transpose": "转置：将列显示为行",
+    "untranspose": "将记录显示为行",
     "resizeColumn": "调整列 {{col}} 的宽度"
   },
   "editRow": {
@@ -1668,7 +1689,11 @@
       "copyReport": "复制报告",
       "reportCopied": "已复制报告",
       "copyFailed": "无法将报告复制到剪贴板。",
-      "createIssue": "创建 Issue"
+      "createIssue": "创建 Issue",
+      "analyzeWithAi": "使用 AI 分析",
+      "aiAnalyzing": "正在分析…",
+      "aiAnalysisTitle": "AI 分析",
+      "aiAnalysisFailed": "AI 分析失败。请改为复制报告或创建 issue。"
     },
     "newVisualQuery": "新建可视化查询",
     "activeDatabase": "当前数据库",
@@ -1755,6 +1780,9 @@
       "tableView": "表格",
       "tableTitle": "计划树",
       "exportCsv": "导出 CSV",
+      "resetColumnOrder": "重置列顺序",
+      "moveColumnHint": "拖动以重新排序，或按 Alt+左方向键 / Alt+右方向键",
+      "openInWindow": "在新窗口中打开",
       "exportingCsv": "正在导出...",
       "exportCsvSuccess": "Explain 表已导出为 CSV",
       "exportCsvError": "导出 Explain 表为 CSV 失败",
@@ -2279,7 +2307,8 @@
     "openFile": "打开文件",
     "reload": "重新加载",
     "loading": "正在加载执行计划…",
-    "emptyHint": "选择一个包含 EXPLAIN 计划（PostgreSQL JSON 或文本格式）的文件以进行可视化。"
+    "emptyHint": "选择一个包含 EXPLAIN 计划（PostgreSQL JSON 或文本格式）的文件以进行可视化。",
+    "sessionExpired": "此执行计划已不可用。请从编辑器重新打开。"
   },
   "taskManager": {
     "header": {
@@ -2518,7 +2547,8 @@
     "approve": "批准",
     "deny": "拒绝",
     "notificationTitle": "需要 MCP 审批",
-    "notificationBody": "请打开 Tabularis 以查看待处理的 MCP 审批。"
+    "notificationBody": "请打开 Tabularis 以查看待处理的 MCP 审批。",
+    "decisionFailed": "无法提交决定：{{error}}"
   },
   "discordCallout": {
     "title": "全新的 Discord 社区！",

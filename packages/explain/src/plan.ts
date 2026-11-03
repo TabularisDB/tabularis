@@ -319,6 +319,8 @@ export interface ExplainTableRowData {
     totalCost: number | null;
     planRows: number | null;
     actualRows: number | null;
+    /** How many times the node ran (`Actual Loops`); null without ANALYZE data. */
+    actualLoops: number | null;
     exclusiveTimeMs: number | null;
     /** See {@link getRowEstimateGap}. */
     estimateGap: number | null;
@@ -346,6 +348,7 @@ export function getExplainTableRow(
         totalCost: node.total_cost ?? null,
         planRows: node.plan_rows ?? null,
         actualRows: hasAnalyzeData ? (node.actual_rows ?? null) : null,
+        actualLoops: hasAnalyzeData ? (node.actual_loops ?? null) : null,
         exclusiveTimeMs: hasAnalyzeData ? (nodeMetrics?.exclusiveTimeMs ?? null) : null,
         estimateGap: getRowEstimateGap(node),
         filter: node.filter ?? null,

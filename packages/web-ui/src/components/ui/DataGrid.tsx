@@ -14,11 +14,13 @@ import {
     getCoreRowModel,
     flexRender,
     createColumnHelper,
+    type HeaderGroup,
 } from '@tanstack/react-table';
-import {useVirtualizer} from '@tanstack/react-virtual';
+import {useVirtualizer, type VirtualItem} from '@tanstack/react-virtual';
 import {ContextMenu, type ContextMenuItem} from './ContextMenu';
 import {SlotAnchor} from './SlotAnchor';
 import {ColumnStatsPopover} from './ColumnStatsPopover';
+import {ColumnVisibilityPopover} from './ColumnVisibilityPopover';
 import {
     ArrowUp,
     ArrowDown,
@@ -56,6 +58,7 @@ import {
     Pin,
     PinOff,
     RotateCcw,
+    Columns3,
 } from 'lucide-react';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {getJsonViewerSessionHost} from '@/platform/secondaryWindowSessions';
@@ -83,8 +86,9 @@ import {
     type ColumnDisplayInfo,
     type MergedRow,
     buildCellRange,
-    extendCellRange,
-    moveCellPosition,
+    toLogicalArrowKey,
+    TRANSPOSED_FIELD_LABEL_WIDTH,
+    TRANSPOSED_RECORD_WIDTH,
     getColumnLayoutKey,
     resolveLockedColumnWidths,
     resizeLockedColumn,
@@ -146,9 +150,29 @@ import {buildExportFileName} from '@/utils/exportFileName';
 import {formatRowsForExport} from '@/utils/resultExport';
 import {downloadTextFile} from '@/utils/fileDownloads';
 import {DEFAULT_MASKING_PATTERNS, isColumnMasked} from '@/utils/columnMasking';
+import {
+    NO_HIDDEN_COLUMNS,
+    canHideColumns,
+    clampRangeToVisible,
+    extendVisibleCellRange,
+    getVisibleColumnIndices,
+    hideColumns,
+    mergeMeasuredColumnWidths,
+    moveVisibleCellPosition,
+    navigateVisibleCell,
+    nearestVisibleColumn,
+    pickRenderedColumnWidths,
+    projectVisibleColumns,
+    withoutKeyColumns,
+    toViewColumn,
+    visibleColumnsInRange,
+    withoutHiddenColumns,
+} from '@/utils/hiddenColumns';
 import type {PendingInsertion, TableColumn, ForeignKey} from '@/types/editor';
 import type {ResultCommands} from '@/types/commands';
 import {MemoRow, type RowCtx} from './DataGridRow';
+import {DataGridExpansionRow} from './DataGridCell';
+import {MemoTransposedRow, type TransposedRecord} from './DataGridTransposedRow';
 import {ColumnResizeHandle} from './ColumnResizeHandle';
 import {useLockedColumnResize} from '@/hooks/useLockedColumnResize';
 import {getFitColumnWidth} from '@/utils/columnResize';
@@ -255,7 +279,23 @@ interface DataGridProps {
      * transition from inside. Read once on mount; wins over `initialScrollTop`.
      */
     scrollToNewInsertion?: boolean;
+    /**
+     * Indices into `columns` of the columns hidden from view (#1299). They stay
+     * in the row data: editing and row identity still use every column, while
+     * navigation, selection, paste and selection copy/export skip them.
+     */
+    hiddenColumns?: ReadonlySet<number>;
+    /** Changes the hidden columns. The header menu offers hiding only with it. */
+    onHiddenColumnsChange?: (hidden: ReadonlySet<number>) => void;
+    /**
+     * Transposed layout (#561): result columns render as rows and records as
+     * columns. Display only: selection, editing and copy stay row-based.
+     */
+    transposed?: boolean;
 }
+
+// Stable empty window for the record virtualizer while it is disabled.
+const NO_VIRTUAL_ITEMS: VirtualItem[] = [];
 
 // Keys handled by the grid itself when a cell is focused; anything else keeps
 // its default behaviour.
@@ -374,6 +414,9 @@ export const DataGrid = React.memo(function DataGrid({
     initialScrollTop,
     onScrollTopChange,
     scrollToNewInsertion,
+    hiddenColumns: hiddenColumnsProp,
+    onHiddenColumnsChange,
+    transposed = false,
 }: DataGridProps) {
     const {t} = useTranslation();
     const client = useTabularisClient();
@@ -440,6 +483,28 @@ export const DataGrid = React.memo(function DataGrid({
     const [revealedColIndices, setRevealedColIndices] = useState<Set<number>>(new Set());
     const [revealedCells, setRevealedCells] = useState<Set<string>>(new Set());
 
+    // Hidden columns (#1299) are a view over the result: `colIndex` keeps
+    // pointing into `columns` everywhere, and only rendering, navigation,
+    // selection, paste and selection copy/export skip the hidden ones.
+    const {hiddenColIndices, visibleColIndices} = useMemo(() => {
+        const hidden = hiddenColumnsProp ?? NO_HIDDEN_COLUMNS;
+        const visible = getVisibleColumnIndices(columns.length, hidden);
+        // Never every column, whatever the host passes.
+        if (visible.length > 0 || columns.length === 0) {
+            return {hiddenColIndices: hidden, visibleColIndices: visible};
+        }
+        return {
+            hiddenColIndices: NO_HIDDEN_COLUMNS,
+            visibleColIndices: getVisibleColumnIndices(columns.length, NO_HIDDEN_COLUMNS),
+        };
+    }, [hiddenColumnsProp, columns.length]);
+    // "Choose columns…" from the header menu: where the column list opens.
+    const [columnPicker, setColumnPicker] = useState<{
+        x: number;
+        y: number;
+        colIndex: number;
+    } | null>(null);
+
     const detectJsonInTextColumns = useMemo(() => {
         if (!connectionId) return false;
         return connections.find((c) => c.id === connectionId)?.detect_json_in_text_columns === true;
@@ -468,6 +533,10 @@ export const DataGrid = React.memo(function DataGrid({
     // Keeps the first data column next to the gutter on wide results (#1152).
     // Grid-local and not persisted.
     const [isFirstColumnFrozen, setIsFirstColumnFrozen] = useState(false);
+    // The transposed layout (#561) has its own sticky column, the field names,
+    // so freezing the first field pins its row instead.
+    const firstColumnFrozen = isFirstColumnFrozen && !transposed;
+    const firstFieldRowFrozen = isFirstColumnFrozen && transposed;
     const [columnStatsTarget, setColumnStatsTarget] = useState<{
         x: number;
         y: number;
@@ -483,20 +552,29 @@ export const DataGrid = React.memo(function DataGrid({
         value: unknown;
         isRawSql?: boolean;
     } | null>(null);
-    const [expandedCell, setExpandedCell] = useState<{
+    const [expandedCellState, setExpandedCell] = useState<{
         rowIndex: number;
         colIndex: number;
         kind: 'json' | 'text';
     } | null>(null);
+    const expandedCell =
+        expandedCellState && hiddenColIndices.has(expandedCellState.colIndex)
+            ? null
+            : expandedCellState;
     // Cell range selection (DBeaver-style): normalized rectangle between the
     // focused anchor cell and a Shift+clicked cell. Grid-local like column
     // selection, and exclusive with row/column selection.
-    const [cellRange, setCellRange] = useState<{
+    const [cellRangeState, setCellRange] = useState<{
         minRow: number;
         maxRow: number;
         minCol: number;
         maxCol: number;
     } | null>(null);
+    // A range's edge columns move onto visible columns when an edge is hidden.
+    const cellRange = useMemo(
+        () => clampRangeToVisible(cellRangeState, hiddenColIndices),
+        [cellRangeState, hiddenColIndices],
+    );
 
     useEffect(() => {
         setExpandedCell(null);
@@ -511,12 +589,27 @@ export const DataGrid = React.memo(function DataGrid({
     const [lastSelectedRowIndex, setLastSelectedRowIndex] = useState<number | null>(null);
     // Column selection (DBeaver-style): indices into `columns`. Grid-local —
     // unlike row selection it isn't persisted to tab state.
-    const [selectedColIndices, setSelectedColIndices] = useState<Set<number>>(new Set());
+    const [selectedColIndicesState, setSelectedColIndices] = useState<Set<number>>(new Set());
+    const selectedColIndices = useMemo(
+        () => withoutHiddenColumns(selectedColIndicesState, hiddenColIndices),
+        [selectedColIndicesState, hiddenColIndices],
+    );
     const [lastSelectedColIndex, setLastSelectedColIndex] = useState<number | null>(null);
-    const [focusedCell, setFocusedCell] = useState<{
+    const [focusedCellState, setFocusedCell] = useState<{
         rowIndex: number;
         colIndex: number;
     } | null>(null);
+    // Hiding the focused cell's column moves the focus to the nearest visible one.
+    const focusedCell = useMemo(
+        () =>
+            focusedCellState && hiddenColIndices.has(focusedCellState.colIndex)
+                ? {
+                      rowIndex: focusedCellState.rowIndex,
+                      colIndex: nearestVisibleColumn(focusedCellState.colIndex, visibleColIndices),
+                  }
+                : focusedCellState,
+        [focusedCellState, hiddenColIndices, visibleColIndices],
+    );
     const [jumpToColumnOpen, setJumpToColumnOpen] = useState(false);
     // The selection "Edit selection → Set to value…" is asking a value for.
     const [valuePromptSelection, setValuePromptSelection] = useState<EditSelection | null>(null);
@@ -567,14 +660,15 @@ export const DataGrid = React.memo(function DataGrid({
         if (!columnMetadata) return null;
         return new Map(columnMetadata.map((col) => [col.name, col.data_type]));
     }, [columnMetadata]);
+    // Jump to column lists the visible columns only (#1299).
     const columnChoices = useMemo(
         () =>
-            columns.map((name, index) => ({
-                name,
+            visibleColIndices.map((index) => ({
+                name: columns[index],
                 index,
-                type: columnTypeMap?.get(name),
+                type: columnTypeMap?.get(columns[index]),
             })),
-        [columns, columnTypeMap],
+        [columns, visibleColIndices, columnTypeMap],
     );
 
     // Create column comment map for O(1) lookup in header tooltips.
@@ -894,11 +988,12 @@ export const DataGrid = React.memo(function DataGrid({
         if (editingCell && editInputRef.current) {
             // A frozen cell's editor is already in view, and a scrolling focus
             // would honor the scroll padding and jump back to the start (#1152).
+            // The first field is the frozen one in either layout.
             editInputRef.current.focus({
-                preventScroll: isFirstColumnFrozen && editingCell.colIndex === 0,
+                preventScroll: isFirstColumnFrozen && editingCell.colIndex === visibleColIndices[0],
             });
         }
-    }, [editingCell, isFirstColumnFrozen]);
+    }, [editingCell, isFirstColumnFrozen, visibleColIndices]);
 
     const buildRowDataWithPending = useCallback(
         (rowArray: unknown[], isInsertion: boolean): Record<string, unknown> => {
@@ -1368,15 +1463,15 @@ export const DataGrid = React.memo(function DataGrid({
 
                 const {rowIndex, colIndex} = editingCell;
                 const totalRows = mergedRows.length;
-                const totalCols = columns.length;
 
-                // Calculate next position
+                // Calculate next position, skipping hidden columns (#1299)
                 let nextRowIndex = rowIndex;
-                let nextColIndex = colIndex + 1;
+                const position = toViewColumn(colIndex, visibleColIndices) + 1;
+                let nextColIndex = visibleColIndices[position];
 
                 // If we're at the last column, move to next row
-                if (nextColIndex >= totalCols) {
-                    nextColIndex = 0;
+                if (position >= visibleColIndices.length) {
+                    nextColIndex = visibleColIndices[0];
                     nextRowIndex = rowIndex + 1;
 
                     // If we're at the last row, wrap to first row
@@ -1401,7 +1496,7 @@ export const DataGrid = React.memo(function DataGrid({
                 }
             }
         },
-        [handleEditCommit, mergedRows, columns],
+        [handleEditCommit, mergedRows, visibleColIndices],
     );
 
     // Commit a specific value in a single event, bypassing the editingCellRef
@@ -1450,7 +1545,9 @@ export const DataGrid = React.memo(function DataGrid({
                         const colComment = columnCommentMap?.get(colName);
                         const hasMetadataTooltip = Boolean(colType || colComment);
                         const tooltipAlignment =
-                            index === columns.length - 1 ? 'right-0' : 'left-0';
+                            index === visibleColIndices[visibleColIndices.length - 1]
+                                ? 'right-0'
+                                : 'left-0';
 
                         return (
                             <div
@@ -1539,6 +1636,7 @@ export const DataGrid = React.memo(function DataGrid({
             onSort,
             columnTypeMap,
             columnCommentMap,
+            visibleColIndices,
         ],
     );
 
@@ -1582,7 +1680,26 @@ export const DataGrid = React.memo(function DataGrid({
         getScrollElement: () => parentRef.current,
         estimateSize: () => DATA_GRID_ROW_HEIGHT,
         overscan: 10,
+        enabled: !transposed,
     });
+
+    // Transposed layout (#561): records run horizontally, so they are
+    // virtualized on the x axis instead. Fields (visual rows) are few enough
+    // to render all of them.
+    const recordVirtualizer = useVirtualizer({
+        horizontal: true,
+        count: tableRows.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => TRANSPOSED_RECORD_WIDTH,
+        overscan: 4,
+        enabled: transposed,
+        // Records start after the sticky field-label column, and scrolling to
+        // one must keep it clear of that column.
+        paddingStart: TRANSPOSED_FIELD_LABEL_WIDTH,
+        scrollPaddingStart: TRANSPOSED_FIELD_LABEL_WIDTH,
+    });
+    // The virtualizer that owns the records, i.e. the one to scroll to a row.
+    const recordAxisVirtualizer = transposed ? recordVirtualizer : rowVirtualizer;
 
     // Decide this grid's initial scroll position once, on mount (#823).
     // scrollToNewInsertion wins outright when set, so a just-inserted row is
@@ -1593,21 +1710,47 @@ export const DataGrid = React.memo(function DataGrid({
     // it has none, the scroll container's height isn't measured yet, and a
     // scroll attempted then just clamps to 0.
     const hasSetInitialScrollRef = useRef(false);
-    const hasRenderedRows = rowVirtualizer.getVirtualItems().length > 0;
+    const hasRenderedRows = recordAxisVirtualizer.getVirtualItems().length > 0;
     useLayoutEffect(() => {
         if (hasSetInitialScrollRef.current || !hasRenderedRows) return;
         hasSetInitialScrollRef.current = true;
         if (scrollToNewInsertion) {
             if (tableRows.length > 0) {
-                rowVirtualizer.scrollToIndex(tableRows.length - 1, {align: 'end'});
+                recordAxisVirtualizer.scrollToIndex(tableRows.length - 1, {align: 'end'});
             }
             return;
         }
         if (initialScrollTop) {
-            // Through the virtualizer, not the DOM node directly.
-            rowVirtualizer.scrollToOffset(initialScrollTop);
+            // Through the virtualizer, not the DOM node directly. Transposed,
+            // the vertical axis isn't virtualized, so the node is scrolled.
+            if (transposed) {
+                parentRef.current?.scrollTo({top: initialScrollTop});
+            } else {
+                rowVirtualizer.scrollToOffset(initialScrollTop);
+            }
         }
-    }, [scrollToNewInsertion, initialScrollTop, tableRows.length, rowVirtualizer, hasRenderedRows]);
+    }, [
+        scrollToNewInsertion,
+        initialScrollTop,
+        tableRows.length,
+        rowVirtualizer,
+        recordAxisVirtualizer,
+        transposed,
+        hasRenderedRows,
+    ]);
+
+    // Switching layouts starts at the top-left: the previous offsets point at an
+    // arbitrary field or record in the other layout. The focus effect then
+    // scrolls a focused cell back into view.
+    const lastLayoutRef = useRef(transposed);
+    useLayoutEffect(() => {
+        if (lastLayoutRef.current === transposed) return;
+        lastLayoutRef.current = transposed;
+        const el = parentRef.current;
+        if (!el) return;
+        el.scrollTop = 0;
+        el.scrollLeft = 0;
+    }, [transposed]);
 
     // Lock the column widths once the first rows are on screen (#844). The
     // table starts in auto layout so the browser sizes each column to its
@@ -1625,12 +1768,23 @@ export const DataGrid = React.memo(function DataGrid({
             ),
         [tableColumns, tableRows.length],
     );
-    const columnWidths = resolveLockedColumnWidths(
+    const lockedWidths = resolveLockedColumnWidths(
         lockedColumnWidths,
         columnLayoutKey,
         tableColumns.length + 1,
     );
-    const frozenLayout = isFirstColumnFrozen ? getFrozenFirstColumnLayout(columnWidths) : null;
+    // The locked widths cover every column (gutter first). The table renders
+    // the gutter and the visible columns only (#1299), so everything below
+    // works on those, by rendered position.
+    const renderedWidthIndices = useMemo(
+        () => [0, ...visibleColIndices.map((colIndex) => colIndex + 1)],
+        [visibleColIndices],
+    );
+    const columnWidths = useMemo(
+        () => pickRenderedColumnWidths(lockedWidths, renderedWidthIndices),
+        [lockedWidths, renderedWidthIndices],
+    );
+    const frozenLayout = firstColumnFrozen ? getFrozenFirstColumnLayout(columnWidths) : null;
     const frozenFirstColumnLeft = frozenLayout?.left ?? null;
     useLayoutEffect(() => {
         if (columnWidths) return;
@@ -1643,15 +1797,38 @@ export const DataGrid = React.memo(function DataGrid({
         const widths = Array.from(headerRow.children).map(
             (cell) => cell.getBoundingClientRect().width,
         );
-        setLockedColumnWidths({key: columnLayoutKey, widths});
-    }, [columnWidths, columnLayoutKey, parentViewportWidth, tableRows.length, hasRenderedRows]);
+        // A column hidden while measuring gets its width once it is shown.
+        setLockedColumnWidths((prev) =>
+            mergeMeasuredColumnWidths(
+                prev,
+                columnLayoutKey,
+                tableColumns.length + 1,
+                renderedWidthIndices,
+                widths,
+            ),
+        );
+    }, [
+        columnWidths,
+        columnLayoutKey,
+        parentViewportWidth,
+        tableRows.length,
+        hasRenderedRows,
+        tableColumns.length,
+        renderedWidthIndices,
+    ]);
 
     // Manual column resizing (#1151) adjusts the locked widths above, for this
     // grid instance only: a new column layout measures afresh.
     const tableRef = useRef<HTMLTableElement>(null);
-    const resizeColumn = useCallback((index: number, width: number) => {
-        setLockedColumnWidths((prev) => (prev ? resizeLockedColumn(prev, index, width) : prev));
-    }, []);
+    // `index` is a rendered position (gutter first), like the handles'.
+    const resizeColumn = useCallback(
+        (index: number, width: number) => {
+            const slot = renderedWidthIndices[index];
+            if (slot === undefined) return;
+            setLockedColumnWidths((prev) => (prev ? resizeLockedColumn(prev, slot, width) : prev));
+        },
+        [renderedWidthIndices],
+    );
     const {startResize, onResizeKeyDown} = useLockedColumnResize({
         tableRef,
         widths: columnWidths,
@@ -1665,7 +1842,7 @@ export const DataGrid = React.memo(function DataGrid({
     const fitColumnToContent = useCallback(
         (index: number) => {
             // Widths include the row-number column first.
-            const colIndex = index - 1;
+            const colIndex = (renderedWidthIndices[index] ?? 0) - 1;
             const colName = columns[colIndex];
             if (colName === undefined) return;
             const ctx = document.createElement('canvas').getContext('2d');
@@ -1714,7 +1891,15 @@ export const DataGrid = React.memo(function DataGrid({
                 ),
             );
         },
-        [columns, columnTypeMap, columnLengthMap, mergedRows, resizeColumn, nullLabel],
+        [
+            columns,
+            columnTypeMap,
+            columnLengthMap,
+            mergedRows,
+            resizeColumn,
+            renderedWidthIndices,
+            nullLabel,
+        ],
     );
     const resizedTableWidth = getResizedTableWidth(lockedColumnWidths, columnWidths);
 
@@ -2048,9 +2233,18 @@ export const DataGrid = React.memo(function DataGrid({
         [writeToClipboard],
     );
 
+    // SQL UPDATE needs the primary key for its WHERE clause, so its row copies keep a
+    // hidden key column and leave only the other hidden columns out of SET.
+    const hiddenNonKeyColIndices = useMemo(
+        () => withoutKeyColumns(hiddenColIndices, columns, pkColumns),
+        [hiddenColIndices, columns, pkColumns],
+    );
+    const rowCopyHiddenColIndices =
+        copyFormat === 'sql-update' ? hiddenNonKeyColIndices : hiddenColIndices;
+
     const formatRows = useCallback(
-        (rows: unknown[][], withHeaders = false) =>
-            formatRowsForCopy(rows, columns, copyFormat ?? 'csv', {
+        (rows: unknown[][], withHeaders = false, rowColumns: string[] = columns) =>
+            formatRowsForCopy(rows, rowColumns, copyFormat ?? 'csv', {
                 withHeaders,
                 csvIncludeHeaders,
                 csvDelimiter,
@@ -2092,12 +2286,25 @@ export const DataGrid = React.memo(function DataGrid({
         );
     }, [contextMenu, selectedRowIndices, mergedRows]);
 
+    // Copies and exports of a selection leave hidden columns out (#1299);
+    // "Copy all" and the result export keep every column.
     const copySelectedOrContextRow = useCallback(async () => {
         const rows = getContextRows();
         if (!rows) return;
 
-        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows));
-    }, [getContextRows, formatRows, copyToClipboard, copiedRowsToast]);
+        const visible = projectVisibleColumns(rows, columns, rowCopyHiddenColIndices);
+        await copyToClipboard(
+            formatRows(visible.rows, true, visible.columns),
+            copiedRowsToast(visible.rows, visible.columns),
+        );
+    }, [
+        getContextRows,
+        columns,
+        rowCopyHiddenColIndices,
+        formatRows,
+        copyToClipboard,
+        copiedRowsToast,
+    ]);
 
     // Copies the selected rows (or the right-clicked row) as an HTML table, with
     // the regular copy output as the plain-text flavor.
@@ -2105,29 +2312,48 @@ export const DataGrid = React.memo(function DataGrid({
         const rows = getContextRows();
         if (!rows) return;
 
+        const visible = projectVisibleColumns(rows, columns, hiddenColIndices);
+        // The plain-text flavor follows the copy format, so SQL UPDATE keeps a hidden key.
+        const plain = projectVisibleColumns(rows, columns, rowCopyHiddenColIndices);
         await writeToClipboard(
             () =>
                 platform.writeClipboardHtml(
-                    rowsToHtmlTable(rows, columns, 'null'),
-                    formatRows(rows, true),
+                    rowsToHtmlTable(visible.rows, visible.columns, 'null'),
+                    formatRows(plain.rows, true, plain.columns),
                 ),
             rowsCopiedToast(rows.length),
         );
-    }, [getContextRows, columns, formatRows, writeToClipboard, rowsCopiedToast, platform]);
+    }, [
+        getContextRows,
+        columns,
+        hiddenColIndices,
+        rowCopyHiddenColIndices,
+        formatRows,
+        writeToClipboard,
+        rowsCopiedToast,
+        platform,
+    ]);
 
     // Copies the selected rows (or the right-clicked row) as UPDATE statements, whatever
     // the default copy format is. The menu enables it only when sqlUpdateBlocker allows.
     const copySelectedOrContextRowAsSqlUpdate = useCallback(async () => {
-        const rows = getContextRows();
-        if (!rows || !pkColumns || sqlUpdateBlocker(columns, pkColumns, rows) !== null) return;
+        const contextRows = getContextRows();
+        if (!contextRows || !pkColumns) return;
+        const {rows, columns: copiedColumns} = projectVisibleColumns(
+            contextRows,
+            columns,
+            hiddenNonKeyColIndices,
+        );
+        if (sqlUpdateBlocker(copiedColumns, pkColumns, rows) !== null) return;
         await copyToClipboard(
-            rowsToSqlUpdate(rows, columns, tableName ?? 'table', pkColumns, copyDriver),
+            rowsToSqlUpdate(rows, copiedColumns, tableName ?? 'table', pkColumns, copyDriver),
             rowsCopiedToast(rows.length),
         );
     }, [
         getContextRows,
         pkColumns,
         columns,
+        hiddenNonKeyColIndices,
         tableName,
         copyDriver,
         copyToClipboard,
@@ -2160,12 +2386,13 @@ export const DataGrid = React.memo(function DataGrid({
                         ? 'text/markdown'
                         : 'application/sql';
 
+            const visible = projectVisibleColumns(rows, columns, hiddenColIndices);
             try {
                 const downloaded = await downloadTextFile(platform, {
                     fileName: buildExportFileName({tableName, extension}),
                     contents: formatRowsForExport(
-                        rows,
-                        columns,
+                        visible.rows,
+                        visible.columns,
                         format,
                         csvDelimiter,
                         tableName,
@@ -2190,6 +2417,7 @@ export const DataGrid = React.memo(function DataGrid({
         [
             getContextRows,
             columns,
+            hiddenColIndices,
             tableName,
             csvDelimiter,
             copyDriver,
@@ -2223,6 +2451,20 @@ export const DataGrid = React.memo(function DataGrid({
     }, [headerContextMenu, columnTypeMap, columnLengthMap, maskedColIndices, revealedColIndices]);
 
     const closeColumnStats = useCallback(() => setColumnStatsTarget(null), []);
+
+    const closeColumnPicker = useCallback(() => setColumnPicker(null), []);
+
+    // Escape in the column list returns focus to the header it was opened
+    // from, or to the grid when that column is now hidden.
+    const columnPickerReturnFocus = useCallback((): HTMLElement | null => {
+        const grid = parentRef.current;
+        if (!grid || !columnPicker) return grid;
+        return (
+            grid.querySelector<HTMLElement>(
+                `th[data-col-index="${columnPicker.colIndex}"] [role="button"]`,
+            ) ?? grid
+        );
+    }, [columnPicker]);
 
     // Where focus goes back when the popover is closed from inside it
     // (issue #1138): the header's "select column" control, which is where a
@@ -2313,8 +2555,20 @@ export const DataGrid = React.memo(function DataGrid({
             mergedRows.map((row) => row.rowData),
             selectedRowIndices,
         );
-        await copyToClipboard(formatRows(rows, true), copiedRowsToast(rows));
-    }, [selectedRowIndices, mergedRows, formatRows, copyToClipboard, copiedRowsToast]);
+        const visible = projectVisibleColumns(rows, columns, rowCopyHiddenColIndices);
+        await copyToClipboard(
+            formatRows(visible.rows, true, visible.columns),
+            copiedRowsToast(visible.rows, visible.columns),
+        );
+    }, [
+        selectedRowIndices,
+        mergedRows,
+        columns,
+        rowCopyHiddenColIndices,
+        formatRows,
+        copyToClipboard,
+        copiedRowsToast,
+    ]);
 
     // Copies one column for the selected rows, or every visible row when
     // nothing is selected, using the same export format as other copy actions.
@@ -2357,10 +2611,9 @@ export const DataGrid = React.memo(function DataGrid({
         const rangeRows = mergedRows
             .slice(cellRange.minRow, cellRange.maxRow + 1)
             .map((r) => r.rowData);
-        const rangeColIndices = new Set<number>();
-        for (let c = cellRange.minCol; c <= cellRange.maxCol; c++) {
-            rangeColIndices.add(c);
-        }
+        const rangeColIndices = new Set(
+            visibleColumnsInRange(cellRange.minCol, cellRange.maxCol, hiddenColIndices),
+        );
         const projected = projectColumns(rangeRows, columns, rangeColIndices);
         await copyToClipboard(
             formatRowsForCopy(projected.rows, projected.columns, copyFormat ?? 'csv', {
@@ -2383,6 +2636,7 @@ export const DataGrid = React.memo(function DataGrid({
         cellRange,
         mergedRows,
         columns,
+        hiddenColIndices,
         copyFormat,
         csvIncludeHeaders,
         csvDelimiter,
@@ -2484,8 +2738,10 @@ export const DataGrid = React.memo(function DataGrid({
                 copySelectedColumns,
                 copyColumnValuesAsSqlIn: copyColumnValuesAsInClause,
                 copyAllLoadedRows,
+                hiddenColIndices,
             }),
         [
+            hiddenColIndices,
             cellRange,
             focusedCell,
             selectedRowIndices,
@@ -2610,16 +2866,26 @@ export const DataGrid = React.memo(function DataGrid({
             }
             if (!text) return;
 
+            // The pasted cells are laid out over the visible columns only, so a
+            // paste never writes into a hidden column (#1299). Targets are
+            // worked out by visible position and mapped back to `columns`.
+            const visibleColumnNames = visibleColIndices.map((colIndex) => columns[colIndex]);
+            const viewAnchor = {
+                rowIndex: anchor.rowIndex,
+                colIndex: toViewColumn(anchor.colIndex, visibleColIndices),
+            };
             // Cells that land in a JSON column keep quotes that are part of the
             // value (a pasted JSON string), see parsePasteMatrix.
             const isJsonPasteColumn = (offset: number) => {
-                const colType = columnTypeMap?.get(columns[anchor.colIndex + offset]);
+                const colType = columnTypeMap?.get(
+                    visibleColumnNames[viewAnchor.colIndex + offset],
+                );
                 return !!colType && isJsonColumn(colType);
             };
             const matrix = stripHeaderRow(
                 parsePasteMatrix(text, csvDelimiter, isJsonPasteColumn),
-                columns,
-                anchor.colIndex,
+                visibleColumnNames,
+                viewAnchor.colIndex,
             );
             let targets: PasteTarget[];
             if (
@@ -2638,19 +2904,24 @@ export const DataGrid = React.memo(function DataGrid({
                 const value = matrix[0][0];
                 targets = [];
                 for (const rowIndex of selectedRowIndices) {
-                    for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+                    for (const colIndex of visibleColIndices) {
                         if (pkColumnSet.has(columns[colIndex].toLowerCase())) continue;
                         targets.push({rowIndex, colIndex, value});
                     }
                 }
             } else {
+                const viewRange = cellRange && {
+                    ...cellRange,
+                    minCol: toViewColumn(cellRange.minCol, visibleColIndices),
+                    maxCol: toViewColumn(cellRange.maxCol, visibleColIndices),
+                };
                 targets = computePasteTargets(
                     matrix,
-                    anchor,
+                    viewAnchor,
                     mergedRows.length,
-                    columns.length,
-                    cellRange,
-                );
+                    visibleColIndices.length,
+                    viewRange,
+                ).map((target) => ({...target, colIndex: visibleColIndices[target.colIndex]}));
             }
             if (targets.length === 0) return;
 
@@ -2671,6 +2942,7 @@ export const DataGrid = React.memo(function DataGrid({
             selectedRowIndices,
             mergedRows,
             columns,
+            visibleColIndices,
             columnTypeMap,
             pkColumnSet,
             csvDelimiter,
@@ -2784,7 +3056,9 @@ export const DataGrid = React.memo(function DataGrid({
                 pending,
                 columnTypes: columnTypeMap,
                 columnLengths: columnLengthMap,
-                isExcluded: (colIndex) => isCellMasked(rowIndex, colIndex),
+                // Hidden columns (#1299) aren't on screen, so they never match.
+                isExcluded: (colIndex) =>
+                    hiddenColIndices.has(colIndex) || isCellMasked(rowIndex, colIndex),
             });
         },
         [
@@ -2795,6 +3069,7 @@ export const DataGrid = React.memo(function DataGrid({
             columns,
             columnTypeMap,
             columnLengthMap,
+            hiddenColIndices,
             isCellMasked,
         ],
     );
@@ -2802,11 +3077,28 @@ export const DataGrid = React.memo(function DataGrid({
         (rowIndex: number) => rowVirtualizer.scrollToIndex(rowIndex, {align: 'center'}),
         [rowVirtualizer],
     );
+    // Transposed (#561), a match's record is a virtualized column: center it,
+    // then let the scroll padding keep its field clear of the sticky parts.
+    const revealTransposedMatch = useCallback(
+        ({rowIndex, colIndex}: {rowIndex: number; colIndex: number}) => {
+            recordVirtualizer.scrollToIndex(rowIndex, {align: 'center'});
+            const frame = requestAnimationFrame(() => {
+                parentRef.current
+                    ?.querySelector(
+                        `td[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`,
+                    )
+                    ?.scrollIntoView({block: 'nearest', inline: 'nearest'});
+            });
+            return () => cancelAnimationFrame(frame);
+        },
+        [recordVirtualizer],
+    );
     const gridFind = useGridFind({
         rowCount: mergedRows.length,
         getRowTexts: getFindRowTextsAt,
         scrollElementRef: parentRef,
         scrollToRow: scrollRowToCenter,
+        revealMatch: transposed ? revealTransposedMatch : undefined,
     });
     const {isOpen: isFindOpen, open: openFind, close: closeFindBar} = gridFind;
     // Closing from the bar leaves the grid focused on the match it was on, the
@@ -2866,8 +3158,10 @@ export const DataGrid = React.memo(function DataGrid({
             }
 
             const totalRows = mergedRows.length;
-            const totalCols = columns.length;
             if (totalRows === 0) return;
+            // Movement skips hidden columns (#1299).
+            const firstCol = visibleColIndices[0];
+            const lastCol = visibleColIndices[visibleColIndices.length - 1];
 
             // Spreadsheet-style selection shortcuts, relative to the focused cell
             // (or the current cell range): Shift+Space selects the row(s),
@@ -2910,26 +3204,32 @@ export const DataGrid = React.memo(function DataGrid({
                 if (RANGE_EXTEND_KEYS.has(e.key)) {
                     e.preventDefault();
                     e.stopPropagation();
-                    const key = e.key as RangeExtendKey;
+                    const key = toLogicalArrowKey(e.key as RangeExtendKey, transposed);
                     if (e.shiftKey) {
-                        const next = extendCellRange(
+                        const next = extendVisibleCellRange(
                             focusedCell,
                             cellRange,
                             key,
                             totalRows,
-                            totalCols,
+                            visibleColIndices,
                             true,
                         );
                         if (next) {
                             setCellRange(next.range);
                             updateSelection(new Set());
                             setSelectedColIndices(new Set());
-                            rowVirtualizer.scrollToIndex(next.cursor.rowIndex, {
+                            recordAxisVirtualizer.scrollToIndex(next.cursor.rowIndex, {
                                 align: 'auto',
                             });
                         }
                     } else {
-                        const next = moveCellPosition(focusedCell, key, totalRows, totalCols, true);
+                        const next = moveVisibleCellPosition(
+                            focusedCell,
+                            key,
+                            totalRows,
+                            visibleColIndices,
+                            true,
+                        );
                         setCellRange(null);
                         setFocusedCell(next);
                     }
@@ -2941,8 +3241,8 @@ export const DataGrid = React.memo(function DataGrid({
                     setCellRange(null);
                     setFocusedCell(
                         e.key === 'Home'
-                            ? {rowIndex: 0, colIndex: 0}
-                            : {rowIndex: totalRows - 1, colIndex: totalCols - 1},
+                            ? {rowIndex: 0, colIndex: firstCol}
+                            : {rowIndex: totalRows - 1, colIndex: lastCol},
                     );
                     return;
                 }
@@ -2954,25 +3254,25 @@ export const DataGrid = React.memo(function DataGrid({
 
             // First keystroke inside an unfocused grid enters at the top-left cell.
             if (!focusedCell) {
-                setFocusedCell({rowIndex: 0, colIndex: 0});
+                setFocusedCell({rowIndex: 0, colIndex: firstCol});
                 return;
             }
 
             // Shift+Arrow grows/shrinks a rectangular range from the focused
             // anchor, moving the opposite corner one step (Google Sheets style).
             if (e.shiftKey && RANGE_EXTEND_KEYS.has(e.key)) {
-                const next = extendCellRange(
+                const next = extendVisibleCellRange(
                     focusedCell,
                     cellRange,
-                    e.key as RangeExtendKey,
+                    toLogicalArrowKey(e.key as RangeExtendKey, transposed),
                     totalRows,
-                    totalCols,
+                    visibleColIndices,
                 );
                 if (next) {
                     setCellRange(next.range);
                     updateSelection(new Set());
                     setSelectedColIndices(new Set());
-                    rowVirtualizer.scrollToIndex(next.cursor.rowIndex, {
+                    recordAxisVirtualizer.scrollToIndex(next.cursor.rowIndex, {
                         align: 'auto',
                     });
                 }
@@ -2980,67 +3280,41 @@ export const DataGrid = React.memo(function DataGrid({
             }
 
             const {rowIndex, colIndex} = focusedCell;
-            let nextRow = rowIndex;
-            let nextCol = colIndex;
 
-            switch (e.key) {
-                case 'ArrowUp':
-                    nextRow = Math.max(0, rowIndex - 1);
-                    break;
-                case 'ArrowDown':
-                    nextRow = Math.min(totalRows - 1, rowIndex + 1);
-                    break;
-                case 'ArrowLeft':
-                    nextCol = Math.max(0, colIndex - 1);
-                    break;
-                case 'ArrowRight':
-                    nextCol = Math.min(totalCols - 1, colIndex + 1);
-                    break;
-                case 'Home':
-                    nextCol = 0;
-                    break;
-                case 'End':
-                    nextCol = totalCols - 1;
-                    break;
-                case 'PageUp':
-                case 'PageDown': {
-                    // One viewport worth of rows, minus one so the row the user came
-                    // from stays visible as an anchor.
-                    const height = parentRef.current?.clientHeight ?? 0;
-                    const step = Math.max(1, Math.floor(height / DATA_GRID_ROW_HEIGHT) - 1);
-                    nextRow =
-                        e.key === 'PageUp'
-                            ? Math.max(0, rowIndex - step)
-                            : Math.min(totalRows - 1, rowIndex + step);
-                    break;
-                }
-                case 'Enter':
-                case 'F2': {
-                    const mergedRow = mergedRows[rowIndex];
-                    if (!mergedRow) return;
-                    // Masked cells must be revealed before editing, same as the
-                    // double-click path.
-                    if (
-                        maskedColIndices.has(colIndex) &&
-                        !revealedColIndices.has(colIndex) &&
-                        !revealedCells.has(`${rowIndex}:${colIndex}`)
-                    ) {
-                        return;
-                    }
-                    handleCellDoubleClick(
-                        rowIndex,
-                        colIndex,
-                        editableCellValue(mergedRow, colIndex),
-                    );
+            if (e.key === 'Enter' || e.key === 'F2') {
+                const mergedRow = mergedRows[rowIndex];
+                if (!mergedRow) return;
+                // Masked cells must be revealed before editing, same as the
+                // double-click path.
+                if (
+                    maskedColIndices.has(colIndex) &&
+                    !revealedColIndices.has(colIndex) &&
+                    !revealedCells.has(`${rowIndex}:${colIndex}`)
+                ) {
                     return;
                 }
+                handleCellDoubleClick(rowIndex, colIndex, editableCellValue(mergedRow, colIndex));
+                return;
             }
 
-            if (nextRow !== rowIndex || nextCol !== colIndex) {
+            // PageUp/PageDown cover one viewport worth of visual rows, minus one
+            // so the row the user came from stays visible as an anchor.
+            const height = parentRef.current?.clientHeight ?? 0;
+            const pageStep = Math.max(1, Math.floor(height / DATA_GRID_ROW_HEIGHT) - 1);
+            const next = navigateVisibleCell(
+                e.key,
+                focusedCell,
+                totalRows,
+                visibleColIndices,
+                pageStep,
+                transposed,
+            );
+
+            if (next && (next.rowIndex !== rowIndex || next.colIndex !== colIndex)) {
                 // Moving the focus by keyboard abandons any Shift+click range, the
                 // same way a plain click does.
                 setCellRange(null);
-                setFocusedCell({rowIndex: nextRow, colIndex: nextCol});
+                setFocusedCell(next);
             }
         },
         [
@@ -3048,17 +3322,19 @@ export const DataGrid = React.memo(function DataGrid({
             cellRange,
             mergedRows,
             columns,
+            visibleColIndices,
             editableCellValue,
             handleCellDoubleClick,
             maskedColIndices,
             revealedColIndices,
             revealedCells,
             updateSelection,
-            rowVirtualizer,
+            recordAxisVirtualizer,
             keybindings,
             openFind,
             isFindOpen,
             closeFindBar,
+            transposed,
         ],
     );
 
@@ -3081,45 +3357,69 @@ export const DataGrid = React.memo(function DataGrid({
             closeJumpToColumn();
             // The focus effect keeps cells visible. Center the jumped-to column so
             // it is easy to locate in a wide grid, even if it was just off screen.
+            // Transposed, the column is a visual row, so it is centered vertically.
             requestAnimationFrame(() => {
                 const parent = parentRef.current;
                 const cell =
                     parent?.querySelector<HTMLElement>(
-                        `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+                        `td[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`,
                     ) ?? parent?.querySelector<HTMLElement>(`th[data-col-index="${colIndex}"]`);
-                cell?.scrollIntoView({block: 'nearest', inline: 'center'});
+                cell?.scrollIntoView(
+                    transposed
+                        ? {block: 'center', inline: 'nearest'}
+                        : {block: 'nearest', inline: 'center'},
+                );
             });
         },
-        [closeJumpToColumn, focusedCell, mergedRows.length],
+        [closeJumpToColumn, focusedCell, mergedRows.length, transposed],
     );
 
-    // Keep the focused cell visible: the virtualizer covers the vertical axis,
-    // scrolling the cell itself covers the horizontal one on wide tables.
+    // Keep the focused cell visible: the virtualizer covers the record axis
+    // (vertical, or horizontal when transposed), scrolling the cell itself
+    // covers the other one.
     useEffect(() => {
         if (!focusedCell) return;
         const parent = parentRef.current;
         if (!parent) return;
-        if (!parent.contains(document.activeElement)) {
+        // Not while a dialog has focus: hiding the focused cell's column from
+        // the column list moves the focused cell, and focus stays in the list.
+        if (
+            !parent.contains(document.activeElement) &&
+            !document.activeElement?.closest('[role="dialog"]')
+        ) {
             parent.focus({preventScroll: true});
         }
-        rowVirtualizer.scrollToIndex(focusedCell.rowIndex, {align: 'auto'});
+        recordAxisVirtualizer.scrollToIndex(focusedCell.rowIndex, {align: 'auto'});
         // scrollToIndex only updates the virtualizer's state — a row that was
         // outside the window is mounted on the next frame, so look the cell up
         // then rather than synchronously (a multi-row PageDown would miss it).
         const frame = requestAnimationFrame(() => {
             const cell = parent.querySelector<HTMLTableCellElement>(
-                `tr[data-row-index="${focusedCell.rowIndex}"] td[data-col-index="${focusedCell.colIndex}"]`,
+                `td[data-row-index="${focusedCell.rowIndex}"][data-col-index="${focusedCell.colIndex}"]`,
             );
             if (!cell) return;
-            // A frozen cell is always in view horizontally (#1152), but the scroll
-            // padding would make the browser scroll it back to the start.
+            // A frozen cell is always in view along its frozen axis (#1152), but
+            // the scroll padding would make the browser scroll it back to the start.
             const keepScrollLeft =
-                isFirstColumnFrozen && focusedCell.colIndex === 0 ? parent.scrollLeft : null;
+                firstColumnFrozen && focusedCell.colIndex === visibleColIndices[0]
+                    ? parent.scrollLeft
+                    : null;
+            const keepScrollTop =
+                firstFieldRowFrozen && focusedCell.colIndex === visibleColIndices[0]
+                    ? parent.scrollTop
+                    : null;
             cell.scrollIntoView({block: 'nearest', inline: 'nearest'});
             if (keepScrollLeft !== null) parent.scrollLeft = keepScrollLeft;
+            if (keepScrollTop !== null) parent.scrollTop = keepScrollTop;
         });
         return () => cancelAnimationFrame(frame);
-    }, [focusedCell, rowVirtualizer, isFirstColumnFrozen]);
+    }, [
+        focusedCell,
+        recordAxisVirtualizer,
+        firstColumnFrozen,
+        firstFieldRowFrozen,
+        visibleColIndices,
+    ]);
 
     // Handle keyboard shortcuts
     useEffect(() => {
@@ -3284,6 +3584,7 @@ export const DataGrid = React.memo(function DataGrid({
             zebraStripes,
             nullLabel,
             frozenFirstColumnLeft,
+            visibleColIndices,
         }),
         [
             columns,
@@ -3331,7 +3632,104 @@ export const DataGrid = React.memo(function DataGrid({
             zebraStripes,
             nullLabel,
             frozenFirstColumnLeft,
+            visibleColIndices,
         ],
+    );
+
+    // Column header content (name, sort state, type tooltip, mask toggle),
+    // shared by the normal header row and the transposed field labels. The
+    // header renderers only change with tableColumns (they take no context), so
+    // memoizing on it keeps the transposed field rows' React.memo effective.
+    const headerLabels = useMemo(() => {
+        // `table` is a stable instance; tableColumns is what its headers are built from.
+        const headers = table.getHeaderGroups()[0]?.headers ?? [];
+        return tableColumns.map((_, colIndex) => {
+            const header = headers[colIndex];
+            if (!header) return null;
+            return (
+                <div className="flex items-center gap-1">
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                    {maskedColIndices.has(colIndex) && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                toggleRevealColumn(colIndex);
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            title={
+                                revealedColIndices.has(colIndex)
+                                    ? t('dataGrid.maskColumn')
+                                    : t('dataGrid.revealColumn')
+                            }
+                            className="shrink-0 text-muted hover:text-primary transition-colors"
+                        >
+                            {revealedColIndices.has(colIndex) ? (
+                                <EyeOff size={13} />
+                            ) : (
+                                <Eye size={13} />
+                            )}
+                        </button>
+                    )}
+                </div>
+            );
+        });
+    }, [table, tableColumns, maskedColIndices, revealedColIndices, toggleRevealColumn, t]);
+
+    // Transposed layout (#561): per-record state for the record columns in the
+    // horizontal virtual window, shared by every field row. getVirtualItems()
+    // returns the same array while the window is unchanged, so scrolling inside
+    // it doesn't re-render the field rows.
+    const recordVirtualItems = transposed ? recordVirtualizer.getVirtualItems() : NO_VIRTUAL_ITEMS;
+    const transposedRecords: TransposedRecord[] = useMemo(
+        () =>
+            recordVirtualItems.map((item) => {
+                const rowIndex = item.index;
+                const rowOriginal = tableRows[rowIndex].original as unknown[];
+                const isInsertion = mergedRows[rowIndex]?.type === 'insertion';
+                const pkVal =
+                    pkIndexMaps.length > 0 && pkColumns
+                        ? serializePkKey(buildPkMap(pkColumns, rowOriginal, pkIndexMaps))
+                        : null;
+                return {
+                    rowIndex,
+                    rowOriginal,
+                    isSelected: selectedRowIndices.has(rowIndex),
+                    isInsertion,
+                    isPendingDelete:
+                        !isInsertion && pkVal ? pendingDeletions?.[pkVal] !== undefined : false,
+                    pkVal,
+                };
+            }),
+        [
+            recordVirtualItems,
+            tableRows,
+            mergedRows,
+            selectedRowIndices,
+            pkIndexMaps,
+            pkColumns,
+            pendingDeletions,
+        ],
+    );
+
+    // Right-click on a column header, or on a field label when transposed.
+    const openHeaderContextMenu = useCallback(
+        (e: React.MouseEvent, colIndex: number) => {
+            e.preventDefault();
+            // macOS turns Ctrl+click into a contextmenu event — the user almost
+            // certainly meant "toggle this column".
+            if (e.ctrlKey) {
+                handleColumnHeaderSelectRef.current(colIndex, e);
+                return;
+            }
+            setHeaderContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                colName: tableColumns[colIndex]?.id ?? columns[colIndex],
+                colIndex,
+            });
+        },
+        [tableColumns, columns],
     );
 
     // Show "no data" if there are no columns (even with pending insertions, we can't render without column info)
@@ -3350,7 +3748,89 @@ export const DataGrid = React.memo(function DataGrid({
         virtualItems.length > 0
             ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
             : 0;
-    const totalColumnCount = tableColumns.length + 1;
+    const totalColumnCount = visibleColIndices.length + 1;
+
+    // Header menu entries for hiding columns (#1299), offered when the host
+    // keeps the hidden set. A column that is part of a column selection hides
+    // the whole selection.
+    const columnVisibilityItems = (target: {
+        x: number;
+        y: number;
+        colIndex: number;
+    }): ContextMenuItem[] => {
+        if (!onHiddenColumnsChange) return [];
+        const targets =
+            selectedColIndices.has(target.colIndex) && selectedColIndices.size > 1
+                ? [...selectedColIndices]
+                : [target.colIndex];
+        return [
+            {
+                label:
+                    targets.length > 1
+                        ? t('dataGrid.columnVisibility.hideColumns', {count: targets.length})
+                        : t('dataGrid.columnVisibility.hideColumn'),
+                icon: EyeOff,
+                // The last visible column stays.
+                disabled: !canHideColumns(columns.length, hiddenColIndices, targets),
+                action: () => {
+                    onHiddenColumnsChange(hideColumns(columns.length, hiddenColIndices, targets));
+                    setHeaderContextMenu(null);
+                    // The header that held focus is gone: keep the keyboard in the grid.
+                    parentRef.current?.focus({preventScroll: true});
+                },
+            },
+            ...(hiddenColIndices.size > 0
+                ? [
+                      {
+                          label: t('dataGrid.columnVisibility.showAllColumns', {
+                              count: hiddenColIndices.size,
+                          }),
+                          icon: Eye,
+                          action: () => {
+                              onHiddenColumnsChange(NO_HIDDEN_COLUMNS);
+                              setHeaderContextMenu(null);
+                          },
+                      },
+                  ]
+                : []),
+            {
+                label: t('dataGrid.columnVisibility.chooseColumns'),
+                icon: Columns3,
+                action: () => {
+                    setColumnPicker(target);
+                    setHeaderContextMenu(null);
+                },
+            },
+        ];
+    };
+    // Header cells of the visible columns (#1299): the header, its index in
+    // `columns` and its rendered position among the data columns.
+    const shownHeaders = (headerGroup: HeaderGroup<unknown[]>) =>
+        visibleColIndices.map(
+            (colIndex, position) => [headerGroup.headers[colIndex], colIndex, position] as const,
+        );
+
+    // The frozen first field row sits right under the record header row, which
+    // is itself sticky only when sticky column headers are on.
+    const transposedFrozenTop = firstFieldRowFrozen
+        ? stickyColumnHeaders
+            ? DATA_GRID_ROW_HEIGHT
+            : 0
+        : null;
+    const transposedScrollPaddingTop =
+        (stickyColumnHeaders ? DATA_GRID_ROW_HEIGHT : 0) +
+        (transposedFrozenTop !== null ? DATA_GRID_ROW_HEIGHT : 0);
+    // Item offsets include the label column (the virtualizer's paddingStart),
+    // which the table already lays out as its own column.
+    const transposedPaddingLeft =
+        recordVirtualItems.length > 0
+            ? Math.max(0, recordVirtualItems[0].start - TRANSPOSED_FIELD_LABEL_WIDTH)
+            : 0;
+    const transposedPaddingRight =
+        recordVirtualItems.length > 0
+            ? recordVirtualizer.getTotalSize() -
+              recordVirtualItems[recordVirtualItems.length - 1].end
+            : 0;
 
     return (
         <div className="h-full flex flex-col">
@@ -3399,28 +3879,32 @@ export const DataGrid = React.memo(function DataGrid({
                 onScroll={handleScroll}
                 className="h-full overflow-auto border border-default rounded bg-elevated relative focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                 style={
-                    frozenLayout ? {scrollPaddingLeft: frozenLayout.scrollPaddingLeft} : undefined
+                    transposed
+                        ? {
+                              scrollPaddingLeft: TRANSPOSED_FIELD_LABEL_WIDTH,
+                              // Keeps scrollIntoView from parking a cell under the
+                              // sticky record headers or the frozen row.
+                              scrollPaddingTop: transposedScrollPaddingTop || undefined,
+                          }
+                        : frozenLayout
+                          ? {scrollPaddingLeft: frozenLayout.scrollPaddingLeft}
+                          : undefined
                 }
             >
-                <table
-                    ref={tableRef}
-                    className="w-full text-left border-collapse"
-                    style={
-                        columnWidths ? {tableLayout: 'fixed', width: resizedTableWidth} : undefined
-                    }
-                >
-                    {columnWidths && (
-                        <colgroup>
-                            {columnWidths.map((width, index) => (
-                                <col key={index} style={{width}} />
-                            ))}
-                        </colgroup>
-                    )}
-                    <thead
-                        className={`bg-base z-10 shadow-sm ${stickyColumnHeaders ? 'sticky top-0' : ''}`}
+                {transposed ? (
+                    <table
+                        className="text-left border-collapse"
+                        style={{
+                            tableLayout: 'fixed',
+                            // The total size already includes the label column.
+                            width: recordVirtualizer.getTotalSize(),
+                        }}
                     >
-                        {table.getHeaderGroups().map((headerGroup) => (
-                            <tr key={headerGroup.id} ref={theadRowRef}>
+                        <thead
+                            className={`bg-base z-10 shadow-sm ${stickyColumnHeaders ? 'sticky top-0' : ''}`}
+                        >
+                            {/* Fixed height: the frozen first field row is pinned right under it. */}
+                            <tr style={{height: DATA_GRID_ROW_HEIGHT}}>
                                 <th
                                     onClick={handleSelectAll}
                                     title={
@@ -3428,170 +3912,282 @@ export const DataGrid = React.memo(function DataGrid({
                                             ? t('dataGrid.deselectAll')
                                             : t('dataGrid.selectAll')
                                     }
-                                    className="px-2 py-2 text-xs font-semibold text-muted border-b border-r border-default bg-base sticky left-0 z-20 text-center select-none w-[50px] min-w-[50px] cursor-pointer hover:bg-elevated"
+                                    style={{width: TRANSPOSED_FIELD_LABEL_WIDTH}}
+                                    className="px-2 py-2 text-xs font-semibold text-muted border-b border-r border-default bg-base sticky left-0 z-20 text-center select-none cursor-pointer hover:bg-elevated"
                                 >
                                     #
                                 </th>
-                                {headerGroup.headers.map((header, headerColIndex) => (
+                                <th
+                                    aria-hidden
+                                    style={{
+                                        width: transposedPaddingLeft,
+                                        padding: 0,
+                                        border: 'none',
+                                    }}
+                                />
+                                {transposedRecords.map((record) => (
                                     <th
-                                        key={header.id}
-                                        data-col-index={headerColIndex}
-                                        style={
-                                            frozenFirstColumnLeft !== null && headerColIndex === 0
-                                                ? {left: frozenFirstColumnLeft}
-                                                : undefined
-                                        }
-                                        className={`${
-                                            frozenFirstColumnLeft !== null && headerColIndex === 0
-                                                ? FROZEN_HEADER_CELL_CLASS
-                                                : 'relative'
-                                        } px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
-                                            selectedColIndices.has(headerColIndex)
-                                                ? 'text-primary bg-accent-primary/20'
-                                                : 'text-secondary'
-                                        }`}
-                                        onContextMenu={(e) => {
-                                            e.preventDefault();
-                                            // macOS turns Ctrl+click into a contextmenu event — the
-                                            // user almost certainly meant "toggle this column".
-                                            if (e.ctrlKey) {
-                                                handleColumnHeaderSelectRef.current(
-                                                    headerColIndex,
-                                                    e,
-                                                );
-                                                return;
-                                            }
-                                            setHeaderContextMenu({
-                                                x: e.clientX,
-                                                y: e.clientY,
-                                                colName: header.id,
-                                                colIndex: headerColIndex,
-                                            });
+                                        key={record.rowIndex}
+                                        scope="col"
+                                        data-record-index={record.rowIndex}
+                                        onClick={(e) => {
+                                            setFocusedCell(null);
+                                            onForeignKeyHidePanel?.();
+                                            handleRowClick(record.rowIndex, e);
                                         }}
+                                        onDoubleClick={() => {
+                                            if (!readonlyProp) {
+                                                openInSidebar(record.rowIndex);
+                                            }
+                                        }}
+                                        style={{width: TRANSPOSED_RECORD_WIDTH}}
+                                        className={`px-2 py-2 text-xs text-center border-b border-r border-default cursor-pointer select-none ${
+                                            record.isInsertion
+                                                ? record.isSelected
+                                                    ? 'bg-accent-primary/20 text-accent font-bold'
+                                                    : 'bg-semantic-new/15 text-semantic-new font-bold'
+                                                : record.isPendingDelete
+                                                  ? 'bg-semantic-deleted/25 text-semantic-deleted line-through'
+                                                  : record.isSelected
+                                                    ? 'bg-accent-primary/20 text-accent font-bold'
+                                                    : 'bg-base text-muted hover:bg-surface-secondary'
+                                        }`}
                                     >
-                                        <div className="flex items-center gap-1">
-                                            {flexRender(
-                                                header.column.columnDef.header,
-                                                header.getContext(),
-                                            )}
-                                            {maskedColIndices.has(headerColIndex) && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleRevealColumn(headerColIndex);
-                                                    }}
-                                                    onMouseDown={(e) => e.stopPropagation()}
-                                                    title={
-                                                        revealedColIndices.has(headerColIndex)
-                                                            ? t('dataGrid.maskColumn')
-                                                            : t('dataGrid.revealColumn')
-                                                    }
-                                                    className="shrink-0 text-muted hover:text-primary transition-colors"
-                                                >
-                                                    {revealedColIndices.has(headerColIndex) ? (
-                                                        <EyeOff size={13} />
-                                                    ) : (
-                                                        <Eye size={13} />
-                                                    )}
-                                                </button>
-                                            )}
-                                        </div>
-                                        {columnWidths && (
-                                            <ColumnResizeHandle
-                                                // Widths include the row-number column first.
-                                                index={headerColIndex + 1}
-                                                width={Math.round(columnWidths[headerColIndex + 1])}
-                                                minWidth={DATA_GRID_MIN_COLUMN_WIDTH}
-                                                maxWidth={DATA_GRID_MAX_COLUMN_WIDTH}
-                                                label={t('dataGrid.resizeColumn', {
-                                                    col:
-                                                        columns[headerColIndex] ||
-                                                        headerColIndex + 1,
-                                                })}
-                                                onMouseDown={startResize}
-                                                onKeyDown={onResizeKeyDown}
-                                                onDoubleClick={fitColumnToContent}
-                                            />
-                                        )}
+                                        {record.isInsertion ? 'NEW' : record.rowIndex + 1}
                                     </th>
                                 ))}
-                            </tr>
-                        ))}
-                    </thead>
-                    <tbody>
-                        {virtualPaddingTop > 0 && (
-                            <tr>
-                                <td
-                                    colSpan={totalColumnCount}
-                                    style={{height: virtualPaddingTop, padding: 0, border: 'none'}}
-                                />
-                            </tr>
-                        )}
-                        {virtualItems.map((virtualRow) => {
-                            const rowIndex = virtualRow.index;
-                            const row = tableRows[rowIndex];
-                            const rowOriginal = row.original as unknown[];
-                            const isSelected = selectedRowIndices.has(rowIndex);
-                            const mergedRow = mergedRows[rowIndex];
-                            const isInsertion = mergedRow?.type === 'insertion';
-                            const pkVal =
-                                pkIndexMaps.length > 0 && pkColumns
-                                    ? serializePkKey(
-                                          buildPkMap(
-                                              pkColumns,
-                                              rowOriginal as unknown[],
-                                              pkIndexMaps,
-                                          ),
-                                      )
-                                    : null;
-                            const isPendingDelete =
-                                !isInsertion && pkVal
-                                    ? pendingDeletions?.[pkVal] !== undefined
-                                    : false;
-                            const isRowEditing = editingCell?.rowIndex === rowIndex;
-                            const isRowFocused = focusedCell?.rowIndex === rowIndex;
-                            const isRowExpanded = expandedCell?.rowIndex === rowIndex;
-                            return (
-                                <MemoRow
-                                    key={row.id}
-                                    ctx={rowCtx}
-                                    rowIndex={rowIndex}
-                                    rowOriginal={rowOriginal}
-                                    isSelected={isSelected}
-                                    isInsertion={isInsertion}
-                                    isPendingDelete={isPendingDelete}
-                                    pkVal={pkVal}
-                                    editingColIndex={isRowEditing ? editingCell!.colIndex : null}
-                                    editingValue={isRowEditing ? editingCell!.value : undefined}
-                                    focusedColIndex={isRowFocused ? focusedCell!.colIndex : null}
-                                    expandedColIndex={isRowExpanded ? expandedCell!.colIndex : null}
-                                    expandedKind={isRowExpanded ? expandedCell!.kind : null}
-                                    findMatchColIndices={
-                                        gridFind.matchesByRow.get(rowIndex) ?? null
-                                    }
-                                    currentFindColIndex={
-                                        gridFind.currentMatch?.rowIndex === rowIndex
-                                            ? gridFind.currentMatch.colIndex
-                                            : null
-                                    }
-                                />
-                            );
-                        })}
-                        {virtualPaddingBottom > 0 && (
-                            <tr>
-                                <td
-                                    colSpan={totalColumnCount}
+                                <th
+                                    aria-hidden
                                     style={{
-                                        height: virtualPaddingBottom,
+                                        width: transposedPaddingRight,
                                         padding: 0,
                                         border: 'none',
                                     }}
                                 />
                             </tr>
+                        </thead>
+                        <tbody>
+                            {visibleColIndices.map((colIndex) => {
+                                const colName = columns[colIndex];
+                                const isFieldEditing = editingCell?.colIndex === colIndex;
+                                const isFieldExpanded = expandedCell?.colIndex === colIndex;
+                                return (
+                                    <React.Fragment key={`${colIndex}:${colName}`}>
+                                        <MemoTransposedRow
+                                            ctx={rowCtx}
+                                            colIndex={colIndex}
+                                            label={headerLabels[colIndex]}
+                                            isFieldSelected={selectedColIndices.has(colIndex)}
+                                            onLabelContextMenu={openHeaderContextMenu}
+                                            records={transposedRecords}
+                                            paddingLeft={transposedPaddingLeft}
+                                            paddingRight={transposedPaddingRight}
+                                            editingRowIndex={
+                                                isFieldEditing ? editingCell!.rowIndex : null
+                                            }
+                                            editingValue={
+                                                isFieldEditing ? editingCell!.value : undefined
+                                            }
+                                            focusedRowIndex={
+                                                focusedCell?.colIndex === colIndex
+                                                    ? focusedCell.rowIndex
+                                                    : null
+                                            }
+                                            expandedRowIndex={
+                                                isFieldExpanded ? expandedCell!.rowIndex : null
+                                            }
+                                            expandedKind={
+                                                isFieldExpanded ? expandedCell!.kind : null
+                                            }
+                                            frozenTop={
+                                                colIndex === visibleColIndices[0]
+                                                    ? transposedFrozenTop
+                                                    : null
+                                            }
+                                            findMatchesByRow={gridFind.matchesByRow}
+                                            currentFindRowIndex={
+                                                gridFind.currentMatch?.colIndex === colIndex
+                                                    ? gridFind.currentMatch.rowIndex
+                                                    : null
+                                            }
+                                        />
+                                        {isFieldExpanded && (
+                                            <DataGridExpansionRow
+                                                ctx={rowCtx}
+                                                rowIndex={expandedCell!.rowIndex}
+                                                expandedCell={expandedCell!}
+                                                colSpan={transposedRecords.length + 3}
+                                            />
+                                        )}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                ) : (
+                    <table
+                        ref={tableRef}
+                        className="w-full text-left border-collapse"
+                        style={
+                            columnWidths
+                                ? {tableLayout: 'fixed', width: resizedTableWidth}
+                                : undefined
+                        }
+                    >
+                        {columnWidths && (
+                            <colgroup>
+                                {columnWidths.map((width, index) => (
+                                    <col key={index} style={{width}} />
+                                ))}
+                            </colgroup>
                         )}
-                    </tbody>
-                </table>
+                        <thead
+                            className={`bg-base z-10 shadow-sm ${stickyColumnHeaders ? 'sticky top-0' : ''}`}
+                        >
+                            {table.getHeaderGroups().map((headerGroup) => (
+                                <tr key={headerGroup.id} ref={theadRowRef}>
+                                    <th
+                                        onClick={handleSelectAll}
+                                        title={
+                                            selectedRowIndices.size === mergedRows.length
+                                                ? t('dataGrid.deselectAll')
+                                                : t('dataGrid.selectAll')
+                                        }
+                                        className="px-2 py-2 text-xs font-semibold text-muted border-b border-r border-default bg-base sticky left-0 z-20 text-center select-none w-[50px] min-w-[50px] cursor-pointer hover:bg-elevated"
+                                    >
+                                        #
+                                    </th>
+                                    {shownHeaders(headerGroup).map(
+                                        ([header, headerColIndex, pos]) => (
+                                            <th
+                                                key={header.id}
+                                                data-col-index={headerColIndex}
+                                                style={
+                                                    frozenFirstColumnLeft !== null && pos === 0
+                                                        ? {left: frozenFirstColumnLeft}
+                                                        : undefined
+                                                }
+                                                className={`${
+                                                    frozenFirstColumnLeft !== null && pos === 0
+                                                        ? FROZEN_HEADER_CELL_CLASS
+                                                        : 'relative'
+                                                } px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
+                                                    selectedColIndices.has(headerColIndex)
+                                                        ? 'text-primary bg-accent-primary/20'
+                                                        : 'text-secondary'
+                                                }`}
+                                                onContextMenu={(e) =>
+                                                    openHeaderContextMenu(e, headerColIndex)
+                                                }
+                                            >
+                                                {headerLabels[headerColIndex]}
+                                                {columnWidths && (
+                                                    <ColumnResizeHandle
+                                                        // Widths include the row-number column first.
+                                                        index={pos + 1}
+                                                        width={Math.round(columnWidths[pos + 1])}
+                                                        minWidth={DATA_GRID_MIN_COLUMN_WIDTH}
+                                                        maxWidth={DATA_GRID_MAX_COLUMN_WIDTH}
+                                                        label={t('dataGrid.resizeColumn', {
+                                                            col:
+                                                                columns[headerColIndex] ||
+                                                                headerColIndex + 1,
+                                                        })}
+                                                        onMouseDown={startResize}
+                                                        onKeyDown={onResizeKeyDown}
+                                                        onDoubleClick={fitColumnToContent}
+                                                    />
+                                                )}
+                                            </th>
+                                        ),
+                                    )}
+                                </tr>
+                            ))}
+                        </thead>
+                        <tbody>
+                            {virtualPaddingTop > 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={totalColumnCount}
+                                        style={{
+                                            height: virtualPaddingTop,
+                                            padding: 0,
+                                            border: 'none',
+                                        }}
+                                    />
+                                </tr>
+                            )}
+                            {virtualItems.map((virtualRow) => {
+                                const rowIndex = virtualRow.index;
+                                const row = tableRows[rowIndex];
+                                const rowOriginal = row.original as unknown[];
+                                const isSelected = selectedRowIndices.has(rowIndex);
+                                const mergedRow = mergedRows[rowIndex];
+                                const isInsertion = mergedRow?.type === 'insertion';
+                                const pkVal =
+                                    pkIndexMaps.length > 0 && pkColumns
+                                        ? serializePkKey(
+                                              buildPkMap(
+                                                  pkColumns,
+                                                  rowOriginal as unknown[],
+                                                  pkIndexMaps,
+                                              ),
+                                          )
+                                        : null;
+                                const isPendingDelete =
+                                    !isInsertion && pkVal
+                                        ? pendingDeletions?.[pkVal] !== undefined
+                                        : false;
+                                const isRowEditing = editingCell?.rowIndex === rowIndex;
+                                const isRowFocused = focusedCell?.rowIndex === rowIndex;
+                                const isRowExpanded = expandedCell?.rowIndex === rowIndex;
+                                return (
+                                    <MemoRow
+                                        key={row.id}
+                                        ctx={rowCtx}
+                                        rowIndex={rowIndex}
+                                        rowOriginal={rowOriginal}
+                                        isSelected={isSelected}
+                                        isInsertion={isInsertion}
+                                        isPendingDelete={isPendingDelete}
+                                        pkVal={pkVal}
+                                        editingColIndex={
+                                            isRowEditing ? editingCell!.colIndex : null
+                                        }
+                                        editingValue={isRowEditing ? editingCell!.value : undefined}
+                                        focusedColIndex={
+                                            isRowFocused ? focusedCell!.colIndex : null
+                                        }
+                                        expandedColIndex={
+                                            isRowExpanded ? expandedCell!.colIndex : null
+                                        }
+                                        expandedKind={isRowExpanded ? expandedCell!.kind : null}
+                                        findMatchColIndices={
+                                            gridFind.matchesByRow.get(rowIndex) ?? null
+                                        }
+                                        currentFindColIndex={
+                                            gridFind.currentMatch?.rowIndex === rowIndex
+                                                ? gridFind.currentMatch.colIndex
+                                                : null
+                                        }
+                                    />
+                                );
+                            })}
+                            {virtualPaddingBottom > 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={totalColumnCount}
+                                        style={{
+                                            height: virtualPaddingBottom,
+                                            padding: 0,
+                                            border: 'none',
+                                        }}
+                                    />
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                )}
 
                 {contextMenu &&
                     (() => {
@@ -3815,7 +4411,11 @@ export const DataGrid = React.memo(function DataGrid({
                             menuItems.push({
                                 label: t('dataGrid.copyRangeN', {
                                     rows: cellRange.maxRow - cellRange.minRow + 1,
-                                    cols: cellRange.maxCol - cellRange.minCol + 1,
+                                    cols: visibleColumnsInRange(
+                                        cellRange.minCol,
+                                        cellRange.maxCol,
+                                        hiddenColIndices,
+                                    ).length,
                                 }),
                                 icon: Copy,
                                 action: async () => {
@@ -3841,10 +4441,16 @@ export const DataGrid = React.memo(function DataGrid({
 
                         // Shown even when it can't run, with the reason, so the format is
                         // discoverable and it's clear why a safe WHERE can't be built.
-                        const updateBlocker = sqlUpdateBlocker(
+                        // Hidden columns stay out of SET, a hidden key still builds the WHERE.
+                        const updateTarget = projectVisibleColumns(
+                            getContextRows() ?? [],
                             columns,
+                            hiddenNonKeyColIndices,
+                        );
+                        const updateBlocker = sqlUpdateBlocker(
+                            updateTarget.columns,
                             pkColumns,
-                            getContextRows() ?? undefined,
+                            updateTarget.rows,
                         );
                         menuItems.push(
                             updateBlocker === null
@@ -3953,7 +4559,7 @@ export const DataGrid = React.memo(function DataGrid({
                         // "Edit selection": bulk edits over the range, selected columns
                         // or selected rows the right-clicked cell belongs to. Shown
                         // disabled, with the reason, where the grid cannot stage edits.
-                        const editSelection = resolveEditSelection(
+                        const resolvedEditSelection = resolveEditSelection(
                             {rowIndex: contextMenu.rowIndex, colIndex: contextMenu.colIndex},
                             {
                                 cellRange,
@@ -3968,6 +4574,13 @@ export const DataGrid = React.memo(function DataGrid({
                                 ),
                             },
                         );
+                        // Bulk edits never write into hidden columns (#1299).
+                        const editSelection: EditSelection = {
+                            ...resolvedEditSelection,
+                            cols: resolvedEditSelection.cols.filter(
+                                (col) => !hiddenColIndices.has(col),
+                            ),
+                        };
                         const canStageExistingRows =
                             !!onPendingChange && !!pkColumns && pkIndexMaps.length > 0;
                         const editSelectionBlocker = !tableName
@@ -4180,26 +4793,38 @@ export const DataGrid = React.memo(function DataGrid({
                                       } as ContextMenuItem,
                                   ]
                                 : []),
+                            ...columnVisibilityItems(headerContextMenu),
+                            // Freezing pins the first field: its column normally, its
+                            // row when transposed. Widths belong to the normal layout;
+                            // the transposed one has fixed widths.
                             {
-                                label: isFirstColumnFrozen
-                                    ? t('dataGrid.unfreezeFirstColumn')
-                                    : t('dataGrid.freezeFirstColumn'),
+                                label: transposed
+                                    ? isFirstColumnFrozen
+                                        ? t('dataGrid.unfreezeFirstRow')
+                                        : t('dataGrid.freezeFirstRow')
+                                    : isFirstColumnFrozen
+                                      ? t('dataGrid.unfreezeFirstColumn')
+                                      : t('dataGrid.freezeFirstColumn'),
                                 icon: isFirstColumnFrozen ? PinOff : Pin,
                                 action: () => {
                                     setIsFirstColumnFrozen((frozen) => !frozen);
                                     setHeaderContextMenu(null);
                                 },
                             },
-                            {
-                                label: t('dataGrid.resetColumnWidths'),
-                                icon: RotateCcw,
-                                action: () => {
-                                    // Dropping the locked widths makes the grid fall back
-                                    // to the automatic layout and measure it again.
-                                    setLockedColumnWidths(null);
-                                    setHeaderContextMenu(null);
-                                },
-                            },
+                            ...(transposed
+                                ? []
+                                : [
+                                      {
+                                          label: t('dataGrid.resetColumnWidths'),
+                                          icon: RotateCcw,
+                                          action: () => {
+                                              // Dropping the locked widths makes the grid fall back
+                                              // to the automatic layout and measure it again.
+                                              setLockedColumnWidths(null);
+                                              setHeaderContextMenu(null);
+                                          },
+                                      } as ContextMenuItem,
+                                  ]),
                             {separator: true} as ContextMenuItem,
                             {
                                 label: t('dataGrid.copyColumnName'),
@@ -4268,6 +4893,18 @@ export const DataGrid = React.memo(function DataGrid({
                                   ]
                                 : []),
                         ]}
+                    />
+                )}
+
+                {columnPicker && onHiddenColumnsChange && (
+                    <ColumnVisibilityPopover
+                        x={columnPicker.x}
+                        y={columnPicker.y}
+                        columns={columns}
+                        hidden={hiddenColIndices}
+                        onChange={onHiddenColumnsChange}
+                        returnFocusTo={columnPickerReturnFocus}
+                        onClose={closeColumnPicker}
                     />
                 )}
 

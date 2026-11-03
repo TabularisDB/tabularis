@@ -1,4 +1,4 @@
-import {render, screen, waitFor} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {AiApprovalGate} from '@/components/modals/AiApprovalGate';
 import {usePendingApprovals} from '@/hooks/useAiActivity';
@@ -29,9 +29,31 @@ vi.mock('@/utils/mcpApprovalAttention', () => ({
     restoreWindowAlwaysOnTop: vi.fn().mockResolvedValue(undefined),
 }));
 
+const showToast = vi.hoisted(() => vi.fn());
+
+vi.mock('@/hooks/useToast', () => ({
+    useToast: () => ({showToast}),
+}));
+
+vi.mock('react-i18next', () => ({
+    useTranslation: () => ({
+        t: (key: string, options?: Record<string, unknown>) =>
+            options ? `${key} ${JSON.stringify(options)}` : key,
+    }),
+}));
+
 vi.mock('@/components/modals/AiApprovalModal', () => ({
-    AiApprovalModal: ({approval}: {approval: {id: string}}) => (
-        <div data-testid="approval-modal">{approval.id}</div>
+    AiApprovalModal: ({
+        approval,
+        onDeny,
+    }: {
+        approval: {id: string};
+        onDeny: (reason?: string) => Promise<void>;
+    }) => (
+        <div data-testid="approval-modal">
+            {approval.id}
+            <button onClick={() => void onDeny()}>deny</button>
+        </div>
     ),
 }));
 
@@ -176,5 +198,29 @@ describe('AiApprovalGate', () => {
 
         expect(focusWindowForApproval).toHaveBeenCalledWith('approval-1');
         expect(notifyApprovalRequest).not.toHaveBeenCalled();
+    });
+
+    it('reports a decision that fails instead of rejecting silently', async () => {
+        vi.mocked(useSettings).mockReturnValue({
+            settings: {
+                mcpApprovalAlwaysOnTop: false,
+                mcpApprovalNotifySound: false,
+            },
+            isLoading: false,
+            isLanguageReady: true,
+            isLanguageSettled: true,
+            updateSetting: vi.fn(),
+        } as never);
+        decide.mockRejectedValueOnce('The pending AI approval no longer exists');
+
+        render(<AiApprovalGate />);
+        fireEvent.click(await screen.findByRole('button', {name: 'deny'}));
+
+        await waitFor(() => {
+            expect(showToast).toHaveBeenCalledWith(
+                'aiApproval.decisionFailed {"error":"The pending AI approval no longer exists"}',
+                {kind: 'error'},
+            );
+        });
     });
 });

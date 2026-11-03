@@ -1389,6 +1389,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Mode de pooler",
     "poolerModeTransactionHint": "Lors de l'utilisation de PgBouncer en mode transaction avec des types personnalisés (enums, composites, types d'extension), définissez max_prepared_statements > 0 dans pgbouncer.ini. Cela active la mise en cache côté serveur des instructions préparées afin que les instructions nommées survivent à la réaffectation des connexions.",
+    "connectTimeout": "Délai de connexion (secondes)",
+    "connectTimeoutHint": "Durée d'attente du serveur avant d'abandonner. Laissez vide pour utiliser la valeur par défaut.",
     "poolerModes": {
       "none": "Aucun (connexion directe)",
       "transaction": "PgBouncer transaction",
@@ -1514,6 +1516,23 @@
     "deselectColumn": "Désélectionner la colonne",
     "freezeFirstColumn": "Figer la première colonne",
     "unfreezeFirstColumn": "Libérer la première colonne",
+    "columnVisibility": {
+      "hideColumn": "Masquer la colonne",
+      "hideColumns_one": "Masquer {{count}} colonne",
+      "hideColumns_other": "Masquer {{count}} colonnes",
+      "showAllColumns": "Afficher les colonnes masquées ({{count}})",
+      "chooseColumns": "Choisir les colonnes…",
+      "title": "Colonnes",
+      "shown": "{{visible}} sur {{total}} affichées",
+      "showAll": "Tout afficher",
+      "lastVisible": "Au moins une colonne reste visible",
+      "hiddenCount_one": "{{count}} masquée",
+      "hiddenCount_other": "{{count}} masquées",
+      "hiddenLabel_one": "{{count}} colonne masquée",
+      "hiddenLabel_other": "{{count}} colonnes masquées"
+    },
+    "freezeFirstRow": "Figer la première ligne",
+    "unfreezeFirstRow": "Libérer la première ligne",
     "resetColumnWidths": "Réinitialiser la largeur des colonnes",
     "copySelectedColumns": "Copier les colonnes sélectionnées ({{count}})",
     "copyRangeN": "Copier la plage ({{rows}}×{{cols}})",
@@ -1609,6 +1628,8 @@
     "maskCell": "Masquer la cellule",
     "revealColumn": "Afficher la colonne",
     "maskColumn": "Masquer la colonne",
+    "transpose": "Transposer : afficher les colonnes en lignes",
+    "untranspose": "Afficher les enregistrements en lignes",
     "resizeColumn": "Redimensionner la colonne {{col}}"
   },
   "editRow": {
@@ -1715,7 +1736,11 @@
       "copyReport": "Copier le rapport",
       "reportCopied": "Rapport copié",
       "copyFailed": "Impossible de copier le rapport dans le presse-papiers.",
-      "createIssue": "Créer une issue"
+      "createIssue": "Créer une issue",
+      "analyzeWithAi": "Analyser avec l'IA",
+      "aiAnalyzing": "Analyse en cours…",
+      "aiAnalysisTitle": "Analyse par l'IA",
+      "aiAnalysisFailed": "L'analyse par l'IA a échoué. Copiez le rapport ou créez une issue à la place."
     },
     "newVisualQuery": "Nouvelle requête visuelle",
     "activeDatabase": "Base de données active",
@@ -1822,6 +1847,9 @@
       "tableView": "Tableau",
       "tableTitle": "Arborescence du plan",
       "exportCsv": "Exporter en CSV",
+      "resetColumnOrder": "Réinitialiser l’ordre des colonnes",
+      "moveColumnHint": "Faites glisser pour réorganiser, ou appuyez sur Alt+Gauche / Alt+Droite",
+      "openInWindow": "Ouvrir dans une nouvelle fenêtre",
       "exportingCsv": "Exportation...",
       "exportCsvSuccess": "Tableau d'explain exporté en CSV",
       "exportCsvError": "Échec de l'exportation du tableau d'explain en CSV",
@@ -2412,7 +2440,8 @@
     "openFile": "Ouvrir un fichier",
     "reload": "Recharger",
     "loading": "Chargement du plan d'exécution…",
-    "emptyHint": "Sélectionnez un fichier contenant un plan EXPLAIN (format JSON ou texte PostgreSQL) pour le visualiser."
+    "emptyHint": "Sélectionnez un fichier contenant un plan EXPLAIN (format JSON ou texte PostgreSQL) pour le visualiser.",
+    "sessionExpired": "Ce plan n’est plus disponible. Rouvrez-le depuis l’éditeur."
   },
   "taskManager": {
     "header": {
@@ -2655,7 +2684,8 @@
     "approve": "Approuver",
     "deny": "Refuser",
     "notificationTitle": "Approbation MCP requise",
-    "notificationBody": "Ouvrez Tabularis pour examiner l’approbation MCP en attente."
+    "notificationBody": "Ouvrez Tabularis pour examiner l’approbation MCP en attente.",
+    "decisionFailed": "Impossible d’envoyer la décision : {{error}}"
   },
   "discordCallout": {
     "title": "Nouvelle communauté Discord !",

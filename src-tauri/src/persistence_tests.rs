@@ -140,6 +140,26 @@ mod tests {
         assert!(parsed.pooler_mode.is_none());
     }
 
+    #[test]
+    fn connect_timeout_round_trips_and_stays_absent_when_none() {
+        let with_timeout = ConnectionParams {
+            driver: "mysql".to_string(),
+            connect_timeout_secs: Some(15),
+            ..ConnectionParams::default()
+        };
+        let json = serde_json::to_value(&with_timeout).unwrap();
+        assert_eq!(json["connect_timeout_secs"], 15);
+        let back: ConnectionParams = serde_json::from_value(json).unwrap();
+        assert_eq!(back.connect_timeout_secs, Some(15));
+
+        let json = serde_json::to_value(ConnectionParams::default()).unwrap();
+        assert!(json.get("connect_timeout_secs").is_none());
+
+        let legacy = serde_json::json!({"driver": "mysql", "database": "appdb"});
+        let parsed: ConnectionParams = serde_json::from_value(legacy).unwrap();
+        assert_eq!(parsed.connect_timeout_secs, None);
+    }
+
     #[cfg(unix)]
     #[test]
     fn write_private_file_creates_mode_0600_with_the_given_content() {

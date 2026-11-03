@@ -1380,6 +1380,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Modo de pooler",
     "poolerModeTransactionHint": "Al usar PgBouncer en modo transacción con tipos personalizados (enums, compuestos, tipos de extensión), establece max_prepared_statements > 0 en pgbouncer.ini. Esto habilita el caché del lado del servidor de sentencias preparadas para que las sentencias con nombre sobrevivan a la reasignación de conexiones.",
+    "connectTimeout": "Tiempo de espera de conexión (segundos)",
+    "connectTimeoutHint": "Cuánto esperar al servidor antes de abandonar. Déjalo vacío para usar el valor predeterminado.",
     "poolerModes": {
       "none": "Ninguno (conexión directa)",
       "transaction": "PgBouncer transacción",
@@ -1503,6 +1505,23 @@
     "deselectColumn": "Deseleccionar Columna",
     "freezeFirstColumn": "Fijar la primera columna",
     "unfreezeFirstColumn": "Liberar la primera columna",
+    "columnVisibility": {
+      "hideColumn": "Ocultar columna",
+      "hideColumns_one": "Ocultar {{count}} columna",
+      "hideColumns_other": "Ocultar {{count}} columnas",
+      "showAllColumns": "Mostrar columnas ocultas ({{count}})",
+      "chooseColumns": "Elegir columnas…",
+      "title": "Columnas",
+      "shown": "{{visible}} de {{total}} visibles",
+      "showAll": "Mostrar todas",
+      "lastVisible": "Al menos una columna sigue visible",
+      "hiddenCount_one": "{{count}} oculta",
+      "hiddenCount_other": "{{count}} ocultas",
+      "hiddenLabel_one": "{{count}} columna oculta",
+      "hiddenLabel_other": "{{count}} columnas ocultas"
+    },
+    "freezeFirstRow": "Fijar la primera fila",
+    "unfreezeFirstRow": "Liberar la primera fila",
     "resetColumnWidths": "Restablecer ancho de columnas",
     "copySelectedColumns": "Copiar Columnas Seleccionadas ({{count}})",
     "copyRangeN": "Copiar Rango ({{rows}}×{{cols}})",
@@ -1591,6 +1610,8 @@
     "maskCell": "Enmascarar celda",
     "revealColumn": "Mostrar columna",
     "maskColumn": "Enmascarar columna",
+    "transpose": "Transponer: mostrar columnas como filas",
+    "untranspose": "Mostrar registros como filas",
     "resizeColumn": "Redimensionar columna {{col}}"
   },
   "editRow": {
@@ -1721,7 +1742,11 @@
       "copyReport": "Copiar informe",
       "reportCopied": "Informe copiado",
       "copyFailed": "No se pudo copiar el informe al portapapeles.",
-      "createIssue": "Crear issue"
+      "createIssue": "Crear issue",
+      "analyzeWithAi": "Analizar con IA",
+      "aiAnalyzing": "Analizando…",
+      "aiAnalysisTitle": "Análisis de IA",
+      "aiAnalysisFailed": "El análisis de IA falló. Copia el informe o crea un issue en su lugar."
     },
     "newVisualQuery": "Nueva Consulta Visual",
     "activeDatabase": "Base de datos activa",
@@ -1807,6 +1832,9 @@
       "tableView": "Tabla",
       "tableTitle": "Árbol del plan",
       "exportCsv": "Exportar CSV",
+      "resetColumnOrder": "Restablecer orden de columnas",
+      "moveColumnHint": "Arrastra para reordenar, o pulsa Alt+Izquierda / Alt+Derecha",
+      "openInWindow": "Abrir en una ventana nueva",
       "exportingCsv": "Exportando...",
       "exportCsvSuccess": "Tabla de explain exportada como CSV",
       "exportCsvError": "Error al exportar la tabla de explain como CSV",
@@ -2287,7 +2315,8 @@
     "openFile": "Abrir archivo",
     "reload": "Recargar",
     "loading": "Cargando el plan de ejecución…",
-    "emptyHint": "Selecciona un archivo con un plan EXPLAIN (formato JSON o texto de PostgreSQL) para visualizarlo."
+    "emptyHint": "Selecciona un archivo con un plan EXPLAIN (formato JSON o texto de PostgreSQL) para visualizarlo.",
+    "sessionExpired": "Este plan ya no está disponible. Ábrelo de nuevo desde el editor."
   },
   "taskManager": {
     "header": {
@@ -2510,7 +2539,8 @@
     "approve": "Aprobar",
     "deny": "Denegar",
     "notificationTitle": "Se necesita aprobación MCP",
-    "notificationBody": "Abrí Tabularis para revisar la aprobación MCP pendiente."
+    "notificationBody": "Abrí Tabularis para revisar la aprobación MCP pendiente.",
+    "decisionFailed": "No se pudo enviar la decisión: {{error}}"
   },
   "discordCallout": {
     "title": "¡Nueva comunidad Discord!",
