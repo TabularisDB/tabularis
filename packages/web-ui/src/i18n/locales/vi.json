@@ -1405,6 +1405,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Chế độ pooler",
     "poolerModeTransactionHint": "Khi dùng PgBouncer ở chế độ transaction với kiểu dữ liệu tùy chỉnh (enum, composite, kiểu từ extension), hãy đặt max_prepared_statements > 0 trong pgbouncer.ini. Thiết lập này bật bộ nhớ đệm prepared statement phía máy chủ để các câu lệnh có tên vẫn dùng được khi kết nối bị gán lại.",
+    "connectTimeout": "Thời gian chờ kết nối (giây)",
+    "connectTimeoutHint": "Thời gian chờ máy chủ phản hồi trước khi bỏ cuộc. Để trống để dùng giá trị mặc định.",
     "poolerModes": {
       "none": "Không dùng (kết nối trực tiếp)",
       "transaction": "PgBouncer transaction",

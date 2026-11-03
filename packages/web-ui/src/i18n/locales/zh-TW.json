@@ -1415,6 +1415,8 @@
         "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
         "poolerMode": "連線池模式",
         "poolerModeTransactionHint": "在交易模式下使用 PgBouncer 且涉及自訂類型（列舉、複合類型、擴充套件類型）時，請在 pgbouncer.ini 中設定 max_prepared_statements > 0。這會啟用伺服器端預備語句快取，使具名語句在連線重新分配後仍然有效。",
+        "connectTimeout": "連線逾時（秒）",
+        "connectTimeoutHint": "等待伺服器回應的時間，逾時即放棄。留空則使用預設值。",
         "poolerModes": {
             "none": "無（直連）",
             "transaction": "PgBouncer 交易",
@@ -1740,6 +1742,10 @@
             "showDetails": "顯示技術細節",
             "copyReport": "複製報告",
             "reportCopied": "已複製報告",
+            "analyzeWithAi": "使用 AI 分析",
+            "aiAnalyzing": "正在分析…",
+            "aiAnalysisTitle": "AI 分析",
+            "aiAnalysisFailed": "AI 分析失敗。請改為複製報告或建立 Issue。",
             "copyFailed": "無法將報告複製到剪貼簿。",
             "createIssue": "建立 Issue"
         },
