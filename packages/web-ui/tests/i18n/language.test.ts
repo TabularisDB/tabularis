@@ -31,6 +31,23 @@ describe('language', () => {
             expect(resolveAutoLanguage('vi')).toBe('vi');
         });
 
+        it('maps Traditional Chinese system locales to Traditional Chinese', () => {
+            expect(resolveAutoLanguage('zh-TW')).toBe('zh-TW');
+            expect(resolveAutoLanguage('zh_TW')).toBe('zh-TW');
+            expect(resolveAutoLanguage('zh-HK')).toBe('zh-TW');
+            expect(resolveAutoLanguage('zh-MO')).toBe('zh-TW');
+            expect(resolveAutoLanguage('zh-Hant')).toBe('zh-TW');
+            expect(resolveAutoLanguage('zh-Hant-HK')).toBe('zh-TW');
+        });
+
+        it('keeps Simplified Chinese system locales on Simplified Chinese', () => {
+            expect(resolveAutoLanguage('zh')).toBe('zh');
+            expect(resolveAutoLanguage('zh-CN')).toBe('zh');
+            expect(resolveAutoLanguage('zh-SG')).toBe('zh');
+            expect(resolveAutoLanguage('zh-Hans')).toBe('zh');
+            expect(resolveAutoLanguage('zh-Hans-HK')).toBe('zh');
+        });
+
         it('picks the first supported locale from a preference list', () => {
             expect(resolveAutoLanguage(['xx-YY', 'de-DE', 'it'])).toBe('de');
         });
@@ -55,6 +72,8 @@ describe('language', () => {
         it('maps supported regional locales in auto mode', () => {
             expect(getAiExplanationLanguage('auto', 'pt-BR')).toBe('Português (Brasil)');
             expect(getAiExplanationLanguage('auto', 'zh-CN')).toBe('中文');
+            expect(getAiExplanationLanguage('auto', 'zh-TW')).toBe('繁體中文');
+            expect(getAiExplanationLanguage('auto', 'zh-HK')).toBe('繁體中文');
             expect(getAiExplanationLanguage('auto', 'it-CH')).toBe('Italiano');
             expect(getAiExplanationLanguage('auto', 'vi-VN')).toBe('Tiếng Việt');
         });

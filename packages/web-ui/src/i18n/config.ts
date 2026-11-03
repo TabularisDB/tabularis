@@ -14,6 +14,7 @@ export const SUPPORTED_LANGUAGES = [
     {id: 'it', label: 'Italiano'},
     {id: 'es', label: 'Español'},
     {id: 'zh', label: '中文'},
+    {id: 'zh-TW', label: '繁體中文'},
     {id: 'fr', label: 'Français'},
     {id: 'de', label: 'Deutsch'},
     {id: 'ja', label: '日本語'},
