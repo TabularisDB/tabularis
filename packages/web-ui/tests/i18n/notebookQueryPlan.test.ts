@@ -27,7 +27,7 @@ const notebookKeys = [
 ] as const;
 
 describe('notebook query plan translations', () => {
-    it('covers all 12 supported locale JSON files', () => {
+    it('covers all 13 supported locale JSON files', () => {
         expect(localeFiles).toEqual([
             'de.json',
             'en.json',
@@ -40,6 +40,7 @@ describe('notebook query plan translations', () => {
             'ru.json',
             'tl.json',
             'vi.json',
+            'zh-TW.json',
             'zh.json',
         ]);
     });

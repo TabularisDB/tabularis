@@ -1543,6 +1543,8 @@
       "hiddenLabel_one": "{{count}} cột đã ẩn",
       "hiddenLabel_other": "{{count}} cột đã ẩn"
     },
+    "freezeFirstRow": "Cố định dòng đầu tiên",
+    "unfreezeFirstRow": "Bỏ cố định dòng đầu tiên",
     "copySelectedColumns": "Sao chép các cột đã chọn ({{count}})",
     "copyRangeN": "Sao chép vùng ({{rows}}×{{cols}})",
     "copyAllRows": "Sao chép tất cả ({{count}})",
@@ -1634,6 +1636,8 @@
     "maskCell": "Che ô",
     "revealColumn": "Hiện nội dung cột",
     "maskColumn": "Che cột",
+    "transpose": "Chuyển vị: hiển thị cột dưới dạng dòng",
+    "untranspose": "Hiển thị bản ghi dưới dạng dòng",
     "resizeColumn": "Đổi kích thước cột {{col}}"
   },
   "editRow": {
@@ -2680,7 +2684,8 @@
     "approve": "Phê duyệt",
     "deny": "Từ chối",
     "notificationTitle": "Cần phê duyệt MCP",
-    "notificationBody": "Mở Tabularis để xem yêu cầu phê duyệt MCP đang chờ."
+    "notificationBody": "Mở Tabularis để xem yêu cầu phê duyệt MCP đang chờ.",
+    "decisionFailed": "Không thể gửi quyết định: {{error}}"
   },
   "discordCallout": {
     "title": "Cộng đồng Discord mới toanh!",

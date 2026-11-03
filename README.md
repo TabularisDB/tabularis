@@ -22,6 +22,7 @@ Tabularis is an open-source desktop SQL workspace with 3 built-in database drive
   <img src="https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat" alt="Stars" />
   <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTabularisDB%2Ftabularis%2Fdownload-stats%2Fdownloads.json&amp;style=flat" alt="Downloads" />
   <img src="https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg" alt="Build & Release" />
+  <a href="https://www.blacksmith.sh/?utm_source=tabularis&amp;utm_medium=referral&amp;utm_campaign=sponsor"><img src="https://img.shields.io/badge/CI_powered_by-Blacksmith-0B1015?style=flat" height="20" alt="CI powered by Blacksmith" /></a>
   <a href="https://discord.com/invite/K2hmhfHRSt"><img src="https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://gitster.dev/repo/TabularisDB/tabularis"><img src="https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e" alt="Gitster" /></a>
   <br />
@@ -73,7 +74,7 @@ Or grab an installer directly:
 
 - **Linux:** [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis-0.30.0-1.x86_64.rpm)
 
-The app UI is available in English, Italian, Spanish, Chinese (Simplified), French, German, Japanese, Russian, Korean, Tagalog, Portuguese (Brazilian) and Vietnamese.
+The app UI is available in English, Italian, Spanish, Chinese (Simplified), Chinese (Traditional), French, German, Japanese, Russian, Korean, Tagalog, Portuguese (Brazilian) and Vietnamese.
 
 > [!TIP]
 > **Discord:** [Join our Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with the maintainers, share feedback, and get help from the community.

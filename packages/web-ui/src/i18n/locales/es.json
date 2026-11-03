@@ -1372,6 +1372,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Modo de pooler",
     "poolerModeTransactionHint": "Al usar PgBouncer en modo transacción con tipos personalizados (enums, compuestos, tipos de extensión), establece max_prepared_statements > 0 en pgbouncer.ini. Esto habilita el caché del lado del servidor de sentencias preparadas para que las sentencias con nombre sobrevivan a la reasignación de conexiones.",
+    "connectTimeout": "Tiempo de espera de conexión (segundos)",
+    "connectTimeoutHint": "Cuánto esperar al servidor antes de abandonar. Déjalo vacío para usar el valor predeterminado.",
     "poolerModes": {
       "none": "Ninguno (conexión directa)",
       "transaction": "PgBouncer transacción",
@@ -1510,6 +1512,8 @@
       "hiddenLabel_one": "{{count}} columna oculta",
       "hiddenLabel_other": "{{count}} columnas ocultas"
     },
+    "freezeFirstRow": "Fijar la primera fila",
+    "unfreezeFirstRow": "Liberar la primera fila",
     "resetColumnWidths": "Restablecer ancho de columnas",
     "copySelectedColumns": "Copiar Columnas Seleccionadas ({{count}})",
     "copyRangeN": "Copiar Rango ({{rows}}×{{cols}})",
@@ -1598,6 +1602,8 @@
     "maskCell": "Enmascarar celda",
     "revealColumn": "Mostrar columna",
     "maskColumn": "Enmascarar columna",
+    "transpose": "Transponer: mostrar columnas como filas",
+    "untranspose": "Mostrar registros como filas",
     "resizeColumn": "Redimensionar columna {{col}}"
   },
   "editRow": {
@@ -2521,7 +2527,8 @@
     "approve": "Aprobar",
     "deny": "Denegar",
     "notificationTitle": "Se necesita aprobación MCP",
-    "notificationBody": "Abrí Tabularis para revisar la aprobación MCP pendiente."
+    "notificationBody": "Abrí Tabularis para revisar la aprobación MCP pendiente.",
+    "decisionFailed": "No se pudo enviar la decisión: {{error}}"
   },
   "discordCallout": {
     "title": "¡Nueva comunidad Discord!",

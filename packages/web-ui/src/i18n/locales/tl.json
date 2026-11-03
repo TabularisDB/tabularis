@@ -1374,6 +1374,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Pooler mode",
     "poolerModeTransactionHint": "Kapag gumagamit ng PgBouncer sa transaction mode na may custom types (enums, composites, extension types), itakda ang max_prepared_statements > 0 sa pgbouncer.ini. Ito ay nag-e-enable ng server-side prepared statement caching para makaligtas ang named statements sa connection reassignment.",
+    "connectTimeout": "Connect timeout (segundo)",
+    "connectTimeoutHint": "Gaano katagal maghihintay sa server bago sumuko. Iwanang blangko para gamitin ang default.",
     "poolerModes": {
       "none": "Wala (direktang koneksyon)",
       "transaction": "PgBouncer transaction",
@@ -1513,6 +1515,8 @@
       "hiddenLabel_one": "{{count}} nakatagong column",
       "hiddenLabel_other": "{{count}} na nakatagong column"
     },
+    "freezeFirstRow": "I-freeze ang unang row",
+    "unfreezeFirstRow": "I-unfreeze ang unang row",
     "resetColumnWidths": "I-reset ang lapad ng mga column",
     "copySelectedColumns": "Kopyahin ang Napiling Columns ({{count}})",
     "copyRangeN": "Kopyahin ang Range ({{rows}}×{{cols}})",
@@ -1607,6 +1611,8 @@
     "maskCell": "I-mask ang cell",
     "revealColumn": "Ipakita ang column",
     "maskColumn": "I-mask ang column",
+    "transpose": "I-transpose: ipakita ang mga column bilang row",
+    "untranspose": "Ipakita ang mga record bilang row",
     "resizeColumn": "Baguhin ang laki ng column na {{col}}"
   },
   "editRow": {
@@ -2656,7 +2662,8 @@
     "approve": "Aprubahan",
     "deny": "Tanggihan",
     "notificationTitle": "Kailangan ng MCP approval",
-    "notificationBody": "Buksan ang Tabularis para suriin ang nakabinbing MCP approval."
+    "notificationBody": "Buksan ang Tabularis para suriin ang nakabinbing MCP approval.",
+    "decisionFailed": "Hindi maipadala ang desisyon: {{error}}"
   },
   "discordCallout": {
     "title": "Bagong Discord community!",

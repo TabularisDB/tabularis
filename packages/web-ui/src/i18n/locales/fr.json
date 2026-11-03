@@ -1381,6 +1381,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Mode de pooler",
     "poolerModeTransactionHint": "Lors de l'utilisation de PgBouncer en mode transaction avec des types personnalisés (enums, composites, types d'extension), définissez max_prepared_statements > 0 dans pgbouncer.ini. Cela active la mise en cache côté serveur des instructions préparées afin que les instructions nommées survivent à la réaffectation des connexions.",
+    "connectTimeout": "Délai de connexion (secondes)",
+    "connectTimeoutHint": "Durée d'attente du serveur avant d'abandonner. Laissez vide pour utiliser la valeur par défaut.",
     "poolerModes": {
       "none": "Aucun (connexion directe)",
       "transaction": "PgBouncer transaction",
@@ -1521,6 +1523,8 @@
       "hiddenLabel_one": "{{count}} colonne masquée",
       "hiddenLabel_other": "{{count}} colonnes masquées"
     },
+    "freezeFirstRow": "Figer la première ligne",
+    "unfreezeFirstRow": "Libérer la première ligne",
     "resetColumnWidths": "Réinitialiser la largeur des colonnes",
     "copySelectedColumns": "Copier les colonnes sélectionnées ({{count}})",
     "copyRangeN": "Copier la plage ({{rows}}×{{cols}})",
@@ -1616,6 +1620,8 @@
     "maskCell": "Masquer la cellule",
     "revealColumn": "Afficher la colonne",
     "maskColumn": "Masquer la colonne",
+    "transpose": "Transposer : afficher les colonnes en lignes",
+    "untranspose": "Afficher les enregistrements en lignes",
     "resizeColumn": "Redimensionner la colonne {{col}}"
   },
   "editRow": {
@@ -2666,7 +2672,8 @@
     "approve": "Approuver",
     "deny": "Refuser",
     "notificationTitle": "Approbation MCP requise",
-    "notificationBody": "Ouvrez Tabularis pour examiner l’approbation MCP en attente."
+    "notificationBody": "Ouvrez Tabularis pour examiner l’approbation MCP en attente.",
+    "decisionFailed": "Impossible d’envoyer la décision : {{error}}"
   },
   "discordCallout": {
     "title": "Nouvelle communauté Discord !",

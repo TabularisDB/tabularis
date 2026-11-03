@@ -1341,6 +1341,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "Режим пула",
     "poolerModeTransactionHint": "При использовании PgBouncer в режиме транзакций с пользовательскими типами (enums, композитные типы, типы расширений) установите max_prepared_statements > 0 в pgbouncer.ini. Это включает серверное кэширование подготовленных операторов, чтобы именованные операторы переживали переназначение соединений.",
+    "connectTimeout": "Тайм-аут подключения (секунды)",
+    "connectTimeoutHint": "Сколько ждать ответа сервера, прежде чем прекратить попытку. Оставьте пустым, чтобы использовать значение по умолчанию.",
     "poolerModes": {
       "none": "Нет (прямое подключение)",
       "transaction": "PgBouncer транзакция",
@@ -1489,6 +1491,8 @@
       "hiddenLabel_many": "Скрыто столбцов: {{count}}",
       "hiddenLabel_other": "Скрыто столбцов: {{count}}"
     },
+    "freezeFirstRow": "Закрепить первую строку",
+    "unfreezeFirstRow": "Открепить первую строку",
     "resetColumnWidths": "Сбросить ширину столбцов",
     "copySelectedColumns": "Копировать выбранные столбцы ({{count}})",
     "copyRangeN": "Копировать диапазон ({{rows}}×{{cols}})",
@@ -1584,6 +1588,8 @@
     "maskCell": "Скрыть ячейку",
     "revealColumn": "Показать столбец",
     "maskColumn": "Скрыть столбец",
+    "transpose": "Транспонировать: показать столбцы в виде строк",
+    "untranspose": "Показать записи в виде строк",
     "resizeColumn": "Изменить ширину столбца {{col}}"
   },
   "editRow": {
@@ -2673,7 +2679,8 @@
     "approve": "Подтвердить",
     "deny": "Отклонить",
     "notificationTitle": "Требуется подтверждение MCP",
-    "notificationBody": "Откройте Tabularis, чтобы проверить ожидающее подтверждение MCP."
+    "notificationBody": "Откройте Tabularis, чтобы проверить ожидающее подтверждение MCP.",
+    "decisionFailed": "Не удалось отправить решение: {{error}}"
   },
   "discordCallout": {
     "title": "Новое сообщество в Discord!",

@@ -1358,6 +1358,8 @@
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "poolerMode": "プーラーモード",
     "poolerModeTransactionHint": "PgBouncer をトランザクションモードでカスタム型（enum、複合型、拡張型）と共に使用する場合、pgbouncer.ini で max_prepared_statements > 0 を設定してください。これによりサーバー側のプリペアドステートメントキャッシュが有効になり、名前付きステートメントが接続の再割り当てを保持します。",
+    "connectTimeout": "接続タイムアウト（秒）",
+    "connectTimeoutHint": "サーバーの応答を待つ時間です。空欄の場合は既定値を使用します。",
     "poolerModes": {
       "none": "なし（直接接続）",
       "transaction": "PgBouncer トランザクション",
@@ -1494,6 +1496,8 @@
       "hiddenLabel_one": "{{count}} 個の非表示カラム",
       "hiddenLabel_other": "{{count}} 個の非表示カラム"
     },
+    "freezeFirstRow": "最初の行を固定",
+    "unfreezeFirstRow": "最初の行の固定を解除",
     "resetColumnWidths": "列幅をリセット",
     "copySelectedColumns": "選択した列をコピー（{{count}}）",
     "copyRangeN": "範囲をコピー（{{rows}}×{{cols}}）",
@@ -1588,6 +1592,8 @@
     "maskCell": "セルをマスク",
     "revealColumn": "列を表示",
     "maskColumn": "列をマスク",
+    "transpose": "行と列を入れ替えて表示",
+    "untranspose": "レコードを行として表示",
     "resizeColumn": "列 {{col}} のサイズを変更"
   },
   "editRow": {
@@ -2608,7 +2614,8 @@
     "approve": "承認",
     "deny": "拒否",
     "notificationTitle": "MCP の承認が必要です",
-    "notificationBody": "保留中の MCP 承認を確認するには Tabularis を開いてください。"
+    "notificationBody": "保留中の MCP 承認を確認するには Tabularis を開いてください。",
+    "decisionFailed": "判断を送信できませんでした: {{error}}"
   },
   "discordCallout": {
     "title": "Discord コミュニティが新登場！",
