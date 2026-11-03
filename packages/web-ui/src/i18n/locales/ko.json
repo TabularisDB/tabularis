@@ -1612,6 +1612,8 @@
     "queryExecuted": "쿼리가 성공적으로 실행되었습니다",
     "rowsAffected": "{{count}}개 행 영향받음",
     "autoPaginated": "자동 페이지네이션됨",
+    "batchSnapshotTruncated": "처음 {{count}}개 행",
+    "batchSnapshotTruncatedHint": "모두 실행은 스크립트 실행 중 가져온 행을 유지합니다. 모든 행을 페이지로 보려면 이 문을 단독으로 실행하세요.",
     "pageOf": "{{total}}페이지 중 {{current}}",
     "page": "{{current}}페이지",
     "loadRowCount": "행 개수 불러오기",

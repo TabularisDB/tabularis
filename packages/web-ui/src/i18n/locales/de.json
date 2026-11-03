@@ -1655,6 +1655,8 @@
     "queryExecuted": "Abfrage erfolgreich ausgeführt",
     "rowsAffected": "{{count}} Zeilen betroffen",
     "autoPaginated": "Automatisch paginiert",
+    "batchSnapshotTruncated": "Erste {{count}} Zeilen",
+    "batchSnapshotTruncatedHint": "„Alle ausführen“ behält die Zeilen, die während des Skripts erfasst wurden. Führe diese Anweisung allein aus, um alle Zeilen zu durchblättern.",
     "pageOf": "Seite {{current}} von {{total}}",
     "page": "Seite {{current}}",
     "loadRowCount": "Zeilenanzahl laden",

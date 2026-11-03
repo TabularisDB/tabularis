@@ -1654,6 +1654,8 @@
     "queryExecuted": "Consulta executada com sucesso",
     "rowsAffected": "{{count}} linhas afetadas",
     "autoPaginated": "Paginado automaticamente",
+    "batchSnapshotTruncated": "Primeiras {{count}} linhas",
+    "batchSnapshotTruncatedHint": "Executar tudo mantém as linhas capturadas durante o script. Execute esta instrução sozinha para paginar todas as linhas.",
     "pageOf": "Página {{current}} de {{total}}",
     "page": "Página {{current}}",
     "loadRowCount": "Carregar contagem de linhas",

@@ -1630,6 +1630,8 @@
     "queryExecuted": "查询执行成功",
     "rowsAffected": "{{count}} 行受影响",
     "autoPaginated": "自动分页",
+    "batchSnapshotTruncated": "前 {{count}} 行",
+    "batchSnapshotTruncatedHint": "全部执行会保留脚本运行时获取的行。单独执行此语句即可分页浏览所有行。",
     "pageOf": "第 {{current}} 页，共 {{total}} 页",
     "page": "第 {{current}} 页",
     "loadRowCount": "加载行数",
