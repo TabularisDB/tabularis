@@ -1728,7 +1728,11 @@
       "copyReport": "Copier le rapport",
       "reportCopied": "Rapport copié",
       "copyFailed": "Impossible de copier le rapport dans le presse-papiers.",
-      "createIssue": "Créer une issue"
+      "createIssue": "Créer une issue",
+      "analyzeWithAi": "Analyser avec l'IA",
+      "aiAnalyzing": "Analyse en cours…",
+      "aiAnalysisTitle": "Analyse par l'IA",
+      "aiAnalysisFailed": "L'analyse par l'IA a échoué. Copiez le rapport ou créez une issue à la place."
     },
     "newVisualQuery": "Nouvelle requête visuelle",
     "activeDatabase": "Base de données active",

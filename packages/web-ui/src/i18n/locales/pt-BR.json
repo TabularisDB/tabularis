@@ -1705,7 +1705,11 @@
       "copyReport": "Copiar relatório",
       "reportCopied": "Relatório copiado",
       "copyFailed": "Não foi possível copiar o relatório para a área de transferência.",
-      "createIssue": "Criar issue"
+      "createIssue": "Criar issue",
+      "analyzeWithAi": "Analisar com IA",
+      "aiAnalyzing": "Analisando…",
+      "aiAnalysisTitle": "Análise da IA",
+      "aiAnalysisFailed": "A análise da IA falhou. Copie o relatório ou crie uma issue."
     },
     "newVisualQuery": "Nova Consulta Visual",
     "activeDatabase": "Banco de dados ativo",

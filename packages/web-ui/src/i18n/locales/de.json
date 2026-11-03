@@ -1706,7 +1706,11 @@
       "copyReport": "Bericht kopieren",
       "reportCopied": "Bericht kopiert",
       "copyFailed": "Der Bericht konnte nicht in die Zwischenablage kopiert werden.",
-      "createIssue": "Issue erstellen"
+      "createIssue": "Issue erstellen",
+      "analyzeWithAi": "Mit KI analysieren",
+      "aiAnalyzing": "Wird analysiert…",
+      "aiAnalysisTitle": "KI-Analyse",
+      "aiAnalysisFailed": "Die KI-Analyse ist fehlgeschlagen. Kopiere stattdessen den Bericht oder erstelle ein Issue."
     },
     "newVisualQuery": "Neue visuelle Abfrage",
     "activeDatabase": "Aktive Datenbank",

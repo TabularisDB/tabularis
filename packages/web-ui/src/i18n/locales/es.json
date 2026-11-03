@@ -1734,7 +1734,11 @@
       "copyReport": "Copiar informe",
       "reportCopied": "Informe copiado",
       "copyFailed": "No se pudo copiar el informe al portapapeles.",
-      "createIssue": "Crear issue"
+      "createIssue": "Crear issue",
+      "analyzeWithAi": "Analizar con IA",
+      "aiAnalyzing": "Analizando…",
+      "aiAnalysisTitle": "Análisis de IA",
+      "aiAnalysisFailed": "El análisis de IA falló. Copia el informe o crea un issue en su lugar."
     },
     "newVisualQuery": "Nueva Consulta Visual",
     "activeDatabase": "Base de datos activa",

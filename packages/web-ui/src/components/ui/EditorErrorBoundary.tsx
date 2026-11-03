@@ -16,6 +16,7 @@ import {
 import {APP_VERSION} from '@/version';
 import {ROOT_COMMAND_SCOPE_ID} from '@/utils/commandScopeStore';
 import {CommandPaletteScopeBridge} from '@/components/layout/CommandPaletteScopeBridge';
+import {CrashAiAnalysis} from '@/components/ui/CrashAiAnalysis';
 
 interface InnerProps {
     t: TFunction;
@@ -59,6 +60,7 @@ function CrashReportActions({t, report, openExternalUrl}: CrashReportActionsProp
                 <Bug size={14} />
                 {t('editor.errorBoundary.createIssue')}
             </button>
+            <CrashAiAnalysis t={t} report={report} buttonClassName={secondaryButtonClass} />
             {copyFailed && (
                 <p role="status" className="basis-full text-xs text-accent-error">
                     {t('editor.errorBoundary.copyFailed')}

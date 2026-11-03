@@ -1745,7 +1745,11 @@
       "copyReport": "Sao chép báo cáo",
       "reportCopied": "Đã sao chép báo cáo",
       "copyFailed": "Không thể sao chép báo cáo vào bộ nhớ tạm.",
-      "createIssue": "Tạo issue"
+      "createIssue": "Tạo issue",
+      "analyzeWithAi": "Phân tích bằng AI",
+      "aiAnalyzing": "Đang phân tích…",
+      "aiAnalysisTitle": "Phân tích của AI",
+      "aiAnalysisFailed": "Phân tích bằng AI thất bại. Hãy sao chép báo cáo hoặc tạo issue."
     },
     "newVisualQuery": "Truy vấn trực quan mới",
     "activeDatabase": "Cơ sở dữ liệu đang dùng",
