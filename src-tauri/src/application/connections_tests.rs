@@ -4,7 +4,10 @@ use crate::runtime::events::{NoopRuntimeEvents, RuntimeEvents};
 use crate::runtime::paths::FixedRuntimePaths;
 use crate::runtime::secrets::RuntimeSecrets;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Mutex};
+use std::thread;
+use std::time::Instant;
 
 #[derive(Default)]
 struct MemorySecrets {
@@ -2222,5 +2225,382 @@ async fn delete_credential_profile_does_not_remove_colliding_connection_db_secre
     assert_eq!(
         secrets.get(&account).unwrap().as_deref(),
         Some("connection-owned-secret")
+    );
+}
+
+/// Fires `on_set` once, before the secret is stored. Profile deletes record the
+/// password that was present so a racing update can be checked afterwards.
+struct HookOnSetSecrets {
+    inner: Arc<MemorySecrets>,
+    on_set: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
+    deleted_profile_secret: Mutex<Option<String>>,
+}
+
+impl RuntimeSecrets for HookOnSetSecrets {
+    fn get(&self, account: &str) -> Result<Option<String>, String> {
+        self.inner.get(account)
+    }
+
+    fn set(&self, account: &str, secret: &str) -> Result<(), String> {
+        let hook = self.on_set.lock().unwrap().take();
+        if let Some(hook) = hook {
+            hook();
+        }
+        self.inner.set(account, secret)
+    }
+
+    fn delete(&self, account: &str) -> Result<(), String> {
+        if account.ends_with(":profile:db") {
+            if let Some(secret) = self.inner.get(account)? {
+                *self.deleted_profile_secret.lock().unwrap() = Some(secret);
+            }
+        }
+        self.inner.delete(account)
+    }
+}
+
+/// The competing writer sets `entered` immediately before the call that needs
+/// the connections file. After it has been scheduled, give it time to block on
+/// that lock, then require that it has not finished.
+fn assert_writer_blocked_on_connections_file(entered: &AtomicBool, finished: &AtomicBool) {
+    let started = Instant::now();
+    while !entered.load(Ordering::SeqCst) {
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "competing writer did not start"
+        );
+        thread::yield_now();
+    }
+    thread::sleep(Duration::from_millis(200));
+    assert!(
+        !finished.load(Ordering::SeqCst),
+        "competing writer finished while the connections file lock was still held"
+    );
+}
+
+fn spawn_and_assert_blocked<T: Send + 'static>(
+    entered: &Arc<AtomicBool>,
+    finished: &Arc<AtomicBool>,
+    done_tx: mpsc::Sender<T>,
+    work: impl FnOnce() -> T + Send + 'static,
+) {
+    let entered_flag = Arc::clone(entered);
+    let finished_flag = Arc::clone(finished);
+    thread::spawn(move || {
+        entered_flag.store(true, Ordering::SeqCst);
+        let value = work();
+        finished_flag.store(true, Ordering::SeqCst);
+        done_tx.send(value).unwrap();
+    });
+    assert_writer_blocked_on_connections_file(entered, finished);
+}
+
+fn hook_runtime(
+    runtime: &RuntimeContext,
+    inner: Arc<MemorySecrets>,
+) -> (RuntimeContext, Arc<HookOnSetSecrets>) {
+    let secrets = Arc::new(HookOnSetSecrets {
+        inner,
+        on_set: Mutex::new(None),
+        deleted_profile_secret: Mutex::new(None),
+    });
+    let hooked = RuntimeContext::new(
+        runtime.paths.clone(),
+        runtime.events.clone(),
+        secrets.clone(),
+    );
+    (hooked, secrets)
+}
+
+#[test]
+fn parallel_credential_profile_creates_keep_every_profile() {
+    let (_temp, runtime, state) = fixture();
+    let barrier = Arc::new(std::sync::Barrier::new(8));
+    let mut handles = Vec::new();
+    for index in 0..8 {
+        let runtime = runtime.clone();
+        let state = Arc::clone(&state);
+        let barrier = Arc::clone(&barrier);
+        handles.push(thread::spawn(move || {
+            barrier.wait();
+            create_credential_profile(
+                &runtime,
+                &state,
+                format!("Profile {index}"),
+                format!("user-{index}"),
+                format!("password-{index}"),
+            )
+            .unwrap()
+        }));
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let file = load_file(&runtime).unwrap();
+    assert_eq!(file.credential_profiles.len(), 8);
+    let mut names: Vec<String> = file
+        .credential_profiles
+        .iter()
+        .map(|profile| profile.name.clone())
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        (0..8)
+            .map(|index| format!("Profile {index}"))
+            .collect::<Vec<_>>()
+    );
+    for profile in &file.credential_profiles {
+        let index: usize = profile
+            .name
+            .strip_prefix("Profile ")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(profile.username, format!("user-{index}"));
+        assert_eq!(
+            runtime
+                .secrets
+                .get(&profile_db_secret_account(&profile.id))
+                .unwrap(),
+            Some(format!("password-{index}"))
+        );
+    }
+}
+
+#[test]
+fn delete_started_during_profile_update_keychain_write_waits() {
+    let (_temp, runtime, state, secrets) = fixture_with_secrets();
+    let profile = create_credential_profile(
+        &runtime,
+        &state,
+        "Original".to_string(),
+        "original-user".to_string(),
+        "old-secret".to_string(),
+    )
+    .unwrap();
+    let profile_id = profile.id.clone();
+
+    let (done_tx, done_rx) = mpsc::channel();
+    let entered = Arc::new(AtomicBool::new(false));
+    let finished = Arc::new(AtomicBool::new(false));
+    // The delete must use this runtime so its keychain read sees the update.
+    let (runtime, hooked) = hook_runtime(&runtime, secrets);
+    let on_set: Arc<dyn Fn() + Send + Sync> = {
+        let runtime = runtime.clone();
+        let state = Arc::clone(&state);
+        let profile_id = profile_id.clone();
+        let entered = Arc::clone(&entered);
+        let finished = Arc::clone(&finished);
+        Arc::new(move || {
+            let runtime = runtime.clone();
+            let state = Arc::clone(&state);
+            let profile_id = profile_id.clone();
+            spawn_and_assert_blocked(&entered, &finished, done_tx.clone(), move || {
+                delete_credential_profile(&runtime, &state, profile_id)
+            });
+        })
+    };
+    *hooked.on_set.lock().unwrap() = Some(on_set);
+
+    let update_result = update_credential_profile(
+        &runtime,
+        &state,
+        profile_id.clone(),
+        "Updated".to_string(),
+        "updated-user".to_string(),
+        Some("new-secret".to_string()),
+    );
+    let delete_result = done_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("delete should finish once the update releases the connections file lock");
+
+    assert!(update_result.is_ok(), "{update_result:?}");
+    assert!(delete_result.is_ok(), "{delete_result:?}");
+    let file = load_file(&runtime).unwrap();
+    assert!(file.credential_profiles.is_empty());
+    assert!(file.connections.is_empty());
+    assert!(runtime
+        .secrets
+        .get(&profile_db_secret_account(&profile_id))
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        hooked.deleted_profile_secret.lock().unwrap().as_deref(),
+        Some("new-secret")
+    );
+}
+
+#[test]
+fn credential_profile_create_interleaved_with_import_keeps_both_profiles() {
+    let (_temp, runtime, state, secrets) = fixture_with_secrets();
+    let (done_tx, done_rx) = mpsc::channel();
+    let entered = Arc::new(AtomicBool::new(false));
+    let finished = Arc::new(AtomicBool::new(false));
+    let (runtime, hooked) = hook_runtime(&runtime, secrets.clone());
+    let on_set: Arc<dyn Fn() + Send + Sync> = {
+        let runtime = runtime.clone();
+        let state = Arc::clone(&state);
+        let entered = Arc::clone(&entered);
+        let finished = Arc::clone(&finished);
+        Arc::new(move || {
+            let runtime = runtime.clone();
+            let state = Arc::clone(&state);
+            spawn_and_assert_blocked(&entered, &finished, done_tx.clone(), move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .build()
+                    .unwrap()
+                    .block_on(super::super::connection_files::apply_export_payload(
+                        &runtime,
+                        &state.connection_cache,
+                        &state.credential_cache,
+                        imported_profile_payload(),
+                    ))
+            });
+        })
+    };
+    *hooked.on_set.lock().unwrap() = Some(on_set);
+
+    let created = create_credential_profile(
+        &runtime,
+        &state,
+        "Local".to_string(),
+        "local-user".to_string(),
+        "local-secret".to_string(),
+    )
+    .unwrap();
+    let import_result = done_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("import should finish once profile create releases the connections file lock");
+    assert!(import_result.is_ok(), "{import_result:?}");
+
+    let file = load_file(&runtime).unwrap();
+    assert_eq!(file.credential_profiles.len(), 2);
+    let local = file
+        .credential_profiles
+        .iter()
+        .find(|profile| profile.id == created.id)
+        .expect("created profile");
+    assert_eq!(local.name, "Local");
+    assert_eq!(local.username, "local-user");
+    let imported = file
+        .credential_profiles
+        .iter()
+        .find(|profile| profile.id == "imported-profile")
+        .expect("imported profile");
+    assert_eq!(imported.name, "Imported");
+    assert_eq!(imported.username, "imported-user");
+    assert_eq!(
+        secrets
+            .get(&profile_db_secret_account(&created.id))
+            .unwrap()
+            .as_deref(),
+        Some("local-secret")
+    );
+    assert_eq!(
+        secrets
+            .get(&profile_db_secret_account("imported-profile"))
+            .unwrap()
+            .as_deref(),
+        Some("imported-secret")
+    );
+}
+
+fn imported_profile_payload() -> crate::models::ExportPayload {
+    crate::models::ExportPayload {
+        version: 1,
+        groups: Vec::new(),
+        connections: vec![profile_connection(
+            "imported-connection",
+            "imported-user",
+            Some("inline-password"),
+            Some("imported-profile"),
+        )],
+        ssh_connections: Vec::new(),
+        k8s_connections: Vec::new(),
+        tags: Vec::new(),
+        credential_profiles: vec![CredentialProfile {
+            id: "imported-profile".to_string(),
+            name: "Imported".to_string(),
+            username: "imported-user".to_string(),
+        }],
+        credential_profile_secrets: HashMap::from([(
+            "imported-profile".to_string(),
+            "imported-secret".to_string(),
+        )]),
+        plugin_secrets: HashMap::new(),
+    }
+}
+
+#[test]
+fn save_connection_linking_profile_races_profile_delete_without_dangling_or_resurrection() {
+    let (_temp, runtime, state, secrets) = fixture_with_secrets();
+    let profile = create_credential_profile(
+        &runtime,
+        &state,
+        "Shared".to_string(),
+        "shared-user".to_string(),
+        "profile-secret".to_string(),
+    )
+    .unwrap();
+    let profile_id = profile.id.clone();
+
+    let (done_tx, done_rx) = mpsc::channel();
+    let entered = Arc::new(AtomicBool::new(false));
+    let finished = Arc::new(AtomicBool::new(false));
+    let (runtime, hooked) = hook_runtime(&runtime, secrets.clone());
+    let on_set: Arc<dyn Fn() + Send + Sync> = {
+        let runtime = runtime.clone();
+        let state = Arc::clone(&state);
+        let profile_id = profile_id.clone();
+        let entered = Arc::clone(&entered);
+        let finished = Arc::clone(&finished);
+        Arc::new(move || {
+            let runtime = runtime.clone();
+            let state = Arc::clone(&state);
+            let profile_id = profile_id.clone();
+            spawn_and_assert_blocked(&entered, &finished, done_tx.clone(), move || {
+                delete_credential_profile(&runtime, &state, profile_id)
+            });
+        })
+    };
+    *hooked.on_set.lock().unwrap() = Some(on_set);
+
+    let mut params = connection_params("ignored-inline");
+    params.credential_profile_id = Some(profile_id.clone());
+    params.connection_uri = Some("postgresql://db.example/app".to_string());
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Linked".to_string(),
+        params,
+        PluginSecretChanges::default(),
+        None,
+        None,
+    );
+    let delete_result = done_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("delete should finish once save releases the connections file lock");
+
+    assert!(saved.is_ok(), "{saved:?}");
+    let delete_error = delete_result.expect_err("delete must see the new link and stop");
+    assert!(delete_error.contains("credential_profile_delete_blocked"));
+
+    let file = load_file(&runtime).unwrap();
+    assert_eq!(file.credential_profiles.len(), 1);
+    assert_eq!(file.credential_profiles[0].id, profile_id);
+    assert_eq!(file.connections.len(), 1);
+    assert_eq!(
+        file.connections[0].params.credential_profile_id.as_deref(),
+        Some(profile_id.as_str())
+    );
+    assert_eq!(
+        secrets
+            .get(&profile_db_secret_account(&profile_id))
+            .unwrap()
+            .as_deref(),
+        Some("profile-secret")
     );
 }

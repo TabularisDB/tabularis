@@ -504,6 +504,28 @@ fn save_file(
     Ok(())
 }
 
+/// Applies `modify` to `connections.json` under the same exclusive lock as
+/// delete and import, then drops the cached connection list.
+///
+/// Keychain writes belong inside `modify`, before this replaces the file.
+/// `modify` must not call [`load_file`] or [`save_file`]: the lock is not
+/// reentrant, and [`save_file`] takes it again.
+fn modify_connections_file<T>(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    modify: impl FnOnce(&mut ConnectionsFile) -> Result<T, String>,
+) -> Result<T, String> {
+    let path = runtime.paths.connections_file();
+    let value = crate::persistence::with_connections_file_exclusive(|| {
+        let mut file = crate::persistence::read_connections_file(&path)?;
+        let value = modify(&mut file)?;
+        crate::persistence::write_connections_file(&path, &file)?;
+        Ok(value)
+    })?;
+    state.connection_cache.invalidate();
+    Ok(value)
+}
+
 fn find_connection(file: &ConnectionsFile, id: &str) -> Result<SavedConnection, String> {
     file.connections
         .iter()
@@ -632,26 +654,25 @@ fn create_credential_profile(
     username: String,
     password: String,
 ) -> Result<CredentialProfile, String> {
-    let mut file = load_file(runtime)?;
-    let profile = crate::credential_profiles::create_profile_impl(&mut file, &name, &username)?;
     let mut writes = SecretWrites::default();
     let result = (|| {
-        persist_credential_profile_password(
-            runtime,
-            &state.credential_cache,
-            &file,
-            &profile.id,
-            &password,
-            &mut writes,
-        )?;
-        save_file(runtime, state, &file)?;
-        Ok(())
+        modify_connections_file(runtime, state, |file| {
+            let profile = crate::credential_profiles::create_profile_impl(file, &name, &username)?;
+            persist_credential_profile_password(
+                runtime,
+                &state.credential_cache,
+                file,
+                &profile.id,
+                &password,
+                &mut writes,
+            )?;
+            Ok(profile)
+        })
     })();
-    if let Err(error) = result {
+    if result.is_err() {
         writes.rollback(runtime);
-        return Err(error);
     }
-    Ok(profile)
+    result
 }
 
 fn delete_credential_profile(
@@ -720,29 +741,29 @@ fn update_credential_profile(
     username: String,
     password: Option<String>,
 ) -> Result<(), String> {
-    let mut file = load_file(runtime)?;
-    if !file
-        .credential_profiles
-        .iter()
-        .any(|profile| profile.id == id)
-    {
-        return Err("Credential profile not found".to_string());
-    }
     let mut writes = SecretWrites::default();
     let result = (|| {
-        if let Some(password) = password.as_deref() {
-            persist_credential_profile_password(
-                runtime,
-                &state.credential_cache,
-                &file,
-                &id,
-                password,
-                &mut writes,
-            )?;
-        }
-        crate::credential_profiles::update_profile_impl(&mut file, &id, &name, &username)?;
-        save_file(runtime, state, &file)?;
-        Ok(())
+        modify_connections_file(runtime, state, |file| {
+            if !file
+                .credential_profiles
+                .iter()
+                .any(|profile| profile.id == id)
+            {
+                return Err("Credential profile not found".to_string());
+            }
+            if let Some(password) = password.as_deref() {
+                persist_credential_profile_password(
+                    runtime,
+                    &state.credential_cache,
+                    file,
+                    &id,
+                    password,
+                    &mut writes,
+                )?;
+            }
+            crate::credential_profiles::update_profile_impl(file, &id, &name, &username)?;
+            Ok(())
+        })
     })();
     if let Err(error) = result {
         writes.rollback(runtime);
@@ -1148,37 +1169,38 @@ fn save_connection(
     detect_json_in_text_columns: Option<bool>,
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
-    let mut file = load_file(runtime)?;
     let id = Uuid::new_v4().to_string();
     let environment = validate_environment(environment)?;
     let mut writes = SecretWrites::default();
     let result = (|| {
-        params.connection_id = None;
-        validate_credential_profile_reference(&file, &id, &params)?;
-        let plugin_secret_keys = persist_plugin_secrets(
-            runtime,
-            &id,
-            None,
-            &mut params,
-            &plugin_secret_changes,
-            &mut writes,
-        )?;
-        persist_secrets_for_create(runtime, &id, &mut params, &mut writes)?;
-        clear_profile_owned_inline_password(&mut params);
-        let connection = SavedConnection {
-            id,
-            name,
-            params,
-            plugin_secret_keys,
-            group_id: None,
-            sort_order: None,
-            detect_json_in_text_columns,
-            appearance: None,
-            tag_ids: None,
-            environment,
-        };
-        file.connections.push(connection.clone());
-        save_file(runtime, state, &file)?;
+        let connection = modify_connections_file(runtime, state, |file| {
+            params.connection_id = None;
+            validate_credential_profile_reference(file, &id, &params)?;
+            let plugin_secret_keys = persist_plugin_secrets(
+                runtime,
+                &id,
+                None,
+                &mut params,
+                &plugin_secret_changes,
+                &mut writes,
+            )?;
+            persist_secrets_for_create(runtime, &id, &mut params, &mut writes)?;
+            clear_profile_owned_inline_password(&mut params);
+            let connection = SavedConnection {
+                id: id.clone(),
+                name,
+                params,
+                plugin_secret_keys,
+                group_id: None,
+                sort_order: None,
+                detect_json_in_text_columns,
+                appearance: None,
+                tag_ids: None,
+                environment,
+            };
+            file.connections.push(connection.clone());
+            Ok(connection)
+        })?;
         if !connection.params.save_in_keychain.unwrap_or(false) {
             for suffix in [DB_SECRET_SUFFIX, SSH_SECRET_SUFFIX, SSH_PASSPHRASE_SUFFIX] {
                 if suffix == DB_SECRET_SUFFIX && skip_connection_db_keychain_delete(&connection) {
@@ -1268,42 +1290,50 @@ fn update_connection(
     detect_json_in_text_columns: Option<bool>,
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
-    let mut file = load_file(runtime)?;
-    let index = file
-        .connections
-        .iter()
-        .position(|connection| connection.id == id)
-        .ok_or_else(|| "Connection not found".to_string())?;
-    let existing = file.connections[index].clone();
-    let environment = validate_environment(environment)?;
     let mut writes = SecretWrites::default();
     let result = (|| {
-        params.connection_id = None;
-        validate_credential_profile_reference(&file, &id, &params)?;
-        let plugin_secret_keys = persist_plugin_secrets(
-            runtime,
-            &id,
-            Some((&existing.params.driver, &existing.plugin_secret_keys)),
-            &mut params,
-            &plugin_secret_changes,
-            &mut writes,
-        )?;
-        merge_and_persist_update_secrets(runtime, &id, &existing.params, &mut params, &mut writes)?;
-        clear_profile_owned_inline_password(&mut params);
-        let connection = SavedConnection {
-            id,
-            name,
-            params,
-            plugin_secret_keys,
-            group_id: existing.group_id,
-            sort_order: existing.sort_order,
-            detect_json_in_text_columns,
-            appearance: existing.appearance,
-            tag_ids: existing.tag_ids,
-            environment,
-        };
-        file.connections[index] = connection.clone();
-        save_file(runtime, state, &file)?;
+        let (connection, previous_database) = modify_connections_file(runtime, state, |file| {
+            let index = file
+                .connections
+                .iter()
+                .position(|connection| connection.id == id)
+                .ok_or_else(|| "Connection not found".to_string())?;
+            let existing = file.connections[index].clone();
+            let environment = validate_environment(environment)?;
+            params.connection_id = None;
+            validate_credential_profile_reference(file, &id, &params)?;
+            let plugin_secret_keys = persist_plugin_secrets(
+                runtime,
+                &id,
+                Some((&existing.params.driver, &existing.plugin_secret_keys)),
+                &mut params,
+                &plugin_secret_changes,
+                &mut writes,
+            )?;
+            merge_and_persist_update_secrets(
+                runtime,
+                &id,
+                &existing.params,
+                &mut params,
+                &mut writes,
+            )?;
+            clear_profile_owned_inline_password(&mut params);
+            let connection = SavedConnection {
+                id,
+                name,
+                params,
+                plugin_secret_keys,
+                group_id: existing.group_id,
+                sort_order: existing.sort_order,
+                detect_json_in_text_columns,
+                appearance: existing.appearance,
+                tag_ids: existing.tag_ids,
+                environment,
+            };
+            let previous_database = existing.params.database;
+            file.connections[index] = connection.clone();
+            Ok((connection, previous_database))
+        })?;
         if !connection.params.save_in_keychain.unwrap_or(false) {
             for suffix in [DB_SECRET_SUFFIX, SSH_SECRET_SUFFIX, SSH_PASSPHRASE_SUFFIX] {
                 if suffix == DB_SECRET_SUFFIX && skip_connection_db_keychain_delete(&connection) {
@@ -1322,7 +1352,7 @@ fn update_connection(
             &connection.id,
         );
         if let Some(database) = crate::models::single_db_before_multi_transition(
-            &existing.params.database,
+            &previous_database,
             &connection.params.database,
         ) {
             if let Err(error) = super::productivity::backfill_saved_queries_for_connection(
