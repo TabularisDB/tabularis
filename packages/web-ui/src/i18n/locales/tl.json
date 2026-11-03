@@ -2658,7 +2658,8 @@
     "approve": "Aprubahan",
     "deny": "Tanggihan",
     "notificationTitle": "Kailangan ng MCP approval",
-    "notificationBody": "Buksan ang Tabularis para suriin ang nakabinbing MCP approval."
+    "notificationBody": "Buksan ang Tabularis para suriin ang nakabinbing MCP approval.",
+    "decisionFailed": "Hindi maipadala ang desisyon: {{error}}"
   },
   "discordCallout": {
     "title": "Bagong Discord community!",

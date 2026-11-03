@@ -2680,7 +2680,8 @@
     "approve": "Phê duyệt",
     "deny": "Từ chối",
     "notificationTitle": "Cần phê duyệt MCP",
-    "notificationBody": "Mở Tabularis để xem yêu cầu phê duyệt MCP đang chờ."
+    "notificationBody": "Mở Tabularis để xem yêu cầu phê duyệt MCP đang chờ.",
+    "decisionFailed": "Không thể gửi quyết định: {{error}}"
   },
   "discordCallout": {
     "title": "Cộng đồng Discord mới toanh!",

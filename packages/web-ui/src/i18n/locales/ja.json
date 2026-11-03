@@ -2610,7 +2610,8 @@
     "approve": "承認",
     "deny": "拒否",
     "notificationTitle": "MCP の承認が必要です",
-    "notificationBody": "保留中の MCP 承認を確認するには Tabularis を開いてください。"
+    "notificationBody": "保留中の MCP 承認を確認するには Tabularis を開いてください。",
+    "decisionFailed": "判断を送信できませんでした: {{error}}"
   },
   "discordCallout": {
     "title": "Discord コミュニティが新登場！",

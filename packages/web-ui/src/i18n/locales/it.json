@@ -2622,7 +2622,8 @@
     "approve": "Approva",
     "deny": "Nega",
     "notificationTitle": "Approvazione MCP necessaria",
-    "notificationBody": "Apri Tabularis per esaminare l’approvazione MCP in sospeso."
+    "notificationBody": "Apri Tabularis per esaminare l’approvazione MCP in sospeso.",
+    "decisionFailed": "Impossibile inviare la decisione: {{error}}"
   },
   "discordCallout": {
     "title": "Nuova community Discord!",

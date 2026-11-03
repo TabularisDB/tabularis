@@ -2531,7 +2531,8 @@
     "approve": "批准",
     "deny": "拒绝",
     "notificationTitle": "需要 MCP 审批",
-    "notificationBody": "请打开 Tabularis 以查看待处理的 MCP 审批。"
+    "notificationBody": "请打开 Tabularis 以查看待处理的 MCP 审批。",
+    "decisionFailed": "无法提交决定：{{error}}"
   },
   "discordCallout": {
     "title": "全新的 Discord 社区！",

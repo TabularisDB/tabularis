@@ -2602,7 +2602,8 @@
     "approve": "승인",
     "deny": "거부",
     "notificationTitle": "MCP 승인이 필요합니다",
-    "notificationBody": "대기 중인 MCP 승인을 검토하려면 Tabularis를 여세요."
+    "notificationBody": "대기 중인 MCP 승인을 검토하려면 Tabularis를 여세요.",
+    "decisionFailed": "결정을 전송할 수 없습니다: {{error}}"
   },
   "discordCallout": {
     "title": "새로운 Discord 커뮤니티!",

@@ -2668,7 +2668,8 @@
     "approve": "Approuver",
     "deny": "Refuser",
     "notificationTitle": "Approbation MCP requise",
-    "notificationBody": "Ouvrez Tabularis pour examiner l’approbation MCP en attente."
+    "notificationBody": "Ouvrez Tabularis pour examiner l’approbation MCP en attente.",
+    "decisionFailed": "Impossible d’envoyer la décision : {{error}}"
   },
   "discordCallout": {
     "title": "Nouvelle communauté Discord !",
