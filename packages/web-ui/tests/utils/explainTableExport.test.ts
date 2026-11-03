@@ -50,7 +50,7 @@ describe('explainTableExport', () => {
 
     describe('formatExplainTableCsv', () => {
         const HEADER =
-            'index,depth,node_type,relation,startup_cost,total_cost,est_rows,actual_rows,self_time_ms,estimate_gap,filter';
+            'index,depth,node_type,relation,startup_cost,total_cost,est_rows,actual_rows,actual_loops,self_time_ms,estimate_gap,filter';
 
         /** Records of a CSV whose fields contain no line breaks. */
         function records(csv: string): string[] {
@@ -66,7 +66,7 @@ describe('explainTableExport', () => {
             const lines = records(formatExplainTableCsv(plan));
 
             expect(lines[0]).toBe(HEADER);
-            expect(EXPLAIN_TABLE_CSV_HEADERS).toHaveLength(11);
+            expect(EXPLAIN_TABLE_CSV_HEADERS).toHaveLength(12);
             expect(EXPLAIN_TABLE_CSV_HEADERS).not.toContain('cost');
         });
 
@@ -78,7 +78,7 @@ describe('explainTableExport', () => {
 
             const csv = formatExplainTableCsv(plan);
 
-            expect(csv).toBe(`${HEADER}\r\n1,0,Limit,,,,,,,,\r\n2,1,Seq Scan,,,,,,,,\r\n`);
+            expect(csv).toBe(`${HEADER}\r\n1,0,Limit,,,,,,,,,\r\n2,1,Seq Scan,,,,,,,,,\r\n`);
             // No bare LF outside the CRLF pairs.
             expect(csv.replace(/\r\n/g, '')).not.toMatch(/[\r\n]/);
         });
@@ -113,11 +113,11 @@ describe('explainTableExport', () => {
 
             expect(lines).toHaveLength(4); // 1 header + 3 nodes
             // Root (depth 0)
-            expect(lines[1]).toBe('1,0,Limit,,,60,5,,,,');
+            expect(lines[1]).toBe('1,0,Limit,,,60,5,,,,,');
             // Child (depth 1)
-            expect(lines[2]).toBe('2,1,Nested Loop,,,50,10,,,,');
+            expect(lines[2]).toBe('2,1,Nested Loop,,,50,10,,,,,');
             // Grandchild (depth 2)
-            expect(lines[3]).toBe('3,2,Index Scan,users_pkey,,8.5,1,,,,');
+            expect(lines[3]).toBe('3,2,Index Scan,users_pkey,,8.5,1,,,,,');
         });
 
         it('leaves unavailable metrics empty rather than converting them to zero for estimates-only plans', () => {
@@ -136,15 +136,16 @@ describe('explainTableExport', () => {
 
             const rows = records(formatExplainTableCsv(plan));
 
-            expect(rows[1]).toBe('1,0,Seq Scan,orders,0,150.25,1200,,,,');
+            expect(rows[1]).toBe('1,0,Seq Scan,orders,0,150.25,1200,,,,,');
             const cols = rows[1].split(',');
-            expect(cols).toHaveLength(11);
+            expect(cols).toHaveLength(12);
             // A real startup cost of 0 is kept as 0.
             expect(cols[4]).toBe('0');
-            // actual_rows is index 7, self_time_ms is index 8, estimate_gap is index 9
+            // actual_rows is index 7, actual_loops 8, self_time_ms 9, estimate_gap 10
             expect(cols[7]).toBe(''); // NOT "0"
             expect(cols[8]).toBe(''); // NOT "0"
             expect(cols[9]).toBe(''); // NOT "0"
+            expect(cols[10]).toBe(''); // NOT "0"
         });
 
         it('leaves both cost columns empty when the driver reports no cost', () => {
@@ -243,7 +244,7 @@ describe('explainTableExport', () => {
 
             const lines = records(formatExplainTableCsv(plan));
 
-            expect(lines.slice(1).map((line) => line.split(',')[9])).toEqual(['', '', '']);
+            expect(lines.slice(1).map((line) => line.split(',')[10])).toEqual(['', '', '']);
         });
 
         it('formats analyzed plans with plain numbers for costs, self time and estimate gap', () => {
@@ -275,8 +276,8 @@ describe('explainTableExport', () => {
             const lines = records(formatExplainTableCsv(plan));
 
             // Root self time: 20 - 15.456 = 4.544 ms. Gap: 300 / 100 = 3.
-            expect(lines[1]).toBe('1,0,Sort,,100,120,100,300,4.544,3,');
-            expect(lines[2]).toBe('2,1,Seq Scan,customers,0,80,100,300,15.456,3,active = true');
+            expect(lines[1]).toBe('1,0,Sort,,100,120,100,300,1,4.544,3,');
+            expect(lines[2]).toBe('2,1,Seq Scan,customers,0,80,100,300,1,15.456,3,active = true');
         });
 
         it('writes an overestimate as the same gap factor, rounded without float noise', () => {
@@ -293,9 +294,54 @@ describe('explainTableExport', () => {
 
             const cols = records(formatExplainTableCsv(plan))[1].split(',');
 
-            expect(cols[9]).toBe('3.333');
-            expect(Number(cols[9])).toBeCloseTo(3.333, 3);
-            expect(cols[9]).not.toContain('x');
+            expect(cols[10]).toBe('3.333');
+            expect(Number(cols[10])).toBeCloseTo(3.333, 3);
+            expect(cols[10]).not.toContain('x');
+        });
+
+        it('writes how often each node ran as a plain integer next to actual_rows', () => {
+            const lookup = makeNode({
+                id: 'lookup',
+                node_type: 'Index Lookup',
+                plan_rows: 25,
+                actual_rows: 25,
+                actual_time_ms: 0.0133,
+                actual_loops: 331603,
+            });
+            const unknownLoops = makeNode({
+                id: 'unknown',
+                node_type: 'Materialize',
+                actual_rows: 3,
+                actual_loops: null,
+            });
+            const root = makeNode({
+                id: 'root',
+                node_type: 'Nested Loop',
+                actual_rows: 0,
+                actual_loops: 0,
+                children: [lookup, unknownLoops],
+            });
+            const plan = makePlan({root, has_analyze_data: true});
+
+            const lines = records(formatExplainTableCsv(plan));
+            const loopsAt = EXPLAIN_TABLE_CSV_HEADERS.indexOf('actual_loops');
+
+            expect(loopsAt).toBe(EXPLAIN_TABLE_CSV_HEADERS.indexOf('actual_rows') + 1);
+            // 0 means the node never ran; a missing count stays empty, never 0.
+            expect(lines.slice(1).map((line) => line.split(',')[loopsAt])).toEqual([
+                '0',
+                '331603',
+                '',
+            ]);
+        });
+
+        it('leaves actual_loops empty for an estimate-only plan', () => {
+            const root = makeNode({id: 'root', plan_rows: 10, actual_loops: 331603});
+            const plan = makePlan({root, has_analyze_data: false});
+
+            const cols = records(formatExplainTableCsv(plan))[1].split(',');
+
+            expect(cols[EXPLAIN_TABLE_CSV_HEADERS.indexOf('actual_loops')]).toBe('');
         });
 
         it('properly quotes fields per RFC 4180 when containing commas, quotes, and newlines', () => {
@@ -332,7 +378,7 @@ describe('explainTableExport', () => {
 
             const lines = records(formatExplainTableCsv(plan, {delimiter: ';'}));
             expect(lines[0]).toBe(HEADER.replace(/,/g, ';'));
-            expect(lines[1]).toBe('1;0;Seq Scan;users;0;50;100;;;;');
+            expect(lines[1]).toBe('1;0;Seq Scan;users;0;50;100;;;;;');
         });
     });
 

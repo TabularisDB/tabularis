@@ -2051,8 +2051,7 @@ impl DatabaseDriver for MysqlDriver {
             mysql_numeric_setting("maxAllowedPacket", DEFAULT_MYSQL_MAX_ALLOWED_PACKET);
         let socket_timeout =
             mysql_numeric_setting("socketTimeout", DEFAULT_MYSQL_SOCKET_TIMEOUT_MS);
-        let connect_timeout =
-            mysql_numeric_setting("connectTimeout", DEFAULT_MYSQL_CONNECT_TIMEOUT_MS);
+        let connect_timeout = crate::pool_manager::mysql_connect_timeout(params).as_millis();
         let timezone = mysql_string_setting("timezone", DEFAULT_MYSQL_TIMEZONE);
         let ssl_mode = match params.ssl_mode.as_deref() {
             Some("disabled") | Some("disable") => "disabled",
@@ -2087,33 +2086,36 @@ impl DatabaseDriver for MysqlDriver {
         // connection pass the test but fail at pool time. Going through the
         // builder also applies the cleartext plugin gating (mysql_clear_password
         // requires an enforced TLS mode) to the test, exactly as for the live pool.
-        let options = crate::pool_manager::build_mysql_options(params, None)?;
-        match options.connect().await {
-            Ok(mut conn) => {
-                let result = conn.ping().await.map_err(|e| e.to_string());
-                let _ = conn.close().await;
-                result
-            }
-            // Mirror the pool's auto-fallback: in auto mode (`pipes_as_concat`
-            // unset), retry without the forced sql_mode so a PlanetScale/Vitess
-            // connection that the pool will accept also passes the test.
-            Err(e) => {
-                let e = e.to_string();
-                if params.pipes_as_concat.is_none()
-                    && crate::pool_manager::is_pipes_as_concat_unsupported(&e)
-                {
-                    let mut fallback = params.clone();
-                    fallback.pipes_as_concat = Some(false);
-                    let options = crate::pool_manager::build_mysql_options(&fallback, None)?;
-                    let mut conn = options.connect().await.map_err(|e| e.to_string())?;
+        crate::pool_manager::with_connect_timeout(params, async {
+            let options = crate::pool_manager::build_mysql_options(params, None)?;
+            match options.connect().await {
+                Ok(mut conn) => {
                     let result = conn.ping().await.map_err(|e| e.to_string());
                     let _ = conn.close().await;
                     result
-                } else {
-                    Err(e)
+                }
+                // Mirror the pool's auto-fallback: in auto mode (`pipes_as_concat`
+                // unset), retry without the forced sql_mode so a PlanetScale/Vitess
+                // connection that the pool will accept also passes the test.
+                Err(e) => {
+                    let e = e.to_string();
+                    if params.pipes_as_concat.is_none()
+                        && crate::pool_manager::is_pipes_as_concat_unsupported(&e)
+                    {
+                        let mut fallback = params.clone();
+                        fallback.pipes_as_concat = Some(false);
+                        let options = crate::pool_manager::build_mysql_options(&fallback, None)?;
+                        let mut conn = options.connect().await.map_err(|e| e.to_string())?;
+                        let result = conn.ping().await.map_err(|e| e.to_string());
+                        let _ = conn.close().await;
+                        result
+                    } else {
+                        Err(e)
+                    }
                 }
             }
-        }
+        })
+        .await
     }
 
     async fn ping(&self, params: &crate::models::ConnectionParams) -> Result<(), String> {

@@ -125,6 +125,8 @@ export interface Tab {
     filterClause?: string; // SQL WHERE clause (without "WHERE")
     sortClause?: string; // SQL ORDER BY clause (without "ORDER BY")
     limitClause?: number; // SQL LIMIT value
+    // Grid shows columns as rows and records as columns (#561)
+    transposed?: boolean;
     pageSize?: number; // Per-tab rows-per-page override; 0 = fetch all rows (no pagination); unset = follow the global setting
     queryParams?: Record<string, string>; // Saved values for query parameters
     schema?: string; // Schema name (PostgreSQL) for query reconstruction
@@ -143,6 +145,8 @@ export interface Tab {
     /** Content last read from / written to `sourceFilePath`; dirty = query differs from it. */
     sourceFileContent?: string;
     sourceFileDirty?: boolean;
+    /** Pinned tabs come first in the tab bar, and bulk close actions skip them. */
+    pinned?: boolean;
 }
 
 export interface EditorPreferences {

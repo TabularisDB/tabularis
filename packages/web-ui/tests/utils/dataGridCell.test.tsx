@@ -30,6 +30,16 @@ describe('renderDefaultCellContent', () => {
         expect(span?.textContent).toBe('NULL');
     });
 
+    it('keeps a muted NULL marker when the NULL label is empty (#1300)', () => {
+        const {getByTestId} = renderNode(null, '');
+        const marker = getByTestId('wrap').querySelector('[data-null-marker]');
+        expect(marker).not.toBeNull();
+        expect(marker?.className).toContain('text-muted');
+        // An empty string stays a plain, unmarked value.
+        const {getAllByTestId} = renderNode('', '');
+        expect(getAllByTestId('wrap')[1].querySelector('[data-null-marker]')).toBeNull();
+    });
+
     it('renders plain text (no span) for a normal string value', () => {
         const {getByTestId} = renderNode('hello', 'hello');
         const wrap = getByTestId('wrap');

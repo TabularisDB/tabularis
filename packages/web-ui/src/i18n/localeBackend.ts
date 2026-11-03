@@ -4,6 +4,7 @@ const locales = {
     it: () => import('./locales/it.json'),
     es: () => import('./locales/es.json'),
     zh: () => import('./locales/zh.json'),
+    'zh-TW': () => import('./locales/zh-TW.json'),
     fr: () => import('./locales/fr.json'),
     de: () => import('./locales/de.json'),
     ja: () => import('./locales/ja.json'),

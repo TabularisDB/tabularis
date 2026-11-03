@@ -132,6 +132,9 @@ pub struct AppConfig {
     pub selected_schemas: Option<HashMap<String, Vec<String>>>,
     pub max_blob_size: Option<u64>,
     pub copy_format: Option<String>,
+    /// How NULL values are shown in the data grid: `"default"`, `"parenthesized"`,
+    /// `"emptySet"` or `"empty"`. Display only; copy and export are unchanged.
+    pub null_display: Option<String>,
     pub csv_delimiter: Option<String>,
     /// Whether copied CSV output includes a header row. Default: true.
     pub csv_include_headers: Option<bool>,

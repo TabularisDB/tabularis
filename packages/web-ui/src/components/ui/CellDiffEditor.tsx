@@ -13,7 +13,7 @@ interface CellDiffEditorProps {
     height?: string | number;
     readOnly?: boolean;
     renderSideBySide?: boolean;
-    language?: 'json' | 'plaintext';
+    language?: 'json' | 'plaintext' | 'sql';
 }
 
 export const CellDiffEditor = ({

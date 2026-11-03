@@ -67,6 +67,11 @@ export function buildVisualExplainRoute(connectionId: string, query: string): st
     )}&query=${base64UrlEncode(query)}`;
 }
 
+/** A plan handed over by another window, see platform/visualExplainSessions. */
+export function buildVisualExplainSessionRoute(sessionId: string): string {
+    return `${BROWSER_ROUTES.visualExplain}?session=${encodeURIComponent(sessionId)}`;
+}
+
 export function buildRouteWindowLabel(prefix: string, ...parts: string[]): string {
     const suffix = parts.join(':').replace(/[^a-zA-Z0-9_-]/g, '_');
     return `${prefix}-${suffix}`;
