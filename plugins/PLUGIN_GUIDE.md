@@ -860,6 +860,8 @@ Your plugin must run an event loop that:
 
 The `params.params` object is a `ConnectionParams` — the same values the user entered in the connection form. The top-level `params` may contain additional method-specific fields (e.g., `schema`, `table`, `column_name`, etc.).
 
+Optional settings appear only when the user set them. For example, `connect_timeout_secs` is the number of seconds to wait for a new connection. A plugin that supports a connect timeout should honor it and use its own default when it is absent.
+
 ### Successful Response
 
 ```json
