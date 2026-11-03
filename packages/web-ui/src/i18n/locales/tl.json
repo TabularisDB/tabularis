@@ -1713,7 +1713,11 @@
       "copyReport": "Kopyahin ang ulat",
       "reportCopied": "Nakopya ang ulat",
       "copyFailed": "Hindi makopya ang ulat sa clipboard.",
-      "createIssue": "Gumawa ng issue"
+      "createIssue": "Gumawa ng issue",
+      "analyzeWithAi": "Suriin gamit ang AI",
+      "aiAnalyzing": "Sinusuri…",
+      "aiAnalysisTitle": "Pagsusuri ng AI",
+      "aiAnalysisFailed": "Nabigo ang pagsusuri ng AI. Kopyahin ang ulat o gumawa ng issue sa halip."
     },
     "newVisualQuery": "Bagong Visual Query",
     "activeDatabase": "Aktibong database",

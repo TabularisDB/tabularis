@@ -240,6 +240,7 @@ enum AiRpcCommand {
     GenerateQuery,
     ExplainQuery,
     AnalyzeExplainPlan,
+    AnalyzeCrashReport,
     GenerateCellName,
     GenerateTabRename,
     SuggestTableName,
@@ -2212,6 +2213,7 @@ impl AiRpcCommand {
             "generate_ai_query" => Self::GenerateQuery,
             "explain_ai_query" => Self::ExplainQuery,
             "analyze_ai_explain_plan" => Self::AnalyzeExplainPlan,
+            "analyze_ai_crash_report" => Self::AnalyzeCrashReport,
             "generate_cell_name" => Self::GenerateCellName,
             "generate_tab_rename" => Self::GenerateTabRename,
             "suggest_table_name" => Self::SuggestTableName,
@@ -2606,6 +2608,10 @@ fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, St
         AiRpcCommand::AnalyzeExplainPlan => {
             let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
             AiCommand::AnalyzeExplainPlan(request.req)
+        }
+        AiRpcCommand::AnalyzeCrashReport => {
+            let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
+            AiCommand::AnalyzeCrashReport(request.req)
         }
         AiRpcCommand::GenerateCellName => {
             let request: AiRequest<crate::ai::AiCellNameRequest> = decode_payload(body)?;

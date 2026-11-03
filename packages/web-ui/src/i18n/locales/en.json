@@ -1752,7 +1752,11 @@
       "copyReport": "Copy report",
       "reportCopied": "Report copied",
       "copyFailed": "Couldn't copy the report to the clipboard.",
-      "createIssue": "Create issue"
+      "createIssue": "Create issue",
+      "analyzeWithAi": "Analyze with AI",
+      "aiAnalyzing": "Analyzing…",
+      "aiAnalysisTitle": "AI analysis",
+      "aiAnalysisFailed": "The AI analysis failed. Copy the report or create an issue instead."
     },
     "newVisualQuery": "New Visual Query",
     "activeDatabase": "Active database",

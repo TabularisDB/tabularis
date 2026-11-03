@@ -667,6 +667,7 @@ fn registers_ai_commands_with_explicit_authorization() {
         "generate_ai_query",
         "explain_ai_query",
         "analyze_ai_explain_plan",
+        "analyze_ai_crash_report",
         "generate_cell_name",
         "generate_tab_rename",
         "suggest_table_name",
@@ -1542,7 +1543,8 @@ async fn routes_ai_commands_through_the_shared_application_api() {
         ("get_ai_models", serde_json::json!({"forceRefresh": false})),
         ("generate_ai_query", generate),
         ("explain_ai_query", explain.clone()),
-        ("analyze_ai_explain_plan", explain),
+        ("analyze_ai_explain_plan", explain.clone()),
+        ("analyze_ai_crash_report", explain),
         (
             "generate_cell_name",
             serde_json::json!({"req": {"provider": "openai", "model": "gpt-contract", "query": "SELECT 1"}}),

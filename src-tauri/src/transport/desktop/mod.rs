@@ -507,6 +507,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             ai::generate_ai_query,
             ai::explain_ai_query,
             ai::analyze_ai_explain_plan,
+            ai::analyze_ai_crash_report,
             ai::generate_cell_name,
             ai::generate_tab_rename,
             ai::suggest_table_name,

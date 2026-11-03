@@ -1743,7 +1743,11 @@
       "copyReport": "Copia report",
       "reportCopied": "Report copiato",
       "copyFailed": "Impossibile copiare il report negli appunti.",
-      "createIssue": "Crea issue"
+      "createIssue": "Crea issue",
+      "analyzeWithAi": "Analizza con l'IA",
+      "aiAnalyzing": "Analisi in corso…",
+      "aiAnalysisTitle": "Analisi dell'IA",
+      "aiAnalysisFailed": "L'analisi dell'IA non è riuscita. Copia il report o crea una issue."
     },
     "newVisualQuery": "Nuova Query Visuale",
     "activeDatabase": "Database attivo",

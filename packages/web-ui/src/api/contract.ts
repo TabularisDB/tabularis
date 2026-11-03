@@ -1056,6 +1056,7 @@ export interface CommandMap {
     generate_ai_query: CommandDefinition<{req: AiGenerateRequest}, string, 'sensitive'>;
     explain_ai_query: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     analyze_ai_explain_plan: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
+    analyze_ai_crash_report: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     generate_cell_name: CommandDefinition<{req: AiNameRequest}, string, 'sensitive'>;
     generate_tab_rename: CommandDefinition<{req: AiNameRequest}, string, 'sensitive'>;
     suggest_table_name: CommandDefinition<{req: AiTableNameRequest}, string, 'sensitive'>;

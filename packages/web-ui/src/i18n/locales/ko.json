@@ -1657,7 +1657,11 @@
       "copyReport": "보고서 복사",
       "reportCopied": "보고서를 복사했습니다",
       "copyFailed": "보고서를 클립보드에 복사하지 못했습니다.",
-      "createIssue": "이슈 만들기"
+      "createIssue": "이슈 만들기",
+      "analyzeWithAi": "AI로 분석",
+      "aiAnalyzing": "분석 중…",
+      "aiAnalysisTitle": "AI 분석",
+      "aiAnalysisFailed": "AI 분석에 실패했습니다. 대신 보고서를 복사하거나 이슈를 만드세요."
     },
     "newVisualQuery": "새 비주얼 쿼리",
     "activeDatabase": "활성 데이터베이스",

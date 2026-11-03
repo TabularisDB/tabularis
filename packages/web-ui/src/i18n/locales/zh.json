@@ -1675,7 +1675,11 @@
       "copyReport": "复制报告",
       "reportCopied": "已复制报告",
       "copyFailed": "无法将报告复制到剪贴板。",
-      "createIssue": "创建 Issue"
+      "createIssue": "创建 Issue",
+      "analyzeWithAi": "使用 AI 分析",
+      "aiAnalyzing": "正在分析…",
+      "aiAnalysisTitle": "AI 分析",
+      "aiAnalysisFailed": "AI 分析失败。请改为复制报告或创建 issue。"
     },
     "newVisualQuery": "新建可视化查询",
     "activeDatabase": "当前数据库",

@@ -1710,7 +1710,11 @@
       "copyReport": "Копировать отчёт",
       "reportCopied": "Отчёт скопирован",
       "copyFailed": "Не удалось скопировать отчёт в буфер обмена.",
-      "createIssue": "Создать issue"
+      "createIssue": "Создать issue",
+      "analyzeWithAi": "Анализ с помощью ИИ",
+      "aiAnalyzing": "Анализ…",
+      "aiAnalysisTitle": "Анализ ИИ",
+      "aiAnalysisFailed": "Не удалось выполнить анализ ИИ. Скопируйте отчёт или создайте issue."
     },
     "newVisualQuery": "Новый визуальный запрос",
     "activeDatabase": "Активная база данных",

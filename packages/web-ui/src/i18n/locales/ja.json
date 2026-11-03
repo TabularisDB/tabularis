@@ -1712,7 +1712,11 @@
       "copyReport": "レポートをコピー",
       "reportCopied": "レポートをコピーしました",
       "copyFailed": "レポートをクリップボードにコピーできませんでした。",
-      "createIssue": "Issue を作成"
+      "createIssue": "Issue を作成",
+      "analyzeWithAi": "AIで分析",
+      "aiAnalyzing": "分析中…",
+      "aiAnalysisTitle": "AIによる分析",
+      "aiAnalysisFailed": "AIによる分析に失敗しました。代わりにレポートをコピーするか、Issueを作成してください。"
     },
     "newVisualQuery": "新規ビジュアルクエリ",
     "activeDatabase": "アクティブなデータベース",
