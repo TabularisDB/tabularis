@@ -1768,6 +1768,9 @@
       "tableView": "表格",
       "tableTitle": "计划树",
       "exportCsv": "导出 CSV",
+      "resetColumnOrder": "重置列顺序",
+      "moveColumnHint": "拖动以重新排序，或按 Alt+左方向键 / Alt+右方向键",
+      "openInWindow": "在新窗口中打开",
       "exportingCsv": "正在导出...",
       "exportCsvSuccess": "Explain 表已导出为 CSV",
       "exportCsvError": "导出 Explain 表为 CSV 失败",
@@ -2292,7 +2295,8 @@
     "openFile": "打开文件",
     "reload": "重新加载",
     "loading": "正在加载执行计划…",
-    "emptyHint": "选择一个包含 EXPLAIN 计划（PostgreSQL JSON 或文本格式）的文件以进行可视化。"
+    "emptyHint": "选择一个包含 EXPLAIN 计划（PostgreSQL JSON 或文本格式）的文件以进行可视化。",
+    "sessionExpired": "此执行计划已不可用。请从编辑器重新打开。"
   },
   "taskManager": {
     "header": {

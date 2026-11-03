@@ -1866,6 +1866,9 @@
       "tableView": "Table",
       "tableTitle": "Plan Tree",
       "exportCsv": "Export CSV",
+      "resetColumnOrder": "Reset column order",
+      "moveColumnHint": "Drag to reorder, or press Alt+Left / Alt+Right",
+      "openInWindow": "Open in new window",
       "exportingCsv": "Exporting...",
       "exportCsvSuccess": "Explain table exported as CSV",
       "exportCsvError": "Failed to export EXPLAIN table as CSV",
@@ -2456,7 +2459,8 @@
     "openFile": "Open file",
     "reload": "Reload",
     "loading": "Loading explain plan…",
-    "emptyHint": "Select a file containing an EXPLAIN plan (Postgres JSON or text format) to visualize it."
+    "emptyHint": "Select a file containing an EXPLAIN plan (Postgres JSON or text format) to visualize it.",
+    "sessionExpired": "This plan is no longer available. Open it again from the editor."
   },
   "taskManager": {
     "header": {

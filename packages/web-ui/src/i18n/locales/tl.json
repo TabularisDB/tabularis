@@ -1826,6 +1826,9 @@
       "tableView": "Table",
       "tableTitle": "Tree ng Plano",
       "exportCsv": "I-export ang CSV",
+      "resetColumnOrder": "I-reset ang ayos ng mga column",
+      "moveColumnHint": "I-drag para ayusin, o pindutin ang Alt+Left / Alt+Right",
+      "openInWindow": "Buksan sa bagong window",
       "exportingCsv": "Nag-e-export...",
       "exportCsvSuccess": "Na-export ang explain table bilang CSV",
       "exportCsvError": "Nabigong i-export ang explain table bilang CSV",
@@ -2415,7 +2418,8 @@
     "openFile": "Buksan ang file",
     "reload": "I-reload",
     "loading": "Naglo-load ng explain plan…",
-    "emptyHint": "Pumili ng file na may EXPLAIN plan (Postgres JSON o text format) para i-visualize ito."
+    "emptyHint": "Pumili ng file na may EXPLAIN plan (Postgres JSON o text format) para i-visualize ito.",
+    "sessionExpired": "Hindi na available ang plan na ito. Buksan itong muli mula sa editor."
   },
   "taskManager": {
     "header": {

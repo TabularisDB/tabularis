@@ -319,7 +319,7 @@ export interface ExplainTableRowData {
     totalCost: number | null;
     planRows: number | null;
     actualRows: number | null;
-    /** How many times the node ran. */
+    /** How many times the node ran (`Actual Loops`); null without ANALYZE data. */
     actualLoops: number | null;
     exclusiveTimeMs: number | null;
     /** See {@link getRowEstimateGap}. */

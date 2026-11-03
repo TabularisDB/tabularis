@@ -1770,6 +1770,9 @@
       "tableView": "표",
       "tableTitle": "플랜 트리",
       "exportCsv": "CSV 내보내기",
+      "resetColumnOrder": "열 순서 초기화",
+      "moveColumnHint": "드래그하여 순서를 바꾸거나 Alt+왼쪽 / Alt+오른쪽 키를 누르세요",
+      "openInWindow": "새 창에서 열기",
       "exportingCsv": "내보내는 중...",
       "exportCsvSuccess": "Explain 테이블을 CSV로 내보냈습니다",
       "exportCsvError": "Explain 테이블을 CSV로 내보내지 못했습니다",
@@ -2359,7 +2362,8 @@
     "openFile": "파일 열기",
     "reload": "새로고침",
     "loading": "실행 계획을 불러오는 중…",
-    "emptyHint": "EXPLAIN 계획이 담긴 파일(Postgres JSON 또는 텍스트 형식)을 선택하여 시각화하세요."
+    "emptyHint": "EXPLAIN 계획이 담긴 파일(Postgres JSON 또는 텍스트 형식)을 선택하여 시각화하세요.",
+    "sessionExpired": "이 실행 계획을 더 이상 사용할 수 없습니다. 편집기에서 다시 여세요."
   },
   "taskManager": {
     "header": {

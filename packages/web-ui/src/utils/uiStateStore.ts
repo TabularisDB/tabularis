@@ -54,6 +54,11 @@ export const UI_STATE_KEYS = {
         key: 'tabularis:explorer-pins',
         parseLegacy: (): undefined => undefined,
     },
+    // Column order of the Visual EXPLAIN table view, `#` excluded.
+    explainTableColumns: {
+        key: 'tabularis:explain-table-columns',
+        parseLegacy: (): undefined => undefined,
+    },
 } satisfies Record<string, UiStateKeyDefinition<unknown>>;
 
 const DEFINITIONS: UiStateKeyDefinition<unknown>[] = Object.values(UI_STATE_KEYS);

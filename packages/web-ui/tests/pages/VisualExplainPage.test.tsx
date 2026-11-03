@@ -33,9 +33,23 @@ vi.mock('lucide-react', () => ({
     Loader2: () => null,
     RefreshCw: () => null,
 }));
+const sessions = vi.hoisted(() => ({request: vi.fn()}));
+vi.mock('@/platform/visualExplainSessions', () => ({
+    requestVisualExplainSession: sessions.request,
+}));
 vi.mock('@/components/explain/VisualExplainView', () => ({
-    VisualExplainView: ({plan, error, selectedNodeId, aiEnabled}: VisualExplainViewProps) => (
-        <div data-testid="explain-view" data-ai-enabled={String(aiEnabled)}>
+    VisualExplainView: ({
+        plan,
+        error,
+        selectedNodeId,
+        aiEnabled,
+        viewMode,
+    }: VisualExplainViewProps) => (
+        <div
+            data-testid="explain-view"
+            data-ai-enabled={String(aiEnabled)}
+            data-view-mode={viewMode}
+        >
             <div data-testid="plan">{plan?.root.node_type}</div>
             <div data-testid="query">{plan?.original_query}</div>
             <div data-testid="selection">{selectedNodeId}</div>
@@ -78,6 +92,7 @@ describe('VisualExplainPage', () => {
     beforeEach(() => {
         mocks.search = '';
         mocks.browser = false;
+        sessions.request.mockReset();
         vi.mocked(invoke).mockReset();
         vi.mocked(openDialog).mockReset();
         vi.mocked(invoke).mockResolvedValue(null);
@@ -429,4 +444,41 @@ describe('VisualExplainPage browser handoffs', () => {
             expect(screen.queryByRole('alert')).not.toBeInTheDocument();
         },
     );
+
+    describe('a plan handed over by another window', () => {
+        it('shows the plan with its view and selection, without running anything', async () => {
+            mocks.search = '?session=session-1';
+            const plan = parseExplain(makeFile('handed over').content);
+            sessions.request.mockResolvedValue({
+                plan,
+                viewMode: 'table',
+                selectedNodeId: 'chosen-node',
+                label: 'shop · shop',
+            });
+            renderPage();
+
+            await waitFor(() =>
+                expect(screen.getByTestId('plan')).toHaveTextContent('handed over'),
+            );
+            expect(sessions.request).toHaveBeenCalledWith(expect.anything(), 'session-1', 2000);
+            expect(screen.getByTestId('explain-view')).toHaveAttribute('data-view-mode', 'table');
+            expect(screen.getByTestId('selection')).toHaveTextContent('chosen-node');
+            expect(screen.getByText('shop · shop')).toBeInTheDocument();
+            expect(screen.queryByText('visualExplainPage.noFile')).toBeNull();
+            // Neither the query nor a pending CLI file is touched.
+            expect(invoke).not.toHaveBeenCalled();
+        });
+
+        it('says so when the window that held the plan no longer answers', async () => {
+            mocks.search = '?session=gone';
+            sessions.request.mockResolvedValue(null);
+            renderPage();
+
+            expect(await screen.findByRole('alert')).toHaveTextContent(
+                'visualExplainPage.sessionExpired',
+            );
+            expect(screen.queryByText('visualExplainPage.emptyHint')).toBeNull();
+            expect(invoke).not.toHaveBeenCalled();
+        });
+    });
 });

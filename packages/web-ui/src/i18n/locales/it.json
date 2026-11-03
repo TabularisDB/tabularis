@@ -1855,6 +1855,9 @@
       "tableView": "Tabella",
       "tableTitle": "Albero del piano",
       "exportCsv": "Esporta CSV",
+      "resetColumnOrder": "Ripristina ordine colonne",
+      "moveColumnHint": "Trascina per riordinare, oppure premi Alt+Sinistra / Alt+Destra",
+      "openInWindow": "Apri in una nuova finestra",
       "exportingCsv": "Esportazione...",
       "exportCsvSuccess": "Tabella explain esportata come CSV",
       "exportCsvError": "Impossibile esportare la tabella explain come CSV",
@@ -2399,7 +2402,8 @@
     "openFile": "Apri file",
     "reload": "Ricarica",
     "loading": "Caricamento del piano di esecuzione…",
-    "emptyHint": "Seleziona un file contenente un piano EXPLAIN (formato JSON o testo PostgreSQL) per visualizzarlo."
+    "emptyHint": "Seleziona un file contenente un piano EXPLAIN (formato JSON o testo PostgreSQL) per visualizzarlo.",
+    "sessionExpired": "Questo piano non è più disponibile. Riaprilo dall'editor."
   },
   "taskManager": {
     "header": {

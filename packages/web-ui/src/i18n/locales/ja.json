@@ -1806,6 +1806,9 @@
       "tableView": "テーブル",
       "tableTitle": "実行計画ツリー",
       "exportCsv": "CSVエクスポート",
+      "resetColumnOrder": "列の順序をリセット",
+      "moveColumnHint": "ドラッグで並べ替え、または Alt+← / Alt+→ を押します",
+      "openInWindow": "新しいウィンドウで開く",
       "exportingCsv": "エクスポート中...",
       "exportCsvSuccess": "ExplainテーブルをCSVとしてエクスポートしました",
       "exportCsvError": "ExplainテーブルのCSVエクスポートに失敗しました",
@@ -2367,7 +2370,8 @@
     "openFile": "ファイルを開く",
     "reload": "再読み込み",
     "loading": "実行計画を読み込み中…",
-    "emptyHint": "EXPLAIN プランを含むファイル (Postgres JSON またはテキスト形式) を選択して可視化します。"
+    "emptyHint": "EXPLAIN プランを含むファイル (Postgres JSON またはテキスト形式) を選択して可視化します。",
+    "sessionExpired": "このプランは利用できなくなりました。エディターからもう一度開いてください。"
   },
   "taskManager": {
     "header": {

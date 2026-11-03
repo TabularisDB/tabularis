@@ -1853,6 +1853,9 @@
       "tableView": "Bảng",
       "tableTitle": "Cây kế hoạch",
       "exportCsv": "Xuất CSV",
+      "resetColumnOrder": "Đặt lại thứ tự cột",
+      "moveColumnHint": "Kéo để sắp xếp lại, hoặc nhấn Alt+Trái / Alt+Phải",
+      "openInWindow": "Mở trong cửa sổ mới",
       "exportingCsv": "Đang xuất...",
       "exportCsvSuccess": "Đã xuất bảng explain ra CSV",
       "exportCsvError": "Không xuất được bảng EXPLAIN ra CSV",
@@ -2437,7 +2440,8 @@
     "openFile": "Mở tệp",
     "reload": "Tải lại",
     "loading": "Đang tải explain plan…",
-    "emptyHint": "Chọn một tệp chứa EXPLAIN plan (Postgres dạng JSON hoặc văn bản) để hiển thị trực quan."
+    "emptyHint": "Chọn một tệp chứa EXPLAIN plan (Postgres dạng JSON hoặc văn bản) để hiển thị trực quan.",
+    "sessionExpired": "Kế hoạch này không còn khả dụng. Hãy mở lại từ trình soạn thảo."
   },
   "taskManager": {
     "header": {

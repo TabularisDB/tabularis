@@ -413,7 +413,6 @@ describe('plan', () => {
             expect(row.totalCost).toBe(25);
             expect(row.planRows).toBe(1000);
             expect(row.actualRows).toBeNull();
-            expect(row.actualLoops).toBeNull();
             expect(row.exclusiveTimeMs).toBeNull();
             expect(row.estimateGap).toBeNull();
         });
@@ -447,14 +446,12 @@ describe('plan', () => {
             // Root
             expect(rows[0].nodeType).toBe('Limit');
             expect(rows[0].actualRows).toBe(10);
-            expect(rows[0].actualLoops).toBe(2);
             expect(rows[0].planRows).toBe(10);
             expect(rows[0].estimateGap).toBe(1);
 
             // Child: 250 actual rows / 50 estimated rows = 5x gap
             expect(rows[1].nodeType).toBe('Seq Scan');
             expect(rows[1].actualRows).toBe(250);
-            expect(rows[1].actualLoops).toBe(2);
             expect(rows[1].planRows).toBe(50);
             expect(rows[1].estimateGap).toBe(5);
         });
@@ -479,17 +476,21 @@ describe('plan', () => {
             const analyzed = getExplainTableRow(node, true, nodeMetrics);
 
             expect(estimated.actualRows).toBeNull();
-            expect(estimated.actualLoops).toBeNull();
             expect(estimated.exclusiveTimeMs).toBeNull();
             expect(analyzed.actualRows).toBe(5);
-            expect(analyzed.actualLoops).toBe(1);
             expect(analyzed.exclusiveTimeMs).toBe(3);
         });
 
-        it('should leave loops null when an analyzed node reports none', () => {
-            const row = getExplainTableRow(makeNode({actual_rows: 5, actual_loops: null}), true);
+        it('should report how often the node ran, only with ANALYZE data', () => {
+            const node = makeNode({actual_rows: 25, actual_time_ms: 0.01, actual_loops: 331603});
 
-            expect(row.actualLoops).toBeNull();
+            expect(getExplainTableRow(node, true).actualLoops).toBe(331603);
+            expect(getExplainTableRow(node, false).actualLoops).toBeNull();
+        });
+
+        it('should keep a loop count of zero and leave a missing one empty', () => {
+            expect(getExplainTableRow(makeNode({actual_loops: 0}), true).actualLoops).toBe(0);
+            expect(getExplainTableRow(makeNode({actual_loops: null}), true).actualLoops).toBeNull();
         });
 
         it('should take index and depth from metrics and fall back without them', () => {

@@ -3,8 +3,13 @@ import {useTranslation} from 'react-i18next';
 import {Download, Loader2} from 'lucide-react';
 import {MonacoEditor} from '@/components/ui/LazyMonaco';
 import type * as monaco from 'monaco-editor';
-import type {ExplainPlan} from '@tabularis/explain';
-import {computeExplainMetrics, findExplainNode, getPlanDiagnostics} from '@tabularis/explain';
+import type {ExplainPlan, ExplainTableColumnId} from '@tabularis/explain';
+import {
+    computeExplainMetrics,
+    findExplainNode,
+    getPlanDiagnostics,
+    normalizeExplainTableColumnOrder,
+} from '@tabularis/explain';
 import {
     ExplainDiagramView,
     ExplainGraph,
@@ -19,6 +24,8 @@ import {useEditorTheme} from '@/hooks/useEditorTheme';
 import {useAlert} from '@/hooks/useAlert';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {useToast} from '@/hooks/useToast';
+import {useUiState} from '@/hooks/useUiState';
+import {UI_STATE_KEYS} from '@/utils/uiStateStore';
 import {loadMonacoTheme} from '@/themes/themeUtils';
 import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {
@@ -101,6 +108,20 @@ export const VisualExplainView = ({
     );
 
     const [isExportingCsv, setIsExportingCsv] = useState(false);
+
+    // Shared by every window, so a detached plan shows the same column order.
+    const [storedColumnOrder, setStoredColumnOrder] = useUiState<unknown>(
+        UI_STATE_KEYS.explainTableColumns,
+        null,
+    );
+    const columnOrder = useMemo(
+        () => normalizeExplainTableColumnOrder(storedColumnOrder),
+        [storedColumnOrder],
+    );
+    const handleColumnOrderChange = useCallback(
+        (order: readonly ExplainTableColumnId[]) => setStoredColumnOrder([...order]),
+        [setStoredColumnOrder],
+    );
 
     const handleSaveRaw = useCallback(async () => {
         // Capture the selected plan synchronously before awaiting the dialog
@@ -224,6 +245,8 @@ export const VisualExplainView = ({
                             onSelect={onSelectNode}
                             onExportCsv={handleExportCsv}
                             isExportingCsv={isExportingCsv}
+                            columnOrder={columnOrder}
+                            onColumnOrderChange={handleColumnOrderChange}
                         />
                     ) : viewMode === 'diagram' ? (
                         <ExplainDiagramView
