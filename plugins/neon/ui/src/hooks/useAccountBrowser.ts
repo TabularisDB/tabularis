@@ -26,6 +26,7 @@ interface State {
     connected: boolean | null;
     authMode?: 'cli' | 'api-key';
     pending: boolean;
+    loading?: 'projects' | 'branches' | 'resources';
     error?: string;
     organizations: Named[];
     projects: Project[];
@@ -41,6 +42,7 @@ interface State {
 const initial: State = {
     connected: null,
     pending: false,
+    loading: undefined,
     organizations: [],
     projects: [],
     branches: [],
@@ -61,9 +63,12 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
     const epoch = useRef(0);
     const mounted = useRef(true);
     const run = useCallback(
-        async (operation: (current: () => boolean) => Promise<Partial<State>>) => {
+        async (
+            operation: (current: () => boolean) => Promise<Partial<State>>,
+            loading?: State['loading'],
+        ) => {
             const request = ++epoch.current;
-            patch({pending: true, error: undefined});
+            patch({pending: true, loading, error: undefined});
             try {
                 const update = await operation(() => mounted.current && epoch.current === request);
                 if (mounted.current && epoch.current === request) patch(update);
@@ -71,7 +76,8 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
                 if (mounted.current && epoch.current === request)
                     patch({error: error instanceof Error ? error.message : 'Request failed'});
             } finally {
-                if (mounted.current && epoch.current === request) patch({pending: false});
+                if (mounted.current && epoch.current === request)
+                    patch({pending: false, loading: undefined});
             }
         },
         [],
@@ -86,7 +92,7 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
                 if (current()) patch({connected: true, authMode});
                 const list = await account.call<ProjectList>('account_projects');
                 return {...initial, connected: true, authMode, ...list};
-            }),
+            }, 'projects'),
         [account, run],
     );
     useEffect(() => {
@@ -108,7 +114,7 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
                 }
                 const list = await account.call<ProjectList>('account_projects');
                 return {...initial, connected: true, authMode: 'api-key', ...list};
-            }),
+            }, 'projects'),
         [account, run],
     );
     const connectCli = useCallback(
@@ -118,7 +124,7 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
                 if (current()) patch({connected: true, authMode: 'cli'});
                 const list = await account.call<ProjectList>('account_projects');
                 return {...initial, connected: true, authMode: 'cli', ...list};
-            }),
+            }, 'projects'),
         [account, run],
     );
     const disconnect = useCallback(
@@ -141,10 +147,13 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
                 branches: [],
                 resources: undefined,
             });
-            return run(async () => ({
-                ...(await account.call<ProjectList>('account_projects', orgId ? {orgId} : {})),
-                orgId,
-            }));
+            return run(
+                async () => ({
+                    ...(await account.call<ProjectList>('account_projects', orgId ? {orgId} : {})),
+                    orgId,
+                }),
+                'projects',
+            );
         },
         [account, run],
     );
@@ -158,10 +167,12 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
                 branches: [],
                 resources: undefined,
             });
-            return run(async () =>
-                projectId
-                    ? await account.call<{branches: Named[]}>('account_branches', {projectId})
-                    : {branches: []},
+            return run(
+                async () =>
+                    projectId
+                        ? await account.call<{branches: Named[]}>('account_branches', {projectId})
+                        : {branches: []},
+                'branches',
             );
         },
         [account, run],
@@ -181,7 +192,7 @@ export function useAccountBrowser(onConnected?: () => void | Promise<void>) {
                     database: resources.databases.length === 1 ? resources.databases[0].name : '',
                     role: resources.roles.length === 1 ? resources.roles[0].name : '',
                 };
-            });
+            }, 'resources');
         },
         [account, run, state.projectId],
     );

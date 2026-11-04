@@ -133,7 +133,7 @@ try {
       assert.equal(await page.getByRole('button',{name:'Test Connection',exact:true}).count(),0);
       assert.equal(await page.getByRole('button',{name:'Save',exact:true}).count(),0);
       assert(await dialog.getByLabel('Branch',{exact:true}).isDisabled());
-      assert.equal(await dialog.getByLabel('Branch',{exact:true}).textContent(),'Choose a project first');
+      assert.equal(await dialog.getByLabel('Branch',{exact:true}).getAttribute('placeholder'),'Choose a project first');
       const controlStyle = await dialog.getByLabel('Organization',{exact:true}).evaluate(select => {
         const style = getComputedStyle(select);
         return {appearance:style.appearance,background:style.backgroundColor,height:select.getBoundingClientRect().height};
@@ -146,11 +146,45 @@ try {
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/account-form-mobile.png')});
       await page.setViewportSize({width:1280,height:860});
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/provider-setup-neon.png')});
-      await dialog.getByLabel('Organization',{exact:true}).selectOption(orgId);
-      await dialog.getByLabel('Project',{exact:true}).selectOption(projectId);
-      await dialog.getByLabel('Branch',{exact:true}).selectOption(branchId);
-      await dialog.getByLabel('Database',{exact:true}).selectOption(database);
-      await dialog.getByLabel('Database role',{exact:true}).selectOption(role);
+      const choose = async (label,value,keyboard=false) => {
+        const field=dialog.getByLabel(label,{exact:true});await field.click();
+        const option=page.locator(`[data-plugin-select-menu] [data-value=${JSON.stringify(value)}]`);
+        await option.waitFor();
+        if(keyboard){await field.fill((await option.innerText()).split('\n')[0]);await field.press('Enter');}
+        else await option.click();
+      };
+      let releaseProjects;
+      const projectsHeld=new Promise(resolve=>{releaseProjects=resolve;});
+      let held=false;
+      const delayProjects=async route=>{
+        const payload=route.request().postDataJSON();
+        if(!held && payload.method==='account_projects' && payload.args?.orgId===orgId){held=true;await projectsHeld;}
+        await route.continue();
+      };
+      await page.route('**/api/v1/rpc/plugin_account',delayProjects);
+      try{
+        await choose('Organization',orgId);
+        const project=dialog.getByLabel('Project',{exact:true});
+        assert.equal(await project.getAttribute('aria-busy'),'true');
+        assert(await project.isDisabled());
+        assert.equal(await project.inputValue(),'Loading projects…');
+        await page.screenshot({path:resolve(root,'plugins/neon/artifacts/account-projects-loading.png')});
+      }finally{releaseProjects();await page.unrouteAll({behavior:'wait'});}
+      const project=dialog.getByLabel('Project',{exact:true});
+      await project.click();
+      const popup=page.locator('[data-plugin-select-menu]');
+      const bounds=await popup.boundingBox();
+      assert(bounds.y>=0 && bounds.y+bounds.height<=860,'Project popup leaves the viewport');
+      const hit=await popup.evaluate(element=>{const box=element.getBoundingClientRect();return element.contains(document.elementFromPoint(box.left+box.width/2,box.top+12));});
+      assert(hit,'Project popup is hidden behind the setup dialog');
+      await page.screenshot({path:resolve(root,'plugins/neon/artifacts/account-project-options.png')});
+      await page.keyboard.press('Escape');
+      assert(await dialog.isVisible(),'Escape closed the setup instead of its dropdown');
+      await choose('Project',projectId);
+      await choose('Branch',branchId,true);
+      await choose('Database',database);
+      await choose('Database role',role);
+      console.log('PASS themed popup, keyboard search, Escape layering and delayed organization/project loading');
       assert.equal(await dialog.getByRole('checkbox').isChecked(),false);
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/account-connect-resources.png')});
       const response = page.waitForResponse(response=>response.url().endsWith('/rpc/plugin_account') && response.request().postDataJSON()?.operation==='import');

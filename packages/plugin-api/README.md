@@ -109,7 +109,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` | Initial release |
 | `0.1.1`         | `0.1.0` | Typed slots and automatic manifest compatibility gate |
-| `0.4.0` (unreleased) | `0.2.6` | Provider connection navigation, account/service calls, provider setup/preparation, native resource UI and clipboard |
+| `0.4.0` (unreleased) | `0.2.7` | Provider connection navigation, account/service calls, provider setup/preparation, native resource UI and clipboard |
 
 ## Slot reference
 
@@ -176,10 +176,16 @@ editor URL. It never changes another connection's target, credentials or SQL tab
 Use provider-owned metadata methods to match exact project/environment/database/
 role identities before reusing an existing connection.
 
-### Provider form selection (API 0.2.6)
+### Provider form selection (API 0.2.7)
 
-`PluginSelect` uses the host's themed native form control. Pass controlled `value`,
-`onChange(value)` and `options: [{value, label}]`; empty-string values are supported.
+`PluginSelect` provides a searchable, themed combobox and popup. Pass controlled
+`value`, `onChange(value)` and `options: [{value, label, description?}]`; empty-string
+values are supported. `placeholder` is separate from the selectable options.
 Associate a visible label through `id`, or provide `ariaLabel`. Optional `disabled`
-and `ariaDescribedBy` expose prerequisites and field instructions. Fonts, corners,
-focus indicators and option colors follow the active Tabularis theme.
+and `ariaDescribedBy` expose prerequisites and field instructions. `loading` blocks
+selection, displays a spinner and announces the translated `loadingLabel`.
+
+Typing filters labels and descriptions. Arrow keys, Home/End and Enter navigate
+and select. Escape closes the popup before its containing dialog, and Tab moves
+normally to the next field. The host owns theme colors, fonts, radii, popup
+positioning and viewport bounds; plugins supply values and translated labels.

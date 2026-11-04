@@ -93,7 +93,7 @@ export function AccountWizard({
                                         <PluginSelect
                                             id={`${id}-org`}
                                             value={state.orgId}
-                                            disabled={state.pending}
+                                            disabled={state.pending && state.loading !== 'projects'}
                                             onChange={(value) =>
                                                 void browser.selectOrganization(value)
                                             }
@@ -116,19 +116,22 @@ export function AccountWizard({
                                         <PluginSelect
                                             id={`${id}-project`}
                                             value={state.projectId}
+                                            placeholder={t('account.chooseProject')}
+                                            loading={state.loading === 'projects'}
+                                            loadingLabel={t('account.loadingProjects')}
                                             disabled={state.pending || !state.projects.length}
                                             onChange={(value) => void browser.selectProject(value)}
                                             options={[
-                                                {value: '', label: t('account.chooseProject')},
                                                 ...state.projects.map((project) => ({
                                                     value: project.id,
-                                                    label: `${project.name} · ${project.regionId}`,
+                                                    label: project.name,
+                                                    description: project.regionId,
                                                 })),
                                             ]}
                                         />
                                     </div>
                                 </div>
-                                {!state.pending && state.projects.length === 0 && (
+                                {!state.pending && !state.error && state.projects.length === 0 && (
                                     <p className="neon-hint">{t('account.noProjects')}</p>
                                 )}
                                 <div>
@@ -138,17 +141,16 @@ export function AccountWizard({
                                     <PluginSelect
                                         id={`${id}-branch`}
                                         value={state.branchId}
+                                        placeholder={t(
+                                            state.projectId
+                                                ? 'account.chooseBranch'
+                                                : 'account.chooseProjectFirst',
+                                        )}
+                                        loading={state.loading === 'branches'}
+                                        loadingLabel={t('account.loadingBranches')}
                                         disabled={state.pending || !state.projectId}
                                         onChange={(value) => void browser.selectBranch(value)}
                                         options={[
-                                            {
-                                                value: '',
-                                                label: t(
-                                                    state.projectId
-                                                        ? 'account.chooseBranch'
-                                                        : 'account.chooseProjectFirst',
-                                                ),
-                                            },
                                             ...state.branches.map((branch) => ({
                                                 value: branch.id,
                                                 label: branch.name,
@@ -170,10 +172,10 @@ export function AccountWizard({
                                             <PluginSelect
                                                 id={`${id}-database`}
                                                 value={state.database}
+                                                placeholder={t('account.chooseDatabase')}
                                                 disabled={state.pending}
                                                 onChange={browser.selectDatabase}
                                                 options={[
-                                                    {value: '', label: t('account.chooseDatabase')},
                                                     ...state.resources.databases.map(
                                                         (database) => ({
                                                             value: database.name,
@@ -193,10 +195,10 @@ export function AccountWizard({
                                             <PluginSelect
                                                 id={`${id}-role`}
                                                 value={state.role}
+                                                placeholder={t('account.chooseRole')}
                                                 disabled={state.pending}
                                                 onChange={browser.selectRole}
                                                 options={[
-                                                    {value: '', label: t('account.chooseRole')},
                                                     ...state.resources.roles.map((role) => ({
                                                         value: role.name,
                                                         label: role.name,
@@ -268,11 +270,17 @@ export function AccountWizard({
                             </div>
                         </>
                     )}
-                    {state.pending && (
-                        <p role="status" className="neon-hint">
-                            {t('loading')}
-                        </p>
-                    )}
+                    {state.pending &&
+                        (!state.connected ||
+                            !['projects', 'branches'].includes(state.loading ?? '')) && (
+                            <p role="status" className="neon-hint neon-pending">
+                                {t(
+                                    state.loading === 'resources'
+                                        ? 'account.loadingResources'
+                                        : 'loading',
+                                )}
+                            </p>
+                        )}
                     {state.error && (
                         <div role="alert" className="neon-feedback neon-error">
                             {state.error}

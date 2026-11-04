@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act, renderHook, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {useAccountBrowser} from '../../src/hooks/useAccountBrowser';
+import {useAccountBrowser, type Project} from '../../src/hooks/useAccountBrowser';
 
 const {account} = vi.hoisted(() => ({
     account: {
@@ -24,6 +24,54 @@ function deferred<T>() {
 }
 
 describe('Neon account browser', () => {
+    it('keeps the newest organization loading state when an older request finishes', async () => {
+        const {result} = renderHook(() => useAccountBrowser());
+        await waitFor(() => expect(result.current.state.pending).toBe(false));
+        const first = deferred<{organizations: []; projects: Project[]}>();
+        const second = deferred<{organizations: []; projects: Project[]}>();
+        account.call.mockImplementation((_method: string, args: {orgId: string}) =>
+            args.orgId === 'first' ? first.promise : second.promise,
+        );
+        let firstRequest: Promise<void>;
+        let secondRequest: Promise<void>;
+        act(() => {
+            firstRequest = result.current.selectOrganization('first');
+        });
+        expect(result.current.state.loading).toBe('projects');
+        expect(result.current.state.projects).toEqual([]);
+        act(() => {
+            secondRequest = result.current.selectOrganization('second');
+        });
+        await act(async () => {
+            first.resolve({organizations: [], projects: []});
+            await firstRequest;
+        });
+        expect(result.current.state.pending).toBe(true);
+        expect(result.current.state.loading).toBe('projects');
+        await act(async () => {
+            second.resolve({
+                organizations: [],
+                projects: [{id: 'p2', name: 'Second', regionId: 'eu'}],
+            });
+            await secondRequest;
+        });
+        expect(result.current.state.orgId).toBe('second');
+        expect(result.current.state.projects[0].id).toBe('p2');
+        expect(result.current.state.pending).toBe(false);
+        expect(result.current.state.loading).toBeUndefined();
+    });
+
+    it('clears project loading after a discovery failure', async () => {
+        const {result} = renderHook(() => useAccountBrowser());
+        await waitFor(() => expect(result.current.state.connected).toBe(true));
+        account.call.mockRejectedValue(new Error('Network unavailable'));
+        await act(async () => {
+            await result.current.selectOrganization('team');
+        });
+        expect(result.current.state.error).toBe('Network unavailable');
+        expect(result.current.state.pending).toBe(false);
+        expect(result.current.state.loading).toBeUndefined();
+    });
     it('links only a CLI profile reference and restores the CLI authentication mode', async () => {
         const {result} = renderHook(() => useAccountBrowser());
         await waitFor(() => expect(result.current.state.connected).toBe(true));

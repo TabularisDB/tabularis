@@ -40,7 +40,7 @@ export function PluginCodeEditor(props: PluginCodeEditorProps) {
     return createElement(getHost().PluginCodeEditor, props);
 }
 
-/** Host-themed native selection for provider forms. */
+/** Searchable host selection with field-specific loading feedback. */
 export function PluginSelect(props: PluginSelectProps) {
     return createElement(getHost().PluginSelect, props);
 }

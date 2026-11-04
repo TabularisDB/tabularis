@@ -140,15 +140,18 @@ export interface TabularisHostApi {
     openUrl: (url: string) => Promise<void>;
 }
 
-/** Themed native selection for provider forms, including empty-string values. */
+/** Searchable host-themed selection for provider forms, including empty-string values. */
 export interface PluginSelectProps {
     id?: string;
     ariaLabel?: string;
     ariaDescribedBy?: string;
     value: string;
-    options: ReadonlyArray<{value: string; label: string}>;
+    options: ReadonlyArray<{value: string; label: string; description?: string}>;
     onChange: (value: string) => void;
     disabled?: boolean;
+    placeholder?: string;
+    loading?: boolean;
+    loadingLabel?: string;
 }
 
 /** Connection-scoped calls to a trusted plugin process. Secrets are write-only from UI code. */

@@ -2148,12 +2148,17 @@ Its parent supplies the height. It shares the host's lazy Monaco instance,
 editor theme and font preferences, and does not register SQL execution actions.
 Keep provider deployment, secrets and draft persistence policies in the plugin.
 
-### Native provider form controls
+### Searchable provider form controls
 
-API `0.2.6` adds `PluginSelect` for provider setup and management forms. Declare
-`api_version: "0.2.6"` before using it. The component shares the host's `StyledSelect`
-form variant and native keyboard interaction. Pass `value`, `onChange(value)` and
-`options: [{value, label}]`. Link a translated label with `id`, or pass `ariaLabel`;
-use `disabled` and `ariaDescribedBy` for dependent fields. An empty option value is
-valid, for example for a personal account. Plugins supply labels and values while
-the host owns colors, focus, fonts and corner radii.
+API `0.2.7` exposes a themed, searchable `PluginSelect` popup for provider forms.
+Declare `api_version: "0.2.7"` before using `placeholder`, `loading`, `loadingLabel`
+and option descriptions. Pass `value`, `onChange(value)` and
+`options: [{value, label, description?}]`. Empty-string values remain valid for a
+personal account; placeholders are separate from selectable values.
+
+Link a translated label with `id`, or pass `ariaLabel`; use `disabled` and
+`ariaDescribedBy` for prerequisites. Set `loading` and a translated `loadingLabel`
+while fetching dependent options. The host renders the spinner, announces the
+loading state and closes any stale popup. It also handles search, keyboard
+navigation, Escape layering, scrolling and theme colors instead of delegating
+the popup to the operating system.
