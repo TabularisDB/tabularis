@@ -1755,6 +1755,9 @@
     "showErrorDetails": "Show details",
     "hideErrorDetails": "Hide details",
     "errorBoundary": {
+      "loadTitle": "The editor could not be loaded",
+      "loadDescription": "Some editor files could not be loaded. Reload the app to fetch them again. Your saved tabs and drafts are kept.",
+      "reloadApp": "Reload app",
       "title": "The editor crashed unexpectedly",
       "description": "Something in the editor failed to render. The error is shown below — try again, or go back to your connections.",
       "retry": "Try again",

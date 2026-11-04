@@ -93,10 +93,26 @@ try {
     await page.goto(origin);
     await page.getByRole('button', { name: 'Maybe later', exact: true }).click({ timeout: 10000 }).catch(() => {});
     await page.getByRole('button', {name:'Dismiss',exact:true}).click().catch(() => {});
+    let failedEditorImport=false;
+    let blockEditorImport=true;
+    await page.route('**/assets/ConnectionEditorRoute-*.js',async route=>{
+      if(blockEditorImport){failedEditorImport=true;await route.fulfill({status:503,contentType:'text/javascript',body:''});}
+      else await route.continue();
+    });
     await page.getByText('Neon Core E2E', { exact: true }).dblclick();
+    await page.getByRole('heading',{name:'The editor could not be loaded',exact:true}).waitFor();
+    assert(failedEditorImport,'Editor module failure was not exercised');
+    assert.equal(await page.getByRole('button',{name:'Close current tab',exact:true}).count(),0);
+    await page.screenshot({path:fileURLToPath(new URL('../artifacts/editor-import-recovery.png',import.meta.url))});
+    await page.getByRole('button',{name:'Back to connections',exact:true}).click();
+    await page.locator(`[data-connection-id="${connectionId}"]`).getByText('Neon Core E2E',{exact:true}).dblclick();
+    await page.getByRole('heading',{name:'The editor could not be loaded',exact:true}).waitFor();
+    blockEditorImport=false;
+    await page.getByRole('button',{name:'Reload app',exact:true}).click();
     const services = page.locator('[data-slot="explorer.services"]');
     const overview = services.getByRole('button', {name:'Overview',exact:true});
     await overview.waitFor({timeout:30000});
+    console.log('PASS failed editor import shows recovery UI; Back and Reload preserve the connection and restore the editor');
     assert.equal(await page.locator('[data-provider-action]').count(), 0, 'Provider card remains in native explorer');
     assert.equal(await page.locator('[data-slot="explorer.connection.actions"]').count(), 1, 'Branch selector is missing from the connection header');
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-launcher.png',import.meta.url))});

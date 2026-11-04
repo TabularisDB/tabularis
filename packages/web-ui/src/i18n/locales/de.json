@@ -1703,6 +1703,9 @@
     "showErrorDetails": "Details anzeigen",
     "hideErrorDetails": "Details ausblenden",
     "errorBoundary": {
+      "loadTitle": "Der Editor konnte nicht geladen werden",
+      "loadDescription": "Einige Editor-Dateien konnten nicht geladen werden. Lade die App neu, um sie erneut abzurufen. Gespeicherte Tabs und Entwürfe bleiben erhalten.",
+      "reloadApp": "App neu laden",
       "title": "Der Editor ist unerwartet abgestürzt",
       "description": "Etwas im Editor konnte nicht gerendert werden. Der Fehler wird unten angezeigt — versuche es erneut oder kehre zu deinen Verbindungen zurück.",
       "retry": "Erneut versuchen",
