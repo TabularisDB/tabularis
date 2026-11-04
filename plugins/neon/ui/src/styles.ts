@@ -95,6 +95,11 @@ export const styles = `
 .neon-field-list code {font-family:var(--font-mono);overflow-wrap:anywhere}
 .neon-account {padding:20px;height:auto;min-height:100%;overflow:visible;box-sizing:border-box}
 .neon-account > h3 {margin:0 0 10px;font-size:14px}
+.neon-account-form {display:grid;gap:16px;margin-top:20px}
+.neon-account-form .neon-columns {gap:16px}
+.neon-account-form .neon-field-label {margin:0 0 7px;font-weight:500}
+.neon-account-actions {display:flex;justify-content:space-between;align-items:center;gap:12px;padding-top:16px;margin-top:20px;border-top:1px solid var(--border-default)}
+.neon-account-actions .neon-button {min-height:36px;padding:8px 14px}
 .neon-account-connected {display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0 4px;padding:10px 0;border-top:1px solid var(--border-default);border-bottom:1px solid var(--border-default)}
 .neon-account-service-warning {display:block;margin-top:4px;font-size:11px;color:var(--text-muted);line-height:1.5;overflow-wrap:anywhere}
 .neon-account .neon-account-subtitle {font-size:12px;margin:20px 0 8px}

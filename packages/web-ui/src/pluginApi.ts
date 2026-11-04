@@ -57,3 +57,6 @@ export type {PluginDataGridProps} from './types/pluginDataGrid';
 
 export {usePluginAccount} from './hooks/usePluginAccount';
 export type {UsePluginAccountReturn, PluginAccountImportResult} from './types/pluginAccount';
+
+export {PluginSelect} from './components/plugins/PluginSelect';
+export type {PluginSelectProps} from './types/pluginSelect';

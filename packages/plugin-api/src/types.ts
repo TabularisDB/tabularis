@@ -119,6 +119,7 @@ export type PluginTranslator = (key: string, options?: Record<string, unknown>) 
  * import the named hooks/helpers from `@tabularis/plugin-api` instead.
  */
 export interface TabularisHostApi {
+    PluginSelect: ComponentType<PluginSelectProps>;
     copyText: (text: string) => Promise<void>;
     PluginResourceList: ComponentType<PluginResourceListProps>;
     PluginCodeEditor: ComponentType<PluginCodeEditorProps>;
@@ -137,6 +138,17 @@ export interface TabularisHostApi {
     usePluginModal: () => UsePluginModalReturn;
     usePluginTheme: () => UsePluginThemeReturn;
     openUrl: (url: string) => Promise<void>;
+}
+
+/** Themed native selection for provider forms, including empty-string values. */
+export interface PluginSelectProps {
+    id?: string;
+    ariaLabel?: string;
+    ariaDescribedBy?: string;
+    value: string;
+    options: ReadonlyArray<{value: string; label: string}>;
+    onChange: (value: string) => void;
+    disabled?: boolean;
 }
 
 /** Connection-scoped calls to a trusted plugin process. Secrets are write-only from UI code. */

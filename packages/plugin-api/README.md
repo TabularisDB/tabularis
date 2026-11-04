@@ -109,7 +109,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` | Initial release |
 | `0.1.1`         | `0.1.0` | Typed slots and automatic manifest compatibility gate |
-| `0.4.0` (unreleased) | `0.2.5` | Provider connection navigation, account/service calls, provider setup/preparation, native resource UI and clipboard |
+| `0.4.0` (unreleased) | `0.2.6` | Provider connection navigation, account/service calls, provider setup/preparation, native resource UI and clipboard |
 
 ## Slot reference
 
@@ -175,3 +175,11 @@ the ordinary connect/rollback lifecycle, then navigates to the connection's own
 editor URL. It never changes another connection's target, credentials or SQL tabs.
 Use provider-owned metadata methods to match exact project/environment/database/
 role identities before reusing an existing connection.
+
+### Provider form selection (API 0.2.6)
+
+`PluginSelect` uses the host's themed native form control. Pass controlled `value`,
+`onChange(value)` and `options: [{value, label}]`; empty-string values are supported.
+Associate a visible label through `id`, or provide `ariaLabel`. Optional `disabled`
+and `ariaDescribedBy` expose prerequisites and field instructions. Fonts, corners,
+focus indicators and option colors follow the active Tabularis theme.

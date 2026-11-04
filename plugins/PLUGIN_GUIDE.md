@@ -2147,3 +2147,13 @@ components. Older plugin bundles remain supported by the newer host.
 Its parent supplies the height. It shares the host's lazy Monaco instance,
 editor theme and font preferences, and does not register SQL execution actions.
 Keep provider deployment, secrets and draft persistence policies in the plugin.
+
+### Native provider form controls
+
+API `0.2.6` adds `PluginSelect` for provider setup and management forms. Declare
+`api_version: "0.2.6"` before using it. The component shares the host's `StyledSelect`
+form variant and native keyboard interaction. Pass `value`, `onChange(value)` and
+`options: [{value, label}]`. Link a translated label with `id`, or pass `ariaLabel`;
+use `disabled` and `ariaDescribedBy` for dependent fields. An empty option value is
+valid, for example for a personal account. Plugins supply labels and values while
+the host owns colors, focus, fonts and corner radii.

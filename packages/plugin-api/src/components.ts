@@ -7,6 +7,7 @@ import type {
     PluginDataGridProps,
     PluginResourceListProps,
     PluginCodeEditorProps,
+    PluginSelectProps,
 } from './types';
 
 /** A prominent, accessible provider action styled by the host. */
@@ -37,4 +38,9 @@ export function PluginResourceList(props: PluginResourceListProps) {
 /** The host's themed Monaco editor for non-SQL source and configuration. */
 export function PluginCodeEditor(props: PluginCodeEditorProps) {
     return createElement(getHost().PluginCodeEditor, props);
+}
+
+/** Host-themed native selection for provider forms. */
+export function PluginSelect(props: PluginSelectProps) {
+    return createElement(getHost().PluginSelect, props);
 }

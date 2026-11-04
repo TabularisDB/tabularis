@@ -159,6 +159,7 @@
     "noProjects": "No projects are available in this scope. Select an organization or check your account permissions.",
     "branch": "Branch",
     "chooseBranch": "Choose a branch",
+    "chooseProjectFirst": "Choose a project first",
     "database": "Database",
     "chooseDatabase": "Choose a database",
     "role": "Database role",

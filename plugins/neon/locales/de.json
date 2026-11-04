@@ -159,6 +159,7 @@
     "noProjects": "In diesem Bereich sind keine Projekte verfügbar. Wähle eine Organisation oder prüfe die Berechtigungen deines Kontos.",
     "branch": "Branch",
     "chooseBranch": "Branch auswählen",
+    "chooseProjectFirst": "Zuerst ein Projekt auswählen",
     "database": "Datenbank",
     "chooseDatabase": "Datenbank auswählen",
     "role": "Datenbankrolle",

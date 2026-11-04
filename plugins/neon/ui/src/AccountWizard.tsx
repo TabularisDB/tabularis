@@ -1,5 +1,5 @@
 import {useId, useState} from 'react';
-import {usePluginTranslation} from '@tabularis/plugin-api';
+import {PluginSelect, usePluginTranslation} from '@tabularis/plugin-api';
 import {useAccountBrowser} from './hooks/useAccountBrowser';
 import {styles} from './styles';
 import {AccountAuthentication} from './components/AccountAuthentication';
@@ -84,70 +84,79 @@ export function AccountWizard({
                     )}
                     {state.connected && (
                         <>
-                            <div className="neon-columns">
-                                <div>
-                                    <label className="neon-field-label" htmlFor={`${id}-org`}>
-                                        {t('account.organization')}
-                                    </label>
-                                    <select
-                                        id={`${id}-org`}
-                                        className="neon-field"
-                                        value={state.orgId}
-                                        disabled={state.pending}
-                                        onChange={(event) =>
-                                            void browser.selectOrganization(event.target.value)
-                                        }
-                                    >
-                                        <option value="">{t('account.personal')}</option>
-                                        {state.organizations.map((org) => (
-                                            <option key={org.id} value={org.id}>
-                                                {org.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                            <div className="neon-account-form">
+                                <div className="neon-columns">
+                                    <div>
+                                        <label className="neon-field-label" htmlFor={`${id}-org`}>
+                                            {t('account.organization')}
+                                        </label>
+                                        <PluginSelect
+                                            id={`${id}-org`}
+                                            value={state.orgId}
+                                            disabled={state.pending}
+                                            onChange={(value) =>
+                                                void browser.selectOrganization(value)
+                                            }
+                                            options={[
+                                                {value: '', label: t('account.personal')},
+                                                ...state.organizations.map((org) => ({
+                                                    value: org.id,
+                                                    label: org.name,
+                                                })),
+                                            ]}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label
+                                            className="neon-field-label"
+                                            htmlFor={`${id}-project`}
+                                        >
+                                            {t('account.project')}
+                                        </label>
+                                        <PluginSelect
+                                            id={`${id}-project`}
+                                            value={state.projectId}
+                                            disabled={state.pending || !state.projects.length}
+                                            onChange={(value) => void browser.selectProject(value)}
+                                            options={[
+                                                {value: '', label: t('account.chooseProject')},
+                                                ...state.projects.map((project) => ({
+                                                    value: project.id,
+                                                    label: `${project.name} · ${project.regionId}`,
+                                                })),
+                                            ]}
+                                        />
+                                    </div>
                                 </div>
+                                {!state.pending && state.projects.length === 0 && (
+                                    <p className="neon-hint">{t('account.noProjects')}</p>
+                                )}
                                 <div>
-                                    <label className="neon-field-label" htmlFor={`${id}-project`}>
-                                        {t('account.project')}
+                                    <label className="neon-field-label" htmlFor={`${id}-branch`}>
+                                        {t('account.branch')}
                                     </label>
-                                    <select
-                                        id={`${id}-project`}
-                                        className="neon-field"
-                                        value={state.projectId}
-                                        disabled={state.pending || !state.projects.length}
-                                        onChange={(event) =>
-                                            void browser.selectProject(event.target.value)
-                                        }
-                                    >
-                                        <option value="">{t('account.chooseProject')}</option>
-                                        {state.projects.map((project) => (
-                                            <option key={project.id} value={project.id}>
-                                                {project.name} · {project.regionId}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <PluginSelect
+                                        id={`${id}-branch`}
+                                        value={state.branchId}
+                                        disabled={state.pending || !state.projectId}
+                                        onChange={(value) => void browser.selectBranch(value)}
+                                        options={[
+                                            {
+                                                value: '',
+                                                label: t(
+                                                    state.projectId
+                                                        ? 'account.chooseBranch'
+                                                        : 'account.chooseProjectFirst',
+                                                ),
+                                            },
+                                            ...state.branches.map((branch) => ({
+                                                value: branch.id,
+                                                label: branch.name,
+                                            })),
+                                        ]}
+                                    />
                                 </div>
                             </div>
-                            {!state.pending && state.projects.length === 0 && (
-                                <p className="neon-hint">{t('account.noProjects')}</p>
-                            )}
-                            <label className="neon-field-label" htmlFor={`${id}-branch`}>
-                                {t('account.branch')}
-                            </label>
-                            <select
-                                id={`${id}-branch`}
-                                className="neon-field"
-                                value={state.branchId}
-                                disabled={state.pending || !state.projectId}
-                                onChange={(event) => void browser.selectBranch(event.target.value)}
-                            >
-                                <option value="">{t('account.chooseBranch')}</option>
-                                {state.branches.map((branch) => (
-                                    <option key={branch.id} value={branch.id}>
-                                        {branch.name}
-                                    </option>
-                                ))}
-                            </select>
                             {state.resources && (
                                 <>
                                     <div className="neon-columns">
@@ -158,27 +167,21 @@ export function AccountWizard({
                                             >
                                                 {t('account.database')}
                                             </label>
-                                            <select
+                                            <PluginSelect
                                                 id={`${id}-database`}
-                                                className="neon-field"
                                                 value={state.database}
                                                 disabled={state.pending}
-                                                onChange={(event) =>
-                                                    browser.selectDatabase(event.target.value)
-                                                }
-                                            >
-                                                <option value="">
-                                                    {t('account.chooseDatabase')}
-                                                </option>
-                                                {state.resources.databases.map((database) => (
-                                                    <option
-                                                        key={database.name}
-                                                        value={database.name}
-                                                    >
-                                                        {database.name}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                                onChange={browser.selectDatabase}
+                                                options={[
+                                                    {value: '', label: t('account.chooseDatabase')},
+                                                    ...state.resources.databases.map(
+                                                        (database) => ({
+                                                            value: database.name,
+                                                            label: database.name,
+                                                        }),
+                                                    ),
+                                                ]}
+                                            />
                                         </div>
                                         <div>
                                             <label
@@ -187,22 +190,19 @@ export function AccountWizard({
                                             >
                                                 {t('account.role')}
                                             </label>
-                                            <select
+                                            <PluginSelect
                                                 id={`${id}-role`}
-                                                className="neon-field"
                                                 value={state.role}
                                                 disabled={state.pending}
-                                                onChange={(event) =>
-                                                    browser.selectRole(event.target.value)
-                                                }
-                                            >
-                                                <option value="">{t('account.chooseRole')}</option>
-                                                {state.resources.roles.map((role) => (
-                                                    <option key={role.name} value={role.name}>
-                                                        {role.name}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                                onChange={browser.selectRole}
+                                                options={[
+                                                    {value: '', label: t('account.chooseRole')},
+                                                    ...state.resources.roles.map((role) => ({
+                                                        value: role.name,
+                                                        label: role.name,
+                                                    })),
+                                                ]}
+                                            />
                                         </div>
                                     </div>
                                     <h3 className="neon-account-subtitle">
@@ -248,15 +248,7 @@ export function AccountWizard({
                                     <p className="neon-hint">{t('account.credentialsHint')}</p>
                                 </>
                             )}
-                            <div className="neon-row">
-                                <button
-                                    type="button"
-                                    className="neon-button neon-button-primary"
-                                    disabled={state.pending || !ready}
-                                    onClick={() => void browser.importConnection(createCredentials)}
-                                >
-                                    {t('account.import')}
-                                </button>
+                            <div className="neon-account-actions">
                                 <button
                                     type="button"
                                     className="neon-button neon-button-quiet"
@@ -264,6 +256,14 @@ export function AccountWizard({
                                     onClick={() => void browser.reload()}
                                 >
                                     {t('refresh')}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="neon-button neon-button-primary"
+                                    disabled={state.pending || !ready}
+                                    onClick={() => void browser.importConnection(createCredentials)}
+                                >
+                                    {t('account.import')}
                                 </button>
                             </div>
                         </>

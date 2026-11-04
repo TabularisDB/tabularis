@@ -132,6 +132,19 @@ try {
       assert.equal(await page.getByText(/^Connection string$/i).count(),0);
       assert.equal(await page.getByRole('button',{name:'Test Connection',exact:true}).count(),0);
       assert.equal(await page.getByRole('button',{name:'Save',exact:true}).count(),0);
+      assert(await dialog.getByLabel('Branch',{exact:true}).isDisabled());
+      assert.equal(await dialog.getByLabel('Branch',{exact:true}).textContent(),'Choose a project first');
+      const controlStyle = await dialog.getByLabel('Organization',{exact:true}).evaluate(select => {
+        const style = getComputedStyle(select);
+        return {appearance:style.appearance,background:style.backgroundColor,height:select.getBoundingClientRect().height};
+      });
+      assert.equal(controlStyle.appearance,'none','Provider selection still uses the browser-painted control');
+      assert(controlStyle.height>=32,'Provider selection is too small for a form');
+      await page.setViewportSize({width:390,height:740});
+      const form = await dialog.locator('.neon-account-form').evaluate(element=>({width:element.clientWidth,scroll:element.scrollWidth}));
+      assert(form.scroll<=form.width+1,'Provider selection overflows a narrow dialog');
+      await page.screenshot({path:resolve(root,'plugins/neon/artifacts/account-form-mobile.png')});
+      await page.setViewportSize({width:1280,height:860});
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/provider-setup-neon.png')});
       await dialog.getByLabel('Organization',{exact:true}).selectOption(orgId);
       await dialog.getByLabel('Project',{exact:true}).selectOption(projectId);

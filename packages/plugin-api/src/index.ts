@@ -62,6 +62,7 @@ export {
     PluginDataGrid,
     PluginResourceList,
     PluginCodeEditor,
+    PluginSelect,
 } from './components';
 export type {
     PluginConnectionActionProps,
@@ -69,6 +70,7 @@ export type {
     PluginDataGridProps,
     PluginResourceListProps,
     PluginCodeEditorProps,
+    PluginSelectProps,
     PluginWorkspaceShellProps,
     OpenPluginWorkspaceOptions,
     UsePluginWorkspaceReturn,

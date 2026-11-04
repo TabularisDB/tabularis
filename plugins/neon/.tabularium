@@ -90,34 +90,34 @@
       "module": "ui/dist/index.js",
       "driver": "neon",
       "order": 30,
-      "api_version": "0.2.5"
+      "api_version": "0.2.6"
     },
     {
       "slot": "explorer.services",
       "module": "ui/dist/index.js",
       "driver": "neon",
       "order": 30,
-      "api_version": "0.2.5"
+      "api_version": "0.2.6"
     },
     {
       "slot": "settings.plugin.actions",
       "module": "ui/dist/index.js",
       "order": 30,
-      "api_version": "0.2.5"
+      "api_version": "0.2.6"
     },
     {
       "slot": "editor.workspace.content",
       "module": "ui/dist/workspace.js",
       "driver": "neon",
       "order": 30,
-      "api_version": "0.2.5"
+      "api_version": "0.2.6"
     },
     {
       "slot": "explorer.connection.actions",
       "module": "ui/dist/branch-selector.js",
       "driver": "neon",
       "order": 30,
-      "api_version": "0.2.5"
+      "api_version": "0.2.6"
     }
   ],
   "kind": "driver",
