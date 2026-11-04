@@ -207,6 +207,39 @@ The latest run passed activation as well as creation, initial invocation, rename
 clipboard, Auth role changes and deletion. Polling is bounded so persistent stale
 revisions remain test failures.
 
+## Usage & limits
+
+Overview reads `account_usage` through the connected Neon account (API key or
+refreshable CLI profile). It is a read-only operation; all provider requests are
+GETs and it never changes quotas, a plan, budgets or service configuration.
+
+- Project and selected-branch v2 consumption are separately scoped. Their API
+  reporting window, granularity, latest reported interval and fetch time are shown.
+  Only complete UTC intervals inside the API retention window are aggregated;
+  missing samples stay unknown. Omitted metrics in returned samples are documented
+  zeros. A plan transition does not discard valid intervals in the requested range.
+- Current project quota counters are explicitly separate from billing consumption.
+  Branch logical size is a current byte snapshot; storage history is GB-months.
+  Returned resource caps are enforcement ceilings, not included plan allowances.
+  Warnings begin at 80%, with a separate reached/exceeded state and scope labels.
+- The organization's spending-limit endpoint supplies a monthly notification cap.
+  Null means not configured; denied/unavailable responses do not mean unlimited.
+  This cap does not stop usage. The API returns cents without a currency code, so
+  none is inferred. Invoice totals, accrued costs and remaining budget are not
+  calculated from public list prices or fabricated when not exposed.
+- Auth MAU quotas, Object Storage metering, AI credits, Realtime quotas and
+  plan-included allowances remain explicitly unavailable through the APIs used.
+  Use the correctly scoped Neon Console link for account billing details.
+
+Sources: [project/branch consumption](https://neon.com/docs/guides/consumption-metrics),
+[project quota fields](https://neon.com/docs/reference/api/projects/get-project),
+[organization spending limit](https://neon.com/docs/reference/api/organizations/get-organization-spending-limit).
+
+`tests/usage.mjs` covers scope, units, periods, plan transitions, permissions and
+missing values. UI tests cover quota warnings and unknown values. The account
+browser E2E exercises live metrics, saved Overview restoration, and light/dark/
+high-contrast layouts at desktop and 390px with the Explorer collapsed.
+
 ## Branches per connection
 
 The native Explorer header shows the active project's branch selector. **Manage

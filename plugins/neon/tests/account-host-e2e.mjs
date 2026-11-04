@@ -204,7 +204,44 @@ try {
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/account-connect-imported.png')});
       console.log('PASS Add Connection → Neon plugin auth, branch/service selection and immediate connection-list refresh');
       await page.locator(`[data-connection-id="${imported.id}"]`).getByText(alias,{exact:true}).dblclick();
+      const usageRead=page.waitForResponse(response=>response.url().endsWith('/rpc/plugin_account')&&response.request().postDataJSON()?.method==='account_usage');
       await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Overview',exact:true}).click();
+      const usageEnvelope=await(await usageRead).json();assert(usageEnvelope.ok,'Live usage request failed');
+      const usageData=usageEnvelope.data;
+      assert.equal(usageData.project.id,projectId);assert.equal(usageData.branch.id,branchId);assert.equal(usageData.organization.id,orgId);
+      assert.equal(usageData.history.project.status,'ready');assert.equal(usageData.history.branch.status,'ready');
+      assert.equal(usageData.budget.spentCents,null);
+      const usage=page.locator(`[data-usage-project-id="${projectId}"][data-usage-branch-id="${branchId}"]`);
+      await usage.waitFor();
+      assert(await usage.getByText('Invoice totals and remaining budget are unavailable here. Check the Neon Console for billing amounts.',{exact:true}).isVisible());
+      const showUsageDetails=async()=>{
+        for(const title of ['Resource caps and headroom','Consumption by scope']){
+          const summary=usage.locator('summary').filter({hasText:new RegExp('^'+title+'$')});
+          if(!(await summary.locator('..').evaluate(element=>element.open)))await summary.click();
+        }
+      };
+      await showUsageDetails();
+      await usage.getByRole('progressbar',{name:'Branch logical size',exact:true}).waitFor();
+      await page.screenshot({path:resolve(root,'plugins/neon/artifacts/usage-dark.png')});
+      for(let attempt=0;attempt<60;attempt++){
+        const prefs=await rpc('load_editor_preferences',{connectionId:imported.id});
+        if(prefs?.tabs?.some(tab=>tab.id===prefs.active_tab_id && tab.workspaceId==='services'))break;
+        if(attempt===59)throw Error('Usage overview was not persisted');
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      for(const theme of ['tabularis-light','high-contrast','tabularis-dark']){
+        await rpc('save_config',{config:{theme,followSystemTheme:false}});await page.reload();await usage.waitFor();
+        const collapse=page.getByRole('button',{name:'Collapse Explorer',exact:true});
+        if(await collapse.count())await collapse.click();
+        await showUsageDetails();await page.setViewportSize({width:390,height:740});
+        await usage.scrollIntoViewIfNeeded();
+        const layout=await usage.evaluate(element=>({scroll:element.scrollWidth,width:element.clientWidth}));
+        await page.screenshot({path:resolve(root,`plugins/neon/artifacts/usage-${theme}-mobile.png`)});
+        assert(layout.scroll<=layout.width+1,`${theme}: usage overflows the workspace (${layout.scroll}/${layout.width})`);
+        await page.setViewportSize({width:1280,height:860});
+      }
+      await page.getByRole('button',{name:/expand explorer/i}).click();
+      console.log('PASS live Usage & limits: scoped v2 metrics, real caps, unavailable invoice totals, persisted overview and three responsive themes');
       await page.locator('.neon-panel').getByRole('button',{name:'Manage branches',exact:true}).click();
       await page.locator('[data-workspace-header]').getByRole('heading',{name:'Branches',exact:true}).waitFor();
       await page.getByRole('button',{name:branchName,exact:true}).waitFor();

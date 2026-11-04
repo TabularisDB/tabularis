@@ -26,6 +26,7 @@ import {PanelSection, ResultPlaceholder} from './components/PanelSection';
 import {BranchesManager} from './BranchesManager';
 import {FunctionsManager} from './FunctionsManager';
 import {AuthManager} from './AuthManager';
+import {UsagePanel} from './UsagePanel';
 
 interface ConnectedProps {
     connectionId: string;
@@ -176,6 +177,7 @@ function Overview({connectionId}: ConnectedProps) {
             </div>
             <Feedback {...task} />
             <Feedback {...navigation} />
+            <UsagePanel connectionId={connectionId} />
             {task.data && (
                 <>
                     <dl className="neon-summary-strip">

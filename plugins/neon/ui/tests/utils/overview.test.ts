@@ -3,6 +3,7 @@ import {createElement, type ReactNode} from 'react';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {NeonPanel} from '../../src/NeonPanel';
+vi.mock('../../src/UsagePanel', () => ({UsagePanel: () => null}));
 
 const {rpc, workspace, t} = vi.hoisted(() => ({
     rpc: {call: vi.fn()},

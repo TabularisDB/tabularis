@@ -4,8 +4,9 @@ import { branchMethods, manageBranches } from './branches.js';
 import { cliCredential } from './cliAuth.js';
 import { withFunctionMutation } from './managementQueue.js';
 import { manage, managementMethods, ManagementError } from './management.js';
+import {readUsage} from './usage.js';
 
-const methods = new Set(['account_projects', 'account_branches', 'account_resources', 'account_import']);
+const methods = new Set(['account_projects', 'account_branches', 'account_resources', 'account_import', 'account_usage']);
 const apiBase = 'https://console.neon.tech/api/v2';
 
 function id(value: unknown, name: string): string {
@@ -100,6 +101,7 @@ export async function account(
       return { branches: branches.map(({ id, name }) => ({ id, name })) };
     }
     const branchScope = { projectId: scope.projectId, branchId: id(args.branchId, 'branch') };
+    if (method === 'account_usage') return await readUsage(client,branchScope);
     if (branchMethods.has(method)) return await manageBranches(client, method, args, branchScope);
     if (managementMethods.has(method)) {
       const action = () => manage(client, method, args, branchScope, fetcher);
