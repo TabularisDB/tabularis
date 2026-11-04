@@ -245,6 +245,7 @@ enum AiRpcCommand {
     GenerateQuery,
     ExplainQuery,
     AnalyzeExplainPlan,
+    AnalyzeCrashReport,
     GenerateCellName,
     GenerateTabRename,
     SuggestTableName,
@@ -308,6 +309,8 @@ enum ProductivityRpcCommand {
     SaveQuery,
     UpdateSavedQuery,
     DeleteSavedQuery,
+    GetSavedQueryVersions,
+    RestoreSavedQueryVersion,
     GetSavedQueryFolders,
     CreateSavedQueryFolder,
     RenameSavedQueryFolder,
@@ -2224,6 +2227,7 @@ impl AiRpcCommand {
             "generate_ai_query" => Self::GenerateQuery,
             "explain_ai_query" => Self::ExplainQuery,
             "analyze_ai_explain_plan" => Self::AnalyzeExplainPlan,
+            "analyze_ai_crash_report" => Self::AnalyzeCrashReport,
             "generate_cell_name" => Self::GenerateCellName,
             "generate_tab_rename" => Self::GenerateTabRename,
             "suggest_table_name" => Self::SuggestTableName,
@@ -2332,6 +2336,8 @@ impl ProductivityRpcCommand {
             "save_query" => Self::SaveQuery,
             "update_saved_query" => Self::UpdateSavedQuery,
             "delete_saved_query" => Self::DeleteSavedQuery,
+            "get_saved_query_versions" => Self::GetSavedQueryVersions,
+            "restore_saved_query_version" => Self::RestoreSavedQueryVersion,
             "get_saved_query_folders" => Self::GetSavedQueryFolders,
             "create_saved_query_folder" => Self::CreateSavedQueryFolder,
             "rename_saved_query_folder" => Self::RenameSavedQueryFolder,
@@ -2616,6 +2622,10 @@ fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, St
         AiRpcCommand::AnalyzeExplainPlan => {
             let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
             AiCommand::AnalyzeExplainPlan(request.req)
+        }
+        AiRpcCommand::AnalyzeCrashReport => {
+            let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
+            AiCommand::AnalyzeCrashReport(request.req)
         }
         AiRpcCommand::GenerateCellName => {
             let request: AiRequest<crate::ai::AiCellNameRequest> = decode_payload(body)?;
@@ -3092,6 +3102,21 @@ fn decode_productivity_command(
             ProductivityCommand::DeleteSavedQuery {
                 connection_id: Some(request.connection_id),
                 id: request.id,
+            }
+        }
+        ProductivityRpcCommand::GetSavedQueryVersions => {
+            let request: ConnectionItemRequest = decode_payload(body)?;
+            ProductivityCommand::GetSavedQueryVersions {
+                connection_id: Some(request.connection_id),
+                id: request.id,
+            }
+        }
+        ProductivityRpcCommand::RestoreSavedQueryVersion => {
+            let request: RestoreSavedQueryVersionRequest = decode_payload(body)?;
+            ProductivityCommand::RestoreSavedQueryVersion {
+                connection_id: Some(request.connection_id),
+                id: request.id,
+                version_id: request.version_id,
             }
         }
         ProductivityRpcCommand::GetSavedQueryFolders => {
@@ -4346,6 +4371,14 @@ struct RenameSavedQueryFolderRequest {
     connection_id: String,
     id: String,
     name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RestoreSavedQueryVersionRequest {
+    connection_id: String,
+    id: String,
+    version_id: String,
 }
 
 #[derive(Debug, Deserialize)]

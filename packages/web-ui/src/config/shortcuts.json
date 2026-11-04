@@ -140,6 +140,16 @@
     "overridable": true
   },
   {
+    "id": "find_in_grid",
+    "category": "data_grid",
+    "defaultMac": "⌘+F",
+    "defaultWin": "Ctrl+F",
+    "macMatch": {"metaKey": true, "key": "f", "code": "KeyF"},
+    "winMatch": {"ctrlKey": true, "key": "f", "code": "KeyF"},
+    "i18nKey": "settings.shortcuts.findInGrid",
+    "overridable": true
+  },
+  {
     "id": "extend_cell_range_to_edge",
     "category": "data_grid",
     "defaultMac": "⌘+Shift+↑↓←→",

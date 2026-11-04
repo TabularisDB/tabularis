@@ -20,6 +20,7 @@ export interface CleanedTab {
     sortClause?: string;
     limitClause?: number;
     pageSize?: number;
+    transposed?: boolean;
     autoRefreshIntervalMs?: Tab['autoRefreshIntervalMs'];
     queryParams?: Record<string, string>;
     pluginId?: string;
@@ -30,6 +31,7 @@ export interface CleanedTab {
     sourceFilePath?: string;
     sourceFileContent?: string;
     sourceFileDirty?: boolean;
+    pinned?: boolean;
 }
 
 /**
@@ -71,6 +73,7 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
         sortClause: tab.sortClause,
         limitClause: tab.limitClause,
         pageSize: tab.pageSize,
+        transposed: tab.transposed,
         autoRefreshIntervalMs: normalizeAutoRefreshInterval(tab.autoRefreshIntervalMs),
         queryParams: tab.queryParams,
         notebookId: tab.notebookId,
@@ -79,6 +82,7 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
         sourceFilePath: tab.sourceFilePath,
         sourceFileContent: tab.sourceFileContent,
         sourceFileDirty: tab.sourceFileDirty,
+        pinned: tab.pinned,
     };
 }
 

@@ -100,11 +100,28 @@ export interface ConnectionParams {
     startup_script?: string;
     /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
     pooler_mode?: string;
+    /** Seconds to wait for a new connection; unset keeps the driver default. */
+    connect_timeout_secs?: number;
     /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
      * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
     extra?: Record<string, string>;
     /** Optional proxy override for this connection. */
     proxy?: ProxyOverride;
+}
+
+/** Upper bound for `connect_timeout_secs`; the backend reads it as a u32. */
+export const MAX_CONNECT_TIMEOUT_SECS = 3600;
+
+/**
+ * Parse the connect timeout field into whole seconds in
+ * [0, MAX_CONNECT_TIMEOUT_SECS]. Empty or non-numeric input (including
+ * overflow such as `1e999`) returns undefined, which keeps the driver default.
+ */
+export function parseConnectTimeoutSecs(raw: string): number | undefined {
+    if (raw.trim() === '') return undefined;
+    const secs = Number(raw);
+    if (!Number.isFinite(secs)) return undefined;
+    return Math.min(MAX_CONNECT_TIMEOUT_SECS, Math.max(0, Math.floor(secs)));
 }
 
 /**
@@ -310,7 +327,8 @@ export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string 
  *
  * `labels` carries the translated strings the subtitle may need: the
  * "all databases" label (multi-db connection with no explicit selection)
- * and the "{{n}} databases" counter. Untranslated fallbacks apply when
+ * and the "{{n}} databases" counter for two or more selected databases (a
+ * single selected one is shown by name). Untranslated fallbacks apply when
  * omitted.
  *
  * "All databases" is detected with `hasOptedIntoDatabaseSelection`, the same
@@ -330,11 +348,12 @@ export function connectionSubtitle(
     const selection = Array.isArray(db) ? db : typeof db === 'string' ? db.trim() : '';
     const isAllDatabases =
         selection.length === 0 && hasOptedIntoDatabaseSelection(capabilities, selection);
-    const dbStr = isAllDatabases
-        ? (labels?.allDatabases ?? 'All databases')
-        : Array.isArray(db)
-          ? (labels?.databaseCount?.(db.length) ?? `${db.length} databases`)
-          : db;
+    let dbStr: string;
+    if (isAllDatabases) dbStr = labels?.allDatabases ?? 'All databases';
+    else if (!Array.isArray(db)) dbStr = db;
+    // A single selected database is named, as when it is stored as a string.
+    else if (db.length === 1) dbStr = db[0];
+    else dbStr = labels?.databaseCount?.(db.length) ?? `${db.length} databases`;
     return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
 }
 
