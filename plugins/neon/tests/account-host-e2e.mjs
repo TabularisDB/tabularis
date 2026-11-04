@@ -203,9 +203,15 @@ try {
       assert.deepEqual(errors,[]);
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/account-connect-imported.png')});
       console.log('PASS Add Connection → Neon plugin auth, branch/service selection and immediate connection-list refresh');
+      await page.locator(`[data-connection-id="${imported.id}"]`).getByText(alias,{exact:true}).dblclick();
+      await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Overview',exact:true}).click();
+      await page.locator('.neon-panel').getByRole('button',{name:'Manage branches',exact:true}).click();
+      await page.locator('[data-workspace-header]').getByRole('heading',{name:'Branches',exact:true}).waitFor();
+      await page.getByRole('button',{name:branchName,exact:true}).waitFor();
+      assert.equal(await page.getByText(/Missing NEON_API_KEY|run neon deploy|Requires the optional NEON_PROJECT_ID/).count(),0);
+      console.log('PASS Overview opens connection-scoped branch management through CLI login without a service API key');
       if (process.env.NEON_ACCOUNT_TEST_EDITOR === '1') {
         try {
-        await page.getByText(alias, {exact:true}).dblclick();
         await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Functions',exact:true}).click();
         await page.getByRole('button',{name:'New function',exact:true}).click();
         await selectProviderOption(page, page.getByLabel('Language',{exact:true}), 'typescript');

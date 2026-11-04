@@ -27,8 +27,6 @@
   "branch": "Branch",
   "configured": "Configured",
   "needsSetup": "Needs setup",
-  "loadBranches": "Load project branches",
-  "branchesHint": "Requires the optional NEON_PROJECT_ID and NEON_API_KEY credentials. Branches are read-only here.",
   "databaseDescription": "Latest demo notes in this project.",
   "usersDescription": "Users in this Neon project.",
   "rowCount": "{{count}} rows shown (maximum 100)",
@@ -83,7 +81,7 @@
   "credentialsSaved": "Credentials saved. The pasted draft has been cleared.",
   "credentialsDeleted": "Imported service credentials removed.",
   "supportedFields": "Supported credential fields",
-  "fieldsHint": "SQL access comes from the saved Tabularis connection. Import matching branch credentials. NEON_PROJECT_ID and NEON_API_KEY are optional and only needed for project branch listing.",
+  "fieldsHint": "SQL access comes from the saved Tabularis connection. Import matching service credentials for this branch. Manage projects and branches through your connected Neon account or CLI sign-in.",
   "credentialErrors": {
     "empty": "Paste at least one supported credential.",
     "syntax": "Use KEY=value lines or a valid JSON object with string values.",

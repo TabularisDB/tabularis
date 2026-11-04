@@ -27,8 +27,6 @@
   "branch": "Branch",
   "configured": "Eingerichtet",
   "needsSetup": "Einrichtung erforderlich",
-  "loadBranches": "Projekt-Branches laden",
-  "branchesHint": "Benötigt die optionalen Zugangsdaten NEON_PROJECT_ID und NEON_API_KEY. Branches können hier nur gelesen werden.",
   "databaseDescription": "Aktuelle Demo-Notizen in diesem Projekt.",
   "usersDescription": "Benutzer in diesem Neon-Projekt.",
   "rowCount": "{{count}} Zeilen angezeigt (maximal 100)",
@@ -83,7 +81,7 @@
   "credentialsSaved": "Zugangsdaten gespeichert. Der eingefügte Entwurf wurde geleert.",
   "credentialsDeleted": "Importierte Dienst-Zugangsdaten entfernt.",
   "supportedFields": "Unterstützte Zugangsdatenfelder",
-  "fieldsHint": "Der SQL-Zugang stammt aus der gespeicherten Tabularis-Verbindung. Passende Branch-Zugangsdaten importieren. NEON_PROJECT_ID und NEON_API_KEY sind optional und werden nur für die Branch-Liste benötigt.",
+  "fieldsHint": "Der SQL-Zugang stammt aus der gespeicherten Tabularis-Verbindung. Importiere passende Dienstzugangsdaten für diesen Branch. Projekte und Branches verwaltest du über dein verbundenes Neon-Konto oder die CLI-Anmeldung.",
   "credentialErrors": {
     "empty": "Füge mindestens ein unterstütztes Zugangsdatenfeld ein.",
     "syntax": "Verwende KEY=value-Zeilen oder ein gültiges JSON-Objekt mit Textwerten.",

@@ -140,7 +140,6 @@ function Overview({connectionId}: ConnectedProps) {
     const {call} = usePluginRpc('neon', connectionId);
     const {openWorkspace} = usePluginWorkspace('neon');
     const task = useTask<NeonStatus>();
-    const branches = useTask<Record<string, unknown>[]>();
     const navigation = useTask<void>();
     const {run} = task;
     const load = useCallback(() => run(() => call<NeonStatus>('neon_status')), [call, run]);
@@ -279,19 +278,24 @@ function Overview({connectionId}: ConnectedProps) {
                     </details>
                 </>
             )}
-            <details className="neon-disclosure">
-                <summary>{t('projectBranches')}</summary>
-                <p className="neon-hint">{t('branchesHint')}</p>
+            <PanelSection title={t('projectBranches')} hint={t('branches.isolationHint')}>
                 <button
+                    type="button"
                     className="neon-button"
-                    disabled={branches.pending}
-                    onClick={() => void branches.run(() => call('neon_project_branches'))}
+                    disabled={navigation.pending}
+                    onClick={() =>
+                        void navigation.run(async () => {
+                            openWorkspace({
+                                id: 'branches',
+                                title: `Neon · ${t('tabs.branches')}`,
+                                connectionId,
+                            });
+                        })
+                    }
                 >
-                    {t('loadBranches')}
+                    {t('branches.manage')}
                 </button>
-                <Feedback {...branches} />
-                {branches.data && <DataTable data={objectRows(branches.data)} />}
-            </details>
+            </PanelSection>
         </div>
     );
 }

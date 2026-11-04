@@ -126,12 +126,12 @@ Required service variables:
 - `NEON_AI_GATEWAY_TOKEN`, `NEON_AI_GATEWAY_BASE_URL`
 - `NEON_REALTIME_URL`, `NEON_REALTIME_SECRET`
 
-Optional: `NEON_PROJECT_ID` and `NEON_API_KEY` enable project branch listing.
+Project and branch management use the separately connected Neon account (CLI sign-in or API key). The Overview links to the same connection-scoped Branches tab as the Explorer; no per-connection `NEON_API_KEY` is required.
 A project API key is distinct from a branch service credential. Native account
 OAuth requires Neon's partner registration and is not fabricated here. Branch
-creation/switching is not implemented. Account import selects a branch and saves
-a separate connection; manually pasted SQL/service credentials must refer to
-the same intended branch.
+creation and switching are available in the Branches tab. Switching reuses or
+imports a separate connection, preserving the original SQL tabs; manually pasted
+SQL/service credentials must refer to the same intended branch.
 
 The repository's `.env.local` is only used by explicit local CLI/test runs.
 Host-scoped service calls never fall back to it. Generic extension calls and secret writes require LocalAdmin authorization in the web transport; stored field names require database access. SQL credentials are derived
