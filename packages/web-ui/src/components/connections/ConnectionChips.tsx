@@ -6,6 +6,7 @@ import type {SavedConnection} from '@/contexts/DatabaseContext';
 import type {PluginManifest} from '@/types/plugins';
 import type {ConnectionTag} from '@/types/tags';
 import {usePluginRegistry} from '@/hooks/usePluginRegistry';
+import {getPluginDriverDisplayName} from '@/utils/driverUI';
 import {Chip} from '@/components/ui/Chip';
 import {UpdateTooltip} from '@/components/ui/UpdateTooltip';
 import {PluginUpdateIndicator} from '@/components/plugins/PluginUpdateIndicator';
@@ -41,10 +42,13 @@ export const ConnectionChips = ({
     const {t} = useTranslation();
     const {updates} = usePluginRegistry();
     const driverUpdate = updates.find((plugin) => plugin.id === conn.params.driver);
+    const driverName = getPluginDriverDisplayName(driverManifest);
 
     return (
         <>
-            <Chip className="capitalize">{conn.params.driver}</Chip>
+            <Chip className={driverName ? undefined : 'capitalize'}>
+                {driverName ?? conn.params.driver}
+            </Chip>
             {driverManifest?.deprecated && (
                 <Chip
                     tone="warning"
