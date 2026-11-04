@@ -1221,16 +1221,16 @@ pub async fn execute_read_only_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
-    let mut in_flight = InFlight(Some(acquire_pg_client(params, schema).await?));
-    let client = in_flight.0.as_ref().expect("set above");
+    let mut in_flight = InFlight::new(acquire_pg_client(params, schema).await?, params);
+    let client = in_flight.client.as_ref().expect("set above");
     client
         .batch_execute("BEGIN READ ONLY")
         .await
         .map_err(|e| format_pg_error(&e))?;
-    let outcome = exec_on_pg_client(client, query, limit, page).await;
+    let outcome = exec_within_query_timeout(client, params, query, limit, page).await?;
     match client.batch_execute("ROLLBACK").await {
         // Back to the pool only once the transaction is closed.
-        Ok(()) => drop(in_flight.0.take()),
+        Ok(()) => drop(in_flight.client.take()),
         Err(e) => log::warn!("PostgreSQL: ROLLBACK after a read-only query failed: {e}"),
     }
     outcome
@@ -1324,16 +1324,17 @@ pub async fn execute_batch_in_session(
     let pinned = slot.as_mut().and_then(|s| s.take());
     // A pinned connection only exists because its transaction is still open.
     let mut in_transaction = pinned.is_some();
-    let mut in_flight = InFlight(Some(match pinned {
+    let client = match pinned {
         Some(client) => client,
         None => acquire_pg_client(params, schema).await?,
-    }));
-    let client = in_flight.0.as_ref().expect("set above");
+    };
+    let mut in_flight = InFlight::new(client, params);
+    let client = in_flight.client.as_ref().expect("set above");
 
     let mut results = Vec::with_capacity(queries.len());
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
-        let outcome = exec_on_pg_client(client, q, limit, page).await;
+        let outcome = exec_within_query_timeout(client, params, q, limit, page).await?;
         in_transaction = crate::drivers::common::transaction_effect(q)
             .in_transaction_after(outcome.is_ok(), in_transaction);
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
@@ -1343,7 +1344,7 @@ pub async fn execute_batch_in_session(
         results.push(res);
     }
 
-    let client = in_flight.0.take().expect("set above");
+    let client = in_flight.client.take().expect("set above");
     match slot.as_mut() {
         Some(slot) if in_transaction => {
             slot.pin(client, requested_db.to_string());
@@ -1359,14 +1360,96 @@ pub async fn execute_batch_in_session(
 }
 
 /// A connection a run is using. If the run is dropped mid-flight (a cancelled
-/// query), the connection is closed rather than returned to the pool, so the
-/// server ends any open transaction instead of the next borrower inheriting it.
-struct InFlight(Option<deadpool_postgres::Client>);
+/// query), the server is asked to cancel the running statement and the
+/// connection is closed rather than returned to the pool, so the server ends
+/// any open transaction instead of the next borrower inheriting it.
+struct InFlight<'a> {
+    client: Option<deadpool_postgres::Client>,
+    params: &'a ConnectionParams,
+}
 
-impl Drop for InFlight {
+impl<'a> InFlight<'a> {
+    fn new(client: deadpool_postgres::Client, params: &'a ConnectionParams) -> Self {
+        Self {
+            client: Some(client),
+            params,
+        }
+    }
+}
+
+impl Drop for InFlight<'_> {
     fn drop(&mut self) {
-        if let Some(client) = self.0.take() {
-            drop(deadpool_postgres::Client::take(client));
+        let Some(client) = self.client.take() else {
+            return;
+        };
+        // Closing the connection alone does not stop the statement: the
+        // server only notices the client is gone when it next writes to it.
+        match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => {
+                runtime.spawn(cancel_on_server(client.cancel_token(), self.params));
+            }
+            Err(_) => log::warn!("PostgreSQL: no runtime to send a cancel request from"),
+        }
+        drop(deadpool_postgres::Client::take(client));
+    }
+}
+
+/// How long a timed-out statement gets to stop after the cancel request
+/// before its connection is closed.
+const CANCEL_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Runs one statement under the connection's query timeout. When it runs
+/// over, the server is asked to cancel it and the statement fails with a
+/// "stopped after N s" error.
+///
+/// The outer `Err` means the statement was still running after
+/// [`CANCEL_GRACE`]: the connection is busy and must be closed, not reused.
+async fn exec_within_query_timeout(
+    client: &tokio_postgres::Client,
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+) -> Result<Result<QueryResult, String>, String> {
+    let run = exec_on_pg_client(client, query, limit, page);
+    let Some(timeout) = crate::pool_manager::query_timeout(params) else {
+        return Ok(run.await);
+    };
+    tokio::pin!(run);
+    if let Ok(outcome) = tokio::time::timeout(timeout, &mut run).await {
+        return Ok(outcome);
+    }
+    cancel_on_server(client.cancel_token(), params).await;
+    let stopped = format!(
+        "Query stopped after {} s by the connection's query timeout",
+        timeout.as_secs()
+    );
+    match tokio::time::timeout(CANCEL_GRACE, run).await {
+        // Finished between the timeout and the cancel request.
+        Ok(Ok(result)) => Ok(Ok(result)),
+        Ok(Err(_)) => Ok(Err(stopped)),
+        Err(_) => Err(format!(
+            "{stopped}. The server did not confirm the cancel, so the connection was closed."
+        )),
+    }
+}
+
+/// Asks the server to cancel whatever the connection behind `token` is
+/// running. Built from `params` so it uses the same TLS settings as the
+/// connection. Failures are logged: the caller closes the connection either
+/// way.
+fn cancel_on_server(
+    token: tokio_postgres::CancelToken,
+    params: &ConnectionParams,
+) -> impl std::future::Future<Output = ()> + Send + 'static {
+    let tls = crate::pool_manager::build_postgres_tls_connector(params);
+    async move {
+        let sent = match tls {
+            Ok(tls) => token.cancel_query(tls).await.map_err(|e| e.to_string()),
+            Err(e) => Err(e),
+        };
+        if let Err(e) = sent {
+            log::warn!("PostgreSQL: cancel request failed: {e}");
         }
     }
 }

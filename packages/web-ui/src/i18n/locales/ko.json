@@ -1314,6 +1314,8 @@
     "selectTypeFirst": "먼저 컨텍스트/네임스페이스/종류를 선택하세요",
     "useK8s": "Kubernetes 포트 포워딩 사용",
     "useK8sConnection": "저장된 연결",
+    "queryTimeout": "쿼리 시간 제한(초)",
+    "queryTimeoutHint": "쿼리가 이 시간 이상 실행되면 서버에서 중지합니다. 비워 두면 제한이 없습니다.",
     "startupScript": "시작 스크립트",
     "startupScriptDescription": "이 데이터 소스에 새로 연결할 때마다 실행되는 SQL입니다. SET / set_config 같은 세션 설정(예: RLS 우회)에 사용하세요. 여러 구문은 세미콜론으로 구분하세요.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",

@@ -11,6 +11,8 @@ import {
     withoutBlankSslMode,
     parseConnectTimeoutSecs,
     MAX_CONNECT_TIMEOUT_SECS,
+    parseQueryTimeoutSecs,
+    MAX_QUERY_TIMEOUT_SECS,
     migrationDirectionForDriver,
     connectionOrderAfterMove,
     planGroupDrop,
@@ -1100,5 +1102,22 @@ describe('parseConnectTimeoutSecs', () => {
     it('treats non-finite input as unset', () => {
         expect(parseConnectTimeoutSecs('1e999')).toBeUndefined();
         expect(parseConnectTimeoutSecs('abc')).toBeUndefined();
+    });
+});
+
+describe('parseQueryTimeoutSecs', () => {
+    it('reads whole seconds and keeps 0 as no limit', () => {
+        expect(parseQueryTimeoutSecs('30')).toBe(30);
+        expect(parseQueryTimeoutSecs('0')).toBe(0);
+    });
+
+    it('treats an empty or non-numeric field as unset', () => {
+        expect(parseQueryTimeoutSecs('')).toBeUndefined();
+        expect(parseQueryTimeoutSecs('abc')).toBeUndefined();
+    });
+
+    it('allows more than the connect timeout cap, up to one day', () => {
+        expect(parseQueryTimeoutSecs('7200')).toBe(7200);
+        expect(parseQueryTimeoutSecs('99999999999')).toBe(MAX_QUERY_TIMEOUT_SECS);
     });
 });

@@ -67,7 +67,12 @@ import {
     isSchemaBasedMultiDbCapable,
     hasOptedIntoDatabaseSelection,
 } from '@/utils/database';
-import {parseConnectTimeoutSecs, updateExtraField, withoutBlankSslMode} from '@/utils/connections';
+import {
+    parseConnectTimeoutSecs,
+    parseQueryTimeoutSecs,
+    updateExtraField,
+    withoutBlankSslMode,
+} from '@/utils/connections';
 import {normalizeLocalDatabasePath, sanitizeLocalFilePath} from '@/utils/fsPath';
 import {
     IN_MEMORY_DATABASE,
@@ -172,6 +177,8 @@ interface ConnectionParams {
     pooler_mode?: string;
     /** Seconds to wait for a new connection; unset keeps the driver default. */
     connect_timeout_secs?: number;
+    /** Seconds a statement may run before it is cancelled on the server; unset or 0 means no limit. */
+    query_timeout_secs?: number;
     // Opaque plugin-specific connection fields, forwarded verbatim to the
     // driver/plugin and persisted as-is in connections.json.
     extra?: Record<string, string>;
@@ -3235,6 +3242,22 @@ export const NewConnectionModal = ({
                     />
                     <p className="text-xs text-muted leading-snug">
                         {t('newConnection.connectTimeoutHint')}
+                    </p>
+                </div>
+            )}
+
+            {isPostgresDialect && (
+                <div className="flex flex-col gap-1">
+                    <FieldInput
+                        label={t('newConnection.queryTimeout')}
+                        value={formData.query_timeout_secs}
+                        onChange={(v) =>
+                            updateField('query_timeout_secs', parseQueryTimeoutSecs(v))
+                        }
+                        type="number"
+                    />
+                    <p className="text-xs text-muted leading-snug">
+                        {t('newConnection.queryTimeoutHint')}
                     </p>
                 </div>
             )}

@@ -2264,3 +2264,64 @@ describe('NewConnectionModal connect timeout', () => {
         expect(screen.queryByText('newConnection.connectTimeout')).not.toBeInTheDocument();
     });
 });
+
+describe('NewConnectionModal query timeout', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 15432;
+        driverState.multiDatabase = false;
+        vi.mocked(invoke).mockResolvedValue('ok');
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    });
+
+    function queryTimeoutInput() {
+        const label = screen.getByText('newConnection.queryTimeout');
+        return label.parentElement!.querySelector('input')!;
+    }
+
+    it('saves the timeout for a PostgreSQL connection', async () => {
+        renderModal(createInitialConnection({driver: 'postgresql', host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        fireEvent.change(queryTimeoutInput(), {target: {value: '30'}});
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({query_timeout_secs: 30}),
+                }),
+            ),
+        );
+    });
+
+    it('drops the timeout when the field is cleared', async () => {
+        renderModal(
+            createInitialConnection({
+                driver: 'postgresql',
+                host: 'localhost',
+                query_timeout_secs: 30,
+            }),
+        );
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(queryTimeoutInput()).toHaveValue(30);
+        fireEvent.change(queryTimeoutInput(), {target: {value: ''}});
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.not.objectContaining({query_timeout_secs: expect.anything()}),
+                }),
+            ),
+        );
+    });
+
+    it('is not offered for drivers that do not enforce it', async () => {
+        renderModal(createInitialConnection({host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(screen.getByText('newConnection.connectTimeout')).toBeInTheDocument();
+        expect(screen.queryByText('newConnection.queryTimeout')).not.toBeInTheDocument();
+    });
+});
