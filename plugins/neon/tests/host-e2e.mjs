@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {selectProviderOption, providerOptions} from './select.mjs';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, writeFile, rm, open } from 'node:fs/promises';
@@ -115,7 +116,7 @@ try {
       await page.getByLabel('Object prefix (optional)',{exact:true}).fill(objectKey);
       await page.getByRole('button',{name:'List objects',exact:true}).click();
       await page.getByRole('region',{name:'Service data',exact:true}).waitFor();
-      await page.getByLabel('Existing object',{exact:true}).selectOption(objectKey);
+      await selectProviderOption(page, page.getByLabel('Existing object',{exact:true}), objectKey);
       assert.equal(await page.getByLabel('Object key',{exact:true}).inputValue(),objectKey);
       await page.getByRole('button',{name:'Read object',exact:true}).click();
       await page.locator('.neon-output').filter({hasText:'Native storage selection'}).waitFor();
@@ -213,10 +214,10 @@ try {
     await nav.getByRole('button',{name:'AI Gateway',exact:true}).click();
     await page.getByRole('button',{name:'Load models',exact:true}).click();
     await page.waitForFunction(()=>{const model=document.querySelector('#neon-model');return model && !model.disabled;});
-    const modelOptions=await page.getByLabel('Model',{exact:true}).locator('option').evaluateAll(options=>options.filter(option=>!option.disabled).map(option=>option.value));
+    const modelOptions=await providerOptions(page, page.getByLabel('Model',{exact:true}));
     const chatModel=modelOptions.find(value=>/gpt-4o-mini|llama.*(8b|small)|haiku/i.test(value)) ?? modelOptions.find(value=>!/embed|codex|pro|image/i.test(value));
     assert(chatModel,'No chat model is enabled');
-    await page.getByLabel('Model',{exact:true}).selectOption(chatModel);
+    await selectProviderOption(page, page.getByLabel('Model',{exact:true}), chatModel);
     await page.getByLabel('Prompt',{exact:true}).fill('Reply with exactly: Tabularis Neon OK');
     await page.getByRole('button',{name:'Send prompt',exact:true}).click();
     await page.locator('.neon-answer').waitFor();

@@ -1,4 +1,4 @@
-import {usePluginTranslation, usePluginWorkspace} from '@tabularis/plugin-api';
+import {PluginSelect, usePluginTranslation, usePluginWorkspace} from '@tabularis/plugin-api';
 import {useBranches} from './hooks/useBranches';
 import {styles} from './styles';
 
@@ -13,30 +13,34 @@ export function BranchSelector({connectionId}: {connectionId: string}) {
         branches.listing.error ??
         branches.management.error;
     return (
-        <div className="neon-branch-picker" data-connection-id={connectionId}>
+        <div
+            className="neon-branch-picker"
+            data-connection-id={connectionId}
+            data-branch-id={current?.branchId ?? ''}
+        >
             <style>{styles}</style>
             <span className="neon-branch-project">
                 {branches.listing.data?.projectName ?? current?.projectId ?? 'Neon'}
             </span>
             <div className="neon-branch-picker-row">
-                <select
-                    aria-label={t('branches.switchBranch')}
+                <PluginSelect
+                    ariaLabel={t('branches.switchBranch')}
                     value={current?.branchId ?? ''}
+                    placeholder={current?.branchName ?? t('branches.title')}
                     disabled={branches.pending || !branches.listing.data}
-                    onChange={(event) => void branches.openBranch(event.target.value)}
-                >
-                    {!branches.listing.data && (
-                        <option value={current?.branchId ?? ''}>
-                            {current?.branchName ?? t('branches.title')}
-                        </option>
+                    loading={branches.pending}
+                    loadingLabel={t(
+                        branches.action.pending ? 'branches.opening' : 'account.loadingBranches',
                     )}
-                    {branches.listing.data?.branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                            {branch.name}
-                            {branch.isDefault ? ` (${t('branches.default')})` : ''}
-                        </option>
-                    ))}
-                </select>
+                    onChange={(value) => void branches.openBranch(value)}
+                    options={
+                        branches.listing.data?.branches.map((branch) => ({
+                            value: branch.id,
+                            label: branch.name,
+                            description: branch.isDefault ? t('branches.default') : undefined,
+                        })) ?? []
+                    }
+                />
                 <button
                     type="button"
                     title={t('branches.manage')}
@@ -65,7 +69,6 @@ export function BranchSelector({connectionId}: {connectionId: string}) {
                     </svg>
                 </button>
             </div>
-            {branches.action.pending && <span role="status">{t('branches.opening')}</span>}
             {error && (
                 <span className="neon-error" role="alert">
                     {error}

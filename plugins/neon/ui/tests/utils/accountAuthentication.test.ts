@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import {selectOption} from '../support/select';
 import {createElement} from 'react';
 import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -13,13 +14,17 @@ const {prepare, connect, call, copyText, openUrl, t} = vi.hoisted(() => ({
     openUrl: vi.fn(),
     t: (key: string) => key,
 }));
-vi.mock('@tabularis/plugin-api', () => ({
-    // Deliberately unstable account identity: status must not restart on each render.
-    usePluginAccount: () => ({prepare, connect, call}),
-    usePluginTranslation: () => t,
-    copyText,
-    openUrl,
-}));
+vi.mock('@tabularis/plugin-api', async () => {
+    const {PluginSelect} = await import('@/components/plugins/PluginSelect');
+    return {
+        PluginSelect,
+        // Deliberately unstable account identity: status must not restart on each render.
+        usePluginAccount: () => ({prepare, connect, call}),
+        usePluginTranslation: () => t,
+        copyText,
+        openUrl,
+    };
+});
 const absent = {
     installed: false,
     version: null,
@@ -72,7 +77,7 @@ describe('Neon CLI account authentication', () => {
         });
         const view = show();
         await ready();
-        fireEvent.change(screen.getByLabelText('account.cli.profile'), {target: {value: 'work'}});
+        selectOption(screen.getByLabelText('account.cli.profile'), 'work');
         await waitFor(() =>
             expect(screen.getByRole('button', {name: 'account.cli.useSignedIn'})).toBeDefined(),
         );

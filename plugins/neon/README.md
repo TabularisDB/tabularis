@@ -178,6 +178,11 @@ implements end-user sign-in.
 
 ## UI verification
 
+All 15 Neon selection fields use the host's searchable `PluginSelect`: account
+setup, CLI profiles, branch navigation and management, Auth roles, Functions
+language and HTTP method, Storage objects and AI models. Sidebar and editor
+selectors stay compact; asynchronous resource lists show field-level loading.
+
 Provider screens share compact native controls, keyboard focus, reduced-motion
 loading indicators, responsive field grids and consistent feedback. Function
 editors wrap long lines, resize vertically and keep validation/deployment actions

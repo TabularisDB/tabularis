@@ -126,9 +126,10 @@ export const styles = `
 .neon-branch-picker {min-width:0;color:var(--text-secondary);font-size:12px}
 .neon-branch-project {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--text-muted);margin-bottom:5px}
 .neon-branch-picker-row {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}
-.neon-branch-picker-row select,.neon-branch-picker-row button {min-width:0;min-height:30px;border:1px solid var(--border-default);background:var(--bg-input);color:var(--text-primary);border-radius:var(--radius-sm);font:inherit;padding:4px 7px;cursor:pointer}
-.neon-branch-picker-row select:disabled {opacity:.6;cursor:default}
-.neon-branch-picker-row button:focus-visible,.neon-branch-picker-row select:focus-visible {outline:2px solid var(--border-focus);outline-offset:2px}
+.neon-branch-picker-row > button {min-width:0;min-height:30px;border:1px solid var(--border-default);background:var(--bg-input);color:var(--text-primary);border-radius:var(--radius-sm);font:inherit;padding:4px 7px;cursor:pointer}
+.neon-branch-picker-row > button:focus-visible {outline:2px solid var(--border-focus);outline-offset:2px}
+.neon-branch-picker-row [role="combobox"],.neon-compact-select [role="combobox"] {min-height:30px;padding:4px 28px 4px 8px;font-size:12px}
+.neon-compact-select {min-width:150px;max-width:100%}
 .neon-branch-picker [role="alert"] {display:block;overflow-wrap:anywhere;margin-top:6px;font-size:11px}
 .neon-branches-layout {grid-template-columns:minmax(220px,.8fr) minmax(0,1.4fr)}
 @container(max-width:740px){.neon-workbench,.neon-workbench-balanced,.neon-workbench-settings{grid-template-columns:minmax(0,1fr);gap:18px}.neon-service{gap:8px}.neon-service-name > span{max-width:42ch}.neon-toolbar{gap:10px}.neon-status{font-size:10px}}

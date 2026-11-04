@@ -17,9 +17,11 @@ const {rpcCall, manageCall, openWorkspace, scope} = vi.hoisted(() => ({
 }));
 vi.mock('@tabularis/plugin-api', async () => {
     const {createElement} = await import('react');
+    const {PluginSelect} = await import('@/components/plugins/PluginSelect');
     const rpc = {call: rpcCall};
     const workspace = {openWorkspace};
     return {
+        PluginSelect,
         usePluginRpc: () => rpc,
         usePluginWorkspace: () => workspace,
         usePluginTranslation: () => (key: string) => key,

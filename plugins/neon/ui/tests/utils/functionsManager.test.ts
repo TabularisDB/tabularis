@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import {selectOption} from '../support/select';
 import {createElement} from 'react';
 import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -16,29 +17,33 @@ vi.mock('../../src/hooks/useNeonManagement', () => {
     };
     return {useNeonManagement: () => management};
 });
-vi.mock('@tabularis/plugin-api', () => ({
-    openUrl: vi.fn(),
-    usePluginTranslation: () => (key: string) => key,
-    usePluginWorkspace: () => ({openWorkspace}),
-    PluginCodeEditor: ({
-        value,
-        onChange,
-        label,
-        readOnly,
-    }: {
-        value: string;
-        onChange: (value: string) => void;
-        label: string;
-        readOnly: boolean;
-    }) =>
-        createElement('textarea', {
-            'aria-label': label,
+vi.mock('@tabularis/plugin-api', async () => {
+    const {PluginSelect} = await import('@/components/plugins/PluginSelect');
+    return {
+        PluginSelect,
+        openUrl: vi.fn(),
+        usePluginTranslation: () => (key: string) => key,
+        usePluginWorkspace: () => ({openWorkspace}),
+        PluginCodeEditor: ({
             value,
+            onChange,
+            label,
             readOnly,
-            onChange: (event: {target: {value: string}}) => onChange(event.target.value),
-        }),
-    PluginResourceList: () => null,
-}));
+        }: {
+            value: string;
+            onChange: (value: string) => void;
+            label: string;
+            readOnly: boolean;
+        }) =>
+            createElement('textarea', {
+                'aria-label': label,
+                value,
+                readOnly,
+                onChange: (event: {target: {value: string}}) => onChange(event.target.value),
+            }),
+        PluginResourceList: () => null,
+    };
+});
 const details = {
     slug: 'hello',
     name: 'Hello',
@@ -113,9 +118,7 @@ describe('Functions manager', () => {
             diagnostics: [{message: 'Unexpected token', line: 2, column: 3}],
         });
         render(createElement(FunctionsManager, {connectionId: 'conn', create: true}));
-        fireEvent.change(screen.getByLabelText('functionsManager.language'), {
-            target: {value: 'typescript'},
-        });
+        selectOption(screen.getByLabelText('functionsManager.language'), 'typescript');
         fireEvent.change(screen.getByLabelText('functionsManager.source'), {
             target: {value: 'export default = {'},
         });

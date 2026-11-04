@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {selectProviderOption} from './select.mjs';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, mkdir, writeFile, rm, open } from 'node:fs/promises';
@@ -122,6 +123,8 @@ try {
       const envelope=await(await response).json();assert(envelope.ok);await waitDeployment(envelope.data.id);
       assert.equal(await page.getByLabel('Write-only environment changes (JSON)',{exact:true}).inputValue(),'');
       await page.getByText('Invoke function',{exact:true}).click();
+      await selectProviderOption(page,page.getByLabel('HTTP method',{exact:true}),'POST',true);
+      await page.getByLabel('Request body',{exact:true}).fill('{"selectionCheck":true}');
       await page.getByRole('button',{name:'Send request',exact:true}).click();
       await page.locator('.neon-output').filter({hasText:'Hello from Tabularis'}).waitFor();
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/management-function-invoke.png')});
@@ -136,17 +139,17 @@ try {
       await page.getByRole('button',{name:'Create user',exact:true}).click();
       const envelope=await(await response).json();assert(envelope.ok,'UI Auth create failed');userId=envelope.data.id;
       await page.getByRole('button',{name:displayName,exact:true}).click();
-      await page.getByLabel('Role',{exact:true}).selectOption('admin');
+      await selectProviderOption(page, page.getByLabel('Role',{exact:true}), 'admin');
       await page.getByRole('button',{name:'Save role',exact:true}).click();
       await page.getByText('Role updated.',{exact:true}).waitFor();
-      await page.getByLabel('Role',{exact:true}).selectOption('user');
+      await selectProviderOption(page, page.getByLabel('Role',{exact:true}), 'user');
       await page.getByRole('button',{name:'Save role',exact:true}).click();
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/management-auth-user.png')});
     });
     try {
       await nav.getByRole('button',{name:'Functions',exact:true}).click();
       await page.getByRole('button',{name:displayName,exact:true}).click();
-      await page.getByLabel('Language',{exact:true}).selectOption('typescript');
+      await selectProviderOption(page, page.getByLabel('Language',{exact:true}), 'typescript');
       const editor=page.getByRole('region',{name:'Function source',exact:true}).locator('.monaco-editor');
       await editor.click({position:{x:100,y:40}});
       await page.keyboard.press('ControlOrMeta+A');

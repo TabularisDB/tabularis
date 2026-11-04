@@ -1,5 +1,10 @@
 import {useId, useState} from 'react';
-import {PluginResourceList, usePluginTranslation, usePluginWorkspace} from '@tabularis/plugin-api';
+import {
+    PluginSelect,
+    PluginResourceList,
+    usePluginTranslation,
+    usePluginWorkspace,
+} from '@tabularis/plugin-api';
 import {useNeonManagement} from './hooks/useNeonManagement';
 import {useAuthRead} from './hooks/useAuthRead';
 import {useTask} from './hooks/useTask';
@@ -390,18 +395,16 @@ function AuthUserView({connectionId, userId}: {connectionId: string; userId: str
                         <label className="neon-field-label" htmlFor={`${id}-role`}>
                             {t('authManager.role')}
                         </label>
-                        <select
+                        <PluginSelect
                             id={`${id}-role`}
-                            className="neon-field"
                             value={role}
                             disabled={pending || !management.scope}
-                            onChange={(event) =>
-                                setRoleDraft(event.target.value === 'admin' ? 'admin' : 'user')
-                            }
-                        >
-                            <option value="user">{t('authManager.userRole')}</option>
-                            <option value="admin">{t('authManager.adminRole')}</option>
-                        </select>
+                            onChange={(value) => setRoleDraft(value === 'admin' ? 'admin' : 'user')}
+                            options={[
+                                {value: 'user', label: t('authManager.userRole')},
+                                {value: 'admin', label: t('authManager.adminRole')},
+                            ]}
+                        />
                         <div className="neon-row">
                             <button
                                 type="button"

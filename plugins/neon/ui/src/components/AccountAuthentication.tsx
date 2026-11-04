@@ -1,5 +1,5 @@
 import {useId, useState} from 'react';
-import {copyText, openUrl, usePluginTranslation} from '@tabularis/plugin-api';
+import {PluginSelect, copyText, openUrl, usePluginTranslation} from '@tabularis/plugin-api';
 import {useCliAuthentication} from '../hooks/useCliAuthentication';
 
 export function AccountAuthentication({
@@ -49,7 +49,7 @@ export function AccountAuthentication({
                     <p className="neon-hint">{t('account.cli.profileStorageHint')}</p>
                 </details>
                 {cli.phase === 'checking' ? (
-                    <p role="status" className="neon-hint">
+                    <p role="status" className="neon-hint neon-pending">
                         {t('account.cli.checking')}
                     </p>
                 ) : waiting ? (
@@ -100,21 +100,15 @@ export function AccountAuthentication({
                                 <label className="neon-field-label" htmlFor={`${id}-profile`}>
                                     {t('account.cli.profile')}
                                 </label>
-                                <select
+                                <PluginSelect
                                     id={`${id}-profile`}
-                                    className="neon-field"
                                     disabled={busy}
                                     value={cli.selectedProfile ?? cli.status.profile ?? 'DEFAULT'}
-                                    onChange={(event) => void cli.recheck(event.target.value)}
-                                >
-                                    {Array.from(new Set(['DEFAULT', ...cli.status.profiles])).map(
-                                        (profile) => (
-                                            <option key={profile} value={profile}>
-                                                {profile}
-                                            </option>
-                                        ),
-                                    )}
-                                </select>
+                                    onChange={(value) => void cli.recheck(value)}
+                                    options={Array.from(
+                                        new Set(['DEFAULT', ...cli.status.profiles]),
+                                    ).map((profile) => ({value: profile, label: profile}))}
+                                />
                             </>
                         )}
                         <div className="neon-row">

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useId, useRef, useState, type ReactNode} from 'react';
 import {
+    PluginSelect,
     copyText,
     openUrl,
     PluginCodeEditor,
@@ -472,24 +473,32 @@ function FunctionDetail({
                 actions={
                     <div className="neon-editor-tools">
                         <label htmlFor={`${id}-language`}>{t('functionsManager.language')}</label>
-                        <select
-                            id={`${id}-language`}
-                            className="neon-field neon-field-compact"
-                            value={language}
-                            disabled={busy}
-                            onChange={(event) =>
-                                updateDraft({
-                                    ...draft,
-                                    language:
-                                        event.target.value === 'typescript'
-                                            ? 'typescript'
-                                            : 'javascript',
-                                })
-                            }
-                        >
-                            <option value="javascript">JavaScript · index.js</option>
-                            <option value="typescript">TypeScript · index.ts</option>
-                        </select>
+                        <div className="neon-compact-select">
+                            <PluginSelect
+                                id={`${id}-language`}
+                                value={language}
+                                disabled={busy}
+                                onChange={(value) =>
+                                    updateDraft({
+                                        ...draft,
+                                        language:
+                                            value === 'typescript' ? 'typescript' : 'javascript',
+                                    })
+                                }
+                                options={[
+                                    {
+                                        value: 'javascript',
+                                        label: 'JavaScript',
+                                        description: 'index.js',
+                                    },
+                                    {
+                                        value: 'typescript',
+                                        label: 'TypeScript',
+                                        description: 'index.ts',
+                                    },
+                                ]}
+                            />
+                        </div>
                         <span className="neon-status">Node.js 24</span>
                     </div>
                 }
@@ -668,18 +677,16 @@ function FunctionDetail({
                         <label className="neon-field-label" htmlFor={`${id}-method`}>
                             {t('functionsManager.method')}
                         </label>
-                        <select
+                        <PluginSelect
                             id={`${id}-method`}
-                            className="neon-field"
                             disabled={busy}
                             value={method}
-                            onChange={(event) =>
-                                setMethod(event.target.value === 'POST' ? 'POST' : 'GET')
-                            }
-                        >
-                            <option>GET</option>
-                            <option>POST</option>
-                        </select>
+                            onChange={(value) => setMethod(value === 'POST' ? 'POST' : 'GET')}
+                            options={[
+                                {value: 'GET', label: 'GET'},
+                                {value: 'POST', label: 'POST'},
+                            ]}
+                        />
                         {method === 'POST' && (
                             <>
                                 <label className="neon-field-label" htmlFor={`${id}-body`}>

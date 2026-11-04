@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {selectProviderOption} from './select.mjs';
 import {spawn} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {mkdtemp,mkdir,writeFile,rm,open} from 'node:fs/promises';
@@ -30,7 +31,7 @@ const call=(method,args={})=>account('call',{method,args:{projectId,branchId:sou
 const sql=(connectionId,query)=>rpc('execute_query',{connectionId,query});
 const binding=connectionId=>rpc('call_plugin_extension',{pluginId:'neon',connectionId,method:'neon_branch_context',args:{}});
 const activeBranch=()=>page.getByLabel('Switch Neon branch',{exact:true});
-async function waitValue(locator,value){for(let n=0;n<150;n++){if(await locator.count() && await locator.inputValue()===value)return;await new Promise(r=>setTimeout(r,200));}throw Error('Branch activation did not finish');}
+async function waitValue(locator,value){for(let n=0;n<150;n++){if(await locator.count() && await locator.evaluate(element=>element.closest('.neon-branch-picker')?.getAttribute('data-branch-id') ?? element.value)===value)return;await new Promise(r=>setTimeout(r,200));}throw Error('Branch activation did not finish');}
 try{
  for(let n=0;n<200;n++){try{if((await fetch(`${origin}/login`)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
  const login=await fetch(`${origin}/api/v1/auth/login`,{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password}),redirect:'manual'});assert.equal(login.status,303);
@@ -45,10 +46,11 @@ try{
  page=await context.newPage();page.setDefaultTimeout(30000);const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto(origin);await page.getByRole('button',{name:'Dismiss',exact:true}).click({timeout:1000}).catch(()=>{});
  await page.getByText(imported.name,{exact:true}).dblclick();await waitValue(activeBranch(),sourceBranchId);
+ const headerSize=await activeBranch().evaluate(element=>({height:element.getBoundingClientRect().height,width:element.getBoundingClientRect().width,parent:element.closest('.neon-branch-picker').getBoundingClientRect().width}));assert(headerSize.height<=36 && headerSize.width<=headerSize.parent,'Branch picker breaks sidebar sizing');
  const editor=page.locator('.monaco-editor:visible').first();await editor.waitFor();await editor.click({position:{x:100,y:40}});
  await page.evaluate(text=>navigator.clipboard.writeText(text),`-- source-draft-${suffix}\nSELECT * FROM public.${table};`);await page.keyboard.press('ControlOrMeta+A');await page.keyboard.press('ControlOrMeta+V');
  await page.getByRole('button',{name:'Manage branches',exact:true}).click();await page.getByRole('heading',{name:'Branches',exact:true}).waitFor();
- await page.locator('summary').filter({hasText:/^Create branch$/}).click();await page.getByLabel('Branch name',{exact:true}).fill(childName);
+ await page.locator('summary').filter({hasText:/^Create branch$/}).click();await page.getByLabel('Branch name',{exact:true}).fill(childName);await selectProviderOption(page,page.getByLabel('Parent',{exact:true}),sourceBranchId);
  const created=page.waitForResponse(response=>response.url().endsWith('/rpc/plugin_account')&&response.request().postDataJSON()?.method==='account_branch_create');
  await page.getByRole('button',{name:'Create branch',exact:true}).click();const createdResult=await(await created).json();assert(createdResult.ok,createdResult.error?.message);childBranchId=createdResult.data.id;
  await page.getByRole('button',{name:childName,exact:true}).click();await page.getByLabel('New branch name',{exact:true}).fill(renamed);
@@ -62,11 +64,11 @@ try{
  await sql(childConnection.id,`UPDATE public.${table} SET value='child'`);
  assert.deepEqual((await sql(sourceId,`SELECT value FROM public.${table}`)).rows,[['source']]);assert.deepEqual((await sql(childConnection.id,`SELECT value FROM public.${table}`)).rows,[['child']]);
  console.log('PASS branch switch: separate credentials/context and real parent/child SQL isolation');
- await activeBranch().selectOption(sourceBranchId);await waitValue(activeBranch(),sourceBranchId);await page.getByRole('button',{name:'Console',exact:true}).click();
+ await selectProviderOption(page, activeBranch(), sourceBranchId);await waitValue(activeBranch(),sourceBranchId);await page.getByRole('button',{name:'Console',exact:true}).click();
  await page.locator('.monaco-editor:visible').first().getByText(`source-draft-${suffix}`,{exact:false}).first().waitFor();
  assert((await rpc('load_editor_preferences',{connectionId:sourceId})).tabs.some(tab=>tab.query?.includes(`source-draft-${suffix}`)));
  assert.equal((await rpc('get_connections')).length,2);
- await activeBranch().selectOption(childBranchId);await waitValue(activeBranch(),childBranchId);assert.equal((await rpc('get_connections')).length,2);
+ await selectProviderOption(page, activeBranch(), childBranchId);await waitValue(activeBranch(),childBranchId);assert.equal((await rpc('get_connections')).length,2);
  console.log('PASS repeat switch reuses exact branch connection; original SQL draft stays on its source');
  await page.getByRole('button',{name:'Manage branches',exact:true}).click();await page.getByRole('button',{name:'Open in new connection',exact:true}).click();
  for(let n=0;n<150;n++){if((await rpc('get_connections')).length===3)break;await new Promise(r=>setTimeout(r,200));}
@@ -75,8 +77,8 @@ try{
  const additional=copies.find(connection=>connection.id!==childConnection.id);await page.waitForFunction(id=>document.querySelector('.neon-branch-picker')?.getAttribute('data-connection-id')===id,additional.id);
  for(const connection of copies){if(!connections.includes(connection.id))connections.push(connection.id);assert.equal((await binding(connection.id)).branchId,childBranchId);}
  console.log('PASS explicit new-connection action creates an independent additional connection');
- await activeBranch().selectOption(sourceBranchId);await waitValue(activeBranch(),sourceBranchId);await page.getByRole('button',{name:'Manage branches',exact:true}).click();await page.getByRole('button',{name:renamed,exact:true}).click();
- await waitValue(page.getByLabel('Database',{exact:true}),'neondb');await waitValue(page.getByLabel('Database role',{exact:true}),'neondb_owner');
+ await selectProviderOption(page, activeBranch(), sourceBranchId);await waitValue(activeBranch(),sourceBranchId);await page.getByRole('button',{name:'Manage branches',exact:true}).click();await page.getByRole('button',{name:renamed,exact:true}).click();
+ await waitValue(page.getByLabel('Database',{exact:true}),'neondb');await waitValue(page.getByLabel('Database role',{exact:true}),'neondb_owner');await selectProviderOption(page,page.getByLabel('Database',{exact:true}),'neondb');await selectProviderOption(page,page.getByLabel('Database role',{exact:true}),'neondb_owner');
  await page.locator('summary').filter({hasText:/^Delete branch$/}).click();assert(await page.getByRole('button',{name:'Delete branch',exact:true}).isDisabled());
  await page.screenshot({path:resolve(root,'plugins/neon/artifacts/branches-management.png')});
  console.log('PASS deletion is blocked while local branch connections still exist');

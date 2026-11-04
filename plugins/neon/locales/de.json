@@ -101,6 +101,8 @@
   "unknownService": "Dieser Neon-Dienst ist nicht verfügbar.",
   "existingObject": "Vorhandenes Objekt",
   "chooseObject": "Objekt auswählen",
+  "loadingObjects": "Objekte werden geladen …",
+  "loadingModels": "Modelle werden geladen …",
   "databaseName": "Datenbank",
   "serverVersion": "Server",
   "unknown": "Unbekannt",

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {selectProviderOption} from './select.mjs';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, writeFile, rm, open } from 'node:fs/promises';
@@ -117,6 +118,7 @@ try {
       const dialog = page.locator('[data-slot="connection-modal.setup"]');
       await dialog.getByText('Connect your Neon workspace',{exact:true}).waitFor();
       if(cliMode){
+        await selectProviderOption(page, dialog.getByLabel('CLI profile',{exact:true}), cliProfile);
         await dialog.getByRole('button',{name:'Use signed-in Neon CLI account',exact:true}).click();
         await dialog.getByText('Neon CLI account connected',{exact:true}).waitFor();
         assert.deepEqual(await account('fields'),['NEON_CLI_AUTH']);
@@ -146,13 +148,7 @@ try {
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/account-form-mobile.png')});
       await page.setViewportSize({width:1280,height:860});
       await page.screenshot({path:resolve(root,'plugins/neon/artifacts/provider-setup-neon.png')});
-      const choose = async (label,value,keyboard=false) => {
-        const field=dialog.getByLabel(label,{exact:true});await field.click();
-        const option=page.locator(`[data-plugin-select-menu] [data-value=${JSON.stringify(value)}]`);
-        await option.waitFor();
-        if(keyboard){await field.fill((await option.innerText()).split('\n')[0]);await field.press('Enter');}
-        else await option.click();
-      };
+      const choose = (label,value,keyboard=false) => selectProviderOption(page, dialog.getByLabel(label,{exact:true}), value, keyboard);
       let releaseProjects;
       const projectsHeld=new Promise(resolve=>{releaseProjects=resolve;});
       let held=false;
@@ -212,7 +208,7 @@ try {
         await page.getByText(alias, {exact:true}).dblclick();
         await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Functions',exact:true}).click();
         await page.getByRole('button',{name:'New function',exact:true}).click();
-        await page.getByLabel('Language',{exact:true}).selectOption('typescript');
+        await selectProviderOption(page, page.getByLabel('Language',{exact:true}), 'typescript');
         console.log('PASS Function editor opened in TypeScript mode');
         const editor=page.getByRole('region',{name:'Function source',exact:true}).locator('.monaco-editor');
         await editor.waitFor();

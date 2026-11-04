@@ -1,5 +1,10 @@
 import {useEffect, useId, useState} from 'react';
-import {PluginResourceList, usePluginAccount, usePluginTranslation} from '@tabularis/plugin-api';
+import {
+    PluginSelect,
+    PluginResourceList,
+    usePluginAccount,
+    usePluginTranslation,
+} from '@tabularis/plugin-api';
 import {useBranches} from './hooks/useBranches';
 import {useTask} from './hooks/useTask';
 import {PanelSection} from './components/PanelSection';
@@ -201,19 +206,20 @@ export function BranchesManager({connectionId}: {connectionId: string}) {
                             <label className="neon-field-label" htmlFor={`${id}-parent`}>
                                 {t('branches.parent')}
                             </label>
-                            <select
+                            <PluginSelect
                                 id={`${id}-parent`}
-                                className="neon-field"
                                 value={parentId || context?.branchId || ''}
                                 disabled={pending}
-                                onChange={(event) => setParentId(event.target.value)}
-                            >
-                                {snapshot?.branches.map((branch) => (
-                                    <option key={branch.id} value={branch.id}>
-                                        {branch.name}
-                                    </option>
-                                ))}
-                            </select>
+                                loading={branches.listing.pending}
+                                loadingLabel={t('account.loadingBranches')}
+                                onChange={setParentId}
+                                options={
+                                    snapshot?.branches.map((branch) => ({
+                                        value: branch.id,
+                                        label: branch.name,
+                                    })) ?? []
+                                }
+                            />
                             <p className="neon-hint">{t('branches.copyHint')}</p>
                             <div className="neon-row">
                                 <button
@@ -244,39 +250,41 @@ export function BranchesManager({connectionId}: {connectionId: string}) {
                                     <label className="neon-field-label" htmlFor={`${id}-database`}>
                                         {t('account.database')}
                                     </label>
-                                    <select
+                                    <PluginSelect
                                         id={`${id}-database`}
-                                        className="neon-field"
                                         value={database}
+                                        placeholder={t('account.chooseDatabase')}
                                         disabled={pending}
-                                        onChange={(event) => setDatabaseDraft(event.target.value)}
-                                    >
-                                        <option value="" disabled>
-                                            {t('account.chooseDatabase')}
-                                        </option>
-                                        {resources.data?.databases.map((item) => (
-                                            <option key={item.name}>{item.name}</option>
-                                        ))}
-                                    </select>
+                                        loading={resources.pending}
+                                        loadingLabel={t('account.loadingResources')}
+                                        onChange={setDatabaseDraft}
+                                        options={
+                                            resources.data?.databases.map((item) => ({
+                                                value: item.name,
+                                                label: item.name,
+                                            })) ?? []
+                                        }
+                                    />
                                 </div>
                                 <div>
                                     <label className="neon-field-label" htmlFor={`${id}-role`}>
                                         {t('account.role')}
                                     </label>
-                                    <select
+                                    <PluginSelect
                                         id={`${id}-role`}
-                                        className="neon-field"
                                         value={role}
+                                        placeholder={t('account.chooseRole')}
                                         disabled={pending}
-                                        onChange={(event) => setRoleDraft(event.target.value)}
-                                    >
-                                        <option value="" disabled>
-                                            {t('account.chooseRole')}
-                                        </option>
-                                        {resources.data?.roles.map((item) => (
-                                            <option key={item.name}>{item.name}</option>
-                                        ))}
-                                    </select>
+                                        loading={resources.pending}
+                                        loadingLabel={t('account.loadingResources')}
+                                        onChange={setRoleDraft}
+                                        options={
+                                            resources.data?.roles.map((item) => ({
+                                                value: item.name,
+                                                label: item.name,
+                                            })) ?? []
+                                        }
+                                    />
                                 </div>
                             </div>
                             <label className="neon-account-check">

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useState, type ReactNode} from 'react';
 import {
+    PluginSelect,
     openUrl,
     PluginWorkspaceShell,
     usePluginWorkspace,
@@ -375,31 +376,30 @@ function Storage({connectionId}: ConnectedProps) {
             </PanelSection>
             <div>
                 <PanelSection title={t('objectEditor')} hint={t('textObjectsHint')}>
-                    {listing.data?.length ? (
+                    {listing.pending || listing.data?.length ? (
                         <>
                             <label className="neon-field-label" htmlFor="neon-existing-object">
                                 {t('existingObject')}
                             </label>
-                            <select
-                                className="neon-field"
+                            <PluginSelect
                                 id="neon-existing-object"
-                                value={listing.data.some((item) => item.Key === key) ? key : ''}
+                                value={listing.data?.some((item) => item.Key === key) ? key : ''}
+                                placeholder={t('chooseObject')}
                                 disabled={action.pending}
-                                onChange={(event) => {
-                                    setKey(event.target.value);
+                                loading={listing.pending}
+                                loadingLabel={t('loadingObjects')}
+                                onChange={(value) => {
+                                    setKey(value);
                                     setConfirmDelete(false);
                                     setConfirmPut(false);
                                 }}
-                            >
-                                <option value="" disabled>
-                                    {t('chooseObject')}
-                                </option>
-                                {listing.data.map((item) => (
-                                    <option key={item.Key} value={item.Key}>
-                                        {item.Key}
-                                    </option>
-                                ))}
-                            </select>
+                                options={
+                                    listing.data?.map((item) => ({
+                                        value: item.Key,
+                                        label: item.Key,
+                                    })) ?? []
+                                }
+                            />
                         </>
                     ) : null}
                     <label className="neon-field-label" htmlFor="neon-key">
@@ -530,22 +530,16 @@ function Ai({connectionId}: ConnectedProps) {
                         <label className="neon-field-label" htmlFor="neon-model">
                             {t('model')}
                         </label>
-                        <select
-                            className="neon-field"
+                        <PluginSelect
                             id="neon-model"
                             value={model}
-                            onChange={(event) => setSelected(event.target.value)}
+                            placeholder={t('chooseModel')}
+                            onChange={setSelected}
                             disabled={!available.length}
-                        >
-                            <option value="" disabled>
-                                {t('chooseModel')}
-                            </option>
-                            {available.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                    {item.id}
-                                </option>
-                            ))}
-                        </select>
+                            loading={models.pending}
+                            loadingLabel={t('loadingModels')}
+                            options={available.map((item) => ({value: item.id, label: item.id}))}
+                        />
                     </div>
                     <button
                         className="neon-button"

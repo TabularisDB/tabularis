@@ -9,7 +9,10 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "paths": { "@tabularis/plugin-api": ["../../../packages/plugin-api/src/index.ts"] }
+    "paths": {
+      "@tabularis/plugin-api": ["../../../packages/plugin-api/src/index.ts"],
+      "@/*": ["../../../packages/web-ui/src/*"]
+    }
   },
   "include": ["src", "tests", "vite.config.ts", "vitest.config.ts"]
 }
