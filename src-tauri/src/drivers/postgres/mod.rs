@@ -1059,16 +1059,25 @@ pub async fn get_table_ddl(
         escape_identifier(table_name),
         defs.join(",\n  ")
     );
-    // The table's other indexes (unique ones included), as PostgreSQL
-    // writes them; the primary key is part of the table above.
+    // The table's other indexes, as PostgreSQL writes them; the primary key
+    // is part of the table above. An index behind a UNIQUE or EXCLUDE
+    // constraint is written as that constraint, so it keeps being one (with
+    // `DEFERRABLE` and the exclusion operators).
     let pool = get_postgres_pool(params).await?;
     let client = pool.get().await.map_err(|e| e.to_string())?;
     let indexes = client
         .query(
-            "SELECT pg_catalog.pg_get_indexdef(ix.indexrelid) FROM pg_catalog.pg_index ix \
+            "SELECT CASE WHEN c.oid IS NULL THEN pg_catalog.pg_get_indexdef(ix.indexrelid) \
+             ELSE 'ALTER TABLE ' || pg_catalog.quote_ident(n.nspname) || '.' \
+             || pg_catalog.quote_ident(t.relname) || ' ADD CONSTRAINT ' \
+             || pg_catalog.quote_ident(c.conname) || ' ' \
+             || pg_catalog.pg_get_constraintdef(c.oid) END \
+             FROM pg_catalog.pg_index ix \
              JOIN pg_catalog.pg_class t ON t.oid = ix.indrelid \
              JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid \
              JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace \
+             LEFT JOIN pg_catalog.pg_constraint c ON c.conindid = ix.indexrelid \
+             AND c.conrelid = t.oid AND c.contype IN ('u', 'x') \
              WHERE n.nspname = $1 AND t.relname = $2 AND NOT ix.indisprimary \
              ORDER BY i.relname",
             &[&schema, &table_name],

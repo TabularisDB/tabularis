@@ -197,12 +197,12 @@ pub(crate) enum ColumnRead {
     /// SQLite: each value as a literal of its own storage class, so the
     /// class is kept per value whatever the column's declared type.
     /// Integers (including those past ±2^53, which the driver reads as
-    /// strings) and blobs in full come from `quote()`. Reals are the
-    /// shortest `printf('%!.<n>g')` form SQLite reads back to the same
-    /// double (`quote()` can round `DBL_MAX` up to infinity), and infinity
-    /// is `9e999`. Text is read as hex with the database encoding
-    /// (`T<encoding>:<hex>`, see [`sqlite_text`]), because `quote()` stops
-    /// at a NUL and the driver can't return text that isn't valid UTF-8.
+    /// strings) and blobs in full come from `quote()`. Reals are read as
+    /// values and written by [`sqlite_real`] in a form every SQLite build
+    /// reads back exactly; infinity is `9e999`. Text is read as hex with the
+    /// database encoding (`T<encoding>:<hex>`, see [`sqlite_text`]), because
+    /// `quote()` stops at a NUL and the driver can't return text that isn't
+    /// valid UTF-8.
     Quoted,
 }
 
@@ -288,24 +288,17 @@ pub(crate) fn export_select(
             let name = dialect.quote_identifier(&column.name);
             match reads.get(index).copied().unwrap_or(ColumnRead::Value) {
                 ColumnRead::Value => name,
-                ColumnRead::Quoted => {
-                    let real = |digits: u8| format!("printf('%!.{digits}g', {name})");
-                    let shortest = [15, 16, 17]
-                        .map(|digits| {
-                            let text = real(digits);
-                            format!("WHEN CAST({text} AS REAL) = {name} THEN {text} ")
-                        })
-                        .concat();
-                    format!(
-                        "CASE typeof({name}) \
-                         WHEN 'text' THEN 'T' || (SELECT encoding FROM pragma_encoding) \
-                         || ':' || hex({name}) \
-                         WHEN 'real' THEN CASE WHEN abs({name}) = 9e999 \
-                         THEN CASE WHEN {name} > 0 THEN '9e999' ELSE '-9e999' END \
-                         {shortest}ELSE quote({name}) END \
-                         ELSE quote({name}) END AS {name}"
-                    )
-                }
+                // Reals are read as values and written by `sqlite_real`; only
+                // infinity, which the driver can't return, is read as text.
+                ColumnRead::Quoted => format!(
+                    "CASE typeof({name}) \
+                     WHEN 'text' THEN 'T' || (SELECT encoding FROM pragma_encoding) \
+                     || ':' || hex({name}) \
+                     WHEN 'real' THEN CASE WHEN abs({name}) = 9e999 \
+                     THEN CASE WHEN {name} > 0 THEN '9e999' ELSE '-9e999' END \
+                     ELSE {name} END \
+                     ELSE quote({name}) END AS {name}"
+                ),
                 ColumnRead::Text if dialect.postgres => format!("{name}::text AS {name}"),
                 ColumnRead::Text => format!("CAST({name} AS CHAR) AS {name}"),
                 // NULL stays NULL, apart from an empty value.
@@ -376,6 +369,9 @@ fn render_cell(cell: SqlCell, read: ColumnRead, dialect: &DumpDialect) -> String
             let pad = if hex.len() % 2 == 1 { "0" } else { "" };
             format!("X'{pad}{hex}'")
         }
+        (ColumnRead::Quoted, serde_json::Value::Number(number)) if number.is_f64() => {
+            sqlite_real(number.as_f64().unwrap_or_default())
+        }
         (ColumnRead::Quoted, serde_json::Value::String(literal)) if literal.starts_with('T') => {
             match sqlite_text(literal, dialect) {
                 Some(text) => text,
@@ -419,14 +415,89 @@ fn sqlite_text(literal: &str, dialect: &DumpDialect) -> Option<String> {
         "UTF-16be" => utf16(u16::from_be_bytes),
         _ => return None,
     };
-    Some(match text.filter(|text| !text.contains('\0')) {
-        Some(text) => SqlCell {
-            value: serde_json::Value::String(text),
+    let string = |text: &str| {
+        SqlCell {
+            value: serde_json::Value::String(text.to_string()),
             is_json: false,
         }
-        .render(dialect),
+        .render(dialect)
+    };
+    Some(match text {
+        // A NUL can't be written inside a string literal, and `char(0)`
+        // is one in any encoding.
+        Some(text) => text
+            .split('\0')
+            .map(string)
+            .collect::<Vec<_>>()
+            .join(" || char(0) || "),
         None => format!("CAST(X'{hex}' AS TEXT)"),
     })
+}
+
+/// A SQLite real as SQL that every SQLite build reads back as the same
+/// double. SQLite's own decimal parser is not exact on every platform (it
+/// depends on whether `long double` is wider than `double`), so only forms
+/// it can't get wrong are used: digits without a fraction or exponent,
+/// which it converts as one integer, and one IEEE multiplication or
+/// division by exactly representable integers, which is correctly rounded:
+/// - `5.0`: whole numbers below 10^18;
+/// - `(435.0 / 100)`: the shortest decimal `435e-2`, when its digits and
+///   power of ten are exact doubles;
+/// - `(5404319552844596.0 / 18014398509481984)`: else the exact binary
+///   value, an odd integer times powers of two (`0.30000000000000004`).
+pub(crate) fn sqlite_real(value: f64) -> String {
+    if value.is_nan() {
+        return "NULL".to_string();
+    }
+    if value.is_infinite() {
+        return if value > 0.0 { "9e999" } else { "-9e999" }.to_string();
+    }
+    // SQLite stores -0.0 as 0.0.
+    if value == 0.0 {
+        return "0.0".to_string();
+    }
+    if value.fract() == 0.0 && value.abs() < 1e18 {
+        return format!("{value:.1}");
+    }
+    const EXACT: u64 = 1 << 53;
+    let sign = if value < 0.0 { "-" } else { "" };
+    // Rust's `{:e}` is the shortest decimal that reads back as `value`:
+    // `4.35e0`, `5e-324`.
+    let shortest = format!("{:e}", value.abs());
+    if let Some((mantissa, exponent)) = shortest.split_once('e') {
+        let fraction = mantissa.split_once('.').map_or(0, |(_, f)| f.len()) as i32;
+        let digits = mantissa.replace('.', "").parse::<u64>().ok();
+        let power = exponent.parse::<i32>().ok().map(|e| e - fraction);
+        if let (Some(digits), Some(power)) = (digits, power) {
+            if digits <= EXACT && power != 0 && power.abs() <= 18 {
+                let scale = 10u64.pow(power.unsigned_abs());
+                let op = if power < 0 { '/' } else { '*' };
+                return format!("({sign}{digits}.0 {op} {scale})");
+            }
+        }
+    }
+    let bits = value.abs().to_bits();
+    let biased = ((bits >> 52) & 0x7ff) as i32;
+    let fraction = bits & ((1 << 52) - 1);
+    let (mut mantissa, mut power) = if biased == 0 {
+        (fraction, -1074)
+    } else {
+        (fraction | (1 << 52), biased - 1075)
+    };
+    let zeros = mantissa.trailing_zeros().min(power.unsigned_abs()) as i32;
+    if power < 0 {
+        mantissa >>= zeros;
+        power += zeros;
+    }
+    let mut out = format!("({sign}{mantissa}.0");
+    while power != 0 {
+        let step = power.abs().min(62);
+        let op = if power < 0 { '/' } else { '*' };
+        out.push_str(&format!(" {op} {}", 1u64 << step));
+        power -= step * power.signum();
+    }
+    out.push(')');
+    out
 }
 
 /// A literal as SQLite's `quote()` writes it: `NULL`, a number, `X'<hex>'`
@@ -552,7 +623,10 @@ pub async fn export_table(
     let connection_for_task = connection_id.clone();
     let task_path = path.clone();
     let task_options = options.clone();
+    // The export starts only once it can be cancelled.
+    let (registered, wait_for_registration) = tokio::sync::oneshot::channel::<()>();
     let task = tokio::spawn(async move {
+        let _ = wait_for_registration.await;
         write_table_export(
             &runtime_for_task,
             session_id,
@@ -570,6 +644,7 @@ pub async fn export_table(
         export_key(session_id, &connection_id),
         Arc::new(task.abort_handle()),
     );
+    let _ = registered.send(());
     let result = task.await;
     registration.complete();
     let summary = match result {

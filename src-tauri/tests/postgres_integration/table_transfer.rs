@@ -185,6 +185,75 @@ async fn test_table_round_trips_into_another_schema() {
     assert_eq!(target_indexes, source_indexes);
 }
 
+/// UNIQUE and EXCLUDE constraints stay constraints (with `DEFERRABLE`), and
+/// an index on a schema-qualified function keeps naming that function.
+#[tokio::test]
+#[ignore]
+async fn test_constraints_and_function_indexes_round_trip() {
+    require_pg!();
+    tabularis_lib::drivers::registry::register_driver(postgres::PostgresDriver::new()).await;
+    let suffix = uuid::Uuid::new_v4().simple().to_string();
+    let source = format!("table_transfer_con_src_{suffix}");
+    let target = format!("table_transfer_con_dst_{suffix}");
+    run(&format!("CREATE SCHEMA {source}")).await;
+    run(&format!("CREATE SCHEMA {target}")).await;
+    run(&format!(
+        "CREATE FUNCTION {source}.norm(text) RETURNS text LANGUAGE sql IMMUTABLE \
+         AS 'SELECT lower(trim($1))'"
+    ))
+    .await;
+    run(&format!(
+        "CREATE TABLE {source}.slots (id integer PRIMARY KEY, code text, area circle, \
+         CONSTRAINT slots_code UNIQUE (code) DEFERRABLE INITIALLY DEFERRED, \
+         CONSTRAINT slots_area EXCLUDE USING gist (area WITH &&))"
+    ))
+    .await;
+    run(&format!(
+        "CREATE INDEX slots_norm ON {source}.slots ({source}.norm(code))"
+    ))
+    .await;
+    run(&format!(
+        "INSERT INTO {source}.slots VALUES (1, 'A', '<(0,0),1>'), (2, 'B', '<(5,5),1>')"
+    ))
+    .await;
+
+    let imported = round_trip("slots", &source, &target).await;
+    let constraints = |schema: &str| {
+        format!(
+            "SELECT conname, contype::text, condeferrable, condeferred, \
+             pg_get_constraintdef(c.oid) FROM pg_constraint c \
+             JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace \
+             WHERE n.nspname = '{schema}' AND t.relname = 'slots' ORDER BY conname"
+        )
+    };
+    let indexes = |schema: &str| {
+        format!(
+            "SELECT indexname, replace(indexdef, 'ON {schema}.slots', 'ON slots') FROM pg_indexes \
+             WHERE schemaname = '{schema}' AND tablename = 'slots' ORDER BY indexname"
+        )
+    };
+    let source_constraints = run(&constraints(&source)).await;
+    let target_constraints = run(&constraints(&target)).await;
+    let source_indexes = run(&indexes(&source)).await;
+    let target_indexes = run(&indexes(&target)).await;
+    run(&format!("DROP SCHEMA {target} CASCADE")).await;
+    run(&format!("DROP SCHEMA {source} CASCADE")).await;
+
+    assert_eq!(imported.expect("round trip"), 2);
+    assert_eq!(
+        source_constraints.len(),
+        3,
+        "the primary key, UNIQUE and EXCLUDE"
+    );
+    assert_eq!(target_constraints, source_constraints);
+    assert_eq!(source_indexes.len(), 4);
+    assert_eq!(target_indexes, source_indexes);
+    assert!(
+        format!("{target_indexes:?}").contains(&format!("{source}.norm(code)")),
+        "{target_indexes:?}"
+    );
+}
+
 /// Exports `{source}.{table}` and imports it into `target`.
 async fn round_trip(table: &str, source: &str, target: &str) -> Result<u64, String> {
     round_trip_file(table, source, target)

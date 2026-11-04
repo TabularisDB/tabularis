@@ -592,6 +592,18 @@ impl SqlCell {
     }
 }
 
+/// Rows between two forced yields. A driver stream with rows already
+/// buffered never waits, so without a yield the task would never reach a
+/// point where an abort (an export's cancel) can take effect.
+const ROWS_PER_YIELD: u64 = 256;
+
+async fn yield_every_rows(streamed: &mut u64) {
+    *streamed += 1;
+    if *streamed % ROWS_PER_YIELD == 0 {
+        tokio::task::yield_now().await;
+    }
+}
+
 /// Streams the rows of `query` (a `SELECT` over `table`) one at a time, so
 /// memory stays flat whatever the table size. Built-in drivers stream
 /// natively; plugin drivers are paged through `execute_query`. `on_row`
@@ -613,6 +625,7 @@ where
             use sqlx::{Column, TypeInfo};
             let pool = get_mysql_pool(params).await?;
             let mut rows = sqlx::query(query).fetch(&pool);
+            let mut streamed = 0u64;
             let mut columns: Option<Vec<String>> = None;
             while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
                 let names = columns.get_or_insert_with(|| {
@@ -625,6 +638,7 @@ where
                     })
                     .collect::<Vec<_>>();
                 on_row(names, cells)?;
+                yield_every_rows(&mut streamed).await;
             }
         }
         "postgres" => {
@@ -636,6 +650,7 @@ where
                 .await
                 .map_err(|error| error.to_string())?);
             let mut columns: Option<Vec<String>> = None;
+            let mut streamed = 0u64;
             while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
                 let names = columns.get_or_insert_with(|| {
                     row.columns().iter().map(|c| c.name().to_string()).collect()
@@ -651,12 +666,14 @@ where
                     })
                     .collect::<Vec<_>>();
                 on_row(names, cells)?;
+                yield_every_rows(&mut streamed).await;
             }
         }
         "sqlite" => {
             use sqlx::Column;
             let pool = get_sqlite_pool(params).await?;
             let mut rows = sqlx::query(query).fetch(&pool);
+            let mut streamed = 0u64;
             let mut columns: Option<Vec<String>> = None;
             while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
                 let names = columns.get_or_insert_with(|| {
@@ -669,6 +686,7 @@ where
                     })
                     .collect::<Vec<_>>();
                 on_row(names, cells)?;
+                yield_every_rows(&mut streamed).await;
             }
         }
         _ => {

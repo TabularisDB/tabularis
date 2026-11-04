@@ -309,6 +309,15 @@ mod ddl {
     }
 
     #[test]
+    fn keeps_the_schema_of_functions_and_types() {
+        let ddl = "CREATE TABLE \"shop\".\"orders\" (\"state\" \"shop\".\"status\", \"id\" int);\nCREATE INDEX orders_f ON shop.orders USING btree (shop.f(id));\nALTER TABLE ONLY shop.orders ADD CONSTRAINT orders_u UNIQUE (id);";
+        assert_eq!(
+            unqualify_ddl(ddl, &postgres(), &rules(&postgres()), Some("shop"), "orders"),
+            "CREATE TABLE \"orders\" (\"state\" \"shop\".\"status\", \"id\" int);\nCREATE INDEX orders_f ON orders USING btree (shop.f(id));\nALTER TABLE ONLY orders ADD CONSTRAINT orders_u UNIQUE (id);"
+        );
+    }
+
+    #[test]
     fn leaves_the_schema_name_inside_literals_and_comments() {
         let ddl = "CREATE TABLE \"public\".\"orders\" (\n  \"note\" text DEFAULT '\"public\".\"orders\"', -- from \"public\".\"orders\"\n  \"id\" int /* \"public\".\"x\" */\n);";
         assert_eq!(

@@ -279,10 +279,11 @@ pub fn end_marker() -> &'static str {
 /// Removes the source schema from a driver's DDL (`CREATE TABLE
 /// "public"."orders"` becomes `CREATE TABLE "orders"`), so the file can be
 /// imported into any schema. Every `<schema>.` qualifier the dialect would
-/// write is removed, so references to other tables of the same schema (a
-/// foreign key's `REFERENCES "public"."customers"`) resolve in the target
-/// schema too. Text inside string literals and comments is left alone, and
-/// DDL without the qualifier is returned unchanged.
+/// write on a table name is removed, so references to other tables of the
+/// same schema (a foreign key's `REFERENCES "public"."customers"`) resolve
+/// in the target schema too. Qualified functions and types, and text inside
+/// string literals and comments, are left alone, and DDL without the
+/// qualifier is returned unchanged.
 pub fn unqualify_ddl(
     ddl: &str,
     dialect: &DumpDialect,
@@ -312,7 +313,11 @@ pub fn unqualify_ddl(
     let mut scanner = Scanner::new(rules);
     let mut at = 0;
     while at < ddl.len() {
-        if scanner.in_code() && !ddl[..at].ends_with('.') && !previous_is_word(ddl, at) {
+        if scanner.in_code()
+            && !ddl[..at].ends_with('.')
+            && !previous_is_word(ddl, at)
+            && names_a_relation(ddl, at)
+        {
             let matched = [Some(prefix), plain.as_deref()]
                 .into_iter()
                 .flatten()
@@ -327,6 +332,21 @@ pub fn unqualify_ddl(
         at += len;
     }
     out
+}
+
+/// Whether the name at `at` stands where DDL names a table: after `TABLE`,
+/// `ONLY`, `EXISTS`, `ON`, `REFERENCES` or `INTO`. Elsewhere a schema
+/// qualifier belongs to a function or type (`shop.f(x)` in an index
+/// expression), which has to keep it.
+fn names_a_relation(ddl: &str, at: usize) -> bool {
+    let before = ddl[..at].trim_end();
+    let word_start = before
+        .rfind(|ch: char| !ch.is_ascii_alphabetic())
+        .map_or(0, |index| index + 1);
+    let word = &before[word_start..];
+    ["TABLE", "ONLY", "EXISTS", "ON", "REFERENCES", "INTO"]
+        .iter()
+        .any(|keyword| word.eq_ignore_ascii_case(keyword))
 }
 
 /// Each DDL statement ends with `;`, so the import can split the section.

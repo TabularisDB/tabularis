@@ -296,10 +296,7 @@ mod select {
              WHEN 'text' THEN 'T' || (SELECT encoding FROM pragma_encoding) || ':' || hex(\"b\") \
              WHEN 'real' THEN CASE WHEN abs(\"b\") = 9e999 \
              THEN CASE WHEN \"b\" > 0 THEN '9e999' ELSE '-9e999' END \
-             WHEN CAST(printf('%!.15g', \"b\") AS REAL) = \"b\" THEN printf('%!.15g', \"b\") \
-             WHEN CAST(printf('%!.16g', \"b\") AS REAL) = \"b\" THEN printf('%!.16g', \"b\") \
-             WHEN CAST(printf('%!.17g', \"b\") AS REAL) = \"b\" THEN printf('%!.17g', \"b\") \
-             ELSE quote(\"b\") END \
+             ELSE \"b\" END \
              ELSE quote(\"b\") END AS \"b\" FROM \"t\""
         );
         // The key is the table's own column, not the text alias of the same
@@ -420,7 +417,9 @@ mod select {
             ("TUTF-8:69742773", "'it''s'"),
             ("TUTF-8:F09F9880", "'\u{1f600}'"),
             ("TUTF-8:FF", "CAST(X'FF' AS TEXT)"),
-            ("TUTF-8:610062", "CAST(X'610062' AS TEXT)"),
+            ("TUTF-8:610062", "'a' || char(0) || 'b'"),
+            ("TUTF-8:00", "'' || char(0) || ''"),
+            ("TUTF-16le:610000006200", "'a' || char(0) || 'b'"),
             ("TUTF-16le:68006900", "'hi'"),
             ("TUTF-16be:00680069", "'hi'"),
             ("TUTF-16le:00D8", "CAST(X'00D8' AS TEXT)"),
@@ -448,6 +447,90 @@ mod select {
                 [format!("'{}'", value.replace('\'', "''"))]
             );
         }
+    }
+
+    /// Evaluates a [`sqlite_real`] literal the way SQLite does: the leading
+    /// digits as one integer, then each IEEE operation with an integer.
+    fn evaluate(literal: &str) -> f64 {
+        let inner = literal.trim_start_matches('(').trim_end_matches(')');
+        let mut parts = inner.split(' ');
+        let first = parts.next().unwrap();
+        let (sign, digits) = match first.strip_prefix('-') {
+            Some(digits) => (-1.0, digits),
+            None => (1.0, first),
+        };
+        let mut value = match digits.strip_suffix(".0") {
+            Some(whole) => whole.parse::<u64>().unwrap() as f64,
+            None => panic!("not a whole-number literal: {literal}"),
+        };
+        while let (Some(op), Some(operand)) = (parts.next(), parts.next()) {
+            let operand = operand.parse::<u64>().unwrap() as f64;
+            assert!(operand as u64 as f64 == operand, "{operand} is not exact");
+            value = match op {
+                "*" => value * operand,
+                "/" => value / operand,
+                _ => panic!("unexpected operator in {literal}"),
+            };
+        }
+        sign * value
+    }
+
+    #[test]
+    fn writes_sqlite_reals_in_a_form_every_parser_reads_exactly() {
+        for (value, literal) in [
+            (2.0, "2.0"),
+            (-7.0, "-7.0"),
+            (0.0, "0.0"),
+            (-0.0, "0.0"),
+            (123456789012345678.0, "123456789012345680.0"),
+            (4.35, "(435.0 / 100)"),
+            (-0.5, "(-5.0 / 10)"),
+            (1.5e18, "(15.0 * 100000000000000000)"),
+            (
+                0.30000000000000004,
+                "(1351079888211149.0 / 4503599627370496)",
+            ),
+            (f64::INFINITY, "9e999"),
+            (f64::NEG_INFINITY, "-9e999"),
+        ] {
+            assert_eq!(sqlite_real(value), literal, "{value:e}");
+        }
+        // Whole numbers, decimals and the binary form all evaluate back to
+        // the same bits, for the extremes and random bit patterns.
+        let mut state = 88_172_645_463_325_252u64;
+        let mut values = vec![
+            f64::MAX,
+            -f64::MAX,
+            f64::MIN_POSITIVE,
+            5e-324,
+            1e300,
+            1e-300,
+        ];
+        while values.len() < 200_000 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let value = f64::from_bits(state);
+            if value.is_finite() && value != 0.0 {
+                values.push(value);
+            }
+        }
+        for value in values {
+            let literal = sqlite_real(value);
+            assert!(is_whole_or_operation(&literal), "{literal}");
+            assert_eq!(
+                evaluate(&literal).to_bits(),
+                value.to_bits(),
+                "{value:e} as {literal}"
+            );
+        }
+    }
+
+    fn is_whole_or_operation(literal: &str) -> bool {
+        literal
+            .chars()
+            .all(|ch| ch.is_ascii_digit() || " ()*/.-".contains(ch))
+            && !literal.contains('e')
     }
 
     #[test]
@@ -596,6 +679,40 @@ mod sqlite_round_trip {
     impl Fixture {
         fn params(&self, id: &str) -> ConnectionParams {
             params_for(&self.dir.join(format!("{id}.sqlite")), "sqlite")
+        }
+
+        /// How many rows of `table` differ between `source` and `target` in
+        /// any of `columns`: a value not equal to the source's (bytes for
+        /// text and blobs, bits for reals) or of another storage class.
+        async fn differing_values(&self, table: &str, columns: &[&str]) -> i64 {
+            use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+            let target = SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect_with(SqliteConnectOptions::new().filename(self.dir.join("target.sqlite")))
+                .await
+                .unwrap();
+            let source = self.dir.join("source.sqlite");
+            sqlx::query(&format!(
+                "ATTACH '{}' AS src",
+                source.to_string_lossy().replace('\'', "''")
+            ))
+            .execute(&target)
+            .await
+            .unwrap();
+            let same = columns
+                .iter()
+                .map(|c| {
+                    format!("t.\"{c}\" IS s.\"{c}\" AND typeof(t.\"{c}\") = typeof(s.\"{c}\")")
+                })
+                .collect::<Vec<_>>()
+                .join(" AND ");
+            let sql = format!(
+                "SELECT (SELECT count(*) FROM src.\"{table}\") - (SELECT count(*) FROM \"{table}\") \
+                 + (SELECT count(*) FROM \"{table}\" t JOIN src.\"{table}\" s USING (id) WHERE NOT ({same}))"
+            );
+            let differing: i64 = sqlx::query_scalar(&sql).fetch_one(&target).await.unwrap();
+            target.close().await;
+            differing
         }
 
         async fn run(&self, id: &str, sql: &str) -> crate::models::QueryResult {
@@ -779,6 +896,11 @@ mod sqlite_round_trip {
             "CAST(X'FF' AS TEXT)",
             "CAST(X'C328' AS TEXT)",
             "'a' || char(0) || 'b'",
+            "'back\\slash' || char(92)",
+            "'NULL'",
+            "'-- not a comment /* */ ;'",
+            "char(10) || ';' || char(10) || '-- @end' || char(10)",
+            "char(1, 9, 13, 27)",
         ];
         for (id, value) in values.iter().enumerate() {
             fixture
@@ -819,28 +941,29 @@ mod sqlite_round_trip {
                 serde_json::json!("text,integer,real,blob,null")
             ]]
         );
-        let edges =
-            "SELECT quote(u), typeof(u) FROM items WHERE id IN (5, 6, 7, 8, 9, 12) ORDER BY id";
+        // Compared as values, not as printed text, which differs by platform:
+        // every value equals its source and keeps its storage class.
+        assert_eq!(
+            fixture
+                .differing_values("items", &["i", "r", "n", "t", "b", "u"])
+                .await,
+            0
+        );
+        let edges = "SELECT typeof(u), u = 9e999, u = -9e999 FROM items \
+            WHERE id IN (5, 6, 7, 8, 9, 12, 22, 23, 24, 25) ORDER BY id";
         assert_eq!(
             serde_json::to_value(fixture.run("target", edges).await.rows).unwrap(),
             serde_json::json!([
-                ["9223372036854775807", "integer"],
-                ["-9223372036854775808", "integer"],
-                ["9007199254740993", "integer"],
-                ["9.0e+999", "real"],
-                ["-9.0e+999", "real"],
-                ["3.00000000000000044e-01", "real"]
-            ])
-        );
-        // The largest doubles stay finite.
-        let reals = "SELECT quote(u), typeof(u) FROM items WHERE id BETWEEN 22 AND 25 ORDER BY id";
-        assert_eq!(
-            serde_json::to_value(fixture.run("target", reals).await.rows).unwrap(),
-            serde_json::json!([
-                ["1.797693134862315708e+308", "real"],
-                ["-1.797693134862315708e+308", "real"],
-                ["2.22507385850720138e-308", "real"],
-                ["1.2345678901234568e+17", "real"]
+                ["integer", 0, 0],
+                ["integer", 0, 0],
+                ["integer", 0, 0],
+                ["real", 1, 0],
+                ["real", 0, 1],
+                ["real", 0, 0],
+                ["real", 0, 0],
+                ["real", 0, 0],
+                ["real", 0, 0],
+                ["real", 0, 0]
             ])
         );
         // Text that isn't valid UTF-8 or holds a NUL keeps every byte.
@@ -871,6 +994,55 @@ mod sqlite_round_trip {
             .await
             .rows;
         assert!(!format!("{plan:?}").contains("TEMP B-TREE"), "{plan:?}");
+    }
+
+    #[tokio::test]
+    async fn keeps_text_from_a_utf16_database() {
+        // Text with a NUL from a UTF-16 database is written as
+        // `'a' || char(0) || 'b'`, which means the same text in a UTF-8
+        // target; only bytes that aren't valid text are copied raw.
+        let fixture = fixture().await;
+        {
+            // Before the driver opens it, which fixes the encoding.
+            use sqlx::{Connection, Executor};
+            let mut source = sqlx::SqliteConnection::connect_with(
+                &sqlx::sqlite::SqliteConnectOptions::new()
+                    .filename(fixture.dir.join("source.sqlite")),
+            )
+            .await
+            .unwrap();
+            source
+                .execute(sqlx::raw_sql(
+                    "PRAGMA encoding = 'UTF-16le'; \
+                     CREATE TABLE items (id INTEGER PRIMARY KEY, u); \
+                     INSERT INTO items VALUES (1, 'a' || char(0) || 'b'), \
+                     (2, 'caf\u{e9} \u{1f600}'), (3, ''), (4, 'it''s');",
+                ))
+                .await
+                .unwrap();
+            source.close().await.unwrap();
+        }
+        assert_eq!(
+            fixture.run("source", "PRAGMA encoding").await.rows,
+            [[serde_json::json!("UTF-16le")]]
+        );
+        let (path, _) = fixture.export(TableSqlContent::StructureAndData).await;
+        fixture.import(&path, IfTableExists::Fail).await.unwrap();
+        assert_eq!(
+            serde_json::to_value(
+                fixture
+                    .run("target", "SELECT typeof(u), hex(u) FROM items ORDER BY id")
+                    .await
+                    .rows
+            )
+            .unwrap(),
+            serde_json::json!([
+                ["text", "610062"],
+                ["text", "636166C3A920F09F9880"],
+                ["text", ""],
+                ["text", "69742773"]
+            ])
+        );
     }
 
     /// A plugin driver as the host sees it, over JSON-RPC, answered by the
@@ -1052,6 +1224,24 @@ mod sqlite_round_trip {
         assert_eq!(fixture.run("target", indexes).await.rows, source);
     }
 
+    /// Cancels the export of `source` when its first progress event (row
+    /// 100) arrives, from inside the export: no timing involved.
+    struct CancelOnFirstProgress {
+        state: Arc<ExportCancellationState>,
+        fired: std::sync::atomic::AtomicBool,
+    }
+
+    impl crate::runtime::events::RuntimeEvents for CancelOnFirstProgress {
+        fn emit(&self, event: &str, _payload: serde_json::Value) -> Result<(), String> {
+            if event == "export_progress"
+                && !self.fired.swap(true, std::sync::atomic::Ordering::SeqCst)
+            {
+                crate::application::generic_exports::cancel_export(&self.state, None, "source")?;
+            }
+            Ok(())
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cancelling_an_export_leaves_no_file() {
         let fixture = fixture().await;
@@ -1064,13 +1254,24 @@ mod sqlite_round_trip {
         fixture
             .run(
                 "source",
-                "WITH RECURSIVE seq(v) AS (SELECT 1 UNION ALL SELECT v + 1 FROM seq WHERE v < 300000) INSERT INTO items SELECT v, printf('%.200c', 'x'), v, 1, NULL FROM seq",
+                "WITH RECURSIVE seq(v) AS (SELECT 1 UNION ALL SELECT v + 1 FROM seq WHERE v < 20000) INSERT INTO items SELECT v, printf('%.200c', 'x'), v, 1, NULL FROM seq",
             )
             .await;
         let state = Arc::new(ExportCancellationState::default());
+        let events = Arc::new(CancelOnFirstProgress {
+            state: state.clone(),
+            fired: Default::default(),
+        });
+        let runtime = RuntimeContext::new(
+            Arc::new(FixedRuntimePaths::new(
+                fixture.dir.clone(),
+                fixture.dir.clone(),
+            )),
+            events.clone(),
+            Arc::new(NoopSecrets),
+        );
         let path = fixture.dir.join("items.sql");
         let task = {
-            let runtime = fixture.runtime.clone();
             let state = state.clone();
             let path = path.clone();
             tokio::spawn(async move {
@@ -1090,13 +1291,6 @@ mod sqlite_round_trip {
                 .await
             })
         };
-        // Cancel once rows are being written.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        while fixture.leftovers().is_empty() && std::time::Instant::now() < deadline {
-            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-        }
-        assert!(!fixture.leftovers().is_empty(), "the export never started");
-        crate::application::generic_exports::cancel_export(&state, None, "source").unwrap();
 
         let result = task.await.unwrap();
         assert_eq!(result.unwrap_err(), TABLE_EXPORT_CANCELLED);
