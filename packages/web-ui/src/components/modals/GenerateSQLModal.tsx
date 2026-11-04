@@ -175,6 +175,7 @@ export const GenerateSQLModal = ({isOpen, onClose, target, openEditor}: Generate
             queryName: `${tableName} – ${tab}`,
             preventAutoRun: true,
             schema,
+            ...(database ? {database} : {}),
             targetConnectionId: connectionId,
         } as const;
 

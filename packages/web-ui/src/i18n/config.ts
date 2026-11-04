@@ -14,6 +14,7 @@ export const SUPPORTED_LANGUAGES = [
     {id: 'it', label: 'Italiano'},
     {id: 'es', label: 'Español'},
     {id: 'zh', label: '中文'},
+    {id: 'zh-TW', label: '繁體中文'},
     {id: 'fr', label: 'Français'},
     {id: 'de', label: 'Deutsch'},
     {id: 'ja', label: '日本語'},
@@ -21,6 +22,7 @@ export const SUPPORTED_LANGUAGES = [
     {id: 'ko', label: '한국어'},
     {id: 'tl', label: 'Tagalog'},
     {id: 'pt-BR', label: 'Português (Brasil)'},
+    {id: 'vi', label: 'Tiếng Việt'},
 ] as const;
 
 export type AppLanguage = 'auto' | (typeof SUPPORTED_LANGUAGES)[number]['id'];

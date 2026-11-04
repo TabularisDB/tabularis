@@ -90,16 +90,18 @@ describe('ConnectionEditorRoute', () => {
         );
     });
 
-    it('returns to connections when a direct connection fails', async () => {
+    it('returns to connections with the reason when a direct connection fails', async () => {
         mocks.connectionId = 'missing';
-        mocks.connect.mockRejectedValue(new Error('missing'));
+        mocks.connect.mockRejectedValue(new Error('Connection not found'));
 
         render(<ConnectionEditorRoute />);
 
         await waitFor(() =>
             expect(mocks.navigate).toHaveBeenCalledWith('/connections', {
                 replace: true,
+                state: {connectionLinkError: 'Connection not found'},
             }),
         );
+        expect(mocks.switchConnection).not.toHaveBeenCalled();
     });
 });

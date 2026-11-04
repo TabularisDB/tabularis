@@ -1,7 +1,7 @@
 {
   "name": "tabularis",
   "private": true,
-  "version": "0.30.0",
+  "version": "0.31.0",
   "type": "module",
   "links": {
     "discord": "https://discord.com/invite/K2hmhfHRSt",
@@ -30,8 +30,6 @@
     "test:web-e2e": "bash e2e/web/run.sh --project=chromium",
     "test:web-e2e:browsers": "bash e2e/web/run.sh",
     "test:all": "pnpm test:rust && pnpm test:coverage",
-    "web:inventory": "node scripts/web/generate-web-ui-api-inventory.mjs --check",
-    "web:inventory:write": "node scripts/web/generate-web-ui-api-inventory.mjs --write",
     "web:boundaries": "node scripts/web/check-web-ui-frontend-boundaries.mjs --check",
     "web:packaging": "node --test scripts/web/check-web-ui-packaging.test.mjs tests/web/verify-linux-web-package.test.mjs",
     "web:docs": "node --test scripts/web/check-web-ui-documentation.test.mjs",
@@ -46,7 +44,7 @@
     "roadmap": "node scripts/update-roadmap.js",
     "sync-links": "node scripts/sync-links.js",
     "sync-sponsors": "node scripts/sync-sponsors.js",
-    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md -s && git add README.md docs/translations/README.*.md CHANGELOG.md src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock packages/web-ui/src/version.ts",
+    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md -s && git add README.md docs/translations/README.*.md CHANGELOG.md src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock packages/web-ui/package.json packages/web-ui/src/version.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

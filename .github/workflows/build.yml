@@ -71,13 +71,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: "macos-latest" # for Arm64
+          - platform: "blacksmith-6vcpu-macos-15" # for Arm64
             args: "--target aarch64-apple-darwin"
             artifact: macos-arm64
-          - platform: "macos-15-intel" # for Intel
+          - platform: "blacksmith-6vcpu-macos-15" # for Intel
             args: "--target x86_64-apple-darwin"
             artifact: macos-x64
-          - platform: "ubuntu-24.04"
+          - platform: "blacksmith-4vcpu-ubuntu-2404"
             args: ""
             artifact: linux-x64
             # Build inside an ubuntu:22.04 container (glibc 2.35) rather than
@@ -86,7 +86,7 @@ jobs:
             # container image, not the runner, so it's unaffected by GitHub's
             # eventual deprecation of the ubuntu-22.04 *runner* image.
             container: "ubuntu:22.04"
-          - platform: "windows-latest"
+          - platform: "blacksmith-4vcpu-windows-2025"
             args: ""
             artifact: windows-x64
 

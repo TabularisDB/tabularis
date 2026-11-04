@@ -3,6 +3,7 @@ import {useSettings} from '@/hooks/useSettings';
 import {
     DEFAULT_SETTINGS,
     type CopyFormat,
+    type CopyNullLabel,
     type ERDiagramLayout,
     type WindowDecorationsMode,
 } from '@/contexts/SettingsContext';
@@ -14,6 +15,7 @@ import {
     SettingNumberInput,
 } from './SettingControls';
 import {DEFAULT_NOTIFY_THRESHOLD_SEC} from '@/utils/queryNotification';
+import {DEFAULT_NULL_DISPLAY, type NullDisplay} from '@/utils/nullDisplay';
 
 export function GeneralTab() {
     const {t} = useTranslation();
@@ -117,7 +119,24 @@ export function GeneralTab() {
                             {value: 'csv', label: 'CSV'},
                             {value: 'json', label: 'JSON'},
                             {value: 'sql-insert', label: 'SQL INSERT'},
+                            {value: 'sql-update', label: 'SQL UPDATE'},
                             {value: 'markdown', label: 'Markdown'},
+                        ]}
+                    />
+                </SettingRow>
+
+                <SettingRow
+                    label={t('settings.nullDisplay')}
+                    description={t('settings.nullDisplayDesc')}
+                >
+                    <SettingButtonGroup<NullDisplay>
+                        value={settings.nullDisplay ?? DEFAULT_NULL_DISPLAY}
+                        onChange={(v) => updateSetting('nullDisplay', v)}
+                        options={[
+                            {value: 'default', label: t('dataGrid.null')},
+                            {value: 'parenthesized', label: '(null)'},
+                            {value: 'emptySet', label: '∅'},
+                            {value: 'empty', label: t('settings.nullDisplayEmpty')},
                         ]}
                     />
                 </SettingRow>
@@ -147,6 +166,21 @@ export function GeneralTab() {
                             settings.csvIncludeHeaders ?? DEFAULT_SETTINGS.csvIncludeHeaders ?? true
                         }
                         onChange={(v) => updateSetting('csvIncludeHeaders', v)}
+                    />
+                </SettingRow>
+
+                <SettingRow
+                    label={t('settings.copyNullLabel')}
+                    description={t('settings.copyNullLabelDesc')}
+                >
+                    <SettingButtonGroup<CopyNullLabel>
+                        value={settings.copyNullLabel ?? DEFAULT_SETTINGS.copyNullLabel ?? 'null'}
+                        onChange={(v) => updateSetting('copyNullLabel', v)}
+                        options={[
+                            {value: 'null', label: 'null'},
+                            {value: 'NULL', label: 'NULL'},
+                            {value: '', label: t('settings.copyNullLabelEmpty')},
+                        ]}
                     />
                 </SettingRow>
 

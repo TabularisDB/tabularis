@@ -1,13 +1,18 @@
-import {fireEvent, render, screen, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {useState, type ComponentProps} from 'react';
-import {describe, expect, it, vi} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {QueryHistorySection} from '@/components/layout/sidebar/QueryHistorySection';
 import type {QueryHistoryEntry} from '@/types/queryHistory';
+
+const {downloadFile} = vi.hoisted(() => ({downloadFile: vi.fn()}));
+vi.mock('@/hooks/usePlatformCapabilities', () => ({
+    usePlatformCapabilities: () => ({downloadFile}),
+}));
 
 vi.mock('lucide-react', async (importOriginal) => await importOriginal());
 
 vi.mock('@/hooks/useSettings', () => ({
-    useSettings: () => ({settings: {displayTimezone: 'UTC'}}),
+    useSettings: () => ({settings: {displayTimezone: 'Asia/Tokyo'}}),
 }));
 vi.mock('@/components/ui/SqlHighlight', () => ({
     SqlHighlight: ({sql}: {sql: string}) => <pre>{sql}</pre>,
@@ -329,5 +334,86 @@ describe('QueryHistorySection custom date fields', () => {
         expect(fromField).toHaveTextContent('sidebar.historyDateFrom');
         expect(toField).toHaveTextContent('sidebar.historyDateTo');
         expect(fromField).not.toBe(toField);
+    });
+});
+
+describe('QueryHistorySection export', () => {
+    beforeEach(() => {
+        downloadFile.mockReset().mockResolvedValue(true);
+    });
+
+    it('downloads only matching entries in the order displayed by date groups', async () => {
+        const entries = [
+            {...entry, id: 'old', sql: 'SELECT old', executedAt: '2020-01-01T12:00:00Z'},
+            {...entry, id: 'other-db', sql: 'SELECT excluded', database: 'other'},
+            {...entry, id: 'new', sql: 'SELECT new', executedAt: new Date().toISOString()},
+            {...entry, id: 'not-matching', sql: 'DELETE FROM users'},
+        ];
+        renderSection(entries);
+        fireEvent.change(databaseSelect(), {target: {value: 'db:main'}});
+        fireEvent.change(screen.getByPlaceholderText('sidebar.searchHistory'), {
+            target: {value: 'SELECT'},
+        });
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+
+        expect(downloadFile).toHaveBeenCalledTimes(1);
+        const request = downloadFile.mock.calls[0][0];
+        expect(request.fileName).toBe('query-history.sql');
+        expect(request.mimeType).toBe('application/sql');
+        const contents = new TextDecoder().decode(request.contents);
+        expect(contents).toContain('-- 2020-01-01 21:00:00 · success · 12 ms');
+        expect(contents).toContain('SELECT new;');
+        expect(contents).toContain('SELECT old;');
+        expect(contents.indexOf('SELECT new;')).toBeLessThan(contents.indexOf('SELECT old;'));
+        expect(contents).not.toContain('SELECT excluded');
+        expect(contents).not.toContain('DELETE FROM users');
+    });
+
+    it('disables export when filters leave no visible entries', () => {
+        renderSection([entry]);
+        fireEvent.change(screen.getByPlaceholderText('sidebar.searchHistory'), {
+            target: {value: 'no match'},
+        });
+        expect(screen.getByRole('button', {name: 'sidebar.exportHistory'})).toBeDisabled();
+        expect(downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed download and allows retrying', async () => {
+        downloadFile.mockRejectedValueOnce(new Error('Disk full'));
+        renderSection([entry]);
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+        expect(screen.getByRole('alert')).toHaveTextContent('sidebar.exportHistoryError');
+        expect(screen.getByRole('alert')).toHaveTextContent('Disk full');
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(downloadFile).toHaveBeenCalledTimes(2);
+    });
+
+    it('blocks another export while saving and treats cancellation as normal', async () => {
+        let finish: (saved: boolean) => void = () => {};
+        downloadFile.mockReturnValueOnce(
+            new Promise<boolean>((resolve) => {
+                finish = resolve;
+            }),
+        );
+        renderSection([entry]);
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        expect(screen.getByRole('button', {name: 'sidebar.exportHistory'})).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        expect(downloadFile).toHaveBeenCalledTimes(1);
+        await act(async () => {
+            finish(false);
+        });
+        expect(screen.getByRole('button', {name: 'sidebar.exportHistory'})).toBeEnabled();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 });

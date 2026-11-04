@@ -56,6 +56,19 @@ pub async fn analyze_ai_explain_plan(
 }
 
 #[tauri::command]
+pub async fn analyze_ai_crash_report(
+    app: AppHandle,
+    req: AiExplainRequest,
+) -> Result<String, String> {
+    analyze_crash_report(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        req,
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn generate_cell_name(app: AppHandle, req: AiCellNameRequest) -> Result<String, String> {
     generate_cellname(
         &app.state::<RuntimeContext>(),

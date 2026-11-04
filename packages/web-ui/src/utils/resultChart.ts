@@ -1,5 +1,4 @@
 import type {QueryResult} from '@/types/editor';
-import type {CellChartConfig} from '@/types/notebook';
 
 /** Which presentation a result panel shows. */
 export type ResultView = 'grid' | 'chart';
@@ -71,92 +70,205 @@ export function classifyResultColumns(result: QueryResult): readonly ChartColumn
     return kinds;
 }
 
-/** Columns that can be plotted on the Y axis. */
-export function getChartValueColumns(result: QueryResult): string[] {
-    const kinds = classifyResultColumns(result);
-    return result.columns.filter((_, i) => kinds[i] === 'numeric');
+/**
+ * A chart over a query result. Columns are referenced by index, not name: a
+ * result can repeat a name (`SELECT a.id, b.id ...`) and each copy is its own
+ * column.
+ */
+export interface ResultChartConfig {
+    type: ResultChartType;
+    /** Index of the X column in `result.columns`, or `ROW_NUMBER`. */
+    labelIndex: number;
+    /** Indexes of the Y columns. */
+    valueIndices: number[];
+    /**
+     * The result's column names when the config was made, so a re-run that
+     * moves columns keeps plotting the same ones.
+     */
+    columns: readonly string[];
 }
 
-export type ChartUnavailableReason = 'noRows' | 'noNumeric';
+/**
+ * `labelIndex` that plots the rows in their result order (1, 2, 3, ...)
+ * instead of by a column. It lets a result with a single numeric column, such
+ * as `SELECT amount FROM orders ORDER BY created_at`, still be charted.
+ */
+export const ROW_NUMBER = -1;
+
+/** Indexes of the columns that can be plotted on the Y axis. */
+export function getChartValueColumns(result: QueryResult): number[] {
+    const kinds = classifyResultColumns(result);
+    const indices: number[] = [];
+    kinds.forEach((kind, i) => {
+        if (kind === 'numeric') indices.push(i);
+    });
+    return indices;
+}
+
+/**
+ * A display name per column. A name the result repeats gets its occurrence
+ * number from the second copy on (`id`, `id (2)`), so pickers and tooltips
+ * can tell the copies apart.
+ */
+export function getChartColumnLabels(columns: readonly string[]): string[] {
+    const seen = new Map<string, number>();
+    return columns.map((name) => {
+        const n = (seen.get(name) ?? 0) + 1;
+        seen.set(name, n);
+        return n === 1 ? name : `${name} (${n})`;
+    });
+}
+
+/** The Recharts data key of a Y column; never collides with the `label` key. */
+export function chartSeriesKey(index: number): string {
+    return `c${index}`;
+}
+
+/**
+ * The X a chart starts with: a date-like column, else a text column, else the
+ * first numeric column when another one is left for Y, else the row number.
+ */
+function getDefaultLabelIndex(result: QueryResult): number {
+    const kinds = classifyResultColumns(result);
+    const temporalIdx = kinds.indexOf('temporal');
+    if (temporalIdx !== -1) return temporalIdx;
+    const textIdx = kinds.indexOf('text');
+    if (textIdx !== -1) return textIdx;
+    const numeric = getChartValueColumns(result);
+    return numeric.length > 1 ? numeric[0] : ROW_NUMBER;
+}
+
+/**
+ * - `noRows`: nothing loaded;
+ * - `noNumeric`: no column can go on Y;
+ * - `singleValue`: one row with one numeric column and nothing to put on X
+ *   (`SELECT COUNT(*) ...`). A one-bar chart says less than the grid does.
+ */
+export type ChartUnavailableReason = 'noRows' | 'noNumeric' | 'singleValue';
 
 /** Why a result cannot be charted, or null when it can. */
 export function getChartUnavailableReason(result: QueryResult): ChartUnavailableReason | null {
     if (result.columns.length === 0 || result.rows.length === 0) return 'noRows';
     if (getChartValueColumns(result).length === 0) return 'noNumeric';
+    if (result.rows.length === 1 && getDefaultLabelIndex(result) === ROW_NUMBER) {
+        return 'singleValue';
+    }
     return null;
 }
 
-function pickDefaultValueColumn(valueColumns: string[], labelColumn: string): string | undefined {
-    const candidates = valueColumns.filter((c) => c !== labelColumn);
-    return candidates.find((c) => !ID_COLUMN.test(c)) ?? candidates[0];
+/**
+ * The column that must stay on Y because it is the only numeric one, or null.
+ * Putting it on X would leave nothing to plot.
+ */
+export function getSoleValueColumn(result: QueryResult): number | null {
+    const numeric = getChartValueColumns(result);
+    return numeric.length === 1 ? numeric[0] : null;
+}
+
+function pickDefaultValueColumn(
+    result: QueryResult,
+    valueIndices: readonly number[],
+    labelIndex: number,
+): number | undefined {
+    const candidates = valueIndices.filter((i) => i !== labelIndex);
+    return candidates.find((i) => !ID_COLUMN.test(result.columns[i])) ?? candidates[0];
 }
 
 /**
  * Picks a sensible starting chart from column types:
  * - a date-like column goes on X and the chart is a line;
  * - otherwise the first text column goes on X and the chart is a bar;
- * - an all-numeric result uses its first column as X.
+ * - an all-numeric result uses its first column as X;
+ * - a single numeric column is plotted by row number.
  * Y is the first numeric column other than X, preferring non-id columns.
  */
-export function buildDefaultResultChartConfig(result: QueryResult): CellChartConfig | null {
+export function buildDefaultResultChartConfig(result: QueryResult): ResultChartConfig | null {
     if (getChartUnavailableReason(result) !== null) return null;
-    const kinds = classifyResultColumns(result);
-    const valueColumns = result.columns.filter((_, i) => kinds[i] === 'numeric');
-
-    const temporalIdx = kinds.indexOf('temporal');
-    const textIdx = kinds.indexOf('text');
-    const labelIdx = temporalIdx !== -1 ? temporalIdx : textIdx !== -1 ? textIdx : 0;
-    const labelColumn = result.columns[labelIdx];
-
-    const valueColumn = pickDefaultValueColumn(valueColumns, labelColumn);
-    if (!valueColumn) return null;
+    const labelIndex = getDefaultLabelIndex(result);
+    const valueIndex = pickDefaultValueColumn(result, getChartValueColumns(result), labelIndex);
+    if (valueIndex === undefined) return null;
 
     return {
-        type: temporalIdx !== -1 ? 'line' : 'bar',
-        labelColumn,
-        valueColumns: [valueColumn],
+        type: classifyResultColumns(result)[labelIndex] === 'temporal' ? 'line' : 'bar',
+        labelIndex,
+        valueIndices: [valueIndex],
+        columns: result.columns,
     };
 }
 
+function sameColumns(a: readonly string[], b: readonly string[]): boolean {
+    return a === b || (a.length === b.length && a.every((name, i) => name === b[i]));
+}
+
 /**
- * Keeps a stored chart config valid for the current result: drops value
- * columns that disappeared or are no longer numeric, and falls back to the
- * defaults when the X column vanished or no Y column is left.
+ * Where column `index` of `from` is in `to`: the same name, and the same copy
+ * of it when the name repeats. null when it is gone.
+ */
+function remapColumn(index: number, from: readonly string[], to: readonly string[]): number | null {
+    if (index === ROW_NUMBER) return ROW_NUMBER;
+    const name = from[index];
+    if (name === undefined) return null;
+    let copy = 0;
+    for (let i = 0; i < index; i++) if (from[i] === name) copy++;
+    for (let i = 0; i < to.length; i++) {
+        if (to[i] !== name) continue;
+        if (copy === 0) return i;
+        copy--;
+    }
+    return null;
+}
+
+/**
+ * Keeps a stored chart config valid for the current result: follows columns
+ * that moved, drops value columns that disappeared or are no longer numeric,
+ * and falls back to the defaults when the X column vanished or no Y column is
+ * left. Never returns null for a result that can be charted, so the chart
+ * can't get stuck on an empty state.
  */
 export function reconcileResultChartConfig(
-    config: CellChartConfig | null,
+    config: ResultChartConfig | null,
     result: QueryResult,
-): CellChartConfig | null {
+): ResultChartConfig | null {
     if (getChartUnavailableReason(result) !== null) return null;
     if (!config) return buildDefaultResultChartConfig(result);
 
-    const type: ResultChartType = (RESULT_CHART_TYPES as readonly string[]).includes(config.type)
-        ? (config.type as ResultChartType)
-        : 'bar';
+    const moved = !sameColumns(config.columns, result.columns);
+    const remap = (index: number) =>
+        moved ? remapColumn(index, config.columns, result.columns) : index;
+    const type = config.type;
 
-    if (!result.columns.includes(config.labelColumn)) {
-        const fallback = buildDefaultResultChartConfig(result);
-        return fallback ? {...fallback, type} : null;
+    const fallback = () => {
+        const defaults = buildDefaultResultChartConfig(result);
+        return defaults ? {...defaults, type} : null;
+    };
+
+    const labelIndex = remap(config.labelIndex);
+    if (
+        labelIndex === null ||
+        (labelIndex !== ROW_NUMBER && (labelIndex < 0 || labelIndex >= result.columns.length))
+    ) {
+        return fallback();
     }
 
-    const numeric = new Set(getChartValueColumns(result));
-    const valueColumns = config.valueColumns.filter(
-        (c) => numeric.has(c) && c !== config.labelColumn,
-    );
-    if (valueColumns.length === 0) {
-        const valueColumn = pickDefaultValueColumn([...numeric], config.labelColumn);
-        if (!valueColumn) return null;
-        return {
-            type,
-            labelColumn: config.labelColumn,
-            valueColumns: [valueColumn],
-        };
+    const numeric = getChartValueColumns(result);
+    const valueIndices = config.valueIndices
+        .map(remap)
+        .filter((i): i is number => i !== null && i !== labelIndex && numeric.includes(i));
+    if (valueIndices.length === 0) {
+        const valueIndex = pickDefaultValueColumn(result, numeric, labelIndex);
+        // X holds the only numeric column: start over rather than plot nothing.
+        if (valueIndex === undefined) return fallback();
+        return {type, labelIndex, valueIndices: [valueIndex], columns: result.columns};
     }
 
-    if (type === config.type && valueColumns.length === config.valueColumns.length) {
+    if (
+        !moved &&
+        labelIndex === config.labelIndex &&
+        valueIndices.length === config.valueIndices.length
+    ) {
         return config;
     }
-    return {type, labelColumn: config.labelColumn, valueColumns};
+    return {type, labelIndex, valueIndices, columns: result.columns};
 }
 
 /**
@@ -164,32 +276,32 @@ export function reconcileResultChartConfig(
  * going past `maxSeries`.
  */
 export function toggleChartValueColumn(
-    config: CellChartConfig,
-    column: string,
+    config: ResultChartConfig,
+    index: number,
     maxSeries = MAX_CHART_SERIES,
-): CellChartConfig {
-    const selected = config.valueColumns.includes(column);
+): ResultChartConfig {
+    const selected = config.valueIndices.includes(index);
     if (selected) {
-        if (config.valueColumns.length === 1) return config;
+        if (config.valueIndices.length === 1) return config;
         return {
             ...config,
-            valueColumns: config.valueColumns.filter((c) => c !== column),
+            valueIndices: config.valueIndices.filter((i) => i !== index),
         };
     }
-    if (config.valueColumns.length >= maxSeries) return config;
-    return {...config, valueColumns: [...config.valueColumns, column]};
+    if (config.valueIndices.length >= maxSeries) return config;
+    return {...config, valueIndices: [...config.valueIndices, index]};
 }
 
 /** Sets the X column, removing it from the Y columns if it was plotted there. */
 export function setChartLabelColumn(
-    config: CellChartConfig,
-    column: string,
+    config: ResultChartConfig,
+    index: number,
     result: QueryResult,
-): CellChartConfig {
+): ResultChartConfig {
     const next = {
         ...config,
-        labelColumn: column,
-        valueColumns: config.valueColumns.filter((c) => c !== column),
+        labelIndex: index,
+        valueIndices: config.valueIndices.filter((i) => i !== index),
     };
     return reconcileResultChartConfig(next, result) ?? next;
 }
@@ -218,10 +330,13 @@ export function getResultChartScope(
     };
 }
 
-/** One X category and its Y values. A null value is missing data, not zero. */
+/**
+ * One X category and its Y values, keyed by `chartSeriesKey`. A null value is
+ * missing data, not zero.
+ */
 export interface ResultChartPoint {
     label: string;
-    [column: string]: string | number | null;
+    [key: string]: string | number | null;
 }
 
 /** The value to plot for a cell, or null when there is nothing to plot. */
@@ -230,39 +345,37 @@ function toChartNumber(value: unknown): number | null {
 }
 
 /**
- * Shapes the loaded rows into chart points, keyed like the notebook chart
- * data (`label` plus one key per Y column). Unlike the notebook transform,
- * NULLs stay null so lines show a gap and bars leave the slot empty, instead
- * of drawing a false 0.
+ * Shapes the loaded rows into chart points: `label` plus one key per Y
+ * column. Unlike the notebook transform, NULLs stay null so lines show a gap
+ * and bars leave the slot empty, instead of drawing a false 0.
  */
 export function shapeResultChartData(
     result: QueryResult,
-    config: CellChartConfig,
+    config: ResultChartConfig,
     maxPoints = MAX_CHART_POINTS,
 ): ResultChartPoint[] {
-    const labelIdx = result.columns.indexOf(config.labelColumn);
-    if (labelIdx === -1) return [];
-    const valueIndices = config.valueColumns
-        .map((name) => ({name, idx: result.columns.indexOf(name)}))
-        .filter((v) => v.idx !== -1);
+    const width = result.columns.length;
+    const labelIdx = config.labelIndex;
+    const byRow = labelIdx === ROW_NUMBER;
+    if (!byRow && (labelIdx < 0 || labelIdx >= width)) return [];
+    const valueIndices = config.valueIndices.filter((i) => i >= 0 && i < width);
     if (valueIndices.length === 0) return [];
 
     const rows = result.rows.length > maxPoints ? result.rows.slice(0, maxPoints) : result.rows;
-    return rows.map((row) => {
-        const point: ResultChartPoint = {
-            label: row[labelIdx] != null ? String(row[labelIdx]) : '',
-        };
-        for (const {name, idx} of valueIndices) point[name] = toChartNumber(row[idx]);
+    return rows.map((row, r) => {
+        const label = byRow ? String(r + 1) : row[labelIdx] != null ? String(row[labelIdx]) : '';
+        const point: ResultChartPoint = {label};
+        for (const idx of valueIndices) point[chartSeriesKey(idx)] = toChartNumber(row[idx]);
         return point;
     });
 }
 
 /**
- * Indexes of points with a value in `column` but none on either side. A line
+ * Indexes of points with a value under `key` but none on either side. A line
  * can't draw them, so they need a marker to stay visible.
  */
-export function getIsolatedPoints(data: ResultChartPoint[], column: string): Set<number> {
-    const has = (i: number) => typeof data[i]?.[column] === 'number';
+export function getIsolatedPoints(data: ResultChartPoint[], key: string): Set<number> {
+    const has = (i: number) => typeof data[i]?.[key] === 'number';
     const isolated = new Set<number>();
     data.forEach((_, i) => {
         if (has(i) && !has(i - 1) && !has(i + 1)) isolated.add(i);
@@ -286,17 +399,16 @@ export function getSeriesDash(rank: number): string | undefined {
 export const MAX_CHART_SERIES = 5;
 
 /**
- * Colour slot for every Y column the chart can show. Slots follow the column,
- * not the selection order, so hiding one series never repaints the others.
- * Id-like columns come last so the usual single series gets the first colour.
+ * Colour slot for every Y column the chart can show, by column index, in slot
+ * order. Slots follow the column, not the selection order, so hiding one
+ * series never repaints the others. Id-like columns come last so the usual
+ * single series gets the first colour.
  */
-export function getSeriesSlots(result: QueryResult, labelColumn: string): Record<string, number> {
-    const candidates = getChartValueColumns(result).filter((c) => c !== labelColumn);
-    const ordered = [
-        ...candidates.filter((c) => !ID_COLUMN.test(c)),
-        ...candidates.filter((c) => ID_COLUMN.test(c)),
-    ];
-    return Object.fromEntries(ordered.map((c, i) => [c, i]));
+export function getSeriesSlots(result: QueryResult, labelIndex: number): Map<number, number> {
+    const candidates = getChartValueColumns(result).filter((i) => i !== labelIndex);
+    const isId = (i: number) => ID_COLUMN.test(result.columns[i]);
+    const ordered = [...candidates.filter((i) => !isId(i)), ...candidates.filter(isId)];
+    return new Map(ordered.map((index, slot) => [index, slot]));
 }
 
 function safeNumberFormat(locale: string, options: Intl.NumberFormatOptions) {
@@ -334,7 +446,8 @@ export function truncateChartLabel(label: string, max = 16): string {
 
 const TEMPORAL_PARTS = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/;
 
-export interface TemporalFormatters {
+/** How X labels read: short on axis ticks, in full in the tooltip. */
+export interface ChartLabelFormatters {
     /** Short form for axis ticks. */
     tick: (label: string) => string;
     /** Full form for tooltips. */
@@ -348,7 +461,7 @@ export interface TemporalFormatters {
  * Ticks leave out what every label shares (the year, or the whole date for
  * timestamps within one day); the tooltip always shows the full value.
  */
-export function buildTemporalFormatters(labels: string[], locale: string): TemporalFormatters {
+export function buildTemporalFormatters(labels: string[], locale: string): ChartLabelFormatters {
     const parsed = labels.map((l) => TEMPORAL_PARTS.exec(l));
     const valid = parsed.filter((m): m is RegExpExecArray => m !== null);
     const hasSeconds = valid.some((m) => m[6] !== undefined && m[6] !== '00');
@@ -406,6 +519,18 @@ export function buildTemporalFormatters(labels: string[], locale: string): Tempo
         ...time,
     });
     return {tick, full};
+}
+
+/**
+ * Formatters for `ROW_NUMBER` labels: grouped digits on ticks, and the
+ * translated `rowLabel` ("Row 1,204") in the tooltip.
+ */
+export function buildRowNumberFormatters(
+    locale: string,
+    rowLabel: (row: string) => string,
+): ChartLabelFormatters {
+    const tick = (label: string) => formatChartCount(Number(label), locale);
+    return {tick, full: (label) => rowLabel(tick(label))};
 }
 
 /** Thickest bar drawn; wider bars read as blocks rather than marks. */

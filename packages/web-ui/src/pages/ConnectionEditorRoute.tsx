@@ -3,7 +3,8 @@ import {useNavigate, useParams} from 'react-router-dom';
 
 import {EditorErrorBoundary} from '@/components/ui/EditorErrorBoundary';
 import {useDatabase} from '@/hooks/useDatabase';
-import {BROWSER_ROUTES, buildEditorRoute} from '@/routing';
+import {BROWSER_ROUTES, buildEditorRoute, type ConnectionsRouteState} from '@/routing';
+import {toErrorMessage} from '@/utils/errors';
 import {Editor} from './Editor';
 
 export function ConnectionEditorRoute() {
@@ -33,9 +34,12 @@ export function ConnectionEditorRoute() {
             if (isConnectionOpen(connectionId)) {
                 switchConnection(connectionId);
             } else {
-                void connect(connectionId).catch(() => {
+                void connect(connectionId).catch((error: unknown) => {
                     if (currentRouteConnectionIdRef.current === connectionId) {
-                        navigate(BROWSER_ROUTES.connections, {replace: true});
+                        const state: ConnectionsRouteState = {
+                            connectionLinkError: toErrorMessage(error),
+                        };
+                        navigate(BROWSER_ROUTES.connections, {replace: true, state});
                     }
                 });
             }

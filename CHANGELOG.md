@@ -1,3 +1,53 @@
+# [0.31.0](https://github.com/TabularisDB/tabularis/compare/v0.30.0...v0.31.0) (2026-11-03)
+
+
+### Bug Fixes
+
+* **ai-approval:** close the approval modal when its request has expired ([#1365](https://github.com/TabularisDB/tabularis/issues/1365)) ([a95e9df](https://github.com/TabularisDB/tabularis/commit/a95e9dffca6d7161840b17238c736d79f909f587))
+* **ai:** use the first text block of an Anthropic response ([#1332](https://github.com/TabularisDB/tabularis/issues/1332)) ([2f2bb3c](https://github.com/TabularisDB/tabularis/commit/2f2bb3cc766c512bc6a52a9dfbaa3a9fd639dbf9)), closes [#1330](https://github.com/TabularisDB/tabularis/issues/1330)
+* check out text files with LF line endings on every platform ([#1335](https://github.com/TabularisDB/tabularis/issues/1335)) ([1cfa113](https://github.com/TabularisDB/tabularis/commit/1cfa11309b073739f06346e7f2714af4cce31f76))
+* **ci:** verify experimental nightly AppImage layout ([#1293](https://github.com/TabularisDB/tabularis/issues/1293)) ([e76c2f1](https://github.com/TabularisDB/tabularis/commit/e76c2f169bd899e86d4fb8548fc45be86eda450f))
+* **connections:** show "All databases" for PostgreSQL connections too ([#1282](https://github.com/TabularisDB/tabularis/issues/1282)) ([9e3c622](https://github.com/TabularisDB/tabularis/commit/9e3c622a6f9807361848814cea00a4e6d00194c8)), closes [#1281](https://github.com/TabularisDB/tabularis/issues/1281)
+* **connections:** show the database name when one database is selected ([#1344](https://github.com/TabularisDB/tabularis/issues/1344)) ([a162abc](https://github.com/TabularisDB/tabularis/commit/a162abcfce314dbf1a5fdf8ec80f47a3dd7d5340))
+* **docs:** count downloads across all GitHub releases ([#1321](https://github.com/TabularisDB/tabularis/issues/1321)) ([c465807](https://github.com/TabularisDB/tabularis/commit/c4658071ddef78f7b949164890ec7843539ffa89))
+* **editor:** open Generate SQL console on the table's database ([#1363](https://github.com/TabularisDB/tabularis/issues/1363)) ([6c4e363](https://github.com/TabularisDB/tabularis/commit/6c4e36313f17c6c5922b1898cbcfa2a50d94b590))
+* **release:** keep web UI package version in sync ([#1340](https://github.com/TabularisDB/tabularis/issues/1340)) ([375e93a](https://github.com/TabularisDB/tabularis/commit/375e93aba59f21cb432078ed4e42cc3ad857439a))
+* **scripts:** write version.ts with single quotes in sync-version ([#1289](https://github.com/TabularisDB/tabularis/issues/1289)) ([90ec2f5](https://github.com/TabularisDB/tabularis/commit/90ec2f5e8cb764fb09907bbeb17d92ed110d895b)), closes [#1247](https://github.com/TabularisDB/tabularis/issues/1247)
+
+
+### Features
+
+* **ai:** prefer MiniMax M3.1 Flash in text catalogs ([#1230](https://github.com/TabularisDB/tabularis/issues/1230)) ([0116178](https://github.com/TabularisDB/tabularis/commit/0116178241c9fe94063dc693e11194f6015157ad))
+* **connection-import:** import connections from HeidiSQL ([#1345](https://github.com/TabularisDB/tabularis/issues/1345)) ([8757509](https://github.com/TabularisDB/tabularis/commit/875750918aeb7d6857995c6041312ffd7b046468))
+* **connection-import:** import connections from MySQL Workbench ([#1355](https://github.com/TabularisDB/tabularis/issues/1355)) ([3ac4c4b](https://github.com/TabularisDB/tabularis/commit/3ac4c4bfce4675d7301e6d1a16e1679b81f08003)), closes [#1310](https://github.com/TabularisDB/tabularis/issues/1310)
+* **connection-import:** import connections from Navicat .ncx files ([#1346](https://github.com/TabularisDB/tabularis/issues/1346)) ([e2a91d9](https://github.com/TabularisDB/tabularis/commit/e2a91d986758ec4416ad3c95b490240076f4e39d)), closes [#1312](https://github.com/TabularisDB/tabularis/issues/1312)
+* **connections:** per-connection connect timeout for PostgreSQL and MySQL ([#1288](https://github.com/TabularisDB/tabularis/issues/1288)) ([197e022](https://github.com/TabularisDB/tabularis/commit/197e022c2cda4095350ab22b2889abe52d25fcca))
+* **data-grid:** double-click a column border to fit its width ([#1339](https://github.com/TabularisDB/tabularis/issues/1339)) ([569cde1](https://github.com/TabularisDB/tabularis/commit/569cde144a83e63f8b97ef6937f021a63a9c2c96))
+* **data-grid:** find text in the loaded results ([#1350](https://github.com/TabularisDB/tabularis/issues/1350)) ([e4c1eea](https://github.com/TabularisDB/tabularis/commit/e4c1eea5092247f6e5dd0d8ed0d2b892832063ba))
+* **data-grid:** hide and show columns in the current result ([#1351](https://github.com/TabularisDB/tabularis/issues/1351)) ([3304a09](https://github.com/TabularisDB/tabularis/commit/3304a090a7d50757887ffcedaa63d269bffc9557)), closes [#1299](https://github.com/TabularisDB/tabularis/issues/1299) [#1350](https://github.com/TabularisDB/tabularis/issues/1350) [#1349](https://github.com/TabularisDB/tabularis/issues/1349)
+* **editor:** analyze editor crashes with the configured AI provider ([#1369](https://github.com/TabularisDB/tabularis/issues/1369)) ([835b6ce](https://github.com/TabularisDB/tabularis/commit/835b6ce349b99e569d3aa5dd3d108df29cbc46a0)), closes [#1360](https://github.com/TabularisDB/tabularis/issues/1360)
+* **editor:** copy crash report and open a prefilled bug report ([#1364](https://github.com/TabularisDB/tabularis/issues/1364)) ([201ef8e](https://github.com/TabularisDB/tabularis/commit/201ef8e5ac2d3d8f99702fa8da827dc429d299df))
+* **editor:** pin query tabs ([#1354](https://github.com/TabularisDB/tabularis/issues/1354)) ([f7f95b8](https://github.com/TabularisDB/tabularis/commit/f7f95b8d0b3ff21f915bfe4fdca22730748a11d7))
+* **explain:** add a Loops column, open the plan in its own window and reorder table columns ([#1368](https://github.com/TabularisDB/tabularis/issues/1368)) ([1590b32](https://github.com/TabularisDB/tabularis/commit/1590b323deea9cbfbd81cf6e537f0fbcc528aef5)), closes [#308](https://github.com/TabularisDB/tabularis/issues/308)
+* **explain:** show a Loops column in the EXPLAIN table view ([#1367](https://github.com/TabularisDB/tabularis/issues/1367)) ([aeee15a](https://github.com/TabularisDB/tabularis/commit/aeee15ac58e4147a957f6fa75e011d499e947f88)), closes [#308](https://github.com/TabularisDB/tabularis/issues/308)
+* **explorer:** pin tables and views to the top of the list ([#1353](https://github.com/TabularisDB/tabularis/issues/1353)) ([0abd2d4](https://github.com/TabularisDB/tabularis/commit/0abd2d4ee6fafc67817d5b5bd136842ecbbeac04))
+* **grid:** add a transposed layout to the result grid ([#1357](https://github.com/TabularisDB/tabularis/issues/1357)) ([de134e5](https://github.com/TabularisDB/tabularis/commit/de134e5346c6a83f153d1e9e12d3537697b7dcae)), closes [#561](https://github.com/TabularisDB/tabularis/issues/561) [#1351](https://github.com/TabularisDB/tabularis/issues/1351)
+* **grid:** add does not contain, starts with and ends with to Filter by this value ([#1338](https://github.com/TabularisDB/tabularis/issues/1338)) ([fc6b6c7](https://github.com/TabularisDB/tabularis/commit/fc6b6c718910722486eb9e72f361421f904f70cb)), closes [#1296](https://github.com/TabularisDB/tabularis/issues/1296)
+* **grid:** copy rows as SQL UPDATE statements ([#1349](https://github.com/TabularisDB/tabularis/issues/1349)) ([8d2e735](https://github.com/TabularisDB/tabularis/commit/8d2e735a12600be24b5c95b9ef672da5e5ca545f))
+* **grid:** jump to a page number from the pagination bar ([#1320](https://github.com/TabularisDB/tabularis/issues/1320)) ([9135918](https://github.com/TabularisDB/tabularis/commit/9135918065ad12dedc2c9dcc1f41f51ed0a025d6)), closes [#1303](https://github.com/TabularisDB/tabularis/issues/1303) [#1303](https://github.com/TabularisDB/tabularis/issues/1303)
+* **history:** export filtered query history as SQL ([#1352](https://github.com/TabularisDB/tabularis/issues/1352)) ([2b977cb](https://github.com/TabularisDB/tabularis/commit/2b977cb74d1c0fdcb0bc92195782e491ffc3220b))
+* **i18n:** add Traditional Chinese (zh-TW) translation ([#1366](https://github.com/TabularisDB/tabularis/issues/1366)) ([d1fb5a7](https://github.com/TabularisDB/tabularis/commit/d1fb5a7155dbd27466f81109baaac347185ca257))
+* **i18n:** add Vietnamese translation ([#1329](https://github.com/TabularisDB/tabularis/issues/1329)) ([afd170d](https://github.com/TabularisDB/tabularis/commit/afd170dec7b0dff484eec486c70e40eee8150f55)), closes [#1313](https://github.com/TabularisDB/tabularis/issues/1313)
+* **result-chart:** follow-ups from the [#1193](https://github.com/TabularisDB/tabularis/issues/1193) review ([#1290](https://github.com/TabularisDB/tabularis/issues/1290)) ([5670929](https://github.com/TabularisDB/tabularis/commit/56709299ea3181a0cf1e5a59d7b5879fdc6aa103))
+* **saved-queries:** export all queries or a folder to one .sql file ([#1325](https://github.com/TabularisDB/tabularis/issues/1325)) ([f5f7806](https://github.com/TabularisDB/tabularis/commit/f5f7806edd224eb223a5ecb130eeb43a8baedab7))
+* **saved-queries:** keep version history for saved queries ([#1356](https://github.com/TabularisDB/tabularis/issues/1356)) ([886e7f6](https://github.com/TabularisDB/tabularis/commit/886e7f6a7c79e05de29f6ddc4e059e4a534f9fb6))
+* **settings:** add a NULL display setting for the data grid ([#1343](https://github.com/TabularisDB/tabularis/issues/1343)) ([ae5b1c3](https://github.com/TabularisDB/tabularis/commit/ae5b1c37e61526aba797b61be78a2e74a0727367))
+* **settings:** choose how NULL is written when copying rows ([#1333](https://github.com/TabularisDB/tabularis/issues/1333)) ([40847a2](https://github.com/TabularisDB/tabularis/commit/40847a2a202c2a6031a687a97ed02e4d91af4ce6))
+* **sidebar:** show index and foreign key details ([#1326](https://github.com/TabularisDB/tabularis/issues/1326)) ([760fecf](https://github.com/TabularisDB/tabularis/commit/760fecf2daf1961f404336832773d31e440b343f))
+* **web-ui:** add Markdown and SQL INSERT to Export Selected context menu ([#1317](https://github.com/TabularisDB/tabularis/issues/1317)) ([f986596](https://github.com/TabularisDB/tabularis/commit/f986596d767d6f7d1f362f23f12d0b75016fc164))
+* **web:** restyle the password login page ([#1347](https://github.com/TabularisDB/tabularis/issues/1347)) ([1c2c53e](https://github.com/TabularisDB/tabularis/commit/1c2c53eefb73bf5c3106a8aefb3ab4b3ac2f6f91))
+* **web:** resume connection links after password login ([#1294](https://github.com/TabularisDB/tabularis/issues/1294)) ([b6f8f49](https://github.com/TabularisDB/tabularis/commit/b6f8f49d956ef372ae96587052727e6c3074ac02)), closes [#1275](https://github.com/TabularisDB/tabularis/issues/1275)
+
 # [0.30.0](https://github.com/TabularisDB/tabularis/compare/v0.29.0...v0.30.0) (2026-10-26)
 
 

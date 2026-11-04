@@ -15,6 +15,8 @@ import {
     columnNamesAsJson,
     formatRowsForCopy,
     rowsToSqlInsert,
+    rowsToSqlUpdate,
+    sqlUpdateBlocker,
     rowsToMarkdown,
 } from '@/utils/clipboard';
 import type {DriverCapabilities} from '@/types/plugins';
@@ -486,6 +488,119 @@ describe('clipboard utils', () => {
         });
     });
 
+    describe('rowsToSqlUpdate', () => {
+        const columns = ['id', 'email', 'name'];
+
+        it('puts the primary key in WHERE and every other column in SET', () => {
+            const rows = [
+                [1, 'ada@example.com', 'Ada'],
+                [2, 'alan@example.com', 'Alan'],
+            ];
+            expect(rowsToSqlUpdate(rows, columns, 'users', ['id'], 'postgres')).toBe(
+                `UPDATE "users" SET "email" = 'ada@example.com', "name" = 'Ada' WHERE "id" = 1;\n` +
+                    `UPDATE "users" SET "email" = 'alan@example.com', "name" = 'Alan' WHERE "id" = 2;`,
+            );
+        });
+
+        it('joins a composite key with AND and leaves key columns out of SET', () => {
+            const cols = ['post_id', 'lang', 'title'];
+            expect(rowsToSqlUpdate([[7, 'en', 'Hello']], cols, 'titles', ['post_id', 'lang'])).toBe(
+                "UPDATE `titles` SET `title` = 'Hello' WHERE `post_id` = 7 AND `lang` = 'en';",
+            );
+        });
+
+        it('writes NULL values in SET as NULL', () => {
+            expect(rowsToSqlUpdate([[1, null, 'Ada']], columns, 'users', ['id'])).toBe(
+                "UPDATE `users` SET `email` = NULL, `name` = 'Ada' WHERE `id` = 1;",
+            );
+        });
+
+        it('quotes identifiers and values for the driver like the INSERT format', () => {
+            const rows = [[1, "O'Brien", true]];
+            const cols = ['id', 'name', 'active'];
+            expect(rowsToSqlUpdate(rows, cols, 't', ['id'], 'mysql')).toBe(
+                "UPDATE `t` SET `name` = 'O''Brien', `active` = TRUE WHERE `id` = 1;",
+            );
+            expect(rowsToSqlUpdate(rows, cols, 't', ['id'], 'sqlite')).toBe(
+                `UPDATE "t" SET "name" = 'O''Brien', "active" = TRUE WHERE "id" = 1;`,
+            );
+            expect(rowsToSqlUpdate(rows, cols, 't', ['id'], GOOGLESQL_CAPS)).toBe(
+                "UPDATE `t` SET `name` = 'O\\'Brien', `active` = TRUE WHERE `id` = 1;",
+            );
+        });
+    });
+
+    describe('sqlUpdateBlocker', () => {
+        it('allows a result with its whole key and at least one other column', () => {
+            expect(sqlUpdateBlocker(['id', 'name'], ['id'])).toBeNull();
+            expect(sqlUpdateBlocker(['a', 'b', 'c'], ['a', 'b'])).toBeNull();
+        });
+
+        it('says why an UPDATE cannot be built', () => {
+            expect(sqlUpdateBlocker(['id', 'name'], null)).toBe('no-key');
+            expect(sqlUpdateBlocker(['id', 'name'], [])).toBe('no-key');
+            expect(sqlUpdateBlocker(['name'], ['id'])).toBe('key-not-in-result');
+            expect(sqlUpdateBlocker(['a', 'b'], ['a', 'b'])).toBe('only-key-columns');
+        });
+
+        it('blocks rows without a key value, such as an unsaved insertion', () => {
+            const cols = ['id', 'name'];
+            expect(sqlUpdateBlocker(cols, ['id'], [[1, 'Ada']])).toBeNull();
+            expect(sqlUpdateBlocker(cols, ['id'], [[1, null]])).toBeNull();
+            for (const missing of [null, undefined]) {
+                expect(
+                    sqlUpdateBlocker(
+                        cols,
+                        ['id'],
+                        [
+                            [1, 'Ada'],
+                            [missing, 'New'],
+                        ],
+                    ),
+                ).toBe('row-without-key-value');
+            }
+            expect(sqlUpdateBlocker(['a', 'b', 'c'], ['a', 'b'], [[1, null, 'x']])).toBe(
+                'row-without-key-value',
+            );
+        });
+    });
+
+    describe('formatRowsForCopy with sql-update', () => {
+        const options = {tableName: 'users', driver: 'postgres'};
+
+        it('copies UPDATE statements when the result has a usable key', () => {
+            expect(
+                formatRowsForCopy([[1, 'Ada']], ['id', 'name'], 'sql-update', {
+                    ...options,
+                    pkColumns: ['id'],
+                }),
+            ).toBe(`UPDATE "users" SET "name" = 'Ada' WHERE "id" = 1;`);
+        });
+
+        it('falls back to INSERT without a usable key, since no safe WHERE exists', () => {
+            for (const pkColumns of [undefined, null, [], ['user_id']]) {
+                expect(
+                    formatRowsForCopy([[1, 'Ada']], ['id', 'name'], 'sql-update', {
+                        ...options,
+                        pkColumns,
+                    }),
+                ).toBe(`INSERT INTO "users" ("id", "name") VALUES (1, 'Ada');`);
+            }
+            expect(
+                columnValuesForCopy([['Ada']], ['name'], 0, {...options, format: 'sql-update'}),
+            ).toBe(`INSERT INTO "users" ("name") VALUES ('Ada');`);
+        });
+
+        it('falls back to INSERT when a row has no key value, instead of WHERE "id" IS NULL', () => {
+            expect(
+                formatRowsForCopy([[null, 'New']], ['id', 'name'], 'sql-update', {
+                    ...options,
+                    pkColumns: ['id'],
+                }),
+            ).toBe(`INSERT INTO "users" ("id", "name") VALUES (NULL, 'New');`);
+        });
+    });
+
     describe('copyTextToClipboard', () => {
         beforeEach(() => {
             // Mock clipboard API
@@ -593,6 +708,80 @@ describe('rowsToMarkdown', () => {
     it('returns only header and separator when there are no rows', () => {
         const result = rowsToMarkdown([], ['x']);
         expect(result).toBe('| x |\n| --- |');
+    });
+});
+
+describe('formatRowsForCopy NULL label', () => {
+    const rows = [
+        [1, 'Ada', null],
+        [2, 'Alan', undefined],
+    ];
+    const columns = ['id', 'name', 'phone'];
+
+    it.each([
+        ['null', 'id,name,phone\n1,Ada,null\n2,Alan,null'],
+        ['NULL', 'id,name,phone\n1,Ada,NULL\n2,Alan,NULL'],
+        ['', 'id,name,phone\n1,Ada,\n2,Alan,'],
+    ])('writes NULL as %j in CSV with headers', (nullLabel, expected) => {
+        expect(formatRowsForCopy(rows, columns, 'csv', {withHeaders: true, nullLabel})).toBe(
+            expected,
+        );
+    });
+
+    it.each([
+        ['null', '1;Ada;null\n2;Alan;null'],
+        ['NULL', '1;Ada;NULL\n2;Alan;NULL'],
+        ['', '1;Ada;\n2;Alan;'],
+    ])('writes NULL as %j in CSV without headers', (nullLabel, expected) => {
+        expect(formatRowsForCopy(rows, columns, 'csv', {csvDelimiter: ';', nullLabel})).toBe(
+            expected,
+        );
+    });
+
+    it.each([
+        ['null', '| 1 | Ada | null |\n| 2 | Alan | null |'],
+        ['NULL', '| 1 | Ada | NULL |\n| 2 | Alan | NULL |'],
+        ['', '| 1 | Ada |  |\n| 2 | Alan |  |'],
+    ])('writes NULL as %j in Markdown', (nullLabel, expected) => {
+        expect(formatRowsForCopy(rows, columns, 'markdown', {nullLabel})).toBe(expected);
+        expect(formatRowsForCopy(rows, columns, 'markdown', {withHeaders: true, nullLabel})).toBe(
+            `| id | name | phone |\n| --- | --- | --- |\n${expected}`,
+        );
+    });
+
+    it('keeps the text null by default', () => {
+        expect(formatRowsForCopy(rows, columns, 'csv')).toBe('1,Ada,null\n2,Alan,null');
+    });
+
+    it('leaves JSON and SQL INSERT unchanged', () => {
+        for (const nullLabel of ['null', 'NULL', '']) {
+            expect(formatRowsForCopy(rows, columns, 'json', {nullLabel})).toBe(
+                '[{"id":1,"name":"Ada","phone":null},{"id":2,"name":"Alan","phone":null}]',
+            );
+            expect(
+                formatRowsForCopy(rows, columns, 'sql-insert', {tableName: 'people', nullLabel}),
+            ).toBe(
+                "INSERT INTO `people` (`id`, `name`, `phone`) VALUES (1, 'Ada', NULL);\n" +
+                    "INSERT INTO `people` (`id`, `name`, `phone`) VALUES (2, 'Alan', NULL);",
+            );
+        }
+    });
+
+    it('applies the NULL label to single-column copies', () => {
+        expect(
+            columnValuesForCopy(rows, columns, 2, {
+                format: 'csv',
+                includeHeader: true,
+                nullLabel: '',
+            }),
+        ).toBe('phone\n\n');
+        expect(
+            columnValuesForCopy(rows, columns, 2, {
+                format: 'markdown',
+                includeHeader: false,
+                nullLabel: 'NULL',
+            }),
+        ).toBe('| NULL |\n| NULL |');
     });
 });
 

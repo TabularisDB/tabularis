@@ -25,8 +25,5 @@ charts/**/templates
 # Frozen compatibility fixtures retain their original bytes.
 tests/fixtures
 
-# This inventory has a byte-for-byte generator contract.
-docs/web/web-ui-parity.json
-
 # Browser test sessions and reports are generated runtime data.
 e2e/web/.runtime

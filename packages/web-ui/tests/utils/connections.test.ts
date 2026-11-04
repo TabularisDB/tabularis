@@ -1,4 +1,4 @@
-import {describe, it, expect} from 'vitest';
+import {describe, it, expect, vi} from 'vitest';
 import {
     formatConnectionString,
     getDefaultPort,
@@ -9,6 +9,8 @@ import {
     getCardClass,
     updateExtraField,
     withoutBlankSslMode,
+    parseConnectTimeoutSecs,
+    MAX_CONNECT_TIMEOUT_SECS,
     migrationDirectionForDriver,
     connectionOrderAfterMove,
     planGroupDrop,
@@ -48,6 +50,11 @@ const makeRemoteCaps = (): DriverCapabilities => ({
     folder_based: false,
     identifier_quote: '"',
     alter_primary_key: true,
+});
+
+const makeSchemaRemoteCaps = (): DriverCapabilities => ({
+    ...makeRemoteCaps(),
+    schemas: true,
 });
 
 describe('connections', () => {
@@ -614,6 +621,141 @@ describe('connections', () => {
                 connectionSubtitle(conn, makeRemoteCaps(), {databaseCount: (c) => `${c} DB`}),
             ).toBe('db.host:5432  ·  2 DB');
         });
+
+        describe('all databases across drivers (#1281)', () => {
+            const labels = {
+                allDatabases: 'All databases',
+                databaseCount: (count: number) => `${count} databases`,
+            };
+
+            it('labels a PostgreSQL connection saved as all databases (empty string)', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: ''});
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  All databases',
+                );
+            });
+
+            it('labels a PostgreSQL connection with an empty database selection', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: []});
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  All databases',
+                );
+            });
+
+            it('labels a MySQL connection saved as all databases', () => {
+                const conn = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: '',
+                });
+                expect(connectionSubtitle(conn, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  All databases',
+                );
+            });
+
+            it('labels a MySQL connection with an empty database selection', () => {
+                const conn = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: [],
+                });
+                expect(connectionSubtitle(conn, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  All databases',
+                );
+            });
+
+            it('shows the database name for a single-database PostgreSQL connection', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: 'app'});
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  app',
+                );
+            });
+
+            it('shows the database name for a single-database MySQL connection', () => {
+                const conn = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: 'app',
+                });
+                expect(connectionSubtitle(conn, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  app',
+                );
+            });
+
+            it('counts multiple selected databases on PostgreSQL', () => {
+                const conn = makeConn({
+                    host: 'localhost',
+                    port: 5432,
+                    database: ['app', 'billing'],
+                });
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  2 databases',
+                );
+            });
+
+            it('names the only selected database on PostgreSQL', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: ['app']});
+                expect(connectionSubtitle(conn, makeSchemaRemoteCaps(), labels)).toBe(
+                    'localhost:5432  ·  app',
+                );
+            });
+
+            it('names the only selected database on MySQL, as for a string', () => {
+                const asArray = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: ['app'],
+                });
+                const asString = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: 'app',
+                });
+                expect(connectionSubtitle(asArray, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  app',
+                );
+                expect(connectionSubtitle(asArray, makeRemoteCaps(), labels)).toBe(
+                    connectionSubtitle(asString, makeRemoteCaps(), labels),
+                );
+            });
+
+            it('does not use the counter for a single selected database', () => {
+                const conn = makeConn({host: 'localhost', port: 5432, database: ['app']});
+                const databaseCount = vi.fn((count: number) => `${count} databases`);
+                expect(
+                    connectionSubtitle(conn, makeSchemaRemoteCaps(), {...labels, databaseCount}),
+                ).toBe('localhost:5432  ·  app');
+                expect(databaseCount).not.toHaveBeenCalled();
+            });
+
+            it('counts multiple selected databases on MySQL', () => {
+                const conn = makeConn({
+                    driver: 'mysql',
+                    host: 'localhost',
+                    port: 3306,
+                    database: ['app', 'billing', 'audit'],
+                });
+                expect(connectionSubtitle(conn, makeRemoteCaps(), labels)).toBe(
+                    'localhost:3306  ·  3 databases',
+                );
+            });
+
+            it('keeps an empty database blank on a single-database driver', () => {
+                const conn = makeConn({host: 'localhost', port: 7700, database: ''});
+                expect(
+                    connectionSubtitle(
+                        conn,
+                        {...makeSchemaRemoteCaps(), single_database: true},
+                        labels,
+                    ),
+                ).toBe('localhost:7700  ·  ');
+            });
+        });
     });
 
     describe('getCardClass', () => {
@@ -934,5 +1076,29 @@ describe('connections', () => {
         it('does nothing when dropped on itself', () => {
             expect(planGroupDrop(groups, 'pg', 'pg', 'before')).toBeNull();
         });
+    });
+});
+
+describe('parseConnectTimeoutSecs', () => {
+    it('reads whole seconds', () => {
+        expect(parseConnectTimeoutSecs('15')).toBe(15);
+        expect(parseConnectTimeoutSecs('2.9')).toBe(2);
+    });
+
+    it('treats an empty field as unset', () => {
+        expect(parseConnectTimeoutSecs('')).toBeUndefined();
+    });
+
+    it('clamps negatives to 0', () => {
+        expect(parseConnectTimeoutSecs('-5')).toBe(0);
+    });
+
+    it('caps values above the maximum', () => {
+        expect(parseConnectTimeoutSecs('99999999999')).toBe(MAX_CONNECT_TIMEOUT_SECS);
+    });
+
+    it('treats non-finite input as unset', () => {
+        expect(parseConnectTimeoutSecs('1e999')).toBeUndefined();
+        expect(parseConnectTimeoutSecs('abc')).toBeUndefined();
     });
 });
