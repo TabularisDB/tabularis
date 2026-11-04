@@ -1924,13 +1924,6 @@ mod live_pg_routine_overloads {
     }
 }
 
-/// What `RoutineInfo` puts on the wire for each kind of dialect (#893).
-///
-/// The field is read in TypeScript, where `null` and `undefined` are different
-/// values and only one of them is what the declaration promises. `None` is
-/// skipped rather than serialized, so on a dialect without signatures the field
-/// is absent; that shape is pinned here rather than left to whoever next reads
-/// the struct.
 /// Query timeout and Stop against a live server. Each test looks for its own
 /// statement in `pg_stat_activity` to prove the server stopped running it,
 /// not just that the client stopped waiting.
@@ -2064,6 +2057,13 @@ mod live_pg_query_timeout {
     }
 }
 
+/// What `RoutineInfo` puts on the wire for each kind of dialect (#893).
+///
+/// The field is read in TypeScript, where `null` and `undefined` are different
+/// values and only one of them is what the declaration promises. `None` is
+/// skipped rather than serialized, so on a dialect without signatures the field
+/// is absent; that shape is pinned here rather than left to whoever next reads
+/// the struct.
 #[cfg(test)]
 mod routine_info_wire_shape_tests {
     use crate::models::RoutineInfo;

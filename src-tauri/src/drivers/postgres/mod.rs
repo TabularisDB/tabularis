@@ -1427,11 +1427,21 @@ async fn exec_within_query_timeout(
     match tokio::time::timeout(CANCEL_GRACE, run).await {
         // Finished between the timeout and the cancel request.
         Ok(Ok(result)) => Ok(Ok(result)),
-        Ok(Err(_)) => Ok(Err(stopped)),
+        Ok(Err(e)) if is_query_canceled(&e) => Ok(Err(stopped)),
+        // Failed for its own reason before the cancel landed.
+        Ok(Err(e)) => Ok(Err(e)),
         Err(_) => Err(format!(
             "{stopped}. The server did not confirm the cancel, so the connection was closed."
         )),
     }
+}
+
+/// Whether a statement error from [`exec_on_pg_client`] is the server's
+/// `query_canceled` (SQLSTATE 57014). The error arrives as text, and
+/// `format_pg_error` appends the `DbError` debug output, which names the code
+/// as `E57014`.
+fn is_query_canceled(error: &str) -> bool {
+    error.contains("E57014")
 }
 
 /// Asks the server to cancel whatever the connection behind `token` is
@@ -1445,7 +1455,12 @@ fn cancel_on_server(
     let tls = crate::pool_manager::build_postgres_tls_connector(params);
     async move {
         let sent = match tls {
-            Ok(tls) => token.cancel_query(tls).await.map_err(|e| e.to_string()),
+            // The cancel opens its own connection, which ignores the
+            // connect timeout, so bound it here.
+            Ok(tls) => match tokio::time::timeout(CANCEL_GRACE, token.cancel_query(tls)).await {
+                Ok(sent) => sent.map_err(|e| e.to_string()),
+                Err(_) => Err(format!("no answer within {} s", CANCEL_GRACE.as_secs())),
+            },
             Err(e) => Err(e),
         };
         if let Err(e) = sent {
