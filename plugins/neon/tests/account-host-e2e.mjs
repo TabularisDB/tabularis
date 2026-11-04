@@ -210,6 +210,17 @@ try {
       await page.getByRole('button',{name:branchName,exact:true}).waitFor();
       assert.equal(await page.getByText(/Missing NEON_API_KEY|run neon deploy|Requires the optional NEON_PROJECT_ID/).count(),0);
       console.log('PASS Overview opens connection-scoped branch management through CLI login without a service API key');
+      const consoleTarget=`https://console.neon.tech/app/projects/${projectId}/branches/${branchId}`;
+      const consoleRoute=route=>route.fulfill({status:200,contentType:'text/html',body:'<title>Neon console link target</title>'});
+      await context.route('https://console.neon.tech/**',consoleRoute);
+      const consoleOpened=context.waitForEvent('page');
+      await page.getByRole('button',{name:'Open Neon console',exact:true}).click();
+      const consolePage=await consoleOpened;
+      await consolePage.waitForURL(consoleTarget);
+      assert.equal(consolePage.url(),consoleTarget,'Console opened another project or branch');
+      await consolePage.close();
+      await context.unroute('https://console.neon.tech/**',consoleRoute);
+      console.log('PASS Open Neon console targets the saved connection project and branch');
       if (process.env.NEON_ACCOUNT_TEST_EDITOR === '1') {
         try {
         await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Functions',exact:true}).click();

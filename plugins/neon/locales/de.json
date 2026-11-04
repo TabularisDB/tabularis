@@ -7,6 +7,7 @@
   "selectConnection": "Wähle eine Neon-Verbindung aus, um fortzufahren.",
   "noConnection": "Öffne eine gespeicherte Neon-Verbindung in der Seitenleiste und öffne diesen Arbeitsbereich erneut, um ihre Dienste und Zugangsdaten zu verwalten.",
   "console": "Neon-Konsole öffnen",
+  "consoleBindingMissing": "Diese Verbindung hat keine gültige Neon-Projekt- oder Branch-Zuordnung. Verbinde sie erneut oder aktualisiere Connection / Setup.",
   "services": "Neon-Dienste",
   "tabs": {
     "overview": "Übersicht",

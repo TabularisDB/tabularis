@@ -7,6 +7,7 @@
   "selectConnection": "Select a Neon connection to continue.",
   "noConnection": "Open a saved Neon connection in the sidebar, then reopen this workspace to manage its services and credentials.",
   "console": "Open Neon console",
+  "consoleBindingMissing": "This connection has no valid Neon project or branch binding. Reconnect it or update Connection / Setup.",
   "services": "Neon services",
   "tabs": {
     "overview": "Overview",

@@ -20,6 +20,8 @@ import {objectRows} from './utils/data';
 import {styles} from './styles';
 import type {NeonService} from './services';
 import {databaseSummary} from './utils/status';
+import {consoleUrl} from './utils/console';
+import type {BranchContext} from './types/branches';
 import {PanelSection, ResultPlaceholder} from './components/PanelSection';
 import {BranchesManager} from './BranchesManager';
 import {FunctionsManager} from './FunctionsManager';
@@ -84,7 +86,7 @@ export function NeonPanel({
                         : (functionSlug ?? t(`tabs.${serviceId}`))
                 }
                 subtitle={connectionName ?? t('selectedConnection')}
-                actions={<ConsoleLink />}
+                actions={connectionId ? <ConsoleLink connectionId={connectionId} /> : undefined}
             >
                 {content}
             </PluginWorkspaceShell>
@@ -92,15 +94,24 @@ export function NeonPanel({
     );
 }
 
-function ConsoleLink() {
+function ConsoleLink({connectionId}: ConnectedProps) {
     const t = usePluginTranslation('neon');
+    const {call} = usePluginRpc('neon', connectionId);
     const task = useTask<void>();
     return (
         <div>
             <button
+                type="button"
                 className="neon-link"
                 disabled={task.pending}
-                onClick={() => void task.run(() => openUrl('https://console.neon.tech'))}
+                onClick={() =>
+                    void task.run(async () => {
+                        const binding = await call<BranchContext>('neon_branch_context');
+                        const url = consoleUrl(binding);
+                        if (!url) throw new Error(t('consoleBindingMissing'));
+                        await openUrl(url);
+                    })
+                }
             >
                 {t('console')}
             </button>
