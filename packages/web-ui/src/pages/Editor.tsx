@@ -256,6 +256,9 @@ import clsx from 'clsx';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {createRequestId} from '@/api/errors';
 import {downloadGeneratedFile, downloadTextFile} from '@/utils/fileDownloads';
+import {useUiState} from '@/hooks/useUiState';
+import {UI_STATE_KEYS} from '@/utils/uiStateStore';
+import {DEFAULT_EDITOR_PANEL_HEIGHT, resolveEditorPanelHeight} from '@/utils/editorPanelHeight';
 
 const LOADED_ROWS_EXPORT_MIME_TYPES: Record<ResultExportFormat, string> = {
     csv: 'text/csv',
@@ -516,8 +519,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [showNewRowModal, setShowNewRowModal] = useState(false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
-    const [editorHeight, setEditorHeight] = useState(300);
-    const editorHeightRef = useRef(300);
+    // Saved across restarts and shared by every editor pane (see utils/editorPanelHeight).
+    const [storedEditorHeight, setEditorHeight] = useUiState<unknown>(
+        UI_STATE_KEYS.editorPanelHeight,
+        DEFAULT_EDITOR_PANEL_HEIGHT,
+    );
+    const editorHeight = resolveEditorPanelHeight(storedEditorHeight, window.innerHeight);
+    const editorHeightRef = useRef(editorHeight);
     // Root of this editor instance: the resize logic must stay scoped to it,
     // in split view every pane mounts its own Editor
     const editorRootRef = useRef<HTMLDivElement>(null);
@@ -4658,6 +4666,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const startResize = () => {
         isDragging.current = true;
+        // The saved height can arrive after mount; a click without a drag must
+        // not write back a stale value.
+        editorHeightRef.current = editorHeight;
         document.body.style.cursor = 'row-resize';
         const activeEditor = activeTab ? editorsRef.current[activeTab.id] : undefined;
 

@@ -1,4 +1,4 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {
     Loader2,
@@ -20,6 +20,8 @@ import type {TableColumn} from '@/types/schema';
 import type {ContextMenuData} from '@/types/sidebar';
 import {onActivationKey} from '@/utils/keyboardEvents';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
+import {useExplorerExpanded} from '@/hooks/useExplorerExpanded';
+import {expansionKey} from '@/utils/explorerExpansion';
 
 interface SidebarNestedDatabaseItemProps {
     databaseName: string;
@@ -116,7 +118,10 @@ export const SidebarNestedDatabaseItem = ({
     showTriggers = false,
 }: SidebarNestedDatabaseItemProps) => {
     const {t} = useTranslation();
-    const [isExpanded, setIsExpanded] = useState(false);
+    const {isExpanded, setExpanded} = useExplorerExpanded(
+        expansionKey(connectionId, ['db', databaseName]),
+        false,
+    );
     const [pendingSchemaSelection, setPendingSchemaSelection] = useState<Set<string>>(new Set());
     const [isSchemaFilterOpen, setIsSchemaFilterOpen] = useState(false);
 
@@ -130,9 +135,23 @@ export const SidebarNestedDatabaseItem = ({
     const closeSchemaFilter = useCallback(() => setIsSchemaFilterOpen(false), []);
     useEscapeKey(isSchemaFilterOpen, closeSchemaFilter);
 
+    // A database restored as expanded after a restart has no schemas yet: load
+    // them once. Later loads stay on the toggle, so a failing load is not retried in a loop.
+    const restoreLoadRequested = useRef(false);
+    const schemasLoaded = nestedData?.schemasLoaded ?? false;
+    useEffect(() => {
+        if (!isExpanded || restoreLoadRequested.current) return;
+        restoreLoadRequested.current = true;
+        if (!schemasLoaded && !isLoadingSchemas) {
+            onLoadSchemas(databaseName);
+        }
+    }, [isExpanded, schemasLoaded, isLoadingSchemas, databaseName, onLoadSchemas]);
+
     const handleToggle = () => {
         const willExpand = !isExpanded;
-        setIsExpanded(willExpand);
+        setExpanded(willExpand);
+        // The toggle loads by itself; keep the restore effect from loading again.
+        restoreLoadRequested.current = true;
         if (willExpand && !nestedData?.schemasLoaded && !isLoadingSchemas) {
             onLoadSchemas(databaseName);
         }
