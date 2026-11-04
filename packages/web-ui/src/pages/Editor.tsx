@@ -4666,9 +4666,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const startResize = () => {
         isDragging.current = true;
-        // The saved height can arrive after mount; a click without a drag must
-        // not write back a stale value.
         editorHeightRef.current = editorHeight;
+        // `editorHeight` is clamped to the current window: only a real drag may
+        // save, or a plain click would overwrite a height saved on a larger screen.
+        let didResize = false;
         document.body.style.cursor = 'row-resize';
         const activeEditor = activeTab ? editorsRef.current[activeTab.id] : undefined;
 
@@ -4694,6 +4695,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const newHeight = e.clientY - panelTop;
             if (newHeight > 100 && newHeight < maxHeight) {
                 editorHeightRef.current = newHeight;
+                didResize = true;
                 if (rafRef.current) cancelAnimationFrame(rafRef.current);
                 rafRef.current = requestAnimationFrame(() => {
                     panels.forEach((el) => {
@@ -4708,7 +4710,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             document.body.style.cursor = '';
             overlay.remove();
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            setEditorHeight(editorHeightRef.current);
+            if (didResize) setEditorHeight(editorHeightRef.current);
             requestAnimationFrame(() => activeEditor?.layout());
             document.removeEventListener('mousemove', handleResize);
             document.removeEventListener('mouseup', stopResize);
