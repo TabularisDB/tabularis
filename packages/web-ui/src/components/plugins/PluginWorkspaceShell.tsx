@@ -84,7 +84,7 @@ export function PluginWorkspaceShell({
                                         );
                                     buttons?.[next]?.focus();
                                 }}
-                                className={`flex w-full min-w-0 items-center gap-2 rounded-md px-3 py-2 text-left text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${selectedTab === tab.id ? 'bg-surface-secondary font-semibold text-primary' : 'text-secondary hover:bg-surface-secondary hover:text-primary'}`}
+                                className={`flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${selectedTab === tab.id ? 'bg-surface-secondary font-semibold text-primary' : 'text-secondary hover:bg-surface-secondary hover:text-primary'}`}
                                 style={
                                     selectedTab === tab.id
                                         ? {

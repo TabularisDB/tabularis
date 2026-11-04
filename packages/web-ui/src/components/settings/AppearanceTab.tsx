@@ -73,7 +73,7 @@ export function AppearanceTab() {
                             {platform.setInterfaceScale ? (
                                 <select
                                     aria-label={t('settings.interfaceScale')}
-                                    className="rounded-lg border border-default bg-base px-3 py-2 text-sm text-primary focus:border-focus focus:outline-none"
+                                    className="rounded-lg border border-default bg-base px-3 py-2 text-sm text-primary focus:border-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                     value={normalizeInterfaceScale(settings.interfaceScale)}
                                     onChange={(event) =>
                                         void updateSetting(

@@ -90,9 +90,13 @@ export function PluginExplorerSection({
                                 setError(cause instanceof Error ? cause.message : String(cause));
                             }
                         }}
-                        className={`flex w-full cursor-pointer disabled:cursor-default items-center gap-2 py-1 pl-8 pr-3 text-left text-xs transition-colors disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${selected ? 'bg-surface-active text-primary' : 'text-secondary hover:bg-surface-secondary hover:text-primary'}`}
+                        className={`flex w-full cursor-pointer disabled:cursor-default items-center gap-2 py-1 pl-8 pr-3 text-left text-xs transition-colors disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${selected ? 'bg-accent-primary text-inverse' : 'text-secondary hover:bg-surface-secondary hover:text-primary'}`}
                     >
-                        <Icon size={14} className="shrink-0 text-muted" aria-hidden="true" />
+                        <Icon
+                            size={14}
+                            className={`shrink-0 ${selected ? 'text-inverse' : 'text-muted'}`}
+                            aria-hidden="true"
+                        />
                         <span className="truncate">{item.label}</span>
                     </button>
                 );

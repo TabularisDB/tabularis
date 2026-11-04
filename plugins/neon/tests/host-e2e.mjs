@@ -169,6 +169,43 @@ try {
     await page.setViewportSize({width:1160,height:754});
     await page.getByRole('button',{name:/expand explorer/i}).click();
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-panel.png',import.meta.url))});
+    for (const theme of ['tabularis-light', 'high-contrast', 'tabularis-dark']) {
+      await rpc('save_config', {config:{theme,followSystemTheme:false}});
+      await page.reload();
+      await page.locator('.neon-panel .neon-service').nth(5).waitFor();
+      await assertNativeLayout();
+      const refresh = page.locator('.neon-panel').getByRole('button',{name:'Refresh',exact:true});
+      await page.keyboard.press('Tab');
+      await refresh.focus();
+      const style = await refresh.evaluate(button => {
+        const computed = getComputedStyle(button);
+        const color = token => {
+          const probe = document.createElement('span');
+          probe.style.color = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+          return probe.style.color;
+        };
+        return {background:computed.backgroundColor,input:color('--bg-input'),foreground:computed.color,text:color('--text-primary'),outline:computed.outlineColor,focus:color('--border-focus'),outlineWidth:computed.outlineWidth,radius:computed.borderRadius};
+      });
+      assert.equal(style.background,style.input,`${theme}: input fill bypasses theme`);
+      assert.equal(style.foreground,style.text,`${theme}: button text bypasses theme`);
+      assert.equal(style.outline,style.focus,`${theme}: keyboard focus bypasses theme`);
+      assert.equal(style.outlineWidth,'2px',`${theme}: keyboard focus is missing`);
+      if (theme === 'high-contrast') assert.equal(style.radius,'0px','Plugin ignores square theme corners');
+      const selected = await page.locator('[data-slot="explorer.services"] [aria-pressed="true"]').evaluate(button => {
+        const computed = getComputedStyle(button);
+        const color = token => {
+          const probe = document.createElement('span');
+          probe.style.color = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+          return probe.style.color;
+        };
+        return {background:computed.backgroundColor,accent:color('--accent-primary'),foreground:computed.color,inverse:color('--text-inverse'),icon:getComputedStyle(button.querySelector('svg')).color};
+      });
+      assert.equal(selected.background,selected.accent,`${theme}: selected service uses an unverified fill`);
+      assert.equal(selected.foreground,selected.inverse,`${theme}: selected service has no guaranteed contrast`);
+      assert.equal(selected.icon,selected.inverse,`${theme}: selected service icon has no guaranteed contrast`);
+      await page.screenshot({path:fileURLToPath(new URL(`../artifacts/core-neon-${theme}.png`,import.meta.url))});
+    }
+    console.log('PASS Plugin theme, square corners and keyboard focus in light, high-contrast and dark themes');
     await page.locator('[data-slot="explorer.services"]').getByRole('button',{name:'Auth',exact:true}).click();
     await page.getByRole('list',{name:'Auth users',exact:true}).getByRole('button').first().waitFor();
     await page.screenshot({path:fileURLToPath(new URL('../artifacts/core-neon-auth-grid.png',import.meta.url))});

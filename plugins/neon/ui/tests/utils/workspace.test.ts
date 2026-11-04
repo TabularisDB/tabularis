@@ -22,6 +22,7 @@ describe('resource workspace IDs', () => {
             'function:bad-slug',
             'function:%',
             'auth-user:%00',
+            'auth-user:%1F',
             'auth-user:',
             'other:one',
         ])

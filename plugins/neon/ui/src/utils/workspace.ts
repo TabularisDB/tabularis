@@ -1,6 +1,4 @@
-export function parseResource(
-    id: string,
-):
+export function parseResource(id: string):
     | {
           service: 'functions' | 'users';
           functionSlug?: string;
@@ -16,7 +14,11 @@ export function parseResource(
         }
         if (id.startsWith('auth-user:')) {
             const userId = decodeURIComponent(id.slice('auth-user:'.length));
-            if (userId && userId.length <= 256 && !/[\x00-\x1f]/.test(userId))
+            if (
+                userId &&
+                userId.length <= 256 &&
+                [...userId].every((char) => char.charCodeAt(0) >= 32)
+            )
                 return {service: 'users', authUserId: userId};
         }
     } catch {

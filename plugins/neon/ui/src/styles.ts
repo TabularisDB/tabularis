@@ -51,7 +51,7 @@ export const styles = `
 .neon-panel .neon-button,.neon-settings-action {display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 11px;border:1px solid var(--border-default);border-radius:var(--radius-sm);color:var(--text-primary);background:var(--bg-input);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer;flex-shrink:0}
 .neon-panel .neon-button:enabled:hover,.neon-settings-action:hover {background:var(--surface-hover)}
 .neon-panel .neon-button:disabled,.neon-settings-action:disabled {opacity:.5;cursor:default}
-.neon-panel .neon-link:focus-visible,.neon-panel .neon-button:focus-visible,.neon-panel .neon-field:focus-visible,.neon-settings-action:focus-visible,.neon-disclosure summary:focus-visible {outline:2px solid var(--border-focus);outline-offset:2px}
+.neon-panel .neon-link:focus-visible,.neon-panel .neon-button:focus-visible,.neon-panel .neon-field:focus-visible,.neon-settings-action:focus-visible,.neon-disclosure summary:focus-visible,.neon-account-check input:focus-visible {outline:2px solid var(--border-focus);outline-offset:2px}
 .neon-panel .neon-button-primary {background:var(--accent-primary);color:var(--text-inverse);border-color:transparent}
 .neon-panel .neon-button-primary:enabled:hover {background:var(--accent-primary);filter:brightness(1.08)}
 .neon-panel .neon-button-danger {color:var(--accent-error)}

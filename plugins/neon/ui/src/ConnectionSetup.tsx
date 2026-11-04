@@ -64,7 +64,11 @@ function ExistingConnection({connectionId}: {connectionId: string}) {
                     rpc.call<Binding>('neon_management_context'),
                     account.secretFields(),
                 ]);
-        return {...binding, accountStored: fields.includes('NEON_API_KEY') || fields.includes('NEON_CLI_AUTH')};
+                return {
+                    ...binding,
+                    accountStored:
+                        fields.includes('NEON_API_KEY') || fields.includes('NEON_CLI_AUTH'),
+                };
             }),
         [account, rpc, run],
     );
