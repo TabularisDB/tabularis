@@ -118,6 +118,7 @@ One manifest tells Tabularis everything about your plugin — and, when you publ
 | `version` | string | Plugin version (semver, **no leading `v`**). Must equal the release tag with any `v` prefix stripped — the registry rejects tag/manifest mismatches. |
 | `description` | string | Short description shown in the plugins list. Optional for the registry; max **280 chars**. |
 | `default_port` | number \| null | Default TCP port. Use `null` for file-based databases. |
+| `default_username` | string | Optional username pre-filled in the connection modal for a new connection (e.g. `"root"`). |
 | `executable` | string | Relative path to the executable inside the plugin folder. |
 | `capabilities` | object | Feature flags (see below). |
 | `data_types` | array | List of supported data types (see below). |
