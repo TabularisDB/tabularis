@@ -2242,6 +2242,7 @@
     "exportMermaid": "Xuất ra sơ đồ Mermaid",
     "exportSuccess": "Đã xuất sơ đồ",
     "exportDbml": "Xuất ra DBML",
+    "exportMarkdown": "Xuất ra Markdown",
     "export": "Xuất"
   },
   "views": {
