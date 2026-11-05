@@ -3052,9 +3052,25 @@ async fn connection_policy_accepts_omitted_blank_ssl_mode_on_saved_connections()
 #[tokio::test]
 async fn database_backup_rpc_requires_local_admin_and_uses_the_shared_application() {
     let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
-    for command in ["get_database_backup_status", "run_database_backup_now", "cancel_database_backup"] {
-        for (authorization, expected) in [(AuthorizationLevel::Database, StatusCode::FORBIDDEN), (AuthorizationLevel::LocalAdmin, StatusCode::OK)] {
-            let response = dispatcher.dispatch(command, RequestId(command.to_string()), &json_headers(), Bytes::from_static(b"null"), Some(Uuid::new_v4()), authorization).await;
+    for command in [
+        "get_database_backup_status",
+        "run_database_backup_now",
+        "cancel_database_backup",
+    ] {
+        for (authorization, expected) in [
+            (AuthorizationLevel::Database, StatusCode::FORBIDDEN),
+            (AuthorizationLevel::LocalAdmin, StatusCode::OK),
+        ] {
+            let response = dispatcher
+                .dispatch(
+                    command,
+                    RequestId(command.to_string()),
+                    &json_headers(),
+                    Bytes::from_static(b"null"),
+                    Some(Uuid::new_v4()),
+                    authorization,
+                )
+                .await;
             assert_eq!(response.status(), expected, "{command}");
         }
     }

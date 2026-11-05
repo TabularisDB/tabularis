@@ -1,7 +1,5 @@
 import {useState, useCallback, useMemo, useEffect, useRef} from 'react';
-import * as React from 'react';
-import * as ReactJSXRuntime from 'react/jsx-runtime';
-import * as explainApi from '@tabularis/explain';
+import type {ReactNode} from 'react';
 import i18n from 'i18next';
 
 import {PluginSlotContext} from './PluginSlotContext';
@@ -9,31 +7,16 @@ import type {PluginSlotRegistryType} from './PluginSlotContext';
 import type {SlotContribution, SlotName, SlotContext} from '@/types/pluginSlots';
 import {VALID_SLOTS} from '@/types/pluginSlots';
 import type {PluginManifest} from '@/types/plugins';
+import {SandboxedPluginFrame} from '@/plugins/sandbox/SandboxedPluginFrame';
 import type {TabularisClient} from '@/api/client';
-import * as pluginApi from '@/pluginApi';
 import {API_VERSION} from '@/pluginApiVersion';
 import {isPluginApiCompatible} from '@/utils/pluginApiCompatibility';
 import {useSettings} from '@/hooks/useSettings';
+import {disposePluginExplainParsers, loadPluginExplainParsers} from '@/utils/pluginExplainLoader';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
-import {loadPluginExplainParsers} from '@/utils/pluginExplainLoader';
 
 interface PluginSlotProviderProps {
-    children: React.ReactNode;
-}
-
-/**
- * Expose host globals so external plugin bundles (IIFE format) can access
- * React and the Tabularis plugin API without bundling their own copies.
- */
-let globalsExposed = false;
-function exposePluginGlobals() {
-    if (globalsExposed) return;
-    globalsExposed = true;
-    (window as unknown as Record<string, unknown>).React = React;
-    (window as unknown as Record<string, unknown>).ReactJSXRuntime = ReactJSXRuntime;
-    (window as unknown as Record<string, unknown>).__TABULARIS_API__ = pluginApi;
-    (window as unknown as Record<string, unknown>).__TABULARIS_API_VERSION__ = API_VERSION;
-    (window as unknown as Record<string, unknown>).__TABULARIS_EXPLAIN__ = explainApi;
+    children: ReactNode;
 }
 
 /**
@@ -58,24 +41,12 @@ async function loadPluginTranslations(client: TabularisClient, pluginId: string)
     }
 }
 
-/**
- * Load all UI extension contributions from a plugin's pre-built IIFE bundle.
- *
- * The bundle is expected to be built with:
- *   - format: 'iife', name: '__tabularis_plugin__'
- *   - externals: { react, react/jsx-runtime, @tabularis/plugin-api }
- *   - globals: { react: 'React', 'react/jsx-runtime': 'ReactJSXRuntime',
- *               '@tabularis/plugin-api': '__TABULARIS_API__' }
- */
 async function loadExternalPluginContributions(
-    client: TabularisClient,
     manifest: PluginManifest,
 ): Promise<SlotContribution[]> {
     if (!manifest.ui_extensions?.length) return [];
-
-    exposePluginGlobals();
-
-    // Group entries by module path to load each bundle once.
+    // Create one iframe-backed component per module. Plugin source is loaded by
+    // the isolated guest page and is never evaluated in the main app window.
     const byModule = new Map<string, typeof manifest.ui_extensions>();
     for (const entry of manifest.ui_extensions) {
         if (!isPluginApiCompatible(API_VERSION, entry.api_version)) {
@@ -90,56 +61,19 @@ async function loadExternalPluginContributions(
     }
 
     const contributions: SlotContribution[] = [];
-
     for (const [modulePath, entries] of byModule) {
-        try {
-            const source = await client.readPluginAsset(manifest.id, modulePath);
-
-            // Execute the IIFE, passing React globals as parameters.
-            // The bundle assigns its exports to the local `__tabularis_plugin__` var.
-            const fn = new Function(
-                'React',
-                'ReactJSXRuntime',
-                '__TABULARIS_API__',
-                source +
-                    "\n return typeof __tabularis_plugin__ !== 'undefined' ? __tabularis_plugin__ : null;",
-            );
-            const raw = fn(React, ReactJSXRuntime, pluginApi) as unknown;
-            // Support both direct export (`return Component`) and ES-module style (`return { default: Component }`).
-            const component =
-                typeof raw === 'function'
-                    ? raw
-                    : ((raw as {default?: unknown} | null)?.default ?? null);
-
-            if (!component || typeof component !== 'function') {
-                console.warn(
-                    `[PluginSlot] Plugin "${manifest.id}" module "${modulePath}" has no default component export. Skipping.`,
-                );
-                continue;
-            }
-
-            for (const entry of entries) {
-                if (!VALID_SLOTS.has(entry.slot)) {
-                    continue;
-                }
-                contributions.push({
-                    pluginId: manifest.id,
-                    slot: entry.slot as SlotName,
-                    component: component as React.ComponentType<{
-                        context: SlotContext;
-                        pluginId: string;
-                    }>,
-                    order: entry.order,
-                    when: entry.driver
-                        ? (ctx: SlotContext) => ctx.driver === entry.driver
-                        : undefined,
-                });
-            }
-        } catch (err) {
-            console.error(
-                `[PluginSlot] Failed to load module "${modulePath}" for plugin "${manifest.id}":`,
-                err,
-            );
+        const component: SlotContribution['component'] = ({context, pluginId}) => (
+            <SandboxedPluginFrame pluginId={pluginId} module={modulePath} context={context} />
+        );
+        for (const entry of entries) {
+            if (!VALID_SLOTS.has(entry.slot)) continue;
+            contributions.push({
+                pluginId: manifest.id,
+                slot: entry.slot as SlotName,
+                component,
+                order: entry.order,
+                when: entry.driver ? (ctx: SlotContext) => ctx.driver === entry.driver : undefined,
+            });
         }
     }
 
@@ -179,7 +113,7 @@ export const PluginSlotProvider = ({children}: PluginSlotProviderProps) => {
         const loadedExplainFormats: string[] = [];
 
         for (const format of new Set(loadedExplainFormatsRef.current)) {
-            explainApi.unregisterExplainParser(format);
+            disposePluginExplainParsers([format]);
         }
         loadedExplainFormatsRef.current = [];
 
@@ -192,26 +126,21 @@ export const PluginSlotProvider = ({children}: PluginSlotProviderProps) => {
                 if (cancelled) break;
                 try {
                     const manifest = await client.call('get_plugin_manifest', {pluginId});
-                    exposePluginGlobals();
                     await loadPluginTranslations(client, pluginId);
                     const parserFormats = await loadPluginExplainParsers(
                         manifest,
-                        (id, assetPath) => client.readPluginAsset(id, assetPath),
                         () => !cancelled,
                     );
                     if (cancelled) {
                         for (const format of new Set(parserFormats)) {
-                            explainApi.unregisterExplainParser(format);
+                            disposePluginExplainParsers([format]);
                         }
                         break;
                     }
                     loadedExplainFormats.push(...parserFormats);
                     loadedExplainFormatsRef.current = loadedExplainFormats;
 
-                    const pluginContributions = await loadExternalPluginContributions(
-                        client,
-                        manifest,
-                    );
+                    const pluginContributions = await loadExternalPluginContributions(manifest);
                     loadedContributions.push(...pluginContributions);
                 } catch (err) {
                     console.error(
@@ -229,7 +158,7 @@ export const PluginSlotProvider = ({children}: PluginSlotProviderProps) => {
         return () => {
             cancelled = true;
             for (const format of new Set(loadedExplainFormats)) {
-                explainApi.unregisterExplainParser(format);
+                disposePluginExplainParsers([format]);
             }
             if (loadedExplainFormatsRef.current === loadedExplainFormats) {
                 loadedExplainFormatsRef.current = [];

@@ -59,7 +59,7 @@ function scaffoldOne(kind: 'network' | 'file', withUi: boolean): void {
         const manifest = JSON.parse(readFileSync(join(target, '.tabularium'), 'utf8')) as {
             ui_extensions?: Array<{api_version?: string}>;
         };
-        if (manifest.ui_extensions?.[0]?.api_version !== '0.2.0') {
+        if (!/^\d+\.\d+\.\d+/.test(manifest.ui_extensions?.[0]?.api_version ?? '')) {
             throw new Error('UI extension manifest is missing plugin API compatibility metadata');
         }
     }

@@ -14,8 +14,8 @@ use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 use zip::ZipArchive;
@@ -158,7 +158,19 @@ pub async fn dump_database(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Option<GeneratedFile>, String> {
-    dump_database_job(runtime, state, session_id, connection_id, destination, options, schema, database, None, None).await
+    dump_database_job(
+        runtime,
+        state,
+        session_id,
+        connection_id,
+        destination,
+        options,
+        schema,
+        database,
+        None,
+        None,
+    )
+    .await
 }
 
 pub struct DumpRequest {
@@ -178,7 +190,9 @@ pub fn db_backup_slot_key(connection_id: &str) -> String {
 
 pub(crate) fn abort_slot(handles: &Mutex<AbortHandleMap>, slot_key: &str) -> bool {
     let entries = handles.lock().unwrap().remove(slot_key).unwrap_or_default();
-    for handle in &entries { handle.abort(); }
+    for handle in &entries {
+        handle.abort();
+    }
     !entries.is_empty()
 }
 
@@ -188,8 +202,11 @@ pub(crate) async fn await_cancellable_dump<T>(
     task: tokio::task::JoinHandle<Result<T, String>>,
     cancel_requested: Option<&AtomicBool>,
 ) -> Result<T, String> {
-    let mut registration = JobRegistration::new(handles.clone(), slot_key, Arc::new(task.abort_handle()));
-    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) { task.abort(); }
+    let mut registration =
+        JobRegistration::new(handles.clone(), slot_key, Arc::new(task.abort_handle()));
+    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        task.abort();
+    }
     let result = task.await;
     registration.complete();
     join_job(result, "Dump")
@@ -201,10 +218,23 @@ pub async fn dump_database_with_handles(
     request: DumpRequest,
     cancel_requested: Option<&AtomicBool>,
 ) -> Result<(), String> {
-    let state = DumpCancellationState { handles: handles.clone() };
-    dump_database_job(runtime, &state, None, request.connection_id,
-        DumpDestination::ServerPath(PathBuf::from(request.file_path)), request.options,
-        request.schema, request.database, Some(request.slot_key), cancel_requested).await.map(|_| ())
+    let state = DumpCancellationState {
+        handles: handles.clone(),
+    };
+    dump_database_job(
+        runtime,
+        &state,
+        None,
+        request.connection_id,
+        DumpDestination::ServerPath(PathBuf::from(request.file_path)),
+        request.options,
+        request.schema,
+        request.database,
+        Some(request.slot_key),
+        cancel_requested,
+    )
+    .await
+    .map(|_| ())
 }
 
 async fn dump_database_job(
@@ -219,7 +249,9 @@ async fn dump_database_job(
     slot_key: Option<String>,
     cancel_requested: Option<&AtomicBool>,
 ) -> Result<Option<GeneratedFile>, String> {
-    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) { return Err(DUMP_CANCELLED.to_string()); }
+    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        return Err(DUMP_CANCELLED.to_string());
+    }
     if !options.structure && !options.data {
         return Err("Select structure, data, or both for the dump".to_string());
     }
@@ -267,7 +299,8 @@ async fn dump_database_job(
         slot_key.unwrap_or_else(|| job_key(session_id, JobKind::Dump, &connection_id)),
         task,
         cancel_requested,
-    ).await?;
+    )
+    .await?;
 
     let Some(owner) = download_owner else {
         return Ok(None);

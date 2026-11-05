@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
-import {formatColumnNamesAsSqlList, formatObjectNameForCopy} from '@/utils/objectNameCopy';
+import type {DriverCapabilities, PluginManifest} from '../../src/types/plugins';
+import {formatColumnNamesAsSqlList, formatObjectNameForCopy} from '../../src/utils/objectNameCopy';
 
 const baseCapabilities: DriverCapabilities = {
     schemas: true,
@@ -39,7 +39,6 @@ describe('formatObjectNameForCopy', () => {
         expect(formatObjectNameForCopy('orders', 'qualified', 'postgres')).toBe('"orders"');
     });
 });
-
 describe('formatColumnNamesAsSqlList', () => {
     it('formats columns in result-column order for PostgreSQL and SQLite', () => {
         expect(formatColumnNamesAsSqlList(['id', 'email', 'created_at'], 'postgres')).toBe(

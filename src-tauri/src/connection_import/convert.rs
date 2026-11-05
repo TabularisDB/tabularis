@@ -111,10 +111,7 @@ pub fn build_payload(
         };
 
         let conn_id = match res.action.as_str() {
-            "replace" => res
-                .replace_existing_id
-                .clone()
-                .unwrap_or_else(new_id),
+            "replace" => res.replace_existing_id.clone().unwrap_or_else(new_id),
             _ => new_id(),
         };
 
@@ -337,7 +334,10 @@ mod tests {
         assert_eq!(payload.ssh_connections.len(), 1);
         let ssh = &payload.ssh_connections[0];
         let conn = &payload.connections[0];
-        assert_eq!(conn.params.ssh_connection_id.as_deref(), Some(ssh.id.as_str()));
+        assert_eq!(
+            conn.params.ssh_connection_id.as_deref(),
+            Some(ssh.id.as_str())
+        );
         assert_eq!(conn.params.ssh_enabled, Some(true));
         assert_eq!(ssh.port, 2222);
         assert_eq!(ssh.save_in_keychain, Some(true));

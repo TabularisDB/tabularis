@@ -1451,6 +1451,22 @@ pub async fn execute_query<R: Runtime>(
     .await
 }
 
+#[tauri::command]
+pub async fn execute_plugin_read_only_query<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    query: String,
+    schema: Option<String>,
+) -> Result<crate::models::QueryResult, String> {
+    crate::application::queries::execute_plugin_read_only_query(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        connection_id,
+        query,
+        schema,
+    )
+    .await
+}
+
 pub(crate) async fn release_connection_sessions<R: Runtime>(
     app: &AppHandle<R>,
     connection_id: &str,

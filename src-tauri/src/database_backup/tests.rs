@@ -676,10 +676,16 @@ async fn unfinished_backups_are_never_discovered_and_are_removed_on_future_drop(
     let plan = plan_for(dir.path(), 7);
     let cancel = AtomicBool::new(false);
     let now = Utc.with_ymd_and_hms(2026, 10, 22, 3, 0, 0).unwrap();
-    let mut attempt = Box::pin(execute_backup(dir.path(), &plan, now, &cancel, |target| async move {
-        std::fs::write(target, "-- incomplete dump").unwrap();
-        std::future::pending::<Result<(), String>>().await
-    }));
+    let mut attempt = Box::pin(execute_backup(
+        dir.path(),
+        &plan,
+        now,
+        &cancel,
+        |target| async move {
+            std::fs::write(target, "-- incomplete dump").unwrap();
+            std::future::pending::<Result<(), String>>().await
+        },
+    ));
     assert!(futures::poll!(&mut attempt).is_pending());
     assert!(last_success_for(&plan, None).is_none());
     drop(attempt);

@@ -1,11 +1,11 @@
 import type {ComponentProps} from 'react';
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
-import {parseExplain} from '@tabularis/explain';
+import {parsePostgresJson} from '@tabularis/explain';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {NotebookCellWrapper} from '@/components/notebook/NotebookCellWrapper';
-import type {SqlCellEditor} from '@/components/notebook/SqlCellEditor';
-import type {VisualExplainViewProps} from '@/components/explain/VisualExplainView';
+import {NotebookCellWrapper} from '../../../src/components/notebook/NotebookCellWrapper';
+import type {SqlCellEditor} from '../../../src/components/notebook/SqlCellEditor';
+import type {VisualExplainViewProps} from '../../../src/components/explain/VisualExplainView';
 
 vi.mock('@/hooks/useTabularisClient', () => import('../../support/tauriBackedHooks'));
 vi.mock('@/hooks/usePlatformCapabilities', () => import('../../support/tauriBackedHooks'));
@@ -19,26 +19,26 @@ vi.mock('react-i18next', () => {
     return {useTranslation: () => ({t})};
 });
 vi.mock('lucide-react', () => vi.importActual('lucide-react'));
-vi.mock('@/hooks/useDatabase', () => ({
+vi.mock('../../../src/hooks/useDatabase', () => ({
     useDatabase: () => ({...database, connections: []}),
 }));
-vi.mock('@/hooks/useSettings', () => ({
+vi.mock('../../../src/hooks/useSettings', () => ({
     useSettings: () => ({settings: {aiEnabled: false}}),
 }));
-vi.mock('@/hooks/useDrivers', () => ({
+vi.mock('../../../src/hooks/useDrivers', () => ({
     useDrivers: () => ({allDrivers: []}),
 }));
-vi.mock('@/utils/driverUI', () => ({getConnectionIcon: () => null}));
-vi.mock('@/components/notebook/CellNameAiButton', () => ({
+vi.mock('../../../src/utils/driverUI', () => ({getConnectionIcon: () => null}));
+vi.mock('../../../src/components/notebook/CellNameAiButton', () => ({
     CellNameAiButton: () => null,
 }));
-vi.mock('@/components/notebook/CellHistoryPanel', () => ({
+vi.mock('../../../src/components/notebook/CellHistoryPanel', () => ({
     CellHistoryPanel: () => null,
 }));
-vi.mock('@/components/notebook/MarkdownCell', () => ({
+vi.mock('../../../src/components/notebook/MarkdownCell', () => ({
     MarkdownCell: () => <div data-testid="markdown">Markdown content</div>,
 }));
-vi.mock('@/components/notebook/SqlCellEditor', () => ({
+vi.mock('../../../src/components/notebook/SqlCellEditor', () => ({
     SqlCellEditor: (props: ComponentProps<typeof SqlCellEditor>) => (
         <textarea
             aria-label="SQL editor"
@@ -48,8 +48,8 @@ vi.mock('@/components/notebook/SqlCellEditor', () => ({
         />
     ),
 }));
-vi.mock('@/components/notebook/SqlCellResult', () => ({SqlCellResult: () => null}));
-vi.mock('@/components/explain/VisualExplainView', () => ({
+vi.mock('../../../src/components/notebook/SqlCellResult', () => ({SqlCellResult: () => null}));
+vi.mock('../../../src/components/explain/VisualExplainView', () => ({
     VisualExplainView: (props: VisualExplainViewProps) => (
         <section data-testid="explain-view">
             {props.plan && <div data-testid="plan">{props.plan.root.node_type}</div>}
@@ -86,7 +86,7 @@ describe('NotebookCellWrapper query plans', () => {
     beforeEach(() => {
         mockInvoke.mockReset().mockResolvedValue({
             kind: 'plan',
-            plan: parseExplain('[{"Plan":{"Node Type":"Result"}}]'),
+            plan: parsePostgresJson('[{"Plan":{"Node Type":"Result"}}]'),
         });
         database.capabilities = {explain: false};
         database.getConnectionData.mockReset().mockImplementation((id: string) => {

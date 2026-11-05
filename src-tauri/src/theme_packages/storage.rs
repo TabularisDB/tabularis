@@ -249,7 +249,10 @@ pub(super) fn install_with_rename(
         write_new(&path, bytes)?;
     }
     // Provenance is host-owned metadata, never accepted from an archive.
-    write_new(&staging.0.join(super::locations::ORIGIN_FILE), registry_key.as_bytes())?;
+    write_new(
+        &staging.0.join(super::locations::ORIGIN_FILE),
+        registry_key.as_bytes(),
+    )?;
     sync_directory(&staging.0)?;
     check_cancelled()?;
     let marker = folder.join(format!(".transaction-{}.json", id));
@@ -314,7 +317,9 @@ pub(super) fn install_with_rename(
                 && !marker.try_exists().map_err(|e| e.to_string())?
             {
                 let value = super::files::read_file(&old_marker, 1)?;
-                if value != "1" { return Err("Invalid disabled theme marker".into()); }
+                if value != "1" {
+                    return Err("Invalid disabled theme marker".into());
+                }
                 super::files::atomic_write(&marker, b"1", false)?;
             }
             if super::locations::is_theme_package(&fallback).unwrap_or(false) {
@@ -326,7 +331,9 @@ pub(super) fn install_with_rename(
             Ok(())
         })();
         if let Err(error) = cleanup {
-            warnings.push(format!("Installed theme; fallback cleanup pending: {error}"));
+            warnings.push(format!(
+                "Installed theme; fallback cleanup pending: {error}"
+            ));
         }
     }
     Ok(ThemeCommit { warnings })

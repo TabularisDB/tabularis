@@ -736,7 +736,7 @@ pub trait DatabaseDriver: Send + Sync {
         routine_type: &str,
         schema: Option<&str>,
         /* Unused by the generic statement: a dialect that needs a signature to
-           name one routine overrides this, as the PostgreSQL driver does */
+        name one routine overrides this, as the PostgreSQL driver does */
         _identity_args: Option<&str>,
     ) -> Result<(), String> {
         let sql = crate::drivers::common::generic_drop_routine_sql(

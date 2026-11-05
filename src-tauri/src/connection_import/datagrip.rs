@@ -87,7 +87,9 @@ impl ForeignAppImporter for DataGripImporter {
     ) -> Result<ImportEnvelope, ForeignImportError> {
         let locations = self.locations();
         if locations.is_empty() {
-            return Err(ForeignImportError::FileNotFound(self.display_name().to_string()));
+            return Err(ForeignImportError::FileNotFound(
+                self.display_name().to_string(),
+            ));
         }
 
         let mut envelope = ImportEnvelope {
@@ -183,7 +185,9 @@ impl DataGripImporter {
             .into_iter()
             .flatten()
         {
-            let Ok(text) = std::fs::read_to_string(path) else { continue };
+            let Ok(text) = std::fs::read_to_string(path) else {
+                continue;
+            };
             for frag in parse_fragments(&text) {
                 if let Some(existing) = fragments.get_mut(&frag.uuid) {
                     existing.merge(frag);
@@ -215,8 +219,12 @@ fn push_location(dir: &Path, config_dir: &Path, out: &mut Vec<Location>) {
 
 fn recent_project_paths(config_dir: &Path) -> Vec<String> {
     let path = config_dir.join("options/recentProjects.xml");
-    let Ok(text) = std::fs::read_to_string(&path) else { return Vec::new() };
-    let Ok(doc) = Document::parse(&text) else { return Vec::new() };
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    let Ok(doc) = Document::parse(&text) else {
+        return Vec::new();
+    };
     doc.descendants()
         .filter(|n| n.has_tag_name("entry"))
         .filter_map(|n| n.attribute("key"))
@@ -294,7 +302,9 @@ struct SshConfig {
 }
 
 fn parse_fragments(xml: &str) -> Vec<Fragment> {
-    let Ok(doc) = Document::parse(xml) else { return Vec::new() };
+    let Ok(doc) = Document::parse(xml) else {
+        return Vec::new();
+    };
     doc.descendants()
         .filter(|n| n.has_tag_name("data-source"))
         .filter_map(parse_fragment)
@@ -305,7 +315,10 @@ fn parse_fragment(el: Node) -> Option<Fragment> {
     let uuid = el.attribute("uuid")?.to_string();
     Some(Fragment {
         uuid,
-        name: el.attribute("name").filter(|s| !s.is_empty()).map(String::from),
+        name: el
+            .attribute("name")
+            .filter(|s| !s.is_empty())
+            .map(String::from),
         driver_ref: child_text(el, "driver-ref"),
         jdbc_url: child_text(el, "jdbc-url"),
         username: child_text(el, "user-name"),
@@ -346,7 +359,11 @@ fn parse_ssl_properties(el: Node) -> Option<ImportedSsl> {
     if child_text(ssl, "enabled").as_deref() != Some("true") {
         return None;
     }
-    let cert = |name: &str| child_text(ssl, name).filter(|s| !s.is_empty()).map(|s| expand_macros(&s));
+    let cert = |name: &str| {
+        child_text(ssl, name)
+            .filter(|s| !s.is_empty())
+            .map(|s| expand_macros(&s))
+    };
     Some(ImportedSsl {
         mode: child_text(ssl, "mode")
             .map(|m| normalize_ssl_mode(&m))
@@ -367,11 +384,17 @@ fn normalize_ssl_mode(raw: &str) -> String {
 
 fn load_ssh_configs(config_dir: &Path) -> HashMap<String, SshConfig> {
     let path = config_dir.join("options/sshConfigs.xml");
-    let Ok(text) = std::fs::read_to_string(&path) else { return HashMap::new() };
-    let Ok(doc) = Document::parse(&text) else { return HashMap::new() };
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return HashMap::new();
+    };
+    let Ok(doc) = Document::parse(&text) else {
+        return HashMap::new();
+    };
     let mut result = HashMap::new();
     for node in doc.descendants().filter(|n| n.has_tag_name("sshConfig")) {
-        let Some(id) = node.attribute("id") else { continue };
+        let Some(id) = node.attribute("id") else {
+            continue;
+        };
         result.insert(
             id.to_string(),
             SshConfig {
@@ -386,7 +409,10 @@ fn load_ssh_configs(config_dir: &Path) -> HashMap<String, SshConfig> {
     result
 }
 
-fn make_connection(ds: &DataSource, ssh_configs: &HashMap<String, SshConfig>) -> Option<ImportedConnection> {
+fn make_connection(
+    ds: &DataSource,
+    ssh_configs: &HashMap<String, SshConfig>,
+) -> Option<ImportedConnection> {
     let subprotocol = jdbc::subprotocol(&ds.jdbc_url);
     let driver_label = map_driver_ref(&ds.driver_ref, &subprotocol);
     let driver_id = driver_map::canonical_id(&driver_label);
@@ -397,7 +423,10 @@ fn make_connection(ds: &DataSource, ssh_configs: &HashMap<String, SshConfig>) ->
         .map(|e| e.host.clone())
         .filter(|h| !h.is_empty())
         .unwrap_or_else(|| "localhost".to_string());
-    let database = endpoint.as_ref().map(|e| e.database.clone()).unwrap_or_default();
+    let database = endpoint
+        .as_ref()
+        .map(|e| e.database.clone())
+        .unwrap_or_default();
     let port = endpoint
         .as_ref()
         .and_then(|e| e.port)
@@ -416,9 +445,15 @@ fn make_connection(ds: &DataSource, ssh_configs: &HashMap<String, SshConfig>) ->
     })
 }
 
-fn make_ssh(reference: Option<&SshReference>, ssh_configs: &HashMap<String, SshConfig>) -> Option<ImportedSsh> {
+fn make_ssh(
+    reference: Option<&SshReference>,
+    ssh_configs: &HashMap<String, SshConfig>,
+) -> Option<ImportedSsh> {
     let reference = reference?;
-    let config = reference.config_id.as_ref().and_then(|id| ssh_configs.get(id));
+    let config = reference
+        .config_id
+        .as_ref()
+        .and_then(|id| ssh_configs.get(id));
     let host = config
         .map(|c| c.host.clone())
         .or_else(|| reference.inline_host.clone())
@@ -509,7 +544,8 @@ fn expand_macros(path: &str) -> String {
 }
 
 fn child_element<'a>(el: Node<'a, 'a>, name: &str) -> Option<Node<'a, 'a>> {
-    el.children().find(|c| c.is_element() && c.has_tag_name(name))
+    el.children()
+        .find(|c| c.is_element() && c.has_tag_name(name))
 }
 
 fn child_text(el: Node, name: &str) -> Option<String> {

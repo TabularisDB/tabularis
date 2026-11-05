@@ -64,7 +64,7 @@ describe('PluginSlotProvider', () => {
         expect(registry!.contributions).toHaveLength(0);
     });
 
-    it('should load compatible bundles through the active transport', async () => {
+    it('should register compatible UI bundles without evaluating them in the host', async () => {
         let registry: PluginSlotRegistryType | undefined;
         clientMock.call.mockResolvedValue({
             id: 'example-plugin',
@@ -81,13 +81,7 @@ describe('PluginSlotProvider', () => {
                 },
             ],
         });
-        clientMock.readPluginAsset.mockImplementation((_pluginId: string, assetPath: string) =>
-            assetPath.startsWith('locales/')
-                ? Promise.reject(new Error('missing locale'))
-                : Promise.resolve(
-                      'var __tabularis_plugin__ = function PluginSlot() { return null; };',
-                  ),
-        );
+        clientMock.readPluginAsset.mockRejectedValue(new Error('missing locale'));
         const activeSettings = {
             ...settingsValue,
             settings: {
@@ -108,7 +102,10 @@ describe('PluginSlotProvider', () => {
         );
 
         await waitFor(() => expect(registry?.contributions).toHaveLength(1));
-        expect(clientMock.readPluginAsset).toHaveBeenCalledWith('example-plugin', 'ui/index.js');
+        expect(clientMock.readPluginAsset).not.toHaveBeenCalledWith(
+            'example-plugin',
+            'ui/index.js',
+        );
     });
 
     it('should skip bundles that require an incompatible plugin API', async () => {

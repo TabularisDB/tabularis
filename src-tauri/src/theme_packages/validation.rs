@@ -18,8 +18,10 @@ struct Limits {
 }
 
 static LIMITS: Lazy<Limits> = Lazy::new(|| {
-    serde_json::from_str(include_str!("../../../packages/web-ui/src/schemas/theme-limits-v1.json"))
-        .expect("Bundled theme limits must be valid")
+    serde_json::from_str(include_str!(
+        "../../../packages/web-ui/src/schemas/theme-limits-v1.json"
+    ))
+    .expect("Bundled theme limits must be valid")
 });
 
 fn compile_schema(source: &str) -> Result<JSONSchema, String> {

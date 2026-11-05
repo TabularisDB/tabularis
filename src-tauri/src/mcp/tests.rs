@@ -7,8 +7,7 @@ use serde_json::{json, Map, Value};
 
 #[test]
 fn every_tool_advertises_optional_json_or_toon_output() {
-    let result =
-        handle_list_tools(&AppConfig::default()).expect("tool discovery should succeed");
+    let result = handle_list_tools(&AppConfig::default()).expect("tool discovery should succeed");
     let tools = result["tools"].as_array().expect("tools must be an array");
 
     assert_eq!(tools.len(), 5);
@@ -238,8 +237,7 @@ async fn resolve_driver_for_params_does_not_retry_on_a_registered_drivers_own_fa
 /// `database` to pick another.
 #[test]
 fn data_tools_advertise_an_optional_database() {
-    let result =
-        handle_list_tools(&AppConfig::default()).expect("tool discovery should succeed");
+    let result = handle_list_tools(&AppConfig::default()).expect("tool discovery should succeed");
     let tools = result["tools"].as_array().expect("tools must be an array");
 
     for name in ["list_tables", "describe_table", "run_query"] {

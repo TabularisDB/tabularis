@@ -160,7 +160,7 @@ fn enforces_remote_credentials_origins_rate_limits_and_capability_policy() {
 fn bounds_the_session_store_without_displacing_live_sessions() {
     let proxy_security = LocalSessionSecurity::new_remote(
         RemoteSessionSecurityConfig {
-        trusted_proxies: Vec::new(),
+            trusted_proxies: Vec::new(),
             public_origin: "https://tabularis.example.com".to_string(),
             allowed_origins: vec!["https://tabularis.example.com".to_string()],
             session_ttl: Duration::from_secs(60),
@@ -3225,29 +3225,47 @@ async fn serves_plugin_assets_from_the_local_plugin_directory_with_custom_data_s
     std::fs::create_dir_all(&data_dir).unwrap();
     std::fs::create_dir_all(plugin.join("ui")).unwrap();
     std::fs::write(data_dir.join("index.html"), "Tabularis").unwrap();
-    std::fs::write(plugin.join(".tabularium"), r#"{
+    std::fs::write(
+        plugin.join(".tabularium"),
+        r#"{
         "id":"example-plugin", "name":"Fixture", "version":"1.0.0",
         "description":"Fixture", "ui_extensions":[{
             "slot":"data-grid.toolbar.actions", "module":"ui/index.js"
         }]
-    }"#).unwrap();
+    }"#,
+    )
+    .unwrap();
     std::fs::write(plugin.join("ui/index.js"), "window.pluginLoaded = true;").unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
-    let (security, token) = LocalSessionSecurity::new(
-        base_url.clone(), LocalSessionSecurityConfig::default(),
-    ).unwrap();
+    let (security, token) =
+        LocalSessionSecurity::new(base_url.clone(), LocalSessionSecurityConfig::default()).unwrap();
     let session = security.consume_bootstrap(token.expose()).unwrap();
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let server = tokio::spawn(server::serve_with_events(
-        listener, data_dir.clone(), data_dir.clone(), plugins_dir, security,
-        test_application(&data_dir), WebEventBus::default(), Arc::default(),
-        async move { let _ = shutdown_rx.await; },
+        listener,
+        data_dir.clone(),
+        data_dir.clone(),
+        plugins_dir,
+        security,
+        test_application(&data_dir),
+        WebEventBus::default(),
+        Arc::default(),
+        async move {
+            let _ = shutdown_rx.await;
+        },
     ));
     let response = reqwest::Client::new()
-        .get(format!("{base_url}/api/v1/assets/plugins/example-plugin/ui/index.js"))
-        .header(COOKIE, format!("tabularis_session={}", session.cookie_value))
-        .send().await.unwrap();
+        .get(format!(
+            "{base_url}/api/v1/assets/plugins/example-plugin/ui/index.js"
+        ))
+        .header(
+            COOKIE,
+            format!("tabularis_session={}", session.cookie_value),
+        )
+        .send()
+        .await
+        .unwrap();
     let status = response.status();
     let body = response.text().await.unwrap();
     shutdown_tx.send(()).unwrap();
@@ -3262,18 +3280,30 @@ fn login_attempts_are_counted_per_client_behind_a_proxy() {
     let public = "203.0.113.7".parse().unwrap();
     let proxy = "172.18.0.3".parse().unwrap();
     let trusted = ["172.18.0.3/32".parse().unwrap(), "::1/128".parse().unwrap()];
-    assert_eq!(login_client(Some(public), Some("198.51.100.1"), &trusted), public);
-    assert_eq!(login_client(Some(proxy), Some("198.51.100.1, 198.51.100.2"), &trusted), "198.51.100.2".parse::<std::net::IpAddr>().unwrap());
+    assert_eq!(
+        login_client(Some(public), Some("198.51.100.1"), &trusted),
+        public
+    );
+    assert_eq!(
+        login_client(Some(proxy), Some("198.51.100.1, 198.51.100.2"), &trusted),
+        "198.51.100.2".parse::<std::net::IpAddr>().unwrap()
+    );
     assert_eq!(login_client(Some(proxy), None, &trusted), proxy);
     assert_eq!(login_client(Some(proxy), Some("garbage"), &trusted), proxy);
-    assert_eq!(login_client(Some("::1".parse().unwrap()), Some("2001:db8::7"), &trusted), "2001:db8::7".parse::<std::net::IpAddr>().unwrap());
+    assert_eq!(
+        login_client(Some("::1".parse().unwrap()), Some("2001:db8::7"), &trusted),
+        "2001:db8::7".parse::<std::net::IpAddr>().unwrap()
+    );
 }
 
 #[test]
 fn private_clients_cannot_spoof_the_login_bucket_without_explicit_proxy_trust() {
     for address in ["127.0.0.1", "172.18.0.3", "::1", "fd00::1"] {
         let peer = address.parse().unwrap();
-        assert_eq!(super::auth::login_client(Some(peer), Some("198.51.100.1"), &[]), peer);
+        assert_eq!(
+            super::auth::login_client(Some(peer), Some("198.51.100.1"), &[]),
+            peer
+        );
     }
 }
 

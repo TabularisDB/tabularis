@@ -385,7 +385,10 @@ pub fn get_proxy_password(slot: &str) -> Result<Option<String>, String> {
         Ok(pwd) => Ok(Some(pwd)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => {
-            eprintln!("[Keychain] Error getting proxy password for {}: {}", slot, e);
+            eprintln!(
+                "[Keychain] Error getting proxy password for {}: {}",
+                slot, e
+            );
             Err(e.to_string())
         }
     }

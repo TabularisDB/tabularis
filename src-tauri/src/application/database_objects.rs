@@ -528,8 +528,15 @@ pub async fn execute(
             schema,
             database,
         } => json(
-            get_create_table_sql(runtime, &connection_id, table_name, columns, schema, database)
-                .await?,
+            get_create_table_sql(
+                runtime,
+                &connection_id,
+                table_name,
+                columns,
+                schema,
+                database,
+            )
+            .await?,
         ),
         DatabaseObjectCommand::GetAddColumnSql {
             connection_id,
@@ -1318,7 +1325,8 @@ pub async fn get_drop_table_sql(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Option<String>, String> {
-    let driver_id = crate::application::connections::saved_connection_driver(runtime, connection_id)?;
+    let driver_id =
+        crate::application::connections::saved_connection_driver(runtime, connection_id)?;
     let driver = driver_for(&driver_id).await?;
     if driver.manifest().is_builtin || !driver.manifest().capabilities.drop_table_sql {
         return Ok(None);
