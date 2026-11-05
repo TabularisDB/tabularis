@@ -474,6 +474,7 @@ export function DataGridCell({
                                     displayText={formattedDisplay}
                                     isExpanded={isExpanded}
                                     isPendingDelete={isPendingDelete}
+                                    inheritColor={!!formatClass}
                                     onToggleExpand={() =>
                                         setExpandedCell(
                                             isExpanded
@@ -541,7 +542,12 @@ export function DataGridCell({
                             const blobContent = (
                                 <span className="inline-flex items-center gap-1 group/blobcell w-full min-w-0">
                                     <span className="truncate flex-1 min-w-0">
-                                        {renderDefaultCellContent(displayValue, formattedDisplay)}
+                                        {renderDefaultCellContent(
+                                            displayValue,
+                                            formattedDisplay,
+                                            undefined,
+                                            !!formatClass,
+                                        )}
                                     </span>
                                     <button
                                         type="button"
@@ -577,6 +583,7 @@ export function DataGridCell({
                                             displayValue,
                                             formattedDisplay,
                                             valueColorClass,
+                                            !!formatClass,
                                         )}
                                     </span>
                                     <button
@@ -600,6 +607,7 @@ export function DataGridCell({
                             displayValue,
                             formattedDisplay,
                             valueColorClass,
+                            !!formatClass,
                         );
                     })()}
                     {showCellMaskToggle && !isEditing && (

@@ -9,6 +9,8 @@ interface JsonCellProps {
     displayText: string;
     isExpanded: boolean;
     isPendingDelete: boolean;
+    /** Drop the syntax colors so a color set on the cell (a conditional formatting rule, #991) shows. */
+    inheritColor?: boolean;
     onToggleExpand: () => void;
     onOpenViewer: () => void;
 }
@@ -23,14 +25,27 @@ const TOKEN_CLASS: Record<JsonToken['type'], string> = {
     whitespace: '',
 };
 
+/** Token classes when the cell's own color must show: only the null style stays. */
+const INHERIT_TOKEN_CLASS: Record<JsonToken['type'], string> = {
+    key: '',
+    string: '',
+    number: '',
+    boolean: '',
+    null: 'italic',
+    punct: '',
+    whitespace: '',
+};
+
 export const JsonCell = ({
     value,
     displayText,
     isExpanded,
     isPendingDelete,
+    inheritColor = false,
     onToggleExpand,
     onOpenViewer,
 }: JsonCellProps) => {
+    const tokenClass = inheritColor ? INHERIT_TOKEN_CLASS : TOKEN_CLASS;
     const {t} = useTranslation();
     const textRef = useRef<HTMLSpanElement>(null);
     const [isOverflowing, setIsOverflowing] = useState(false);
@@ -75,11 +90,11 @@ export const JsonCell = ({
         >
             <span ref={textRef} className="truncate flex-1">
                 {tokens.map((tok, idx) => (
-                    <span key={idx} data-token={tok.type} className={TOKEN_CLASS[tok.type]}>
+                    <span key={idx} data-token={tok.type} className={tokenClass[tok.type]}>
                         {tok.text}
                     </span>
                 ))}
-                {truncated && <span className="text-muted">…</span>}
+                {truncated && <span className={inheritColor ? undefined : 'text-muted'}>…</span>}
             </span>
             {showIcons && (
                 <>

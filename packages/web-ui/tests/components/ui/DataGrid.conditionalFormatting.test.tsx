@@ -282,6 +282,80 @@ describe('DataGrid conditional formatting (#991)', () => {
         expect(cellAt(container, 1, 0).className).toContain('after:bg-inherit');
     });
 
+    it('lets a cell rule color the NULL marker in both layouts', () => {
+        seed([
+            {
+                id: 'n',
+                name: 'Not deleted',
+                column: 'deleted_at',
+                operator: 'IS NULL',
+                value: '',
+                tone: 'info',
+                target: 'cell',
+            },
+        ]);
+        for (const transposed of [false, true]) {
+            const {container, unmount} = render(<Grid transposed={transposed} />);
+            const cell = cellAt(container, 0, 3);
+            expect(cell.className).toContain('text-accent-info');
+            const marker = cell.querySelector('span.italic');
+            expect(marker?.textContent).toBe('dataGrid.null');
+            // The marker's own muted color would win over the cell's color.
+            expect(marker?.className).not.toContain('text-muted');
+            // A cell the rule doesn't match keeps the muted marker.
+            expect(cellAt(container, 3, 3).className).not.toContain('text-accent-info');
+            unmount();
+        }
+    });
+
+    it('lets a cell rule color a JSON value instead of its syntax colors', () => {
+        seed(
+            [
+                {
+                    id: 'j',
+                    name: 'Has meta',
+                    column: 'meta',
+                    operator: 'IS NOT NULL',
+                    value: '',
+                    tone: 'warning',
+                    target: 'cell',
+                },
+            ],
+            'events',
+        );
+        const {container} = render(
+            <Grid
+                tableName="events"
+                columns={['id', 'meta']}
+                data={[
+                    [1, {a: 1}],
+                    [2, null],
+                ]}
+                columnMetadata={[
+                    {
+                        name: 'id',
+                        data_type: 'integer',
+                        is_pk: true,
+                        is_nullable: false,
+                        is_auto_increment: false,
+                    },
+                    {
+                        name: 'meta',
+                        data_type: 'json',
+                        is_pk: false,
+                        is_nullable: true,
+                        is_auto_increment: false,
+                    },
+                ]}
+            />,
+        );
+        const cell = cellAt(container, 0, 1);
+        expect(cell.className).toContain('text-accent-warning');
+        const tokens = Array.from(cell.querySelectorAll('[data-token]'));
+        expect(tokens.length).toBeGreaterThan(0);
+        expect(tokens.filter((el) => /\btext-/.test(el.className))).toHaveLength(0);
+    });
+
     it('applies only the rules of its own table', () => {
         seed(rules, 'customers');
         const {container} = render(<Grid />);

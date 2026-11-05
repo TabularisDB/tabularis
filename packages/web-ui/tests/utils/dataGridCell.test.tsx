@@ -67,4 +67,19 @@ describe('renderDefaultCellContent', () => {
         const {getByTestId} = renderNode(1234567, '1,234,567');
         expect(getByTestId('wrap').textContent).toBe('1,234,567');
     });
+
+    it('drops the muted color when the cell color must reach the placeholder (#991)', () => {
+        const {getByTestId} = render(
+            <div data-testid="wrap">{renderDefaultCellContent(null, 'null', undefined, true)}</div>,
+        );
+        const span = getByTestId('wrap').querySelector('span');
+        expect(span?.className).not.toContain('text-muted');
+        expect(span?.className).toContain('italic');
+
+        const {getAllByTestId} = render(
+            <div data-testid="wrap">{renderDefaultCellContent(null, '', undefined, true)}</div>,
+        );
+        const marker = getAllByTestId('wrap')[1].querySelector('[data-null-marker]');
+        expect(marker?.className).not.toContain('text-muted');
+    });
 });
