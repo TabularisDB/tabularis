@@ -1698,6 +1698,8 @@
     "queryExecuted": "Query eseguita con successo",
     "rowsAffected": "{{count}} righe interessate",
     "autoPaginated": "Impaginazione automatica",
+    "batchSnapshotTruncated": "Prime {{count}} righe",
+    "batchSnapshotTruncatedHint": "Esegui tutto conserva le righe acquisite durante lo script. Esegui questa istruzione da sola per sfogliare tutte le righe.",
     "pageOf": "Pagina {{current}} di {{total}}",
     "page": "Pagina {{current}}",
     "loadRowCount": "Carica conteggio righe",

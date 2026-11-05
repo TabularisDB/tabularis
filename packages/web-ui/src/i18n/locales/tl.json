@@ -1668,6 +1668,8 @@
     "queryExecuted": "Matagumpay na naisakatuparan ang query",
     "rowsAffected": "{{count}} row ang naapektuhan",
     "autoPaginated": "Auto paginated",
+    "batchSnapshotTruncated": "Unang {{count}} row",
+    "batchSnapshotTruncatedHint": "Itinatabi ng Run All ang mga row na nakuha habang tumatakbo ang script. Patakbuhin nang mag-isa ang statement na ito para makita ang lahat ng row.",
     "pageOf": "Pahina {{current}} ng {{total}}",
     "page": "Pahina {{current}}",
     "loadRowCount": "I-load ang bilang ng row",

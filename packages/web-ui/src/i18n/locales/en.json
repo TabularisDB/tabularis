@@ -1707,6 +1707,8 @@
     "queryExecuted": "Query executed successfully",
     "rowsAffected": "{{count}} rows affected",
     "autoPaginated": "Auto paginated",
+    "batchSnapshotTruncated": "First {{count}} rows",
+    "batchSnapshotTruncatedHint": "Run All keeps the rows captured while the script ran. Run this statement on its own to page through every row.",
     "pageOf": "Page {{current}} of {{total}}",
     "page": "Page {{current}}",
     "loadRowCount": "Load row count",

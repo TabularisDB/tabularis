@@ -1695,6 +1695,8 @@
     "queryExecuted": "Đã chạy truy vấn thành công",
     "rowsAffected": "{{count}} dòng bị ảnh hưởng",
     "autoPaginated": "Tự động phân trang",
+    "batchSnapshotTruncated": "{{count}} hàng đầu tiên",
+    "batchSnapshotTruncatedHint": "Chạy tất cả giữ các hàng thu được khi script chạy. Chạy riêng câu lệnh này để phân trang toàn bộ hàng.",
     "pageOf": "Trang {{current}}/{{total}}",
     "page": "Trang {{current}}",
     "jumpToPage": "Bấm để nhảy tới trang",

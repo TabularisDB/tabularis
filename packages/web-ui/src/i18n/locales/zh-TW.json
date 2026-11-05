@@ -1692,6 +1692,8 @@
         "queryExecuted": "查詢執行成功",
         "rowsAffected": "{{count}} 列受影響",
         "autoPaginated": "自動分頁",
+        "batchSnapshotTruncated": "前 {{count}} 列",
+        "batchSnapshotTruncatedHint": "全部執行會保留腳本執行時擷取的列。單獨執行此陳述式即可分頁瀏覽所有列。",
         "pageOf": "第 {{current}} 頁，共 {{total}} 頁",
         "page": "第 {{current}} 頁",
         "loadRowCount": "載入列數",
