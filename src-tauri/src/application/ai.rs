@@ -40,6 +40,7 @@ pub enum AiCommand {
     GenerateQuery(AiGenerateRequest),
     ExplainQuery(AiExplainRequest),
     AnalyzeExplainPlan(AiExplainRequest),
+    AnalyzeCrashReport(AiExplainRequest),
     GenerateCellName(AiCellNameRequest),
     GenerateTabRename(AiTabRenameRequest),
     SuggestTableName(AiSuggestTableNameRequest),
@@ -97,6 +98,9 @@ pub async fn execute(
         }
         AiCommand::AnalyzeExplainPlan(request) => {
             json(crate::ai::analyze_explain_plan(runtime, &state.credential_cache, request).await?)
+        }
+        AiCommand::AnalyzeCrashReport(request) => {
+            json(crate::ai::analyze_crash_report(runtime, &state.credential_cache, request).await?)
         }
         AiCommand::GenerateCellName(request) => {
             json(crate::ai::generate_cellname(runtime, &state.credential_cache, request).await?)

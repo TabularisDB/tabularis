@@ -9,9 +9,25 @@ import ko from '@/i18n/locales/ko.json';
 import ptBR from '@/i18n/locales/pt-BR.json';
 import ru from '@/i18n/locales/ru.json';
 import tl from '@/i18n/locales/tl.json';
+import vi from '@/i18n/locales/vi.json';
 import zh from '@/i18n/locales/zh.json';
+import zhTW from '@/i18n/locales/zh-TW.json';
 
-const locales = {de, en, es, fr, it: itLocale, ja, ko, 'pt-BR': ptBR, ru, tl, zh};
+const locales = {
+    de,
+    en,
+    es,
+    fr,
+    it: itLocale,
+    ja,
+    ko,
+    'pt-BR': ptBR,
+    ru,
+    tl,
+    vi,
+    zh,
+    'zh-TW': zhTW,
+};
 
 // Export Logs writes a file, so its confirmation must not claim a clipboard copy (#907).
 const CLIPBOARD =

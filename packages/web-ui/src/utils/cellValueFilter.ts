@@ -7,20 +7,34 @@ import {isGeometricType} from './geometry';
 import {isTextColumn} from './text';
 
 export type CellValueFilterOperator =
-    '=' | '<>' | '>' | '>=' | '<' | '<=' | 'contains' | 'IS NULL' | 'IS NOT NULL';
+    | '='
+    | '<>'
+    | '>'
+    | '>='
+    | '<'
+    | '<='
+    | 'contains'
+    | 'not contains'
+    | 'starts with'
+    | 'ends with'
+    | 'IS NULL'
+    | 'IS NOT NULL';
 
 /**
  * Build a WHERE-clause fragment that filters the current table by a cell value.
  * Output: `"col" = 42`, `"col" <> 'escaped''value'`, `"col" >= '2024-01-01'`,
- * `"col" LIKE '%50!%%' ESCAPE '!'`, `"col" IS NULL`, or `"col" IS NOT NULL`.
+ * `"col" LIKE '%50!%%' ESCAPE '!'`, `"col" NOT LIKE '%x%' ESCAPE '!'`,
+ * `"col" IS NULL`, or `"col" IS NOT NULL`.
  *
  * `columnType` is the data type of the column the user clicked on; it decides
  * whether a numeric-looking string is emitted unquoted (numeric column) or
  * quoted (everything else), mirroring `buildForeignKeyFilterClause`.
  *
- * `contains` matches the value literally: `%`, `_` and the `!` escape
- * character are escaped and an explicit `ESCAPE '!'` is added, which behaves
- * the same on MySQL, PostgreSQL and SQLite.
+ * `contains`, `not contains`, `starts with` and `ends with` match the value
+ * literally: `%`, `_` and the `!` escape character are escaped and an explicit
+ * `ESCAPE '!'` is added, which behaves the same on MySQL, PostgreSQL and
+ * SQLite. They go through the filter bar's `buildLiteralLikeClause`, so both
+ * produce the same clause for the same value.
  */
 export function buildCellValueFilterClause(
     column: string,
@@ -32,8 +46,11 @@ export function buildCellValueFilterClause(
     const col = quoteIdentifier(column, driver);
     if (operator === 'IS NULL') return `${col} IS NULL`;
     if (operator === 'IS NOT NULL') return `${col} IS NOT NULL`;
-    if (operator === 'contains') {
-        return buildLiteralLikeClause(col, String(value), 'contains', driver);
+    if (operator === 'contains' || operator === 'starts with' || operator === 'ends with') {
+        return buildLiteralLikeClause(col, String(value), operator, driver);
+    }
+    if (operator === 'not contains') {
+        return buildLiteralLikeClause(col, String(value), 'contains', driver, {negate: true});
     }
     return `${col} ${operator} ${formatSqlValueForColumnComparison(value, driver, columnType)}`;
 }
@@ -52,8 +69,9 @@ export function combineFilterClauses(existing: string | undefined | null, added:
 /**
  * Operators offered for a cell: NULL cells only offer the IS NULL /
  * IS NOT NULL pair, everything else (including empty strings) offers = / <>.
- * Numeric and date/time columns add > / >= / < / <=; text columns add
- * `contains` unless the value is an empty string (it would match every row).
+ * Numeric and date/time columns add > / >= / < / <=; text columns add the
+ * literal LIKE matches unless the value is an empty string (they would match
+ * every row, or none for `not contains`).
  *
  * A masked cell also only offers IS NULL / IS NOT NULL, whatever its value:
  * `=` / `<>` would copy the real value into the WHERE input, and offering the
@@ -72,7 +90,7 @@ export function getCellValueFilterOperators(
         return ['=', '<>', '>', '>=', '<', '<='];
     }
     if (isTextColumn(columnType) && String(value) !== '') {
-        return ['=', '<>', 'contains'];
+        return ['=', '<>', 'contains', 'not contains', 'starts with', 'ends with'];
     }
     return ['=', '<>'];
 }

@@ -1,11 +1,15 @@
-import {useEffect, useRef} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {X, Network, RefreshCw, AlertTriangle} from 'lucide-react';
+import {X, Network, RefreshCw, AlertTriangle, ExternalLink} from 'lucide-react';
 import {useSettings} from '@/hooks/useSettings';
 import {useDatabase} from '@/hooks/useDatabase';
 import {useDrivers} from '@/hooks/useDrivers';
 import {useExplainPlan} from '@/hooks/useExplainPlan';
 import {useExplainAnalyze} from '@/hooks/useExplainAnalyze';
+import {useAlert} from '@/hooks/useAlert';
+import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {getVisualExplainSessionHost} from '@/platform/visualExplainSessions';
+import {toErrorMessage} from '@/utils/errors';
 import {getConnectionIcon} from '@/utils/driverUI';
 import {Modal} from '@/components/ui/Modal';
 import {
@@ -77,6 +81,43 @@ export const VisualExplainModal = ({
             ? `${databaseLabel} / ${schemaLabel}`
             : databaseLabel;
 
+    const platform = usePlatformCapabilities();
+    const {showAlert} = useAlert();
+    const [isDetaching, setIsDetaching] = useState(false);
+    const shownPlan = viewState ? viewState.plan : plan;
+    const canDetach = platform.supports('openRoute');
+
+    // Hands the plan on screen to a window of its own, which can be moved to
+    // another monitor, then closes the modal. The plan is not run again.
+    const handleDetach = useCallback(async () => {
+        if (!shownPlan) return;
+        setIsDetaching(true);
+        try {
+            await getVisualExplainSessionHost(platform).open({
+                plan: shownPlan,
+                viewMode: viewState ? viewState.viewMode : viewMode,
+                selectedNodeId: viewState ? viewState.selectedNodeId : selectedNodeId,
+                label: [resolvedConnectionLabel, locationLabel].filter(Boolean).join(' · '),
+            });
+            onClose();
+        } catch (cause) {
+            console.error('Failed to open Visual Explain in a new window', cause);
+            showAlert(toErrorMessage(cause), {kind: 'error'});
+        } finally {
+            setIsDetaching(false);
+        }
+    }, [
+        shownPlan,
+        platform,
+        viewState,
+        viewMode,
+        selectedNodeId,
+        resolvedConnectionLabel,
+        locationLabel,
+        onClose,
+        showAlert,
+    ]);
+
     // Ticking Analyze only records the choice; ANALYZE executes the statement, so
     // it must not run until the source changes or the user clicks Re-run.
     const analyzeRef = useRef(analyze);
@@ -144,12 +185,26 @@ export const VisualExplainModal = ({
                             </div>
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="text-secondary hover:text-primary transition-colors"
-                    >
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {canDetach && (
+                            <button
+                                type="button"
+                                onClick={() => void handleDetach()}
+                                disabled={!shownPlan || isDetaching}
+                                aria-label={t('editor.visualExplain.openInWindow')}
+                                title={t('editor.visualExplain.openInWindow')}
+                                className="p-1 rounded text-secondary hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                            >
+                                <ExternalLink size={18} aria-hidden="true" />
+                            </button>
+                        )}
+                        <button
+                            onClick={onClose}
+                            className="text-secondary hover:text-primary transition-colors"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 <VisualExplainView
