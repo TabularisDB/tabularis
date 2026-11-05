@@ -1589,6 +1589,7 @@
       "title": "Bedingte Formatierung",
       "subtitle": "Regeln für {{table}}",
       "description": "Färbt Zeilen oder Zellen dieser Tabelle anhand ihrer Werte. Die Regeln werden auf die bereits geladenen Zeilen von oben nach unten angewendet: Die erste passende Regel gewinnt.",
+      "matchingHint": "= und IN vergleichen Text exakt, einschließlich Groß- und Kleinschreibung. contains, starts with, ends with und LIKE ignorieren sie; in LIKE macht \\ das folgende % oder _ zu einem normalen Zeichen.",
       "empty": "Noch keine Regeln.",
       "addRule": "Regel hinzufügen",
       "maxRules": "Höchstens {{count}} Regeln pro Tabelle.",

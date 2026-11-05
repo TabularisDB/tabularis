@@ -1659,6 +1659,7 @@
       "title": "Conditional formatting",
       "subtitle": "Rules for {{table}}",
       "description": "Color rows or cells of this table from their values. Rules are checked on the rows already loaded, from top to bottom: the first matching rule wins.",
+      "matchingHint": "= and IN match text exactly, case included. contains, starts with, ends with and LIKE ignore case; in LIKE, \\ makes the next % or _ literal.",
       "empty": "No rules yet.",
       "addRule": "Add rule",
       "maxRules": "Up to {{count}} rules per table.",

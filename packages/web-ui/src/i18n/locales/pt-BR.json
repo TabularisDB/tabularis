@@ -1608,6 +1608,7 @@
       "title": "Formatação condicional",
       "subtitle": "Regras de {{table}}",
       "description": "Colore linhas ou células desta tabela de acordo com seus valores. As regras são verificadas nas linhas já carregadas, de cima para baixo: vence a primeira regra que corresponder.",
+      "matchingHint": "= e IN comparam o texto exatamente, incluindo maiúsculas. contains, starts with, ends with e LIKE ignoram maiúsculas; no LIKE, \\ torna literal o % ou _ seguinte.",
       "empty": "Nenhuma regra ainda.",
       "addRule": "Adicionar regra",
       "maxRules": "Até {{count}} regras por tabela.",

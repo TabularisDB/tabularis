@@ -1647,6 +1647,7 @@
       "title": "Định dạng có điều kiện",
       "subtitle": "Quy tắc cho {{table}}",
       "description": "Tô màu hàng hoặc ô của bảng này theo giá trị. Các quy tắc được kiểm tra trên những hàng đã tải, từ trên xuống: quy tắc khớp đầu tiên được áp dụng.",
+      "matchingHint": "= và IN so khớp văn bản chính xác, phân biệt chữ hoa chữ thường. contains, starts with, ends with và LIKE không phân biệt; trong LIKE, \\ khiến % hoặc _ theo sau được hiểu theo nghĩa đen.",
       "empty": "Chưa có quy tắc nào.",
       "addRule": "Thêm quy tắc",
       "maxRules": "Tối đa {{count}} quy tắc cho mỗi bảng.",

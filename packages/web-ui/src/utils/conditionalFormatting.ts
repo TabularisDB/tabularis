@@ -192,11 +192,21 @@ function escapeRegExp(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** SQL LIKE pattern (`%` any run, `_` one character) as a case-insensitive regular expression. */
+/**
+ * SQL LIKE pattern (`%` any run, `_` one character) as a case-insensitive regular
+ * expression. A backslash makes the next character literal (`\_`, `\%`, `\\`),
+ * the default LIKE escape of MySQL and PostgreSQL; a trailing backslash is literal.
+ */
 function likeToRegExp(pattern: string): RegExp {
     let source = '';
-    for (const ch of pattern) {
-        source += ch === '%' ? '[\\s\\S]*' : ch === '_' ? '[\\s\\S]' : escapeRegExp(ch);
+    const chars = [...pattern];
+    for (let i = 0; i < chars.length; i++) {
+        const ch = chars[i];
+        if (ch === '\\' && i + 1 < chars.length) {
+            source += escapeRegExp(chars[++i]);
+        } else {
+            source += ch === '%' ? '[\\s\\S]*' : ch === '_' ? '[\\s\\S]' : escapeRegExp(ch);
+        }
     }
     return new RegExp(`^${source}$`, 'i');
 }

@@ -1650,6 +1650,7 @@
       "title": "Formattazione condizionale",
       "subtitle": "Regole per {{table}}",
       "description": "Colora righe o celle di questa tabella in base ai loro valori. Le regole vengono verificate sulle righe già caricate, dall'alto in basso: vince la prima regola che corrisponde.",
+      "matchingHint": "= e IN confrontano il testo esattamente, maiuscole comprese. contains, starts with, ends with e LIKE ignorano maiuscole e minuscole; in LIKE, \\ rende letterale il % o _ successivo.",
       "empty": "Nessuna regola.",
       "addRule": "Aggiungi regola",
       "maxRules": "Al massimo {{count}} regole per tabella.",

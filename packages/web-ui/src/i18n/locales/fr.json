@@ -1629,6 +1629,7 @@
       "title": "Mise en forme conditionnelle",
       "subtitle": "Règles de {{table}}",
       "description": "Colore les lignes ou les cellules de cette table selon leurs valeurs. Les règles sont vérifiées sur les lignes déjà chargées, de haut en bas : la première règle qui correspond l'emporte.",
+      "matchingHint": "= et IN comparent le texte exactement, casse comprise. contains, starts with, ends with et LIKE ignorent la casse ; dans LIKE, \\ rend littéral le % ou _ suivant.",
       "empty": "Aucune règle pour l'instant.",
       "addRule": "Ajouter une règle",
       "maxRules": "Jusqu'à {{count}} règles par table.",

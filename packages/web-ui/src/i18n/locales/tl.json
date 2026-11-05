@@ -1620,6 +1620,7 @@
       "title": "Conditional formatting",
       "subtitle": "Mga patakaran para sa {{table}}",
       "description": "Kulayan ang mga row o cell ng table na ito ayon sa kanilang mga value. Sinusuri ang mga patakaran sa mga row na na-load na, mula itaas pababa: ang unang tumugmang patakaran ang masusunod.",
+      "matchingHint": "Eksaktong tinutugma ng = at IN ang text, kasama ang malaki at maliit na titik. Hindi ito pinapansin ng contains, starts with, ends with at LIKE; sa LIKE, ginagawang literal ng \\ ang kasunod na % o _.",
       "empty": "Wala pang patakaran.",
       "addRule": "Magdagdag ng patakaran",
       "maxRules": "Hanggang {{count}} patakaran bawat table.",

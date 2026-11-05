@@ -164,6 +164,9 @@ export function ConditionalFormattingModal({
                         <p className="text-sm text-secondary leading-relaxed">
                             {t('dataGrid.conditionalFormatting.description')}
                         </p>
+                        <p className="text-xs text-muted leading-relaxed mt-2">
+                            {t('dataGrid.conditionalFormatting.matchingHint')}
+                        </p>
                     </div>
 
                     {rules.length === 0 && (

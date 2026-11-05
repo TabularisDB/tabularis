@@ -30,16 +30,19 @@ export function useGridFormatRules(
 
     const rules = connectionId && scope ? getTableFormatRules(all, connectionId, scope) : EMPTY;
 
-    /** Writes the table's rules to the backend first, so a failed save can be reported. */
+    /**
+     * Writes the table's rules to the backend first, so a failed save can be reported.
+     * Only this table changes: the other tables' rules are taken from the store's
+     * current value at save time, which follows the changes other windows saved.
+     */
     const saveRules = useCallback(
         async (next: readonly FormatRule[]): Promise<void> => {
             if (!connectionId || !scope) return;
-            await store.commit(
-                UI_STATE_KEYS.gridFormatRules.key,
-                setTableFormatRules(all, connectionId, scope, next),
-            );
+            const {key} = UI_STATE_KEYS.gridFormatRules;
+            const current = sanitizeFormatRules(store.get<unknown>(key, NO_RULES));
+            await store.commit(key, setTableFormatRules(current, connectionId, scope, next));
         },
-        [all, connectionId, scope, store],
+        [connectionId, scope, store],
     );
 
     return {rules, saveRules, available: Boolean(connectionId && scope)};

@@ -1564,6 +1564,7 @@
       "title": "조건부 서식",
       "subtitle": "{{table}} 규칙",
       "description": "값에 따라 이 테이블의 행이나 셀에 색을 입힙니다. 규칙은 이미 불러온 행에 위에서 아래로 적용되며, 처음 일치하는 규칙이 우선합니다.",
+      "matchingHint": "= 와 IN 은 대소문자까지 정확히 비교합니다. contains, starts with, ends with, LIKE 는 대소문자를 구분하지 않으며, LIKE 에서 \\ 뒤의 % 또는 _ 는 문자 그대로 처리됩니다.",
       "empty": "아직 규칙이 없습니다.",
       "addRule": "규칙 추가",
       "maxRules": "테이블당 최대 {{count}}개의 규칙.",

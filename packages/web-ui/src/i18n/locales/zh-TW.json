@@ -1644,6 +1644,7 @@
             "title": "條件式格式",
             "subtitle": "{{table}} 的規則",
             "description": "依據值為此資料表的列或儲存格著色。規則會由上而下套用在已載入的列上：第一條符合的規則生效。",
+            "matchingHint": "= 和 IN 精確比對文字，區分大小寫。contains、starts with、ends with 和 LIKE 不區分大小寫；在 LIKE 中，\\ 會讓其後的 % 或 _ 依字面比對。",
             "empty": "尚無規則。",
             "addRule": "新增規則",
             "maxRules": "每個資料表最多 {{count}} 條規則。",

@@ -147,6 +147,16 @@ describe('conditionalFormatting', () => {
             expect(matches({operator: 'NOT LIKE', value: 'fail%'}, 'failed')).toBe(false);
         });
 
+        it('LIKE treats a backslash as the escape character, like MySQL and PostgreSQL', () => {
+            expect(matches({operator: 'LIKE', value: 'a\\_%'}, 'a_b')).toBe(true);
+            expect(matches({operator: 'LIKE', value: 'a\\_%'}, 'axb')).toBe(false);
+            expect(matches({operator: 'LIKE', value: '100\\%'}, '100%')).toBe(true);
+            expect(matches({operator: 'LIKE', value: '100\\%'}, '1000')).toBe(false);
+            expect(matches({operator: 'LIKE', value: 'C:\\\\%'}, 'C:\\temp')).toBe(true);
+            expect(matches({operator: 'LIKE', value: 'end\\'}, 'end\\')).toBe(true);
+            expect(matches({operator: 'NOT LIKE', value: 'a\\_%'}, 'axb')).toBe(true);
+        });
+
         it('IN and NOT IN split on commas outside quotes', () => {
             expect(matches({operator: 'IN', value: 'failed, cancelled'}, 'cancelled')).toBe(true);
             expect(matches({operator: 'IN', value: "'Paris, TX', Rome"}, 'Paris, TX')).toBe(true);
