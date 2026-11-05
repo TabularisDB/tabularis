@@ -186,3 +186,92 @@ pub(super) fn mysql_column_types(
     let full_type = full_type_if_distinct(&data_type, Some(column_type));
     (data_type, full_type)
 }
+
+/// Whether `value` is a `CURRENT_TIMESTAMP`-style default (`CURRENT_TIMESTAMP`,
+/// `current_timestamp(3)`, `now()`, `LOCALTIMESTAMP`), which MySQL accepts
+/// after `DEFAULT` / `ON UPDATE` without parentheses.
+fn is_current_timestamp_default(value: &str) -> bool {
+    let lower = value.trim().to_ascii_lowercase();
+    let (name, rest) = match lower.find('(') {
+        Some(idx) => (&lower[..idx], &lower[idx..]),
+        None => (lower.as_str(), ""),
+    };
+    let known = matches!(
+        name.trim_end(),
+        "current_timestamp" | "now" | "localtime" | "localtimestamp"
+    );
+    let args_ok = rest.is_empty()
+        || (rest.starts_with('(')
+            && rest.ends_with(')')
+            && rest[1..rest.len() - 1]
+                .trim()
+                .chars()
+                .all(|c| c.is_ascii_digit()));
+    known && args_ok
+}
+
+/// Turns the `COLUMN_DEFAULT` that `information_schema.columns` reports into
+/// SQL that can follow `DEFAULT` when the column is restated with `CHANGE` or
+/// `MODIFY` (#271).
+///
+/// - MySQL reports literals as raw text (`new`, `5`, `2020-01-02`): they are
+///   quoted as string literals, as `SHOW CREATE TABLE` does. Bit literals
+///   (`b'1'`) are kept as they are.
+/// - Expression defaults are marked `DEFAULT_GENERATED` in `EXTRA` (MySQL
+///   8.0.13+): `CURRENT_TIMESTAMP` style values stay bare, any other
+///   expression (`uuid()`) is wrapped in parentheses. MySQL 5.7 has no marker,
+///   so a `CURRENT_TIMESTAMP` default of a temporal column is kept bare too.
+/// - MariaDB (10.2.7+) already reports the default as SQL (`'new'`,
+///   `current_timestamp()`), with `NULL` for no default.
+pub(super) fn mysql_default_sql(
+    raw: Option<&str>,
+    extra: &str,
+    data_type: &str,
+    is_mariadb: bool,
+    no_backslash_escapes: bool,
+) -> Option<String> {
+    let raw = raw?;
+    if is_mariadb {
+        return if raw.eq_ignore_ascii_case("null") {
+            None
+        } else {
+            Some(raw.to_string())
+        };
+    }
+    let data_type = data_type.to_ascii_lowercase();
+    let generated = extra.to_ascii_lowercase().contains("default_generated");
+    if generated {
+        return Some(if is_current_timestamp_default(raw) {
+            raw.to_string()
+        } else {
+            format!("({raw})")
+        });
+    }
+    let temporal = matches!(data_type.as_str(), "timestamp" | "datetime");
+    if temporal && is_current_timestamp_default(raw) {
+        return Some(raw.to_string());
+    }
+    if data_type == "bit" && raw.starts_with("b'") {
+        return Some(raw.to_string());
+    }
+    Some(mysql_string_literal(raw, no_backslash_escapes))
+}
+
+/// The `ON UPDATE` expression in a column's `EXTRA`
+/// (`DEFAULT_GENERATED on update CURRENT_TIMESTAMP` → `CURRENT_TIMESTAMP`).
+pub(super) fn mysql_on_update(extra: &str) -> Option<String> {
+    const MARKER: &str = "on update ";
+    let idx = extra.to_ascii_lowercase().find(MARKER)?;
+    let expr = extra[idx + MARKER.len()..].trim();
+    (!expr.is_empty()).then(|| expr.to_string())
+}
+
+/// Whether `VERSION()` / `@@sql_mode`, read along with the column metadata,
+/// say the server is MariaDB / runs with `NO_BACKSLASH_ESCAPES`.
+pub(super) fn mysql_server_flags(version: &str, sql_mode: &str) -> (bool, bool) {
+    let is_mariadb = version.to_ascii_lowercase().contains("mariadb");
+    let no_backslash_escapes = sql_mode
+        .split(',')
+        .any(|m| m.trim().eq_ignore_ascii_case("NO_BACKSLASH_ESCAPES"));
+    (is_mariadb, no_backslash_escapes)
+}

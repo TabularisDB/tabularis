@@ -2,6 +2,7 @@ import {describe, it, expect} from 'vitest';
 import {
     parseColumnType,
     parseExistingColumnType,
+    existingColumnForm,
     buildColumnDefinition,
     getRequiredExtensions,
     isEnumType,
@@ -195,6 +196,89 @@ describe('columnTypes utils', () => {
             expect(
                 parseExistingColumnType({data_type: "enum('a','b')", full_type: null}, mysqlTypes),
             ).toEqual({type: 'ENUM', length: "'a','b'"});
+        });
+    });
+
+    describe('existingColumnForm', () => {
+        const base = {
+            name: 'status',
+            data_type: 'varchar',
+            full_type: 'varchar(20)',
+            is_nullable: false,
+            is_pk: false,
+            is_auto_increment: false,
+        };
+
+        it('starts from the default as SQL and keeps ON UPDATE', () => {
+            expect(
+                existingColumnForm(
+                    {...base, default_sql: "'new'", on_update: 'CURRENT_TIMESTAMP'},
+                    mysqlTypes,
+                    false,
+                ),
+            ).toEqual({
+                name: 'status',
+                type: 'VARCHAR',
+                length: '20',
+                isNullable: false,
+                defaultValue: "'new'",
+                isPk: false,
+                isAutoInc: false,
+                comment: undefined,
+                onUpdate: 'CURRENT_TIMESTAMP',
+            });
+        });
+
+        it('leaves the default empty without default_sql or for auto-increment', () => {
+            expect(existingColumnForm(base, mysqlTypes, false).defaultValue).toBe('');
+            expect(
+                existingColumnForm(
+                    {...base, is_auto_increment: true, default_sql: "'1'"},
+                    mysqlTypes,
+                    false,
+                ).defaultValue,
+            ).toBe('');
+        });
+
+        it('carries the comment only when the driver supports comments', () => {
+            expect(existingColumnForm({...base, comment: 'Note'}, mysqlTypes, true).comment).toBe(
+                'Note',
+            );
+            expect(
+                existingColumnForm({...base, comment: 'Note'}, mysqlTypes, false).comment,
+            ).toBeUndefined();
+        });
+    });
+
+    describe('buildColumnDefinition: default and ON UPDATE', () => {
+        const form = {
+            name: 'updated',
+            type: 'TIMESTAMP',
+            isNullable: false,
+            defaultValue: 'CURRENT_TIMESTAMP',
+            isPk: false,
+            isAutoInc: false,
+            onUpdate: 'CURRENT_TIMESTAMP',
+        };
+
+        it('keeps ON UPDATE for TIMESTAMP and DATETIME', () => {
+            expect(buildColumnDefinition(form).on_update).toBe('CURRENT_TIMESTAMP');
+            expect(buildColumnDefinition({...form, type: 'datetime', length: '3'}).on_update).toBe(
+                'CURRENT_TIMESTAMP',
+            );
+        });
+
+        it('drops ON UPDATE when the type is changed to something else', () => {
+            expect(
+                buildColumnDefinition({...form, type: 'VARCHAR', length: '20'}),
+            ).not.toHaveProperty('on_update');
+        });
+
+        it('sends no default for an auto-increment column', () => {
+            expect(
+                buildColumnDefinition({...form, type: 'INT', isAutoInc: true, defaultValue: "'1'"})
+                    .default_value,
+            ).toBeNull();
         });
     });
 

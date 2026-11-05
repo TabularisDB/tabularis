@@ -16,6 +16,8 @@ export interface ColumnDefinition {
     default_value: string | null;
     /** Column description; omitted when blank so legacy payloads are unchanged. */
     comment?: string | null;
+    /** `ON UPDATE` expression to keep when the column is restated; omitted when unset. */
+    on_update?: string | null;
 }
 
 export interface ColumnFormData {
@@ -27,6 +29,8 @@ export interface ColumnFormData {
     isPk: boolean;
     isAutoInc: boolean;
     comment?: string;
+    /** `ON UPDATE` expression of an existing column, passed through unchanged. */
+    onUpdate?: string;
 }
 
 /**
@@ -60,6 +64,42 @@ export function parseExistingColumnType(
     return parseColumnType(formatColumnType(column), availableTypes);
 }
 
+/** The parts of an existing column the column editor starts from. */
+export interface ExistingColumn extends ColumnTypeParts {
+    name: string;
+    is_nullable: boolean;
+    is_pk: boolean;
+    is_auto_increment: boolean;
+    comment?: string | null;
+    default_sql?: string | null;
+    on_update?: string | null;
+}
+
+/**
+ * The column editor's form for an existing column. It is both what the dialog
+ * starts with and the "old column" sent with the ALTER, so a field the user
+ * leaves alone is restated unchanged: the length (#271), the default as SQL
+ * (`default_sql`, empty when the driver doesn't send it) and `ON UPDATE`.
+ */
+export function existingColumnForm(
+    column: ExistingColumn,
+    availableTypes: DataTypeInfo[],
+    withComment: boolean,
+): ColumnFormData {
+    const {type, length} = parseExistingColumnType(column, availableTypes);
+    return {
+        name: column.name,
+        type,
+        length,
+        isNullable: column.is_nullable,
+        defaultValue: column.is_auto_increment ? '' : (column.default_sql ?? ''),
+        isPk: column.is_pk || false,
+        isAutoInc: column.is_auto_increment || false,
+        comment: withComment ? (column.comment ?? '') : undefined,
+        ...(column.on_update ? {onUpdate: column.on_update} : {}),
+    };
+}
+
 /**
  * Build a ColumnDefinition (backend-compatible) from a form data object.
  */
@@ -71,8 +111,13 @@ export function buildColumnDefinition(form: ColumnFormData): ColumnDefinition {
         is_nullable: form.isNullable,
         is_pk: form.isPk,
         is_auto_increment: form.isAutoInc,
-        default_value: form.defaultValue || null,
+        // The default field is disabled for auto-increment columns, which can't have one.
+        default_value: (!form.isAutoInc && form.defaultValue) || null,
         ...(form.comment?.trim() ? {comment: form.comment.trim()} : {}),
+        // ON UPDATE only applies to TIMESTAMP / DATETIME; drop it if the type changed.
+        ...(form.onUpdate && /^(timestamp|datetime)\b/i.test(form.type)
+            ? {on_update: form.onUpdate}
+            : {}),
     };
 }
 

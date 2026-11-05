@@ -8,9 +8,8 @@ import {useDrivers} from '@/hooks/useDrivers';
 import {Modal} from '@/components/ui/Modal';
 import {Select} from '@/components/ui/Select';
 import {supportsAlterColumn, supportsColumnComments} from '@/utils/driverCapabilities';
-import {parseExistingColumnType, buildColumnDefinition} from '@/utils/columnTypes';
-import type {ColumnFormData} from '@/utils/columnTypes';
-import type {ColumnTypeParts} from '@/utils/columnType';
+import {existingColumnForm, buildColumnDefinition} from '@/utils/columnTypes';
+import type {ColumnFormData, ExistingColumn} from '@/utils/columnTypes';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 
 type ColumnDef = ColumnFormData;
@@ -27,15 +26,7 @@ interface ModifyColumnModalProps {
     schema?: string;
     database?: string;
     // If provided, we are in "Edit" mode. If null, "Add" mode.
-    column?:
-        | (ColumnTypeParts & {
-              name: string;
-              is_nullable: boolean;
-              is_pk: boolean;
-              is_auto_increment: boolean;
-              comment?: string | null;
-          })
-        | null;
+    column?: ExistingColumn | null;
 }
 
 export const ModifyColumnModal = ({
@@ -68,17 +59,7 @@ export const ModifyColumnModal = ({
 
     const initial = useMemo(() => {
         if (column) {
-            const {type, length} = parseExistingColumnType(column, availableTypes);
-            return {
-                name: column.name,
-                type,
-                length,
-                isNullable: column.is_nullable,
-                defaultValue: '',
-                isPk: column.is_pk || false,
-                isAutoInc: column.is_auto_increment || false,
-                comment: canComment ? (column.comment ?? '') : undefined,
-            };
+            return existingColumnForm(column, availableTypes, canComment);
         }
         return {
             name: '',
@@ -114,16 +95,9 @@ export const ModifyColumnModal = ({
         try {
             let stmts: string[];
             if (isEdit) {
-                const oldCol = buildColumnDefinition({
-                    name: column!.name,
-                    type: parseExistingColumnType(column!, availableTypes).type,
-                    length: parseExistingColumnType(column!, availableTypes).length,
-                    isNullable: column!.is_nullable,
-                    defaultValue: '',
-                    isPk: column!.is_pk,
-                    isAutoInc: column!.is_auto_increment,
-                    comment: canComment ? (column!.comment ?? '') : undefined,
-                });
+                const oldCol = buildColumnDefinition(
+                    existingColumnForm(column!, availableTypes, canComment),
+                );
                 const newCol = buildColumnDefinition(form);
                 stmts = await client.call('get_alter_column_sql', {
                     connectionId,
@@ -178,16 +152,9 @@ export const ModifyColumnModal = ({
         try {
             let stmts: string[];
             if (isEdit) {
-                const oldCol = buildColumnDefinition({
-                    name: column!.name,
-                    type: parseExistingColumnType(column!, availableTypes).type,
-                    length: parseExistingColumnType(column!, availableTypes).length,
-                    isNullable: column!.is_nullable,
-                    defaultValue: '',
-                    isPk: column!.is_pk,
-                    isAutoInc: column!.is_auto_increment,
-                    comment: canComment ? (column!.comment ?? '') : undefined,
-                });
+                const oldCol = buildColumnDefinition(
+                    existingColumnForm(column!, availableTypes, canComment),
+                );
                 const newCol = buildColumnDefinition(form);
                 stmts = await client.call('get_alter_column_sql', {
                     connectionId,
