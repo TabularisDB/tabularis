@@ -2159,6 +2159,7 @@
     "exportMermaid": "Exportar como diagrama Mermaid",
     "exportSuccess": "Diagrama exportado",
     "exportDbml": "Exportar como DBML",
+    "exportMarkdown": "Exportar como Markdown",
     "export": "Exportar"
   },
   "views": {

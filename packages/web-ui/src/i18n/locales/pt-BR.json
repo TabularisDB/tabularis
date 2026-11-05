@@ -2202,7 +2202,12 @@
     "showAllTables": "Mostrar Todas as Tabelas",
     "showAll": "Mostrar Tudo",
     "focusedOn": "Focado em",
-    "focusOnTable": "Focar na Tabela"
+    "focusOnTable": "Focar na Tabela",
+    "exportMermaid": "Exportar como diagrama Mermaid",
+    "exportSuccess": "Diagrama exportado",
+    "exportDbml": "Exportar como DBML",
+    "exportMarkdown": "Exportar como Markdown",
+    "export": "Exportar"
   },
   "views": {
     "createView": "Criar View",
