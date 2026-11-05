@@ -9,6 +9,7 @@ import {
 import {getFindMatchState} from '@/utils/gridFind';
 import {DataGridCell} from './DataGridCell';
 import type {RowCtx} from './DataGridRow';
+import {getFormatRowClass, getFormatTextClass, type RowFormat} from '@/utils/conditionalFormatting';
 
 /**
  * Per-record state for the record columns currently in the horizontal
@@ -21,6 +22,8 @@ export interface TransposedRecord {
     isInsertion: boolean;
     isPendingDelete: boolean;
     pkVal: string | null;
+    /** Conditional formatting of the record (#991), null or absent when no rule matches. */
+    format?: RowFormat | null;
 }
 
 // The whole-record tint, matching the row tint of the normal layout.
@@ -28,7 +31,7 @@ function getTransposedRecordClass(record: TransposedRecord): string {
     if (record.isSelected) return 'bg-accent-primary/10';
     if (record.isInsertion) return 'bg-semantic-new/8';
     if (record.isPendingDelete) return 'bg-semantic-deleted/10 opacity-60';
-    return '';
+    return getFormatRowClass(record.format) ?? '';
 }
 
 export interface MemoTransposedRowProps {
@@ -133,6 +136,7 @@ export const MemoTransposedRow = React.memo(function MemoTransposedRow({
                         currentFindRowIndex === record.rowIndex ? colIndex : null,
                     )}
                     isZebra={isZebra}
+                    formatTextClass={getFormatTextClass(record.format, colIndex)}
                     widthClassName=""
                     className={getTransposedRecordClass(record)}
                     style={{width: TRANSPOSED_RECORD_WIDTH, maxWidth: TRANSPOSED_RECORD_WIDTH}}
