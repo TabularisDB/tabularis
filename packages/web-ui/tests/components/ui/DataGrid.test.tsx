@@ -97,7 +97,10 @@ vi.mock('react-i18next', () => ({
 
 // Settings read by the grid; a test may set a field and must reset it.
 const {settingsState} = vi.hoisted(() => ({
-    settingsState: {} as {nullDisplay?: 'default' | 'parenthesized' | 'emptySet' | 'empty'},
+    settingsState: {} as {
+        nullDisplay?: 'default' | 'parenthesized' | 'emptySet' | 'empty';
+        resultZebraStripes?: boolean;
+    },
 }));
 
 vi.mock('@/hooks/useSettings', () => ({
@@ -3872,6 +3875,65 @@ describe('DataGrid transposed layout (#561)', () => {
         expect(cellAt(container, 0, 1)).toHaveClass('bg-accent-primary/15');
         expect(cellAt(container, 1, 1)).toHaveClass('bg-accent-primary/15');
         expect(cellAt(container, 1, 0)).not.toHaveClass('bg-accent-primary/15');
+    });
+
+    describe('zebra stripes', () => {
+        afterEach(() => {
+            delete settingsState.resultZebraStripes;
+        });
+
+        const fieldLabel = (container: HTMLElement, colIndex: number) =>
+            container.querySelector(`th[scope="row"][data-col-index="${colIndex}"]`)!;
+        const stripedFields = (container: HTMLElement) =>
+            Array.from(
+                container.querySelectorAll<HTMLElement>('tbody tr.bg-surface-secondary\\/40'),
+                (tr) => Number(tr.dataset.fieldIndex),
+            );
+        const threeFields = {
+            columns: ['id', 'name', 'city'],
+            data: [
+                [1, 'Alice', 'Rome'],
+                [2, 'Bob', 'Oslo'],
+            ],
+        };
+
+        it('stripes every other field row, label included, when enabled', () => {
+            settingsState.resultZebraStripes = true;
+            const {container} = renderTransposed(threeFields);
+
+            expect(stripedFields(container)).toEqual([1]);
+            expect(fieldLabel(container, 1)).toHaveClass('bg-surface-secondary/40');
+            expect(fieldLabel(container, 0)).not.toHaveClass('bg-surface-secondary/40');
+        });
+
+        it('stripes nothing when disabled', () => {
+            const {container} = renderTransposed(threeFields);
+
+            expect(stripedFields(container)).toEqual([]);
+            expect(fieldLabel(container, 1)).not.toHaveClass('bg-surface-secondary/40');
+        });
+
+        it('alternates over the visible fields when one is hidden', () => {
+            settingsState.resultZebraStripes = true;
+            const {container} = renderTransposed({
+                ...threeFields,
+                hiddenColumns: new Set([1]),
+            });
+
+            expect(stripedFields(container)).toEqual([2]);
+        });
+
+        it('keeps striping records in the normal layout', () => {
+            settingsState.resultZebraStripes = true;
+            const {container} = renderTransposed({...threeFields, transposed: false});
+
+            expect(container.querySelector('tr[data-row-index="0"]')).not.toHaveClass(
+                'bg-surface-secondary/40',
+            );
+            expect(container.querySelector('tr[data-row-index="1"]')).toHaveClass(
+                'bg-surface-secondary/40',
+            );
+        });
     });
 
     it('selects a record from its column header', () => {
