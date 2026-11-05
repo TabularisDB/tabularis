@@ -3,7 +3,12 @@ import {isZebraStripedRow, DATA_GRID_ROW_HEIGHT, type MergedRow} from '@/utils/d
 import {getFindMatchState} from '@/utils/gridFind';
 import {DataGridCell, DataGridExpansionRow} from './DataGridCell';
 import type {ForeignKey} from '@/types/editor';
-import {getFormatRowClass, getFormatTextClass, type RowFormat} from '@/utils/conditionalFormatting';
+import {
+    getFormatGutterClass,
+    getFormatRowClass,
+    getFormatTextClass,
+    type RowFormat,
+} from '@/utils/conditionalFormatting';
 
 /**
  * Stable, per-grid dependencies shared by every row. Bundled into a single
@@ -206,9 +211,10 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                               ? 'bg-semantic-deleted/25 text-semantic-deleted line-through'
                               : isSelected
                                 ? 'bg-accent-primary/20 text-accent font-bold'
-                                : isZebraStripedRow(rowIndex, zebraStripes)
-                                  ? 'bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-base))] text-muted hover:bg-surface-tertiary'
-                                  : 'bg-base text-muted hover:bg-surface-secondary'
+                                : (getFormatGutterClass(format) ??
+                                  (isZebraStripedRow(rowIndex, zebraStripes)
+                                      ? 'bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-base))] text-muted hover:bg-surface-tertiary'
+                                      : 'bg-base text-muted hover:bg-surface-secondary'))
                     }`}
                 >
                     {isInsertion ? 'NEW' : rowIndex + 1}
@@ -244,6 +250,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                             currentFindColIndex,
                         )}
                         formatTextClass={getFormatTextClass(format, colIndex)}
+                        formatRowTone={format?.row?.tone ?? null}
                     />
                 ))}
             </tr>

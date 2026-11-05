@@ -382,6 +382,25 @@ export function getFormatTextClass(
     return format.row?.tone === 'muted' ? FORMAT_TEXT_CLASS.muted : null;
 }
 
+/**
+ * Row-number cell of a row painted by a row rule. The cell is sticky, so its
+ * background is opaque: the row tint pre-mixed over the grid background.
+ */
+const FORMAT_GUTTER_CLASS: Record<FormatTone, string> = {
+    danger: 'bg-[color-mix(in_srgb,var(--accent-error)_15%,var(--bg-base))] text-muted hover:bg-[color-mix(in_srgb,var(--accent-error)_25%,var(--bg-base))]',
+    warning:
+        'bg-[color-mix(in_srgb,var(--accent-warning)_15%,var(--bg-base))] text-muted hover:bg-[color-mix(in_srgb,var(--accent-warning)_25%,var(--bg-base))]',
+    success:
+        'bg-[color-mix(in_srgb,var(--accent-success)_15%,var(--bg-base))] text-muted hover:bg-[color-mix(in_srgb,var(--accent-success)_25%,var(--bg-base))]',
+    info: 'bg-[color-mix(in_srgb,var(--accent-info)_15%,var(--bg-base))] text-muted hover:bg-[color-mix(in_srgb,var(--accent-info)_25%,var(--bg-base))]',
+    muted: 'bg-base text-muted hover:bg-surface-secondary',
+};
+
+/** Classes of the row-number cell of a row painted by a row rule, or null. */
+export function getFormatGutterClass(format: RowFormat | null | undefined): string | null {
+    return format?.row ? FORMAT_GUTTER_CLASS[format.row.tone] : null;
+}
+
 /** Background class of a row painted by a row rule, or null. */
 export function getFormatRowClass(format: RowFormat | null | undefined): string | null {
     return format?.row ? FORMAT_ROW_CLASS[format.row.tone] : null;

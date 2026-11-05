@@ -245,6 +245,43 @@ describe('DataGrid conditional formatting (#991)', () => {
         );
     });
 
+    it('tints the frozen first column and the row number of a matching row', () => {
+        seed(rules);
+        const {container} = render(<Grid />);
+        fireEvent.contextMenu(headerOf(container, 0));
+        fireEvent.click(screen.getByText('dataGrid.freezeFirstColumn'));
+
+        // The frozen cell paints an opaque backdrop over the row tint, so the
+        // backdrop itself carries the rule's tone.
+        expect(cellAt(container, 1, 0)).toHaveClass('sticky');
+        expect(cellAt(container, 1, 0).className).toContain(
+            'before:bg-[color-mix(in_srgb,var(--accent-error)_15%,var(--bg-elevated))]',
+        );
+        expect(cellAt(container, 0, 0).className).toContain('before:bg-elevated');
+        // A cell rule leaves the row, and its frozen cell, untinted.
+        expect(cellAt(container, 2, 0).className).not.toContain('var(--accent-error)');
+        // A muted row has no tint.
+        expect(cellAt(container, 3, 0).className).toContain('before:bg-elevated');
+
+        expect(rowNumberOf(container, 1).className).toContain(
+            'bg-[color-mix(in_srgb,var(--accent-error)_15%,var(--bg-base))]',
+        );
+        expect(rowNumberOf(container, 0).className).not.toContain('var(--accent-error)');
+        expect(rowNumberOf(container, 2).className).not.toContain('var(--accent-error)');
+    });
+
+    it('keeps the record tint on the frozen first row of the transposed layout', () => {
+        seed(rules);
+        const {container} = render(<Grid transposed />);
+        fireEvent.contextMenu(headerOf(container, 0));
+        fireEvent.click(screen.getByText('dataGrid.freezeFirstRow'));
+
+        // The tint sits on the cell itself and is repainted above the backdrop.
+        expect(cellAt(container, 1, 0)).toHaveClass('sticky');
+        expect(cellAt(container, 1, 0).className).toContain('bg-accent-error/15');
+        expect(cellAt(container, 1, 0).className).toContain('after:bg-inherit');
+    });
+
     it('applies only the rules of its own table', () => {
         seed(rules, 'customers');
         const {container} = render(<Grid />);

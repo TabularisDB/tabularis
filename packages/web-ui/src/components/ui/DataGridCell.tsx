@@ -24,6 +24,7 @@ import {
 import {isLongTextCellTarget, truncateCellPreview} from '@/utils/text';
 import {getForeignKeyForPreview} from '@/utils/foreignKeys';
 import {getDateInputMode} from '@/utils/dateInput';
+import type {FormatTone} from '@/utils/conditionalFormatting';
 import {renderDefaultCellContent} from '@/utils/dataGridCell';
 import {FIND_MATCH_CELL_CLASS, type FindMatchState} from '@/utils/gridFind';
 import {resolveResultFontFamily} from '@/utils/settings';
@@ -64,6 +65,8 @@ export interface DataGridCellProps {
     className?: string;
     /** Text color from a conditional formatting rule (#991), or null. */
     formatTextClass?: string | null;
+    /** Tone of the row rule that paints this cell's row (#991), for the frozen backdrop. */
+    formatRowTone?: FormatTone | null;
     style?: React.CSSProperties;
 }
 
@@ -92,6 +95,7 @@ export function DataGridCell({
     widthClassName = 'max-w-[300px]',
     className = '',
     formatTextClass = null,
+    formatRowTone = null,
     style,
 }: DataGridCellProps) {
     const {
@@ -215,6 +219,7 @@ export function DataGridCell({
               isInsertion,
               isPendingDelete,
               isZebra: isZebra ?? isZebraStripedRow(rowIndex, zebraStripes),
+              formatTone: formatRowTone,
           })}`
         : '';
     const focusClass = !isFocused
