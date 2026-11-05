@@ -1034,7 +1034,10 @@ pub async fn get_table_ddl(
     let mut pks = Vec::new();
 
     for col in cols {
-        let mut def = format!("\"{}\" {}", col.name, col.data_type);
+        // `full_type` is `format_type()`: `text[]`, `numeric(10,2)`, ...;
+        // `data_type` alone says `ARRAY` or drops the precision.
+        let data_type = col.full_type.as_deref().unwrap_or(&col.data_type);
+        let mut def = format!("\"{}\" {}", col.name, data_type);
 
         if !col.is_nullable {
             def.push_str(" NOT NULL");
@@ -1050,12 +1053,42 @@ pub async fn get_table_ddl(
         defs.push(format!("PRIMARY KEY ({})", pks.join(", ")));
     }
 
-    Ok(format!(
+    let mut ddl = format!(
         "CREATE TABLE \"{}\".\"{}\" (\n  {}\n);",
         escape_identifier(schema),
         escape_identifier(table_name),
         defs.join(",\n  ")
-    ))
+    );
+    // The table's other indexes, as PostgreSQL writes them; the primary key
+    // is part of the table above. An index behind a UNIQUE or EXCLUDE
+    // constraint is written as that constraint, so it keeps being one (with
+    // `DEFERRABLE` and the exclusion operators).
+    let pool = get_postgres_pool(params).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    let indexes = client
+        .query(
+            "SELECT CASE WHEN c.oid IS NULL THEN pg_catalog.pg_get_indexdef(ix.indexrelid) \
+             ELSE 'ALTER TABLE ' || pg_catalog.quote_ident(n.nspname) || '.' \
+             || pg_catalog.quote_ident(t.relname) || ' ADD CONSTRAINT ' \
+             || pg_catalog.quote_ident(c.conname) || ' ' \
+             || pg_catalog.pg_get_constraintdef(c.oid) END \
+             FROM pg_catalog.pg_index ix \
+             JOIN pg_catalog.pg_class t ON t.oid = ix.indrelid \
+             JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid \
+             JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace \
+             LEFT JOIN pg_catalog.pg_constraint c ON c.conindid = ix.indexrelid \
+             AND c.conrelid = t.oid AND c.contype IN ('u', 'x') \
+             WHERE n.nspname = $1 AND t.relname = $2 AND NOT ix.indisprimary \
+             ORDER BY i.relname",
+            &[&schema, &table_name],
+        )
+        .await
+        .map_err(|e| format!("Failed to read the table's indexes: {}", e))?;
+    for index in indexes {
+        let definition: String = index.try_get(0).map_err(|e| e.to_string())?;
+        ddl.push_str(&format!("\n{definition};"));
+    }
+    Ok(ddl)
 }
 
 /// Acquires a single PostgreSQL client from the pool and applies the
@@ -1398,6 +1431,30 @@ pub async fn get_views(params: &ConnectionParams, schema: &str) -> Result<Vec<Vi
         params.database
     );
     Ok(views)
+}
+
+/// `pg_class.reltuples`, the planner's row estimate; `None` before the
+/// table was first vacuumed or analyzed (-1 since PostgreSQL 14).
+pub async fn get_approximate_row_count(
+    params: &ConnectionParams,
+    table_name: &str,
+    schema: &str,
+) -> Result<Option<u64>, String> {
+    let pool = get_postgres_pool(params).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    let row = client
+        .query_opt(
+            "SELECT c.reltuples::float8 FROM pg_catalog.pg_class c \
+             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace \
+             WHERE n.nspname = $1 AND c.relname = $2",
+            &[&schema, &table_name],
+        )
+        .await
+        .map_err(|e| format!("Failed to read the row estimate: {}", e))?;
+    let estimate = row.and_then(|row| row.try_get::<_, f64>(0).ok());
+    Ok(estimate
+        .filter(|rows| *rows >= 0.0)
+        .map(|rows| rows.round() as u64))
 }
 
 pub async fn get_view_definition(
@@ -2177,6 +2234,8 @@ impl PostgresDriver {
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    table_export: None,
+                    table_import: None,
                     triggers: true,
                     supports_ssl: true,
                     user_management: false,
@@ -2978,6 +3037,15 @@ impl DatabaseDriver for PostgresDriver {
         schema: Option<&str>,
     ) -> Result<String, String> {
         get_table_ddl(params, table, &self.resolve_schema(schema)).await
+    }
+
+    async fn get_approximate_row_count(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        get_approximate_row_count(params, table, &self.resolve_schema(schema)).await
     }
 
     async fn drop_index(

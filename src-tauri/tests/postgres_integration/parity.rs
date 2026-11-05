@@ -301,6 +301,8 @@ fn plugin_manifest() -> PluginManifest {
             user_management: false,
             sql_dialect: Some(SqlDialect::Postgres),
             sql_syntax: None,
+            table_export: None,
+            table_import: None,
         },
         is_builtin: false,
         engine: Some("postgresql".to_string()),
