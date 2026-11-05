@@ -1926,21 +1926,24 @@ export const NewConnectionModal = ({
                 // one shows the Databases tab.
                 setOptedIntoSchemaMultiDb(editIsMultiDb);
                 // The Databases-tab input of a plugin (hasDefaultDatabaseInput)
-                // edits `formData.database`, so a saved `default_database` is
-                // loaded there. It is kept out of the rest of the form, so Test
-                // Connection never sends a value the user has since cleared.
-                const savedDefaultDatabase = hasDefaultDatabaseInput(editDriverForDb)
-                    ? params.default_database
+                // edits `formData.database`, so only a saved `default_database`
+                // is loaded there, never the saved selection, which would be
+                // saved back as the default. It is kept out of the rest of the
+                // form, so Test Connection never sends a value the user has
+                // since cleared.
+                const hasDatabaseInput = hasDefaultDatabaseInput(editDriverForDb);
+                const savedDefaultDatabase = hasDatabaseInput
+                    ? (params.default_database ?? '')
                     : undefined;
                 const formParams = {
                     ...paramsForForm,
                     default_database: undefined,
-                    ...(savedDefaultDatabase ? {database: savedDefaultDatabase} : {}),
+                    ...(savedDefaultDatabase !== undefined ? {database: savedDefaultDatabase} : {}),
                 };
                 if (Array.isArray(db)) {
                     setSelectedDatabasesState(db);
                     setLoadAllDatabases(false);
-                    setFormData({...formParams, database: savedDefaultDatabase || (db[0] ?? '')});
+                    setFormData({...formParams, database: savedDefaultDatabase ?? db[0] ?? ''});
                 } else if (editIsMultiDb && typeof db === 'string' && db.trim()) {
                     // A saved single database on a multi-db driver is an explicit
                     // one-element selection.

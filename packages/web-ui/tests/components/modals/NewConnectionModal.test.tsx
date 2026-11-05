@@ -2493,6 +2493,30 @@ describe('NewConnectionModal database input of a flat multi-database plugin', ()
         ).toHaveValue('app/main');
     });
 
+    it('does not take a saved selection as the default when none was saved', async () => {
+        for (const database of [['app/main', 'app/logs'], 'app/main']) {
+            vi.mocked(invoke).mockClear();
+            const {unmount} = renderModal(surrealConnection({database}));
+            await openDatabasesTab();
+
+            expect(databaseInput()).toHaveValue('');
+            fireEvent.click(screen.getByText('newConnection.save'));
+            await waitFor(() =>
+                expect(invoke).toHaveBeenCalledWith('update_connection', expect.anything()),
+            );
+            expect(
+                vi
+                    .mocked(invoke)
+                    .mock.calls.find(([command]) => command === 'update_connection')?.[1],
+            ).toEqual(
+                expect.objectContaining({
+                    params: expect.not.objectContaining({default_database: expect.anything()}),
+                }),
+            );
+            unmount();
+        }
+    });
+
     it('is filled by an imported connection string', async () => {
         renderModal(surrealConnection());
         fireEvent.change(
