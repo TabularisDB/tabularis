@@ -1,4 +1,6 @@
 import type {DataTypeInfo} from '@/types/dataTypes';
+import {formatColumnType} from './columnType';
+import type {ColumnTypeParts} from './columnType';
 
 export interface ParsedType {
     type: string;
@@ -43,6 +45,19 @@ export function parseColumnType(fullType: string, availableTypes: DataTypeInfo[]
         return {type: match[1].toUpperCase().trim(), length: match[2] || ''};
     }
     return {type: upperFull, length: ''};
+}
+
+/**
+ * Parse an existing column's type for editing. Drivers report the length or
+ * precision apart from `data_type` (`full_type`, `character_maximum_length`,
+ * ...), so parsing `data_type` alone turns `varchar(255)` into a bare
+ * `VARCHAR` and the ALTER statement loses the size (#271).
+ */
+export function parseExistingColumnType(
+    column: ColumnTypeParts,
+    availableTypes: DataTypeInfo[],
+): ParsedType {
+    return parseColumnType(formatColumnType(column), availableTypes);
 }
 
 /**

@@ -1,6 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import {
     parseColumnType,
+    parseExistingColumnType,
     buildColumnDefinition,
     getRequiredExtensions,
     isEnumType,
@@ -35,6 +36,14 @@ const pgTypes: DataTypeInfo[] = [
     makeType('TEXT[]', {category: 'array'}),
     makeType('HSTORE', {category: 'extension', requires_extension: 'hstore'}),
     makeType('DOUBLE PRECISION', {category: 'numeric'}),
+];
+
+const mysqlTypes: DataTypeInfo[] = [
+    makeType('VARCHAR', {category: 'string', requires_length: true, default_length: '255'}),
+    makeType('INT', {category: 'numeric', supports_auto_increment: true}),
+    makeType('TINYINT', {category: 'numeric', supports_auto_increment: true}),
+    makeType('DECIMAL', {category: 'numeric', requires_precision: true}),
+    makeType('TEXT', {category: 'string'}),
 ];
 
 describe('columnTypes utils', () => {
@@ -112,6 +121,80 @@ describe('columnTypes utils', () => {
         it('should handle BOOLEAN type', () => {
             const result = parseColumnType('boolean', pgTypes);
             expect(result).toEqual({type: 'BOOLEAN', length: ''});
+        });
+    });
+
+    describe('parseExistingColumnType', () => {
+        it('keeps the length MySQL reports in full_type', () => {
+            const column = {data_type: 'varchar', full_type: 'varchar(255)'};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'VARCHAR',
+                length: '255',
+            });
+        });
+
+        it('keeps precision and scale from full_type', () => {
+            const column = {data_type: 'decimal', full_type: 'decimal(10,2)'};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'DECIMAL',
+                length: '10,2',
+            });
+        });
+
+        it('keeps a display width such as tinyint(1)', () => {
+            const column = {data_type: 'tinyint', full_type: 'tinyint(1)'};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'TINYINT',
+                length: '1',
+            });
+        });
+
+        it('keeps modifiers after the base type, like unsigned', () => {
+            const column = {data_type: 'int', full_type: 'int unsigned'};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'INT UNSIGNED',
+                length: '',
+            });
+            const decimal = {data_type: 'decimal', full_type: 'decimal(10,2) unsigned'};
+            expect(parseExistingColumnType(decimal, mysqlTypes)).toEqual({
+                type: 'DECIMAL(10,2) UNSIGNED',
+                length: '',
+            });
+        });
+
+        it('keeps the PostgreSQL length from full_type', () => {
+            const column = {data_type: 'character varying', full_type: 'character varying(255)'};
+            expect(parseExistingColumnType(column, pgTypes)).toEqual({
+                type: 'CHARACTER VARYING',
+                length: '255',
+            });
+        });
+
+        it('uses the separately reported length when there is no full_type', () => {
+            const column = {data_type: 'varchar', character_maximum_length: 64};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'VARCHAR',
+                length: '64',
+            });
+            const numeric = {data_type: 'numeric', numeric_precision: 12, numeric_scale: 3};
+            expect(parseExistingColumnType(numeric, pgTypes)).toEqual({
+                type: 'NUMERIC',
+                length: '12,3',
+            });
+        });
+
+        it('parses data_type as before when it already carries the full type', () => {
+            expect(parseExistingColumnType({data_type: 'VARCHAR(50)'}, pgTypes)).toEqual({
+                type: 'VARCHAR',
+                length: '50',
+            });
+            expect(parseExistingColumnType({data_type: 'INTEGER'}, pgTypes)).toEqual({
+                type: 'INTEGER',
+                length: '',
+            });
+            expect(
+                parseExistingColumnType({data_type: "enum('a','b')", full_type: null}, mysqlTypes),
+            ).toEqual({type: 'ENUM', length: "'a','b'"});
         });
     });
 

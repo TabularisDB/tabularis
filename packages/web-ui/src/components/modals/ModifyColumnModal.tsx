@@ -8,8 +8,9 @@ import {useDrivers} from '@/hooks/useDrivers';
 import {Modal} from '@/components/ui/Modal';
 import {Select} from '@/components/ui/Select';
 import {supportsAlterColumn, supportsColumnComments} from '@/utils/driverCapabilities';
-import {parseColumnType, buildColumnDefinition} from '@/utils/columnTypes';
+import {parseExistingColumnType, buildColumnDefinition} from '@/utils/columnTypes';
 import type {ColumnFormData} from '@/utils/columnTypes';
+import type {ColumnTypeParts} from '@/utils/columnType';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 
 type ColumnDef = ColumnFormData;
@@ -26,14 +27,15 @@ interface ModifyColumnModalProps {
     schema?: string;
     database?: string;
     // If provided, we are in "Edit" mode. If null, "Add" mode.
-    column?: {
-        name: string;
-        data_type: string;
-        is_nullable: boolean;
-        is_pk: boolean;
-        is_auto_increment: boolean;
-        comment?: string | null;
-    } | null;
+    column?:
+        | (ColumnTypeParts & {
+              name: string;
+              is_nullable: boolean;
+              is_pk: boolean;
+              is_auto_increment: boolean;
+              comment?: string | null;
+          })
+        | null;
 }
 
 export const ModifyColumnModal = ({
@@ -66,7 +68,7 @@ export const ModifyColumnModal = ({
 
     const initial = useMemo(() => {
         if (column) {
-            const {type, length} = parseColumnType(column.data_type, availableTypes);
+            const {type, length} = parseExistingColumnType(column, availableTypes);
             return {
                 name: column.name,
                 type,
@@ -114,8 +116,8 @@ export const ModifyColumnModal = ({
             if (isEdit) {
                 const oldCol = buildColumnDefinition({
                     name: column!.name,
-                    type: parseColumnType(column!.data_type, availableTypes).type,
-                    length: parseColumnType(column!.data_type, availableTypes).length,
+                    type: parseExistingColumnType(column!, availableTypes).type,
+                    length: parseExistingColumnType(column!, availableTypes).length,
                     isNullable: column!.is_nullable,
                     defaultValue: '',
                     isPk: column!.is_pk,
@@ -178,8 +180,8 @@ export const ModifyColumnModal = ({
             if (isEdit) {
                 const oldCol = buildColumnDefinition({
                     name: column!.name,
-                    type: parseColumnType(column!.data_type, availableTypes).type,
-                    length: parseColumnType(column!.data_type, availableTypes).length,
+                    type: parseExistingColumnType(column!, availableTypes).type,
+                    length: parseExistingColumnType(column!, availableTypes).length,
                     isNullable: column!.is_nullable,
                     defaultValue: '',
                     isPk: column!.is_pk,
