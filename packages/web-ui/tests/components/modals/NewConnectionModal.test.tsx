@@ -180,6 +180,40 @@ vi.mock('@/hooks/useDrivers', () => ({
                     sql_dialect: 'postgres',
                 },
             },
+            {
+                // A flat multi-database plugin that declares the database input,
+                // as SurrealDB does for the `namespace/database` to sign in to.
+                id: 'surrealdb',
+                name: 'SurrealDB',
+                version: '0.1.1',
+                default_port: 8000,
+                is_builtin: false,
+                connection_fields: {
+                    database: {label: 'Namespace/Database', placeholder: 'namespace/database'},
+                },
+                capabilities: {
+                    schemas: false,
+                    file_based: false,
+                    folder_based: false,
+                    connection_string: true,
+                    supports_ssl: true,
+                    sql_dialect: 'mysql',
+                },
+            },
+            {
+                // A flat multi-database plugin that declares no database input.
+                id: 'redis',
+                name: 'Redis',
+                version: '1.0.0',
+                default_port: 6379,
+                is_builtin: false,
+                capabilities: {
+                    schemas: false,
+                    file_based: false,
+                    folder_based: false,
+                    connection_string: true,
+                },
+            },
         ],
         allDrivers: [],
         installedPlugins: [],
@@ -2352,5 +2386,264 @@ describe('NewConnectionModal connect timeout', () => {
         renderModal(createInitialConnection({driver: 'sqlite', database: '/tmp/a.db'}));
         fireEvent.click(await screen.findByText('newConnection.advanced'));
         expect(screen.queryByText('newConnection.connectTimeout')).not.toBeInTheDocument();
+    });
+});
+
+describe('NewConnectionModal database input of a flat multi-database plugin', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 15432;
+        driverState.multiDatabase = false;
+        vi.mocked(invoke).mockImplementation(async (command) =>
+            command === 'list_databases' ? ['app/logs', 'app/main'] : 'ok',
+        );
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+    });
+
+    function surrealConnection(params: Partial<InitialConnectionParams> = {}) {
+        return createInitialConnection({
+            driver: 'surrealdb',
+            host: 'localhost',
+            port: 8000,
+            database: '',
+            ...params,
+        });
+    }
+
+    async function openDatabasesTab() {
+        fireEvent.click(await screen.findByText('newConnection.selectDatabases'));
+    }
+
+    function databaseInput() {
+        return screen.getByRole('textbox', {name: 'Namespace/Database'});
+    }
+
+    function typeDatabase(value: string) {
+        fireEvent.change(databaseInput(), {target: {value}});
+    }
+
+    function sentParams(params: Record<string, unknown>) {
+        return expect.objectContaining({
+            request: expect.objectContaining({params: expect.objectContaining(params)}),
+        });
+    }
+
+    it('shows the input with the manifest label and placeholder on the Databases tab', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+
+        expect(databaseInput()).toHaveAttribute('placeholder', 'namespace/database');
+        expect(databaseInput()).toHaveAccessibleDescription(
+            'newConnection.databasesTabDatabaseHint',
+        );
+        // It stays above the mode switch, so it applies to both modes.
+        fireEvent.click(screen.getByText('newConnection.chooseDatabases'));
+        expect(databaseInput()).toBeInTheDocument();
+    });
+
+    it('is not shown for a built-in driver or a plugin that does not declare it', async () => {
+        driverState.multiDatabase = true;
+        const {unmount} = renderModal(createInitialConnection({host: 'localhost', database: ''}));
+        await openDatabasesTab();
+        expect(screen.queryByText('newConnection.databasesTabDatabaseHint')).toBeNull();
+        expect(screen.queryByPlaceholderText('newConnection.dbNamePlaceholder')).toBeNull();
+        unmount();
+
+        renderModal(createInitialConnection({driver: 'redis', host: 'localhost', database: ''}));
+        await openDatabasesTab();
+        expect(screen.queryByText('newConnection.databasesTabDatabaseHint')).toBeNull();
+        expect(screen.queryByPlaceholderText('newConnection.dbNamePlaceholder')).toBeNull();
+    });
+
+    it('sends the value with Load Databases', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase('app');
+        fireEvent.click(screen.getByText('newConnection.chooseDatabases'));
+        fireEvent.click(screen.getByText('newConnection.loadDatabases'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'list_databases',
+                expect.objectContaining({
+                    request: expect.objectContaining({
+                        params: expect.objectContaining({driver: 'surrealdb', database: 'app'}),
+                    }),
+                }),
+            ),
+        );
+        expect(await screen.findByRole('button', {name: 'app/main'})).toBeInTheDocument();
+    });
+
+    it('sends the value with Test Connection in All databases mode', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase(' app/main ');
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'test_connection',
+                sentParams({database: 'app/main'}),
+            ),
+        );
+    });
+
+    it('sends the value with Test Connection before a database is chosen', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase('app/main');
+        fireEvent.click(screen.getByText('newConnection.chooseDatabases'));
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'test_connection',
+                sentParams({database: 'app/main'}),
+            ),
+        );
+    });
+
+    it('saves the value in All databases mode, which still saves no selection', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase(' app/main ');
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({
+                        database: '',
+                        default_database: 'app/main',
+                    }),
+                }),
+            ),
+        );
+    });
+
+    it('saves the value next to the chosen databases', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase('app');
+        fireEvent.click(screen.getByText('newConnection.chooseDatabases'));
+        fireEvent.click(screen.getByText('newConnection.loadDatabases'));
+        fireEvent.click(await screen.findByRole('button', {name: 'app/logs'}));
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({
+                        database: 'app/logs',
+                        default_database: 'app',
+                    }),
+                }),
+            ),
+        );
+    });
+
+    it('drops a cleared value on save', async () => {
+        renderModal(surrealConnection({default_database: 'app/main'}));
+        await openDatabasesTab();
+        typeDatabase('');
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.not.objectContaining({default_database: expect.anything()}),
+                }),
+            ),
+        );
+    });
+
+    it('shows the saved value when editing a connection in All databases mode', async () => {
+        renderModal(surrealConnection({default_database: 'app/main'}));
+        await openDatabasesTab();
+
+        expect(databaseInput()).toHaveValue('app/main');
+        expect(screen.getByText('newConnection.allDatabasesHint')).toBeInTheDocument();
+    });
+
+    it('shows the saved value, not the first chosen database, when editing a selection', async () => {
+        renderModal(
+            surrealConnection({database: ['app/main', 'app/logs'], default_database: 'app'}),
+        );
+        await openDatabasesTab();
+
+        expect(databaseInput()).toHaveValue('app');
+        expect(
+            await screen.findByRole('combobox', {name: 'newConnection.defaultDatabase'}),
+        ).toHaveValue('app/main');
+    });
+
+    it('does not take a saved selection as the default when none was saved', async () => {
+        for (const database of [['app/main', 'app/logs'], 'app/main']) {
+            vi.mocked(invoke).mockClear();
+            const {unmount} = renderModal(surrealConnection({database}));
+            await openDatabasesTab();
+
+            expect(databaseInput()).toHaveValue('');
+            fireEvent.click(screen.getByText('newConnection.save'));
+            await waitFor(() =>
+                expect(invoke).toHaveBeenCalledWith('update_connection', expect.anything()),
+            );
+            expect(
+                vi
+                    .mocked(invoke)
+                    .mock.calls.find(([command]) => command === 'update_connection')?.[1],
+            ).toEqual(
+                expect.objectContaining({
+                    params: expect.not.objectContaining({default_database: expect.anything()}),
+                }),
+            );
+            unmount();
+        }
+    });
+
+    it('is filled by an imported connection string', async () => {
+        renderModal(surrealConnection());
+        fireEvent.change(
+            await screen.findByPlaceholderText('newConnection.connectionStringPlaceholder'),
+            {target: {value: 'surrealdb://reader:secret@db.example:8000/app/main'}},
+        );
+        await openDatabasesTab();
+
+        expect(databaseInput()).toHaveValue('app/main');
+    });
+
+    it('keeps sending and saving no database in All databases mode for other drivers', async () => {
+        driverState.multiDatabase = true;
+        renderModal(
+            createInitialConnection({host: 'localhost', database: '', default_database: 'stale'}),
+        );
+        await openDatabasesTab();
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('test_connection', sentParams({database: ''})),
+        );
+
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({database: ''}),
+                }),
+            ),
+        );
+        expect(
+            vi.mocked(invoke).mock.calls.find(([command]) => command === 'update_connection')?.[1],
+        ).toEqual(
+            expect.objectContaining({
+                params: expect.not.objectContaining({default_database: expect.anything()}),
+            }),
+        );
     });
 });

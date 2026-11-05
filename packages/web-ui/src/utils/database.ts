@@ -1,4 +1,5 @@
-import type {DriverCapabilities} from '@/types/plugins';
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import {uriPassthroughEnabled} from './connectionStringParser';
 
 export interface TableDataChangeScope {
     schema?: string;
@@ -72,6 +73,28 @@ export function hasOptedIntoDatabaseSelection(
         return Array.isArray(dbParam) || dbParam === '';
     }
     return false;
+}
+
+/**
+ * Returns true when the connection modal shows a flat multi-database driver's
+ * database input on its Databases tab.
+ *
+ * Such a driver (`isMultiDatabaseCapable`) saves the databases picked on that
+ * tab in `database` (`""` = all databases), so the General tab has no Database
+ * input for it. A plugin opts in by declaring `connection_fields.database`
+ * without `hidden`, for a value it needs besides the selection, such as the
+ * `namespace/database` a SurrealDB user signs in to. The connection saves it as
+ * `default_database`, which the host sends as `database` while no database is
+ * selected. Built-in drivers declare no connection fields, so they never show it.
+ */
+export function hasDefaultDatabaseInput(
+    driver: Pick<PluginManifest, 'capabilities' | 'connection_fields'> | null | undefined,
+): boolean {
+    if (!driver || !isMultiDatabaseCapable(driver.capabilities)) return false;
+    // A passthrough URI carries the database, as on the General tab.
+    if (uriPassthroughEnabled(driver.capabilities)) return false;
+    const field = driver.connection_fields?.database;
+    return Boolean(field) && field?.hidden !== true;
 }
 
 /**

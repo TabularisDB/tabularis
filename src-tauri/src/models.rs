@@ -206,6 +206,12 @@ pub struct ConnectionParams {
     )]
     pub connection_uri_in_keychain: Option<bool>,
     pub database: DatabaseSelection,
+    /// Database a plugin driver gets as `database` while the connection selects
+    /// none ("All databases"). Typed on the connection modal's Databases tab
+    /// by flat multi-database plugins that declare `connection_fields.database`,
+    /// such as the `namespace/database` a SurrealDB user signs in to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_database: Option<String>,
     pub ssl_mode: Option<String>,
     pub ssl_ca: Option<String>,
     pub ssl_cert: Option<String>,

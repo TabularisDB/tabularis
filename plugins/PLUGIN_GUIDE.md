@@ -36,6 +36,12 @@ For plugins with `capabilities.schemas: true`, the host does **not** rewrite
 plugin must use `schema` to select the namespace within its database.
 Single-database values and requests with no matching selection are unchanged.
 
+For plugins with `capabilities.schemas: false`, a connection saved with **All
+databases** selects none: the host lists them with `get_databases` when it
+connects, and `schema` names the one the explorer is on. `params.database` is
+then the connection's `default_database` when the plugin asks for one (see
+[Connection Fields](#connection-fields)), and empty otherwise.
+
 ### Lifecycle
 
 1. Tabularis discovers plugins in its data folder at startup:
@@ -366,6 +372,7 @@ The optional `connection_fields` object adapts the host-owned inputs of the conn
 - Overrides are presentation only: a hidden input is not rendered, but the value already saved for it is left untouched and still sent to the driver.
 - A hidden `database` input is not required on Test Connection or Save.
 - Hiding `host` also hides the "Load databases" action next to the database input.
+- A flat multi-database driver (`schemas: false`, not file- or folder-based, not `single_database`) has no Database input: its `database` holds the databases picked on the Databases tab, or none for All databases. Declaring `database` without `hidden` adds the input to the top of that tab, with your label and placeholder, for a value the driver needs besides that selection (SurrealDB's `namespace/database` to sign in to). Load Databases sends it as `params.database`, and so does Test Connection while no database is chosen. The connection saves it as `params.default_database`, and the host sends it as `params.database` while the connection selects none. Drivers that don't declare `database` are unchanged.
 - Use the `connection-modal.extra_fields` slot for the inputs the driver needs instead, and `setSecretField` for credentials (see [SlotContext](#slotcontext)).
 
 ---
