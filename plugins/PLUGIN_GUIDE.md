@@ -1019,6 +1019,8 @@ Get column information for a table.
 >
 > **Full column type:** `full_type` is an optional additive field (same backward-compatibility rules as `comment`) carrying the full declared type with its modifiers, e.g. `varchar(255)`, `decimal(10,2)`, `int unsigned` or `integer[]`. When present, the explorer's Columns list, the table schema view and the ER diagram show it instead of `data_type`; keep the base type name in `data_type`, since value handling, editing and DDL generation match on it. Send it only when it says more than `data_type`. Without it, the host shows `data_type` with `character_maximum_length` / `numeric_precision` / `numeric_scale` appended when present (e.g. `varchar(50)`, `numeric(10,2)`), so a plugin whose `data_type` already embeds the modifiers needs no change.
 >
+> **Defaults for the column editor:** `default_sql` and `on_update` are optional additive fields (same backward-compatibility rules as `comment`). `default_sql` is the column default as SQL that can follow `DEFAULT` unchanged (`'new'`, `CURRENT_TIMESTAMP`, `(uuid())`), and `on_update` is the column's `ON UPDATE` expression. When `default_sql` is present, the Modify Column dialog starts with it as the default and sends it back in both `old_column.default_value` and `new_column.default_value`, so a rename keeps the default; `on_update` is passed through as `ColumnDefinition.on_update`. Without `default_sql` the default field starts empty, as before. `default_value` keeps whatever the server reports.
+>
 > **JSON / JSONB columns:** Set `data_type` to `"JSON"` or `"JSONB"` (matched case-insensitively) to make Tabularis render the cell with syntax highlighting and expose the JSON editor window. In `execute_query` row data, send the cell as either a native JSON value (object/array/scalar) or a JSON-formatted string — both are accepted. For text-typed columns that hold JSON, end users can opt in per connection via the **Detect JSON in text columns** setting; no plugin change required.
 
 ---
@@ -1825,6 +1827,8 @@ means the description was cleared.
 **Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "old_column": ColumnDefinition, "new_column": ColumnDefinition }`
 
 **Result:** `["ALTER TABLE users MODIFY COLUMN ..."]`
+
+The dialog fills both columns from the existing column, so an unchanged default arrives as the same `default_value` in `old_column` and `new_column`. Compare them before emitting a default change. A dialect that restates the whole column (MySQL `CHANGE` / `MODIFY`) should also restate `new_column.on_update` when it is set.
 
 ---
 
