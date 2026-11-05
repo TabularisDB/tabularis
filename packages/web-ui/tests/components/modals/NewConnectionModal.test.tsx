@@ -30,6 +30,7 @@ interface MockSelectProps {
 
 const driverState = vi.hoisted(() => ({
     defaultPort: 15432 as number | null,
+    defaultUsername: undefined as string | undefined,
     multiDatabase: false,
     uriPassthrough: false,
     catalogueDriver: 'mysql' as 'mysql' | 'sqlite',
@@ -128,6 +129,7 @@ vi.mock('@/hooks/useDrivers', () => ({
                 name: 'MySQL',
                 version: '1.0.0',
                 default_port: driverState.defaultPort,
+                default_username: driverState.defaultUsername,
                 connection_fields: driverState.connectionFields,
                 is_builtin: true,
                 capabilities: {
@@ -194,6 +196,7 @@ vi.mock('@/hooks/usePluginSlotRegistry', () => ({
 }));
 
 afterEach(() => {
+    driverState.defaultUsername = undefined;
     driverState.connectionFields = undefined;
     driverState.uriPassthrough = false;
 });
@@ -2051,6 +2054,93 @@ describe('NewConnectionModal keychain default', () => {
             screen.queryByText('newConnection.secretsStoredInPlainText'),
         ).not.toBeInTheDocument();
     });
+});
+
+describe('NewConnectionModal driver default username', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 8000;
+        driverState.defaultUsername = 'root';
+        vi.mocked(invoke).mockResolvedValue(undefined);
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+    });
+
+    function usernameInput() {
+        return screen.getByPlaceholderText('newConnection.usernamePlaceholder');
+    }
+
+    function portInput() {
+        return screen.getByPlaceholderText('3306');
+    }
+
+    it("pre-fills a new connection with the driver's default username and port", () => {
+        renderModal();
+        pickEngineFromCatalogue();
+
+        expect(usernameInput()).toHaveValue('root');
+        expect(portInput()).toHaveValue(8000);
+    });
+
+    it('leaves the username empty when the driver declares no default', () => {
+        driverState.defaultUsername = undefined;
+        renderModal();
+        pickEngineFromCatalogue();
+
+        expect(usernameInput()).toHaveValue('');
+    });
+
+    it('sends the default username, or the one the user typed instead', async () => {
+        renderModal();
+        pickEngineFromCatalogue();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.dbNamePlaceholder'), {
+            target: {value: 'shop'},
+        });
+
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+        await waitFor(() => {
+            expect(invoke).toHaveBeenCalledWith(
+                'test_connection',
+                expect.objectContaining({
+                    request: expect.objectContaining({
+                        params: expect.objectContaining({username: 'root', port: 8000}),
+                    }),
+                }),
+            );
+        });
+
+        vi.mocked(invoke).mockClear();
+        fireEvent.change(usernameInput(), {target: {value: 'admin'}});
+        expect(usernameInput()).toHaveValue('admin');
+
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+        await waitFor(() => {
+            expect(invoke).toHaveBeenCalledWith(
+                'test_connection',
+                expect.objectContaining({
+                    request: expect.objectContaining({
+                        params: expect.objectContaining({username: 'admin'}),
+                    }),
+                }),
+            );
+        });
+    });
+
+    it.each(['admin', ''])(
+        'keeps the saved username %j of an edited connection',
+        async (username) => {
+            renderModal(createInitialConnection({username, port: 8010}));
+
+            await waitFor(() => {
+                expect(invoke).toHaveBeenCalledWith('get_connection_by_id', expect.anything());
+            });
+            await waitFor(() => {
+                expect(portInput()).toHaveValue(8010);
+            });
+            expect(usernameInput()).toHaveValue(username);
+        },
+    );
 });
 
 // Simulates a driver plugin (e.g. a cloud warehouse with a service-account

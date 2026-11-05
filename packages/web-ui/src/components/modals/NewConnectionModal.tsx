@@ -2005,14 +2005,15 @@ export const NewConnectionModal = ({
     }, [isOpen, initialConnection]);
 
     const handleDriverChange = (newDriver: string) => {
+        const newDriverManifest = drivers.find((d) => d.id === newDriver);
         setDriver(newDriver);
         setCredentialFieldsHiddenState(false);
         setPluginSecretChanges({});
         setFormData({
             driver: newDriver,
             host: '',
-            port: drivers.find((d) => d.id === newDriver)?.default_port ?? undefined,
-            username: '',
+            port: newDriverManifest?.default_port ?? undefined,
+            username: newDriverManifest?.default_username ?? '',
             password: '',
             database: '',
             ssl_mode: '',
