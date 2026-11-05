@@ -259,8 +259,14 @@ mod column_default_sql_tests {
     fn quotes_mysql_literals_like_show_create_table() {
         assert_eq!(mysql(Some("new"), "", "varchar").as_deref(), Some("'new'"));
         assert_eq!(mysql(Some("5"), "", "int").as_deref(), Some("'5'"));
-        assert_eq!(mysql(Some("1.50"), "", "decimal").as_deref(), Some("'1.50'"));
-        assert_eq!(mysql(Some("2020-01-02"), "", "date").as_deref(), Some("'2020-01-02'"));
+        assert_eq!(
+            mysql(Some("1.50"), "", "decimal").as_deref(),
+            Some("'1.50'")
+        );
+        assert_eq!(
+            mysql(Some("2020-01-02"), "", "date").as_deref(),
+            Some("'2020-01-02'")
+        );
         assert_eq!(mysql(Some("y"), "", "enum").as_deref(), Some("'y'"));
         assert_eq!(mysql(Some(""), "", "varchar").as_deref(), Some("''"));
     }
@@ -292,7 +298,12 @@ mod column_default_sql_tests {
             Some("CURRENT_TIMESTAMP")
         );
         assert_eq!(
-            mysql(Some("CURRENT_TIMESTAMP(3)"), "DEFAULT_GENERATED", "datetime").as_deref(),
+            mysql(
+                Some("CURRENT_TIMESTAMP(3)"),
+                "DEFAULT_GENERATED",
+                "datetime"
+            )
+            .as_deref(),
             Some("CURRENT_TIMESTAMP(3)")
         );
         assert_eq!(
@@ -306,9 +317,69 @@ mod column_default_sql_tests {
     }
 
     #[test]
+    fn unescapes_expression_defaults_with_string_literals() {
+        // COLUMN_DEFAULT escapes quotes and backslashes once more than
+        // SHOW CREATE TABLE prints them (bytes checked with HEX() on 8.4).
+        assert_eq!(
+            mysql(
+                Some(r"concat(_latin1\'a\',_latin1\'b\')"),
+                "DEFAULT_GENERATED",
+                "varchar"
+            )
+            .as_deref(),
+            Some("(concat(_latin1'a',_latin1'b'))")
+        );
+        assert_eq!(
+            mysql(
+                Some(r"json_object(_latin1\'a\',_latin1\'it\\\'s\')"),
+                "DEFAULT_GENERATED",
+                "json"
+            )
+            .as_deref(),
+            Some(r"(json_object(_latin1'a',_latin1'it\'s'))")
+        );
+        assert_eq!(
+            mysql(
+                Some(r"json_array(_latin1\'x\\\\y\')"),
+                "DEFAULT_GENERATED",
+                "json"
+            )
+            .as_deref(),
+            Some(r"(json_array(_latin1'x\\y'))")
+        );
+    }
+
+    #[test]
+    fn expression_literals_follow_no_backslash_escapes() {
+        let nbe =
+            |raw: &str| mysql_default_sql(Some(raw), "DEFAULT_GENERATED", "json", false, true);
+        assert_eq!(
+            nbe(r"concat(_latin1\'a\',_latin1\'b\')").as_deref(),
+            Some("(concat(_latin1'a',_latin1'b'))")
+        );
+        assert_eq!(
+            nbe(r"json_object(_latin1\'a\',_latin1\'it\\\'s\')").as_deref(),
+            Some("(json_object(_latin1'a',_latin1'it''s'))")
+        );
+        assert_eq!(
+            nbe(r"json_array(_latin1\'x\\\\y\')").as_deref(),
+            Some(r"(json_array(_latin1'x\y'))")
+        );
+        assert_eq!(
+            nbe(r"concat(_utf8mb4\'a\\nb\',`col`)").as_deref(),
+            Some("(concat(_utf8mb4'a\nb',`col`))")
+        );
+    }
+
+    #[test]
     fn mysql_57_current_timestamp_has_no_marker_but_stays_bare() {
         assert_eq!(
-            mysql(Some("CURRENT_TIMESTAMP"), "on update CURRENT_TIMESTAMP", "timestamp").as_deref(),
+            mysql(
+                Some("CURRENT_TIMESTAMP"),
+                "on update CURRENT_TIMESTAMP",
+                "timestamp"
+            )
+            .as_deref(),
             Some("CURRENT_TIMESTAMP")
         );
     }
@@ -327,7 +398,10 @@ mod column_default_sql_tests {
     fn mariadb_defaults_are_already_sql() {
         let maria = |raw| mysql_default_sql(Some(raw), "", "varchar", true, false);
         assert_eq!(maria("'new'").as_deref(), Some("'new'"));
-        assert_eq!(maria("current_timestamp()").as_deref(), Some("current_timestamp()"));
+        assert_eq!(
+            maria("current_timestamp()").as_deref(),
+            Some("current_timestamp()")
+        );
         assert_eq!(maria("5").as_deref(), Some("5"));
         assert_eq!(maria("NULL"), None);
     }
@@ -348,9 +422,15 @@ mod column_default_sql_tests {
 
     #[test]
     fn reads_server_flags() {
-        assert_eq!(mysql_server_flags("8.4.6", "STRICT_TRANS_TABLES"), (false, false));
         assert_eq!(
-            mysql_server_flags("10.11.8-MariaDB-ubu2204", "NO_BACKSLASH_ESCAPES,ANSI_QUOTES"),
+            mysql_server_flags("8.4.6", "STRICT_TRANS_TABLES"),
+            (false, false)
+        );
+        assert_eq!(
+            mysql_server_flags(
+                "10.11.8-MariaDB-ubu2204",
+                "NO_BACKSLASH_ESCAPES,ANSI_QUOTES"
+            ),
             (true, true)
         );
     }
@@ -792,10 +872,7 @@ mod routine_management {
                 arg("p_out", "OUT", None, false),
             ],
         );
-        assert_eq!(
-            sql,
-            "CALL `sp_out`(1, @p_out);\nSELECT @p_out AS `p_out`;"
-        );
+        assert_eq!(sql, "CALL `sp_out`(1, @p_out);\nSELECT @p_out AS `p_out`;");
     }
 
     #[test]
@@ -894,7 +971,9 @@ mod routine_management {
 #[cfg(test)]
 mod live_explain_tests {
     use crate::drivers::mysql::explain::explain_query;
-    use crate::models::{ConnectionParams, DatabaseSelection, ExplainQueryOutput, RawExplainOutput};
+    use crate::models::{
+        ConnectionParams, DatabaseSelection, ExplainQueryOutput, RawExplainOutput,
+    };
 
     fn unwrap_raw(output: ExplainQueryOutput) -> RawExplainOutput {
         match output {

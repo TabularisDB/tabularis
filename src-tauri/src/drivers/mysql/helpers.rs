@@ -241,11 +241,16 @@ pub(super) fn mysql_default_sql(
     let data_type = data_type.to_ascii_lowercase();
     let generated = extra.to_ascii_lowercase().contains("default_generated");
     if generated {
-        return Some(if is_current_timestamp_default(raw) {
-            raw.to_string()
+        if is_current_timestamp_default(raw) {
+            return Some(raw.to_string());
+        }
+        let expr = unescape_generated_default(raw);
+        let expr = if no_backslash_escapes {
+            standard_string_literals(&expr)
         } else {
-            format!("({raw})")
-        });
+            expr
+        };
+        return Some(format!("({expr})"));
     }
     let temporal = matches!(data_type.as_str(), "timestamp" | "datetime");
     if temporal && is_current_timestamp_default(raw) {
@@ -255,6 +260,89 @@ pub(super) fn mysql_default_sql(
         return Some(raw.to_string());
     }
     Some(mysql_string_literal(raw, no_backslash_escapes))
+}
+
+/// `information_schema.COLUMNS.COLUMN_DEFAULT` reports an expression default
+/// with its quotes and backslashes escaped once more than in the expression
+/// itself: `concat(_latin1\'a\',_latin1\'b\')` for
+/// `concat(_latin1'a',_latin1'b')`. Undo that one level, the way
+/// `SHOW CREATE TABLE` prints the expression.
+fn unescape_generated_default(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut chars = raw.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some(next @ ('\'' | '\\')) => out.push(next),
+            Some(next) => {
+                out.push('\\');
+                out.push(next);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+/// MySQL keeps an expression default's string literals with backslash
+/// escapes (`'it\'s'`) even when the session runs with
+/// `NO_BACKSLASH_ESCAPES`, where a backslash is an ordinary character and
+/// that literal would not end where it should. Rewrite the escapes inside
+/// single-quoted literals into the form that mode reads: the character itself,
+/// and `''` for a quote. Backquoted identifiers are copied unchanged.
+fn standard_string_literals(expr: &str) -> String {
+    let mut out = String::with_capacity(expr.len());
+    let mut chars = expr.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '`' => {
+                out.push(ch);
+                for inner in chars.by_ref() {
+                    out.push(inner);
+                    if inner == '`' {
+                        break;
+                    }
+                }
+            }
+            '\'' => {
+                out.push(ch);
+                while let Some(inner) = chars.next() {
+                    match inner {
+                        '\\' => match chars.next() {
+                            Some('0') => out.push('\0'),
+                            Some('\'') => out.push_str("''"),
+                            Some('b') => out.push('\u{8}'),
+                            Some('n') => out.push('\n'),
+                            Some('r') => out.push('\r'),
+                            Some('t') => out.push('\t'),
+                            Some('Z') => out.push('\u{1a}'),
+                            // `\%` and `\_` keep their backslash in MySQL.
+                            Some(keep @ ('%' | '_')) => {
+                                out.push('\\');
+                                out.push(keep);
+                            }
+                            Some(other) => out.push(other),
+                            None => out.push('\\'),
+                        },
+                        '\'' if chars.peek() == Some(&'\'') => {
+                            chars.next();
+                            out.push_str("''");
+                        }
+                        '\'' => {
+                            out.push(inner);
+                            break;
+                        }
+                        other => out.push(other),
+                    }
+                }
+            }
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 /// The `ON UPDATE` expression in a column's `EXTRA`

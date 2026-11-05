@@ -244,39 +244,96 @@ async fn exercise_defaults_survive_rename(
     params: &ConnectionParams,
     schema: &str,
 ) {
-    let db = quoted(schema);
-    execute(
+    rename_keeps_defaults(
         connection,
-        &format!(
-            "CREATE TABLE {db}.defaults (label VARCHAR(20) NOT NULL DEFAULT 'new', \
-             qty INT DEFAULT 5, quote VARCHAR(20) DEFAULT 'it''s', \
-             stamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, \
-             phrase VARCHAR(20) DEFAULT 'CURRENT_TIMESTAMP', blank VARCHAR(5) NOT NULL DEFAULT '', \
-             nothing VARCHAR(5) NULL)"
-        ),
+        params,
+        schema,
+        "defaults",
+        "label VARCHAR(20) NOT NULL DEFAULT 'new', \
+         qty INT DEFAULT 5, quote VARCHAR(20) DEFAULT 'it''s', \
+         stamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, \
+         phrase VARCHAR(20) DEFAULT 'CURRENT_TIMESTAMP', blank VARCHAR(5) NOT NULL DEFAULT '', \
+         nothing VARCHAR(5) NULL",
+        &[
+            "label 'new' -",
+            "qty '5' -",
+            "quote 'it\\'s' -",
+            "stamp CURRENT_TIMESTAMP CURRENT_TIMESTAMP",
+            "phrase 'CURRENT_TIMESTAMP' -",
+            "blank '' -",
+            "nothing - -",
+        ],
     )
     .await;
 
-    let expected = [
-        "label 'new' -",
-        "qty '5' -",
-        "quote 'it\\'s' -",
-        "stamp CURRENT_TIMESTAMP CURRENT_TIMESTAMP",
-        "phrase 'CURRENT_TIMESTAMP' -",
-        "blank '' -",
-        "nothing - -",
-    ];
+    // Expression defaults exist from MySQL 8.0.13. information_schema
+    // reports their string literals with escaped quotes and backslashes.
+    let version: String = sqlx::query_scalar("SELECT VERSION()")
+        .fetch_one(&mut *connection)
+        .await
+        .expect("SELECT VERSION()");
+    if !supports_expression_defaults(&version) {
+        return;
+    }
+    rename_keeps_defaults(
+        connection,
+        params,
+        schema,
+        "expression_defaults",
+        "pair VARCHAR(20) DEFAULT (concat('a','b')), \
+         doc JSON DEFAULT (JSON_OBJECT('a','it''s')), \
+         list JSON DEFAULT (JSON_ARRAY('x\\\\y')), \
+         total INT DEFAULT (1 + 1)",
+        &[
+            "pair (concat(_utf8mb4'a',_utf8mb4'b')) -",
+            "doc (json_object(_utf8mb4'a',_utf8mb4'it\\'s')) -",
+            "list (json_array(_utf8mb4'x\\\\y')) -",
+            "total ((1 + 1)) -",
+        ],
+    )
+    .await;
+}
+
+fn supports_expression_defaults(version: &str) -> bool {
+    if version.to_ascii_lowercase().contains("mariadb") {
+        return false;
+    }
+    let mut parts = version
+        .split(|c: char| !c.is_ascii_digit())
+        .map(|part| part.parse::<u32>().unwrap_or(0));
+    let (major, minor, patch) = (
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+    );
+    (major, minor, patch) >= (8, 0, 13)
+}
+
+async fn rename_keeps_defaults(
+    connection: &mut MySqlConnection,
+    params: &ConnectionParams,
+    schema: &str,
+    table: &str,
+    columns_sql: &str,
+    expected: &[&str],
+) {
+    let db = quoted(schema);
+    execute(
+        connection,
+        &format!("CREATE TABLE {db}.{} ({columns_sql})", quoted(table)),
+    )
+    .await;
     for text_protocol in [false, true] {
         let selected = params_for_protocol(params, text_protocol);
         let columns = discover(
             "get_columns",
-            mysql::get_columns(&selected, "defaults", Some(schema)),
+            mysql::get_columns(&selected, table, Some(schema)),
         )
         .await;
         assert_eq!(
             defaults(&columns),
             expected,
-            "get_columns (text protocol: {text_protocol})"
+            "{table}: get_columns (text protocol: {text_protocol})"
         );
         let batch = discover(
             "get_all_columns_batch",
@@ -284,15 +341,15 @@ async fn exercise_defaults_survive_rename(
         )
         .await;
         assert_eq!(
-            defaults(&batch["defaults"]),
+            defaults(&batch[table]),
             expected,
-            "get_all_columns_batch (text protocol: {text_protocol})"
+            "{table}: get_all_columns_batch (text protocol: {text_protocol})"
         );
     }
 
     let columns = discover(
         "get_columns",
-        mysql::get_columns(params, "defaults", Some(schema)),
+        mysql::get_columns(params, table, Some(schema)),
     )
     .await;
     let driver = mysql::MysqlDriver::new();
@@ -300,7 +357,7 @@ async fn exercise_defaults_survive_rename(
         let renamed = format!("{}_renamed", column.name);
         let statements = driver
             .get_alter_column_sql(
-                "defaults",
+                table,
                 as_definition(column, &column.name),
                 as_definition(column, &renamed),
                 None,
@@ -313,7 +370,7 @@ async fn exercise_defaults_survive_rename(
     }
     let renamed = discover(
         "get_columns",
-        mysql::get_columns(params, "defaults", Some(schema)),
+        mysql::get_columns(params, table, Some(schema)),
     )
     .await;
     let expected_renamed: Vec<String> = expected
@@ -323,7 +380,7 @@ async fn exercise_defaults_survive_rename(
             format!("{name}_renamed {rest}")
         })
         .collect();
-    assert_eq!(defaults(&renamed), expected_renamed, "after renaming");
+    assert_eq!(defaults(&renamed), expected_renamed, "{table}: after renaming");
 }
 
 #[tokio::test]
