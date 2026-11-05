@@ -56,6 +56,10 @@ describe('settingsUI', () => {
             expect(getProviderLabel('requesty' as AiProvider)).toBe('Requesty');
         });
 
+        it('should return correct label for Opper', () => {
+            expect(getProviderLabel('opper' as AiProvider)).toBe('Opper');
+        });
+
         it('should return correct label for MiniMax', () => {
             expect(getProviderLabel('minimax' as AiProvider)).toBe('MiniMax');
         });

@@ -318,6 +318,7 @@ yay -S tabularis-bin
 - MiniMax
 - OpenRouter
 - Requesty
+- Opper
 - Ollama
 - OpenAI-совместимые API
 

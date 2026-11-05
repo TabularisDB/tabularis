@@ -318,6 +318,7 @@ Funciones opcionales de text-to-SQL y explicación de consultas con:
 - MiniMax
 - OpenRouter
 - Requesty
+- Opper
 - Ollama
 - APIs compatibles con OpenAI
 
