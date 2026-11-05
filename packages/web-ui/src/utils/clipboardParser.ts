@@ -40,11 +40,58 @@ function detectFormat(text: string): ClipboardFormat {
     return 'unknown';
 }
 
+/**
+ * Where a quoted TSV field that starts at `start` (on its opening quote) ends, and its
+ * text. Spreadsheets quote a copied cell that holds a tab, a line break or a quote and
+ * double the quotes inside, so a field is quoted only when its closing quote is
+ * followed by a tab, a line break or the end. Returns null otherwise, and the quote is
+ * then plain text (`5"`, `"quoted" text`).
+ */
+function readQuotedTsvField(input: string, start: number): {end: number; text: string} | null {
+    let text = '';
+    for (let i = start + 1; i < input.length; i++) {
+        if (input[i] !== '"') {
+            text += input[i];
+        } else if (input[i + 1] === '"') {
+            text += '"';
+            i++;
+        } else {
+            const next = input[i + 1];
+            const closesField =
+                next === undefined || next === '\t' || next === '\n' || next === '\r';
+            return closesField ? {end: i + 1, text} : null;
+        }
+    }
+    return null;
+}
+
 function parseTsv(text: string): string[][] {
-    return text
-        .trim()
-        .split('\n')
-        .map((line) => line.split('\t').map((c) => c.trim()));
+    const rows: string[][] = [];
+    let cells: string[] = [];
+    let current = '';
+    const input = text.trim();
+    for (let i = 0; i < input.length; i++) {
+        const ch = input[i];
+        const quoted = ch === '"' && current === '' ? readQuotedTsvField(input, i) : null;
+        if (quoted) {
+            current = quoted.text;
+            i = quoted.end - 1;
+        } else if (ch === '\t') {
+            cells.push(current.trim());
+            current = '';
+        } else if (ch === '\n' || ch === '\r') {
+            if (ch === '\r' && input[i + 1] === '\n') i++;
+            cells.push(current.trim());
+            rows.push(cells);
+            cells = [];
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+    cells.push(current.trim());
+    rows.push(cells);
+    return rows;
 }
 
 function parseCsv(text: string): string[][] {
@@ -149,6 +196,9 @@ function deduplicateNames(names: string[]): string[] {
 }
 
 const INTEGER_RE = /^-?\d+$/;
+// `007`, `01234` or `00.5`: codes (ZIP codes, phone numbers, ids) whose leading zeros
+// a numeric column would drop.
+const LEADING_ZERO_RE = /^-?0\d/;
 const REAL_RE = /^-?\d*[.,]\d+$|^-?\d+[eE][+-]?\d+$/;
 const BOOL_VALUES = new Set(['true', 'false', 'yes', 'no', '1', '0']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$|^\d{2}\/\d{2}\/\d{4}$|^\d{2}-\d{2}-\d{4}$/;
@@ -160,6 +210,7 @@ function classifyValue(v: string): RawType {
     const lv = v.toLowerCase();
     if (DATETIME_RE.test(v)) return 'DATETIME';
     if (DATE_RE.test(v)) return 'DATE';
+    if (LEADING_ZERO_RE.test(v)) return 'TEXT';
     if (INTEGER_RE.test(v)) return 'INTEGER';
     if (REAL_RE.test(v.replace(',', '.'))) return 'REAL';
     if (BOOL_VALUES.has(lv)) return 'BOOLEAN';
