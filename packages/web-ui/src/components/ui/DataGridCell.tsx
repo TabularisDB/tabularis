@@ -62,6 +62,8 @@ export interface DataGridCellProps {
     widthClassName?: string;
     /** Extra classes, e.g. the record tint in the transposed layout. */
     className?: string;
+    /** Text color from a conditional formatting rule (#991), or null. */
+    formatTextClass?: string | null;
     style?: React.CSSProperties;
 }
 
@@ -89,6 +91,7 @@ export function DataGridCell({
     isZebra,
     widthClassName = 'max-w-[300px]',
     className = '',
+    formatTextClass = null,
     style,
 }: DataGridCellProps) {
     const {
@@ -177,8 +180,16 @@ export function DataGridCell({
         isJsonCell,
     });
 
+    // A conditional formatting color (#991) yields to the pending-change states,
+    // which carry their own meaning, and replaces the colorize-by-type color.
+    // Outside those states the only state class is the default text color,
+    // which it replaces too.
+    const formatClass =
+        formatTextClass && !isPendingDelete && !isInsertion && !isModified ? formatTextClass : '';
+
     let valueColorClass: string | undefined;
     if (
+        !formatClass &&
         resultColorClassMap &&
         rawCellValue !== null &&
         rawCellValue !== undefined &&
@@ -280,7 +291,7 @@ export function DataGridCell({
                     ? {...style, left: frozenLeft ?? undefined, top: frozenTop ?? undefined}
                     : style
             }
-            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : `whitespace-nowrap truncate ${widthClassName}`} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${stateClass} ${selectedColIndices.has(colIndex) || isInRange ? 'bg-accent-primary/15' : ''} ${focusClass} ${FIND_MATCH_CELL_CLASS} ${className}`}
+            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : `whitespace-nowrap truncate ${widthClassName}`} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${formatClass ? '' : stateClass} ${selectedColIndices.has(colIndex) || isInRange ? 'bg-accent-primary/15' : ''} ${focusClass} ${FIND_MATCH_CELL_CLASS} ${formatClass} ${className}`}
             title={
                 // The hover tooltip would leak the real value of a masked cell.
                 !isEditing && !isMasked ? truncateCellPreview(formattedDisplay).text : ''

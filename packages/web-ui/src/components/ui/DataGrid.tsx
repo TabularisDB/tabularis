@@ -59,6 +59,7 @@ import {
     PinOff,
     RotateCcw,
     Columns3,
+    Paintbrush,
 } from 'lucide-react';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {getJsonViewerSessionHost} from '@/platform/secondaryWindowSessions';
@@ -180,6 +181,9 @@ import {getFitColumnWidth} from '@/utils/columnResize';
 import {resolveResultFontFamily} from '@/utils/settings';
 import {JumpToColumnModal} from '@/components/modals/JumpToColumnModal';
 import {SetCellsValueModal} from '@/components/modals/SetCellsValueModal';
+import {ConditionalFormattingModal} from '@/components/modals/ConditionalFormattingModal';
+import {useGridFormatRules} from '@/hooks/useGridFormatRules';
+import {compileFormatRules, getRowFormats} from '@/utils/conditionalFormatting';
 import {KeybindingsContext} from '@/contexts/KeybindingsContext';
 import {GridFindBar} from './GridFindBar';
 import {useGridFind} from '@/hooks/useGridFind';
@@ -293,6 +297,12 @@ interface DataGridProps {
      * columns. Display only: selection, editing and copy stay row-based.
      */
     transposed?: boolean;
+    /**
+     * Conditional formatting (#991): colors rows and cells from the rules saved
+     * for `tableName`, and offers their editor in the column header menu. Set on
+     * table tabs only.
+     */
+    conditionalFormatting?: boolean;
 }
 
 // Stable empty window for the record virtualizer while it is disabled.
@@ -418,6 +428,7 @@ export const DataGrid = React.memo(function DataGrid({
     hiddenColumns: hiddenColumnsProp,
     onHiddenColumnsChange,
     transposed = false,
+    conditionalFormatting = false,
 }: DataGridProps) {
     const {t} = useTranslation();
     const client = useTabularisClient();
@@ -874,6 +885,29 @@ export const DataGrid = React.memo(function DataGrid({
         // Sort by displayIndex (insertions are now at the end)
         return rows.sort((a, b) => a.displayIndex - b.displayIndex);
     }, [data, pendingInsertions, columns]);
+
+    // Conditional formatting (#991): the table's rules are evaluated once per
+    // loaded row here, so scrolling only looks the result up. Pending insertions
+    // are skipped: their "new row" styling wins anyway.
+    const formatRules = useGridFormatRules(
+        connectionId,
+        database,
+        activeSchema,
+        conditionalFormatting ? tableName : null,
+    );
+    const compiledFormatRules = useMemo(
+        () => compileFormatRules(formatRules.rules, columns),
+        [formatRules.rules, columns],
+    );
+    const rowFormats = useMemo(
+        () =>
+            getRowFormats(
+                compiledFormatRules,
+                mergedRows.map((row) => (row.type === 'existing' ? row.rowData : null)),
+            ),
+        [compiledFormatRules, mergedRows],
+    );
+    const [formatEditorColumn, setFormatEditorColumn] = useState<string | null>(null);
 
     const handleRowClick = useCallback(
         (index: number, event: React.MouseEvent) => {
@@ -3737,9 +3771,11 @@ export const DataGrid = React.memo(function DataGrid({
                     isPendingDelete:
                         !isInsertion && pkVal ? pendingDeletions?.[pkVal] !== undefined : false,
                     pkVal,
+                    format: rowFormats.get(rowIndex) ?? null,
                 };
             }),
         [
+            rowFormats,
             recordVirtualItems,
             tableRows,
             mergedRows,
@@ -3881,6 +3917,18 @@ export const DataGrid = React.memo(function DataGrid({
                     onClose={() => setValuePromptSelection(null)}
                 />
             )}
+            {formatEditorColumn !== null && tableName && (
+                <ConditionalFormattingModal
+                    isOpen
+                    onClose={() => setFormatEditorColumn(null)}
+                    tableName={tableName}
+                    columns={columns}
+                    columnTypes={columnTypeMap}
+                    initialColumn={formatEditorColumn}
+                    rules={formatRules.rules}
+                    onSave={formatRules.saveRules}
+                />
+            )}
             {isFindOpen && (
                 <GridFindBar
                     inputRef={gridFind.inputRef}
@@ -3969,6 +4017,7 @@ export const DataGrid = React.memo(function DataGrid({
                                             }
                                         }}
                                         style={{width: TRANSPOSED_RECORD_WIDTH}}
+                                        title={record.format?.names.join(', ')}
                                         className={`px-2 py-2 text-xs text-center border-b border-r border-default cursor-pointer select-none ${
                                             record.isInsertion
                                                 ? record.isSelected
@@ -3982,6 +4031,13 @@ export const DataGrid = React.memo(function DataGrid({
                                         }`}
                                     >
                                         {record.isInsertion ? 'NEW' : record.rowIndex + 1}
+                                        {record.format && (
+                                            <span className="sr-only">
+                                                {t('dataGrid.conditionalFormatting.matchedRules', {
+                                                    names: record.format.names.join(', '),
+                                                })}
+                                            </span>
+                                        )}
                                     </th>
                                 ))}
                                 <th
@@ -4196,6 +4252,7 @@ export const DataGrid = React.memo(function DataGrid({
                                         findMatchColIndices={
                                             gridFind.matchesByRow.get(rowIndex) ?? null
                                         }
+                                        format={rowFormats.get(rowIndex) ?? null}
                                         currentFindColIndex={
                                             gridFind.currentMatch?.rowIndex === rowIndex
                                                 ? gridFind.currentMatch.colIndex
@@ -4825,6 +4882,20 @@ export const DataGrid = React.memo(function DataGrid({
                                   ]
                                 : []),
                             ...columnVisibilityItems(headerContextMenu),
+                            ...(formatRules.available
+                                ? [
+                                      {
+                                          label: t('dataGrid.conditionalFormatting.menu'),
+                                          icon: Paintbrush,
+                                          action: () => {
+                                              setFormatEditorColumn(
+                                                  columns[headerContextMenu.colIndex] ?? '',
+                                              );
+                                              setHeaderContextMenu(null);
+                                          },
+                                      } as ContextMenuItem,
+                                  ]
+                                : []),
                             // Freezing pins the first field: its column normally, its
                             // row when transposed. Widths belong to the normal layout;
                             // the transposed one has fixed widths.

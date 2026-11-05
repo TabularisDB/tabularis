@@ -1623,7 +1623,42 @@
     "maskColumn": "Masquer la colonne",
     "transpose": "Transposer : afficher les colonnes en lignes",
     "untranspose": "Afficher les enregistrements en lignes",
-    "resizeColumn": "Redimensionner la colonne {{col}}"
+    "resizeColumn": "Redimensionner la colonne {{col}}",
+    "conditionalFormatting": {
+      "menu": "Mise en forme conditionnelle…",
+      "title": "Mise en forme conditionnelle",
+      "subtitle": "Règles de {{table}}",
+      "description": "Colore les lignes ou les cellules de cette table selon leurs valeurs. Les règles sont vérifiées sur les lignes déjà chargées, de haut en bas : la première règle qui correspond l'emporte.",
+      "empty": "Aucune règle pour l'instant.",
+      "addRule": "Ajouter une règle",
+      "maxRules": "Jusqu'à {{count}} règles par table.",
+      "ruleLabel": "Règle {{index}}",
+      "name": "Nom de la règle",
+      "namePlaceholder": "Nom de la règle, ex. Commandes échouées",
+      "enabled": "Active",
+      "column": "Colonne",
+      "operator": "Condition",
+      "value": "Valeur",
+      "valueTo": "Borne supérieure",
+      "tone": "Couleur",
+      "target": "Appliquer à",
+      "targetRow": "Toute la ligne",
+      "targetCell": "Seulement la cellule de cette colonne",
+      "moveUp": "Monter",
+      "moveDown": "Descendre",
+      "remove": "Supprimer la règle",
+      "incomplete": "Saisissez la valeur ou désactivez cette règle.",
+      "saveFailed": "Impossible d'enregistrer les règles : {{error}}",
+      "preview": "Aperçu",
+      "matchedRules": "Mise en forme : {{names}}",
+      "tones": {
+        "danger": "Danger",
+        "warning": "Avertissement",
+        "success": "Succès",
+        "info": "Info",
+        "muted": "Atténué"
+      }
+    }
   },
   "editRow": {
     "title": "Modifier la ligne",

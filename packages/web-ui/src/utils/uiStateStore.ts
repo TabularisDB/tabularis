@@ -54,6 +54,11 @@ export const UI_STATE_KEYS = {
         key: 'tabularis:explorer-pins',
         parseLegacy: (): undefined => undefined,
     },
+    // Conditional formatting rules of every table (see utils/conditionalFormatting).
+    gridFormatRules: {
+        key: 'tabularis:grid-format-rules',
+        parseLegacy: (): undefined => undefined,
+    },
     // Column order of the Visual EXPLAIN table view, `#` excluded.
     explainTableColumns: {
         key: 'tabularis:explain-table-columns',

@@ -1644,7 +1644,42 @@
     "maskColumn": "Maschera colonna",
     "transpose": "Trasponi: mostra le colonne come righe",
     "untranspose": "Mostra i record come righe",
-    "resizeColumn": "Ridimensiona colonna {{col}}"
+    "resizeColumn": "Ridimensiona colonna {{col}}",
+    "conditionalFormatting": {
+      "menu": "Formattazione condizionale…",
+      "title": "Formattazione condizionale",
+      "subtitle": "Regole per {{table}}",
+      "description": "Colora righe o celle di questa tabella in base ai loro valori. Le regole vengono verificate sulle righe già caricate, dall'alto in basso: vince la prima regola che corrisponde.",
+      "empty": "Nessuna regola.",
+      "addRule": "Aggiungi regola",
+      "maxRules": "Al massimo {{count}} regole per tabella.",
+      "ruleLabel": "Regola {{index}}",
+      "name": "Nome della regola",
+      "namePlaceholder": "Nome della regola, es. Ordini falliti",
+      "enabled": "Attiva",
+      "column": "Colonna",
+      "operator": "Condizione",
+      "value": "Valore",
+      "valueTo": "Limite superiore",
+      "tone": "Colore",
+      "target": "Applica a",
+      "targetRow": "Intera riga",
+      "targetCell": "Solo la cella di questa colonna",
+      "moveUp": "Sposta su",
+      "moveDown": "Sposta giù",
+      "remove": "Rimuovi regola",
+      "incomplete": "Inserisci il valore o disattiva questa regola.",
+      "saveFailed": "Impossibile salvare le regole: {{error}}",
+      "preview": "Anteprima",
+      "matchedRules": "Formattazione: {{names}}",
+      "tones": {
+        "danger": "Pericolo",
+        "warning": "Avviso",
+        "success": "Successo",
+        "info": "Info",
+        "muted": "Attenuato"
+      }
+    }
   },
   "editRow": {
     "title": "Modifica riga",

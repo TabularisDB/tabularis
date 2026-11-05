@@ -1583,7 +1583,42 @@
     "maskColumn": "Spalte maskieren",
     "transpose": "Transponieren: Spalten als Zeilen anzeigen",
     "untranspose": "Datensätze als Zeilen anzeigen",
-    "resizeColumn": "Breite der Spalte {{col}} ändern"
+    "resizeColumn": "Breite der Spalte {{col}} ändern",
+    "conditionalFormatting": {
+      "menu": "Bedingte Formatierung…",
+      "title": "Bedingte Formatierung",
+      "subtitle": "Regeln für {{table}}",
+      "description": "Färbt Zeilen oder Zellen dieser Tabelle anhand ihrer Werte. Die Regeln werden auf die bereits geladenen Zeilen von oben nach unten angewendet: Die erste passende Regel gewinnt.",
+      "empty": "Noch keine Regeln.",
+      "addRule": "Regel hinzufügen",
+      "maxRules": "Höchstens {{count}} Regeln pro Tabelle.",
+      "ruleLabel": "Regel {{index}}",
+      "name": "Regelname",
+      "namePlaceholder": "Regelname, z. B. Fehlgeschlagene Bestellungen",
+      "enabled": "Aktiv",
+      "column": "Spalte",
+      "operator": "Bedingung",
+      "value": "Wert",
+      "valueTo": "Obergrenze",
+      "tone": "Farbe",
+      "target": "Anwenden auf",
+      "targetRow": "Ganze Zeile",
+      "targetCell": "Nur die Zelle dieser Spalte",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "remove": "Regel entfernen",
+      "incomplete": "Wert eingeben oder diese Regel deaktivieren.",
+      "saveFailed": "Die Regeln konnten nicht gespeichert werden: {{error}}",
+      "preview": "Vorschau",
+      "matchedRules": "Formatierung: {{names}}",
+      "tones": {
+        "danger": "Gefahr",
+        "warning": "Warnung",
+        "success": "Erfolg",
+        "info": "Info",
+        "muted": "Gedämpft"
+      }
+    }
   },
   "editRow": {
     "title": "Zeile bearbeiten",

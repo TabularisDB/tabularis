@@ -1614,7 +1614,42 @@
     "maskColumn": "I-mask ang column",
     "transpose": "I-transpose: ipakita ang mga column bilang row",
     "untranspose": "Ipakita ang mga record bilang row",
-    "resizeColumn": "Baguhin ang laki ng column na {{col}}"
+    "resizeColumn": "Baguhin ang laki ng column na {{col}}",
+    "conditionalFormatting": {
+      "menu": "Conditional formatting…",
+      "title": "Conditional formatting",
+      "subtitle": "Mga patakaran para sa {{table}}",
+      "description": "Kulayan ang mga row o cell ng table na ito ayon sa kanilang mga value. Sinusuri ang mga patakaran sa mga row na na-load na, mula itaas pababa: ang unang tumugmang patakaran ang masusunod.",
+      "empty": "Wala pang patakaran.",
+      "addRule": "Magdagdag ng patakaran",
+      "maxRules": "Hanggang {{count}} patakaran bawat table.",
+      "ruleLabel": "Patakaran {{index}}",
+      "name": "Pangalan ng patakaran",
+      "namePlaceholder": "Pangalan ng patakaran, hal. Mga bigong order",
+      "enabled": "Naka-on",
+      "column": "Column",
+      "operator": "Kondisyon",
+      "value": "Value",
+      "valueTo": "Pinakamataas na hangganan",
+      "tone": "Kulay",
+      "target": "Ilapat sa",
+      "targetRow": "Buong row",
+      "targetCell": "Cell lang ng column na ito",
+      "moveUp": "Itaas",
+      "moveDown": "Ibaba",
+      "remove": "Alisin ang patakaran",
+      "incomplete": "Ilagay ang value, o i-off ang patakarang ito.",
+      "saveFailed": "Hindi ma-save ang mga patakaran: {{error}}",
+      "preview": "Preview",
+      "matchedRules": "Formatting: {{names}}",
+      "tones": {
+        "danger": "Panganib",
+        "warning": "Babala",
+        "success": "Tagumpay",
+        "info": "Impormasyon",
+        "muted": "Malabo"
+      }
+    }
   },
   "editRow": {
     "title": "I-edit ang Row",
