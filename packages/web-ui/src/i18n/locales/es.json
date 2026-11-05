@@ -1392,6 +1392,7 @@
     "allDatabases": "Todas las bases de datos",
     "chooseDatabases": "Elegir bases de datos",
     "allDatabasesHint": "Al conectar se cargan automáticamente todas las bases de datos del servidor. Las bases de datos creadas o eliminadas en el servidor aparecen solas, sin editar esta conexión.",
+    "databasesTabDatabaseHint": "Se usa para cargar la lista de bases de datos y para conectarse cuando está seleccionado Todas las bases de datos.",
     "defaultDatabase": "Base de datos predeterminada",
     "defaultDatabaseHint": "Las nuevas pestañas de consulta usan esta base de datos. Si la quitas de la selección, la siguiente base de datos seleccionada será la predeterminada.",
     "selectDatabasesHint": "Selecciona las bases de datos que incluirá esta conexión.",

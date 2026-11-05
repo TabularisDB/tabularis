@@ -1433,6 +1433,7 @@
         "allDatabases": "所有資料庫",
         "chooseDatabases": "選擇資料庫",
         "allDatabasesHint": "連線時自動載入伺服器上的所有資料庫。在伺服器上建立或刪除的資料庫會自動出現,無需編輯此連線。",
+        "databasesTabDatabaseHint": "用於載入資料庫清單，並在選擇“所有資料庫”時用於連線。",
         "defaultDatabase": "預設資料庫",
         "defaultDatabaseHint": "新查詢標籤頁使用此資料庫。如果將其從選擇中移除，下一個已選資料庫將成為預設資料庫。",
         "selectDatabasesHint": "選擇要包含在此連線中的資料庫。",

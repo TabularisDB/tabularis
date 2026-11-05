@@ -1423,6 +1423,7 @@
     "allDatabases": "Tất cả cơ sở dữ liệu",
     "chooseDatabases": "Chọn cơ sở dữ liệu",
     "allDatabasesHint": "Mọi cơ sở dữ liệu trên máy chủ được tự động tải khi kết nối. Cơ sở dữ liệu được tạo hoặc xóa trên máy chủ sẽ tự hiện hoặc biến mất — không cần sửa kết nối này.",
+    "databasesTabDatabaseHint": "Dùng để tải danh sách cơ sở dữ liệu và để kết nối khi chọn Tất cả cơ sở dữ liệu.",
     "defaultDatabase": "Cơ sở dữ liệu mặc định",
     "defaultDatabaseHint": "Các tab truy vấn mới dùng cơ sở dữ liệu này. Nếu bạn bỏ nó khỏi danh sách chọn, cơ sở dữ liệu được chọn tiếp theo sẽ thành mặc định.",
     "selectDatabasesHint": "Chọn các cơ sở dữ liệu đưa vào kết nối này.",
