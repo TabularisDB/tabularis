@@ -55,6 +55,19 @@ interface ResolvedDriver {
  * protocol of a group, the other members become aliases for the same
  * driver (e.g. `postgresql://` works wherever `postgres://` does).
  */
+/**
+ * Decodes a percent-encoded URL part. A `%` that does not start a valid escape (a
+ * password such as `pa%ss` pasted as is) keeps the text the user typed instead of
+ * throwing, since the URL parser passes such a part through unchanged.
+ */
+function decodeUriPart(value: string): string {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+}
+
 const PROTOCOL_ALIAS_GROUPS: ReadonlyArray<ReadonlyArray<string>> = [
     ['postgres', 'postgresql'],
     ['mysql', 'mariadb'],
@@ -304,8 +317,8 @@ export function parseConnectionString(
                 driver: declaredDriver.id,
                 host: url.hostname || undefined,
                 port: url.port ? Number.parseInt(url.port, 10) : undefined,
-                username: url.username ? decodeURIComponent(url.username) : undefined,
-                database: decodeURIComponent(url.pathname.replace(/^\//, '')),
+                username: url.username ? decodeUriPart(url.username) : undefined,
+                database: decodeUriPart(url.pathname.replace(/^\//, '')),
                 connection_uri: trimmed,
             },
         };
@@ -339,7 +352,7 @@ export function parseConnectionString(
             };
         }
 
-        const database = sanitizeLocalFilePath(decodeURIComponent(rawPath.replace(/^\//, '')));
+        const database = sanitizeLocalFilePath(decodeUriPart(rawPath.replace(/^\//, '')));
         if (!database) {
             return {
                 success: false,
@@ -363,12 +376,12 @@ export function parseConnectionString(
     const hasAuthorityCredentials = !!(url.username || url.password);
     const username = hasAuthorityCredentials
         ? url.username
-            ? decodeURIComponent(url.username)
+            ? decodeUriPart(url.username)
             : undefined
         : url.searchParams.get('user') || url.searchParams.get('username') || undefined;
     const password = hasAuthorityCredentials
         ? url.password
-            ? decodeURIComponent(url.password)
+            ? decodeUriPart(url.password)
             : undefined
         : url.searchParams.get('password') || undefined;
     const ssl_mode = getSslModeFromUrl(url, protocol);
@@ -377,7 +390,7 @@ export function parseConnectionString(
     if (database.startsWith('/')) {
         database = database.slice(1);
     }
-    database = decodeURIComponent(database);
+    database = decodeUriPart(database);
 
     if (!database) {
         return {
