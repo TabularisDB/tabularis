@@ -1,4 +1,8 @@
+use crate::models::{
+    ConnectionParams, ConnectionsFile, CredentialProfile, DatabaseSelection, SavedConnection,
+};
 use crate::runtime::events::NoopRuntimeEvents;
+use crate::runtime::paths::FixedRuntimePaths;
 use crate::runtime::secrets::RuntimeSecrets;
 use crate::runtime::RuntimeContext;
 use std::sync::Arc;
@@ -152,4 +156,251 @@ async fn desktop_productivity_commands_use_the_managed_custom_config_directory()
         .join("query_history")
         .join(format!("{connection}.json"))
         .exists());
+}
+
+fn linked_connection(id: &str, profile_id: &str) -> SavedConnection {
+    SavedConnection {
+        id: id.to_string(),
+        name: "Linked".to_string(),
+        params: ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some("127.0.0.1".to_string()),
+            port: Some(5432),
+            username: Some("inline-user".to_string()),
+            database: DatabaseSelection::Single("db".to_string()),
+            save_in_keychain: Some(true),
+            credential_profile_id: Some(profile_id.to_string()),
+            ..ConnectionParams::default()
+        },
+        plugin_secret_keys: Vec::new(),
+        group_id: None,
+        sort_order: None,
+        detect_json_in_text_columns: None,
+        appearance: None,
+        tag_ids: None,
+        environment: None,
+    }
+}
+
+/// The edit/metadata read must never resolve a credential profile: a missing
+/// profile password has to reach the edit form as a plain reference, exactly
+/// like the web transport.
+#[tokio::test]
+async fn desktop_connections_metadata_read_keeps_the_profile_unresolved() {
+    use crate::transport::desktop::commands::find_connection_metadata_by_id;
+
+    let root = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    let connection_cache = Arc::new(crate::connection_cache::ConnectionCache::default());
+    connection_cache.populate(&[linked_connection("conn-1", "profile-1")]);
+    let app = tauri::test::mock_builder()
+        .manage(runtime)
+        .manage(connection_cache)
+        .manage(Arc::new(crate::credential_cache::CredentialCache::default()))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+
+    let conn = find_connection_metadata_by_id(app.handle(), "conn-1")
+        .expect("a missing profile password must not fail the edit/metadata read");
+    assert_eq!(
+        conn.params.credential_profile_id.as_deref(),
+        Some("profile-1")
+    );
+    assert!(
+        conn.params.password.is_none(),
+        "the shared password must stay out of the edit form"
+    );
+}
+
+/// Execution reads (`health_check`, disconnect, query execution) still resolve
+/// the profile and fail closed when its password is missing.
+#[tokio::test]
+async fn desktop_connections_execution_read_resolves_and_fails_closed() {
+    use crate::transport::desktop::commands::find_connection_by_id;
+
+    let root = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    // The profile exists, but `NoSecrets` holds no password for it.
+    let file = ConnectionsFile {
+        connections: vec![linked_connection("conn-1", "profile-1")],
+        credential_profiles: vec![CredentialProfile {
+            id: "profile-1".to_string(),
+            name: "Shared".to_string(),
+            username: "shared-user".to_string(),
+        }],
+        ..ConnectionsFile::default()
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+
+    let connection_cache = Arc::new(crate::connection_cache::ConnectionCache::default());
+    connection_cache.populate(&[linked_connection("conn-1", "profile-1")]);
+    let app = tauri::test::mock_builder()
+        .manage(runtime)
+        .manage(connection_cache)
+        .manage(Arc::new(crate::credential_cache::CredentialCache::default()))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+
+    let error = find_connection_by_id(app.handle(), "conn-1")
+        .expect_err("execution must fail closed when the profile password is missing");
+    assert!(
+        error.contains("profile-1"),
+        "the failure must name the credential profile: {error}"
+    );
+}
+
+/// A missing profile password fails the execution read, and used to skip pool
+/// close inside the health-check failure handler (#1065). Cleanup only needs
+/// the driver, id, and tunnel flags from the metadata read.
+#[tokio::test]
+async fn health_check_failure_closes_pool_when_profile_password_is_missing() {
+    use crate::transport::desktop::commands::find_connection_by_id;
+    use crate::transport::desktop::health_check::handle_connection_failure;
+
+    let root = tempfile::tempdir().unwrap();
+    let database = tempfile::NamedTempFile::new().unwrap();
+    let database_path = database.path().to_str().unwrap().to_string();
+    let connection_id = format!("health-missing-profile-{}", uuid::Uuid::new_v4());
+    let mut saved = linked_connection(&connection_id, "profile-1");
+    saved.params.driver = "sqlite".to_string();
+    saved.params.database = DatabaseSelection::Single(database_path.clone());
+
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    let file = ConnectionsFile {
+        connections: vec![saved.clone()],
+        credential_profiles: vec![CredentialProfile {
+            id: "profile-1".to_string(),
+            name: "Shared".to_string(),
+            username: "shared-user".to_string(),
+        }],
+        ..ConnectionsFile::default()
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+
+    let connection_cache = Arc::new(crate::connection_cache::ConnectionCache::default());
+    connection_cache.populate(&[saved]);
+    let app = tauri::test::mock_builder()
+        .manage(runtime)
+        .manage(connection_cache)
+        .manage(Arc::new(crate::credential_cache::CredentialCache::default()))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+
+    let pool_params = ConnectionParams {
+        driver: "sqlite".to_string(),
+        database: DatabaseSelection::Single(database_path),
+        ..ConnectionParams::default()
+    };
+    crate::pool_manager::get_sqlite_pool_with_id(&pool_params, Some(&connection_id))
+        .await
+        .expect("sqlite pool");
+    assert!(
+        crate::pool_manager::has_pool(&pool_params, Some(&connection_id)).await,
+        "the pool must be open before the failure handler runs"
+    );
+    let resolve_error = find_connection_by_id(app.handle(), &connection_id)
+        .expect_err("the profile password is missing, so the execution read fails closed");
+    assert!(
+        resolve_error.contains("profile-1"),
+        "the execution read must name the unresolved profile: {resolve_error}"
+    );
+
+    handle_connection_failure(app.handle(), &connection_id, "ping failed").await;
+
+    assert!(
+        !crate::pool_manager::has_pool(&pool_params, Some(&connection_id)).await,
+        "pool cleanup must run even when the credential profile cannot be resolved"
+    );
+}
+
+/// Pools are keyed by connection id, so rotating a profile password only drops
+/// the cached secret. The open pool keeps its credentials until reconnect.
+#[tokio::test]
+async fn rotating_a_credential_profile_password_leaves_the_sqlite_pool_open() {
+    use crate::transport::desktop::commands::update_credential_profile;
+
+    let root = tempfile::tempdir().unwrap();
+    let database = tempfile::NamedTempFile::new().unwrap();
+    let database_path = database.path().to_str().unwrap().to_string();
+    let connection_id = format!("rotate-profile-pool-{}", uuid::Uuid::new_v4());
+    let mut saved = linked_connection(&connection_id, "profile-1");
+    saved.params.driver = "sqlite".to_string();
+    saved.params.database = DatabaseSelection::Single(database_path.clone());
+
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    let file = ConnectionsFile {
+        connections: vec![saved.clone()],
+        credential_profiles: vec![CredentialProfile {
+            id: "profile-1".to_string(),
+            name: "Shared".to_string(),
+            username: "shared-user".to_string(),
+        }],
+        ..ConnectionsFile::default()
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+
+    let state = Arc::new(crate::runtime::state::ApplicationState::default());
+    state.connection_cache.populate(&[saved]);
+    let app = tauri::test::mock_builder()
+        .manage(runtime)
+        .manage(state)
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+
+    let pool_params = ConnectionParams {
+        driver: "sqlite".to_string(),
+        database: DatabaseSelection::Single(database_path),
+        ..ConnectionParams::default()
+    };
+    crate::pool_manager::get_sqlite_pool_with_id(&pool_params, Some(&connection_id))
+        .await
+        .expect("sqlite pool");
+    assert!(
+        crate::pool_manager::has_pool(&pool_params, Some(&connection_id)).await,
+        "the pool must be open before the password rotation"
+    );
+
+    update_credential_profile(
+        app.handle().clone(),
+        "profile-1".to_string(),
+        "Shared".to_string(),
+        "shared-user".to_string(),
+        Some("rotated-secret".to_string()),
+    )
+    .await
+    .expect("profile password rotation");
+
+    assert!(
+        crate::pool_manager::has_pool(&pool_params, Some(&connection_id)).await,
+        "rotating a profile password must not close the open pool"
+    );
+    crate::pool_manager::close_pools_for_connection_id("sqlite", &connection_id).await;
 }

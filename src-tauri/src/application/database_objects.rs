@@ -762,7 +762,7 @@ async fn sql_builder_driver_and_params(
     if driver.manifest().is_builtin {
         return Ok((driver, saved.params));
     }
-    crate::application::connections::bind_sql_builder_secrets(runtime, &mut saved);
+    crate::application::connections::bind_sql_builder_secrets(runtime, &mut saved)?;
     let params = crate::commands::sql_builder_params(&saved, database);
     let driver = driver.bind_connection_params(&params).unwrap_or(driver);
     Ok((driver, params))

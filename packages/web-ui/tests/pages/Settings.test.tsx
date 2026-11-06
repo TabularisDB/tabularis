@@ -29,6 +29,9 @@ vi.mock('@/hooks/usePluginRegistry', () => ({
     usePluginRegistry: vi.fn(),
 }));
 vi.mock('@/hooks/useUpdate', () => ({useUpdate: vi.fn()}));
+vi.mock('@/hooks/useCanManageCredentialProfiles', () => ({
+    useCanManageCredentialProfiles: () => true,
+}));
 vi.mock('@/hooks/useSettings', () => ({
     useSettings: () => ({settings: {}, isLoading: false, updateSetting: vi.fn()}),
 }));
@@ -163,6 +166,8 @@ describe('update navigation', () => {
             error: null,
             isUpToDate: true,
             installationSource: null,
+            updaterMode: 'native',
+            serverInfo: null,
         });
     });
 
@@ -178,7 +183,18 @@ describe('update navigation', () => {
 
     it('aggregates the rail counter and splits core/plugin counts in the settings navigation', () => {
         vi.mocked(useUpdate).mockReturnValue({
-            ...useUpdate(),
+            updaterMode: 'native',
+            serverInfo: null,
+            updateInfo: null,
+            isChecking: false,
+            isDownloading: false,
+            downloadProgress: 0,
+            checkForUpdates: vi.fn(),
+            downloadAndInstall: vi.fn(),
+            dismissUpdate: vi.fn(),
+            error: null,
+            isUpToDate: false,
+            installationSource: null,
             availableUpdate: {
                 hasUpdate: true,
                 currentVersion: '0.24.0',

@@ -145,6 +145,7 @@ export interface ConnectionParameters {
     enable_cleartext_plugin?: boolean;
     pipes_as_concat?: boolean;
     use_iam_auth?: boolean;
+    credential_profile_id?: string;
     ssh_enabled?: boolean;
     ssh_connection_id?: string;
     ssh_host?: string;
@@ -194,6 +195,12 @@ export interface SshConnection {
 }
 
 export type SshConnectionInput = Partial<Omit<SshConnection, 'id' | 'name'>>;
+
+export interface CredentialProfile {
+    id: string;
+    name: string;
+    username: string;
+}
 
 export interface SshTestRequest extends Partial<SshConnection> {
     connection_id?: string;
@@ -616,6 +623,19 @@ export interface CommandMap {
         void,
         'database'
     >;
+
+    list_credential_profiles: CommandDefinition<undefined, CredentialProfile[], 'local-admin'>;
+    create_credential_profile: CommandDefinition<
+        {name: string; username: string; password: string},
+        CredentialProfile,
+        'local-admin'
+    >;
+    update_credential_profile: CommandDefinition<
+        {id: string; name: string; username: string; password?: string},
+        void,
+        'local-admin'
+    >;
+    delete_credential_profile: CommandDefinition<{id: string}, void, 'local-admin'>;
 
     get_registered_drivers: CommandDefinition<undefined, PluginManifest[], 'database'>;
     get_driver_manifest: CommandDefinition<{driverId: string}, PluginManifest | null, 'database'>;

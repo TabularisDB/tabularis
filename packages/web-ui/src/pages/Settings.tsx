@@ -13,6 +13,7 @@ import {
     FileJson,
     Shield,
     Cable,
+    KeyRound,
     Archive,
     EyeOff,
     FolderCog,
@@ -29,6 +30,7 @@ import {LogsTab} from '@/components/settings/LogsTab';
 import {ShortcutsTab} from '@/components/settings/ShortcutsTab';
 import {PluginsTab} from '@/components/settings/PluginsTab';
 import {SshTab} from '@/components/settings/SshTab';
+import {CredentialProfilesTab} from '@/components/settings/CredentialProfilesTab';
 import {BackupTab} from '@/components/settings/BackupTab';
 import {StorageTab} from '@/components/settings/StorageTab';
 import {NetworkTab} from '@/components/settings/NetworkTab';
@@ -38,6 +40,7 @@ import {PluginSettingsPage} from '@/components/settings/PluginSettingsPage';
 import {useDrivers} from '@/hooks/useDrivers';
 import {useSettings} from '@/hooks/useSettings';
 import {useAvailableUpdates} from '@/hooks/useAvailableUpdates';
+import {useCanManageCredentialProfiles} from '@/hooks/useCanManageCredentialProfiles';
 import {UpdateBadge} from '@/components/ui/UpdateBadge';
 import {UpdateTooltip} from '@/components/ui/UpdateTooltip';
 
@@ -46,6 +49,7 @@ type SettingsTab =
     | 'network'
     | 'privacy'
     | 'ssh'
+    | 'credential-profiles'
     | 'backup'
     | 'storage'
     | 'appearance'
@@ -72,6 +76,7 @@ const TAB_ITEMS: Array<{
     {id: 'general', icon: SettingsIcon, labelKey: 'settings.general'},
     {id: 'network', icon: Network, labelKey: 'settings.network.tab'},
     {id: 'ssh', icon: Cable, labelKey: 'sshConnections.title'},
+    {id: 'credential-profiles', icon: KeyRound, labelKey: 'credentialProfiles.title'},
     {id: 'storage', icon: FolderCog, labelKey: 'settings.storage.title'},
     {id: 'backup', icon: Archive, labelKey: 'settings.backup.title'},
     {id: 'plugins', icon: Plug, labelKey: 'settings.plugins.title'},
@@ -90,6 +95,7 @@ const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
     network: NetworkTab,
     privacy: PrivacyTab,
     ssh: SshTab,
+    'credential-profiles': CredentialProfilesTab,
     backup: BackupTab,
     storage: StorageTab,
     appearance: AppearanceTab,
@@ -102,17 +108,24 @@ const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
     info: InfoTab,
 };
 
+const LOCAL_ADMIN_SETTINGS_TABS = new Set<SettingsTab>(['credential-profiles']);
+
 export const Settings = () => {
     const {t} = useTranslation();
     const updates = useAvailableUpdates();
+    const canManageCredentialProfiles = useCanManageCredentialProfiles();
     const [searchParams, setSearchParams] = useSearchParams();
     const {allDrivers, installedPlugins, refresh: refreshDrivers} = useDrivers();
     const {settings} = useSettings();
     const activeExternalDrivers =
         settings.activeExternalDrivers ?? installedPlugins.map((p) => p.id);
+    const visibleTabItems = TAB_ITEMS.filter(
+        ({id}) => !LOCAL_ADMIN_SETTINGS_TABS.has(id) || canManageCredentialProfiles,
+    );
     const tabParam = searchParams.get('tab');
     const requestedTab: SettingsTab =
-        tabParam && (TAB_ITEMS.some(({id}) => id === tabParam) || tabParam.startsWith('plugin:'))
+        tabParam &&
+        (visibleTabItems.some(({id}) => id === tabParam) || tabParam.startsWith('plugin:'))
             ? (tabParam as SettingsTab)
             : 'general';
     const setRequestedTab = (tab: SettingsTab) => {
@@ -189,7 +202,10 @@ export const Settings = () => {
     const requestedPluginId = isRequestedPluginTab ? requestedTab.slice('plugin:'.length) : null;
     const hasRequestedPluginTab =
         requestedPluginId !== null && pluginTabs.some((plugin) => plugin.id === requestedPluginId);
-    const activeTab = isRequestedPluginTab && !hasRequestedPluginTab ? 'plugins' : requestedTab;
+    let activeTab = isRequestedPluginTab && !hasRequestedPluginTab ? 'plugins' : requestedTab;
+    if (activeTab === 'credential-profiles' && !canManageCredentialProfiles) {
+        activeTab = 'general';
+    }
     const ActiveComponent = TAB_COMPONENTS[activeTab];
     const activePluginId = activeTab.startsWith('plugin:')
         ? activeTab.slice('plugin:'.length)
@@ -200,7 +216,7 @@ export const Settings = () => {
             {/* Sidebar */}
             <nav className="w-52 flex flex-col border-r border-default bg-elevated shrink-0">
                 <div className="flex-1 py-2 px-2 overflow-y-auto space-y-0.5">
-                    {TAB_ITEMS.map(({id, icon: Icon, labelKey}) => (
+                    {visibleTabItems.map(({id, icon: Icon, labelKey}) => (
                         <div key={id} className="space-y-1">
                             <UpdateTooltip
                                 className="flex"

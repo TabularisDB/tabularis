@@ -129,6 +129,9 @@ export function defineTransportContractSuite(
             await expect(harness.transport.call('get_ssh_connections', undefined)).resolves.toEqual(
                 [],
             );
+            await expect(
+                harness.transport.call('list_credential_profiles', undefined),
+            ).resolves.toEqual([]);
             await expect(harness.transport.call('get_k8s_connections', undefined)).resolves.toEqual(
                 [],
             );
@@ -912,7 +915,9 @@ async function handleRequest(
         return;
     }
     if (
-        (command === 'get_ssh_connections' || command === 'get_k8s_connections') &&
+        (command === 'get_ssh_connections' ||
+            command === 'get_k8s_connections' ||
+            command === 'list_credential_profiles') &&
         body === 'null'
     ) {
         sendSuccess(response, [], requestId);

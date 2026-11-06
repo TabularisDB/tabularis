@@ -99,7 +99,7 @@ tabularis web \
   --allowed-origin https://tabularis.example.com
 ```
 
-Remote login attempts are rate-limited. Remote sessions receive database-only authorization by default; SSH, Kubernetes, AI secrets and approvals, imports and exports, backups and dumps, plugin lifecycle, host logs and tasks, global settings, and other local-administrator operations remain denied unless `--allow-high-risk` is explicitly accepted. MCP host operations remain unavailable remotely even with that opt-in.
+Remote login attempts are rate-limited. Remote sessions receive database-only authorization by default; SSH, Kubernetes, shared credential profile management, AI secrets and approvals, imports and exports, backups and dumps, plugin lifecycle, host logs and tasks, global settings, and other local-administrator operations remain denied unless `--allow-high-risk` is explicitly accepted. MCP host operations remain unavailable remotely even with that opt-in.
 
 See [Remote Web UI security and reverse-proxy deployment](./WEB_REMOTE_SECURITY.md) for Nginx, systemd, firewall, origin, audit, rate-limit, and verification examples. That guide is the normative remote threat model. For the official Docker image, Docker Compose, and the Helm chart, see [Running Tabularis Web in containers](./WEB_MODE_CONTAINERS.md).
 

@@ -142,7 +142,14 @@ async fn ping_single_connection(app: &tauri::AppHandle, connection_id: &str) -> 
 }
 
 /// Close the pool, unregister the connection, and emit a failure event.
-async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, error: &str) {
+///
+/// Cleanup reads metadata only. Resolving a credential profile fails closed
+/// when its password is missing, and that must not skip pool close (#1065).
+pub(crate) async fn handle_connection_failure<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    connection_id: &str,
+    error: &str,
+) {
     // Unregister first to prevent further pings.
     unregister_connection(connection_id).await;
 
@@ -154,7 +161,7 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
     // cluster must not prevent pool cleanup (#1065).
     let mut params = None;
     if let Ok(saved_conn) =
-        crate::transport::desktop::commands::find_connection_by_id(app, connection_id)
+        crate::transport::desktop::commands::find_connection_metadata_by_id(app, connection_id)
     {
         crate::pool_manager::close_pools_for_connection_id(
             &saved_conn.params.driver,

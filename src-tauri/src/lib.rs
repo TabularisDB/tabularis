@@ -41,6 +41,7 @@ pub mod connection_migrations;
 #[cfg(test)]
 pub mod connection_migrations_tests;
 pub mod connection_tags;
+pub mod credential_profiles;
 
 pub mod credential_cache;
 pub mod dump_commands; // Added

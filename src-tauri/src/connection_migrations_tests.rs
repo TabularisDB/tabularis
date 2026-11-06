@@ -224,6 +224,7 @@ mod tests {
             // Builtin "postgres" is always skipped, regardless of ssl_mode.
             connections: vec![saved_connection("postgres", Some("required"))],
             tags: Vec::new(),
+            ..Default::default()
         };
         persistence::save_connections_file(&path, &file).expect("seed fixture");
         let content_before = std::fs::read_to_string(&path).expect("read fixture");

@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod tests {
     use crate::models::{ConnectionParams, ConnectionsFile, SavedConnection};
+    #[cfg(unix)]
+    use crate::persistence::write_private_file;
     use crate::persistence::{
-        apply_secret_persistence, load_connections_file, save_connections_file, write_private_file,
+        apply_secret_persistence, load_connections_file, save_connections_file,
     };
 
     #[test]
@@ -107,6 +109,49 @@ mod tests {
         assert!(params.password.is_none());
         assert!(params.ssh_password.is_none());
         assert_eq!(params.save_in_keychain, Some(true));
+    }
+
+    #[test]
+    fn save_clears_credential_profile_id_from_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("connections.json");
+        let mut file = ConnectionsFile {
+            connections: vec![SavedConnection {
+                id: "conn-1".to_string(),
+                name: "linked".to_string(),
+                params: ConnectionParams {
+                    driver: "mysql".to_string(),
+                    database: crate::models::DatabaseSelection::Single("app".to_string()),
+                    credential_profile_id: Some("profile-1".to_string()),
+                    save_in_keychain: Some(true),
+                    ..ConnectionParams::default()
+                },
+                plugin_secret_keys: Vec::new(),
+                group_id: None,
+                sort_order: None,
+                detect_json_in_text_columns: None,
+                appearance: None,
+                tag_ids: None,
+                environment: None,
+            }],
+            ..ConnectionsFile::default()
+        };
+        save_connections_file(&path, &file).unwrap();
+        assert!(std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("credential_profile_id"));
+
+        file.connections[0].params.credential_profile_id = None;
+        save_connections_file(&path, &file).unwrap();
+
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(saved["connections"][0]["params"]
+            .get("credential_profile_id")
+            .is_none());
+        assert!(!std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("credential_profile_id"));
     }
 
     #[test]

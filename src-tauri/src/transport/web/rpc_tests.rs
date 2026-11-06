@@ -3052,10 +3052,99 @@ async fn connection_policy_accepts_omitted_blank_ssl_mode_on_saved_connections()
 #[tokio::test]
 async fn database_backup_rpc_requires_local_admin_and_uses_the_shared_application() {
     let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
-    for command in ["get_database_backup_status", "run_database_backup_now", "cancel_database_backup"] {
-        for (authorization, expected) in [(AuthorizationLevel::Database, StatusCode::FORBIDDEN), (AuthorizationLevel::LocalAdmin, StatusCode::OK)] {
-            let response = dispatcher.dispatch(command, RequestId(command.to_string()), &json_headers(), Bytes::from_static(b"null"), Some(Uuid::new_v4()), authorization).await;
+    for command in [
+        "get_database_backup_status",
+        "run_database_backup_now",
+        "cancel_database_backup",
+    ] {
+        for (authorization, expected) in [
+            (AuthorizationLevel::Database, StatusCode::FORBIDDEN),
+            (AuthorizationLevel::LocalAdmin, StatusCode::OK),
+        ] {
+            let response = dispatcher
+                .dispatch(
+                    command,
+                    RequestId(command.to_string()),
+                    &json_headers(),
+                    Bytes::from_static(b"null"),
+                    Some(Uuid::new_v4()),
+                    authorization,
+                )
+                .await;
             assert_eq!(response.status(), expected, "{command}");
         }
     }
+}
+
+#[tokio::test]
+async fn credential_profile_rpc_requires_local_admin_authorization() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let profile_id = Uuid::new_v4().to_string();
+    let cases = [
+        ("list_credential_profiles", serde_json::Value::Null),
+        (
+            "create_credential_profile",
+            serde_json::json!({
+                "name": "Shared login",
+                "username": "profile-user",
+                "password": "write-only-secret"
+            }),
+        ),
+        (
+            "update_credential_profile",
+            serde_json::json!({
+                "id": profile_id,
+                "name": "Shared login",
+                "username": "profile-user",
+                "password": "rotated-secret"
+            }),
+        ),
+        (
+            "delete_credential_profile",
+            serde_json::json!({"id": profile_id}),
+        ),
+    ];
+    for (command, payload) in cases {
+        for (authorization, expected) in [
+            (AuthorizationLevel::Database, StatusCode::FORBIDDEN),
+            (AuthorizationLevel::LocalAdmin, StatusCode::OK),
+        ] {
+            let response = dispatch_json(
+                &dispatcher,
+                command,
+                payload.clone(),
+                Some(Uuid::new_v4()),
+                authorization,
+            )
+            .await;
+            assert_eq!(response.status(), expected, "{command}");
+            if expected == StatusCode::FORBIDDEN {
+                assert_eq!(response_json(response).await["error"]["code"], "FORBIDDEN");
+            }
+        }
+    }
+}
+
+#[test]
+fn connection_credential_profile_commands_require_local_admin_metadata() {
+    for name in [
+        "list_credential_profiles",
+        "create_credential_profile",
+        "update_credential_profile",
+        "delete_credential_profile",
+    ] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::LocalAdmin,
+            "{name}"
+        );
+    }
+    assert_eq!(
+        RpcCommand::parse("save_connection")
+            .unwrap()
+            .metadata()
+            .authorization,
+        AuthorizationLevel::Database
+    );
 }

@@ -337,6 +337,67 @@ pub async fn create_connection_tag<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn list_credential_profiles<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::ListCredentialProfiles,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn create_credential_profile<R: Runtime>(
+    app: AppHandle<R>,
+    name: String,
+    username: String,
+    password: String,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::CreateCredentialProfile {
+            name,
+            username,
+            password,
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn update_credential_profile<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    name: String,
+    username: String,
+    password: Option<String>,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::UpdateCredentialProfile {
+            id,
+            name,
+            username,
+            password,
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_credential_profile<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::DeleteCredentialProfile { id },
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn update_connection_tag<R: Runtime>(
     app: AppHandle<R>,
     id: String,
@@ -448,6 +509,11 @@ fn lookup_saved_connection<R: Runtime>(
 /// SSH secrets, connection URI) but without plugin-owned secrets. Used by the
 /// edit modal and by the Test Connection / Load Databases flows, which resolve
 /// plugin secrets themselves once the pending changes are known.
+///
+/// A referenced credential profile is deliberately left unresolved: the
+/// reference is kept and the password stays `None`, matching the web transport,
+/// so a missing profile secret can never fail the edit form. Execution reads go
+/// through [`find_connection_by_id`], which resolves the profile.
 pub fn find_connection_metadata_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
@@ -457,17 +523,23 @@ pub fn find_connection_metadata_by_id<R: Runtime>(
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     restore_runtime_connection_uri(&cache, &conn.id, &mut conn.params)?;
 
+    let has_profile = conn.params.credential_profile_id.is_some();
     // Load passwords from keychain via the in-memory cache (warm hit = lookup,
     // cold miss = keychain call + cache). Skip IAM-auth connections: their
     // 15-min tokens must come from the `password` field, never the keychain,
     // so a stale token from an older release can't be surfaced in the modal.
+    // A referenced credential profile owns the DB password: the connection's own
+    // keychain entry is skipped here, and the profile is resolved on the
+    // execution path (`find_connection_by_id`) rather than on this metadata read.
     if conn.params.save_in_keychain.unwrap_or(false) && !conn.params.use_iam_auth.unwrap_or(false) {
-        match credential_cache::get_db_password_cached(&cache, &conn.id) {
-            Ok(pwd) => conn.params.password = Some(pwd),
-            Err(e) => eprintln!(
-                "[Keyring Error] Failed to get DB password for {}: {}",
-                conn.id, e
-            ),
+        if !has_profile {
+            match credential_cache::get_db_password_cached(&cache, &conn.id) {
+                Ok(pwd) => conn.params.password = Some(pwd),
+                Err(e) => eprintln!(
+                    "[Keyring Error] Failed to get DB password for {}: {}",
+                    conn.id, e
+                ),
+            }
         }
         if conn.params.ssh_enabled.unwrap_or(false) {
             if let Ok(ssh_pwd) = credential_cache::get_ssh_password_cached(&cache, &conn.id) {
@@ -489,12 +561,29 @@ pub fn find_connection_metadata_by_id<R: Runtime>(
 }
 
 /// Load a connection for driver execution. Unlike the metadata/edit path,
-/// this resolves plugin-owned secrets into `params.extra` only in memory.
+/// this resolves the referenced credential profile and hydrates plugin-owned
+/// secrets into `params.extra` only in memory.
 pub fn find_connection_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
 ) -> Result<SavedConnection, String> {
     let mut conn = find_connection_metadata_by_id(app, id)?;
+    if conn.params.credential_profile_id.is_some() {
+        let runtime = app.state::<crate::runtime::RuntimeContext>();
+        let file = persistence::load_connections_file(&runtime.paths.connections_file())?;
+        crate::application::connections::resolve_credential_profile(
+            &mut conn.params,
+            &file.credential_profiles,
+            |profile_id| {
+                runtime
+                    .secrets
+                    .get(&crate::application::connections::profile_db_secret_account(
+                        profile_id,
+                    ))
+            },
+        )
+        .map_err(|error| format!("Failed to load connection '{id}': {error}"))?;
+    }
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     crate::plugin_secrets::hydrate_connection(&cache, &mut conn);
     Ok(conn)
