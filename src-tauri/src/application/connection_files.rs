@@ -556,6 +556,23 @@ fn apply_export_payload_locked(
     let mut incoming = payload.connections;
     remap_tags(&mut current.connections, &mut incoming, &tag_remap);
 
+    // Profiles are merged above, still only in memory. Reject a dangling link
+    // before any keychain or connections-file write.
+    for connection in &incoming {
+        if let Some(profile_id) = connection.params.credential_profile_id.as_deref() {
+            let known = current
+                .credential_profiles
+                .iter()
+                .any(|profile| profile.id == profile_id);
+            if !known {
+                return Err(format!(
+                    "Connection '{}' references credential profile '{}', which exists in neither the import nor the local store",
+                    connection.name, profile_id
+                ));
+            }
+        }
+    }
+
     for mut connection in incoming {
         if let Some(profile_id) = connection.params.credential_profile_id.as_deref() {
             crate::credential_profiles::validate_connection_profile_link(

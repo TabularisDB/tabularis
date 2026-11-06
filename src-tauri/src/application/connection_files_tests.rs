@@ -1318,6 +1318,53 @@ async fn import_rejects_connection_profile_link_with_colliding_imported_ids() {
     assert!(error.contains("keychain"));
 }
 
+#[tokio::test]
+async fn import_rejects_credential_profile_missing_from_payload_and_local_store() {
+    use crate::models::CredentialProfile;
+
+    let (_temp, runtime, secrets) = fixture();
+    secrets.set("connection-1:db", "local-secret").unwrap();
+    let path = runtime.paths.connections_file();
+    let mut file = crate::persistence::load_connections_file(&path).unwrap();
+    file.credential_profiles = vec![CredentialProfile {
+        id: "local-profile".to_string(),
+        name: "Local".to_string(),
+        username: "local_user".to_string(),
+    }];
+    crate::persistence::save_connections_file(&path, &file).unwrap();
+    let file_before = fs::read(&path).unwrap();
+    let keychain_before = secrets.0.lock().unwrap().clone();
+
+    let mut payload = export_payload(&runtime, false, None).await.unwrap();
+    payload.connections[0].name = "Dangling".to_string();
+    payload.connections[0].params.credential_profile_id = Some("missing-profile".to_string());
+    payload.connections[0].params.password = Some("should-not-persist".to_string());
+    payload.connections[0].params.save_in_keychain = Some(true);
+    payload.credential_profiles = vec![CredentialProfile {
+        id: "other-profile".to_string(),
+        name: "Other".to_string(),
+        username: "other_user".to_string(),
+    }];
+    payload
+        .credential_profile_secrets
+        .insert("other-profile".to_string(), "should-not-write".to_string());
+
+    let error = apply_export_payload(
+        &runtime,
+        &crate::connection_cache::ConnectionCache::default(),
+        &crate::credential_cache::CredentialCache::default(),
+        payload,
+    )
+    .await
+    .unwrap_err();
+    assert!(error.contains("Dangling"), "{error}");
+    assert!(error.contains("missing-profile"), "{error}");
+    assert!(error.contains("import"), "{error}");
+    assert!(error.contains("local store"), "{error}");
+    assert_eq!(fs::read(&path).unwrap(), file_before);
+    assert_eq!(secrets.0.lock().unwrap().clone(), keychain_before);
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn imported_ssh_secrets_create_and_repair_private_file_permissions() {

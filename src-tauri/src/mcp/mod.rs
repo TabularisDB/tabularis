@@ -273,17 +273,23 @@ async fn resolve_db_params(
     // connection's own keychain entry so a missing profile or password fails
     // here instead of silently using the connection password.
     if conn.params.credential_profile_id.is_some() {
-        let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
-        let file = persistence::load_connections_file(&config_path).map_err(|e| JsonRpcError {
+        let mut params = conn.params.clone();
+        conn.params = tokio::task::spawn_blocking(move || {
+            let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
+            let file = persistence::load_connections_file(&config_path)?;
+            crate::application::connections::resolve_credential_profile(
+                &mut params,
+                &file.credential_profiles,
+                keychain_utils::find_credential_profile_db_password,
+            )?;
+            Ok::<_, String>(params)
+        })
+        .await
+        .map_err(|e| JsonRpcError {
             code: -32000,
-            message: e,
+            message: e.to_string(),
             data: None,
-        })?;
-        crate::application::connections::resolve_credential_profile(
-            &mut conn.params,
-            &file.credential_profiles,
-            keychain_utils::find_credential_profile_db_password,
-        )
+        })?
         .map_err(|e| JsonRpcError {
             code: -32000,
             message: e,

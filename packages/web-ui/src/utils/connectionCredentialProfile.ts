@@ -51,11 +51,12 @@ export function shouldLockUsernameToProfile(options: {
 /**
  * Strips inline DB secrets that must not be sent when a shared profile owns the login.
  * Profile passwords are never edited through ordinary connection saves.
+ * IAM keeps `password`: it is the per-connect RDS token, not the profile secret.
  */
 export function stripInlineSecretsForCredentialProfile<T extends ConnectionCredentialFields>(
     params: T,
 ): T {
-    if (!isCredentialProfileLinked(params)) {
+    if (!isCredentialProfileLinked(params) || params.use_iam_auth === true) {
         return params;
     }
     const next = {...params};

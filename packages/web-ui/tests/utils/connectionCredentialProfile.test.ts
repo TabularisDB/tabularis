@@ -19,6 +19,18 @@ describe('connectionCredentialProfile', () => {
         expect(params.credential_profile_id).toBe('profile-1');
     });
 
+    it('keeps the IAM token when a profile is linked', () => {
+        const params = stripInlineSecretsForCredentialProfile({
+            credential_profile_id: 'profile-1',
+            username: 'app',
+            password: 'rds-token',
+            use_iam_auth: true,
+        });
+        expect(params.password).toBe('rds-token');
+        expect(params.use_iam_auth).toBe(true);
+        expect(params.credential_profile_id).toBe('profile-1');
+    });
+
     it('hides the password field for profile-linked non-IAM connections', () => {
         expect(
             shouldShowDatabasePasswordField({

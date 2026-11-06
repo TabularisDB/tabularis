@@ -2496,6 +2496,36 @@ describe('NewConnectionModal credential profiles', () => {
         expect(payload).not.toHaveProperty('credential_profile_id');
     });
 
+    it('sends the IAM token on Test Connection when a profile is selected', async () => {
+        await fillNewMysqlConnection();
+        fireEvent.change(profileSelect(), {target: {value: 'profile-1'}});
+        await waitFor(() => expect(profileSelect()).toHaveValue('profile-1'));
+
+        fireEvent.click(screen.getByText('SSL'));
+        const iam = screen.getByRole('checkbox', {name: /newConnection\.useIamAuth/});
+        fireEvent.click(iam);
+        expect(iam).toBeChecked();
+
+        fireEvent.click(screen.getByText('newConnection.general'));
+        fireEvent.change(screen.getByPlaceholderText('newConnection.passwordPlaceholder'), {
+            target: {value: 'rds-token'},
+        });
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+
+        await waitFor(() => {
+            expect(invokeArgs('test_connection')).toBeDefined();
+        });
+        const request = invokeArgs('test_connection')?.request as {
+            params: Record<string, unknown>;
+        };
+        expect(request.params).toMatchObject({
+            credential_profile_id: 'profile-1',
+            use_iam_auth: true,
+            password: 'rds-token',
+            username: 'profile_user',
+        });
+    });
+
     it('creates a profile from inline credentials and links the connection on save', async () => {
         credentialProfileMocks.createCredentialProfile.mockResolvedValue({
             id: 'profile-new',
