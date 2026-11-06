@@ -59,6 +59,11 @@ export const UI_STATE_KEYS = {
         key: 'tabularis:explain-table-columns',
         parseLegacy: (): undefined => undefined,
     },
+    // Snapshots of Visual EXPLAIN plans used for baseline comparison.
+    explainSnapshots: {
+        key: 'tabularis:explain-snapshots',
+        parseLegacy: (): undefined => undefined,
+    },
 } satisfies Record<string, UiStateKeyDefinition<unknown>>;
 
 const DEFINITIONS: UiStateKeyDefinition<unknown>[] = Object.values(UI_STATE_KEYS);
