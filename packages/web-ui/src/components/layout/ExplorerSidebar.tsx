@@ -7,6 +7,7 @@ import {buildDropTableSql} from '@/utils/dropTable';
 import {formatObjectNameForCopy, type ObjectNameCopyFormat} from '@/utils/objectNameCopy';
 import {isPostgresDriver, triggerFunctionName} from '@/utils/triggerSql';
 import {
+    ArrowRightLeft,
     Database,
     Plus,
     FileCode,
@@ -86,6 +87,9 @@ import {CreateForeignKeyModal} from '@/components/modals/CreateForeignKeyModal';
 import {GenerateSQLModal} from '@/components/modals/GenerateSQLModal';
 import {DumpDatabaseModal} from '@/components/modals/DumpDatabaseModal';
 import {ImportDatabaseModal} from '@/components/modals/ImportDatabaseModal';
+import {TableTransferModal} from '@/components/modals/TableTransferModal';
+import {useTableTransferCapabilities} from '@/hooks/useTableTransferCapabilities';
+import {canTransferFrom} from '@/utils/tableTransfer';
 import {ClipboardImportModal} from '@/components/modals/ClipboardImportModal';
 import {ViewEditorModal} from '@/components/modals/ViewEditorModal';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
@@ -384,6 +388,12 @@ export const ExplorerSidebar = ({
         query?: SavedQuery;
     }>({isOpen: false});
     const [dumpModal, setDumpModal] = useState<{database: string; schema?: string} | null>(null);
+    const tableTransferCapabilities = useTableTransferCapabilities();
+    const [transferModal, setTransferModal] = useState<{
+        table: string;
+        schema?: string;
+        database?: string;
+    } | null>(null);
     const [importModal, setImportModal] = useState<{
         inputFile: ChosenInputFile;
         database: string;
@@ -3509,6 +3519,23 @@ export const ExplorerSidebar = ({
                                                 },
                                             }
                                           : null,
+                                      tableTransferCapabilities &&
+                                      canTransferFrom(
+                                          tableTransferCapabilities.pairs,
+                                          activeDriver ?? '',
+                                      )
+                                          ? {
+                                                label: t('tableTransfer.contextMenuLabel'),
+                                                icon: ArrowRightLeft,
+                                                action: () =>
+                                                    setTransferModal({
+                                                        table: contextMenu.id,
+                                                        schema:
+                                                            ctxSchema ?? activeSchema ?? undefined,
+                                                        database: ctxDatabase,
+                                                    }),
+                                            }
+                                          : null,
                                       createCopyNameItem(contextMenu.id, ctxSchema),
                                       supportsManageTables(activeCapabilities)
                                           ? {
@@ -4916,6 +4943,17 @@ export const ExplorerSidebar = ({
                     ).map((t) => t.name)}
                     schema={dumpModal.schema}
                     database={dumpModal.schema ? dumpModal.database : undefined}
+                />
+            )}
+
+            {transferModal && activeConnectionId && (
+                <TableTransferModal
+                    isOpen={true}
+                    onClose={() => setTransferModal(null)}
+                    sourceConnectionId={activeConnectionId}
+                    sourceTable={transferModal.table}
+                    sourceSchema={transferModal.schema}
+                    sourceDatabase={transferModal.database}
                 />
             )}
 

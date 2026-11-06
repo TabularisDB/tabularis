@@ -158,6 +158,7 @@ fn declares_authorization_for_required_event_groups() {
         "query-status",
         "dump_progress",
         "import_progress",
+        "table_transfer_progress",
         "export_progress",
         "plugin-install-progress",
         "ai://pending_approval",

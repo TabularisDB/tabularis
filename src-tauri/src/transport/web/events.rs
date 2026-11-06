@@ -226,6 +226,7 @@ impl WebEventBus {
             | "query-cancelled"
             | "dump_progress"
             | "import_progress"
+            | "table_transfer_progress"
             | "export_progress"
             | "connection-metadata-invalidated"
             | "tabularis://plugin-activated" => Some(AuthorizationLevel::Database),

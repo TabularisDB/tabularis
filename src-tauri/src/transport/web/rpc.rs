@@ -259,6 +259,10 @@ enum DatabaseTransferRpcCommand {
     CancelDump,
     Import,
     CancelImport,
+    GetTableTransferCapabilities,
+    PlanTableTransfer,
+    RunTableTransfer,
+    CancelTableTransfer,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -642,6 +646,18 @@ struct DumpDatabaseRequest {
     options: DumpOptions,
     schema: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TableTransferRpcRequest {
+    request: crate::table_transfer::TableTransferRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CancelTableTransferRequest {
+    transfer_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2236,6 +2252,10 @@ impl DatabaseTransferRpcCommand {
             "cancel_dump" => Self::CancelDump,
             "import_database" => Self::Import,
             "cancel_import" => Self::CancelImport,
+            "get_table_transfer_capabilities" => Self::GetTableTransferCapabilities,
+            "plan_table_transfer" => Self::PlanTableTransfer,
+            "run_table_transfer" => Self::RunTableTransfer,
+            "cancel_table_transfer" => Self::CancelTableTransfer,
             _ => return None,
         })
     }
@@ -2703,6 +2723,22 @@ fn decode_database_transfer_command(
             DatabaseTransferCommand::CancelImport {
                 connection_id: request.connection_id,
             }
+        }
+        DatabaseTransferRpcCommand::GetTableTransferCapabilities => {
+            decode_empty_payload(body)?;
+            DatabaseTransferCommand::GetTableTransferCapabilities
+        }
+        DatabaseTransferRpcCommand::PlanTableTransfer => {
+            let request: TableTransferRpcRequest = decode_payload(body)?;
+            DatabaseTransferCommand::PlanTableTransfer { request: request.request }
+        }
+        DatabaseTransferRpcCommand::RunTableTransfer => {
+            let request: TableTransferRpcRequest = decode_payload(body)?;
+            DatabaseTransferCommand::RunTableTransfer { request: request.request }
+        }
+        DatabaseTransferRpcCommand::CancelTableTransfer => {
+            let request: CancelTableTransferRequest = decode_payload(body)?;
+            DatabaseTransferCommand::CancelTableTransfer { transfer_id: request.transfer_id }
         }
     })
 }

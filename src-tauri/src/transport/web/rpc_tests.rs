@@ -562,6 +562,10 @@ fn declares_authorization_for_each_registered_command() {
         DatabaseTransferRpcCommand::CancelDump,
         DatabaseTransferRpcCommand::Import,
         DatabaseTransferRpcCommand::CancelImport,
+        DatabaseTransferRpcCommand::GetTableTransferCapabilities,
+        DatabaseTransferRpcCommand::PlanTableTransfer,
+        DatabaseTransferRpcCommand::RunTableTransfer,
+        DatabaseTransferRpcCommand::CancelTableTransfer,
     ] {
         assert_eq!(
             RpcCommand::DatabaseTransfer(command)
@@ -1194,6 +1198,29 @@ async fn routes_database_transfer_jobs_through_the_shared_application_api() {
         (
             "cancel_import",
             serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        ("get_table_transfer_capabilities", serde_json::json!({})),
+        (
+            "plan_table_transfer",
+            serde_json::json!({"request": {
+                "sourceConnectionId": "connection-1",
+                "targetConnectionId": "connection-2",
+                "tables": [{"sourceTable": "customers", "targetTable": "customers"}]
+            }}),
+        ),
+        (
+            "run_table_transfer",
+            serde_json::json!({"request": {
+                "sourceConnectionId": "connection-1",
+                "targetConnectionId": "connection-2",
+                "tables": [{"sourceTable": "customers", "targetTable": "customers"}],
+                "conflict": "skip",
+                "transferId": "transfer-1"
+            }}),
+        ),
+        (
+            "cancel_table_transfer",
+            serde_json::json!({"transferId": "transfer-1"}),
         ),
     ];
 
@@ -2794,6 +2821,14 @@ async fn connection_policy_blocks_file_drivers_in_inline_and_saved_requests() {
             (
                 "import_database",
                 serde_json::json!({"connectionId":"saved-db", "uploadToken":"upload"}),
+            ),
+            (
+                "plan_table_transfer",
+                serde_json::json!({"request":{"sourceConnectionId":"remote-db", "targetConnectionId":"saved-db", "tables":[]}}),
+            ),
+            (
+                "run_table_transfer",
+                serde_json::json!({"request":{"sourceConnectionId":"saved-db", "targetConnectionId":"remote-db", "tables":[], "transferId":"t"}}),
             ),
             (
                 "get_available_databases",

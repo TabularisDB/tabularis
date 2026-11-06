@@ -596,6 +596,10 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             dump_commands::cancel_dump,
             dump_commands::import_database,
             dump_commands::cancel_import,
+            dump_commands::get_table_transfer_capabilities,
+            dump_commands::plan_table_transfer,
+            dump_commands::run_table_transfer,
+            dump_commands::cancel_table_transfer,
             // Updater
             updater::check_for_updates,
             updater::download_and_install_update,

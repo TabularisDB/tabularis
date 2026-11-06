@@ -1,6 +1,6 @@
 import type {ConnectionTestProgressPayload} from '@/utils/connectionTest';
 import type {BatchStatementResult} from '@/types/editor';
-import type {AuthorizationLevel} from './contract';
+import type {AuthorizationLevel, TableTransferStatus} from './contract';
 import type {SshAskpassRequest} from '@/types/askpass';
 import type {RequestId} from './errors';
 import type {AiActivityEvent, PendingApproval} from '@/types/ai';
@@ -49,6 +49,21 @@ export interface EventMap {
             total_statements: number;
             percentage: number;
             current_operation: string;
+        },
+        'database'
+    >;
+    table_transfer_progress: EventDefinition<
+        {
+            transfer_id: string;
+            table_index: number;
+            total_tables: number;
+            source_table: string;
+            target_table: string;
+            status: TableTransferStatus;
+            rows_read: number;
+            rows_written: number;
+            rows_skipped: number;
+            estimated_rows: number | null;
         },
         'database'
     >;
@@ -101,6 +116,7 @@ export const EVENT_AUTHORIZATION = {
     'query-cancelled': 'database',
     dump_progress: 'database',
     import_progress: 'database',
+    table_transfer_progress: 'database',
     export_progress: 'database',
     'ssh-askpass://request': 'sensitive',
     'ssh-askpass://dismiss': 'sensitive',
