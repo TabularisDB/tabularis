@@ -43,6 +43,7 @@ export interface ExplainTableViewProps {
      */
     columnOrder?: readonly ExplainTableColumnId[];
     onColumnOrderChange?: (order: readonly ExplainTableColumnId[]) => void;
+    onCopyDetails?: (text: string) => Promise<boolean | void> | boolean | void;
 }
 
 const COLUMN_LABEL_KEYS: Record<ExplainTableColumnId, string> = {
@@ -73,6 +74,7 @@ export function ExplainTableView({
     isExportingCsv,
     columnOrder,
     onColumnOrderChange,
+    onCopyDetails,
 }: ExplainTableViewProps) {
     const {t} = useTranslation();
     const [ownColumnOrder, setOwnColumnOrder] =
@@ -278,6 +280,7 @@ export function ExplainTableView({
                     hasAnalyzeData={plan.has_analyze_data}
                     metrics={selectedNode ? (metrics.byId.get(selectedNode.id) ?? null) : null}
                     diagnostics={selectedNode ? (diagnostics.get(selectedNode.id) ?? []) : []}
+                    onCopyDetails={onCopyDetails}
                 />
             </div>
         </div>

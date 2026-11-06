@@ -115,3 +115,10 @@ export {
     normalizeExplainTableColumnOrder,
     shiftExplainTableColumn,
 } from './tableColumns';
+
+export type {
+    ExplainNodeDetailEntry,
+    ExplainNodeDetailSection,
+    FormatExplainNodeDetailsOptions,
+} from './nodeDetails';
+export {getExplainNodeDetailSections, formatExplainNodeDetails} from './nodeDetails';
