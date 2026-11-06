@@ -647,11 +647,7 @@ impl RpcDriver {
     /// `primary()` returns `db` unchanged, so this is a no-op.
     ///
     /// When there's no selection at all (empty "all databases" / an empty
-    /// `Multiple`), fall back to the engine's maintenance database — the
-    /// same convention the built-in Postgres driver already uses for
-    /// `get_databases` (`drivers/postgres/mod.rs`) — but only for engines
-    /// known to have one; other engines are left as-is so their own plugin
-    /// can apply whatever default makes sense for them.
+    /// `Multiple`), fall back to [`Self::fallback_database`].
     fn with_primary_database(&self, params: &ConnectionParams) -> ConnectionParams {
         let mut params = params.clone();
 
@@ -661,29 +657,45 @@ impl RpcDriver {
         // array must survive to that point — flattening it here to a single
         // primary would destroy the selection before it can be applied.
         if self.process.route_selected_database && matches!(params.database, DatabaseSelection::Multiple(_)) {
-            // Only resolve an empty primary to the maintenance database so
+            // Only resolve an empty primary to the fallback database so
             // the pool can connect; leave a non-empty Multiple intact.
             if params.database.primary().is_empty() {
-                let dbname = match self.manifest.engine.as_deref() {
-                    Some("postgres" | "postgresql") => "postgres".to_string(),
-                    _ => String::new(),
-                };
-                params.database = DatabaseSelection::Single(dbname);
+                params.database = DatabaseSelection::Single(self.fallback_database(&params));
             }
             return params;
         }
 
-        let primary = params.database.primary();
-        let dbname = if primary.is_empty() {
-            match self.manifest.engine.as_deref() {
-                Some("postgres" | "postgresql") => "postgres",
-                _ => primary,
-            }
-        } else {
-            primary
+        let dbname = match params.database.primary() {
+            "" => self.fallback_database(&params),
+            primary => primary.to_string(),
         };
-        params.database = DatabaseSelection::Single(dbname.to_string());
+        params.database = DatabaseSelection::Single(dbname);
         params
+    }
+
+    /// The database sent while a connection selects none ("all databases").
+    ///
+    /// The connection's own `default_database` comes first: a flat
+    /// multi-database plugin that declares `connection_fields.database`
+    /// asks for it on the Databases tab (SurrealDB signs in to that
+    /// `namespace/database`). Otherwise the engine's maintenance database —
+    /// the same convention the built-in Postgres driver already uses for
+    /// `get_databases` (`drivers/postgres/mod.rs`) — but only for engines
+    /// known to have one; other engines get an empty database so their own
+    /// plugin can apply whatever default makes sense for them.
+    fn fallback_database(&self, params: &ConnectionParams) -> String {
+        if let Some(database) = params
+            .default_database
+            .as_deref()
+            .map(str::trim)
+            .filter(|database| !database.is_empty())
+        {
+            return database.to_string();
+        }
+        match self.manifest.engine.as_deref() {
+            Some("postgres" | "postgresql") => "postgres".to_string(),
+            _ => String::new(),
+        }
     }
 }
 
@@ -2450,6 +2462,7 @@ mod tests {
             connection_uri: None,
             connection_uri_in_keychain: None,
             database: DatabaseSelection::Single("db".to_string()),
+            default_database: None,
             ssl_mode: None,
             ssl_ca: None,
             ssl_cert: None,
@@ -3564,6 +3577,54 @@ mod tests {
         assert_eq!(coerced.database.primary(), "postgres");
     }
 
+    /// "All databases" on a plugin that asked for a database on the Databases
+    /// tab (`connection_fields.database`): the plugin gets the connection's
+    /// `default_database`, e.g. the `namespace/database` a SurrealDB user
+    /// signs in to, for an empty `Single` and an empty `Multiple` alike.
+    #[tokio::test]
+    async fn with_primary_database_sends_default_database_when_none_is_selected() {
+        let driver = test_driver(|_| json!(true)); // route_selected_database = true
+        let mut params = test_connection_params();
+        params.default_database = Some(" app/main ".to_string());
+
+        params.database = DatabaseSelection::Single(String::new());
+        assert_eq!(driver.with_primary_database(&params).database.primary(), "app/main");
+
+        params.database = DatabaseSelection::Multiple(vec![]);
+        assert_eq!(driver.with_primary_database(&params).database.primary(), "app/main");
+    }
+
+    /// `default_database` only stands in while no database is selected: a
+    /// selected one, or a multi-database selection still to be routed, wins.
+    #[tokio::test]
+    async fn with_primary_database_prefers_a_selected_database_over_default_database() {
+        let driver = test_driver(|_| json!(true));
+        let mut params = test_connection_params(); // database: Single("db")
+        params.default_database = Some("app".to_string());
+
+        assert_eq!(driver.with_primary_database(&params).database.primary(), "db");
+
+        let selection = DatabaseSelection::Multiple(vec!["app/logs".into(), "app/main".into()]);
+        params.database = selection.clone();
+        assert_eq!(driver.with_primary_database(&params).database, selection);
+    }
+
+    /// It also comes before an engine's maintenance database, and a blank
+    /// one is ignored.
+    #[tokio::test]
+    async fn with_primary_database_prefers_default_database_over_the_maintenance_db() {
+        let mut driver = test_driver(|_| json!(true));
+        driver.manifest.engine = Some("postgresql".to_string());
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        params.default_database = Some("analytics".to_string());
+        assert_eq!(driver.with_primary_database(&params).database.primary(), "analytics");
+
+        params.default_database = Some("   ".to_string());
+        assert_eq!(driver.with_primary_database(&params).database.primary(), "postgres");
+    }
+
     /// Regression: a PostgreSQL-plugin connection saved with "Choose
     /// databases" (multi-db opt-in) persists `database` as
     /// `DatabaseSelection::Multiple(...)`,
@@ -3774,6 +3835,28 @@ mod tests {
             .get_schemas(&params)
             .await
             .expect("get_schemas must succeed once database is coerced to a string");
+    }
+
+    /// Connecting in "All databases" mode first lists the databases: the
+    /// plugin must get the connection's `default_database` there, or a
+    /// SurrealDB namespace or database user cannot sign in to list them.
+    #[tokio::test]
+    async fn rpc_driver_get_databases_sends_default_database_for_all_databases_mode() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "get_databases");
+            assert_eq!(request.params["params"]["database"], "app/main");
+            json!(["app/main"])
+        });
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+        params.default_database = Some("app/main".to_string());
+
+        let databases = driver
+            .get_databases(&params)
+            .await
+            .expect("get_databases must send the connection's default_database");
+        assert_eq!(databases, vec!["app/main".to_string()]);
     }
 
     /// Same coverage as above but for the "all databases" default mode
