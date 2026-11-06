@@ -163,9 +163,26 @@ vi.mock('@/hooks/useDrivers', () => ({
                 },
             },
             {
+                id: 'postgres',
+                name: 'PostgreSQL',
+                version: '1.0.0',
+                default_port: 5432,
+                is_builtin: true,
+                capabilities: {
+                    file_based: false,
+                    folder_based: false,
+                    connection_string: true,
+                    supports_ssl: true,
+                    schemas: true,
+                    sql_dialect: 'postgres',
+                    query_timeout: true,
+                },
+            },
+            {
                 // Simulates the standalone PostgreSQL plugin (issue #614): a
                 // non-"postgres" driver id whose manifest explicitly declares the
-                // postgres SQL dialect.
+                // postgres SQL dialect. It does not declare query_timeout, so the
+                // timeout field must stay hidden even though the dialect matches.
                 id: 'postgresql',
                 name: 'PostgreSQL',
                 version: '1.0.0-beta.2',
@@ -2664,8 +2681,8 @@ describe('NewConnectionModal query timeout', () => {
         return label.parentElement!.querySelector('input')!;
     }
 
-    it('saves the timeout for a PostgreSQL connection', async () => {
-        renderModal(createInitialConnection({driver: 'postgresql', host: 'localhost'}));
+    it('saves the timeout for the built-in PostgreSQL driver', async () => {
+        renderModal(createInitialConnection({driver: 'postgres', host: 'localhost'}));
         fireEvent.click(await screen.findByText('newConnection.advanced'));
         fireEvent.change(queryTimeoutInput(), {target: {value: '30'}});
         fireEvent.click(screen.getByText('newConnection.save'));
@@ -2682,7 +2699,7 @@ describe('NewConnectionModal query timeout', () => {
     it('drops the timeout when the field is cleared', async () => {
         renderModal(
             createInitialConnection({
-                driver: 'postgresql',
+                driver: 'postgres',
                 host: 'localhost',
                 query_timeout_secs: 30,
             }),
@@ -2701,10 +2718,39 @@ describe('NewConnectionModal query timeout', () => {
         );
     });
 
-    it('is not offered for drivers that do not enforce it', async () => {
+    it('is not offered for drivers that do not declare query_timeout', async () => {
         renderModal(createInitialConnection({host: 'localhost'}));
         fireEvent.click(await screen.findByText('newConnection.advanced'));
         expect(screen.getByText('newConnection.connectTimeout')).toBeInTheDocument();
         expect(screen.queryByText('newConnection.queryTimeout')).not.toBeInTheDocument();
+    });
+
+    it('is not offered for a postgres-dialect plugin that does not declare query_timeout', async () => {
+        renderModal(createInitialConnection({driver: 'postgresql', host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        // Connect timeout still follows the dialect; query timeout needs the capability.
+        expect(screen.getByText('newConnection.connectTimeout')).toBeInTheDocument();
+        expect(screen.queryByText('newConnection.queryTimeout')).not.toBeInTheDocument();
+    });
+
+    it('does not re-save a stale timeout on an unsupported plugin connection', async () => {
+        renderModal(
+            createInitialConnection({
+                driver: 'postgresql',
+                host: 'localhost',
+                query_timeout_secs: 45,
+            }),
+        );
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(screen.queryByText('newConnection.queryTimeout')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.not.objectContaining({query_timeout_secs: expect.anything()}),
+                }),
+            ),
+        );
     });
 });
