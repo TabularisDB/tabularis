@@ -86,6 +86,12 @@
     "warnConfirm": "実行する",
     "warnSnooze": "この接続では今後確認しない（このセッション中）"
   },
+  "textStats": {
+    "characters": "文字数: {{count}}",
+    "lines": "行数: {{count}}",
+    "bytes": "UTF-8 バイト数: {{count}}",
+    "charactersHint": "Unicode コードポイント数(書記素クラスターではありません)"
+  },
   "common": {
     "save": "保存",
     "close": "閉じる",

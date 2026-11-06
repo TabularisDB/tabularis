@@ -86,6 +86,12 @@
     "warnConfirm": "Ituloy pa rin",
     "warnSnooze": "Huwag nang itanong para sa koneksyong ito (ngayong session)"
   },
+  "textStats": {
+    "characters": "Mga character: {{count}}",
+    "lines": "Mga linya: {{count}}",
+    "bytes": "Mga UTF-8 byte: {{count}}",
+    "charactersHint": "Mga Unicode code point, hindi grapheme cluster"
+  },
   "common": {
     "save": "I-save",
     "close": "Isara",
