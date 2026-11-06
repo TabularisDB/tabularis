@@ -175,11 +175,20 @@ async fn plan_tables(
             let pool = get_postgres_pool(&source.params).await?;
             postgres::estimate_rows(&pool, &source.schema, &selection.source_table).await
         };
+        let target_strict = if target.dialect == TransferDialect::Sqlite
+            && target_columns.iter().any(|c| c.data_type.trim().eq_ignore_ascii_case("ANY"))
+        {
+            let pool = get_sqlite_pool(&target.params).await?;
+            sqlite::is_strict_table(&pool, &selection.target_table).await
+        } else {
+            false
+        };
         tables.push(build_table_plan(&PlanInputs {
             selection,
             source_columns: &source_columns,
             target_columns: &target_columns,
             target_dialect: target.dialect,
+            target_strict,
             estimated_rows,
             same_table,
         }));

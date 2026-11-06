@@ -442,3 +442,18 @@ async fn a_transfer_cancelled_before_it_starts_copies_nothing() {
     assert_eq!(sqlite_count(&path).await, 0);
     pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
 }
+
+#[tokio::test]
+async fn detects_strict_sqlite_tables() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("strict.db");
+    std::fs::File::create(&path).unwrap();
+    let pool = get_sqlite_pool(&sqlite_params(&path)).await.unwrap();
+    sqlx::query("CREATE TABLE plain_any (v ANY)").execute(&pool).await.unwrap();
+    sqlx::query("CREATE TABLE strict_any (v ANY) STRICT").execute(&pool).await.unwrap();
+
+    assert!(sqlite::is_strict_table(&pool, "strict_any").await);
+    assert!(sqlite::is_strict_table(&pool, "STRICT_ANY").await);
+    assert!(!sqlite::is_strict_table(&pool, "plain_any").await);
+    assert!(!sqlite::is_strict_table(&pool, "missing").await);
+}

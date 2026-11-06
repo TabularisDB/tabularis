@@ -194,14 +194,59 @@ fn implicit_coercions_are_refused() {
 
 #[test]
 fn sqlite_declared_types_follow_affinity_rules() {
-    assert_eq!(classify_sqlite_target("BIGINT"), SqliteTarget::Integer);
-    assert_eq!(classify_sqlite_target("VARCHAR(20)"), SqliteTarget::Text);
-    assert_eq!(classify_sqlite_target("DOUBLE PRECISION"), SqliteTarget::Real);
-    assert_eq!(classify_sqlite_target("DECIMAL(10,2)"), SqliteTarget::Numeric);
-    assert_eq!(classify_sqlite_target(""), SqliteTarget::Untyped);
-    assert_eq!(classify_sqlite_target("BLOB"), SqliteTarget::Blob);
-    assert_eq!(classify_sqlite_target("DATETIME"), SqliteTarget::Temporal);
-    assert_eq!(classify_sqlite_target("BOOLEAN"), SqliteTarget::Bool);
+    assert_eq!(classify_sqlite_target("BIGINT", false), SqliteTarget::Integer);
+    assert_eq!(classify_sqlite_target("VARCHAR(20)", false), SqliteTarget::Text);
+    assert_eq!(classify_sqlite_target("DOUBLE PRECISION", false), SqliteTarget::Real);
+    assert_eq!(classify_sqlite_target("DECIMAL(10,2)", false), SqliteTarget::Numeric);
+    assert_eq!(classify_sqlite_target("", false), SqliteTarget::Untyped);
+    assert_eq!(classify_sqlite_target("BLOB", false), SqliteTarget::Blob);
+    assert_eq!(classify_sqlite_target("DATETIME", false), SqliteTarget::Temporal);
+    assert_eq!(classify_sqlite_target("BOOLEAN", false), SqliteTarget::Bool);
+}
+
+#[test]
+fn any_is_untyped_only_on_strict_tables() {
+    assert_eq!(classify_sqlite_target("ANY", false), SqliteTarget::Numeric);
+    assert_eq!(classify_sqlite_target(" any ", false), SqliteTarget::Numeric);
+    assert_eq!(classify_sqlite_target("ANY", true), SqliteTarget::Untyped);
+    assert_eq!(classify_sqlite_target("", false), SqliteTarget::Untyped);
+    assert_eq!(classify_sqlite_target("", true), SqliteTarget::Untyped);
+    assert_eq!(classify_sqlite_target("TEXT", true), SqliteTarget::Text);
+    assert_eq!(classify_sqlite_target("DECIMAL(10,2)", true), SqliteTarget::Numeric);
+}
+
+fn plan_into_any(source_type: &str, strict: bool) -> PlannedTable {
+    let source = [column("v", source_type)];
+    let target = [column("v", "ANY")];
+    build_table_plan(&PlanInputs {
+        selection: &selection(vec![]),
+        source_columns: &source,
+        target_columns: &target,
+        target_dialect: TransferDialect::Sqlite,
+        target_strict: strict,
+        estimated_rows: None,
+        same_table: false,
+    })
+}
+
+#[test]
+fn decimal_into_ordinary_any_is_checked_not_exact() {
+    let ordinary = plan_into_any("numeric", false);
+    assert!(!ordinary.plan.blocking, "{:?}", ordinary.plan.issues);
+    assert_eq!(ordinary.bindings[0].conversion.op, Op::DecimalToNumeric);
+    assert_eq!(ordinary.bindings[0].conversion.rule, ConversionRule::Checked);
+
+    let strict = plan_into_any("numeric", true);
+    assert_eq!(strict.bindings[0].conversion.op, Op::Copy);
+    assert_eq!(strict.bindings[0].conversion.rule, ConversionRule::Exact);
+}
+
+#[test]
+fn text_into_ordinary_any_is_refused_but_allowed_on_strict() {
+    let ordinary = plan_into_any("text", false);
+    assert_eq!(codes(&ordinary), vec!["incompatibleTypes"]);
+    let strict = plan_into_any("text", true);
+    assert!(!strict.plan.blocking, "{:?}", strict.plan.issues);
 }
 
 fn selection(columns: Vec<(&str, Option<&str>)>) -> TableSelection {
@@ -229,6 +274,7 @@ fn plan(
         source_columns: source,
         target_columns: target,
         target_dialect: dialect,
+        target_strict: false,
         estimated_rows: None,
         same_table: false,
     })
@@ -301,6 +347,7 @@ fn plan_never_creates_tables_and_rejects_same_table() {
         source_columns: &source,
         target_columns: &source,
         target_dialect: TransferDialect::Postgres,
+        target_strict: false,
         estimated_rows: None,
         same_table: true,
     });

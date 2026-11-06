@@ -104,10 +104,10 @@ pub fn classify_pg_target(column: &TableColumn) -> Option<PgTarget> {
     })
 }
 
-pub fn classify_sqlite_target(declared: &str) -> SqliteTarget {
+pub fn classify_sqlite_target(declared: &str, strict: bool) -> SqliteTarget {
     let t = declared.trim().to_ascii_uppercase();
     let has = |needles: &[&str]| needles.iter().any(|n| t.contains(n));
-    if t.is_empty() || t == "ANY" {
+    if t.is_empty() || (t == "ANY" && strict) {
         SqliteTarget::Untyped
     } else if has(&["BOOL"]) {
         SqliteTarget::Bool
@@ -128,11 +128,16 @@ pub fn classify_sqlite_target(declared: &str) -> SqliteTarget {
     }
 }
 
-pub fn classify_target(dialect: TransferDialect, column: &TableColumn) -> Option<TargetType> {
+pub fn classify_target(
+    dialect: TransferDialect,
+    column: &TableColumn,
+    target_strict: bool,
+) -> Option<TargetType> {
     match dialect {
         TransferDialect::Postgres => classify_pg_target(column).map(TargetType::Pg),
         TransferDialect::Sqlite => Some(TargetType::Sqlite(classify_sqlite_target(
             &column.data_type,
+            target_strict,
         ))),
     }
 }

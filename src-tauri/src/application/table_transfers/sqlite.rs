@@ -15,6 +15,19 @@ fn describe_error(error: sqlx::Error) -> String {
     }
 }
 
+pub(super) async fn is_strict_table(pool: &Pool<Sqlite>, table: &str) -> bool {
+    sqlx::query_scalar::<_, i64>(
+        "SELECT strict FROM pragma_table_list WHERE schema = 'main' AND type = 'table' \
+         AND name = ? COLLATE NOCASE",
+    )
+    .bind(table)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+    .is_some_and(|strict| strict != 0)
+}
+
 fn insert_sql(table: &str, bindings: &[ColumnBinding], rows: usize, conflict: ConflictMode) -> String {
     let columns: Vec<String> = bindings.iter().map(|b| quote(&b.target_column)).collect();
     let tuple = format!("({})", vec!["?"; bindings.len()].join(", "));

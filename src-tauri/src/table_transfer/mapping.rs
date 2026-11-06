@@ -8,6 +8,7 @@ pub struct PlanInputs<'a> {
     pub source_columns: &'a [TableColumn],
     pub target_columns: &'a [TableColumn],
     pub target_dialect: TransferDialect,
+    pub target_strict: bool,
     pub estimated_rows: Option<i64>,
     pub same_table: bool,
 }
@@ -123,7 +124,7 @@ pub fn build_table_plan(inputs: &PlanInputs<'_>) -> PlannedTable {
         } else if target.is_generated {
             fail(&mut plan, &mut issues, "targetColumnGenerated", &target.name);
         } else if let Some(kind) = classify_source(source) {
-            match classify_target(inputs.target_dialect, target) {
+            match classify_target(inputs.target_dialect, target, inputs.target_strict) {
                 None => fail(&mut plan, &mut issues, "unsupportedTargetType", &source.name),
                 Some(target_type) => match plan_conversion(kind, &target_type) {
                     Err(code) => fail(&mut plan, &mut issues, code, &source.name),
