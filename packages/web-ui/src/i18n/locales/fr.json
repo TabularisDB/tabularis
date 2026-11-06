@@ -111,6 +111,52 @@
     "beta": "Bêta",
     "dismiss": "Fermer"
   },
+  "linkedFolders": {
+    "tab": "Fichiers SQL",
+    "chooseTitle": "Choisir un dossier de scripts SQL",
+    "link": "Lier un dossier",
+    "refresh": "Actualiser Fichiers SQL",
+    "empty": "Liez un dossier pour parcourir ses scripts SQL.",
+    "needsConnection": "Connectez-vous à une base de données avant d'ouvrir un fichier SQL.",
+    "linkError": "Impossible de lier le dossier",
+    "unlinkError": "Impossible de délier le dossier",
+    "unlink": "Délier {{name}}",
+    "rootUnavailable": "Indisponible",
+    "fileUnsaved": "{{name}} (modifications non enregistrées)",
+    "unavailableTitle": "Les Fichiers SQL ne sont pas disponibles ici",
+    "unavailableMessage": "Lier un dossier local nécessite l'application de bureau. Dans le navigateur, utilisez Ouvrir un fichier SQL pour importer un fichier.",
+    "status": {
+      "loading": "Chargement…",
+      "empty": "Aucun fichier SQL",
+      "truncated": "Seules les premières entrées sont affichées"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "La liste enregistrée des dossiers liés est illisible. Corrigez ou supprimez linked_folders.json dans le dossier de configuration.",
+      "linked_folder_not_found": "Ce dossier lié n'est plus dans votre liste.",
+      "linked_folder_unavailable": "Le dossier est introuvable ou illisible.",
+      "linked_folder_limit_reached": "Nombre maximal de dossiers liés atteint. Déliez-en un d'abord.",
+      "linked_path_outside_root": "Le chemin est en dehors du dossier lié.",
+      "linked_path_not_sql_file": "Seuls les fichiers .sql, .psql et .pgsql peuvent être ouverts ici.",
+      "linked_directory_unreadable": "Ce dossier est illisible.",
+      "linked_file_unreadable": "Ce fichier est illisible. Il est peut-être absent, trop volumineux ou non UTF-8.",
+      "linked_file_conflict_modified": "Le fichier a changé sur le disque.",
+      "linked_file_conflict_missing": "Le fichier n'existe plus sur le disque."
+    },
+    "conflict": {
+      "reload": "Recharger depuis le disque",
+      "saveAs": "Enregistrer une copie…",
+      "modified": {
+        "title": "Fichier modifié sur le disque",
+        "message": "{{name}} a été modifié en dehors de Tabularis depuis son ouverture ou son dernier enregistrement. Rien n'a été écrit. Écrasez le fichier avec votre version, enregistrez-la en copie ou rechargez la version du disque en abandonnant vos modifications.",
+        "overwrite": "Écraser le fichier"
+      },
+      "missing": {
+        "title": "Fichier introuvable sur le disque",
+        "message": "{{name}} a été supprimé ou déplacé en dehors de Tabularis. Vos modifications restent dans l'éditeur. Recréez le fichier avec votre version ou enregistrez-la en copie ailleurs.",
+        "overwrite": "Recréer le fichier"
+      }
+    }
+  },
   "sidebar": {
     "connections": "Connexions",
     "settings": "Paramètres",

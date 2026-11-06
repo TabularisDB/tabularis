@@ -111,6 +111,52 @@
     "beta": "Beta",
     "dismiss": "Cerrar"
   },
+  "linkedFolders": {
+    "tab": "Archivos SQL",
+    "chooseTitle": "Elige una carpeta de scripts SQL",
+    "link": "Vincular carpeta",
+    "refresh": "Actualizar Archivos SQL",
+    "empty": "Vincula una carpeta para explorar sus scripts SQL.",
+    "needsConnection": "Conéctate a una base de datos antes de abrir un archivo SQL.",
+    "linkError": "No se pudo vincular la carpeta",
+    "unlinkError": "No se pudo desvincular la carpeta",
+    "unlink": "Desvincular {{name}}",
+    "rootUnavailable": "No disponible",
+    "fileUnsaved": "{{name}} (cambios sin guardar)",
+    "unavailableTitle": "Los Archivos SQL no están disponibles aquí",
+    "unavailableMessage": "Vincular una carpeta local requiere la aplicación de escritorio. En el navegador, usa Abrir archivo SQL para importar un archivo.",
+    "status": {
+      "loading": "Cargando…",
+      "empty": "Sin archivos SQL",
+      "truncated": "Solo se muestran las primeras entradas"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "No se pudo leer la lista guardada de carpetas vinculadas. Corrige o elimina linked_folders.json en la carpeta de configuración.",
+      "linked_folder_not_found": "Esta carpeta vinculada ya no está en tu lista.",
+      "linked_folder_unavailable": "La carpeta no existe o no se puede leer.",
+      "linked_folder_limit_reached": "Se alcanzó el máximo de carpetas vinculadas. Desvincula una primero.",
+      "linked_path_outside_root": "La ruta está fuera de la carpeta vinculada.",
+      "linked_path_not_sql_file": "Aquí solo se pueden abrir archivos .sql, .psql y .pgsql.",
+      "linked_directory_unreadable": "No se puede leer esta carpeta.",
+      "linked_file_unreadable": "No se puede leer este archivo. Puede faltar, ser demasiado grande o no ser UTF-8.",
+      "linked_file_conflict_modified": "El archivo cambió en el disco.",
+      "linked_file_conflict_missing": "El archivo ya no existe en el disco."
+    },
+    "conflict": {
+      "reload": "Recargar desde el disco",
+      "saveAs": "Guardar como copia…",
+      "modified": {
+        "title": "Archivo modificado en el disco",
+        "message": "{{name}} se modificó fuera de Tabularis desde que lo abriste o guardaste por última vez. No se escribió nada. Sobrescribe el archivo con tu versión, guárdala como copia o recarga la versión del disco y descarta tus cambios.",
+        "overwrite": "Sobrescribir archivo"
+      },
+      "missing": {
+        "title": "Archivo no encontrado en el disco",
+        "message": "{{name}} se eliminó o movió fuera de Tabularis. Tus cambios siguen en el editor. Recrea el archivo con tu versión o guárdalo como copia en otro lugar.",
+        "overwrite": "Recrear archivo"
+      }
+    }
+  },
   "sidebar": {
     "connections": "Conexiones",
     "settings": "Configuración",

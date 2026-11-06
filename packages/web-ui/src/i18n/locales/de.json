@@ -111,6 +111,52 @@
     "beta": "Beta",
     "dismiss": "Schließen"
   },
+  "linkedFolders": {
+    "tab": "SQL-Dateien",
+    "chooseTitle": "Ordner mit SQL-Skripten wählen",
+    "link": "Ordner verknüpfen",
+    "refresh": "SQL-Dateien aktualisieren",
+    "empty": "Verknüpfe einen Ordner, um seine SQL-Skripte zu durchsuchen.",
+    "needsConnection": "Verbinde dich mit einer Datenbank, bevor du eine SQL-Datei öffnest.",
+    "linkError": "Ordner konnte nicht verknüpft werden",
+    "unlinkError": "Verknüpfung konnte nicht aufgehoben werden",
+    "unlink": "{{name}} trennen",
+    "rootUnavailable": "Nicht verfügbar",
+    "fileUnsaved": "{{name}} (ungespeicherte Änderungen)",
+    "unavailableTitle": "SQL-Dateien sind hier nicht verfügbar",
+    "unavailableMessage": "Das Verknüpfen eines lokalen Ordners erfordert die Desktop-App. Importiere im Browser eine Datei über SQL-Datei öffnen.",
+    "status": {
+      "loading": "Wird geladen…",
+      "empty": "Keine SQL-Dateien",
+      "truncated": "Nur die ersten Einträge werden angezeigt"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "Die gespeicherte Liste verknüpfter Ordner ist nicht lesbar. Korrigiere oder entferne linked_folders.json im Konfigurationsordner.",
+      "linked_folder_not_found": "Dieser verknüpfte Ordner ist nicht mehr in deiner Liste.",
+      "linked_folder_unavailable": "Der Ordner fehlt oder ist nicht lesbar.",
+      "linked_folder_limit_reached": "Maximale Anzahl verknüpfter Ordner erreicht. Trenne zuerst einen.",
+      "linked_path_outside_root": "Der Pfad liegt außerhalb des verknüpften Ordners.",
+      "linked_path_not_sql_file": "Hier können nur .sql-, .psql- und .pgsql-Dateien geöffnet werden.",
+      "linked_directory_unreadable": "Dieser Ordner ist nicht lesbar.",
+      "linked_file_unreadable": "Diese Datei ist nicht lesbar. Sie fehlt, ist zu groß oder nicht UTF-8.",
+      "linked_file_conflict_modified": "Die Datei hat sich auf dem Datenträger geändert.",
+      "linked_file_conflict_missing": "Die Datei existiert nicht mehr auf dem Datenträger."
+    },
+    "conflict": {
+      "reload": "Vom Datenträger neu laden",
+      "saveAs": "Als Kopie speichern…",
+      "modified": {
+        "title": "Datei auf dem Datenträger geändert",
+        "message": "{{name}} wurde außerhalb von Tabularis geändert, seit du die Datei geöffnet oder zuletzt gespeichert hast. Es wurde nichts geschrieben. Überschreibe die Datei mit deiner Version, speichere sie als Kopie oder lade die Version vom Datenträger und verwirf deine Änderungen.",
+        "overwrite": "Datei überschreiben"
+      },
+      "missing": {
+        "title": "Datei fehlt auf dem Datenträger",
+        "message": "{{name}} wurde außerhalb von Tabularis gelöscht oder verschoben. Deine Änderungen bleiben im Editor erhalten. Erstelle die Datei mit deiner Version neu oder speichere sie als Kopie an anderer Stelle.",
+        "overwrite": "Datei neu erstellen"
+      }
+    }
+  },
   "sidebar": {
     "connections": "Verbindungen",
     "settings": "Einstellungen",
