@@ -164,6 +164,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
+| `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL sets this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
 
 For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
 
@@ -868,7 +869,7 @@ Your plugin must run an event loop that:
 
 The `params.params` object is a `ConnectionParams` — the same values the user entered in the connection form. The top-level `params` may contain additional method-specific fields (e.g., `schema`, `table`, `column_name`, etc.).
 
-Optional settings appear only when the user set them. For example, `connect_timeout_secs` is the number of seconds to wait for a new connection. A plugin that supports a connect timeout should honor it and use its own default when it is absent.
+Optional settings appear only when the user set them. For example, `connect_timeout_secs` is the number of seconds to wait for a new connection. A plugin that supports a connect timeout should honor it and use its own default when it is absent. Likewise, `query_timeout_secs` is the number of seconds a statement may run; 0 or absent means no limit. Declare `capabilities.query_timeout: true` only when the plugin can cancel a running statement and will stop it on the server once the limit passes; the connection modal shows the field solely for that capability.
 
 ### Successful Response
 

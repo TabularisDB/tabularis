@@ -61,6 +61,10 @@ export interface DriverCapabilities {
      * Defaults to false: SQL-compatible drivers (see `speaksGenericSql`) keep the
      * host's generic SQL, the others don't show the menu entry. */
     column_stats?: boolean;
+    /** Honours query_timeout_secs: the driver stops a statement on the server
+     * once the limit passes. Shows the query-timeout field in the connection
+     * modal. Built-in PostgreSQL sets this; plugins opt in. Defaults to false. */
+    query_timeout?: boolean;
     // DDL capabilities (optional, default to false when not present)
     alter_column?: boolean;
     create_foreign_keys?: boolean;

@@ -97,6 +97,14 @@ pub(crate) fn connect_timeout(params: &ConnectionParams) -> Option<Duration> {
         .map(|secs| Duration::from_secs(secs.into()))
 }
 
+/// The per-connection query timeout, or None when unset or 0.
+pub(crate) fn query_timeout(params: &ConnectionParams) -> Option<Duration> {
+    params
+        .query_timeout_secs
+        .filter(|secs| *secs > 0)
+        .map(|secs| Duration::from_secs(secs.into()))
+}
+
 /// Runs a connection attempt, failing once the connection's connect timeout
 /// passes. Without one, the attempt runs unbounded as before.
 pub(crate) async fn with_connect_timeout<T>(

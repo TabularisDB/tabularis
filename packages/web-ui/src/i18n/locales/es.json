@@ -1367,6 +1367,8 @@
     "selectTypeFirst": "Selecciona primero contexto/namespace/tipo",
     "useK8s": "Usar Port-Forward de Kubernetes",
     "useK8sConnection": "Conexión guardada",
+    "queryTimeout": "Tiempo límite de consulta (segundos)",
+    "queryTimeoutHint": "Detiene una consulta en el servidor cuando lleva este tiempo en ejecución. Déjalo vacío para no poner límite.",
     "startupScript": "Script de inicio",
     "startupScriptDescription": "SQL que se ejecuta en cada nueva conexión a esta fuente de datos. Úsalo para ajustes de sesión como SET / set_config (p. ej., para omitir RLS). Separa las sentencias con punto y coma.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
