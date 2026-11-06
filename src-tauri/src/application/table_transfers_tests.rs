@@ -425,3 +425,20 @@ async fn plan_blocks_a_missing_target_table_and_never_creates_it() {
     assert!(target.drv.get_columns(&target.params, "dst", None).await.unwrap().is_empty());
     pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
 }
+
+#[tokio::test]
+async fn a_transfer_cancelled_before_it_starts_copies_nothing() {
+    let schema = "tt_precancel";
+    let Some(_fixture) = seed_source(schema).await else {
+        return;
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("target.db");
+    let target = sqlite_target(&path, SQLITE_DDL).await;
+    let (result, _, _) =
+        job(schema, target, ConflictMode::Fail, Arc::new(AtomicBool::new(true)), None).await;
+    assert_eq!(result.status, TransferStatus::Cancelled);
+    assert_eq!(result.tables[0].status, TransferStatus::NotStarted);
+    assert_eq!(sqlite_count(&path).await, 0);
+    pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
+}

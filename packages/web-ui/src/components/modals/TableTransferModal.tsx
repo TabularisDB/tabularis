@@ -235,6 +235,7 @@ export const TableTransferModal = ({
         } catch (failure) {
             setError(String(failure));
             setTransferId(null);
+            setStep('review');
         }
     };
 

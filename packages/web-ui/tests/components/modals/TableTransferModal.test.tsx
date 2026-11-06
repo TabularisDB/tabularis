@@ -213,4 +213,12 @@ describe('TableTransferModal', () => {
         expect(await screen.findByText('tableTransfer.status.cancelled')).toBeInTheDocument();
         expect(screen.getByText('tableTransfer.committedRemain')).toBeInTheDocument();
     });
+
+    it('returns to the review step with the error when the run request fails', async () => {
+        setup(okPlan(), Promise.reject(new Error('connection lost')));
+        await reachReview();
+        fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.start'}));
+        expect(await screen.findByText(/connection lost/)).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'tableTransfer.start'})).toBeEnabled();
+    });
 });

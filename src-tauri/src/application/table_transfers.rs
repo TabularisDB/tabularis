@@ -305,11 +305,8 @@ pub async fn run(
     let transfer_id = non_empty(request.transfer_id.as_ref())
         .ok_or_else(|| "A transfer id is required".to_string())?
         .to_string();
-    // The plan is rebuilt here: a client-supplied plan is never trusted.
-    let resolved = resolve(runtime, session_id, &request).await?;
-    if resolved.blocking() {
-        return Err("The transfer plan has blocking issues. Review the plan before starting".to_string());
-    }
+    // Register before planning: resolving opens pools and reads metadata, and a
+    // cancel (or a closed browser session) arriving meanwhile must still count.
     let flag = Arc::new(AtomicBool::new(false));
     let key = transfer_key(session_id, &transfer_id);
     {
@@ -320,6 +317,11 @@ pub async fn run(
         flags.insert(key.clone(), flag.clone());
     }
     let _registration = Registration { state: state.table_transfers.clone(), key, flag: flag.clone() };
+    // The plan is rebuilt here: a client-supplied plan is never trusted.
+    let resolved = resolve(runtime, session_id, &request).await?;
+    if resolved.blocking() {
+        return Err("The transfer plan has blocking issues. Review the plan before starting".to_string());
+    }
     let job = Job {
         runtime: runtime.clone(),
         session_id,
@@ -351,6 +353,9 @@ async fn run_job(job: Job, tables: Vec<PlannedTable>) -> TableTransferResult {
             rows_failed: 0,
             error: None,
         };
+        if stopped.is_none() && job.cancel.load(Ordering::SeqCst) {
+            stopped = Some(TransferStatus::Cancelled);
+        }
         if stopped.is_none() {
             result.status = TransferStatus::Running;
             emit(&job, index, planned, &result);
