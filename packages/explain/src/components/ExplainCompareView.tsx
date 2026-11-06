@@ -1,4 +1,4 @@
-import {useState, useMemo} from 'react';
+import {useState, useMemo, useRef} from 'react';
 import {useTranslation} from 'react-i18next';
 import {
     AlertTriangle,
@@ -15,9 +15,10 @@ import {
     Pin,
     Plus,
     Trash2,
+    Upload,
 } from 'lucide-react';
 import type {ExplainPlan} from '../types';
-import type {ExplainSnapshot} from '../snapshot';
+import {deserializeExplainSnapshot, type ExplainSnapshot} from '../snapshot';
 import {
     compareExplainPlans,
     type ExplainAlignedNode,
@@ -36,6 +37,7 @@ export interface ExplainCompareViewProps {
     onDeleteSnapshot?: (id: string) => void;
     onTogglePinSnapshot?: (id: string) => void;
     onExportSnapshot?: (id: string) => void;
+    onImportSnapshot?: (snapshot: ExplainSnapshot) => void;
 }
 
 export function ExplainCompareView({
@@ -48,6 +50,7 @@ export function ExplainCompareView({
     onDeleteSnapshot,
     onTogglePinSnapshot,
     onExportSnapshot,
+    onImportSnapshot,
 }: ExplainCompareViewProps) {
     const {t} = useTranslation();
     const [subTab, setSubTab] = useState<'operators' | 'raw' | 'snapshots'>('operators');
@@ -132,12 +135,26 @@ export function ExplainCompareView({
                         <span className="text-muted font-medium">
                             {t('editor.visualExplain.compare.baseline', 'Baseline')}:
                         </span>
-                        {snapshots.length > 1 && onSelectBaseline ? (
+                        {snapshots.length > 0 && onSelectBaseline ? (
                             <select
                                 value={baselineSnapshot?.id ?? ''}
                                 onChange={(e) => onSelectBaseline(e.target.value)}
+                                aria-label={t(
+                                    'editor.visualExplain.compare.selectBaseline',
+                                    'Select baseline plan',
+                                )}
                                 className="bg-surface border border-default text-primary rounded px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
                             >
+                                {!snapshots.some((s) => s.id === baselineSnapshot?.id) && (
+                                    <option value="">
+                                        {baselineSnapshot?.title ??
+                                            baselineName ??
+                                            t(
+                                                'editor.visualExplain.compare.unnamedBaseline',
+                                                'Baseline Plan',
+                                            )}
+                                    </option>
+                                )}
                                 {snapshots.map((snap) => (
                                     <option key={snap.id} value={snap.id}>
                                         {snap.title} ({snap.context.engine.toUpperCase()})
@@ -279,6 +296,7 @@ export function ExplainCompareView({
                         onDelete={onDeleteSnapshot}
                         onTogglePin={onTogglePinSnapshot}
                         onExport={onExportSnapshot}
+                        onImport={onImportSnapshot}
                     />
                 ) : (
                     <div className="p-4 space-y-4">
@@ -688,6 +706,7 @@ function SnapshotsListView({
     onDelete,
     onTogglePin,
     onExport,
+    onImport,
 }: {
     snapshots: readonly ExplainSnapshot[];
     currentBaselineId?: string;
@@ -695,124 +714,211 @@ function SnapshotsListView({
     onDelete?: (id: string) => void;
     onTogglePin?: (id: string) => void;
     onExport?: (id: string) => void;
+    onImport?: (snapshot: ExplainSnapshot) => void;
 }) {
     const {t} = useTranslation();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    if (snapshots.length === 0) {
-        return (
-            <div className="p-8 text-center text-muted">
-                {t('editor.visualExplain.compare.noSnapshotsSaved', 'No snapshots saved yet')}
-            </div>
-        );
-    }
+    const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const text = event.target?.result;
+                if (typeof text === 'string') {
+                    const snap = deserializeExplainSnapshot(text);
+                    onImport?.(snap);
+                }
+            } catch (err) {
+                console.error('Failed to import explain snapshot:', err);
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
 
     return (
         <div className="p-4 max-w-4xl mx-auto space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-default">
-                <span className="font-semibold text-primary">
-                    {t('editor.visualExplain.compare.savedSnapshots', 'Saved Snapshots')} (
-                    {snapshots.length})
-                </span>
-                <span className="text-muted text-[11px]">
-                    {t(
-                        'editor.visualExplain.compare.pinHint',
-                        'Pinned snapshots are exempt from retention limits',
-                    )}
-                </span>
-            </div>
+                <div className="flex items-center gap-3">
+                    <span className="font-semibold text-primary">
+                        {t('editor.visualExplain.compare.savedSnapshots', 'Saved Snapshots')} (
+                        {snapshots.length})
+                    </span>
+                    <span className="text-muted text-[11px]">
+                        {t(
+                            'editor.visualExplain.compare.pinHint',
+                            'Pinned snapshots are exempt from retention limits',
+                        )}
+                    </span>
+                </div>
 
-            <div className="space-y-2">
-                {snapshots.map((snap) => {
-                    const isCurrent = snap.id === currentBaselineId;
-                    return (
-                        <div
-                            key={snap.id}
-                            className={`flex items-center justify-between p-3 rounded border transition-colors ${
-                                isCurrent
-                                    ? 'border-blue-500/60 bg-blue-950/20'
-                                    : 'border-default bg-surface hover:bg-surface-secondary/40'
-                            }`}
+                {onImport && (
+                    <div>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            accept=".json,application/json"
+                            className="hidden"
+                            onChange={handleFileInputChange}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded border border-default bg-surface hover:bg-surface-secondary text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                            title={t(
+                                'editor.visualExplain.compare.importSnapshot',
+                                'Import snapshot JSON',
+                            )}
+                            aria-label={t(
+                                'editor.visualExplain.compare.importSnapshot',
+                                'Import snapshot JSON',
+                            )}
                         >
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-semibold text-primary truncate">
-                                        {snap.title}
-                                    </span>
-                                    {isCurrent && (
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/50 text-blue-300">
-                                            Active Baseline
-                                        </span>
-                                    )}
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-surface-secondary text-muted">
-                                        {snap.context.engine}
-                                    </span>
-                                </div>
-                                <div className="text-muted text-[11px] truncate font-mono">
-                                    {snap.sql}
-                                </div>
-                                <div className="text-muted text-[10px] mt-1">
-                                    {new Date(snap.createdAt).toLocaleString()} ·{' '}
-                                    {snap.context.database ?? 'default db'}
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 ml-4 shrink-0">
-                                {onTogglePin && (
-                                    <button
-                                        type="button"
-                                        onClick={() => onTogglePin(snap.id)}
-                                        className={`p-1.5 rounded transition-colors ${
-                                            snap.isPinned
-                                                ? 'text-yellow-400 bg-yellow-950/30'
-                                                : 'text-muted hover:text-primary'
-                                        }`}
-                                        title={snap.isPinned ? 'Unpin snapshot' : 'Pin snapshot'}
-                                        aria-label={
-                                            snap.isPinned ? 'Unpin snapshot' : 'Pin snapshot'
-                                        }
-                                    >
-                                        <Pin
-                                            size={14}
-                                            className={snap.isPinned ? 'fill-yellow-400' : ''}
-                                        />
-                                    </button>
-                                )}
-                                {!isCurrent && onSelectBaseline && (
-                                    <button
-                                        type="button"
-                                        onClick={() => onSelectBaseline(snap.id)}
-                                        className="px-2.5 py-1 text-xs rounded border border-default bg-surface hover:bg-surface-secondary text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
-                                    >
-                                        Set as baseline
-                                    </button>
-                                )}
-                                {onExport && (
-                                    <button
-                                        type="button"
-                                        onClick={() => onExport(snap.id)}
-                                        className="p-1.5 rounded text-muted hover:text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
-                                        title="Export snapshot JSON"
-                                        aria-label="Export snapshot JSON"
-                                    >
-                                        <Download size={14} />
-                                    </button>
-                                )}
-                                {onDelete && (
-                                    <button
-                                        type="button"
-                                        onClick={() => onDelete(snap.id)}
-                                        className="p-1.5 rounded text-muted hover:text-red-400 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
-                                        title="Delete snapshot"
-                                        aria-label="Delete snapshot"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
+                            <Upload size={12} />
+                            <span>
+                                {t('editor.visualExplain.compare.importSnapshot', 'Import JSON')}
+                            </span>
+                        </button>
+                    </div>
+                )}
             </div>
+
+            {snapshots.length === 0 ? (
+                <div className="p-8 text-center text-muted">
+                    {t('editor.visualExplain.compare.noSnapshotsSaved', 'No snapshots saved yet')}
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    {snapshots.map((snap) => {
+                        const isCurrent = snap.id === currentBaselineId;
+                        return (
+                            <div
+                                key={snap.id}
+                                className={`flex items-center justify-between p-3 rounded border transition-colors ${
+                                    isCurrent
+                                        ? 'border-blue-500/60 bg-blue-950/20'
+                                        : 'border-default bg-surface hover:bg-surface-secondary/40'
+                                }`}
+                            >
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-semibold text-primary truncate">
+                                            {snap.title}
+                                        </span>
+                                        {isCurrent && (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/50 text-blue-300">
+                                                {t(
+                                                    'editor.visualExplain.compare.activeBaseline',
+                                                    'Active Baseline',
+                                                )}
+                                            </span>
+                                        )}
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-surface-secondary text-muted">
+                                            {snap.context.engine}
+                                        </span>
+                                    </div>
+                                    <div className="text-muted text-[11px] truncate font-mono">
+                                        {snap.sql}
+                                    </div>
+                                    <div className="text-muted text-[10px] mt-1">
+                                        {new Date(snap.createdAt).toLocaleString()} ·{' '}
+                                        {snap.context.database ?? 'default db'}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 ml-4 shrink-0">
+                                    {onTogglePin && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onTogglePin(snap.id)}
+                                            className={`p-1.5 rounded transition-colors ${
+                                                snap.isPinned
+                                                    ? 'text-yellow-400 bg-yellow-950/30'
+                                                    : 'text-muted hover:text-primary'
+                                            }`}
+                                            title={
+                                                snap.isPinned
+                                                    ? t(
+                                                          'editor.visualExplain.compare.unpinSnapshot',
+                                                          'Unpin snapshot',
+                                                      )
+                                                    : t(
+                                                          'editor.visualExplain.compare.pinSnapshot',
+                                                          'Pin snapshot',
+                                                      )
+                                            }
+                                            aria-label={
+                                                snap.isPinned
+                                                    ? t(
+                                                          'editor.visualExplain.compare.unpinSnapshot',
+                                                          'Unpin snapshot',
+                                                      )
+                                                    : t(
+                                                          'editor.visualExplain.compare.pinSnapshot',
+                                                          'Pin snapshot',
+                                                      )
+                                            }
+                                        >
+                                            <Pin
+                                                size={14}
+                                                className={snap.isPinned ? 'fill-yellow-400' : ''}
+                                            />
+                                        </button>
+                                    )}
+                                    {!isCurrent && onSelectBaseline && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onSelectBaseline(snap.id)}
+                                            className="px-2.5 py-1 text-xs rounded border border-default bg-surface hover:bg-surface-secondary text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                                        >
+                                            {t(
+                                                'editor.visualExplain.compare.setAsBaseline',
+                                                'Set as baseline',
+                                            )}
+                                        </button>
+                                    )}
+                                    {onExport && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onExport(snap.id)}
+                                            className="p-1.5 rounded text-muted hover:text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                                            title={t(
+                                                'editor.visualExplain.compare.exportSnapshot',
+                                                'Export snapshot JSON',
+                                            )}
+                                            aria-label={t(
+                                                'editor.visualExplain.compare.exportSnapshot',
+                                                'Export snapshot JSON',
+                                            )}
+                                        >
+                                            <Download size={14} />
+                                        </button>
+                                    )}
+                                    {onDelete && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onDelete(snap.id)}
+                                            className="p-1.5 rounded text-muted hover:text-red-400 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                                            title={t(
+                                                'editor.visualExplain.compare.deleteSnapshot',
+                                                'Delete snapshot',
+                                            )}
+                                            aria-label={t(
+                                                'editor.visualExplain.compare.deleteSnapshot',
+                                                'Delete snapshot',
+                                            )}
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }

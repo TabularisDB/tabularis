@@ -3,7 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {Download, Loader2} from 'lucide-react';
 import {MonacoEditor} from '@/components/ui/LazyMonaco';
 import type * as monaco from 'monaco-editor';
-import type {ExplainPlan, ExplainTableColumnId} from '@tabularis/explain';
+import type {ExplainPlan, ExplainSnapshot, ExplainTableColumnId} from '@tabularis/explain';
 import {
     computeExplainMetrics,
     createExplainSnapshot,
@@ -207,10 +207,10 @@ export const VisualExplainView = ({
         const newSnap = createExplainSnapshot({
             sql: sql || plan.original_query || 'EXPLAIN',
             context: {
-                connectionId,
-                database,
-                schema,
-                engine: plan.driver,
+                connectionId: connectionId || 'default',
+                database: database ?? null,
+                schema: schema ?? null,
+                engine: plan.driver || 'unknown',
             },
             plan,
         });
@@ -222,6 +222,22 @@ export const VisualExplainView = ({
             {kind: 'success'},
         );
     }, [plan, sql, connectionId, database, schema, snapshots, setStoredSnapshots, showToast, t]);
+
+    const handleImportSnapshot = useCallback(
+        (imported: ExplainSnapshot) => {
+            const updated = addExplainSnapshot(snapshots, imported);
+            setStoredSnapshots(updated);
+            setActiveBaselineId(imported.id);
+            showToast(
+                t(
+                    'editor.visualExplain.compare.snapshotImported',
+                    'Snapshot imported successfully',
+                ),
+                {kind: 'success'},
+            );
+        },
+        [snapshots, setStoredSnapshots, showToast, t],
+    );
 
     const handleDeleteSnapshot = useCallback(
         (id: string) => {
@@ -357,6 +373,7 @@ export const VisualExplainView = ({
                             onDeleteSnapshot={handleDeleteSnapshot}
                             onTogglePinSnapshot={handleTogglePinSnapshot}
                             onExportSnapshot={handleExportSnapshot}
+                            onImportSnapshot={handleImportSnapshot}
                         />
                     ) : (
                         <div className="flex h-full">

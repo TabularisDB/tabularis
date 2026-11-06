@@ -1948,7 +1948,16 @@
         "pinHint": "Instantâneos fixados estão isentos de retenção",
         "noSnapshotsSaved": "Nenhum instantâneo salvo ainda",
         "snapshotSaved": "Instantâneo salvo como referência",
-        "snapshotDeleted": "Instantâneo excluído"
+        "snapshotDeleted": "Instantâneo excluído",
+        "selectBaseline": "Selecionar plano de referência",
+        "activeBaseline": "Referência ativa",
+        "setAsBaseline": "Definir como referência",
+        "deleteSnapshot": "Excluir instantâneo",
+        "unpinSnapshot": "Desafixar instantâneo",
+        "pinSnapshot": "Fixar instantâneo",
+        "exportSnapshot": "Exportar JSON",
+        "importSnapshot": "Importar JSON",
+        "snapshotImported": "Instantâneo importado com sucesso"
       }
     },
     "notebook": {

@@ -2005,7 +2005,16 @@
         "pinHint": "Pinned snapshots are exempt from retention limits",
         "noSnapshotsSaved": "No snapshots saved yet",
         "snapshotSaved": "Plan snapshot saved as baseline",
-        "snapshotDeleted": "Snapshot deleted"
+        "snapshotDeleted": "Snapshot deleted",
+        "selectBaseline": "Select baseline plan",
+        "activeBaseline": "Active Baseline",
+        "setAsBaseline": "Set as baseline",
+        "deleteSnapshot": "Delete snapshot",
+        "unpinSnapshot": "Unpin snapshot",
+        "pinSnapshot": "Pin snapshot",
+        "exportSnapshot": "Export snapshot JSON",
+        "importSnapshot": "Import JSON",
+        "snapshotImported": "Snapshot imported successfully"
       }
     },
     "notebook": {

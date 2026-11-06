@@ -143,6 +143,12 @@ export function deserializeExplainSnapshot(jsonString: string): ExplainSnapshot 
     }
 
     const payload = parsed as Record<string, unknown>;
+    if (typeof payload.version === 'number' && payload.version > EXPLAIN_SNAPSHOT_SCHEMA_VERSION) {
+        throw new Error(
+            `Unsupported EXPLAIN snapshot schema version: ${payload.version} (maximum supported version is ${EXPLAIN_SNAPSHOT_SCHEMA_VERSION})`,
+        );
+    }
+
     const snapshotCandidate = (
         payload.snapshot && typeof payload.snapshot === 'object' ? payload.snapshot : payload
     ) as Record<string, unknown>;
@@ -158,6 +164,14 @@ export function deserializeExplainSnapshot(jsonString: string): ExplainSnapshot 
     const planObj = snapshotCandidate.plan as Record<string, unknown>;
     if (!planObj.root || typeof planObj.root !== 'object') {
         throw new Error('Invalid EXPLAIN snapshot: plan missing "root" node');
+    }
+
+    const rootObj = planObj.root as Record<string, unknown>;
+    if (typeof rootObj.node_type !== 'string') {
+        throw new Error('Invalid EXPLAIN snapshot: plan root missing "node_type"');
+    }
+    if (!Array.isArray(rootObj.children)) {
+        throw new Error('Invalid EXPLAIN snapshot: plan root missing "children" array');
     }
 
     const contextObj = (

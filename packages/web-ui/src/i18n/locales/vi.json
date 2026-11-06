@@ -1994,7 +1994,16 @@
         "pinHint": "Ảnh chụp nhanh được ghim sẽ không bị xóa tự động",
         "noSnapshotsSaved": "Chưa có ảnh chụp nhanh nào được lưu",
         "snapshotSaved": "Đã lưu ảnh chụp nhanh làm kế hoạch gốc",
-        "snapshotDeleted": "Đã xóa ảnh chụp nhanh"
+        "snapshotDeleted": "Đã xóa ảnh chụp nhanh",
+        "selectBaseline": "Chọn kế hoạch gốc",
+        "activeBaseline": "Kế hoạch gốc hiện hành",
+        "setAsBaseline": "Đặt làm kế hoạch gốc",
+        "deleteSnapshot": "Xóa ảnh chụp nhanh",
+        "unpinSnapshot": "Bỏ ghim ảnh chụp nhanh",
+        "pinSnapshot": "Ghim ảnh chụp nhanh",
+        "exportSnapshot": "Xuất JSON",
+        "importSnapshot": "Nhập JSON",
+        "snapshotImported": "Đã nhập ảnh chụp nhanh thành công"
       }
     },
     "notebook": {

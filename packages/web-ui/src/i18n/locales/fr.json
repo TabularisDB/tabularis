@@ -1974,7 +1974,16 @@
         "pinHint": "Les instantanés épinglés ne sont jamais purgés",
         "noSnapshotsSaved": "Aucun instantané enregistré",
         "snapshotSaved": "Instantané enregistré comme référence",
-        "snapshotDeleted": "Instantané supprimé"
+        "snapshotDeleted": "Instantané supprimé",
+        "selectBaseline": "Sélectionner le plan de référence",
+        "activeBaseline": "Référence active",
+        "setAsBaseline": "Définir comme référence",
+        "deleteSnapshot": "Supprimer l'instantané",
+        "unpinSnapshot": "Détacher l'instantané",
+        "pinSnapshot": "Épingler l'instantané",
+        "exportSnapshot": "Exporter JSON",
+        "importSnapshot": "Importer JSON",
+        "snapshotImported": "Instantané importé avec succès"
       }
     },
     "notebook": {

@@ -224,6 +224,33 @@ describe('compare', () => {
             expect(alignment.ambiguousNodes.length).toBeGreaterThanOrEqual(1);
             expect(alignment.ambiguousNodes[0].isAmbiguous).toBe(true);
             expect(alignment.ambiguousNodes[0].ambiguousCandidates).toBeDefined();
+            expect(alignment.ambiguousNodes[0].status).toBe('ambiguous');
+
+            // If metrics differ, ambiguous nodes are still flagged as modified
+            const currRootWithCost = makeNode({
+                id: 'c_root',
+                node_type: 'Append',
+                relation: null,
+                children: [
+                    makeNode({
+                        id: 'c_seq1',
+                        node_type: 'Seq Scan',
+                        relation: null,
+                        filter: null,
+                        total_cost: 999,
+                    }),
+                    makeNode({
+                        id: 'c_seq2',
+                        node_type: 'Seq Scan',
+                        relation: null,
+                        filter: null,
+                        total_cost: 999,
+                    }),
+                ],
+            });
+            const alignmentModified = alignExplainNodes(baseRoot, currRootWithCost);
+            expect(alignmentModified.ambiguousNodes[0].isAmbiguous).toBe(true);
+            expect(alignmentModified.ambiguousNodes[0].status).toBe('modified');
         });
 
         it('omits actual timing deltas when canCompareAnalyze is false', () => {

@@ -1965,7 +1965,16 @@
         "pinHint": "Ang mga naka-pin na snapshot ay hindi buburahin",
         "noSnapshotsSaved": "Wala pang naka-save na snapshot",
         "snapshotSaved": "Matagumpay na na-save ang snapshot bilang baseline",
-        "snapshotDeleted": "Nabura ang snapshot"
+        "snapshotDeleted": "Nabura ang snapshot",
+        "selectBaseline": "Pumili ng baseline plan",
+        "activeBaseline": "Aktibong Baseline",
+        "setAsBaseline": "Gawing baseline",
+        "deleteSnapshot": "Burahin ang snapshot",
+        "unpinSnapshot": "I-unpin ang snapshot",
+        "pinSnapshot": "I-pin ang snapshot",
+        "exportSnapshot": "I-export ang JSON",
+        "importSnapshot": "Mag-import ng JSON",
+        "snapshotImported": "Matagumpay na na-import ang snapshot"
       }
     },
     "notebook": {

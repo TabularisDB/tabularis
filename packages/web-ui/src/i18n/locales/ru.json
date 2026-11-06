@@ -1946,7 +1946,16 @@
         "pinHint": "Закрепленные снимки не удаляются автоматически",
         "noSnapshotsSaved": "Пока нет сохраненных снимков",
         "snapshotSaved": "Снимок плана сохранен как базовый",
-        "snapshotDeleted": "Снимок удален"
+        "snapshotDeleted": "Снимок удален",
+        "selectBaseline": "Выбрать базовый план",
+        "activeBaseline": "Активный базовый",
+        "setAsBaseline": "Сделать базовым",
+        "deleteSnapshot": "Удалить снимок",
+        "unpinSnapshot": "Открепить снимок",
+        "pinSnapshot": "Закрепить снимок",
+        "exportSnapshot": "Экспорт JSON",
+        "importSnapshot": "Импорт JSON",
+        "snapshotImported": "Снимок успешно импортирован"
       }
     },
     "notebook": {

@@ -1907,7 +1907,16 @@
         "pinHint": "置顶快照不受保留上限限制",
         "noSnapshotsSaved": "暂无已保存快照",
         "snapshotSaved": "计划快照已保存为基准",
-        "snapshotDeleted": "快照已删除"
+        "snapshotDeleted": "快照已删除",
+        "selectBaseline": "选择基准计划",
+        "activeBaseline": "当前基准",
+        "setAsBaseline": "设为基准",
+        "deleteSnapshot": "删除快照",
+        "unpinSnapshot": "取消置顶快照",
+        "pinSnapshot": "置顶快照",
+        "exportSnapshot": "导出 JSON",
+        "importSnapshot": "导入 JSON",
+        "snapshotImported": "快照已成功导入"
       }
     },
     "notebook": {

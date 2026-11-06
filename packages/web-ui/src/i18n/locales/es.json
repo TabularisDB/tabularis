@@ -1907,7 +1907,16 @@
         "pinHint": "Las instantáneas fijadas no se eliminan por límite de retención",
         "noSnapshotsSaved": "No hay instantáneas guardadas aún",
         "snapshotSaved": "Instantánea guardada como línea base",
-        "snapshotDeleted": "Instantánea eliminada"
+        "snapshotDeleted": "Instantánea eliminada",
+        "selectBaseline": "Seleccionar plan base",
+        "activeBaseline": "Línea base activa",
+        "setAsBaseline": "Establecer como base",
+        "deleteSnapshot": "Eliminar instantánea",
+        "unpinSnapshot": "Desfijar instantánea",
+        "pinSnapshot": "Fijar instantánea",
+        "exportSnapshot": "Exportar JSON",
+        "importSnapshot": "Importar JSON",
+        "snapshotImported": "Instantánea importada con éxito"
       }
     },
     "notebook": {

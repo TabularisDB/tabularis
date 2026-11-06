@@ -1945,7 +1945,16 @@
         "pinHint": "固定されたスナップショットは自動削除の対象外です",
         "noSnapshotsSaved": "保存されたスナップショットはありません",
         "snapshotSaved": "スナップショットをベースラインとして保存しました",
-        "snapshotDeleted": "スナップショットを削除しました"
+        "snapshotDeleted": "スナップショットを削除しました",
+        "selectBaseline": "ベースラインプランを選択",
+        "activeBaseline": "アクティブなベースライン",
+        "setAsBaseline": "ベースラインに設定",
+        "deleteSnapshot": "スナップショットを削除",
+        "unpinSnapshot": "スナップショットの固定解除",
+        "pinSnapshot": "スナップショットを固定",
+        "exportSnapshot": "JSONをエクスポート",
+        "importSnapshot": "JSONをインポート",
+        "snapshotImported": "スナップショットをインポートしました"
       }
     },
     "notebook": {

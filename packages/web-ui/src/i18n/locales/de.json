@@ -1934,7 +1934,16 @@
         "pinHint": "Angeheftete Schnappschüsse werden nicht automatisch bereinigt",
         "noSnapshotsSaved": "Noch keine Schnappschüsse gespeichert",
         "snapshotSaved": "Plan-Schnappschuss als Basisplan gespeichert",
-        "snapshotDeleted": "Schnappschuss gelöscht"
+        "snapshotDeleted": "Schnappschuss gelöscht",
+        "selectBaseline": "Basisplan auswählen",
+        "activeBaseline": "Aktiver Basisplan",
+        "setAsBaseline": "Als Basisplan festlegen",
+        "deleteSnapshot": "Schnappschuss löschen",
+        "unpinSnapshot": "Schnappschuss lösen",
+        "pinSnapshot": "Schnappschuss anheften",
+        "exportSnapshot": "JSON exportieren",
+        "importSnapshot": "JSON importieren",
+        "snapshotImported": "Schnappschuss erfolgreich importiert"
       }
     },
     "notebook": {

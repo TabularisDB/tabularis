@@ -20,14 +20,76 @@ export function normalizeExplainSnapshots(raw: unknown): ExplainSnapshot[] {
         if (!item || typeof item !== 'object') continue;
         const candidate = item as Record<string, unknown>;
         if (
-            typeof candidate.id === 'string' &&
-            typeof candidate.sql === 'string' &&
-            candidate.plan &&
-            typeof candidate.plan === 'object' &&
-            (candidate.plan as Record<string, unknown>).root
+            typeof candidate.id !== 'string' ||
+            typeof candidate.sql !== 'string' ||
+            !candidate.plan ||
+            typeof candidate.plan !== 'object'
         ) {
-            valid.push(candidate as unknown as ExplainSnapshot);
+            continue;
         }
+
+        const plan = candidate.plan as Record<string, unknown>;
+        if (!plan.root || typeof plan.root !== 'object') continue;
+        const root = plan.root as Record<string, unknown>;
+        if (typeof root.node_type !== 'string' || !Array.isArray(root.children)) continue;
+
+        const contextCandidate = (
+            candidate.context && typeof candidate.context === 'object' ? candidate.context : {}
+        ) as Record<string, unknown>;
+
+        const safeSnapshot: ExplainSnapshot = {
+            id: candidate.id,
+            title:
+                typeof candidate.title === 'string' && candidate.title.trim()
+                    ? candidate.title.trim()
+                    : 'Plan Snapshot',
+            createdAt:
+                typeof candidate.createdAt === 'string'
+                    ? candidate.createdAt
+                    : new Date().toISOString(),
+            sql: candidate.sql,
+            context: {
+                connectionId:
+                    typeof contextCandidate.connectionId === 'string'
+                        ? contextCandidate.connectionId
+                        : undefined,
+                connectionName:
+                    typeof contextCandidate.connectionName === 'string'
+                        ? contextCandidate.connectionName
+                        : null,
+                database:
+                    typeof contextCandidate.database === 'string'
+                        ? contextCandidate.database
+                        : null,
+                schema:
+                    typeof contextCandidate.schema === 'string' ? contextCandidate.schema : null,
+                engine:
+                    typeof contextCandidate.engine === 'string'
+                        ? contextCandidate.engine.toLowerCase()
+                        : typeof plan.driver === 'string'
+                          ? plan.driver.toLowerCase()
+                          : 'unknown',
+                engineVersion:
+                    typeof contextCandidate.engineVersion === 'string'
+                        ? contextCandidate.engineVersion
+                        : null,
+            },
+            plan: {
+                root: plan.root as any,
+                planning_time_ms:
+                    typeof plan.planning_time_ms === 'number' ? plan.planning_time_ms : null,
+                execution_time_ms:
+                    typeof plan.execution_time_ms === 'number' ? plan.execution_time_ms : null,
+                original_query:
+                    typeof plan.original_query === 'string' ? plan.original_query : candidate.sql,
+                driver: typeof plan.driver === 'string' ? plan.driver : 'unknown',
+                has_analyze_data: Boolean(plan.has_analyze_data),
+                raw_output: typeof plan.raw_output === 'string' ? plan.raw_output : null,
+            },
+            isPinned: Boolean(candidate.isPinned),
+        };
+
+        valid.push(safeSnapshot);
     }
 
     return valid;

@@ -467,20 +467,21 @@ export function alignExplainNodes(
               )
             : null;
 
-        // Determine if node is modified or unchanged
-        let status: ExplainNodeDiffStatus = 'unchanged';
-        if (isAmbiguous) {
-            status = 'ambiguous';
-        } else if (
+        // Determine if node is modified, ambiguous, or unchanged
+        const hasMetricOrStructuralChange =
             bNode.node_type !== cNode.node_type ||
             bNode.relation !== cNode.relation ||
             bNode.index_condition !== cNode.index_condition ||
             bNode.filter !== cNode.filter ||
             (costDelta?.delta != null && Math.abs(costDelta.delta) > 0.001) ||
             (timeDelta?.delta != null && Math.abs(timeDelta.delta) > 0.001) ||
-            (rowsDelta?.delta != null && Math.abs(rowsDelta.delta) > 0)
-        ) {
+            (rowsDelta?.delta != null && Math.abs(rowsDelta.delta) > 0);
+
+        let status: ExplainNodeDiffStatus = 'unchanged';
+        if (hasMetricOrStructuralChange) {
             status = 'modified';
+        } else if (isAmbiguous) {
+            status = 'ambiguous';
         }
 
         const alignedEntry: ExplainAlignedNode = {

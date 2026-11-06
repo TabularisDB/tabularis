@@ -1994,7 +1994,16 @@
         "pinHint": "Le istantanee fissate sono escluse dai limiti di conservazione",
         "noSnapshotsSaved": "Nessuna istantanea salvata",
         "snapshotSaved": "Istantanea salvata come riferimento",
-        "snapshotDeleted": "Istantanea eliminata"
+        "snapshotDeleted": "Istantanea eliminata",
+        "selectBaseline": "Seleziona piano di riferimento",
+        "activeBaseline": "Riferimento attivo",
+        "setAsBaseline": "Imposta come riferimento",
+        "deleteSnapshot": "Elimina istantanea",
+        "unpinSnapshot": "Sblocca istantanea",
+        "pinSnapshot": "Fissa istantanea",
+        "exportSnapshot": "Esporta JSON",
+        "importSnapshot": "Importa JSON",
+        "snapshotImported": "Istantanea importata con successo"
       }
     },
     "notebook": {

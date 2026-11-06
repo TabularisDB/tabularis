@@ -1983,7 +1983,16 @@
                 "pinHint": "置頂快照不受保留上限限制",
                 "noSnapshotsSaved": "暫無已儲存快照",
                 "snapshotSaved": "計劃快照已儲存為基準",
-                "snapshotDeleted": "快照已刪除"
+                "snapshotDeleted": "快照已刪除",
+                "selectBaseline": "選擇基準計劃",
+                "activeBaseline": "目前基準",
+                "setAsBaseline": "設為基準",
+                "deleteSnapshot": "刪除快照",
+                "unpinSnapshot": "取消置頂快照",
+                "pinSnapshot": "置頂快照",
+                "exportSnapshot": "匯出 JSON",
+                "importSnapshot": "匯入 JSON",
+                "snapshotImported": "快照已成功匯入"
             }
         },
         "notebook": {

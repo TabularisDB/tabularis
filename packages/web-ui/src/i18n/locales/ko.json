@@ -1905,7 +1905,16 @@
         "pinHint": "고정된 스냅샷은 자동 정리되지 않습니다",
         "noSnapshotsSaved": "저장된 스냅샷이 없습니다",
         "snapshotSaved": "스냅샷이 기준 플랜으로 저장되었습니다",
-        "snapshotDeleted": "스냅샷이 삭제되었습니다"
+        "snapshotDeleted": "스냅샷이 삭제되었습니다",
+        "selectBaseline": "기준 플랜 선택",
+        "activeBaseline": "활성 기준 플랜",
+        "setAsBaseline": "기준 플랜으로 설정",
+        "deleteSnapshot": "스ナップ샷 삭제",
+        "unpinSnapshot": "스ナップ샷 고정 해제",
+        "pinSnapshot": "스ナップ샷 고정",
+        "exportSnapshot": "JSON 내보내기",
+        "importSnapshot": "JSON 가져오기",
+        "snapshotImported": "스ナップ샷을 가져왔습니다"
       }
     },
     "notebook": {
