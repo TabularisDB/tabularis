@@ -1,4 +1,6 @@
 use super::connection_files::GeneratedFile;
+use super::table_transfers;
+use crate::table_transfer::TableTransferRequest;
 use super::file_transfers::{ClaimedUpload, FileTransferStore};
 use crate::commands::{register_abort_handle, unregister_abort_handle, AbortHandleMap};
 use crate::drivers::driver_trait::DatabaseDriver;
@@ -44,6 +46,16 @@ pub enum DatabaseTransferCommand {
     CancelImport {
         connection_id: String,
     },
+    GetTableTransferCapabilities,
+    PlanTableTransfer {
+        request: TableTransferRequest,
+    },
+    RunTableTransfer {
+        request: TableTransferRequest,
+    },
+    CancelTableTransfer {
+        transfer_id: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -56,6 +68,8 @@ pub struct DumpOptions {
 #[derive(Default)]
 pub struct DumpCancellationState {
     pub handles: Arc<Mutex<AbortHandleMap>>,
+    /// Cooperative cancel flags of running table transfers, by job key.
+    pub table_transfers: Arc<Mutex<std::collections::HashMap<String, Arc<AtomicBool>>>>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -145,6 +159,19 @@ pub async fn execute(
             cancel_job(state, session_id, JobKind::Import, &connection_id)?;
             Ok(serde_json::Value::Null)
         }
+        DatabaseTransferCommand::GetTableTransferCapabilities => {
+            json(table_transfers::get_capabilities())
+        }
+        DatabaseTransferCommand::PlanTableTransfer { request } => {
+            json(table_transfers::plan(runtime, session_id, request).await?)
+        }
+        DatabaseTransferCommand::RunTableTransfer { request } => {
+            json(table_transfers::run(runtime, state, session_id, request).await?)
+        }
+        DatabaseTransferCommand::CancelTableTransfer { transfer_id } => {
+            table_transfers::cancel(state, session_id, &transfer_id)?;
+            Ok(serde_json::Value::Null)
+        }
     }
 }
 
@@ -201,7 +228,7 @@ pub async fn dump_database_with_handles(
     request: DumpRequest,
     cancel_requested: Option<&AtomicBool>,
 ) -> Result<(), String> {
-    let state = DumpCancellationState { handles: handles.clone() };
+    let state = DumpCancellationState { handles: handles.clone(), ..Default::default() };
     dump_database_job(runtime, &state, None, request.connection_id,
         DumpDestination::ServerPath(PathBuf::from(request.file_path)), request.options,
         request.schema, request.database, Some(request.slot_key), cancel_requested).await.map(|_| ())
@@ -375,6 +402,7 @@ pub fn cancel_session_jobs(state: &DumpCancellationState, session_id: Uuid) {
     for handle in pending {
         handle.abort();
     }
+    super::table_transfers::cancel_session_transfers(state, session_id);
 }
 
 #[derive(Clone, Copy)]
@@ -997,7 +1025,7 @@ fn has_zip_extension(path: &Path) -> bool {
         .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
 }
 
-fn emit_progress<T: Serialize>(
+pub(crate) fn emit_progress<T: Serialize>(
     runtime: &RuntimeContext,
     session_id: Option<Uuid>,
     event: &str,
