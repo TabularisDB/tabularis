@@ -1881,6 +1881,7 @@
       "noRawOutput": "Walang raw explain output na available para i-export.",
       "saveRawPlan": "I-save ang raw plan…",
       "saveRawError": "Nabigong i-save ang raw plan",
+      "copied": "Nakopya",
       "copyDetails": "Kopyahin ang mga detalye",
       "detailsCopied": "Nakopya ang mga detalye ng node sa clipboard",
       "copyDetailsFailed": "Nabigong kopyahin ang mga detalye ng node sa clipboard",

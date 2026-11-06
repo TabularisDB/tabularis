@@ -1890,6 +1890,7 @@
       "noRawOutput": "Aucune sortie brute Explain disponible à exporter.",
       "saveRawPlan": "Enregistrer le plan brut…",
       "saveRawError": "Échec de l'enregistrement du plan brut",
+      "copied": "Copié",
       "copyDetails": "Copier les détails",
       "detailsCopied": "Détails du nœud copiés dans le presse-papiers",
       "copyDetailsFailed": "Échec de la copie des détails du nœud dans le presse-papiers",

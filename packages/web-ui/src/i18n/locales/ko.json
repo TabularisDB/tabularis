@@ -1825,6 +1825,7 @@
       "noRawOutput": "내보낼 원본 실행 계획 출력이 없습니다.",
       "saveRawPlan": "원시 실행 계획 저장…",
       "saveRawError": "원시 실행 계획 저장에 실패했습니다",
+      "copied": "복사됨",
       "copyDetails": "세부 정보 복사",
       "detailsCopied": "노드 세부 정보가 클립보드에 복사되었습니다",
       "copyDetailsFailed": "노드 세부 정보를 클립보드에 복사하지 못했습니다",

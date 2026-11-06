@@ -1910,6 +1910,7 @@
       "noRawOutput": "Không có đầu ra explain gốc để xuất.",
       "saveRawPlan": "Lưu kế hoạch gốc…",
       "saveRawError": "Không lưu được kế hoạch gốc",
+      "copied": "Đã sao chép",
       "copyDetails": "Sao chép chi tiết",
       "detailsCopied": "Đã sao chép chi tiết nút vào khay nhớ tạm",
       "copyDetailsFailed": "Không thể sao chép chi tiết nút vào khay nhớ tạm",

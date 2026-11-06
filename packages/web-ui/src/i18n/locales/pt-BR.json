@@ -1868,6 +1868,7 @@
       "noRawOutput": "Nenhuma saída bruta do explain disponível para exportar.",
       "saveRawPlan": "Salvar plano bruto…",
       "saveRawError": "Falha ao salvar plano bruto",
+      "copied": "Copiado",
       "copyDetails": "Copiar detalhes",
       "detailsCopied": "Detalhes do nó copiados para a área de transferência",
       "copyDetailsFailed": "Falha ao copiar detalhes do nó para a área de transferência",

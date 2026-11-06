@@ -71,14 +71,15 @@ export function ExplainNodeDetails({
 
         setIsCopying(true);
         try {
-            let success = true;
+            let success = false;
             if (onCopyDetails) {
                 const result = await onCopyDetails(text);
-                if (result === false) {
-                    success = false;
+                if (result !== false) {
+                    success = true;
                 }
             } else if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
                 await navigator.clipboard.writeText(text);
+                success = true;
             }
 
             if (success) {

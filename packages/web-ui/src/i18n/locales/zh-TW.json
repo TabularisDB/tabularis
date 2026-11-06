@@ -1903,6 +1903,7 @@
             "noRawOutput": "沒有可匯出的 Explain 原始輸出。",
             "saveRawPlan": "儲存原始計畫…",
             "saveRawError": "儲存原始計畫失敗",
+            "copied": "已複製",
             "copyDetails": "複製詳情",
             "detailsCopied": "節點詳情已複製到剪貼簿",
             "copyDetailsFailed": "無法將節點詳情複製到剪貼簿",
