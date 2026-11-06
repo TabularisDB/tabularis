@@ -23,6 +23,8 @@ pub const LINKED_PATH_OUTSIDE_ROOT: &str = "linked_path_outside_root";
 pub const LINKED_PATH_NOT_SQL_FILE: &str = "linked_path_not_sql_file";
 pub const LINKED_DIRECTORY_UNREADABLE: &str = "linked_directory_unreadable";
 pub const LINKED_FILE_UNREADABLE: &str = "linked_file_unreadable";
+pub const LINKED_FILE_TOO_LARGE: &str = "linked_file_too_large";
+pub const LINKED_FILE_WRITE_FAILED: &str = "linked_file_write_failed";
 pub const LINKED_FILE_CONFLICT_MODIFIED: &str = "linked_file_conflict_modified";
 pub const LINKED_FILE_CONFLICT_MISSING: &str = "linked_file_conflict_missing";
 
@@ -276,7 +278,6 @@ pub fn list_linked_directory(
     let reader = fs::read_dir(&directory).map_err(|_| LINKED_DIRECTORY_UNREADABLE.to_string())?;
 
     let mut entries = Vec::new();
-    let mut truncated = false;
     for item in reader {
         let Ok(item) = item else { continue };
         let Ok(name) = item.file_name().into_string() else {
@@ -302,10 +303,6 @@ pub fn list_linked_directory(
         } else {
             continue;
         };
-        if entries.len() >= MAX_ENTRIES_PER_DIRECTORY {
-            truncated = true;
-            break;
-        }
         let relative_path = if relative.is_empty() {
             name.clone()
         } else {
@@ -317,7 +314,10 @@ pub fn list_linked_directory(
             kind,
         });
     }
+    // Sort before truncating so the visible prefix is stable across refreshes.
     entries.sort_by(compare_entries);
+    let truncated = entries.len() > MAX_ENTRIES_PER_DIRECTORY;
+    entries.truncate(MAX_ENTRIES_PER_DIRECTORY);
     Ok(LinkedDirectoryListing { entries, truncated })
 }
 
@@ -372,6 +372,9 @@ pub fn write_linked_sql_file(
     overwrite: bool,
 ) -> Result<LinkedFileSaved, String> {
     require_sql_file_name(relative)?;
+    if content.len() as u64 > MAX_SQL_FILE_BYTES {
+        return Err(LINKED_FILE_TOO_LARGE.to_string());
+    }
     let root = canonical_root(&find_folder(store, id)?)?;
     let segments = split_relative_path(relative)?;
     let (file_name, parents) = segments
@@ -424,8 +427,7 @@ pub fn write_linked_sql_file(
 }
 
 fn write_content(path: &Path, content: &str) -> Result<(), String> {
-    fs::write(path, content)
-        .map_err(|error| format!("Failed to write SQL file {}: {error}", path.display()))
+    fs::write(path, content).map_err(|_| LINKED_FILE_WRITE_FAILED.to_string())
 }
 
 #[cfg(test)]

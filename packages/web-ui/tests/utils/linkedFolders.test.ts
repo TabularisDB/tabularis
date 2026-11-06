@@ -56,6 +56,12 @@ describe('linkedFolders', () => {
         it('ignores unrelated errors', () => {
             expect(getLinkedFolderErrorCode('disk full')).toBeNull();
             expect(getLinkedFolderErrorKey('disk full')).toBeNull();
+            expect(getLinkedFolderErrorKey('linked_file_too_large')).toBe(
+                'linkedFolders.errors.linked_file_too_large',
+            );
+            expect(getLinkedFolderErrorKey('linked_file_write_failed')).toBe(
+                'linkedFolders.errors.linked_file_write_failed',
+            );
             expect(getLinkedFolderErrorKey('linked_file_unreadable')).toBe(
                 'linkedFolders.errors.linked_file_unreadable',
             );

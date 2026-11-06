@@ -116,6 +116,8 @@
       "linked_path_not_sql_file": "Apenas arquivos .sql, .psql e .pgsql podem ser abertos aqui.",
       "linked_directory_unreadable": "Não é possível ler esta pasta.",
       "linked_file_unreadable": "Não é possível ler este arquivo. Ele pode estar ausente, grande demais ou não ser UTF-8.",
+      "linked_file_too_large": "Este arquivo é grande demais para salvar (limite de 50 MB).",
+      "linked_file_write_failed": "Não foi possível gravar o arquivo. Verifique as permissões e o espaço livre em disco.",
       "linked_file_conflict_modified": "O arquivo mudou no disco.",
       "linked_file_conflict_missing": "O arquivo não existe mais no disco."
     },

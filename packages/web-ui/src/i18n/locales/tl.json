@@ -139,6 +139,8 @@
       "linked_path_not_sql_file": "Mga .sql, .psql at .pgsql na file lang ang mabubuksan dito.",
       "linked_directory_unreadable": "Hindi mabasa ang folder na ito.",
       "linked_file_unreadable": "Hindi mabasa ang file na ito. Maaaring nawawala ito, masyadong malaki o hindi UTF-8.",
+      "linked_file_too_large": "Masyadong malaki ang file para i-save (limit na 50 MB).",
+      "linked_file_write_failed": "Hindi maisulat ang file. Suriin ang mga permission at libreng espasyo sa disk.",
       "linked_file_conflict_modified": "Nagbago ang file sa disk.",
       "linked_file_conflict_missing": "Wala na ang file sa disk."
     },

@@ -139,6 +139,8 @@
       "linked_path_not_sql_file": "Ở đây chỉ mở được tệp .sql, .psql và .pgsql.",
       "linked_directory_unreadable": "Không đọc được thư mục này.",
       "linked_file_unreadable": "Không đọc được tệp này. Tệp có thể không tồn tại, quá lớn hoặc không phải UTF-8.",
+      "linked_file_too_large": "Tệp quá lớn để lưu (giới hạn 50 MB).",
+      "linked_file_write_failed": "Không ghi được tệp. Hãy kiểm tra quyền truy cập và dung lượng đĩa trống.",
       "linked_file_conflict_modified": "Tệp đã thay đổi trên đĩa.",
       "linked_file_conflict_missing": "Tệp không còn tồn tại trên đĩa."
     },

@@ -22,6 +22,8 @@ const LINKED_FOLDER_ERROR_CODES = [
     'linked_path_not_sql_file',
     'linked_directory_unreadable',
     'linked_file_unreadable',
+    'linked_file_too_large',
+    'linked_file_write_failed',
     'linked_file_conflict_modified',
     'linked_file_conflict_missing',
 ] as const;

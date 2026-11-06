@@ -139,6 +139,8 @@
       "linked_path_not_sql_file": "Здесь можно открывать только файлы .sql, .psql и .pgsql.",
       "linked_directory_unreadable": "Эту папку не удаётся прочитать.",
       "linked_file_unreadable": "Этот файл не удаётся прочитать. Он может отсутствовать, быть слишком большим или не в UTF-8.",
+      "linked_file_too_large": "Файл слишком велик для сохранения (лимит 50 МБ).",
+      "linked_file_write_failed": "Не удалось записать файл. Проверьте права доступа и свободное место на диске.",
       "linked_file_conflict_modified": "Файл изменился на диске.",
       "linked_file_conflict_missing": "Файл больше не существует на диске."
     },

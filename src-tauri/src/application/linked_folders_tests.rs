@@ -165,6 +165,22 @@ fn listing_is_bounded() {
 }
 
 #[test]
+fn truncation_keeps_the_first_entries_in_sorted_order() {
+    let fixture = Fixture::new();
+    let folder = fixture.link();
+    // Created in reverse so directory order cannot match sorted order by luck.
+    for index in (0..(MAX_ENTRIES_PER_DIRECTORY + 5)).rev() {
+        fs::write(fixture.root().join(format!("s{index:04}.sql")), "").unwrap();
+    }
+    fs::create_dir_all(fixture.root().join("zz-folder")).unwrap();
+    let listing = list_linked_directory(&fixture.store, &folder.id, "").unwrap();
+    assert!(listing.truncated);
+    assert_eq!(listing.entries[0].name, "zz-folder");
+    assert_eq!(listing.entries[1].name, "s0000.sql");
+    assert_eq!(listing.entries.last().unwrap().name, "s0998.sql");
+}
+
+#[test]
 fn listing_stops_at_the_depth_limit() {
     let fixture = Fixture::new();
     let folder = fixture.link();
@@ -514,4 +530,48 @@ fn content_version_is_stable_and_content_sensitive() {
     assert_eq!(content_version("a"), content_version("a"));
     assert_ne!(content_version("a"), content_version("b"));
     assert_eq!(content_version("").len(), 64);
+}
+
+#[test]
+fn save_rejects_content_above_the_read_limit() {
+    let fixture = Fixture::new();
+    let folder = fixture.link();
+    fs::write(fixture.root().join("a.sql"), "select 1").unwrap();
+    let opened = read_linked_sql_file(&fixture.store, &folder.id, "a.sql").unwrap();
+    let huge = "x".repeat(MAX_SQL_FILE_BYTES as usize + 1);
+    for overwrite in [false, true] {
+        assert_eq!(
+            write_linked_sql_file(
+                &fixture.store,
+                &folder.id,
+                "a.sql",
+                &huge,
+                Some(&opened.version),
+                overwrite
+            )
+            .unwrap_err(),
+            LINKED_FILE_TOO_LARGE
+        );
+    }
+    assert_eq!(
+        fs::read_to_string(fixture.root().join("a.sql")).unwrap(),
+        "select 1"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn write_failures_use_a_stable_code_without_the_path() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new();
+    let folder = fixture.link();
+    let file = fixture.root().join("ro.sql");
+    fs::write(&file, "select 1").unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o444)).unwrap();
+    let result = write_linked_sql_file(&fixture.store, &folder.id, "ro.sql", "x", None, true);
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
+    // Running as root bypasses permission bits, so only assert when denied.
+    if let Err(error) = result {
+        assert_eq!(error, LINKED_FILE_WRITE_FAILED);
+    }
 }

@@ -139,6 +139,8 @@
       "linked_path_not_sql_file": "Hier können nur .sql-, .psql- und .pgsql-Dateien geöffnet werden.",
       "linked_directory_unreadable": "Dieser Ordner ist nicht lesbar.",
       "linked_file_unreadable": "Diese Datei ist nicht lesbar. Sie fehlt, ist zu groß oder nicht UTF-8.",
+      "linked_file_too_large": "Diese Datei ist zu groß zum Speichern (Limit 50 MB).",
+      "linked_file_write_failed": "Die Datei konnte nicht geschrieben werden. Prüfe die Berechtigungen und den freien Speicherplatz.",
       "linked_file_conflict_modified": "Die Datei hat sich auf dem Datenträger geändert.",
       "linked_file_conflict_missing": "Die Datei existiert nicht mehr auf dem Datenträger."
     },

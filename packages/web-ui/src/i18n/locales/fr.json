@@ -139,6 +139,8 @@
       "linked_path_not_sql_file": "Seuls les fichiers .sql, .psql et .pgsql peuvent être ouverts ici.",
       "linked_directory_unreadable": "Ce dossier est illisible.",
       "linked_file_unreadable": "Ce fichier est illisible. Il est peut-être absent, trop volumineux ou non UTF-8.",
+      "linked_file_too_large": "Ce fichier est trop volumineux pour être enregistré (limite 50 Mo).",
+      "linked_file_write_failed": "Impossible d'écrire le fichier. Vérifiez ses permissions et l'espace disque libre.",
       "linked_file_conflict_modified": "Le fichier a changé sur le disque.",
       "linked_file_conflict_missing": "Le fichier n'existe plus sur le disque."
     },

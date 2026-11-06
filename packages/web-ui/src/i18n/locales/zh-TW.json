@@ -143,6 +143,8 @@
             "linked_path_not_sql_file": "此處只能開啟 .sql、.psql 和 .pgsql 檔案。",
             "linked_directory_unreadable": "無法讀取此資料夾。",
             "linked_file_unreadable": "無法讀取此檔案。它可能不存在、過大或不是 UTF-8 編碼。",
+            "linked_file_too_large": "此檔案過大，無法儲存（上限 50 MB）。",
+            "linked_file_write_failed": "無法寫入檔案。請檢查權限與磁碟剩餘空間。",
             "linked_file_conflict_modified": "檔案在磁碟上已變更。",
             "linked_file_conflict_missing": "檔案在磁碟上已不存在。"
         },

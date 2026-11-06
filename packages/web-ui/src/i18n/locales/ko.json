@@ -116,6 +116,8 @@
       "linked_path_not_sql_file": "여기서는 .sql, .psql, .pgsql 파일만 열 수 있습니다.",
       "linked_directory_unreadable": "이 폴더를 읽을 수 없습니다.",
       "linked_file_unreadable": "이 파일을 읽을 수 없습니다. 없거나, 너무 크거나, UTF-8이 아닐 수 있습니다.",
+      "linked_file_too_large": "이 파일은 너무 커서 저장할 수 없습니다(최대 50MB).",
+      "linked_file_write_failed": "파일을 쓸 수 없습니다. 권한과 디스크 여유 공간을 확인하세요.",
       "linked_file_conflict_modified": "디스크에서 파일이 변경되었습니다.",
       "linked_file_conflict_missing": "디스크에 파일이 더 이상 없습니다."
     },

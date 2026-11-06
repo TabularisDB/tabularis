@@ -139,6 +139,8 @@
       "linked_path_not_sql_file": "ここでは .sql、.psql、.pgsql ファイルのみ開けます。",
       "linked_directory_unreadable": "このフォルダーを読み取れません。",
       "linked_file_unreadable": "このファイルを読み取れません。存在しない、大きすぎる、または UTF-8 ではない可能性があります。",
+      "linked_file_too_large": "このファイルは大きすぎて保存できません（上限 50 MB）。",
+      "linked_file_write_failed": "ファイルを書き込めませんでした。権限とディスクの空き容量を確認してください。",
       "linked_file_conflict_modified": "ファイルがディスク上で変更されました。",
       "linked_file_conflict_missing": "ファイルがディスク上に存在しません。"
     },
