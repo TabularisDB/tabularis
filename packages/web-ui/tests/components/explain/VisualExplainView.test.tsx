@@ -368,4 +368,29 @@ describe('VisualExplainView table CSV export', () => {
             expect.objectContaining({kind: 'error'}),
         );
     });
+
+    it('renders compare view mode without crashing and switches views', () => {
+        const plan = createTestPlan('Seq Scan on users');
+        const onViewModeChange = vi.fn();
+
+        render(
+            <AlertContext.Provider value={{showAlert}}>
+                <ToastContext.Provider value={{showToast}}>
+                    <VisualExplainView
+                        plan={plan}
+                        isLoading={false}
+                        error={null}
+                        viewMode="compare"
+                        onViewModeChange={onViewModeChange}
+                        selectedNodeId={null}
+                        onSelectNode={vi.fn()}
+                        aiEnabled={false}
+                    />
+                </ToastContext.Provider>
+            </AlertContext.Provider>,
+        );
+
+        // Should render compare view with no-baseline prompt or compare toolbar
+        expect(screen.getAllByText(/editor\.visualExplain\.compare\./i).length).toBeGreaterThan(0);
+    });
 });

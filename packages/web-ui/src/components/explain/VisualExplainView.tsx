@@ -3,14 +3,16 @@ import {useTranslation} from 'react-i18next';
 import {Download, Loader2} from 'lucide-react';
 import {MonacoEditor} from '@/components/ui/LazyMonaco';
 import type * as monaco from 'monaco-editor';
-import type {ExplainPlan, ExplainTableColumnId} from '@tabularis/explain';
+import type {ExplainPlan, ExplainSnapshot, ExplainTableColumnId} from '@tabularis/explain';
 import {
     computeExplainMetrics,
+    createExplainSnapshot,
     findExplainNode,
     getPlanDiagnostics,
     normalizeExplainTableColumnOrder,
 } from '@tabularis/explain';
 import {
+    ExplainCompareView,
     ExplainDiagramView,
     ExplainGraph,
     ExplainNodeDetails,
@@ -35,6 +37,13 @@ import {
     saveRawExplainOutput,
 } from '@/utils/explainRaw';
 import {saveExplainTableCsv} from '@/utils/explainTableExport';
+import {
+    addExplainSnapshot,
+    exportExplainSnapshot,
+    normalizeExplainSnapshots,
+    removeExplainSnapshot,
+    toggleExplainSnapshotPin,
+} from '@/utils/explainSnapshots';
 import {toErrorMessage} from '@/utils/errors';
 import {ExplainAiAnalysis} from '@/components/modals/visual-explain/ExplainAiAnalysis';
 
@@ -47,6 +56,10 @@ export interface VisualExplainViewProps {
     selectedNodeId: string | null;
     onSelectNode: (id: string | null) => void;
     aiEnabled: boolean;
+    connectionId?: string;
+    database?: string;
+    schema?: string;
+    sql?: string;
 }
 
 /**
@@ -62,6 +75,10 @@ export const VisualExplainView = ({
     selectedNodeId,
     onSelectNode,
     aiEnabled,
+    connectionId,
+    database,
+    schema,
+    sql,
 }: VisualExplainViewProps) => {
     const {t} = useTranslation();
     const editorTheme = useEditorTheme();
@@ -170,6 +187,94 @@ export const VisualExplainView = ({
         }
     }, [plan, metrics, platform, showToast, t]);
 
+    // Snapshots of visual explain plans for baseline comparisons.
+    const [storedSnapshots, setStoredSnapshots] = useUiState<unknown>(
+        UI_STATE_KEYS.explainSnapshots,
+        null,
+    );
+    const snapshots = useMemo(() => normalizeExplainSnapshots(storedSnapshots), [storedSnapshots]);
+    const [activeBaselineId, setActiveBaselineId] = useState<string | null>(null);
+
+    const activeBaseline = useMemo(() => {
+        if (!activeBaselineId) {
+            return snapshots[0] ?? null;
+        }
+        return snapshots.find((s) => s.id === activeBaselineId) ?? snapshots[0] ?? null;
+    }, [snapshots, activeBaselineId]);
+
+    const handleSaveSnapshot = useCallback(() => {
+        if (!plan) return;
+        const newSnap = createExplainSnapshot({
+            sql: sql || plan.original_query || 'EXPLAIN',
+            context: {
+                connectionId: connectionId || 'default',
+                database: database ?? null,
+                schema: schema ?? null,
+                engine: plan.driver || 'unknown',
+            },
+            plan,
+        });
+        const updated = addExplainSnapshot(snapshots, newSnap);
+        setStoredSnapshots(updated);
+        setActiveBaselineId(newSnap.id);
+        showToast(
+            t('editor.visualExplain.compare.snapshotSaved', 'Plan snapshot saved as baseline'),
+            {kind: 'success'},
+        );
+    }, [plan, sql, connectionId, database, schema, snapshots, setStoredSnapshots, showToast, t]);
+
+    const handleImportSnapshot = useCallback(
+        (imported: ExplainSnapshot) => {
+            const updated = addExplainSnapshot(snapshots, imported);
+            setStoredSnapshots(updated);
+            setActiveBaselineId(imported.id);
+            showToast(
+                t(
+                    'editor.visualExplain.compare.snapshotImported',
+                    'Snapshot imported successfully',
+                ),
+                {kind: 'success'},
+            );
+        },
+        [snapshots, setStoredSnapshots, showToast, t],
+    );
+
+    const handleDeleteSnapshot = useCallback(
+        (id: string) => {
+            const updated = removeExplainSnapshot(snapshots, id);
+            setStoredSnapshots(updated);
+            if (activeBaselineId === id) {
+                setActiveBaselineId(null);
+            }
+            showToast(t('editor.visualExplain.compare.snapshotDeleted', 'Snapshot deleted'), {
+                kind: 'info',
+            });
+        },
+        [snapshots, activeBaselineId, setStoredSnapshots, showToast, t],
+    );
+
+    const handleTogglePinSnapshot = useCallback(
+        (id: string) => {
+            const updated = toggleExplainSnapshotPin(snapshots, id);
+            setStoredSnapshots(updated);
+        },
+        [snapshots, setStoredSnapshots],
+    );
+
+    const handleExportSnapshot = useCallback(
+        async (id: string) => {
+            const snap = snapshots.find((s) => s.id === id);
+            if (!snap) return;
+            try {
+                await exportExplainSnapshot(platform, snap);
+            } catch (err) {
+                console.error('Failed to export EXPLAIN snapshot:', err);
+                showToast(toErrorMessage(err), {kind: 'error'});
+            }
+        },
+        [snapshots, platform, showToast],
+    );
+
     return (
         <div className="flex flex-col h-full min-h-0">
             <ExplainSummaryBar
@@ -258,6 +363,18 @@ export const VisualExplainView = ({
                         />
                     ) : viewMode === 'stats' ? (
                         <ExplainStatsView plan={plan} metrics={metrics} />
+                    ) : viewMode === 'compare' ? (
+                        <ExplainCompareView
+                            baseline={activeBaseline}
+                            current={plan}
+                            snapshots={snapshots}
+                            onSelectBaseline={setActiveBaselineId}
+                            onSaveSnapshot={handleSaveSnapshot}
+                            onDeleteSnapshot={handleDeleteSnapshot}
+                            onTogglePinSnapshot={handleTogglePinSnapshot}
+                            onExportSnapshot={handleExportSnapshot}
+                            onImportSnapshot={handleImportSnapshot}
+                        />
                     ) : (
                         <div className="flex h-full">
                             <div className="flex-1 min-w-0 border-r border-default">

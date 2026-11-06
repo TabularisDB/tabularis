@@ -14,6 +14,8 @@ export {ExplainGraph} from './components/ExplainGraph';
 export {ExplainTableView} from './components/ExplainTableView';
 export {ExplainDiagramView} from './components/ExplainDiagramView';
 export {ExplainStatsView} from './components/ExplainStatsView';
+export {ExplainCompareView} from './components/ExplainCompareView';
+export type {ExplainCompareViewProps} from './components/ExplainCompareView';
 export {ExplainNodeDetails} from './components/ExplainNodeDetails';
 export {ExplainOverviewBar} from './components/ExplainOverviewBar';
 export {ExplainSummaryBar} from './components/ExplainSummaryBar';

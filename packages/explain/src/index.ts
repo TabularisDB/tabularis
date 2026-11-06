@@ -115,3 +115,35 @@ export {
     normalizeExplainTableColumnOrder,
     shiftExplainTableColumn,
 } from './tableColumns';
+
+export type {
+    ExplainSnapshotContext,
+    ExplainSnapshot,
+    CreateExplainSnapshotParams,
+    SerializedExplainSnapshotPayload,
+} from './snapshot';
+export {
+    EXPLAIN_SNAPSHOT_SCHEMA_VERSION,
+    createExplainSnapshot,
+    pruneExplainSnapshots,
+    serializeExplainSnapshot,
+    deserializeExplainSnapshot,
+} from './snapshot';
+
+export type {
+    ExplainNodeDiffStatus,
+    ExplainMetricDelta,
+    ExplainAlignedNode,
+    ExplainAnalyzeComparisonKind,
+    RawTextDiffLine,
+    ExplainPlanComparison,
+    CompareExplainPlansOptions,
+} from './compare';
+export {
+    checkEngineCompatibility,
+    checkAnalyzeCompatibility,
+    computeMetricDelta,
+    alignExplainNodes,
+    computeRawTextDiff,
+    compareExplainPlans,
+} from './compare';
