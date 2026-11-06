@@ -39,6 +39,7 @@ import {
     Clock,
     Clipboard,
     BookOpen,
+    FolderTree,
     UsersRound,
     Folder,
     FolderOpen,
@@ -110,6 +111,14 @@ import {SidebarPinnedGroup} from './sidebar/SidebarPinnedGroup';
 import {useExplorerPins} from '@/hooks/useExplorerPins';
 import {resolvePins, type PinnedObject} from '@/utils/explorerPins';
 import {NotebooksSection} from './sidebar/NotebooksSection';
+import {LinkedFoldersSection} from './sidebar/LinkedFoldersSection';
+import {
+    buildOpenLinkedFileIndex,
+    createLinkedFileTab,
+    findOpenLinkedFileTab,
+    getLinkedFolderErrorKey,
+    readLinkedSqlFile,
+} from '@/utils/linkedFolders';
 import {
     renameNotebook,
     deleteNotebook,
@@ -152,7 +161,7 @@ import {
     type CreateTableTarget,
 } from '@/utils/createTable';
 
-export type SidebarTab = 'structure' | 'favorites' | 'history' | 'notebooks';
+export type SidebarTab = 'structure' | 'favorites' | 'history' | 'notebooks' | 'sqlFiles';
 
 interface ExplorerSidebarProps {
     sidebarWidth: number;
@@ -552,6 +561,31 @@ export const ExplorerSidebar = ({
         if (!activeConnectionId) return;
         openNotebook(activeConnectionId, nb.id, nb.title);
         navigate('/editor');
+    };
+
+    // A linked file already open (same canonical path) is focused, never re-read
+    // over its tab, so unsaved edits survive a second click.
+    const handleOpenLinkedFile = async (folderId: string, relativePath: string) => {
+        if (!activeConnectionId) {
+            showAlert(t('linkedFolders.needsConnection'), {kind: 'info'});
+            return;
+        }
+        try {
+            const file = await readLinkedSqlFile(client, folderId, relativePath);
+            const existing = findOpenLinkedFileTab(tabs, file.path);
+            if (existing) {
+                setActiveTabId(existing.id);
+            } else {
+                addTab(createLinkedFileTab(folderId, relativePath, file));
+            }
+            navigate('/editor');
+        } catch (error) {
+            const key = getLinkedFolderErrorKey(error);
+            showAlert(`${t('editor.openSqlFileError')}: ${key ? t(key) : String(error)}`, {
+                title: t('common.error'),
+                kind: 'error',
+            });
+        }
     };
 
     const handleRenameNotebook = async (notebookId: string, title: string) => {
@@ -1328,6 +1362,11 @@ export const ExplorerSidebar = ({
                             label: t('sidebar.notebooks.tab'),
                             count: notebookCount,
                         },
+                        {
+                            id: 'sqlFiles' as const,
+                            icon: FolderTree,
+                            label: t('linkedFolders.tab'),
+                        },
                     ].map((tab) => {
                         const isActive = sidebarTab === tab.id;
                         return (
@@ -1710,6 +1749,14 @@ export const ExplorerSidebar = ({
                             onOpen={handleOpenNotebook}
                             onRename={handleRenameNotebook}
                             onDelete={handleDeleteNotebook}
+                        />
+                    )}
+
+                    {/* SQL Files tab: explicitly linked local folders of scripts */}
+                    {sidebarTab === 'sqlFiles' && (
+                        <LinkedFoldersSection
+                            openFiles={buildOpenLinkedFileIndex(tabs)}
+                            onOpenFile={handleOpenLinkedFile}
                         />
                     )}
 

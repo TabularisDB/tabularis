@@ -111,6 +111,54 @@
     "beta": "Beta",
     "dismiss": "Bỏ qua"
   },
+  "linkedFolders": {
+    "tab": "Tệp SQL",
+    "chooseTitle": "Chọn thư mục chứa script SQL",
+    "link": "Liên kết thư mục",
+    "refresh": "Làm mới Tệp SQL",
+    "empty": "Liên kết một thư mục để duyệt các script SQL.",
+    "needsConnection": "Hãy kết nối cơ sở dữ liệu trước khi mở tệp SQL.",
+    "linkError": "Không thể liên kết thư mục",
+    "unlinkError": "Không thể hủy liên kết thư mục",
+    "unlink": "Hủy liên kết {{name}}",
+    "rootUnavailable": "Không khả dụng",
+    "fileUnsaved": "{{name}} (có thay đổi chưa lưu)",
+    "unavailableTitle": "Tệp SQL không khả dụng ở đây",
+    "unavailableMessage": "Liên kết thư mục cục bộ cần ứng dụng máy tính. Trên trình duyệt, hãy dùng Mở tệp SQL để nhập một tệp.",
+    "status": {
+      "loading": "Đang tải…",
+      "empty": "Không có tệp SQL",
+      "truncated": "Chỉ hiển thị các mục đầu tiên"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "Không đọc được danh sách thư mục liên kết đã lưu. Hãy sửa hoặc xóa linked_folders.json trong thư mục cấu hình.",
+      "linked_folder_not_found": "Thư mục liên kết này không còn trong danh sách.",
+      "linked_folder_unavailable": "Thư mục không tồn tại hoặc không đọc được.",
+      "linked_folder_limit_reached": "Đã đạt số thư mục liên kết tối đa. Hãy hủy liên kết một thư mục trước.",
+      "linked_path_outside_root": "Đường dẫn nằm ngoài thư mục liên kết.",
+      "linked_path_not_sql_file": "Ở đây chỉ mở được tệp .sql, .psql và .pgsql.",
+      "linked_directory_unreadable": "Không đọc được thư mục này.",
+      "linked_file_unreadable": "Không đọc được tệp này. Tệp có thể không tồn tại, quá lớn hoặc không phải UTF-8.",
+      "linked_file_too_large": "Tệp quá lớn để lưu (giới hạn 50 MB).",
+      "linked_file_write_failed": "Không ghi được tệp. Hãy kiểm tra quyền truy cập và dung lượng đĩa trống.",
+      "linked_file_conflict_modified": "Tệp đã thay đổi trên đĩa.",
+      "linked_file_conflict_missing": "Tệp không còn tồn tại trên đĩa."
+    },
+    "conflict": {
+      "reload": "Tải lại từ đĩa",
+      "saveAs": "Lưu thành bản sao…",
+      "modified": {
+        "title": "Tệp đã thay đổi trên đĩa",
+        "message": "{{name}} đã bị sửa bên ngoài Tabularis kể từ lúc bạn mở hoặc lưu lần cuối. Chưa có gì được ghi. Hãy ghi đè tệp bằng phiên bản của bạn, lưu thành bản sao, hoặc tải lại phiên bản trên đĩa và bỏ các chỉnh sửa.",
+        "overwrite": "Ghi đè tệp"
+      },
+      "missing": {
+        "title": "Không thấy tệp trên đĩa",
+        "message": "{{name}} đã bị xóa hoặc di chuyển bên ngoài Tabularis. Các chỉnh sửa của bạn vẫn còn trong trình soạn thảo. Hãy tạo lại tệp bằng phiên bản của bạn hoặc lưu thành bản sao ở nơi khác.",
+        "overwrite": "Tạo lại tệp"
+      }
+    }
+  },
   "sidebar": {
     "connections": "Kết nối",
     "settings": "Cài đặt",

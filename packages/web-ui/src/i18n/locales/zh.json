@@ -110,6 +110,54 @@
     "beta": "测试版",
     "dismiss": "关闭"
   },
+  "linkedFolders": {
+    "tab": "SQL 文件",
+    "chooseTitle": "选择 SQL 脚本文件夹",
+    "link": "链接文件夹",
+    "refresh": "刷新 SQL 文件",
+    "empty": "链接一个文件夹以浏览其中的 SQL 脚本。",
+    "needsConnection": "请先连接数据库，再打开 SQL 文件。",
+    "linkError": "无法链接该文件夹",
+    "unlinkError": "无法取消链接该文件夹",
+    "unlink": "取消链接 {{name}}",
+    "rootUnavailable": "不可用",
+    "fileUnsaved": "{{name}}（有未保存的更改）",
+    "unavailableTitle": "此处无法使用 SQL 文件",
+    "unavailableMessage": "链接本地文件夹需要桌面应用。在浏览器中请使用“打开 SQL 文件”导入文件。",
+    "status": {
+      "loading": "加载中…",
+      "empty": "没有 SQL 文件",
+      "truncated": "仅显示前面的条目"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "无法读取已保存的链接文件夹列表。请修复或删除配置文件夹中的 linked_folders.json。",
+      "linked_folder_not_found": "该链接文件夹已不在列表中。",
+      "linked_folder_unavailable": "文件夹不存在或无法读取。",
+      "linked_folder_limit_reached": "已达到链接文件夹数量上限。请先取消链接一个。",
+      "linked_path_outside_root": "路径位于链接文件夹之外。",
+      "linked_path_not_sql_file": "此处只能打开 .sql、.psql 和 .pgsql 文件。",
+      "linked_directory_unreadable": "无法读取此文件夹。",
+      "linked_file_unreadable": "无法读取此文件。它可能不存在、过大或不是 UTF-8 编码。",
+      "linked_file_too_large": "此文件过大，无法保存（上限 50 MB）。",
+      "linked_file_write_failed": "无法写入文件。请检查权限和磁盘剩余空间。",
+      "linked_file_conflict_modified": "文件在磁盘上已更改。",
+      "linked_file_conflict_missing": "文件在磁盘上已不存在。"
+    },
+    "conflict": {
+      "reload": "从磁盘重新加载",
+      "saveAs": "另存为副本…",
+      "modified": {
+        "title": "文件在磁盘上已更改",
+        "message": "自你打开或上次保存以来，{{name}} 已在 Tabularis 之外被修改。未写入任何内容。你可以用自己的版本覆盖文件、另存为副本，或重新加载磁盘版本并放弃你的编辑。",
+        "overwrite": "覆盖文件"
+      },
+      "missing": {
+        "title": "磁盘上找不到文件",
+        "message": "{{name}} 已在 Tabularis 之外被删除或移动。你的编辑仍保留在编辑器中。你可以用自己的版本重新创建文件，或另存为副本到其他位置。",
+        "overwrite": "重新创建文件"
+      }
+    }
+  },
   "sidebar": {
     "connections": "连接",
     "settings": "设置",

@@ -20,6 +20,7 @@ pub mod e2e_dialog_mock;
 pub mod explain_import;
 pub mod export;
 pub mod health_check;
+pub mod linked_folders;
 pub mod log_commands;
 pub mod mcp;
 pub mod notebooks;
@@ -443,6 +444,12 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             export::cancel_export,
             sql_file::read_sql_file,
             sql_file::write_sql_file,
+            linked_folders::list_linked_folders,
+            linked_folders::link_local_folder,
+            linked_folders::unlink_local_folder,
+            linked_folders::list_linked_directory,
+            linked_folders::read_linked_sql_file,
+            linked_folders::write_linked_sql_file,
             saved_queries::get_saved_queries,
             saved_queries::save_query,
             saved_queries::update_saved_query,
