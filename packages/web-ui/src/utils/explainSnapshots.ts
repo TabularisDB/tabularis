@@ -1,4 +1,4 @@
-import type {ExplainSnapshot} from '@tabularis/explain';
+import type {ExplainNode, ExplainSnapshot} from '@tabularis/explain';
 import {
     deserializeExplainSnapshot,
     pruneExplainSnapshots,
@@ -75,7 +75,7 @@ export function normalizeExplainSnapshots(raw: unknown): ExplainSnapshot[] {
                         : null,
             },
             plan: {
-                root: plan.root as any,
+                root: plan.root as unknown as ExplainNode,
                 planning_time_ms:
                     typeof plan.planning_time_ms === 'number' ? plan.planning_time_ms : null,
                 execution_time_ms:
