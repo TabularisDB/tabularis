@@ -4,9 +4,50 @@ import type {ExplainNodeMetrics} from '../src/metrics';
 import type {ExplainDiagnostic} from '../src/diagnostics';
 import {formatExplainNodeDetails, getExplainNodeDetailSections} from '../src/nodeDetails';
 
+function makeNode(overrides: Partial<ExplainNode> = {}): ExplainNode {
+    return {
+        id: 'node_0',
+        node_type: 'Seq Scan',
+        relation: null,
+        startup_cost: null,
+        total_cost: null,
+        plan_rows: null,
+        actual_rows: null,
+        actual_time_ms: null,
+        actual_loops: null,
+        buffers_hit: null,
+        buffers_read: null,
+        filter: null,
+        index_condition: null,
+        join_type: null,
+        hash_condition: null,
+        extra: {},
+        children: [],
+        ...overrides,
+    };
+}
+
+function makeMetrics(overrides: Partial<ExplainNodeMetrics> = {}): ExplainNodeMetrics {
+    return {
+        nodeId: 'node_0',
+        index: 1,
+        depth: 0,
+        inclusiveTimeMs: null,
+        exclusiveTimeMs: null,
+        totalCost: null,
+        exclusiveCost: null,
+        totalRows: null,
+        inclusiveBuffers: null,
+        exclusiveBuffers: null,
+        timeShare: null,
+        neverExecuted: false,
+        ...overrides,
+    };
+}
+
 describe('formatExplainNodeDetails', () => {
     it('formats estimated-only plan node with stable labels and omits absent metrics', () => {
-        const node: ExplainNode = {
+        const node = makeNode({
             id: 'node-1',
             node_type: 'Seq Scan',
             relation: 'users',
@@ -14,9 +55,7 @@ describe('formatExplainNodeDetails', () => {
             total_cost: 35.5,
             plan_rows: 2500,
             filter: "(status = 'active')",
-            children: [],
-            extra: {},
-        };
+        });
 
         const text = formatExplainNodeDetails(node, {hasAnalyzeData: false});
 
@@ -36,7 +75,7 @@ describe('formatExplainNodeDetails', () => {
     });
 
     it('formats analyzed plan node with runtime timing, loops, and buffers', () => {
-        const node: ExplainNode = {
+        const node = makeNode({
             id: 'node-2',
             node_type: 'Index Scan',
             relation: 'orders',
@@ -49,22 +88,16 @@ describe('formatExplainNodeDetails', () => {
             buffers_hit: 128,
             buffers_read: 4,
             index_condition: '(id = 42)',
-            children: [],
-            extra: {},
-        };
+        });
 
-        const metrics: ExplainNodeMetrics = {
+        const metrics = makeMetrics({
             nodeId: 'node-2',
             exclusiveTimeMs: 2.5,
             inclusiveTimeMs: 2.5,
             timeShare: 0.25,
             exclusiveCost: 8.02,
-            costShare: 0.8,
             totalRows: 10,
-            rowShare: 0.1,
-            maxLoops: 2,
-            isBottleneck: false,
-        };
+        });
 
         const text = formatExplainNodeDetails(node, {
             hasAnalyzeData: true,
@@ -89,13 +122,11 @@ describe('formatExplainNodeDetails', () => {
     });
 
     it('omits unavailable metrics rather than inventing zeros or placeholders', () => {
-        const node: ExplainNode = {
+        const node = makeNode({
             id: 'node-3',
             node_type: 'Result',
             total_cost: 0.01,
-            children: [],
-            extra: {},
-        };
+        });
 
         const text = formatExplainNodeDetails(node, {hasAnalyzeData: false});
 
@@ -107,16 +138,15 @@ describe('formatExplainNodeDetails', () => {
     });
 
     it('handles Unicode, Cyrillic, CJK and emoji correctly', () => {
-        const node: ExplainNode = {
+        const node = makeNode({
             id: 'node-unicode',
             node_type: 'Seq Scan',
             relation: 'таблица_заказов_顧客',
             filter: "(категория = '🚀 VIP')",
-            children: [],
             extra: {
                 примечание: 'Быстрый поиск ⚡',
             },
-        };
+        });
 
         const text = formatExplainNodeDetails(node, {hasAnalyzeData: false});
 
@@ -126,13 +156,11 @@ describe('formatExplainNodeDetails', () => {
     });
 
     it('translates labels when custom translator is supplied', () => {
-        const node: ExplainNode = {
+        const node = makeNode({
             id: 'node-trans',
             node_type: 'Hash Join',
             join_type: 'Inner',
-            children: [],
-            extra: {},
-        };
+        });
 
         const translations: Record<string, string> = {
             'editor.visualExplain.nodeType': 'Тип операции',
@@ -149,13 +177,11 @@ describe('formatExplainNodeDetails', () => {
     });
 
     it('includes diagnostics when diagnostics are attached to the node', () => {
-        const node: ExplainNode = {
+        const node = makeNode({
             id: 'node-diag',
             node_type: 'Seq Scan',
             relation: 'huge_table',
-            children: [],
-            extra: {},
-        };
+        });
 
         const diagnostics: ExplainDiagnostic[] = [
             {
@@ -185,12 +211,10 @@ describe('formatExplainNodeDetails', () => {
     });
 
     it('respects includeSectionHeaders: true', () => {
-        const node: ExplainNode = {
+        const node = makeNode({
             id: 'node-headers',
             node_type: 'Sort',
-            children: [],
-            extra: {},
-        };
+        });
 
         const text = formatExplainNodeDetails(node, {
             hasAnalyzeData: false,
@@ -203,12 +227,10 @@ describe('formatExplainNodeDetails', () => {
 
 describe('getExplainNodeDetailSections', () => {
     it('returns empty sections for empty node properties', () => {
-        const node: ExplainNode = {
+        const node = makeNode({
             id: 'node-minimal',
             node_type: 'CustomOp',
-            children: [],
-            extra: {},
-        };
+        });
 
         const sections = getExplainNodeDetailSections(node, {hasAnalyzeData: false});
         expect(sections).toHaveLength(1);
