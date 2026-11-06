@@ -312,6 +312,36 @@ async fn connection_test_failures_emit_correlated_progress() {
     assert_eq!(emitted[1].1["status"], "error");
 }
 
+#[test]
+fn test_log_host_port_keeps_url_hosts_and_named_ports() {
+    assert_eq!(display_host_port("localhost", 5432), "localhost:5432");
+    assert_eq!(display_host_port("192.168.1.10", 3306), "192.168.1.10:3306");
+    assert_eq!(
+        display_host_port("ws://127.0.0.1:8010", 8000),
+        "ws://127.0.0.1:8010"
+    );
+    assert_eq!(
+        display_host_port("wss://db.example.com", 8000),
+        "wss://db.example.com"
+    );
+    assert_eq!(
+        display_host_port("mongodb+srv://cluster.example.net", 27017),
+        "mongodb+srv://cluster.example.net"
+    );
+    assert_eq!(
+        display_host_port("db.example.com:5433", 5432),
+        "db.example.com:5433"
+    );
+    assert_eq!(display_host_port("[::1]:5433", 5432), "[::1]:5433");
+}
+
+#[test]
+fn test_log_host_port_brackets_bare_ipv6_hosts() {
+    assert_eq!(display_host_port("[::1]", 5432), "[::1]:5432");
+    assert_eq!(display_host_port("::1", 5432), "[::1]:5432");
+    assert_eq!(display_host_port("2001:db8::1", 5432), "[2001:db8::1]:5432");
+}
+
 #[tokio::test]
 async fn browser_active_connections_are_isolated_by_session() {
     let (_temp, runtime, state) = fixture();

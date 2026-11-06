@@ -1980,7 +1980,7 @@ async fn test_connection(
             )
         })?;
     let db_target = match (expanded.host.as_deref(), expanded.port) {
-        (Some(host), Some(port)) => format!("{host}:{port}"),
+        (Some(host), Some(port)) => display_host_port(host, port),
         (Some(host), None) => host.to_string(),
         _ => expanded.database.to_string(),
     };
@@ -2035,6 +2035,43 @@ async fn test_connection(
         None,
     );
     Ok("Connection successful!".to_string())
+}
+
+/// `host:port` for the connection test log. A host that is a URL
+/// (`ws://127.0.0.1:8010`) or already names a port (`db:5433`, `[::1]:5433`)
+/// is shown as typed, and a bare IPv6 address is bracketed so its colons stay
+/// apart from the port. Matches `formatHostPort` in the web UI.
+fn display_host_port(host: &str, port: u16) -> String {
+    if has_url_scheme(host) || names_port(host) {
+        host.to_string()
+    } else if !host.starts_with('[') && host.matches(':').count() > 1 {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+fn has_url_scheme(host: &str) -> bool {
+    host.split_once("://").is_some_and(|(scheme, _)| {
+        let mut chars = scheme.chars();
+        chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+            && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+    })
+}
+
+/// `name:port` or `[ipv6]:port`.
+fn names_port(host: &str) -> bool {
+    let Some((name, port)) = host.rsplit_once(':') else {
+        return false;
+    };
+    let is_port = !port.is_empty() && port.bytes().all(|byte| byte.is_ascii_digit());
+    let is_name = match name.strip_prefix('[') {
+        Some(bracketed) => bracketed
+            .strip_suffix(']')
+            .is_some_and(|address| !address.contains(']')),
+        None => !name.is_empty() && !name.contains([':', '[', ']']),
+    };
+    is_port && is_name
 }
 
 fn emit_test_progress(
