@@ -5,6 +5,7 @@ import {exportNotebookToHtml} from './notebookHtmlExport';
 
 const NOTEBOOK_FILTER = [{name: 'Tabularis Notebook', extensions: ['tabularis-notebook']}] as const;
 const HTML_FILTER = [{name: 'HTML', extensions: ['html']}] as const;
+const SQL_FILTER = [{name: 'SQL', extensions: ['sql']}] as const;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', {fatal: true});
 
@@ -50,6 +51,23 @@ export function downloadNotebookHtml(
         contents: encoder.encode(exportNotebookToHtml(title, state.cells)),
         mimeType: 'text/html;charset=utf-8',
         filters: HTML_FILTER,
+    });
+}
+
+/**
+ * Saves the SQL source built by `formatNotebookAsSql` as a `.sql` file.
+ * Resolves to `false` when the user cancels the save dialog.
+ */
+export function downloadNotebookSql(
+    platform: PlatformCapabilities,
+    title: string,
+    sql: string,
+): Promise<boolean> {
+    return platform.downloadFile({
+        fileName: `${safeFileName(title)}.sql`,
+        contents: encoder.encode(sql),
+        mimeType: 'application/sql',
+        filters: SQL_FILTER,
     });
 }
 

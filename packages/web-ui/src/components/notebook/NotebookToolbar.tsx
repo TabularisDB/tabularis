@@ -10,6 +10,7 @@ import {
     FileCode,
     FileText,
     Database,
+    Code,
     ChevronsDownUp,
     ChevronsUpDown,
     ChevronDown,
@@ -25,6 +26,7 @@ interface NotebookToolbarProps {
     onRunAll: () => void;
     onExport: () => void;
     onExportHtml: () => void;
+    onExportSql: () => void;
     onImport: () => void;
     isRunning: boolean;
     stopOnError: boolean;
@@ -77,6 +79,7 @@ export function NotebookToolbar({
     onRunAll,
     onExport,
     onExportHtml,
+    onExportSql,
     onImport,
     isRunning,
     stopOnError,
@@ -117,6 +120,11 @@ export function NotebookToolbar({
             label: t('editor.notebook.exportHtml'),
             icon: FileCode,
             action: onExportHtml,
+        },
+        {
+            label: t('editor.notebook.exportSql'),
+            icon: Code,
+            action: onExportSql,
         },
     ];
 

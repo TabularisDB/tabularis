@@ -5,6 +5,7 @@ import {
     chooseNotebookImport,
     downloadNotebook,
     downloadNotebookHtml,
+    downloadNotebookSql,
 } from '@/utils/notebookTransfer';
 
 const state: NotebookState = {
@@ -113,5 +114,28 @@ describe('notebookTransfer', () => {
         expect(html).toContain('Revenue');
         expect(html).toContain('SELECT 42 AS answer');
         expect(html).toContain('Results');
+    });
+
+    it('saves SQL source as a .sql file through the same download adapter', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        const sql = "-- Cell 1\nSELECT 'ünïcödé 😀';\n";
+
+        await expect(
+            downloadNotebookSql(platformFixture({downloadFile}), 'Revenue / 2026', sql),
+        ).resolves.toBe(true);
+
+        const request = downloadFile.mock.calls[0][0];
+        expect(request.fileName).toBe('Revenue___2026.sql');
+        expect(request.mimeType).toBe('application/sql');
+        expect(request.filters).toEqual([{name: 'SQL', extensions: ['sql']}]);
+        expect(new TextDecoder().decode(request.contents)).toBe(sql);
+    });
+
+    it('reports a cancelled SQL save without throwing', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(false);
+
+        await expect(
+            downloadNotebookSql(platformFixture({downloadFile}), 'Revenue', 'SELECT 1\n'),
+        ).resolves.toBe(false);
     });
 });

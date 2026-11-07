@@ -1919,6 +1919,8 @@
       "exportCsv": "导出为 CSV",
       "exportJson": "导出为 JSON",
       "exportHtml": "导出为 HTML",
+      "exportSql": "导出 SQL 源码",
+      "exportSqlEmpty": "此笔记本没有可导出的 SQL 单元格。",
       "parameters": "参数",
       "paramName": "名称",
       "paramValue": "值",

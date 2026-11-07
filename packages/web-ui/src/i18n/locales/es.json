@@ -1919,6 +1919,8 @@
       "exportCsv": "Exportar como CSV",
       "exportJson": "Exportar como JSON",
       "exportHtml": "Exportar como HTML",
+      "exportSql": "Exportar código SQL",
+      "exportSqlEmpty": "Este cuaderno no tiene celdas SQL para exportar.",
       "parameters": "Parámetros",
       "paramName": "nombre",
       "paramValue": "valor",

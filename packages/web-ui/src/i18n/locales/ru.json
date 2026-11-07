@@ -1961,6 +1961,8 @@
       "exportCsv": "Экспортировать как CSV",
       "exportJson": "Экспортировать как JSON",
       "exportHtml": "Экспортировать как HTML",
+      "exportSql": "Экспортировать SQL-код",
+      "exportSqlEmpty": "В этом блокноте нет SQL-ячеек для экспорта.",
       "parameters": "Параметры",
       "paramName": "имя",
       "paramValue": "значение",

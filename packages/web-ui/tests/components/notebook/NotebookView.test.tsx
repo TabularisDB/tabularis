@@ -1,6 +1,8 @@
 import type {ComponentProps} from 'react';
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
+import {save} from '@tauri-apps/plugin-dialog';
+import {writeFile} from '@tauri-apps/plugin-fs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import type {NotebookCellWrapper} from '@/components/notebook/NotebookCellWrapper';
@@ -86,10 +88,17 @@ vi.mock('@/components/notebook/RunAllSummary', () => ({RunAllSummary: () => null
 vi.mock('@/components/notebook/ParamsPanel', () => ({ParamsPanel: () => null}));
 vi.mock('@/components/notebook/NotebookOutline', () => ({NotebookOutline: () => null}));
 vi.mock('@/components/notebook/NotebookToolbar', () => ({
-    NotebookToolbar: ({onRunAll, isRunning}: ComponentProps<typeof NotebookToolbar>) => (
-        <button onClick={onRunAll} disabled={isRunning}>
-            Run All
-        </button>
+    NotebookToolbar: ({
+        onRunAll,
+        isRunning,
+        onExportSql,
+    }: ComponentProps<typeof NotebookToolbar>) => (
+        <>
+            <button onClick={onRunAll} disabled={isRunning}>
+                Run All
+            </button>
+            <button onClick={onExportSql}>Export SQL</button>
+        </>
     ),
 }));
 // Only the child boundary is replaced: NotebookView owns state and execution.
@@ -139,6 +148,8 @@ vi.mock('@/components/notebook/NotebookCellWrapper', async () => {
 });
 
 const mockInvoke = vi.mocked(invoke);
+const mockSave = vi.mocked(save);
+const mockWriteFile = vi.mocked(writeFile);
 const mockResolveParams = vi.mocked(resolveParams);
 const mockResolveVariables = vi.mocked(resolveQueryVariables);
 const notebookId = 'notebook-1';
@@ -607,5 +618,74 @@ describe('NotebookView', () => {
                 expect(screen.getByRole('button', {name: 'Run All'})).toBeEnabled();
             },
         );
+    });
+
+    describe('SQL source export (#1398)', () => {
+        const exportSql = async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'Export SQL'}));
+            await settle();
+        };
+
+        it('saves the SQL cells in order through the platform save dialog', async () => {
+            mockSave.mockResolvedValue('C:/exports/Notebook.sql');
+            renderNotebook({
+                params,
+                cells: [
+                    sqlCell('source', 'SELECT id, label FROM people', {name: 'People'}),
+                    {id: 'notes', type: 'markdown', content: '# Prose only'},
+                    sqlCell('target', rawQuery, {schema: 'cell_schema', result: queryResult}),
+                ],
+            });
+            await settle();
+
+            await exportSql();
+
+            expect(mockSave).toHaveBeenCalledTimes(1);
+            expect(mockSave.mock.calls[0][0]).toMatchObject({
+                defaultPath: expect.stringContaining('Notebook.sql'),
+            });
+            expect(mockWriteFile).toHaveBeenCalledTimes(1);
+            const contents = new TextDecoder().decode(mockWriteFile.mock.calls[0][1] as Uint8Array);
+            expect(contents).toContain('-- Cell 1: People\nSELECT id, label FROM people\n');
+            expect(contents).toContain(`-- Cell 3\n-- Database: cell_schema\n${rawQuery}`);
+            expect(contents.indexOf('SELECT id, label')).toBeLessThan(contents.indexOf('@source'));
+            // Source as written: the parameter values and the result rows stay out.
+            expect(contents).not.toContain('Prose only');
+            expect(contents).not.toContain('{{cell_1}}');
+            expect(contents).not.toContain('"id"');
+            expect(mockResolveParams).not.toHaveBeenCalled();
+            expect(fixtures.showAlert).toHaveBeenCalledWith('editor.notebook.exportSuccess', {
+                kind: 'info',
+            });
+        });
+
+        it('treats a cancelled save dialog as normal', async () => {
+            mockSave.mockResolvedValue(null);
+            renderNotebook({cells: [sqlCell('only', 'SELECT 1')]});
+            await settle();
+
+            await exportSql();
+
+            expect(mockWriteFile).not.toHaveBeenCalled();
+            expect(fixtures.showAlert).not.toHaveBeenCalled();
+        });
+
+        it('explains a notebook without SQL source instead of saving an empty file', async () => {
+            renderNotebook({
+                cells: [
+                    {id: 'notes', type: 'markdown', content: '# Prose only'},
+                    sqlCell('blank', '   '),
+                ],
+            });
+            await settle();
+
+            await exportSql();
+
+            expect(mockSave).not.toHaveBeenCalled();
+            expect(mockWriteFile).not.toHaveBeenCalled();
+            expect(fixtures.showAlert).toHaveBeenCalledWith('editor.notebook.exportSqlEmpty', {
+                kind: 'info',
+            });
+        });
     });
 });

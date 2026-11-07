@@ -1957,6 +1957,8 @@
       "exportCsv": "CSV としてエクスポート",
       "exportJson": "JSON としてエクスポート",
       "exportHtml": "HTML としてエクスポート",
+      "exportSql": "SQL ソースをエクスポート",
+      "exportSqlEmpty": "このノートブックにはエクスポートする SQL セルがありません。",
       "parameters": "パラメータ",
       "paramName": "名前",
       "paramValue": "値",

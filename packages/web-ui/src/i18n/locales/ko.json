@@ -1921,6 +1921,8 @@
       "exportCsv": "CSV로 내보내기",
       "exportJson": "JSON으로 내보내기",
       "exportHtml": "HTML로 내보내기",
+      "exportSql": "SQL 소스 내보내기",
+      "exportSqlEmpty": "이 노트북에는 내보낼 SQL 셀이 없습니다.",
       "parameters": "매개변수",
       "paramName": "이름",
       "paramValue": "값",

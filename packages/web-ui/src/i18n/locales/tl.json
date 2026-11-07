@@ -1977,6 +1977,8 @@
       "exportCsv": "I-export bilang CSV",
       "exportJson": "I-export bilang JSON",
       "exportHtml": "I-export bilang HTML",
+      "exportSql": "I-export ang SQL source",
+      "exportSqlEmpty": "Walang SQL cell na puwedeng i-export sa notebook na ito.",
       "parameters": "Mga Parameter",
       "paramName": "pangalan",
       "paramValue": "halaga",

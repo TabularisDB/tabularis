@@ -21,7 +21,9 @@ import {
     chooseNotebookImport,
     downloadNotebook,
     downloadNotebookHtml,
+    downloadNotebookSql,
 } from '@/utils/notebookTransfer';
+import {formatNotebookAsSql} from '@/utils/notebookSqlExport';
 import {isTypingTarget} from '@/utils/keyboardEvents';
 import {
     getExecutableCells,
@@ -575,6 +577,30 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         }
     }, [params, platform, showAlert, stopOnError, t, tab.title]);
 
+    // Source only: parameters, cell references and per-cell database context
+    // are not expanded, and the file says so. A notebook without SQL cells
+    // gets a notice instead of an empty file.
+    const handleExportSql = useCallback(async () => {
+        const sql = formatNotebookAsSql(tab.title, cellsRef.current);
+        if (sql === null) {
+            showAlert(t('editor.notebook.exportSqlEmpty'), {kind: 'info'});
+            return;
+        }
+        try {
+            const downloaded = await downloadNotebookSql(platform, tab.title, sql);
+            if (downloaded) {
+                showAlert(t('editor.notebook.exportSuccess'), {kind: 'info'});
+            }
+        } catch (e) {
+            console.error('SQL export failed:', e);
+            showAlert(
+                t('editor.notebook.exportError') ||
+                    `Export failed: ${e instanceof Error ? e.message : String(e)}`,
+                {kind: 'error'},
+            );
+        }
+    }, [platform, showAlert, t, tab.title]);
+
     const handleImport = useCallback(async () => {
         try {
             const imported = await chooseNotebookImport(platform);
@@ -763,6 +789,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         onRunAll: runAll,
         onExport: handleExport,
         onExportHtml: handleExportHtml,
+        onExportSql: handleExportSql,
         onImport: handleImport,
         isRunning: isRunningAll,
         stopOnError,
