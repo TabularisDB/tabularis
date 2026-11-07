@@ -1,10 +1,12 @@
 import type {ComponentProps} from 'react';
-import {act, fireEvent, render, screen} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {NotebookView} from '@/components/notebook/NotebookView';
+import type {ConfirmModal} from '@/components/modals/ConfirmModal';
 import type {NotebookCellWrapper} from '@/components/notebook/NotebookCellWrapper';
 import type {NotebookToolbar} from '@/components/notebook/NotebookToolbar';
+import type {RunAllSummary} from '@/components/notebook/RunAllSummary';
 import type {QueryResult, Tab} from '@/types/editor';
 import type {NotebookCell, NotebookState} from '@/types/notebook';
 import {resolveParams} from '@/utils/notebookParams';
@@ -77,19 +79,46 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
     readFile: vi.fn(),
     writeFile: vi.fn(),
 }));
-vi.mock('@/components/modals/ConfirmModal', () => ({ConfirmModal: () => null}));
+vi.mock('@/components/modals/ConfirmModal', () => ({
+    ConfirmModal: ({isOpen, title, onConfirm, onClose}: ComponentProps<typeof ConfirmModal>) =>
+        isOpen ? (
+            <div role="dialog" aria-label={title}>
+                <button onClick={onConfirm}>Confirm {title}</button>
+                <button onClick={onClose}>Cancel {title}</button>
+            </div>
+        ) : null,
+}));
 vi.mock('@/components/notebook/NotebookHistoryPanel', () => ({
     NotebookHistoryPanel: () => null,
 }));
 vi.mock('@/components/notebook/AddCellButton', () => ({AddCellButton: () => null}));
-vi.mock('@/components/notebook/RunAllSummary', () => ({RunAllSummary: () => null}));
+vi.mock('@/components/notebook/RunAllSummary', () => ({
+    RunAllSummary: ({result}: ComponentProps<typeof RunAllSummary>) => (
+        <output data-testid="run-all-summary">{result.total}</output>
+    ),
+}));
 vi.mock('@/components/notebook/ParamsPanel', () => ({ParamsPanel: () => null}));
 vi.mock('@/components/notebook/NotebookOutline', () => ({NotebookOutline: () => null}));
 vi.mock('@/components/notebook/NotebookToolbar', () => ({
-    NotebookToolbar: ({onRunAll, isRunning}: ComponentProps<typeof NotebookToolbar>) => (
-        <button onClick={onRunAll} disabled={isRunning}>
-            Run All
-        </button>
+    NotebookToolbar: ({
+        onRunAll,
+        isRunning,
+        onClearOutputs,
+        canClearOutputs,
+        onUndo,
+        canUndo,
+    }: ComponentProps<typeof NotebookToolbar>) => (
+        <>
+            <button onClick={onRunAll} disabled={isRunning}>
+                Run All
+            </button>
+            <button onClick={onClearOutputs} disabled={!canClearOutputs}>
+                Clear outputs
+            </button>
+            <button onClick={onUndo} disabled={!canUndo}>
+                Undo
+            </button>
+        </>
     ),
 }));
 // Only the child boundary is replaced: NotebookView owns state and execution.
@@ -607,5 +636,198 @@ describe('NotebookView', () => {
                 expect(screen.getByRole('button', {name: 'Run All'})).toBeEnabled();
             },
         );
+    });
+
+    describe('Clear all outputs', () => {
+        const clearLabel = 'editor.notebook.clearOutputs';
+        const historyEntry = {
+            query: 'SELECT 1',
+            result: queryResult,
+            executionTime: 3,
+            timestamp: 1,
+        };
+        const failedEntry = {
+            query: 'SELECT oops',
+            result: null,
+            error: 'syntax error',
+            executionTime: 2,
+            timestamp: 2,
+        };
+        const chartConfig = {type: 'bar' as const, labelColumn: 'id', valueColumns: ['id']};
+
+        function notebookWithOutputs(): NotebookState {
+            return {
+                params,
+                stopOnError: true,
+                cells: [
+                    sqlCell('ok', 'SELECT 1', {
+                        schema: 'cell_schema',
+                        result: queryResult,
+                        executionTime: 12,
+                        history: [historyEntry],
+                        chartConfig,
+                    }),
+                    {id: 'notes', type: 'markdown', content: '# Notes', isPreview: true},
+                    sqlCell('failed', 'SELECT oops', {
+                        error: 'syntax error',
+                        executionTime: 4,
+                        history: [failedEntry],
+                    }),
+                ],
+            };
+        }
+
+        function deferredQuery() {
+            let finish: (value: QueryResult) => void = () => {};
+            mockInvoke.mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            return (value: QueryResult) => finish(value);
+        }
+
+        const clearButton = () => screen.getByRole('button', {name: 'Clear outputs'});
+
+        it('asks for confirmation, then clears every SQL cell output in one update', async () => {
+            const state = notebookWithOutputs();
+            renderNotebook(state);
+            await settle();
+            expect(clearButton()).toBeEnabled();
+
+            fireEvent.click(clearButton());
+            expect(screen.getByRole('dialog', {name: clearLabel})).toBeInTheDocument();
+            expect(setNotebookState).not.toHaveBeenCalled();
+            expect(savedCell('ok').result).toEqual(queryResult);
+
+            fireEvent.click(screen.getByRole('button', {name: `Confirm ${clearLabel}`}));
+
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+            expect(setNotebookState).toHaveBeenCalledTimes(1);
+            const saved = fixtures.notebooks.get(notebookId);
+            expect(saved?.cells.map((cell) => cell.id)).toEqual(['ok', 'notes', 'failed']);
+            expect(savedCell('ok')).toEqual({
+                ...state.cells[0],
+                result: null,
+                error: undefined,
+                executionTime: null,
+            });
+            expect(savedCell('failed')).toEqual({
+                ...state.cells[2],
+                result: null,
+                error: undefined,
+                executionTime: null,
+            });
+            expect(savedCell('ok').history).toEqual([historyEntry]);
+            expect(savedCell('failed').history).toEqual([failedEntry]);
+            expect(savedCell('ok').chartConfig).toEqual(chartConfig);
+            expect(savedCell('notes')).toEqual(state.cells[1]);
+            expect(saved?.params).toEqual(params);
+            expect(saved?.stopOnError).toBe(true);
+            // Only live output is dropped: no database call, and nothing left to clear.
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(fixtures.guardQuery).not.toHaveBeenCalled();
+            expect(clearButton()).toBeDisabled();
+            // It is not an undo step.
+            expect(screen.getByRole('button', {name: 'Undo'})).toBeDisabled();
+        });
+
+        it('keeps every output when the confirmation is cancelled', async () => {
+            renderNotebook(notebookWithOutputs());
+            await settle();
+
+            fireEvent.click(clearButton());
+            fireEvent.click(screen.getByRole('button', {name: `Cancel ${clearLabel}`}));
+
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+            expect(setNotebookState).not.toHaveBeenCalled();
+            expect(savedCell('ok').result).toEqual(queryResult);
+            expect(savedCell('failed').error).toBe('syntax error');
+            expect(clearButton()).toBeEnabled();
+        });
+
+        it('hides the Run All summary and keeps the execution history of the run', async () => {
+            mockInvoke.mockResolvedValue(queryResult);
+            renderNotebook({cells: [sqlCell('only', 'SELECT 1')]});
+            await settle();
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name: 'Run All'}));
+            });
+            expect(screen.getByTestId('run-all-summary')).toHaveTextContent('1');
+            expect(savedCell('only').result).toEqual(queryResult);
+
+            fireEvent.click(clearButton());
+            fireEvent.click(screen.getByRole('button', {name: `Confirm ${clearLabel}`}));
+
+            expect(screen.queryByTestId('run-all-summary')).not.toBeInTheDocument();
+            expect(savedCell('only').result).toBeNull();
+            expect(savedCell('only').executionTime).toBeNull();
+            expect(savedCell('only').history).toHaveLength(1);
+            // The run itself was the only query: clearing issued none.
+            expect(mockInvoke).toHaveBeenCalledTimes(1);
+        });
+
+        it.each([
+            {name: 'Run All', trigger: 'Run All'},
+            {name: 'a single cell run', trigger: 'Run only'},
+        ])('is disabled while $name is executing', async ({trigger}) => {
+            const finish = deferredQuery();
+            renderNotebook({
+                cells: [sqlCell('only', 'SELECT 1', {result: queryResult, executionTime: 5})],
+            });
+            await settle();
+            expect(clearButton()).toBeEnabled();
+
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name: trigger}));
+            });
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            expect(clearButton()).toBeDisabled();
+
+            await act(async () => {
+                finish(queryResult);
+            });
+            await waitFor(() => expect(clearButton()).toBeEnabled());
+        });
+
+        it('does not clear when a run starts while the confirmation is open', async () => {
+            const finish = deferredQuery();
+            renderNotebook({
+                cells: [sqlCell('only', 'SELECT 1', {result: queryResult, executionTime: 5})],
+            });
+            await settle();
+
+            fireEvent.click(clearButton());
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name: 'Run All'}));
+            });
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: `Confirm ${clearLabel}`}));
+
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+            expect(savedCell('only')).toMatchObject({isLoading: true, executionTime: 5});
+
+            await act(async () => {
+                finish(queryResult);
+            });
+            await waitFor(() => expect(savedCell('only').result).toEqual(queryResult));
+        });
+
+        it.each([
+            {name: 'an empty notebook', cells: [] as NotebookCell[]},
+            {
+                name: 'cells that never ran',
+                cells: [
+                    sqlCell('idle', 'SELECT 1'),
+                    {id: 'notes', type: 'markdown' as const, content: '# Notes'},
+                ],
+            },
+        ])('is disabled for $name', async ({cells}) => {
+            renderNotebook({cells});
+            await settle();
+
+            expect(clearButton()).toBeDisabled();
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        });
     });
 });

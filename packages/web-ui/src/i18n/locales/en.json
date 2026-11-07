@@ -2040,6 +2040,8 @@
       "expandSection": "Expand Section",
       "collapseAll": "Collapse All",
       "expandAll": "Expand All",
+      "clearOutputs": "Clear Outputs",
+      "clearOutputsConfirm": "Clear the displayed results, errors and timings of all cells? Queries, parameters, charts and execution history are kept.",
       "outline": "Outline",
       "aiGenerate": "Generate SQL with AI",
       "aiExplain": "Explain this Query with AI",
