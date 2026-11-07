@@ -2245,6 +2245,7 @@
     "collapse": "折叠",
     "expandAll": "全部展开",
     "collapseAll": "全部折叠",
+    "sortKeys": "排序键",
     "search": "搜索",
     "copyPath": "复制路径",
     "copyValue": "复制值",

@@ -2300,6 +2300,7 @@
     "collapse": "접기",
     "expandAll": "모두 펼치기",
     "collapseAll": "모두 접기",
+    "sortKeys": "키 정렬",
     "search": "검색",
     "copyPath": "경로 복사",
     "copyValue": "값 복사",

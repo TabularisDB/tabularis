@@ -1,6 +1,6 @@
 import {useContext, useMemo, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {ChevronsDownUp, ChevronsUpDown, ExternalLink, Search} from 'lucide-react';
+import {ArrowDownAZ, ChevronsDownUp, ChevronsUpDown, ExternalLink, Search} from 'lucide-react';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {
     JsonEditor,
@@ -15,7 +15,7 @@ import {
 } from 'json-edit-react';
 import {ThemeContext} from '@/contexts/ThemeContext';
 import type {Theme} from '@/types/theme';
-import {buildCollapseTrigger, hasCollapsibleNodes} from '@/utils/jsonTree';
+import {buildCollapseTrigger, compareJsonKeys, hasCollapsibleNodes} from '@/utils/jsonTree';
 import {isColorString, isLinkString} from '@/utils/jsonValueDecorators';
 
 export interface JsonTreeViewProps {
@@ -146,16 +146,20 @@ const CUSTOM_NODE_DEFINITIONS: CustomNodeDefinition[] = [
     },
 ];
 
-const CONTROL_BUTTON_CLASS =
-    'inline-flex items-center gap-1 px-2 py-1.5 text-xs text-muted hover:text-primary bg-base border border-strong rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+const CONTROL_BUTTON_BASE_CLASS =
+    'inline-flex items-center gap-1 px-2 py-1.5 text-xs border rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+const CONTROL_BUTTON_CLASS = `${CONTROL_BUTTON_BASE_CLASS} text-muted hover:text-primary bg-base border-strong`;
+const CONTROL_BUTTON_PRESSED_CLASS = `${CONTROL_BUTTON_BASE_CLASS} bg-accent-primary/30 text-accent border-accent-primary/50`;
 
 interface TreeControlsProps {
     disabled: boolean;
     onExpandAll: () => void;
     onCollapseAll: () => void;
+    /** Shown only for read-only trees: an editable tree keeps the document's own key order. */
+    sortKeys?: {pressed: boolean; onToggle: () => void};
 }
 
-const TreeControls = ({disabled, onExpandAll, onCollapseAll}: TreeControlsProps) => {
+const TreeControls = ({disabled, onExpandAll, onCollapseAll, sortKeys}: TreeControlsProps) => {
     const {t} = useTranslation();
     return (
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -177,6 +181,20 @@ const TreeControls = ({disabled, onExpandAll, onCollapseAll}: TreeControlsProps)
                 <ChevronsDownUp size={14} aria-hidden="true" />
                 {t('jsonInput.collapseAll')}
             </button>
+            {sortKeys && (
+                <button
+                    type="button"
+                    onClick={sortKeys.onToggle}
+                    disabled={disabled}
+                    aria-pressed={sortKeys.pressed}
+                    className={
+                        sortKeys.pressed ? CONTROL_BUTTON_PRESSED_CLASS : CONTROL_BUTTON_CLASS
+                    }
+                >
+                    <ArrowDownAZ size={14} aria-hidden="true" />
+                    {t('jsonInput.sortKeys')}
+                </button>
+            )}
         </div>
     );
 };
@@ -196,8 +214,10 @@ export const JsonTreeView = ({
     const [externalTriggers, setExternalTriggers] = useState<ExternalTriggers | undefined>(
         undefined,
     );
+    const [sortKeys, setSortKeys] = useState(false);
 
     const isViewOnly = readOnly === true || onChange === undefined;
+    const keySort = isViewOnly && sortKeys ? compareJsonKeys : false;
     const externalSearchProvided = searchQuery !== undefined;
     const effectiveSearch = externalSearchProvided ? searchQuery : internalSearch;
 
@@ -216,6 +236,11 @@ export const JsonTreeView = ({
             disabled={!hasCollapsibleNodes(value)}
             onExpandAll={() => setExternalTriggers(buildCollapseTrigger(false))}
             onCollapseAll={() => setExternalTriggers(buildCollapseTrigger(true))}
+            sortKeys={
+                isViewOnly
+                    ? {pressed: sortKeys, onToggle: () => setSortKeys((on) => !on)}
+                    : undefined
+            }
         />
     );
 
@@ -272,6 +297,7 @@ export const JsonTreeView = ({
                         customNodeDefinitions={CUSTOM_NODE_DEFINITIONS}
                         enableClipboard={enableClipboard}
                         externalTriggers={externalTriggers}
+                        keySort={keySort}
                     />
                 </div>
             </div>
@@ -328,6 +354,7 @@ export const JsonTreeView = ({
                     customNodeDefinitions={CUSTOM_NODE_DEFINITIONS}
                     enableClipboard={enableClipboard}
                     externalTriggers={externalTriggers}
+                    keySort={keySort}
                 />
             </div>
         </div>
