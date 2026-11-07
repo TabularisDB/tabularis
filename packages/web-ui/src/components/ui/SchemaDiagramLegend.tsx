@@ -1,7 +1,8 @@
-import {memo, useState, useEffect, useRef} from 'react';
+import {memo, useState, useCallback} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Key, Link, Info, ChevronDown, ChevronUp} from 'lucide-react';
 import clsx from 'clsx';
+import {useEscapeKey} from '@/hooks/useEscapeKey';
 
 export interface SchemaDiagramLegendProps {
     className?: string;
@@ -10,27 +11,15 @@ export interface SchemaDiagramLegendProps {
 export const SchemaDiagramLegend = memo(({className}: SchemaDiagramLegendProps) => {
     const {t} = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
+    const close = useCallback(() => setIsOpen(false), []);
 
-    // Keyboard support: Close on Escape when focus is inside
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                setIsOpen(false);
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen]);
+    // Integrate with the application modal escape stack
+    useEscapeKey(isOpen, close);
 
     return (
         <div
-            ref={containerRef}
             className={clsx(
-                'bg-elevated/95 backdrop-blur-sm border border-strong rounded-lg shadow-xl overflow-hidden transition-all text-xs font-sans select-none',
+                'relative bg-elevated/95 backdrop-blur-sm border border-strong rounded-lg shadow-lg overflow-visible text-sm font-sans select-none',
                 className,
             )}
             data-testid="schema-diagram-legend"
@@ -38,15 +27,13 @@ export const SchemaDiagramLegend = memo(({className}: SchemaDiagramLegendProps) 
             <button
                 type="button"
                 onClick={() => setIsOpen((prev) => !prev)}
-                className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-primary hover:bg-surface-secondary/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-primary hover:bg-surface-secondary rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus transition-colors font-medium"
                 aria-expanded={isOpen}
                 aria-controls="schema-diagram-legend-content"
                 title={t('erDiagram.legend', 'Legend')}
             >
-                <div className="flex items-center gap-1.5 font-medium">
-                    <Info size={14} className="text-secondary" />
-                    <span>{t('erDiagram.legend', 'Legend')}</span>
-                </div>
+                <Info size={16} className="text-secondary" />
+                <span>{t('erDiagram.legend', 'Legend')}</span>
                 {isOpen ? (
                     <ChevronUp size={14} className="text-secondary" />
                 ) : (
@@ -57,7 +44,7 @@ export const SchemaDiagramLegend = memo(({className}: SchemaDiagramLegendProps) 
             {isOpen && (
                 <div
                     id="schema-diagram-legend-content"
-                    className="p-3 border-t border-default/60 flex flex-col gap-2.5 max-w-[280px]"
+                    className="absolute top-full left-0 mt-1 p-3 bg-elevated border border-strong rounded-lg shadow-xl flex flex-col gap-2.5 min-w-[260px] max-w-[300px] z-20"
                 >
                     {/* Primary Key Item */}
                     <div className="flex items-start gap-2.5">
@@ -65,7 +52,7 @@ export const SchemaDiagramLegend = memo(({className}: SchemaDiagramLegendProps) 
                             <Key size={12} className="text-semantic-pk" />
                         </div>
                         <div className="flex flex-col min-w-0">
-                            <span className="font-semibold text-semantic-pk leading-tight">
+                            <span className="font-semibold text-semantic-pk text-xs leading-tight">
                                 {t('erDiagram.primaryKey', 'Primary Key')}
                             </span>
                             <span className="text-[11px] text-muted leading-tight mt-0.5">
@@ -83,7 +70,7 @@ export const SchemaDiagramLegend = memo(({className}: SchemaDiagramLegendProps) 
                             <Link size={12} className="text-semantic-fk" />
                         </div>
                         <div className="flex flex-col min-w-0">
-                            <span className="font-semibold text-semantic-fk leading-tight">
+                            <span className="font-semibold text-semantic-fk text-xs leading-tight">
                                 {t('erDiagram.foreignKey', 'Foreign Key')}
                             </span>
                             <span className="text-[11px] text-muted leading-tight mt-0.5">
@@ -101,7 +88,7 @@ export const SchemaDiagramLegend = memo(({className}: SchemaDiagramLegendProps) 
                             <div className="w-3 h-0.5 bg-accent-primary rounded-full shadow-[0_0_4px_var(--accent-primary)]" />
                         </div>
                         <div className="flex flex-col min-w-0">
-                            <span className="font-semibold text-primary leading-tight">
+                            <span className="font-semibold text-primary text-xs leading-tight">
                                 {t('erDiagram.relationship', 'Relationship')}
                             </span>
                             <span className="text-[11px] text-muted leading-tight mt-0.5">

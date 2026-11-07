@@ -2248,7 +2248,7 @@
         "foreignKey": "外鍵",
         "foreignKeyDesc": "引用另一個表中的主鍵或唯一鍵",
         "relationship": "關聯",
-        "relationshipDesc": "連接子表與父表的外键引用"
+        "relationshipDesc": "連接子表與父表的外鍵引用"
     },
     "views": {
         "createView": "建立檢視",
