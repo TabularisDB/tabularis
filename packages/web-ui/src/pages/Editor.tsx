@@ -5744,6 +5744,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 initialValue={tab.query}
                                 dialect={activeDialect}
                                 foldPreview
+                                cursorStatus
                                 onChange={(val) => {
                                     // Debounced Monaco edits can arrive after this tab becomes
                                     // inactive. The callback belongs to the tab's stable id;
