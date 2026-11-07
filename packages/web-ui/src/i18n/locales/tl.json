@@ -245,6 +245,8 @@
     "onTable": "sa {{table}}",
     "objectSummary": "Mga Object",
     "databases": "Mga Database",
+    "newDatabase": "Bagong Database",
+    "newSchema": "Bagong Schema",
     "failGetRoutineDefinition": "Hindi makuha ang definition ng routine: ",
     "schemas": "Mga Schema",
     "noSchemas": "Walang nahanap na schema",
@@ -2120,6 +2122,24 @@
     "colRequired": "Kailangan ng kahit isang column",
     "failCreate": "Hindi nagawa ang table: ",
     "requiresExtension": "Kailangan ng extension: {{ext}}"
+  },
+  "createDatabase": {
+    "title": "Gumawa ng Database",
+    "subtitle": "Nagpapatakbo ng CREATE DATABASE sa server na ito",
+    "name": "Pangalan ng database",
+    "namePlaceholder": "hal. analytics, staging",
+    "create": "Gumawa ng Database",
+    "nameRequired": "Kailangan ang pangalan ng database",
+    "failCreate": "Hindi nagawa ang database: "
+  },
+  "createSchema": {
+    "title": "Gumawa ng Schema",
+    "subtitle": "Nagpapatakbo ng CREATE SCHEMA sa database na ito",
+    "name": "Pangalan ng schema",
+    "namePlaceholder": "hal. store, reporting",
+    "create": "Gumawa ng Schema",
+    "nameRequired": "Kailangan ang pangalan ng schema",
+    "failCreate": "Hindi nagawa ang schema: "
   },
   "schema": {
     "title": "Schema: {{table}}",

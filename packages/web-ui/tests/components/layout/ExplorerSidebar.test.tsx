@@ -1508,3 +1508,149 @@ describe('ExplorerSidebar — saved query actions', () => {
         });
     });
 });
+
+describe('ExplorerSidebar — create database / schema actions (#839)', () => {
+    const stubSidebarHooks = () => {
+        vi.mocked(useSavedQueries).mockReturnValue({
+            queries: [],
+            folders: [],
+            deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
+            updateQuery: vi.fn(),
+            saveQuery: vi.fn(),
+        } as unknown as ReturnType<typeof useSavedQueries>);
+        vi.mocked(useQueryHistory).mockReturnValue({
+            entries: [],
+            isLoading: false,
+            deleteEntry: vi.fn(),
+            clearHistory: vi.fn(),
+            recoveryNotice: null,
+            dismissRecoveryNotice: vi.fn(),
+        } as unknown as ReturnType<typeof useQueryHistory>);
+        vi.mocked(useAlert).mockReturnValue({
+            showAlert: vi.fn(),
+        } as unknown as ReturnType<typeof useAlert>);
+        vi.mocked(useDrivers).mockReturnValue({
+            allDrivers: [],
+        } as unknown as ReturnType<typeof useDrivers>);
+        vi.mocked(useEditor).mockReturnValue({
+            tabs: [],
+            openNotebook: vi.fn(),
+            updateTab: vi.fn(),
+            closeTab: vi.fn(),
+            addTab: vi.fn(),
+            setActiveTabId: vi.fn(),
+        } as unknown as ReturnType<typeof useEditor>);
+        vi.mocked(useSettings).mockReturnValue({
+            settings: {displayTimezone: 'auto'},
+        } as unknown as ReturnType<typeof useSettings>);
+        vi.mocked(useConnectionLayoutContext).mockReturnValue({
+            splitView: {connectionIds: []},
+            isSplitVisible: false,
+            explorerConnectionId: null,
+            setExplorerConnectionId: vi.fn(),
+        } as unknown as ReturnType<typeof useConnectionLayoutContext>);
+        vi.mocked(useDatabaseObjectNavigation).mockReturnValue({
+            open: vi.fn(),
+            count: vi.fn(),
+            newConsole: vi.fn(),
+            openRoutineDefinition: vi.fn(),
+            openTriggerDefinition: vi.fn(),
+            openDefinition: vi.fn(),
+        } as unknown as ReturnType<typeof useDatabaseObjectNavigation>);
+    };
+
+    const baseDatabaseState = {
+        activeConnectionId: 'c1',
+        activeDriver: 'mysql',
+        activeTable: null,
+        setActiveTable: vi.fn(),
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        schemas: [] as string[],
+        connectionDataMap: {c1: {}},
+        schemaDataMap: {},
+        databaseDataMap: {},
+        nestedDatabaseDataMap: {},
+        selectedSchemas: [] as string[],
+        selectedDatabases: [] as string[],
+        connections: [],
+        isLoadingTables: false,
+        isLoadingSchemas: false,
+        needsSchemaSelection: false,
+        connect: vi.fn(),
+        loadSchemaData: vi.fn(),
+        refreshSchemaData: vi.fn(),
+        setSelectedSchemas: vi.fn(),
+        refreshSchemas: vi.fn(),
+        loadDatabaseData: vi.fn(),
+        setSelectedDatabases: vi.fn(),
+        loadNestedSchemas: vi.fn(),
+        setSelectedSchemasForDatabase: vi.fn(),
+        refreshDatabaseSelection: vi.fn(),
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        stubSidebarHooks();
+    });
+
+    it('offers New Database on a MySQL multi-database connection', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeCapabilities: {
+                schemas: false,
+                file_based: false,
+                folder_based: false,
+                identifier_quote: '`',
+                sql_dialect: 'mysql',
+            },
+            selectedDatabases: ['app'],
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.newDatabase'}));
+        expect(screen.getByText('createDatabase.title')).toBeInTheDocument();
+    });
+
+    it('offers New Schema on a single-database PostgreSQL connection', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: {
+                schemas: true,
+                file_based: false,
+                folder_based: false,
+                identifier_quote: '"',
+                sql_dialect: 'postgres',
+            },
+            schemas: ['public'],
+            selectedSchemas: ['public'],
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.newSchema'}));
+        expect(screen.getByText('createSchema.title')).toBeInTheDocument();
+    });
+
+    it('hides New Database on SQLite', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'sqlite',
+            activeCapabilities: {
+                schemas: false,
+                file_based: true,
+                folder_based: false,
+                identifier_quote: '"',
+                sql_dialect: 'sqlite',
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        expect(screen.queryByRole('button', {name: 'sidebar.newDatabase'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'sidebar.newSchema'})).not.toBeInTheDocument();
+    });
+});

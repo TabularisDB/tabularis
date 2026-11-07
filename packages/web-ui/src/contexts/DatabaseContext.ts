@@ -222,6 +222,8 @@ export interface DatabaseContextType {
     loadSchemaData: (schema: string, connectionId?: string) => Promise<void>;
     refreshSchemaData: (schema: string, connectionId?: string) => Promise<void>;
     setSelectedSchemas: (schemas: string[], connectionId?: string) => Promise<void>;
+    /** Re-fetches the schema list for a single-database schema-capable connection. */
+    refreshSchemas: (connectionId?: string) => Promise<string[]>;
     loadDatabaseData: (database: string, connectionId?: string) => Promise<void>;
     refreshDatabaseData: (database: string, connectionId?: string) => Promise<void>;
     setSelectedDatabases: (databases: string[], connectionId?: string) => void;

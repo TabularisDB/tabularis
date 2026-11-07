@@ -239,6 +239,8 @@
     "refreshRoutines": "Aggiorna Routine",
     "objectSummary": "Oggetti",
     "databases": "Database",
+    "newDatabase": "Nuovo database",
+    "newSchema": "Nuovo schema",
     "failGetRoutineDefinition": "Impossibile recuperare la definizione della routine: ",
     "schemas": "Schemi",
     "noSchemas": "Nessuno schema trovato",
@@ -2150,6 +2152,24 @@
     "colRequired": "È richiesta almeno una colonna",
     "failCreate": "Creazione tabella fallita: ",
     "requiresExtension": "Richiede estensione: {{ext}}"
+  },
+  "createDatabase": {
+    "title": "Crea database",
+    "subtitle": "Esegue CREATE DATABASE su questo server",
+    "name": "Nome del database",
+    "namePlaceholder": "es. analytics, staging",
+    "create": "Crea database",
+    "nameRequired": "Il nome del database è obbligatorio",
+    "failCreate": "Creazione del database fallita: "
+  },
+  "createSchema": {
+    "title": "Crea schema",
+    "subtitle": "Esegue CREATE SCHEMA in questo database",
+    "name": "Nome dello schema",
+    "namePlaceholder": "es. store, reporting",
+    "create": "Crea schema",
+    "nameRequired": "Il nome dello schema è obbligatorio",
+    "failCreate": "Creazione dello schema fallita: "
   },
   "schema": {
     "title": "Schema: {{table}}",

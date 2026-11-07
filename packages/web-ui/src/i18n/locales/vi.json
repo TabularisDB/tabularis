@@ -243,6 +243,8 @@
     "onTable": "trên {{table}}",
     "objectSummary": "Đối tượng",
     "databases": "Cơ sở dữ liệu",
+    "newDatabase": "Cơ sở dữ liệu mới",
+    "newSchema": "Schema mới",
     "failGetRoutineDefinition": "Không lấy được định nghĩa routine: ",
     "schemas": "Schema",
     "noSchemas": "Không tìm thấy schema nào",
@@ -2144,6 +2146,24 @@
     "colRequired": "Cần ít nhất một cột",
     "failCreate": "Không tạo được bảng: ",
     "requiresExtension": "Cần extension: {{ext}}"
+  },
+  "createDatabase": {
+    "title": "Tạo cơ sở dữ liệu",
+    "subtitle": "Chạy CREATE DATABASE trên máy chủ này",
+    "name": "Tên cơ sở dữ liệu",
+    "namePlaceholder": "vd. analytics, staging",
+    "create": "Tạo cơ sở dữ liệu",
+    "nameRequired": "Tên cơ sở dữ liệu là bắt buộc",
+    "failCreate": "Không tạo được cơ sở dữ liệu: "
+  },
+  "createSchema": {
+    "title": "Tạo schema",
+    "subtitle": "Chạy CREATE SCHEMA trong cơ sở dữ liệu này",
+    "name": "Tên schema",
+    "namePlaceholder": "vd. store, reporting",
+    "create": "Tạo schema",
+    "nameRequired": "Tên schema là bắt buộc",
+    "failCreate": "Không tạo được schema: "
   },
   "schema": {
     "title": "Schema: {{table}}",

@@ -245,6 +245,8 @@
     "onTable": "на {{table}}",
     "objectSummary": "Объекты",
     "databases": "Базы данных",
+    "newDatabase": "Новая база данных",
+    "newSchema": "Новая схема",
     "failGetRoutineDefinition": "Не удалось получить определение подпрограммы: ",
     "schemas": "Схемы",
     "noSchemas": "Схемы не найдены",
@@ -2111,6 +2113,24 @@
     "colRequired": "Требуется хотя бы один столбец",
     "failCreate": "Не удалось создать таблицу: ",
     "requiresExtension": "Требуется расширение: {{ext}}"
+  },
+  "createDatabase": {
+    "title": "Создать базу данных",
+    "subtitle": "Выполняет CREATE DATABASE на этом сервере",
+    "name": "Имя базы данных",
+    "namePlaceholder": "напр. analytics, staging",
+    "create": "Создать базу данных",
+    "nameRequired": "Имя базы данных обязательно",
+    "failCreate": "Не удалось создать базу данных: "
+  },
+  "createSchema": {
+    "title": "Создать схему",
+    "subtitle": "Выполняет CREATE SCHEMA в этой базе данных",
+    "name": "Имя схемы",
+    "namePlaceholder": "напр. store, reporting",
+    "create": "Создать схему",
+    "nameRequired": "Имя схемы обязательно",
+    "failCreate": "Не удалось создать схему: "
   },
   "schema": {
     "title": "Схема: {{table}}",
