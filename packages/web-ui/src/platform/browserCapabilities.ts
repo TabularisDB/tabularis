@@ -1,3 +1,4 @@
+import {webPath} from '@/utils/webBasePath';
 import type {TabularisClient} from '@/api/client';
 import {
     createPlatformCapabilityNegotiation,
@@ -203,7 +204,9 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
         if (!match) {
             return Promise.reject(new Error('Invalid application asset path'));
         }
-        return Promise.resolve(`/api/v1/assets/connection-icons/${encodeURIComponent(match[1])}`);
+        return Promise.resolve(
+            webPath(`/api/v1/assets/connection-icons/${encodeURIComponent(match[1])}`),
+        );
     }
 
     async readClipboard(): Promise<string> {
@@ -299,9 +302,9 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
 
     async openRoute(request: OpenRouteRequest): Promise<void> {
         if (request.target === 'current') {
-            window.location.assign(request.route);
+            window.location.assign(webPath(request.route));
         } else {
-            window.open(request.route, '_blank', 'noopener,noreferrer');
+            window.open(webPath(request.route), '_blank', 'noopener,noreferrer');
         }
     }
 

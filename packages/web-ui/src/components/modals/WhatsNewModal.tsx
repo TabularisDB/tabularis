@@ -1,3 +1,4 @@
+import {webPath} from '@/utils/webBasePath';
 import {useState, useSyncExternalStore} from 'react';
 import {useTranslation} from 'react-i18next';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
@@ -81,7 +82,7 @@ export const WhatsNewModal = ({isOpen, onClose, entries, isLoading}: WhatsNewMod
                         >
                             <div className="flex items-start gap-3">
                                 <img
-                                    src="/debba-avatar.jpg"
+                                    src={webPath('/debba-avatar.jpg')}
                                     alt="Andrea Debernardi (debba)"
                                     width={56}
                                     height={56}
