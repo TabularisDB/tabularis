@@ -774,7 +774,11 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const isExecuting = isRunningAll || runningCount > 0;
 
     const handleClearOutputs = useCallback(() => {
-        if (!notebook) return;
+        const currentNotebook = notebookRef.current;
+        if (!currentNotebook) return;
+        // Guard against runs triggered while the confirm modal was open
+        if (isRunningAll || runningCellsRef.current > 0) return;
+
         const currentCells = cellsRef.current;
         const newCells = currentCells.map((c) => {
             if (c.type === 'sql') {
@@ -790,7 +794,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
         cellsRef.current = newCells;
         const newState: NotebookState = {
-            ...notebook,
+            ...currentNotebook,
             cells: newCells,
         };
         notebookRef.current = newState;
@@ -801,7 +805,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         if (notebookIdRef.current) {
             storeSetState(notebookIdRef.current, newState);
         }
-    }, [notebook]);
+    }, [isRunningAll]);
 
     const toolbarProps = {
         onAddSqlCell: () => addCell('sql'),
@@ -829,18 +833,6 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     if (isLoadingNotebook) {
         return (
             <div className="flex flex-col h-full">
-                <ConfirmModal
-                    isOpen={showClearOutputsConfirm}
-                    onClose={() => setShowClearOutputsConfirm(false)}
-                    onConfirm={handleClearOutputs}
-                    title={t('editor.notebook.clearOutputsConfirmTitle', 'Clear all outputs?')}
-                    message={t(
-                        'editor.notebook.clearOutputsConfirmMessage',
-                        'Are you sure you want to clear all displayed query results and errors in this notebook? Cell queries and history will be preserved.',
-                    )}
-                    confirmLabel={t('editor.notebook.clearOutputs', 'Clear All Outputs')}
-                    variant="danger"
-                />
                 <NotebookToolbar {...toolbarProps} />
                 <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted">
                     <Loader2 size={32} className="animate-spin opacity-40" />
@@ -853,18 +845,6 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     if (cells.length === 0) {
         return (
             <div className="flex flex-col h-full">
-                <ConfirmModal
-                    isOpen={showClearOutputsConfirm}
-                    onClose={() => setShowClearOutputsConfirm(false)}
-                    onConfirm={handleClearOutputs}
-                    title={t('editor.notebook.clearOutputsConfirmTitle', 'Clear all outputs?')}
-                    message={t(
-                        'editor.notebook.clearOutputsConfirmMessage',
-                        'Are you sure you want to clear all displayed query results and errors in this notebook? Cell queries and history will be preserved.',
-                    )}
-                    confirmLabel={t('editor.notebook.clearOutputs', 'Clear All Outputs')}
-                    variant="danger"
-                />
                 <NotebookToolbar {...toolbarProps} />
                 <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted">
                     <BookOpen size={32} className="opacity-40" />
