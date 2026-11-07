@@ -1653,4 +1653,129 @@ describe('ExplorerSidebar — create database / schema actions (#839)', () => {
         expect(screen.queryByRole('button', {name: 'sidebar.newDatabase'})).not.toBeInTheDocument();
         expect(screen.queryByRole('button', {name: 'sidebar.newSchema'})).not.toBeInTheDocument();
     });
+
+    const postgresCaps = {
+        schemas: true,
+        file_based: false,
+        folder_based: false,
+        identifier_quote: '"',
+        sql_dialect: 'postgres',
+    };
+
+    const submitCreateSchema = async (name: string) => {
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.newSchema'}));
+        fireEvent.change(screen.getByLabelText('createSchema.name'), {target: {value: name}});
+        fireEvent.click(screen.getByRole('button', {name: 'createSchema.create'}));
+        await waitFor(() => {
+            expect(invoke).toHaveBeenCalledWith(
+                'execute_query',
+                expect.objectContaining({query: `CREATE SCHEMA "${name}"`}),
+            );
+        });
+    };
+
+    it('refreshes the picker after creating a schema with none selected', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            schemas: ['public'],
+            selectedSchemas: [],
+            needsSchemaSelection: true,
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.refreshSchemas).toHaveBeenCalled();
+        });
+        expect(baseDatabaseState.setSelectedSchemas).not.toHaveBeenCalled();
+    });
+
+    it('adds a created schema to an existing selection', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            schemas: ['public'],
+            selectedSchemas: ['public'],
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.setSelectedSchemas).toHaveBeenCalledWith(['public', 'store']);
+        });
+        expect(baseDatabaseState.refreshSchemas).toHaveBeenCalled();
+    });
+
+    it('keeps the nested schema picker open after creating a schema with none selected', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            selectedDatabases: ['app'],
+            nestedDatabaseDataMap: {
+                app: {
+                    schemas: ['public'],
+                    schemasLoaded: true,
+                    isLoadingSchemas: false,
+                    selectedSchemas: [],
+                    activeSchema: null,
+                    needsSchemaSelection: true,
+                    schemaDataMap: {},
+                },
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.loadNestedSchemas).toHaveBeenCalledWith(
+                'app',
+                undefined,
+                true,
+            );
+        });
+        expect(baseDatabaseState.setSelectedSchemasForDatabase).not.toHaveBeenCalled();
+        expect(baseDatabaseState.setSelectedSchemas).not.toHaveBeenCalled();
+    });
+
+    it('adds a created schema to a nested database that already has a selection', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            selectedDatabases: ['app'],
+            nestedDatabaseDataMap: {
+                app: {
+                    schemas: ['public'],
+                    schemasLoaded: true,
+                    isLoadingSchemas: false,
+                    selectedSchemas: ['public'],
+                    activeSchema: 'public',
+                    needsSchemaSelection: false,
+                    schemaDataMap: {},
+                },
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.setSelectedSchemasForDatabase).toHaveBeenCalledWith('app', [
+                'public',
+                'store',
+            ]);
+        });
+        expect(baseDatabaseState.loadNestedSchemas).toHaveBeenCalledWith('app', undefined, true);
+    });
 });

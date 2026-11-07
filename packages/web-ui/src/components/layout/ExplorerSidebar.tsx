@@ -141,6 +141,7 @@ import {
 import {supportsManageTables} from '@/utils/driverCapabilities';
 import {
     appendCreatedName,
+    selectionAfterCreate,
     supportsCreateDatabase,
     supportsCreateSchema,
 } from '@/utils/createContainer';
@@ -495,13 +496,20 @@ export const ExplorerSidebar = ({
             return;
         }
 
-        const next = appendCreatedName(createContainer.selected, name);
+        // Empty `selected` is the first-connect picker — do not persist a singleton.
+        const next = selectionAfterCreate(createContainer.selected, name);
         if (createContainer.database) {
             await loadNestedSchemas(createContainer.database, undefined, true);
-            await setSelectedSchemasForDatabase(createContainer.database, next);
+            if (next) {
+                await setSelectedSchemasForDatabase(createContainer.database, next);
+            }
         } else {
             await refreshSchemas();
-            await setSelectedSchemas(next);
+            if (next) {
+                await setSelectedSchemas(next);
+            } else {
+                setPendingSchemaSelection((prev) => new Set(prev).add(name));
+            }
         }
     };
 

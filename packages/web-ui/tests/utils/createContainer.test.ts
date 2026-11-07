@@ -3,6 +3,7 @@ import {
     appendCreatedName,
     buildCreateDatabaseSql,
     buildCreateSchemaSql,
+    selectionAfterCreate,
     supportsCreateDatabase,
     supportsCreateSchema,
 } from '@/utils/createContainer';
@@ -93,5 +94,16 @@ describe('appendCreatedName', () => {
     it('appends a new name and leaves an existing one unchanged', () => {
         expect(appendCreatedName(['app'], 'analytics')).toEqual(['app', 'analytics']);
         expect(appendCreatedName(['app'], 'app')).toEqual(['app']);
+    });
+});
+
+describe('selectionAfterCreate', () => {
+    it('returns null when nothing is selected so the picker stays open', () => {
+        expect(selectionAfterCreate([], 'store')).toBeNull();
+    });
+
+    it('appends to an existing selection', () => {
+        expect(selectionAfterCreate(['public'], 'store')).toEqual(['public', 'store']);
+        expect(selectionAfterCreate(['store'], 'store')).toEqual(['store']);
     });
 });

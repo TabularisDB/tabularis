@@ -56,3 +56,14 @@ export function buildCreateSchemaSql(name: string, driver: QuotingDriver): strin
 export function appendCreatedName(existing: string[], name: string): string[] {
     return existing.includes(name) ? existing : [...existing, name];
 }
+
+/**
+ * Next selected names after creating a container into an existing selection.
+ * Returns `null` when nothing is selected yet (the first-connect picker):
+ * committing `[name]` would persist a singleton, clear `needsSchemaSelection`,
+ * and hide every other schema.
+ */
+export function selectionAfterCreate(existing: string[], name: string): string[] | null {
+    if (existing.length === 0) return null;
+    return appendCreatedName(existing, name);
+}
