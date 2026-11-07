@@ -2228,7 +2228,14 @@
     "exportMermaid": "Exporter en diagramme Mermaid",
     "exportSuccess": "Diagramme exporté",
     "exportDbml": "Exporter en DBML",
-    "export": "Exporter"
+    "export": "Exporter",
+    "legend": "Légende",
+    "primaryKey": "Clé primaire",
+    "primaryKeyDesc": "Colonne unique identifiant les lignes de la table",
+    "foreignKey": "Clé étrangère",
+    "foreignKeyDesc": "Fait référence à une clé primaire ou unique dans une autre table",
+    "relationship": "Relation",
+    "relationshipDesc": "Référence de clé étrangère reliant les tables enfants et parentes"
   },
   "views": {
     "createView": "Créer une vue",
