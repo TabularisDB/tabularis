@@ -63,6 +63,49 @@ relative asset resolution and direct navigation agree.
 
 This frontend setting does not add a backend mount-path option. In particular,
 the backend's built-in password login page still emits root-relative form actions
-and redirects; password-mode subpath deployments require additional backend
-support. The example above uses proxy authentication and does not rewrite HTML
-or JavaScript responses. Desktop builds should keep the default `/`.
+and redirects; password-mode subpath deployments therefore require additional
+proxy adaptation (see below) or backend support. The example above uses proxy
+authentication and does not rewrite HTML or JavaScript responses. Desktop builds
+should keep the default `/`.
+
+## Using the built-in password page with Apache
+
+The built-in page asks for the server password, without a username. To use it
+instead of Apache Basic authentication, set `TABULARIS_AUTH=password` and supply
+`TABULARIS_WEB_PASSWORD` through a protected environment/secret file. Keep the
+public URL as an origin without a path.
+
+The backend still emits root-relative login actions and redirects. Apache can
+adapt these at the proxy boundary while the frontend uses its build-time prefix.
+Replace the proxy-authentication `<Location>` block above with the following;
+keep the `ProxyPass` and `ProxyPassReverse` rules that strip the prefix:
+
+```apache
+<Location /tools/database/>
+    RequestHeader unset X-Tabularis-User
+    RequestHeader unset X-Tabularis-Proxy-Secret
+    RequestHeader unset Authorization
+    ProxyPassReverseCookiePath / /tools/database/
+    Header edit Location "^/(?!tools/database(?:/|$))(.*)$" "/tools/database/$1"
+</Location>
+<LocationMatch "^/tools/database/(?:login|api/v1/auth/login)$">
+    RequestHeader unset Accept-Encoding
+    SetEnv filter-errordocs 1
+    AddOutputFilterByType SUBSTITUTE text/html
+    Substitute "s|/api/v1/auth/login|/tools/database/api/v1/auth/login|n"
+</LocationMatch>
+```
+
+This additionally requires `mod_substitute`, `mod_filter` and `mod_env`.
+The body filter is restricted to the two server-rendered login endpoints and
+changes only the form action; it does not rewrite the app bundle or the inline
+stylesheet protected by the login page's CSP hash. `filter-errordocs` is necessary
+for invalid-password and rate-limit responses too: by default, Apache's smart
+filters only run on HTTP 200 responses. See [Apache's response-status filtering
+documentation](https://httpd.apache.org/docs/2.4/mod/mod_filter.html#filtering).
+
+Keep the native origin and CSRF checks enabled. Configure
+`TABULARIS_TRUSTED_PROXIES` with the actual proxy source address and forward client
+addresses so password rate limiting distinguishes clients. Never trust arbitrary
+client networks. Verify successful login, an invalid password followed by a valid
+retry, return links, expired sessions, cookie path and WebSocket reconnection.
