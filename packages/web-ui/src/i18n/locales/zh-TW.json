@@ -554,6 +554,27 @@
     "settings": {
         "title": "設定",
         "general": "通用",
+        "snippets": {
+            "title": "SQL 代碼片段",
+            "subtitle": "定義可重複使用的 SQL 範本，具有觸發前綴和定位點佔位符，適用於 Monaco 自動完成。",
+            "add": "新增代碼片段",
+            "createTitle": "建立代碼片段",
+            "editTitle": "編輯代碼片段",
+            "nameLabel": "代碼片段名稱",
+            "prefixLabel": "觸發前綴",
+            "dialectLabel": "方言語法範圍",
+            "allDialects": "所有方言語法",
+            "descriptionLabel": "描述",
+            "bodyLabel": "代碼片段主體",
+            "tabStopHint": "使用 ${1:placeholder} 設定可編輯的定位點",
+            "noSnippets": "尚未設定任何 SQL 代碼片段。",
+            "invalidPrefix": "前綴只能包含字母、數字、底線和連字符",
+            "invalidBody": "代碼片段主體不能為空",
+            "namePlaceholder": "例如 Select Active Orders",
+            "prefixPlaceholder": "例如 selorders",
+            "descPlaceholder": "例如 查詢處於待處理狀態的訂單",
+            "duplicatePrefix": "此方言語法範圍中已存在具有該前綴的代碼片段"
+        },
         "privacy": "隱私",
         "network": {
             "tab": "網路",

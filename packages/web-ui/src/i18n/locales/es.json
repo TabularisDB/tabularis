@@ -557,6 +557,27 @@
   "settings": {
     "title": "Configuración",
     "general": "General",
+    "snippets": {
+      "title": "Fragmentos SQL",
+      "subtitle": "Defina plantillas SQL reutilizables con prefijos de activación y marcadores de posición para el autocompletado de Monaco.",
+      "add": "Nuevo fragmento",
+      "createTitle": "Crear fragmento",
+      "editTitle": "Editar fragmento",
+      "nameLabel": "Nombre del fragmento",
+      "prefixLabel": "Prefijo disparador",
+      "dialectLabel": "Ámbito del dialecto",
+      "allDialects": "Todos los dialectos",
+      "descriptionLabel": "Descripción",
+      "bodyLabel": "Cuerpo del fragmento",
+      "tabStopHint": "Use ${1:marcador} para tabulaciones editables",
+      "noSnippets": "Aún no hay fragmentos SQL configurados.",
+      "invalidPrefix": "El prefijo solo debe contener letras, números, guiones bajos y guiones",
+      "invalidBody": "El cuerpo del fragmento no puede estar vacío",
+      "namePlaceholder": "p. ej. Select Active Orders",
+      "prefixPlaceholder": "p. ej. selorders",
+      "descPlaceholder": "p. ej. Seleccionar pedidos con estado pendiente",
+      "duplicatePrefix": "Ya existe un fragmento con este prefijo para este alcance de dialecto"
+    },
     "privacy": "Privacidad",
     "network": {
       "tab": "Network",

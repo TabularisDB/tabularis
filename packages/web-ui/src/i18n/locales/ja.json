@@ -545,6 +545,27 @@
   "settings": {
     "title": "設定",
     "general": "一般",
+    "snippets": {
+      "title": "SQLスニペット",
+      "subtitle": "Monacoのオートコンプリート用に、トリガープレフィックスとタブストッププレースホルダーを備えた再利用可能なSQLテンプレートを定義します。",
+      "add": "新規スニペット",
+      "createTitle": "スニペットを作成",
+      "editTitle": "スニペットを編集",
+      "nameLabel": "スニペット名",
+      "prefixLabel": "トリガー接頭辞",
+      "dialectLabel": "対象方言",
+      "allDialects": "すべての方言",
+      "descriptionLabel": "説明",
+      "bodyLabel": "スニペット本文",
+      "tabStopHint": "編集可能なタブストップには ${1:placeholder} を使用します",
+      "noSnippets": "設定されたSQLスニペットはまだありません。",
+      "invalidPrefix": "接頭辞には英数字、アンダースコア、ハイフンのみ使用できます",
+      "invalidBody": "スニペット本文を入力してください",
+      "namePlaceholder": "例: Select Active Orders",
+      "prefixPlaceholder": "例: selorders",
+      "descPlaceholder": "例: 保留中の注文を選択",
+      "duplicatePrefix": "このダイアレクト範囲には同じプレフィックスのスニペットが既に存在します"
+    },
     "privacy": "プライバシー",
     "network": {
       "tab": "Network",
