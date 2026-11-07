@@ -2397,6 +2397,7 @@
     "collapse": "Collapse",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
+    "sortKeys": "Sort keys",
     "search": "Search",
     "copyPath": "Copy Path",
     "copyValue": "Copy Value",

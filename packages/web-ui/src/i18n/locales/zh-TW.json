@@ -2379,6 +2379,7 @@
         "collapse": "摺疊",
         "expandAll": "全部展開",
         "collapseAll": "全部摺疊",
+        "sortKeys": "排序鍵",
         "search": "搜尋",
         "copyPath": "複製路徑",
         "copyValue": "複製值",

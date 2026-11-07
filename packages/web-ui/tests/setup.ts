@@ -129,6 +129,7 @@ vi.mock('lucide-react', () => ({
     ArrowUp: () => null,
     ArrowUpCircle: () => null,
     ArrowDown: () => null,
+    ArrowDownAZ: () => null,
     ArrowUpDown: () => null,
     Filter: () => null,
     SlidersHorizontal: () => null,
