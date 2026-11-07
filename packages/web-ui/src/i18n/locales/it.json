@@ -2029,6 +2029,8 @@
       "expandSection": "Espandi Sezione",
       "collapseAll": "Comprimi Tutto",
       "expandAll": "Espandi Tutto",
+      "clearOutputs": "Cancella Output",
+      "clearOutputsConfirm": "Cancellare i risultati, gli errori e i tempi mostrati per tutte le celle? Query, parametri, grafici e cronologia delle esecuzioni vengono mantenuti.",
       "outline": "Sommario",
       "aiGenerate": "Genera SQL con AI",
       "aiExplain": "Spiega questa Query con AI",

@@ -6,10 +6,13 @@ import {
     updateCellInCells,
     addCellToCells,
     removeCellFromCells,
+    clearCellOutputs,
+    hasCellOutputs,
     moveCellInCells,
     extractSqlFromCells,
 } from '@/utils/notebook';
 import type {NotebookCell} from '@/types/notebook';
+import type {QueryResult} from '@/types/editor';
 
 function makeCell(overrides: Partial<NotebookCell> = {}): NotebookCell {
     return {
@@ -139,6 +142,104 @@ describe('notebook utils', () => {
             const cells = [makeCell({id: 'a'})];
             const result = removeCellFromCells(cells, 'a');
             expect(result).toHaveLength(0);
+        });
+    });
+
+    describe('hasCellOutputs / clearCellOutputs', () => {
+        const queryResult: QueryResult = {columns: ['id'], rows: [[1]], affected_rows: 0};
+        const historyEntry = {
+            query: 'SELECT 1',
+            result: queryResult,
+            executionTime: 3,
+            timestamp: 1,
+        };
+        const chartConfig = {type: 'bar' as const, labelColumn: 'id', valueColumns: ['id']};
+
+        it('should report no outputs for an empty notebook and for cells that never ran', () => {
+            expect(hasCellOutputs([])).toBe(false);
+            expect(
+                hasCellOutputs([makeCell({id: 'a'}), makeCell({id: 'b', type: 'markdown'})]),
+            ).toBe(false);
+        });
+
+        it.each([
+            {name: 'a result', partial: {result: queryResult}},
+            {name: 'an error', partial: {error: 'syntax error'}},
+            {name: 'an execution time', partial: {executionTime: 0}},
+        ])('should report an output for a SQL cell with $name', ({partial}) => {
+            expect(hasCellOutputs([makeCell({id: 'a'}), makeCell({id: 'b', ...partial})])).toBe(
+                true,
+            );
+        });
+
+        it('should return an empty array for an empty notebook', () => {
+            expect(clearCellOutputs([])).toEqual([]);
+        });
+
+        it('should clear the result, error and execution time of every SQL cell', () => {
+            const cleared = clearCellOutputs([
+                makeCell({id: 'ok', result: queryResult, executionTime: 12}),
+                makeCell({id: 'failed', error: 'boom', executionTime: 4}),
+            ]);
+            for (const cell of cleared) {
+                expect(cell.result).toBeNull();
+                expect(cell.error).toBeUndefined();
+                expect(cell.executionTime).toBeNull();
+            }
+            expect(hasCellOutputs(cleared)).toBe(false);
+        });
+
+        it('should keep ids, order, content, settings, chart config and execution history', () => {
+            const cells: NotebookCell[] = [
+                makeCell({
+                    id: 'a',
+                    content: 'SELECT 1',
+                    name: 'First',
+                    schema: 'analytics',
+                    isParallel: true,
+                    isCollapsed: true,
+                    isChartVisible: true,
+                    chartConfig,
+                    result: queryResult,
+                    executionTime: 7,
+                    history: [historyEntry],
+                }),
+                makeCell({id: 'notes', type: 'markdown', content: '# Notes', isPreview: true}),
+                makeCell({id: 'b', content: 'SELECT 2', error: 'boom', history: [historyEntry]}),
+            ];
+            const cleared = clearCellOutputs(cells);
+
+            expect(cleared.map((c) => c.id)).toEqual(['a', 'notes', 'b']);
+            expect(cleared[0]).toEqual({
+                ...cells[0],
+                result: null,
+                error: undefined,
+                executionTime: null,
+            });
+            expect(cleared[0].history).toBe(cells[0].history);
+            expect(cleared[2].history).toBe(cells[2].history);
+            expect(cleared[0].chartConfig).toBe(chartConfig);
+        });
+
+        it('should return markdown cells and cells without output unchanged', () => {
+            const markdown = makeCell({id: 'notes', type: 'markdown', content: '# Notes'});
+            const idle = makeCell({id: 'idle', content: 'SELECT 1'});
+            const cleared = clearCellOutputs([markdown, idle]);
+            expect(cleared[0]).toBe(markdown);
+            expect(cleared[1]).toBe(idle);
+        });
+
+        it('should not mutate the input cells', () => {
+            const cell = makeCell({id: 'a', result: queryResult, error: 'boom', executionTime: 5});
+            clearCellOutputs([cell]);
+            expect(cell).toMatchObject({result: queryResult, error: 'boom', executionTime: 5});
+        });
+
+        it('should leave the loading flag alone', () => {
+            const [cleared] = clearCellOutputs([
+                makeCell({id: 'a', isLoading: true, executionTime: 5}),
+            ]);
+            expect(cleared.isLoading).toBe(true);
         });
     });
 
