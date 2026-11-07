@@ -774,11 +774,14 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const isExecuting = isRunningAll || runningCount > 0;
 
     const handleClearOutputs = useCallback(() => {
+        setShowClearOutputsConfirm(false);
         const currentNotebook = notebookRef.current;
         if (!currentNotebook) return;
         // Guard against runs triggered while the confirm modal was open
         if (isRunningAll || runningCellsRef.current > 0) return;
 
+        // Transient execution results (result/error/executionTime) are excluded from
+        // notebook undo history by design, so update state & store directly.
         const currentCells = cellsRef.current;
         const newCells = currentCells.map((c) => {
             if (c.type === 'sql') {
@@ -800,7 +803,6 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         notebookRef.current = newState;
         setNotebook(newState);
         setRunAllResult(null);
-        setShowClearOutputsConfirm(false);
 
         if (notebookIdRef.current) {
             storeSetState(notebookIdRef.current, newState);
