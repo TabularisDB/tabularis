@@ -417,3 +417,99 @@ describe('QueryHistorySection export', () => {
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 });
+
+function makeTimedEntry(
+    id: string,
+    executionTimeMs: number | null,
+    overrides: Partial<QueryHistoryEntry> = {},
+): QueryHistoryEntry {
+    return {...makeEntry(id, 'sales'), executionTimeMs, ...overrides};
+}
+
+const TIMED_ENTRIES = [
+    makeTimedEntry('fast', 12),
+    makeTimedEntry('zero', 0),
+    makeTimedEntry('missing', null),
+    makeTimedEntry('slow-ok', 750),
+    makeTimedEntry('slow-fail', 500, {status: 'error'}),
+];
+
+const minDurationInput = () =>
+    screen.getByLabelText('sidebar.historyMinDuration') as HTMLInputElement;
+const outcomeSelect = () =>
+    screen.getByRole('combobox', {name: 'sidebar.historyOutcomeFilter'}) as HTMLSelectElement;
+
+// Error entries render through the plain preview rather than SqlHighlight, so
+// match both renderings of the generated SQL.
+function visibleTimedIds(): string[] {
+    return screen
+        .queryAllByText(/^SELECT '/)
+        .map((node) => node.textContent!.replace(/^SELECT '/, '').replace(/'$/, ''));
+}
+
+describe('QueryHistorySection minimum duration filter (#1397)', () => {
+    it('shows every entry and no counter while the threshold is empty', () => {
+        renderSection(TIMED_ENTRIES);
+
+        expect(minDurationInput().value).toBe('');
+        expect(visibleTimedIds()).toHaveLength(5);
+        expect(screen.queryByText(/ \/ /)).not.toBeInTheDocument();
+    });
+
+    it('keeps entries at or above the threshold and shows the filtered counter', () => {
+        renderSection(TIMED_ENTRIES);
+
+        fireEvent.change(minDurationInput(), {target: {value: '500'}});
+
+        expect(visibleTimedIds()).toEqual(['slow-ok', 'slow-fail']);
+        expect(screen.getByText('2 / 5')).toBeInTheDocument();
+    });
+
+    it('treats zero as a threshold that still excludes missing durations', () => {
+        renderSection(TIMED_ENTRIES);
+
+        fireEvent.change(minDurationInput(), {target: {value: '0'}});
+
+        expect(visibleTimedIds()).not.toContain('missing');
+        expect(visibleTimedIds()).toContain('zero');
+        expect(screen.getByText('4 / 5')).toBeInTheDocument();
+    });
+
+    it('combines with the outcome filter', () => {
+        renderSection(TIMED_ENTRIES);
+
+        fireEvent.change(minDurationInput(), {target: {value: '500'}});
+        fireEvent.change(outcomeSelect(), {target: {value: 'failed'}});
+
+        expect(visibleTimedIds()).toEqual(['slow-fail']);
+        expect(screen.getByText('1 / 5')).toBeInTheDocument();
+    });
+
+    it.each([
+        ['-5', 'sidebar.historyMinDurationNegative'],
+        ['fast', 'sidebar.historyMinDurationNotNumber'],
+        ['Infinity', 'sidebar.historyMinDurationNotFinite'],
+    ])('explains why %s cannot be applied', (value, message) => {
+        renderSection(TIMED_ENTRIES);
+
+        fireEvent.change(minDurationInput(), {target: {value}});
+
+        expect(screen.getByRole('alert')).toHaveTextContent(message);
+        expect(minDurationInput()).toHaveAttribute('aria-invalid', 'true');
+        expect(minDurationInput()).toHaveAccessibleDescription(message);
+        expect(visibleTimedIds()).toEqual([]);
+        expect(screen.getByText('0 / 5')).toBeInTheDocument();
+    });
+
+    it('clears the threshold and its error with the other filters', () => {
+        renderSection(TIMED_ENTRIES);
+
+        fireEvent.change(minDurationInput(), {target: {value: '-5'}});
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyClearFilters'}));
+
+        expect(minDurationInput().value).toBe('');
+        expect(minDurationInput()).toHaveAttribute('aria-invalid', 'false');
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(visibleTimedIds()).toHaveLength(5);
+    });
+});

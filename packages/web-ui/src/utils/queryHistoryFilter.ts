@@ -63,6 +63,12 @@ export interface QueryHistoryFilterOptions {
     from?: string;
     /** Inclusive calendar-day upper bound as `YYYY-MM-DD`. */
     to?: string;
+    /**
+     * Minimum recorded execution time in milliseconds, as typed by the user.
+     * Empty or undefined means "no threshold"; an unusable value (see
+     * `validateQueryHistoryMinDuration`) matches nothing.
+     */
+    minDurationMs?: string;
 }
 
 /** Why a custom `from` / `to` range cannot be applied. */
@@ -89,6 +95,39 @@ export function validateQueryHistoryDateRange(
     if (fromDay !== null && toDay !== null && fromDay > toDay) return 'inverted';
 
     return null;
+}
+
+/** Why a minimum-duration threshold cannot be applied. */
+export type QueryHistoryMinDurationError = 'notNumber' | 'notFinite' | 'negative';
+
+// A plain decimal number with an optional exponent: no hex, no thousands
+// separators, no unit suffix. `Number()` alone would accept `0x10` and `''`.
+const DECIMAL_PATTERN = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+const INFINITY_PATTERN = /^[+-]?infinity$/i;
+
+type ParsedMinDuration =
+    | {threshold: number | null; error: null}
+    | {threshold: null; error: QueryHistoryMinDurationError};
+
+function parseMinDuration(raw?: string): ParsedMinDuration {
+    const trimmed = raw?.trim() ?? '';
+    if (!trimmed) return {threshold: null, error: null};
+    if (INFINITY_PATTERN.test(trimmed)) return {threshold: null, error: 'notFinite'};
+    if (!DECIMAL_PATTERN.test(trimmed)) return {threshold: null, error: 'notNumber'};
+    const value = Number(trimmed);
+    // e.g. `1e400`, which is a well-formed number but overflows to Infinity.
+    if (!Number.isFinite(value)) return {threshold: null, error: 'notFinite'};
+    if (value < 0) return {threshold: null, error: 'negative'};
+    // `-0` passes the check above; keep it as a plain zero.
+    return {threshold: value === 0 ? 0 : value, error: null};
+}
+
+/**
+ * Validates the optional minimum-duration threshold (milliseconds) and returns
+ * `null` when it can be applied, including when it is empty. Zero is valid.
+ */
+export function validateQueryHistoryMinDuration(raw?: string): QueryHistoryMinDurationError | null {
+    return parseMinDuration(raw).error;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -198,6 +237,18 @@ export function isQueryHistoryDatabaseFilterAvailable(
     return choices.databases.some((name) => queryHistoryDatabaseFilterFor(name) === database);
 }
 
+/**
+ * With a threshold, only entries whose recorded duration is at least that many
+ * milliseconds match. Entries without a recorded duration never match then: a
+ * missing duration is not a zero one.
+ */
+function matchesMinDuration(entry: QueryHistoryEntry, threshold: number | null): boolean {
+    if (threshold === null) return true;
+    const duration = entry.executionTimeMs;
+    if (typeof duration !== 'number' || !Number.isFinite(duration)) return false;
+    return duration >= threshold;
+}
+
 function matchesSearch(entry: QueryHistoryEntry, search: string): boolean {
     const trimmed = search.trim();
     if (!trimmed) return true;
@@ -205,13 +256,14 @@ function matchesSearch(entry: QueryHistoryEntry, search: string): boolean {
 }
 
 /**
- * True when any Query History filter (text, outcome, time range, database, or
- * custom date range) is active. Used to show the filtered/total counter.
+ * True when any Query History filter (text, outcome, time range, database,
+ * custom date range, or minimum duration) is active. Used to show the
+ * filtered/total counter.
  */
 export function isQueryHistoryFilterActive(
     options: Pick<
         QueryHistoryFilterOptions,
-        'search' | 'outcome' | 'timeRange' | 'database' | 'from' | 'to'
+        'search' | 'outcome' | 'timeRange' | 'database' | 'from' | 'to' | 'minDurationMs'
     >,
 ): boolean {
     const searchActive = Boolean(options.search?.trim());
@@ -222,12 +274,20 @@ export function isQueryHistoryFilterActive(
     const timeActive = (options.timeRange ?? 'all') !== 'all' && options.timeRange !== 'custom';
     const databaseActive = (options.database ?? 'all') !== 'all';
     const rangeActive = Boolean(options.from?.trim()) || Boolean(options.to?.trim());
-    return searchActive || outcomeActive || timeActive || databaseActive || rangeActive;
+    const durationActive = Boolean(options.minDurationMs?.trim());
+    return (
+        searchActive ||
+        outcomeActive ||
+        timeActive ||
+        databaseActive ||
+        rangeActive ||
+        durationActive
+    );
 }
 
 /**
  * Filter query-history entries by optional text search, outcome, time range,
- * database, and custom `from` / `to` calendar dates.
+ * database, custom `from` / `to` calendar dates, and minimum recorded duration.
  * Filters combine with AND. Relative ranges are rolling windows from `now`;
  * `today` and the custom range use the calendar day in `timeZone`, with both
  * boundaries inclusive.
@@ -243,17 +303,26 @@ export function filterQueryHistoryEntries(
         database = 'all',
         from = '',
         to = '',
+        minDurationMs = '',
         now = Date.now(),
         timeZone,
     } = options;
 
-    if (!isQueryHistoryFilterActive({search, outcome, timeRange, database, from, to})) {
+    if (
+        !isQueryHistoryFilterActive({search, outcome, timeRange, database, from, to, minDurationMs})
+    ) {
         return entries;
     }
 
     // An unusable custom range (unparseable boundary, or `from` after `to`)
     // matches nothing; the UI explains the reason rather than widening it.
     if (validateQueryHistoryDateRange(from, to) !== null) {
+        return [];
+    }
+
+    // Same for a threshold that is not a finite, non-negative number.
+    const minDuration = parseMinDuration(minDurationMs);
+    if (minDuration.error !== null) {
         return [];
     }
 
@@ -271,6 +340,7 @@ export function filterQueryHistoryEntries(
             matchesOutcome(entry, outcome) &&
             matchesDatabase(entry, database) &&
             matchesTimeRange(entry, timeRange, nowMs, zone) &&
-            matchesDateRange(entry, fromDay, toDay, zone),
+            matchesDateRange(entry, fromDay, toDay, zone) &&
+            matchesMinDuration(entry, minDuration.threshold),
     );
 }

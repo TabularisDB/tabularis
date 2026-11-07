@@ -7,6 +7,7 @@ import {
     isQueryHistoryFilterActive,
     queryHistoryDatabaseFilterFor,
     validateQueryHistoryDateRange,
+    validateQueryHistoryMinDuration,
 } from '@/utils/queryHistoryFilter';
 
 const NOW = new Date('2026-04-15T14:00:00.000Z');
@@ -591,6 +592,163 @@ describe('queryHistoryFilter', () => {
                     timeZone: 'UTC',
                 }),
             ).toEqual([]);
+        });
+    });
+
+    describe('validateQueryHistoryMinDuration', () => {
+        it('accepts an unset threshold', () => {
+            expect(validateQueryHistoryMinDuration()).toBeNull();
+            expect(validateQueryHistoryMinDuration('')).toBeNull();
+            expect(validateQueryHistoryMinDuration('   ')).toBeNull();
+        });
+
+        it('accepts zero, integers, decimals and exponents', () => {
+            for (const raw of ['0', '-0', '500', ' 500 ', '+500', '0.5', '.5', '5.', '1e3']) {
+                expect(validateQueryHistoryMinDuration(raw)).toBeNull();
+            }
+        });
+
+        it('rejects negative thresholds', () => {
+            expect(validateQueryHistoryMinDuration('-1')).toBe('negative');
+            expect(validateQueryHistoryMinDuration('-0.001')).toBe('negative');
+        });
+
+        it('rejects non-numeric input', () => {
+            for (const raw of ['abc', '500ms', '1,000', '0x10', 'NaN', '1e', '--1', '.']) {
+                expect(validateQueryHistoryMinDuration(raw)).toBe('notNumber');
+            }
+        });
+
+        it('rejects non-finite input', () => {
+            for (const raw of ['Infinity', '-infinity', '1e400']) {
+                expect(validateQueryHistoryMinDuration(raw)).toBe('notFinite');
+            }
+        });
+    });
+
+    describe('minimum duration filter', () => {
+        const DURATION_ENTRIES: QueryHistoryEntry[] = [
+            entry({id: 'missing', sql: 'SELECT 1', executionTimeMs: null}),
+            entry({id: 'zero', sql: 'SELECT 2', executionTimeMs: 0}),
+            entry({id: 'just-below', sql: 'SELECT 3', executionTimeMs: 499.9}),
+            entry({id: 'exact', sql: 'SELECT 4', executionTimeMs: 500}),
+            entry({
+                id: 'slow-fail',
+                sql: 'SELECT * FROM big',
+                executionTimeMs: 1200,
+                status: 'error',
+                database: 'sales',
+            }),
+            entry({
+                id: 'slow-ok',
+                sql: 'SELECT * FROM big',
+                executionTimeMs: 2500,
+                database: 'sales',
+            }),
+            entry({
+                id: 'slow-fail-hr',
+                sql: 'SELECT * FROM staff',
+                executionTimeMs: 900,
+                status: 'error',
+                database: 'hr',
+            }),
+        ];
+
+        const ids = (minDurationMs: string, extra: Record<string, unknown> = {}) =>
+            filterQueryHistoryEntries(DURATION_ENTRIES, {minDurationMs, now: NOW, ...extra}).map(
+                (e) => e.id,
+            );
+
+        it('is active only when a threshold is typed', () => {
+            expect(isQueryHistoryFilterActive({minDurationMs: '500'})).toBe(true);
+            expect(isQueryHistoryFilterActive({minDurationMs: '0'})).toBe(true);
+            expect(isQueryHistoryFilterActive({minDurationMs: '  '})).toBe(false);
+        });
+
+        it('returns the same array when the threshold is unset', () => {
+            expect(filterQueryHistoryEntries(DURATION_ENTRIES, {minDurationMs: '', now: NOW})).toBe(
+                DURATION_ENTRIES,
+            );
+        });
+
+        it('keeps entries at or above the threshold, boundary included', () => {
+            expect(ids('500')).toEqual(['exact', 'slow-fail', 'slow-ok', 'slow-fail-hr']);
+            expect(ids('499.9')).toEqual([
+                'just-below',
+                'exact',
+                'slow-fail',
+                'slow-ok',
+                'slow-fail-hr',
+            ]);
+            expect(ids('500.0001')).toEqual(['slow-fail', 'slow-ok', 'slow-fail-hr']);
+            expect(ids('2500')).toEqual(['slow-ok']);
+            expect(ids('1e9')).toEqual([]);
+        });
+
+        it('keeps a recorded zero but never a missing duration', () => {
+            expect(ids('0')).toEqual([
+                'zero',
+                'just-below',
+                'exact',
+                'slow-fail',
+                'slow-ok',
+                'slow-fail-hr',
+            ]);
+            expect(ids('-0')).toContain('zero');
+            expect(ids('0')).not.toContain('missing');
+        });
+
+        it('matches nothing for an unusable threshold', () => {
+            expect(ids('-1')).toEqual([]);
+            expect(ids('abc')).toEqual([]);
+            expect(ids('Infinity')).toEqual([]);
+        });
+
+        it('combines the threshold with outcome and database using AND', () => {
+            expect(
+                ids('500', {outcome: 'failed', database: queryHistoryDatabaseFilterFor('sales')}),
+            ).toEqual(['slow-fail']);
+            expect(ids('1000', {outcome: 'failed'})).toEqual(['slow-fail']);
+            expect(ids('500', {search: 'staff', outcome: 'failed'})).toEqual(['slow-fail-hr']);
+        });
+
+        it('combines the threshold with time filters using AND', () => {
+            const dated = [
+                entry({
+                    id: 'slow-old',
+                    sql: 'SELECT 1',
+                    executionTimeMs: 800,
+                    executedAt: '2026-03-01T10:00:00.000Z',
+                }),
+                entry({
+                    id: 'slow-recent',
+                    sql: 'SELECT 2',
+                    executionTimeMs: 800,
+                    executedAt: '2026-04-15T13:45:00.000Z',
+                }),
+                entry({
+                    id: 'fast-recent',
+                    sql: 'SELECT 3',
+                    executionTimeMs: 5,
+                    executedAt: '2026-04-15T13:45:00.000Z',
+                }),
+            ];
+            expect(
+                filterQueryHistoryEntries(dated, {
+                    minDurationMs: '500',
+                    timeRange: 'lastHour',
+                    now: NOW,
+                }).map((e) => e.id),
+            ).toEqual(['slow-recent']);
+            expect(
+                filterQueryHistoryEntries(dated, {
+                    minDurationMs: '500',
+                    from: '2026-03-01',
+                    to: '2026-03-01',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }).map((e) => e.id),
+            ).toEqual(['slow-old']);
         });
     });
 });
