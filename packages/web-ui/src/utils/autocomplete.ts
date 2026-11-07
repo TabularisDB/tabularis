@@ -13,6 +13,12 @@ import {
 import {maskNestedSqlBodies, parseDerivedTables} from './derivedTables';
 import {dialectOptions, type QuoteRule} from './sqlSplitter';
 import {resolveSqlSyntax, syntaxKeywords} from './sqlSyntax';
+import {
+    loadSqlSnippets,
+    normalizeDriverToDialect,
+    isSnippetDialectCompatible,
+    type SqlSnippet,
+} from './sqlSnippets';
 
 export type AutocompleteKeywordCase = 'match' | 'upper' | 'lower';
 
@@ -793,8 +799,42 @@ export const registerSqlAutocomplete = (
                   }))
                 : [];
 
+            // ============================================
+            // 5. SNIPPET SUGGESTIONS
+            // ============================================
+            // Offer reusable SQL snippets when keywords are allowed, cursor is not
+            // inside an opened quote or string/comment, and a prefix has been typed.
+            const hasDotMatch = Boolean(qualifiedDotMatch || simpleDotMatch || quotedDotMatch);
+            const offerSnippets =
+                suggestionKinds.keywords &&
+                openQuoteColumn === null &&
+                !hasDotMatch &&
+                !sqlContext.inString &&
+                !sqlContext.inComment &&
+                typedPrefix.length > 0;
+            const currentDialect = normalizeDriverToDialect(driver);
+            const snippets: SqlSnippet[] = offerSnippets ? loadSqlSnippets() : [];
+            const snippetSuggestions = snippets
+                .filter(
+                    (s) =>
+                        s.prefix.toLowerCase().startsWith(typedPrefix.toLowerCase()) &&
+                        isSnippetDialectCompatible(s.dialect, currentDialect),
+                )
+                .map((s) => ({
+                    label: s.prefix,
+                    kind: monaco.languages.CompletionItemKind?.Snippet ?? 28,
+                    detail: s.name ? `${s.name} (Snippet)` : 'SQL Snippet',
+                    documentation: s.description || s.body,
+                    insertText: s.body,
+                    insertTextRules:
+                        monaco.languages.CompletionItemInsertTextRule?.InsertAsSnippet ?? 4,
+                    range,
+                    sortText: `0_0_${s.prefix}`,
+                }));
+
             return {
                 suggestions: [
+                    ...snippetSuggestions,
                     ...contextColumnSuggestions,
                     ...tableSuggestions,
                     ...keywordSuggestions,

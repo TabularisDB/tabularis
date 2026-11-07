@@ -547,6 +547,27 @@
   "settings": {
     "title": "Cài đặt",
     "general": "Chung",
+    "snippets": {
+      "title": "Đoạn mã SQL",
+      "subtitle": "Xác định các mẫu SQL có thể tái sử dụng với tiền tố kích hoạt và vị trí tab để tự động hoàn thành trong Monaco.",
+      "add": "Đoạn mã mới",
+      "createTitle": "Tạo đoạn mã",
+      "editTitle": "Chỉnh sửa đoạn mã",
+      "nameLabel": "Tên đoạn mã",
+      "prefixLabel": "Tiền tố kích hoạt",
+      "dialectLabel": "Phạm vi phương ngữ",
+      "allDialects": "Tất cả phương ngữ",
+      "descriptionLabel": "Mô tả",
+      "bodyLabel": "Nội dung đoạn mã",
+      "tabStopHint": "Sử dụng ${1:placeholder} cho các điểm dừng tab có thể chỉnh sửa",
+      "noSnippets": "Chưa có đoạn mã SQL nào được cấu hình.",
+      "invalidPrefix": "Tiền tố chỉ được chứa chữ cái, số, dấu gạch dưới và dấu gạch nối",
+      "invalidBody": "Nội dung đoạn mã không được để trống",
+      "namePlaceholder": "VD: Select Active Orders",
+      "prefixPlaceholder": "VD: selorders",
+      "descPlaceholder": "VD: Chọn các đơn hàng đang chờ xử lý",
+      "duplicatePrefix": "Đoạn mã với tiền tố này đã tồn tại trong phạm vi phương ngữ này"
+    },
     "privacy": "Quyền riêng tư",
     "network": {
       "tab": "Mạng",
