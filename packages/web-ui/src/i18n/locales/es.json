@@ -86,6 +86,12 @@
     "warnConfirm": "Ejecutar de todos modos",
     "warnSnooze": "No volver a preguntar para esta conexión (esta sesión)"
   },
+  "textStats": {
+    "characters": "Caracteres: {{count}}",
+    "lines": "Líneas: {{count}}",
+    "bytes": "Bytes UTF-8: {{count}}",
+    "charactersHint": "Puntos de código Unicode, no clústeres de grafemas"
+  },
   "common": {
     "save": "Guardar",
     "close": "Cerrar",

@@ -86,6 +86,12 @@
     "warnConfirm": "Run anyway",
     "warnSnooze": "Don't ask again for this connection (this session)"
   },
+  "textStats": {
+    "characters": "Characters: {{count}}",
+    "lines": "Lines: {{count}}",
+    "bytes": "UTF-8 bytes: {{count}}",
+    "charactersHint": "Unicode code points, not grapheme clusters"
+  },
   "common": {
     "save": "Save",
     "close": "Close",
