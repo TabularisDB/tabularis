@@ -16,6 +16,7 @@ import {
     Undo2,
     Redo2,
     History,
+    Eraser,
 } from 'lucide-react';
 import {ContextMenu, type ContextMenuItem} from '@/components/ui/ContextMenu';
 
@@ -23,6 +24,8 @@ interface NotebookToolbarProps {
     onAddSqlCell: () => void;
     onAddMarkdownCell: () => void;
     onRunAll: () => void;
+    onClearOutputs?: () => void;
+    canClearOutputs?: boolean;
     onExport: () => void;
     onExportHtml: () => void;
     onImport: () => void;
@@ -75,6 +78,8 @@ export function NotebookToolbar({
     onAddSqlCell,
     onAddMarkdownCell,
     onRunAll,
+    onClearOutputs,
+    canClearOutputs = false,
     onExport,
     onExportHtml,
     onImport,
@@ -179,6 +184,19 @@ export function NotebookToolbar({
                     )}
                     <span className="hidden @[440px]:inline">{t('editor.notebook.runAll')}</span>
                 </ToolbarButton>
+
+                {onClearOutputs && (
+                    <ToolbarButton
+                        onClick={onClearOutputs}
+                        disabled={isRunning || !canClearOutputs}
+                        title={t('editor.notebook.clearOutputsTooltip')}
+                    >
+                        <Eraser size={14} className="text-secondary" />
+                        <span className="hidden @[560px]:inline">
+                            {t('editor.notebook.clearOutputs')}
+                        </span>
+                    </ToolbarButton>
+                )}
 
                 <button
                     type="button"

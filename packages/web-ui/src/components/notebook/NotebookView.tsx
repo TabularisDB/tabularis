@@ -112,6 +112,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const [isLoadingNotebook, setIsLoadingNotebook] = useState(!notebook);
 
     const [isRunningAll, setIsRunningAll] = useState(false);
+    const [runningCount, setRunningCount] = useState(0);
+    const [showClearOutputsConfirm, setShowClearOutputsConfirm] = useState(false);
     const [runAllResult, setRunAllResult] = useState<RunAllResult | null>(null);
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     // Gap-based insertion point in [0, cells.length]; `null` while not dragging.
@@ -459,6 +461,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const runCell = useCallback(
         async (cellId: string) => {
             runningCellsRef.current += 1;
+            setRunningCount(runningCellsRef.current);
             if (runningCellsRef.current === 1) {
                 updateTab(tab.id, {isLoading: true});
             }
@@ -466,6 +469,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 await runCellInner(cellId);
             } finally {
                 runningCellsRef.current -= 1;
+                setRunningCount(runningCellsRef.current);
                 if (runningCellsRef.current === 0) {
                     updateTab(tab.id, {isLoading: false});
                 }
@@ -757,14 +761,62 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         updateNotebook(cellsRef.current.map((c) => ({...c, isCollapsed: false})));
     }, [updateNotebook]);
 
+    const hasOutputs = useMemo(() => {
+        return (
+            (notebook?.cells ?? []).some(
+                (c) =>
+                    c.type === 'sql' &&
+                    (c.result != null || c.error != null || c.executionTime != null),
+            ) || runAllResult != null
+        );
+    }, [notebook?.cells, runAllResult]);
+
+    const isExecuting = isRunningAll || runningCount > 0;
+
+    const handleClearOutputs = useCallback(() => {
+        const currentNotebook = notebookRef.current;
+        if (!currentNotebook) return;
+        // Guard against runs triggered while the confirm modal was open
+        if (isRunningAll || runningCellsRef.current > 0) return;
+
+        const currentCells = cellsRef.current;
+        const newCells = currentCells.map((c) => {
+            if (c.type === 'sql') {
+                return {
+                    ...c,
+                    result: null,
+                    error: undefined,
+                    executionTime: null,
+                };
+            }
+            return c;
+        });
+
+        cellsRef.current = newCells;
+        const newState: NotebookState = {
+            ...currentNotebook,
+            cells: newCells,
+        };
+        notebookRef.current = newState;
+        setNotebook(newState);
+        setRunAllResult(null);
+        setShowClearOutputsConfirm(false);
+
+        if (notebookIdRef.current) {
+            storeSetState(notebookIdRef.current, newState);
+        }
+    }, [isRunningAll]);
+
     const toolbarProps = {
         onAddSqlCell: () => addCell('sql'),
         onAddMarkdownCell: () => addCell('markdown'),
         onRunAll: runAll,
+        onClearOutputs: () => setShowClearOutputsConfirm(true),
+        canClearOutputs: hasOutputs && !isExecuting,
         onExport: handleExport,
         onExportHtml: handleExportHtml,
         onImport: handleImport,
-        isRunning: isRunningAll,
+        isRunning: isExecuting,
         stopOnError,
         onToggleStopOnError: toggleStopOnError,
         onCollapseAll: collapseAll,
@@ -838,6 +890,18 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 confirmLabel={t('editor.dangerousQueryConfirm')}
                 variant="danger"
                 confirmDelaySeconds={settings.safetyConfirmationDelayEnabled ? 5 : undefined}
+            />
+            <ConfirmModal
+                isOpen={showClearOutputsConfirm}
+                onClose={() => setShowClearOutputsConfirm(false)}
+                onConfirm={handleClearOutputs}
+                title={t('editor.notebook.clearOutputsConfirmTitle', 'Clear all outputs?')}
+                message={t(
+                    'editor.notebook.clearOutputsConfirmMessage',
+                    'Are you sure you want to clear all displayed query results and errors in this notebook? Cell queries and history will be preserved.',
+                )}
+                confirmLabel={t('editor.notebook.clearOutputs', 'Clear All Outputs')}
+                variant="danger"
             />
             <NotebookToolbar {...toolbarProps} />
             {showHistory && (

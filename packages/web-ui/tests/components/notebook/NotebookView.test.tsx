@@ -77,7 +77,33 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
     readFile: vi.fn(),
     writeFile: vi.fn(),
 }));
-vi.mock('@/components/modals/ConfirmModal', () => ({ConfirmModal: () => null}));
+vi.mock('@/components/modals/ConfirmModal', () => ({
+    ConfirmModal: ({
+        isOpen,
+        onConfirm,
+        onClose,
+        title,
+        message,
+    }: {
+        isOpen: boolean;
+        onConfirm: () => void;
+        onClose: () => void;
+        title: string;
+        message: string;
+    }) =>
+        isOpen ? (
+            <div data-testid="confirm-modal">
+                <span data-testid="confirm-title">{title}</span>
+                <span data-testid="confirm-message">{message}</span>
+                <button onClick={onConfirm} data-testid="confirm-button">
+                    Confirm
+                </button>
+                <button onClick={onClose} data-testid="cancel-button">
+                    Cancel
+                </button>
+            </div>
+        ) : null,
+}));
 vi.mock('@/components/notebook/NotebookHistoryPanel', () => ({
     NotebookHistoryPanel: () => null,
 }));
@@ -86,10 +112,26 @@ vi.mock('@/components/notebook/RunAllSummary', () => ({RunAllSummary: () => null
 vi.mock('@/components/notebook/ParamsPanel', () => ({ParamsPanel: () => null}));
 vi.mock('@/components/notebook/NotebookOutline', () => ({NotebookOutline: () => null}));
 vi.mock('@/components/notebook/NotebookToolbar', () => ({
-    NotebookToolbar: ({onRunAll, isRunning}: ComponentProps<typeof NotebookToolbar>) => (
-        <button onClick={onRunAll} disabled={isRunning}>
-            Run All
-        </button>
+    NotebookToolbar: ({
+        onRunAll,
+        onClearOutputs,
+        canClearOutputs,
+        isRunning,
+    }: ComponentProps<typeof NotebookToolbar>) => (
+        <div>
+            <button onClick={onRunAll} disabled={isRunning} data-testid="run-all-button">
+                Run All
+            </button>
+            {onClearOutputs && (
+                <button
+                    onClick={onClearOutputs}
+                    disabled={isRunning || !canClearOutputs}
+                    data-testid="clear-outputs-button"
+                >
+                    Clear All Outputs
+                </button>
+            )}
+        </div>
     ),
 }));
 // Only the child boundary is replaced: NotebookView owns state and execution.
@@ -607,5 +649,109 @@ describe('NotebookView', () => {
                 expect(screen.getByRole('button', {name: 'Run All'})).toBeEnabled();
             },
         );
+    });
+
+    describe('Clear all outputs (#1399)', () => {
+        it('disables the clear outputs button when there are no cell results or errors', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('s1', 'SELECT 1'),
+                    {
+                        id: 'm1',
+                        type: 'markdown',
+                        content: '# Title',
+                    },
+                ],
+            });
+            await settle();
+
+            const clearBtn = screen.getByTestId('clear-outputs-button');
+            expect(clearBtn).toBeDisabled();
+        });
+
+        it('enables the clear button when any cell has results, asks for confirmation, and clears outputs in one state update while preserving queries and execution history', async () => {
+            const historyEntry = {
+                id: 'h1',
+                query: 'SELECT 1',
+                timestamp: 123456,
+                executionTime: 42,
+                result: sourceResult,
+            };
+
+            renderNotebook({
+                cells: [
+                    sqlCell('s1', 'SELECT 1', {
+                        result: sourceResult,
+                        executionTime: 42,
+                        history: [historyEntry],
+                    }),
+                    sqlCell('s2', 'SELECT 2', {
+                        error: 'syntax error',
+                        executionTime: 10,
+                    }),
+                    {
+                        id: 'm1',
+                        type: 'markdown',
+                        content: '# Markdown note',
+                    },
+                ],
+            });
+            await settle();
+
+            const clearBtn = screen.getByTestId('clear-outputs-button');
+            expect(clearBtn).toBeEnabled();
+
+            // Click clear button opens confirmation modal
+            fireEvent.click(clearBtn);
+            expect(screen.getByTestId('confirm-modal')).toBeInTheDocument();
+            expect(screen.getByTestId('confirm-title')).toHaveTextContent(
+                'editor.notebook.clearOutputsConfirmTitle',
+            );
+
+            // Confirming clears outputs in one state update
+            await act(async () => {
+                fireEvent.click(screen.getByTestId('confirm-button'));
+            });
+
+            // Modal closes
+            expect(screen.queryByTestId('confirm-modal')).not.toBeInTheDocument();
+
+            // SQL cells have their live results, error, and executionTime reset
+            expect(savedCell('s1').result).toBeNull();
+            expect(savedCell('s1').executionTime).toBeNull();
+            expect(savedCell('s1').error).toBeUndefined();
+            // Content and structure are preserved
+            expect(savedCell('s1').content).toBe('SELECT 1');
+            // History is preserved!
+            expect(savedCell('s1').history).toEqual([historyEntry]);
+
+            expect(savedCell('s2').result).toBeNull();
+            expect(savedCell('s2').executionTime).toBeNull();
+            expect(savedCell('s2').error).toBeUndefined();
+            expect(savedCell('s2').content).toBe('SELECT 2');
+
+            // Markdown cell untouched
+            expect(savedCell('m1').content).toBe('# Markdown note');
+
+            // Button is now disabled since no outputs remain
+            expect(clearBtn).toBeDisabled();
+        });
+
+        it('disables the clear button while execution is in progress', async () => {
+            renderNotebook({
+                cells: [sqlCell('s1', 'SELECT 1', {result: sourceResult})],
+            });
+            await settle();
+
+            const clearBtn = screen.getByTestId('clear-outputs-button');
+            expect(clearBtn).toBeEnabled();
+
+            // Start running all
+            mockInvoke.mockReturnValue(new Promise(() => {})); // never resolves
+            fireEvent.click(screen.getByTestId('run-all-button'));
+
+            // Clear button must be disabled during execution
+            expect(clearBtn).toBeDisabled();
+        });
     });
 });
