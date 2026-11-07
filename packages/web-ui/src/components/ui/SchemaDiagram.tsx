@@ -17,6 +17,7 @@ import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
 import {useEditor} from '@/hooks/useEditor';
 import {SchemaTableNodeComponent} from './SchemaTableNode';
+import {SchemaDiagramLegend} from './SchemaDiagramLegend';
 import {
     Loader2,
     ArrowLeftRight,
@@ -428,6 +429,8 @@ const SchemaDiagramContent = ({
 
             {/* Toolbar per i controlli */}
             <div className="absolute top-4 left-4 z-10 flex gap-2">
+                <SchemaDiagramLegend />
+
                 <button
                     onClick={toggleLayoutDirection}
                     className="flex items-center gap-2 px-3 py-2 bg-elevated hover:bg-surface-secondary text-primary rounded-lg border border-strong transition-colors shadow-lg text-sm font-medium"

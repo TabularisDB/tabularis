@@ -2162,7 +2162,14 @@
     "exportMermaid": "Mermaid 다이어그램으로 내보내기",
     "exportSuccess": "다이어그램 내보내기 완료",
     "exportDbml": "DBML로 내보내기",
-    "export": "내보내기"
+    "export": "내보내기",
+    "legend": "범례",
+    "primaryKey": "기본 키",
+    "primaryKeyDesc": "테이블의 행을 고유하게 식별하는 열",
+    "foreignKey": "외래 키",
+    "foreignKeyDesc": "다른 테이블의 기본 키 또는 고유 키를 참조합니다",
+    "relationship": "관계",
+    "relationshipDesc": "하위 테이블과 상위 테이블을 연결하는 외래 키 참조"
   },
   "views": {
     "createView": "뷰 생성",

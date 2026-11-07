@@ -2241,7 +2241,14 @@
         "exportMermaid": "匯出為 Mermaid 圖表",
         "exportSuccess": "圖表已匯出",
         "exportDbml": "匯出為 DBML",
-        "export": "匯出"
+        "export": "匯出",
+        "legend": "圖例",
+        "primaryKey": "主鍵",
+        "primaryKeyDesc": "唯一識別表中列的欄位",
+        "foreignKey": "外鍵",
+        "foreignKeyDesc": "引用另一個表中的主鍵或唯一鍵",
+        "relationship": "關聯",
+        "relationshipDesc": "連接子表與父表的外键引用"
     },
     "views": {
         "createView": "建立檢視",
