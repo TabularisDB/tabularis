@@ -2006,6 +2006,8 @@
       "exportCsv": "Xuất ra CSV",
       "exportJson": "Xuất ra JSON",
       "exportHtml": "Xuất ra HTML",
+      "exportSql": "Xuất mã nguồn SQL",
+      "exportSqlEmpty": "Sổ tay này không có SQL để xuất.",
       "parameters": "Tham số",
       "paramName": "tên",
       "paramValue": "giá trị",

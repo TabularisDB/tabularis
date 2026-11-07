@@ -2017,6 +2017,8 @@
       "exportCsv": "Export as CSV",
       "exportJson": "Export as JSON",
       "exportHtml": "Export as HTML",
+      "exportSql": "Export SQL source",
+      "exportSqlEmpty": "This notebook has no SQL to export.",
       "parameters": "Parameters",
       "paramName": "name",
       "paramValue": "value",

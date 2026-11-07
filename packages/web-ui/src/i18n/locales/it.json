@@ -2006,6 +2006,8 @@
       "exportCsv": "Esporta come CSV",
       "exportJson": "Esporta come JSON",
       "exportHtml": "Esporta come HTML",
+      "exportSql": "Esporta sorgente SQL",
+      "exportSqlEmpty": "Questo notebook non contiene SQL da esportare.",
       "parameters": "Parametri",
       "paramName": "nome",
       "paramValue": "valore",

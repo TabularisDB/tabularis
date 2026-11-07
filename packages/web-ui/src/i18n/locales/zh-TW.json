@@ -1999,6 +1999,8 @@
             "exportCsv": "匯出為 CSV",
             "exportJson": "匯出為 JSON",
             "exportHtml": "匯出為 HTML",
+            "exportSql": "匯出 SQL 原始碼",
+            "exportSqlEmpty": "此筆記本沒有可匯出的 SQL。",
             "parameters": "引數",
             "paramName": "名稱",
             "paramValue": "值",
