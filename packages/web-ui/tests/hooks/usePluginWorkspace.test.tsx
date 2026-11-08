@@ -74,10 +74,12 @@ describe('usePluginWorkspace', () => {
     it('preserves the connection editor URL and navigation state when already editing', async () => {
         const {result} = renderHook(useWorkspace, {wrapper});
         await waitFor(() => expect(result.current.editor.tabs).toHaveLength(1));
-        act(() => result.current.navigate('/connections/connection-1/editor', {state: {marker:'keep'}}));
-        act(() => result.current.workspace.openWorkspace({id:'branches', title:'Branches'}));
+        act(() =>
+            result.current.navigate('/connections/connection-1/editor', {state: {marker: 'keep'}}),
+        );
+        act(() => result.current.workspace.openWorkspace({id: 'branches', title: 'Branches'}));
         expect(result.current.location.pathname).toBe('/connections/connection-1/editor');
-        expect(result.current.location.state).toEqual({marker:'keep'});
+        expect(result.current.location.state).toEqual({marker: 'keep'});
     });
 
     it('keeps the same workspace isolated across connections', async () => {

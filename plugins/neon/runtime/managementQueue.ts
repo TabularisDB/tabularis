@@ -5,6 +5,9 @@ export async function withFunctionMutation<T>(key: string, action: () => Promise
     const previous = pending.get(key) ?? Promise.resolve();
     const task = previous.catch(() => undefined).then(action);
     pending.set(key, task);
-    try { return await task; }
-    finally { if (pending.get(key) === task) pending.delete(key); }
+    try {
+        return await task;
+    } finally {
+        if (pending.get(key) === task) pending.delete(key);
+    }
 }

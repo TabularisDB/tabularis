@@ -66,6 +66,16 @@ export default defineConfig([
         },
     },
     {
+        files: ['examples/neon-demo/src/app/layout.tsx'],
+        rules: {
+            // Next.js App Router consumes this server metadata export alongside the layout.
+            'react-refresh/only-export-components': [
+                'error',
+                {allowConstantExport: true, allowExportNames: ['metadata']},
+            ],
+        },
+    },
+    {
         files: ['packages/web-ui/src/**/*.{ts,tsx}'],
         rules: {
             'no-restricted-imports': [

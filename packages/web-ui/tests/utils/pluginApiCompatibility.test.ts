@@ -4,9 +4,9 @@ import {API_VERSION} from '@/pluginApiVersion';
 import {readFileSync} from 'node:fs';
 
 it('requires the native resource API for the updated Neon UI while retaining older plugins', () => {
-    const manifest = JSON.parse(
-        readFileSync('plugins/neon/.tabularium', 'utf8'),
-    ) as {ui_extensions: {api_version: string}[]};
+    const manifest = JSON.parse(readFileSync('plugins/neon/.tabularium', 'utf8')) as {
+        ui_extensions: {api_version: string}[];
+    };
     for (const extension of manifest.ui_extensions) {
         expect(isPluginApiCompatible('0.2.0', extension.api_version)).toBe(false);
         expect(isPluginApiCompatible(API_VERSION, extension.api_version)).toBe(true);
