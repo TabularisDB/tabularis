@@ -1,9 +1,9 @@
 // Statement bodies whose `;` belong to the statement: SQLite's
 // `CREATE TRIGGER … BEGIN … END` and PostgreSQL's SQL-standard
 // `BEGIN ATOMIC … END` function and procedure bodies. The splitter feeds it
-// every word outside strings and comments. Neither body nests, but both may
-// hold `CASE … END` expressions, so those are counted and their END does not
-// close the body.
+// every word and punctuation character outside strings and comments. Neither
+// body nests, but both may hold `CASE … END` expressions, so those are counted
+// and their END does not close the body.
 
 import type {DialectOptions} from './index';
 
@@ -12,16 +12,18 @@ export interface CompoundBodyState {
     readonly leading: string[];
     /** The previous word, upper-cased (`BEGIN` before `ATOMIC`). */
     previous: string;
+    /** Open parentheses: a body opens outside them, after the routine header. */
+    parenDepth: number;
     inBody: boolean;
     caseDepth: number;
 }
 
-const LEADING_WORDS = 3;
+const LEADING_WORDS = 4;
 const WORD_RE = /[A-Za-z_][A-Za-z0-9_$]*/y;
 const WORD_CHAR_RE = /[A-Za-z0-9_$]/;
 
 export function createCompoundBodyState(): CompoundBodyState {
-    return {leading: [], previous: '', inBody: false, caseDepth: 0};
+    return {leading: [], previous: '', parenDepth: 0, inBody: false, caseDepth: 0};
 }
 
 /** True while a `;` belongs to an open body. */
@@ -33,6 +35,7 @@ export function isInsideBody(state: CompoundBodyState): boolean {
 export function resetCompoundBodyState(state: CompoundBodyState): void {
     state.leading.length = 0;
     state.previous = '';
+    state.parenDepth = 0;
     state.inBody = false;
     state.caseDepth = 0;
 }
@@ -42,6 +45,17 @@ function isCreateTrigger(leading: ReadonlyArray<string>): boolean {
     if (leading[0] !== 'CREATE') return false;
     const next = leading[1] === 'TEMP' || leading[1] === 'TEMPORARY' ? leading[2] : leading[1];
     return next === 'TRIGGER';
+}
+
+/**
+ * `CREATE [OR REPLACE] FUNCTION | PROCEDURE`. Only routines have a BEGIN ATOMIC
+ * body; elsewhere `begin atomic` is a column and its alias
+ * (`CREATE VIEW v AS SELECT begin atomic FROM t`).
+ */
+function isCreateRoutine(leading: ReadonlyArray<string>): boolean {
+    if (leading[0] !== 'CREATE') return false;
+    const next = leading[1] === 'OR' && leading[2] === 'REPLACE' ? leading[3] : leading[1];
+    return next === 'FUNCTION' || next === 'PROCEDURE';
 }
 
 /**
@@ -55,8 +69,11 @@ export function onBodyCharacter(
     options: DialectOptions,
     state: CompoundBodyState,
 ): void {
+    const ch = source[position];
     // Punctuation separates words: `begin, atomic` is not BEGIN ATOMIC.
-    if (!WORD_CHAR_RE.test(source[position])) {
+    if (!WORD_CHAR_RE.test(ch)) {
+        if (ch === '(') state.parenDepth++;
+        else if (ch === ')') state.parenDepth = Math.max(0, state.parenDepth - 1);
         state.previous = '';
         return;
     }
@@ -80,11 +97,12 @@ export function onBodyCharacter(
             else state.inBody = false;
         }
     } else if (
-        (options.triggerBodies && word === 'BEGIN' && isCreateTrigger(state.leading)) ||
-        (options.atomicBodies &&
-            word === 'ATOMIC' &&
-            state.previous === 'BEGIN' &&
-            state.leading[0] === 'CREATE')
+        state.parenDepth === 0 &&
+        ((options.triggerBodies && word === 'BEGIN' && isCreateTrigger(state.leading)) ||
+            (options.atomicBodies &&
+                word === 'ATOMIC' &&
+                state.previous === 'BEGIN' &&
+                isCreateRoutine(state.leading)))
     ) {
         state.inBody = true;
         state.caseDepth = 0;

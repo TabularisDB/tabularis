@@ -93,6 +93,30 @@ describe('compound statement bodies', () => {
             ).toHaveLength(2);
         });
 
+        it('reads `begin atomic` outside a routine as a column and its alias (review)', () => {
+            const sql = 'CREATE VIEW review_alias AS SELECT begin atomic FROM t;\nSELECT 1;';
+            expect(splitQueries(sql, 'postgres')).toEqual([
+                'CREATE VIEW review_alias AS SELECT begin atomic FROM t',
+                'SELECT 1',
+            ]);
+            for (const statement of [
+                'CREATE TABLE copy AS SELECT begin atomic FROM t',
+                'CREATE MATERIALIZED VIEW mv AS SELECT begin atomic FROM t',
+                'CREATE OR REPLACE VIEW v AS SELECT begin atomic FROM t',
+            ]) {
+                expect(splitQueries(`${statement}; SELECT 1`, 'postgres')).toEqual([
+                    statement,
+                    'SELECT 1',
+                ]);
+            }
+        });
+
+        it('does not open a body for `begin atomic` inside parentheses in a routine', () => {
+            const fn =
+                'CREATE FUNCTION f() RETURNS int LANGUAGE SQL RETURN (SELECT begin atomic FROM t LIMIT 1)';
+            expect(splitQueries(`${fn}; SELECT 1`, 'postgres')).toEqual([fn, 'SELECT 1']);
+        });
+
         it('leaves dollar-quoted bodies to the dollar-quote rule', () => {
             const fn =
                 'CREATE FUNCTION f() RETURNS void AS $$ BEGIN PERFORM 1; END; $$ LANGUAGE plpgsql';
