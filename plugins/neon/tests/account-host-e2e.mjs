@@ -307,12 +307,10 @@ try {
                 );
                 assert(controlStyle.height >= 32, 'Provider selection is too small for a form');
                 await page.setViewportSize({width: 390, height: 740});
-                const form = await dialog
-                    .locator('.neon-account-form')
-                    .evaluate((element) => ({
-                        width: element.clientWidth,
-                        scroll: element.scrollWidth,
-                    }));
+                const form = await dialog.locator('.neon-account-form').evaluate((element) => ({
+                    width: element.clientWidth,
+                    scroll: element.scrollWidth,
+                }));
                 assert(
                     form.scroll <= form.width + 1,
                     'Provider selection overflows a narrow dialog',
