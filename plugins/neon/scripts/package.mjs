@@ -7,7 +7,9 @@ import { spawnSync } from 'node:child_process';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, '.tabularium'), 'utf8'));
 const temp = await mkdtemp(join(tmpdir(), 'tabularis-neon-package-'));
-const pendingArchive = `${temp}.zip`;
+// Stage on the destination filesystem so the final rename also works across mount points.
+const archiveStage = await mkdtemp(join(root, '.package-'));
+const pendingArchive = join(archiveStage, 'bundle.zip');
 try {
   for (const file of ['dist', 'locales', '.tabularium', 'node_modules', 'README.md', 'LICENSE', 'assets']) await cp(join(root, file), join(temp, file), { recursive: true, verbatimSymlinks: true });
   await mkdir(join(temp, 'ui'), { recursive: true });
@@ -21,5 +23,5 @@ try {
   console.log(`Plugin archive created: ${archive} (Node.js 22+ required on destination)`);
 } finally {
   await rm(temp, { recursive: true, force: true });
-  await rm(pendingArchive, { force: true });
+  await rm(archiveStage, { recursive: true, force: true });
 }

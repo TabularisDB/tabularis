@@ -4,6 +4,7 @@ import {mkdtemp,mkdir,writeFile,copyFile,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import {unzipSync,strFromU8} from 'fflate';
 
 test('release packaging replaces old archives and excludes local credentials', async()=>{
@@ -17,7 +18,8 @@ test('release packaging replaces old archives and excludes local credentials', a
     await writeFile(join(root,'obsolete-secret.txt'),'obsolete');
     const name=`neon-0.2.0-${process.platform}-${process.arch}.zip`;
     assert.equal(spawnSync('zip',['-q',name,'obsolete-secret.txt'],{cwd:root}).status,0);
-    const packaged=spawnSync(process.execPath,[join(root,'scripts/package.mjs')],{encoding:'utf8'});
+    const archiveTempRoot=fileURLToPath(new URL('../',import.meta.url));
+    const packaged=spawnSync(process.execPath,[join(root,'scripts/package.mjs')],{encoding:'utf8',env:{...process.env,TMPDIR:archiveTempRoot,TMP:archiveTempRoot,TEMP:archiveTempRoot}});
     assert.equal(packaged.status,0,packaged.stderr);
     const files=unzipSync(new Uint8Array(await readFile(join(root,name))));
     assert(!files['obsolete-secret.txt'],'Old archive members must not survive');
