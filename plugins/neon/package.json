@@ -37,5 +37,6 @@
     "dev:setup": "node scripts/setup-development.mjs",
     "package": "pnpm build && node scripts/package.mjs",
     "test:host": "node tests/host-e2e.mjs"
-  }
+  },
+  "packageManager": "pnpm@10.30.3"
 }

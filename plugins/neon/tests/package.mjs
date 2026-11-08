@@ -13,6 +13,8 @@ test('release packaging replaces old archives and excludes local credentials', a
     for(const dir of ['scripts','dist','locales','ui/dist','node_modules','assets'])await mkdir(join(root,dir),{recursive:true});
     await copyFile(new URL('../scripts/package.mjs',import.meta.url),join(root,'scripts/package.mjs'));
     await writeFile(join(root,'.tabularium'),JSON.stringify({id:'neon',version:'0.2.0'}));
+    await writeFile(join(root,'package.json'),JSON.stringify({type:'module',packageManager:'pnpm@10.30.3'}));
+    await writeFile(join(root,'pnpm-lock.yaml'),"lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\nimporters:\n  .: {}\n");
     for(const file of ['dist/driver.js','ui/dist/index.js','README.md','LICENSE','assets/icon.svg'])await writeFile(join(root,file),'public release fixture');
     await writeFile(join(root,'.env.local'),'DO_NOT_PUBLISH=secret');
     await writeFile(join(root,'obsolete-secret.txt'),'obsolete');
