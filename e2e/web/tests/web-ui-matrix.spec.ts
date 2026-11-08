@@ -127,6 +127,14 @@ test('serves the shared UI and loads an authenticated UI extension', async ({pag
         'E2E UI extension loaded',
         {timeout: 15_000},
     );
+    await expect(page.locator('[data-testid="e2e-ui-extension"]')).toHaveAttribute(
+        'data-api-version',
+        '0.1.1',
+    );
+    await expect(page.locator('[data-testid="e2e-ui-extension"]')).toHaveAttribute(
+        'data-connection-id',
+        '',
+    );
 
     const drivers = await rpc<DriverManifest[]>(page, 'get_registered_drivers');
     expect(drivers).toEqual(
@@ -196,7 +204,10 @@ for (const fixture of databaseFixtures) {
     });
 }
 
-test('executes a query through an external JSON-RPC driver plugin', async ({page, browserName}) => {
+test('executes SQL through a legacy driver without optional initialization or provider APIs', async ({
+    page,
+    browserName,
+}) => {
     const params: ConnectionParameters = {
         driver: 'e2e-driver',
         database: 'fixture',

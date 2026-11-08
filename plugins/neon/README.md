@@ -1,10 +1,38 @@
 # Neon integration prototype
 
+**Preview:** this plugin requires the provider-workspace Core branch and plugin API
+0.2.7. Stock Tabularis 0.31.0 does not yet expose that API. Function redeployment
+activation is a known failing live test; do not treat an accepted/active API
+deployment as proof that the endpoint serves the new code or environment.
+
+Plugin repository: https://github.com/NewtTheWolf/tabularis-neon-plugin
+
+## Screenshots
+
+These are actual integration-test captures using disposable source, text objects
+and AI prompts. They contain no account credentials. Loading indicators and
+account setup notices are part of the captured preview build.
+
+![Native Neon overview](screenshots/overview.png)
+![Function source editor](screenshots/functions.png)
+![Private text-object storage](screenshots/storage.png)
+![AI Gateway test prompt](screenshots/ai-gateway.png)
+
 A Tabularis driver with native explorer services for an existing Neon project. Scaffolded
 with the Tabularis CLI, then adapted to Node.js to use Neon's SDKs. Requires
 Node.js 22+, pnpm, and the `feat/neon-integration` Core changes on upstream
-Tabularis 0.30.0. The public 0.30.0 release alone does not yet include the new
-`usePluginRpc` API (SDK package 0.4.0, runtime API 0.2.5).
+Tabularis 0.31.0. The provider UI requires plugin API 0.2.7 (SDK package 0.4.0).
+The unmodified public Core does not include these provider additions; an app
+version number alone does not establish support for the new UI.
+
+Compatibility is additive in the updated Core: existing SQL drivers, legacy
+drivers without optional `initialize`, and published UI API 0.1.0/0.1.1 bundles
+remain supported. The browser regression matrix exercises SQLite, PostgreSQL,
+MySQL, a legacy JSON-RPC driver, and an API 0.1.1 extension using its connection
+hook. This does not establish that the new Neon management UI can run on an
+older Core: its UI contributions explicitly require API 0.2.7 and are skipped
+by hosts with a lower API version. Hosts below the manifest's runtime floor
+also cannot load the full plugin.
 
 ## Build and install from this repository
 
@@ -203,11 +231,15 @@ Management tests use a refreshable CLI profile reference, create disposable
 functions/users, exercise confirmations and remove their resources. The suite
 also verifies updated code and environment values at the public function endpoint;
 it exits nonzero when Neon reports an active deployment but serves old values.
-The latest run passed activation as well as creation, initial invocation, rename,
-clipboard, Auth role changes and deletion. Polling is bounded so persistent stale
-revisions remain test failures.
+The November 8 live run passed creation, initial invocation, rename, clipboard,
+Auth role changes and deletion, but failed updated source/environment activation.
+Direct SDK and raw HTTP controls reproduced stale revisions; an official CLI
+control passed. Polling is bounded so stale revisions remain test failures.
 
 ## Usage & limits
+
+Overview renders connection-scoped service configuration independently of SQL
+inspection, so a slow or failed database check does not hide the other services.
 
 Overview reads `account_usage` through the connected Neon account (API key or
 refreshable CLI profile). It is a read-only operation; all provider requests are
@@ -306,14 +338,18 @@ return through metadata. Local mutations to the same function are serialized;
 the provider does not expose an atomic create-only operation to prevent races
 with unrelated external clients.
 
-**Activation timing:** earlier live runs returned old code/environment values even
-though Neon reported a completed, active deployment. The latest full UI test
-successfully deployed TypeScript and verified the changed environment at the
-endpoint by checking up to six times, two seconds apart. API acceptance/active
-metadata alone is still not proof of runtime behavior: invoke the endpoint after
-updates. The UI keeps that reminder visible, and the management suite exits
-nonzero if the new revision never appears. `tests/activation-diagnostic.mjs`
-retains the earlier diagnostic for investigating persistent failures.
+**Activation timing:** live checks on November 8 reproduced old code and old
+user-defined environment values after Neon reported a completed, active deployment.
+The environment-only check still failed after 45 seconds. Direct SDK and raw HTTP
+controls reproduced the problem without the plugin or compiler; a CLI control
+successfully activated its update. GET and POST controls returned advancing server timestamps with old code and
+environment values, ruling out a merely cached HTTP response. Controls across
+all resolved endpoint addresses also reproduced the stale runtime. Connection
+isolation and unique bundles were tested and did not reliably resolve it; those
+workarounds were removed. The cause remains unresolved. Metadata alone
+is not proof of runtime behavior: invoke and check the endpoint after updates.
+The management suites fail when the new code/environment never appears; no test
+skip or longer timeout hides this failure.
 
 **Auth:** search and paginate users, inspect identity/session metadata, create
 identities with name/email, update the supported user/admin role, and confirm

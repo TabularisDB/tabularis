@@ -41,4 +41,30 @@ describe('Neon overview', () => {
         );
         expect(screen.queryByText('branchesHint')).toBeNull();
     });
+    it('keeps services available while SQL inspection is pending or fails', async () => {
+        let rejectDatabase!: (error: Error) => void;
+        const database = new Promise((_, reject) => {
+            rejectDatabase = reject;
+        });
+        const status = {
+            branch: 'production',
+            projectId: 'project',
+            database: null,
+            services: ['Postgres', 'Auth', 'Storage', 'AI Gateway', 'Functions', 'Realtime'].map(
+                (name) => ({name, configured: true}),
+            ),
+        };
+        rpc.call.mockImplementation((_method, args) =>
+            args?.metadataOnly ? Promise.resolve(status) : database,
+        );
+        const view = render(
+            createElement(NeonPanel, {connectionId: 'saved', serviceId: 'overview'}),
+        );
+        await waitFor(() =>
+            expect(view.container.querySelectorAll('.neon-service')).toHaveLength(6),
+        );
+        rejectDatabase(new Error('SQL inspection unavailable'));
+        await screen.findByText('SQL inspection unavailable');
+        expect(view.container.querySelectorAll('.neon-service')).toHaveLength(6);
+    });
 });

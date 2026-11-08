@@ -6,7 +6,7 @@ export async function admin(method: string, _args: Params, context: Params): Pro
   if (method === 'neon_management_context') return { projectId: optionalEnv('NEON_PROJECT_ID') ?? null, branchId: optionalEnv('NEON_BRANCH_ID') ?? null, branchName: optionalEnv('NEON_BRANCH') ?? null };
   if (method === 'neon_auth_users_page' || method === 'neon_auth_user_details') return authDirectory(method, _args);
   if (method === 'neon_status') {
-    const db = await database('execute_query', { query: 'SELECT current_database() AS database, version() AS version' });
+    const db = _args.metadataOnly === true ? null : await database('execute_query', { query: 'SELECT current_database() AS database, version() AS version' });
     return { connectionId: context.connection_id, branch: optionalEnv('NEON_BRANCH') ?? 'Unspecified',
       projectId: optionalEnv('NEON_PROJECT_ID') ?? null, database: db,
       services: [

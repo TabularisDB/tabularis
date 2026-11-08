@@ -2,7 +2,7 @@
   "id": "neon",
   "name": "Neon",
   "version": "0.2.0",
-  "description": "Neon projects and branches with Auth, Storage, Functions, Realtime and AI Gateway",
+  "description": "Preview Neon workspace: PostgreSQL, branches, Auth, Storage, Functions, Realtime and AI Gateway. Requires the provider-workspace Core build.",
   "default_port": 5432,
   "default_username": "",
   "executable": "dist/driver.js",
@@ -82,7 +82,7 @@
   ],
   "interpreter": "node",
   "color": "#00e599",
-  "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSI+PHJlY3QgeD0iMSIgeT0iMSIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMyIgZmlsbD0iIzAwZTU5OSIvPjxwYXRoIGQ9Ik0zIDE2VjRoMTBsNCA0djhoLTVWOWwtNSA3SDNaIiBzdHJva2U9IiMwNTJlMjMiIHN0cm9rZS13aWR0aD0iMS42IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+",
+  "icon": "https://raw.githubusercontent.com/NewtTheWolf/tabularis-neon-plugin/v0.2.0/assets/icon.svg",
   "engine": "neon",
   "ui_extensions": [
     {
@@ -124,5 +124,45 @@
   "paradigms": [
     "sql"
   ],
-  "min_runtime_version": "0.30.0"
+  "min_runtime_version": "0.31.0",
+  "category": "database",
+  "tags": [
+    "neon",
+    "postgresql",
+    "serverless",
+    "auth",
+    "storage",
+    "functions",
+    "realtime",
+    "ai",
+    "preview"
+  ],
+  "license": "Apache-2.0",
+  "readme": "README.md",
+  "homepage": "https://github.com/NewtTheWolf/tabularis-neon-plugin",
+  "support": {
+    "issues_url": "https://github.com/NewtTheWolf/tabularis-neon-plugin/issues"
+  },
+  "screenshots": [
+    {
+      "url": "screenshots/overview.png",
+      "caption": "Actual Tabularis integration-test capture: native Explorer and service overview. Preview Core build required.",
+      "alt": "Neon services in the native Tabularis Explorer and overview tab"
+    },
+    {
+      "url": "screenshots/functions.png",
+      "caption": "Actual Function editor with disposable test source. Redeployment activation remains a known live-test failure.",
+      "alt": "Monaco JavaScript Function editor and deployment controls"
+    },
+    {
+      "url": "screenshots/storage.png",
+      "caption": "Actual Storage test capture with disposable text content and confirmed object deletion.",
+      "alt": "Private assets bucket browser and text object controls"
+    },
+    {
+      "url": "screenshots/ai-gateway.png",
+      "caption": "Actual AI Gateway test capture with a synthetic prompt and response.",
+      "alt": "Model selection and a test AI Gateway response"
+    }
+  ]
 }

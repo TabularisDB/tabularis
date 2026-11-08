@@ -35,7 +35,7 @@ interface NeonStatus {
     connectionId: string;
     branch: string;
     projectId: string | null;
-    database: PluginQueryResult;
+    database: PluginQueryResult | null;
     services: {name: string; configured: boolean}[];
 }
 
@@ -152,13 +152,24 @@ function Overview({connectionId}: ConnectedProps) {
     const {call} = usePluginRpc('neon', connectionId);
     const {openWorkspace} = usePluginWorkspace('neon');
     const task = useTask<NeonStatus>();
+    const inspection = useTask<NeonStatus>();
     const navigation = useTask<void>();
     const {run} = task;
-    const load = useCallback(() => run(() => call<NeonStatus>('neon_status')), [call, run]);
+    const inspect = inspection.run;
+    const load = useCallback(
+        () =>
+            Promise.all([
+                run(() => call<NeonStatus>('neon_status', {metadataOnly: true})),
+                inspect(() => call<NeonStatus>('neon_status')),
+            ]),
+        [call, run, inspect],
+    );
     useEffect(() => {
         void Promise.resolve().then(load);
     }, [load]);
-    const database = task.data ? databaseSummary(task.data.database) : undefined;
+    const database = inspection.data?.database
+        ? databaseSummary(inspection.data.database)
+        : undefined;
     const destinations: Record<string, NeonService> = {
         Auth: 'users',
         Storage: 'storage',
@@ -171,11 +182,16 @@ function Overview({connectionId}: ConnectedProps) {
         <div className="neon-view">
             <div className="neon-toolbar">
                 <p className="neon-description">{t('overviewDescription')}</p>
-                <button className="neon-button" disabled={task.pending} onClick={() => void load()}>
+                <button
+                    className="neon-button"
+                    disabled={task.pending || inspection.pending}
+                    onClick={() => void load()}
+                >
                     {t('refresh')}
                 </button>
             </div>
             <Feedback {...task} />
+            <Feedback {...inspection} />
             <Feedback {...navigation} />
             <UsagePanel connectionId={connectionId} />
             {task.data && (

@@ -45,3 +45,12 @@ test('row mutations quote identifiers, bind values, and reject missing primary k
   assert.deepEqual(update.values, [null, 3]);
   assert.match(update.text, /"id" IS NOT DISTINCT FROM \$2/);
 });
+
+test('service metadata is available without connecting to Postgres', async () => {
+  const {admin} = await import('../dist/admin.js');
+  const {withCredentials} = await import('../dist/env.js');
+  const result = await withCredentials({DATABASE_URL:'invalid-url',NEON_BRANCH:'production',NEON_PROJECT_ID:'project'}, () => admin('neon_status', {metadataOnly:true}, {connection_id:'offline'}));
+  assert.equal(result.database, null);
+  assert.equal(result.services.length, 6);
+  assert.equal(result.connectionId, 'offline');
+});

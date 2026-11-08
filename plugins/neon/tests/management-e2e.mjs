@@ -1,25 +1,21 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { createNeonClient } from '@neon/sdk';
 import { account } from '../dist/account.js';
 import { authDirectory } from '../dist/authDirectory.js';
 import { withCredentials } from '../dist/env.js';
+import {cliCredential} from '../dist/cliAuth.js';
 
-let apiKey = process.env.NEON_API_KEY;
-if (!apiKey && process.env.NEON_MANAGEMENT_TEST_USE_CLI === '1') {
-  const auth = JSON.parse(await readFile(join(homedir(), '.config/neon/credentials.json'), 'utf8'));
-  apiKey = auth.access_token;
-}
-assert(typeof apiKey === 'string' && apiKey, 'Provide NEON_API_KEY or explicitly opt into the existing CLI token with NEON_MANAGEMENT_TEST_USE_CLI=1');
+const apiKey = process.env.NEON_API_KEY;
+const cliMode = !apiKey && process.env.NEON_MANAGEMENT_TEST_USE_CLI === '1';
+const cliProfile = process.env.NEON_MANAGEMENT_TEST_CLI_PROFILE ?? 'DEFAULT';
+assert(cliMode || typeof apiKey === 'string' && apiKey, 'Provide NEON_API_KEY or select an existing CLI profile');
 const scope = { projectId: process.env.NEON_MANAGEMENT_TEST_PROJECT_ID ?? 'solitary-leaf-07190439', branchId: process.env.NEON_MANAGEMENT_TEST_BRANCH_ID ?? 'br-lively-scene-b9f8w1aa' };
 const slug = `tabtest${randomBytes(5).toString('hex')}`;
 const email = `${slug}@example.com`;
-const credentials = { NEON_API_KEY: apiKey };
+const credentials = cliMode ? {NEON_CLI_AUTH:cliProfile} : {NEON_API_KEY:apiKey};
 const call = (method, args = {}) => account(method, { ...scope, ...args }, credentials);
-const sdk = createNeonClient({ apiKey, throwOnError: true, requestTimeoutMs: 15000, retries: 0 });
+const sdk = createNeonClient({ apiKey:cliMode ? () => cliCredential(cliProfile) : apiKey, throwOnError: true, requestTimeoutMs: 15000, retries: 0 });
 const source = `export default { async fetch(request) { console.info("Tabularis disposable management test"); return Response.json({marker:${JSON.stringify(slug)},method:request.method,authorization:request.headers.get("authorization"),body:request.method === "POST" ? await request.text() : null,A:process.env.TABULARIS_TEST_A ?? null,B:process.env.TABULARIS_TEST_B ?? null}); }};`;
 let functionCreated = false;
 let userId;
@@ -67,11 +63,11 @@ try {
     const value = await ready(result.id);
     assert(value.environmentKeys.includes('TABULARIS_TEST_A'));
     assert.equal(value.source, source);
-    assert(!JSON.stringify(value).includes(apiKey));
+    if (apiKey) assert(!JSON.stringify(value).includes(apiKey));
   });
   await check('Existing-slug protection and invalid JavaScript prevent unintended redeployments', async () => {
     await assert.rejects(call('account_function_deploy', { slug, source, createOnly: true }), /already exists/);
-    await assert.rejects(call('account_function_deploy', { slug, source: 'export default = {' }), /valid JavaScript/);
+    await assert.rejects(call('account_function_deploy', { slug, source: 'export default = {' }), /Function validation failed/);
   });
   await check('The deployed function handles GET and POST without receiving the management key', async () => {
     const get = await invoke();
@@ -111,7 +107,7 @@ try {
     const logs = await call('account_function_logs', { slug });
     assert.equal(typeof logs.available, 'boolean');
     assert(Array.isArray(logs.entries));
-    assert(!JSON.stringify(logs).includes(apiKey));
+    if (apiKey) assert(!JSON.stringify(logs).includes(apiKey));
     if (!logs.available) assert(logs.reason);
   });
   await check('Auth user creation is visible through the bound read-only directory', async () => {
@@ -122,7 +118,7 @@ try {
     assert(page.users.some(item => item.id === userId));
     const detail = await read('neon_auth_user_details', { userId });
     assert.equal(detail.user.email, email);
-    assert(!JSON.stringify(detail).includes(apiKey));
+    if (apiKey) assert(!JSON.stringify(detail).includes(apiKey));
   });
   await check('Auth role changes and deletion operate only on the newly created user', async () => {
     await call('account_auth_set_role', { userId, role: 'admin' });
@@ -138,7 +134,7 @@ try {
     functionCreated = false;
     assert(!(await call('account_functions_list')).functions.some(item => item.slug === slug));
   });
-  console.log(`PASS ${checks} real management checks; only disposable test resources were modified`);
+  console.log(`${environmentFailure ? 'PARTIAL' : 'PASS'} ${checks} real management checks; only disposable test resources were modified`);
   if (environmentFailure) throw new Error('Provider activation failure remains after successful remaining lifecycle checks');
 } catch (error) {
   let message = error instanceof Error ? error.message : 'Management test failed';
