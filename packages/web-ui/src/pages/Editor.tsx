@@ -127,6 +127,7 @@ import {PageIndicator} from '@/components/ui/PageIndicator';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
 import {totalPageCount} from '@/utils/pagination';
+import {batchSnapshotLimit, isSnapshotResult, snapshotPage} from '@/utils/batchSnapshot';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
 import {TransposeIcon} from '@/components/icons/TransposeIcon';
 import {HiddenColumnsIndicator} from '@/components/ui/HiddenColumnsIndicator';
@@ -1801,8 +1802,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                         historyDb,
                     );
                 }
+                const snapshot = pageSize && isSnapshotResult(res) ? res : undefined;
                 patchResultEntry(targetTabId, entry.id, {
-                    result: res,
+                    result: snapshot && pageSize ? snapshotPage(snapshot, 1, pageSize) : res,
+                    snapshot,
                     executionTime: execTime,
                     isLoading: false,
                     activeTable: tableName,
@@ -1832,7 +1835,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {
                         connectionId: activeConnectionId,
                         queries: entries.map((e) => e.query),
-                        limit: pageSize,
+                        // Capture a snapshot per statement: later pages are cut from
+                        // it, since re-running a statement after the batch would see
+                        // different session state (#205).
+                        limit: batchSnapshotLimit(pageSize),
                         page: 1,
                         batchId,
                         // The tab is the session: a transaction it leaves open keeps
@@ -2009,6 +2015,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const schema = currentTab?.schema ?? activeSchema;
 
             scrollTopByEntryKeyRef.current.delete(`${targetTabId}:${entryId}`);
+
+            // Run All results page through the rows captured during the batch.
+            if (entry.snapshot && currentTab?.results) {
+                const pageResult = snapshotPage(entry.snapshot, pageNum, pageSize ?? 0);
+                updateTab(targetTabId, {
+                    results: updateResultEntry(currentTab.results, entryId, {
+                        result: pageResult,
+                        page: pageResult.pagination?.page ?? 1,
+                    }),
+                });
+                return;
+            }
 
             // Mark this entry as loading
             if (currentTab?.results) {

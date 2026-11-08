@@ -322,6 +322,27 @@ export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string 
     }
 }
 
+const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
+// `name:port` or `[ipv6]:port`
+const HOST_WITH_PORT_RE = /^(?:\[[^\]]*\]|[^:[\]]+):\d+$/;
+
+/**
+ * Format a host and port for display as `host:port`.
+ * A host that is a URL (`ws://127.0.0.1:8010`) or already names a port
+ * (`db:5433`, `[::1]:5433`) is shown as typed, and a bare IPv6 address is
+ * bracketed so its colons stay apart from the port.
+ * @param host - Host as entered in the connection form
+ * @param port - Port, or nothing to show the host alone
+ * @returns Display string
+ */
+export function formatHostPort(host: string, port: number | null | undefined): string {
+    if (port == null || URL_SCHEME_RE.test(host) || HOST_WITH_PORT_RE.test(host)) {
+        return host;
+    }
+    const isBareIpv6 = !host.startsWith('[') && host.split(':').length > 2;
+    return `${isBareIpv6 ? `[${host}]` : host}:${port}`;
+}
+
 /**
  * Build the subtitle shown below a connection name (host:port · db or file path).
  *
@@ -354,7 +375,7 @@ export function connectionSubtitle(
     // A single selected database is named, as when it is stored as a string.
     else if (db.length === 1) dbStr = db[0];
     else dbStr = labels?.databaseCount?.(db.length) ?? `${db.length} databases`;
-    return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
+    return `${formatHostPort(conn.params.host ?? 'localhost', conn.params.port)}  ·  ${dbStr}`;
 }
 
 /**

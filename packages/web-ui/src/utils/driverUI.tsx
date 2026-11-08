@@ -17,6 +17,19 @@ export function getDriverColor(manifest: PluginManifest | undefined | null): str
 }
 
 /**
+ * The display name a plugin driver declares in its manifest, or null for a
+ * built-in driver, a missing manifest, or a legacy manifest whose `name` is
+ * just its id; callers then show the driver id.
+ */
+export function getPluginDriverDisplayName(
+    manifest: PluginManifest | undefined | null,
+): string | null {
+    if (!manifest || manifest.is_builtin) return null;
+    const name = manifest.name.trim();
+    return name && name !== manifest.id ? name : null;
+}
+
+/**
  * True when a manifest `icon` value is a hosted URL or `data:` URI to render
  * as an `<img>`, rather than a built-in icon lookup key. URI schemes are
  * case-insensitive (RFC 3986), so `HTTPS://` must match too.

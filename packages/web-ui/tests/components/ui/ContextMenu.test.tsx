@@ -348,6 +348,35 @@ describe('ContextMenu', () => {
         expect(trigger).toHaveAttribute('aria-expanded', 'false');
     });
 
+    it.each([true, false])('handles pointer leave with pointer focus: %s', (pointerFocus) => {
+        vi.useFakeTimers();
+        try {
+            render(
+                <ContextMenu
+                    x={100}
+                    y={100}
+                    items={[
+                        {
+                            label: 'Copy name',
+                            submenu: [{label: 'Quoted name', action: mockAction1}],
+                        },
+                    ]}
+                    onClose={mockOnClose}
+                />,
+            );
+            const trigger = screen.getByRole('button', {name: 'Copy name'});
+            if (pointerFocus) fireEvent.pointerDown(trigger);
+            act(() => trigger.focus());
+            expect(trigger).toHaveAttribute('aria-expanded', 'true');
+            fireEvent.mouseLeave(trigger.parentElement!);
+            act(() => vi.advanceTimersByTime(120));
+            expect(trigger).toHaveAttribute('aria-expanded', String(!pointerFocus));
+            expect(mockOnClose).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('handles many menu items', () => {
         const manyItems = Array.from({length: 10}, (_, i) => ({
             label: `Item ${i + 1}`,

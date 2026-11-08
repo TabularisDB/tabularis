@@ -76,6 +76,10 @@ export interface QueryResultEntry {
     page: number;
     activeTable: string | null;
     pkColumns: string[] | null;
+    /// Rows a Run All statement returned, captured while the batch's session
+    /// state was live. Set for paged batch results: page changes slice this
+    /// instead of re-running the statement (#205).
+    snapshot?: QueryResult;
 }
 
 import type {NotebookState} from './notebook';

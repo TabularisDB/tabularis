@@ -3650,7 +3650,15 @@ export const ExplorerSidebar = ({
                                     {
                                         label: t('sidebar.copyName'),
                                         icon: Copy,
-                                        action: () => navigator.clipboard.writeText(contextMenu.id),
+                                        action: async () => {
+                                            try {
+                                                await copyTextToClipboard(contextMenu.id);
+                                                showAlert(t('common.copied'), {kind: 'info'});
+                                            } catch (error) {
+                                                console.error('Failed to copy index name:', error);
+                                                showAlert(t('common.error'), {kind: 'error'});
+                                            }
+                                        },
                                     },
                                     supportsManageTables(activeCapabilities)
                                         ? {

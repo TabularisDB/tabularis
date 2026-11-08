@@ -855,6 +855,45 @@ describe('ExplorerSidebar — capabilities threading (issue #614)', () => {
             databaseState.activeCapabilities,
         );
     });
+    it.each([true, false])('reports index name copy success: %s', async (succeeds) => {
+        const showAlert = vi.fn();
+        vi.mocked(useAlert).mockReturnValue({showAlert} as unknown as ReturnType<typeof useAlert>);
+        const writeText = succeeds
+            ? vi.fn().mockResolvedValue(undefined)
+            : vi.fn().mockRejectedValue(new Error('Clipboard blocked'));
+        Object.defineProperty(navigator, 'clipboard', {value: {writeText}, configurable: true});
+        vi.mocked(invoke).mockImplementation(async (command) =>
+            command === 'get_indexes'
+                ? [
+                      {
+                          name: 'orders_idx',
+                          column_name: 'customer_id',
+                          is_unique: true,
+                          is_primary: false,
+                      },
+                  ]
+                : [],
+        );
+        renderSidebar();
+        const table = screen.getByText('orders').closest('[data-table-name]')!;
+        fireEvent.click(table.querySelector('button')!);
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'get_indexes',
+                expect.objectContaining({tableName: 'orders'}),
+            ),
+        );
+        fireEvent.click(screen.getByText('sidebar.indexes'));
+        fireEvent.contextMenu(await screen.findByText('orders_idx', {exact: false}));
+        fireEvent.click(screen.getByText('sidebar.copyName'));
+        await waitFor(() => expect(writeText).toHaveBeenCalledWith('orders_idx'));
+        await waitFor(() =>
+            expect(showAlert).toHaveBeenCalledWith(succeeds ? 'common.copied' : 'common.error', {
+                kind: succeeds ? 'info' : 'error',
+            }),
+        );
+    });
+
     it.each(['index', 'foreign_key'] as const)(
         'opens %s details from the menu for a read-only plugin using capabilities',
         async (kind) => {
