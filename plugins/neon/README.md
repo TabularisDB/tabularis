@@ -176,8 +176,8 @@ neon init -y --org-id org-empty-pine-21623834 --project-id solitary-leaf-0719043
 neon deploy --update-existing
 ```
 
-See [the demo](../../examples/neon-demo/README.md) before running its schema and
-seed commands. No existing application schemas are dropped.
+Live demo-data checks require an existing `tabularis_demo` schema. The plugin
+does not provision demo data or application resources.
 
 On Linux, after pulling the local environment, `pnpm dev:setup` uses `secret-tool`
 to save the DB password and service bundle in the OS keyring and adds
