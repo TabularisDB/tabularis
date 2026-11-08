@@ -1,16 +1,12 @@
 import {describe, expect, it} from 'vitest';
 import {isPluginApiCompatible} from '@/utils/pluginApiCompatibility';
 import {API_VERSION} from '@/pluginApiVersion';
-import {readFileSync} from 'node:fs';
 
-it('requires the native resource API for the updated Neon UI while retaining older plugins', () => {
-    const manifest = JSON.parse(readFileSync('plugins/neon/.tabularium', 'utf8')) as {
-        ui_extensions: {api_version: string}[];
-    };
-    for (const extension of manifest.ui_extensions) {
-        expect(isPluginApiCompatible('0.2.0', extension.api_version)).toBe(false);
-        expect(isPluginApiCompatible(API_VERSION, extension.api_version)).toBe(true);
-    }
+it('gates the current provider contract while retaining older plugin APIs', () => {
+    const providerFixture = {api_version: '0.2.7'};
+    expect(isPluginApiCompatible('0.2.0', providerFixture.api_version)).toBe(false);
+    expect(isPluginApiCompatible('0.2.6', providerFixture.api_version)).toBe(false);
+    expect(isPluginApiCompatible(API_VERSION, providerFixture.api_version)).toBe(true);
     expect(isPluginApiCompatible(API_VERSION, '0.2.0')).toBe(true);
     expect(isPluginApiCompatible(API_VERSION, '0.1.1')).toBe(true);
 });
