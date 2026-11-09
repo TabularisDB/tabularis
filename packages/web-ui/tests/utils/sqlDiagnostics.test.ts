@@ -297,6 +297,48 @@ describe('sqlDiagnostics', () => {
         });
     });
 
+    describe('output names versus input columns', () => {
+        const joined = `FROM orders a JOIN orders b ON b.id = a.id`;
+
+        it('resolves a bare ORDER BY name to the output column, not the joined inputs', () => {
+            expect(errors(`SELECT a.id AS id ${joined} ORDER BY id`)).toEqual([]);
+            expect(errors(`SELECT a.id ${joined} ORDER BY id DESC NULLS LAST`)).toEqual([]);
+            expect(errors(`SELECT a.id AS id, a.total ${joined} ORDER BY total, id ASC`)).toEqual(
+                [],
+            );
+            // A name that is not an output column still follows the input rules.
+            expect(errors(`SELECT a.id ${joined} ORDER BY total`)).toEqual([
+                'ambiguousColumn:total',
+            ]);
+        });
+
+        it('applies input-column rules to a name inside an ORDER BY expression', () => {
+            expect(errors(`SELECT a.id AS id ${joined} ORDER BY id + 1`)).toEqual([
+                'ambiguousColumn:id',
+            ]);
+            expect(errors(`SELECT a.id AS id ${joined} ORDER BY abs(id)`)).toEqual([
+                'ambiguousColumn:id',
+            ]);
+        });
+
+        it('keeps GROUP BY preferring input columns, so an ambiguous input stays an error', () => {
+            expect(errors(`SELECT a.id AS id ${joined} GROUP BY id`)).toEqual([
+                'ambiguousColumn:id',
+            ]);
+            expect(errors('SELECT total * 2 AS doubled FROM orders GROUP BY doubled')).toEqual([]);
+        });
+
+        it('stays quiet when the output names are not fully known', () => {
+            expect(errors(`SELECT a.* ${joined} ORDER BY id`)).toEqual([]);
+        });
+
+        it('still flags a bare ORDER BY name that is neither an output nor an input', () => {
+            expect(errors(`SELECT a.id ${joined} ORDER BY nope`)).toEqual([
+                'unresolvedColumn:nope',
+            ]);
+        });
+    });
+
     describe('relations', () => {
         it('warns, not errors, about a relation missing from the metadata', () => {
             const sql = 'SELECT * FROM ghost';

@@ -259,6 +259,7 @@ interface ColumnRef {
     qualifier: IdentPart[];
     name: IdentPart;
     star: boolean;
+    outputFirst?: boolean;
 }
 
 interface OutputItem {
@@ -371,6 +372,7 @@ const ALIAS_STOP_WORDS = words(`
     where group order having limit offset union intersect except for fetch window on using join
     inner left right full cross natural lateral tablesample returning set with
 `);
+const ORDER_SUFFIX_WORDS = words('asc desc nulls first last');
 const NO_STOPS: ReadonlySet<string> = new Set();
 
 interface ItemState {
@@ -934,6 +936,33 @@ export function parseSelectStatement(sql: string): ParsedSelect | null {
 
     // ----- SELECT core and queries -----
 
+    const parseOrderItems = (select: SelectNode) => {
+        for (;;) {
+            const start = i;
+            const before = select.orderRefs.length;
+            scan(select, {stops: EXPRESSION_STOPS, target: select.orderRefs, stopAtComma: true}, 0);
+            const added = select.orderRefs.slice(before);
+            const [ref] = added;
+            const suffix = tokens.slice(start + 1, i);
+            if (
+                added.length === 1 &&
+                !ref.star &&
+                ref.qualifier.length === 0 &&
+                tokens[start]?.start === ref.name.start &&
+                suffix.every(
+                    (token) => token.kind === 'word' && ORDER_SUFFIX_WORDS.has(token.value),
+                )
+            ) {
+                ref.outputFirst = true;
+            }
+            if (isSymbol(at(), ',')) {
+                i++;
+                continue;
+            }
+            return;
+        }
+    };
+
     const parseSelectCore = (parent: SelectNode | null, env: CteEnv | null): SelectNode => {
         const select = newSelect(parent, env);
         i++; // SELECT
@@ -981,10 +1010,14 @@ export function parseSelectStatement(sql: string): ParsedSelect | null {
             if (isWord(token, 'where', 'having')) {
                 i++;
                 scan(select, {stops: EXPRESSION_STOPS, target: select.refs}, 0);
-            } else if (isWord(token, 'group', 'order')) {
+            } else if (isWord(token, 'group')) {
                 i++;
                 if (isWord(at(), 'by')) i++;
                 scan(select, {stops: EXPRESSION_STOPS, target: select.orderRefs}, 0);
+            } else if (isWord(token, 'order')) {
+                i++;
+                if (isWord(at(), 'by')) i++;
+                parseOrderItems(select);
             } else if (isWord(token, 'window')) {
                 i++;
                 for (;;) {
@@ -1227,6 +1260,10 @@ export function diagnoseParsedSelect(
         const name = ref.name.value;
 
         if (ref.qualifier.length === 0) {
+            if (ref.outputFirst) {
+                const outputs = selectColumns(select);
+                if (outputs.names.includes(name) || !outputs.complete) return;
+            }
             for (let scope: SelectNode | null = select; scope; scope = scope.parent) {
                 if (scope.sources.length === 0) continue;
                 const matching = scope.sources.filter((source) =>
