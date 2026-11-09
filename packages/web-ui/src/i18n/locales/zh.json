@@ -86,6 +86,12 @@
     "warnConfirm": "仍然执行",
     "warnSnooze": "此连接不再询问（本次会话）"
   },
+  "textStats": {
+    "characters": "字符数:{{count}}",
+    "lines": "行数:{{count}}",
+    "bytes": "UTF-8 字节数:{{count}}",
+    "charactersHint": "按 Unicode 码点计数,而非字形簇"
+  },
   "common": {
     "save": "保存",
     "close": "关闭",

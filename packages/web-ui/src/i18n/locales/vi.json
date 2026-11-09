@@ -86,6 +86,12 @@
     "warnConfirm": "Vẫn chạy",
     "warnSnooze": "Không hỏi lại cho kết nối này (trong phiên hiện tại)"
   },
+  "textStats": {
+    "characters": "Ký tự: {{count}}",
+    "lines": "Dòng: {{count}}",
+    "bytes": "Byte UTF-8: {{count}}",
+    "charactersHint": "Điểm mã Unicode, không phải cụm grapheme"
+  },
   "common": {
     "save": "Lưu",
     "close": "Đóng",

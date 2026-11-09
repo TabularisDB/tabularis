@@ -63,6 +63,12 @@
     "matchCase": "Diferenciar maiúsculas",
     "matchCaseHint": "Diferencia maiúsculas de minúsculas (LIKE). Desmarque para ignorar (ILIKE)."
   },
+  "textStats": {
+    "characters": "Caracteres: {{count}}",
+    "lines": "Linhas: {{count}}",
+    "bytes": "Bytes UTF-8: {{count}}",
+    "charactersHint": "Pontos de código Unicode, não clusters de grafemas"
+  },
   "common": {
     "save": "Salvar",
     "close": "Fechar",

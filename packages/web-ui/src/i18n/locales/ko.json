@@ -63,6 +63,12 @@
     "matchCase": "대소문자 구분",
     "matchCaseHint": "대소문자를 구분합니다 (LIKE). 해제하면 구분하지 않습니다 (ILIKE)."
   },
+  "textStats": {
+    "characters": "문자: {{count}}",
+    "lines": "줄: {{count}}",
+    "bytes": "UTF-8 바이트: {{count}}",
+    "charactersHint": "유니코드 코드 포인트 기준이며 자소 클러스터가 아닙니다"
+  },
   "common": {
     "save": "저장",
     "close": "닫기",

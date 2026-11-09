@@ -90,6 +90,12 @@
         "warnConfirm": "仍然執行",
         "warnSnooze": "此連線不再詢問（本次工作階段）"
     },
+    "textStats": {
+      "characters": "字元數:{{count}}",
+      "lines": "行數:{{count}}",
+      "bytes": "UTF-8 位元組數:{{count}}",
+      "charactersHint": "依 Unicode 碼位計數,而非字素簇"
+    },
     "common": {
         "save": "儲存",
         "close": "關閉",
