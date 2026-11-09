@@ -3249,5 +3249,11 @@
     "copyMetadata": "Copy metadata",
     "copied": "Copied to clipboard",
     "copyFailed": "Could not copy to the clipboard. Try again."
+  },
+  "aiInline": {
+    "title": "AI inline completion",
+    "enable": "Suggest SQL while typing",
+    "privacy": "Off by default. Uses the AI provider and model selected below, including local providers. Sends up to 4,000 characters before the cursor, 1,000 after it and 8,000 characters of cached table/schema names. SQL may contain sensitive literals. Result rows, table comments and connection credentials are never added. No extra database queries are made.",
+    "keys": "Tab accepts and Escape dismisses. Autocomplete and indentation take priority. Acceptance inserts text only; review it before running."
   }
 }

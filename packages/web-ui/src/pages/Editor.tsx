@@ -192,6 +192,7 @@ import type {
     ResultsSessionSnapshot,
 } from '@/platform/secondaryWindowSessions';
 import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
+import {inlineSchema, inlineTables} from '@/utils/aiInlineCompletion';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import {UserManagementView} from '@/components/users/UserManagementView';
 import {useSqlAutocompleteRegistration} from '@/hooks/useSqlAutocompleteRegistration';
@@ -318,6 +319,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         selectedDatabases,
         activeConnectionName,
         activeDatabaseName,
+        tables,
+        schemaDataMap,
+        databaseDataMap,
+        nestedDatabaseDataMap,
     } = useDatabase();
     const {allDrivers} = useDrivers();
     const {explorerConnectionId} = useConnectionLayoutContext();
@@ -4630,6 +4635,50 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         enabled: !isNotebookTab && !isUsersTab,
     });
 
+    const inlineCompletion = useMemo(() => {
+        if (
+            !settings.aiEnabled ||
+            !settings.aiInlineCompletionEnabled ||
+            !activeConnectionId ||
+            !activeTab
+        )
+            return undefined;
+        const schema = activeTab.schema ?? activeSchema;
+        const database = activeTab.database ?? activeDatabaseName;
+        // Only use already-loaded metadata for this tab's exact namespace.
+        const cached = inlineTables(
+            {
+                tables,
+                schemaDataMap,
+                databaseDataMap,
+                nestedDatabaseDataMap,
+                activeCapabilities,
+                activeSchema,
+                activeDatabaseName,
+            },
+            schema,
+            database,
+        );
+        return {
+            key: JSON.stringify([activeConnectionId, activeTab.id, database, schema]),
+            schema: inlineSchema(cached),
+            dialect: activeDialect.dialect ?? 'generic',
+        };
+    }, [
+        settings.aiEnabled,
+        settings.aiInlineCompletionEnabled,
+        activeConnectionId,
+        activeTab,
+        activeSchema,
+        activeDatabaseName,
+        activeCapabilities,
+        activeDialect.dialect,
+        nestedDatabaseDataMap,
+        schemaDataMap,
+        databaseDataMap,
+        tables,
+    ]);
+
     // E2E: expose a submit-changes hook for tauri-wd tests. The WDIO
     // element.click() on the Submit button doesn't reliably trigger React's
     // onClick in WKWebView, so the test calls this directly. This mirrors
@@ -5766,6 +5815,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 foldPreview
                                 cursorStatus
                                 diagnostics={isActive ? sqlDiagnostics : undefined}
+                                inlineCompletion={isActive ? inlineCompletion : undefined}
                                 onChange={(val) => {
                                     // Debounced Monaco edits can arrive after this tab becomes
                                     // inactive. The callback belongs to the tab's stable id;

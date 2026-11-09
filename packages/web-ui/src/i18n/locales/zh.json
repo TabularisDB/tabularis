@@ -3055,5 +3055,11 @@
     "groups": { "builtin": "内置 · 离线", "installed": "已安装主题包", "personal": "个人主题" }, "modes": { "light": "浅色", "dark": "深色", "high-contrast": "高对比度" },
     "importErrors": { "unrecognized": "无法识别此 VS Code 主题。", "modeRequired": "请选择模式，然后重新预览。", "includeOnly": "无法导入仅含 include 的主题。请提供实际颜色数据。", "noSupportedData": "未找到支持的颜色或 SQL 词法规则。", "invalidColor": "某个支持的颜色值无效。", "invalidRules": "词法规则无效或过多。" },
     "diagnostics": { "unsupportedKey": "不支持的字段", "unsupportedColor": "不支持的颜色", "unsupportedScope": "不支持的作用域", "scopeApproximation": "近似 SQL 作用域映射", "unsupportedStyle": "不支持的样式", "ignoredInclude": "未加载 include", "ignoredSemanticTokens": "已忽略语义词法标记", "unsupportedReference": "未加载外部引用", "unsupportedSetting": "不支持的设置", "tokenAlphaFlattened": "词法标记不透明度按基础背景计算", "modeApproximation": "模式已覆盖或近似转换", "diagnosticsTruncated": "已省略其他诊断信息" }
+  },
+  "aiInline": {
+    "title": "AI 行内补全",
+    "enable": "输入时建议 SQL",
+    "privacy": "默认关闭。使用下方选择的 AI 提供商和模型，包括本地提供商。最多发送光标前 4,000 个字符、光标后 1,000 个字符，以及 8,000 个字符的缓存表名和模式名。SQL 可能含有敏感值。不会添加结果行、表注释或连接凭据，也不会执行额外的数据库查询。",
+    "keys": "Tab 接受，Escape 隐藏。自动补全和缩进优先。接受建议只会插入文本，请在执行前检查。"
   }
 }

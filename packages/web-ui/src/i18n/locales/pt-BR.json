@@ -3170,5 +3170,11 @@
     "groups": { "builtin": "Integrados · offline", "installed": "Pacotes instalados", "personal": "Temas pessoais" }, "modes": { "light": "Claro", "dark": "Escuro", "high-contrast": "Alto contraste" },
     "importErrors": { "unrecognized": "Tema do VS Code não reconhecido.", "modeRequired": "Escolha um modo e abra a prévia novamente.", "includeOnly": "Temas contendo apenas includes não podem ser importados. Forneça as cores reais.", "noSupportedData": "Nenhuma cor ou regra SQL compatível encontrada.", "invalidColor": "Uma cor compatível tem valor inválido.", "invalidRules": "Regras de tokens inválidas ou excessivas." },
     "diagnostics": { "unsupportedKey": "Campo não compatível", "unsupportedColor": "Cor não compatível", "unsupportedScope": "Escopo não compatível", "scopeApproximation": "Mapeamento SQL aproximado", "unsupportedStyle": "Estilo não compatível", "ignoredInclude": "Include não carregado", "ignoredSemanticTokens": "Tokens semânticos ignorados", "unsupportedReference": "Referência externa não carregada", "unsupportedSetting": "Configuração não compatível", "tokenAlphaFlattened": "Opacidade dos tokens calculada sobre o fundo base", "modeApproximation": "Modo substituído ou aproximado", "diagnosticsTruncated": "Diagnósticos adicionais omitidos" }
+  },
+  "aiInline": {
+    "title": "Conclusão de IA em linha",
+    "enable": "Sugerir SQL ao digitar",
+    "privacy": "Desativada por padrão. Usa o provedor e modelo de IA selecionados abaixo, incluindo provedores locais. Envia até 4.000 caracteres antes do cursor, 1.000 depois e 8.000 caracteres de nomes de tabelas/esquemas em cache. O SQL pode conter valores sensíveis. Nunca adiciona linhas de resultados, comentários de tabelas ou credenciais. Não faz consultas adicionais ao banco.",
+    "keys": "Tab aceita e Escape descarta. O preenchimento automático e a indentação têm prioridade. Aceitar apenas insere texto; revise antes de executar."
   }
 }

@@ -43,6 +43,7 @@ import type {
     AiEventFilter,
     AiExplainRequest,
     AiGenerateRequest,
+    AiInlineRequest,
     AiKeyStatus,
     AiNameRequest,
     AiNotebookExport,
@@ -1144,6 +1145,8 @@ export interface CommandMap {
         'sensitive'
     >;
     generate_ai_query: CommandDefinition<{req: AiGenerateRequest}, string, 'sensitive'>;
+    complete_ai_inline: CommandDefinition<{req: AiInlineRequest}, string, 'sensitive'>;
+    cancel_ai_inline: CommandDefinition<{requestId: string}, void, 'sensitive'>;
     explain_ai_query: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     analyze_ai_explain_plan: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     analyze_ai_crash_report: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
