@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
-import {render, screen, fireEvent} from '@testing-library/react';
+import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {SnippetsTab} from '@/components/settings/SnippetsTab';
 import {saveSqlSnippets, type SqlSnippet} from '@/utils/sqlSnippets';
 
@@ -9,7 +9,14 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
-vi.mock('@/hooks/useEditorTheme', () => ({useEditorTheme: () => ({id: 'test'})}));
+const mocks = vi.hoisted(() => ({
+    colorize: vi.fn(async (sql: string) => `<span>${sql}</span>`),
+    theme: {id: 'test'},
+}));
+vi.mock('@/hooks/useEditorTheme', () => ({useEditorTheme: () => mocks.theme}));
+vi.mock('@/utils/monaco', () => ({
+    ensureMonaco: async () => ({editor: {colorize: mocks.colorize}}),
+}));
 vi.mock('@/themes/themeRuntime', () => ({getMonacoThemeId: () => 'test'}));
 vi.mock('@/themes/themeUtils', () => ({loadMonacoTheme: vi.fn()}));
 vi.mock('@/components/ui/LazyMonaco', () => ({
@@ -102,6 +109,44 @@ describe('SnippetsTab', () => {
         fireEvent.click(screen.getByRole('button', {name: /Save/i}));
         expect(screen.getByText('SELECT ${1:column} FROM orders;')).toBeInTheDocument();
         expect(screen.getByText('postgres')).toBeInTheDocument();
+    });
+
+    it('highlights previews with the snippet dialect', async () => {
+        saveSqlSnippets([
+            {
+                id: 'pg',
+                name: 'Postgres sample',
+                prefix: 'pg',
+                body: 'SELECT 1;',
+                dialect: 'postgres',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'my',
+                name: 'MySQL sample',
+                prefix: 'my',
+                body: 'SELECT 2;',
+                dialect: 'mysql',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'sq',
+                name: 'SQLite sample',
+                prefix: 'sq',
+                body: 'SELECT 3;',
+                dialect: 'sqlite',
+                createdAt: '',
+                updatedAt: '',
+            },
+        ]);
+        render(<SnippetsTab />);
+        await waitFor(() => {
+            expect(mocks.colorize).toHaveBeenCalledWith('SELECT 1;', 'pgsql', {tabSize: 4});
+            expect(mocks.colorize).toHaveBeenCalledWith('SELECT 2;', 'mysql', {tabSize: 4});
+            expect(mocks.colorize).toHaveBeenCalledWith('SELECT 3;', 'sql', {tabSize: 4});
+        });
     });
 
     it('edits an existing snippet', () => {

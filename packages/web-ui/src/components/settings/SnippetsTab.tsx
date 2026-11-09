@@ -18,6 +18,48 @@ import {
 } from '@/utils/sqlSnippets';
 import {Plus, Trash2, Edit2, Code2, AlertCircle, Check} from 'lucide-react';
 import clsx from 'clsx';
+import DOMPurify from 'dompurify';
+import {ensureMonaco} from '@/utils/monaco';
+
+function snippetLanguage(dialect: SqlDialectScope | undefined): string {
+    if (dialect === 'postgres') return 'pgsql';
+    if (dialect === 'mysql') return 'mysql';
+    return 'sql';
+}
+
+function SnippetPreview({snippet}: {snippet: SqlSnippet}) {
+    const theme = useEditorTheme();
+    const [html, setHtml] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        ensureMonaco()
+            .then(async (monaco) => {
+                if (cancelled) return;
+                loadMonacoTheme(theme, monaco);
+                const result = await monaco.editor.colorize(
+                    snippet.body,
+                    snippetLanguage(snippet.dialect),
+                    {tabSize: 4},
+                );
+                if (!cancelled) setHtml(result);
+            })
+            .catch(() => {
+                if (!cancelled) setHtml(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [snippet.body, snippet.dialect, theme]);
+
+    const className =
+        'mt-2 p-2 rounded bg-elevated/70 border border-default/60 font-mono text-[11px] text-primary whitespace-pre-wrap overflow-x-auto max-h-24';
+    return html ? (
+        <div className={className} dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(html)}} />
+    ) : (
+        <div className={className}>{snippet.body}</div>
+    );
+}
 
 export function SnippetsTab() {
     const {t} = useTranslation();
@@ -291,7 +333,7 @@ export function SnippetsTab() {
                         <div className="overflow-hidden rounded-lg border border-default bg-base">
                             <MonacoEditor
                                 height="150px"
-                                language="sql"
+                                language={snippetLanguage(dialect)}
                                 value={body}
                                 theme={getMonacoThemeId(editorTheme.id)}
                                 beforeMount={beforeMount}
@@ -367,9 +409,7 @@ export function SnippetsTab() {
                                         {snippet.description}
                                     </p>
                                 )}
-                                <div className="mt-2 p-2 rounded bg-elevated/70 border border-default/60 font-mono text-[11px] text-primary whitespace-pre-wrap overflow-x-auto max-h-24">
-                                    {snippet.body}
-                                </div>
+                                <SnippetPreview snippet={snippet} />
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0 pt-0.5">
