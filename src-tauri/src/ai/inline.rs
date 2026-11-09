@@ -135,8 +135,9 @@ fn completion(response: &str) -> Result<String, String> {
     if response.len() > 16_384 {
         return Err("Inline response is too large".into());
     }
+    let response = super::clean_response(response);
     let response: Response =
-        serde_json::from_str(response).map_err(|_| "Invalid inline completion response")?;
+        serde_json::from_str(&response).map_err(|_| "Invalid inline completion response")?;
     if response.completion.chars().count() > 2000 || response.completion.contains('\0') {
         return Err("Inline completion exceeds its limits".into());
     }
@@ -174,6 +175,7 @@ pub async fn complete(
             prompt: serde_json::json!({"prefix": request.prefix, "suffix": request.suffix, "schema": request.schema, "dialect": request.dialect}).to_string(),
             schema: String::new(),
         };
+        // shortcut: output tokens use shared provider defaults until the dispatcher exposes a budget.
         let response =
             dispatch_provider(runtime, cache, &app_config, &generate, SYSTEM_PROMPT, port).await?;
         completion(&response)

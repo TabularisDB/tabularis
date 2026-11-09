@@ -13,6 +13,24 @@ fn request() -> InlineRequest {
 }
 
 #[test]
+fn fenced_json_preserves_insertion_whitespace_and_keeps_strict_validation() {
+    let json = r#"{"completion":" FROM users\n"}"#;
+    for tag in ["", "json", "JSON"] {
+        let response = format!("  ```{tag}\r\n{json}\r\n```  ");
+        assert_eq!(completion(&response).unwrap(), " FROM users\n");
+    }
+    for json in [
+        r#"{"completion":"x","command":"execute"}"#,
+        r#"{"completion":"\u0000"}"#,
+        "SELECT 1",
+    ] {
+        assert!(completion(&format!("```json\n{json}\n```")).is_err());
+    }
+    let large = serde_json::json!({"completion": "x".repeat(2001)}).to_string();
+    assert!(completion(&format!("```json\n{large}\n```")).is_err());
+}
+
+#[test]
 fn context_and_response_limits_are_enforced_without_losing_whitespace() {
     assert!(validate(&request()).is_ok());
     let mut large = request();
