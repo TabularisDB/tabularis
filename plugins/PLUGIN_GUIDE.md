@@ -162,6 +162,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
+| `read_only_queries` | bool | Implements the optional database-enforced `execute_read_only_query` RPC, allowing users to enable read-only mode per connection. Defaults to `false`. See [Optional protected read-only queries](#optional-protected-read-only-queries). |
 | `table_export` | bool | Offers **Export table to SQL...** on table nodes. Defaults to `true`; set `false` for non-SQL plugins. See [Table Export and Import](#table-export-and-import). |
 | `table_import` | bool | Offers **Import table from SQL...** on database and schema nodes. Defaults to `true`; set `false` for non-SQL plugins. Always off when `readonly` is `true`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
@@ -182,6 +183,53 @@ For URI passthrough drivers, an opaque placeholder (such as `jdbc:h2:mem:test`) 
   ]
 }
 ```
+
+### Optional protected read-only queries
+
+Writable drivers can opt in to the connection's **Read-only mode** by declaring
+`capabilities.read_only_queries: true`. This is distinct from `readonly: true`,
+which describes a driver that is always read-only. The default is `false`: older
+plugins continue working, but cannot enable this connection policy.
+
+Implement the `execute_read_only_query` JSON-RPC method. Its request and response
+have the same shape as `execute_query` (a bare `QueryResult` response):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "method": "execute_read_only_query",
+  "params": {
+    "params": {"driver": "example", "database": "analytics", "read_only": true},
+    "query": "SELECT * FROM items",
+    "limit": 100,
+    "page": 1,
+    "schema": null
+  }
+}
+```
+
+The host preflights the SQL using the declared dialect, but a keyword filter
+cannot detect side effects in stored functions. The plugin must enforce write
+protection using its database's transaction, session or equivalent mechanism,
+including for calls whose SQL looks like a read. If protection cannot be enabled,
+return an error. An unsupported method, timeout or protection failure never falls
+back to `execute_query`. Restore or discard the physical connection on every
+success, error and cancellation path; protection must not leak to writable users.
+
+`ConnectionParams.read_only` is persisted per connection and forwarded to all
+driver calls, including connection testing and metadata discovery. The host omits
+the saved `startup_script` while it is enabled. Plugins must also ensure their
+own initialization and metadata operations cannot write in this mode. A driver
+that loses the capability must refuse protected execution until the user updates
+the plugin or explicitly disables the policy.
+
+Read-only batches are preflighted in full, then each statement uses the protected
+RPC independently. Explicit transaction/session-control statements are refused;
+connection-local state is not shared between these calls. Visual EXPLAIN is
+unavailable because its separate RPC has no protected execution contract; raw
+EXPLAIN statements can use the protected query RPC. Existing `readonly` drivers
+continue using their normal execution method and need no new RPC.
 
 ### Declare `sql_dialect` (or `sql_syntax`)
 

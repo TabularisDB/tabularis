@@ -2342,6 +2342,7 @@ impl PostgresDriver {
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    read_only_queries: true,
                     table_export: None,
                     table_import: None,
                     triggers: true,

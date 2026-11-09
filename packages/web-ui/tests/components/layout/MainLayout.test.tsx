@@ -29,6 +29,10 @@ vi.mock('@/components/layout/ProductionBanner', () => ({
     ProductionBanner: () => <div data-testid="production-banner" />,
 }));
 
+vi.mock('@/components/layout/ReadOnlyBanner', () => ({
+    ReadOnlyBanner: () => <div data-testid="read-only-banner" />,
+}));
+
 vi.mock('@/components/layout/CommandPaletteScopeBridge', () => ({
     CommandPaletteScopeBridge: ({scopeId}: {scopeId: string}) => (
         <div data-testid={`command-scope-${scopeId}`} />

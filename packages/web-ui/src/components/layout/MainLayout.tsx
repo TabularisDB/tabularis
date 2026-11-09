@@ -15,6 +15,7 @@ import {ROOT_COMMAND_SCOPE_ID} from '@/utils/commandScopeStore';
 import {CommandPaletteModal} from '@/components/modals/CommandPaletteModal';
 import {CommandPaletteScopeBridge} from './CommandPaletteScopeBridge';
 import {ProductionBanner} from './ProductionBanner';
+import {ReadOnlyBanner} from './ReadOnlyBanner';
 import {RightSidebar} from './RightSidebar';
 import {Sidebar} from './Sidebar';
 const SplitPaneLayout = lazy(() =>
@@ -42,6 +43,7 @@ const MainLayoutContent = () => {
             <Sidebar />
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 {isEditorRoute(location.pathname) && <ProductionBanner />}
+                {isEditorRoute(location.pathname) && <ReadOnlyBanner />}
                 {/* Routed pages size themselves with h-full, which resolves against
             this wrapper — not against <main>. Without it the production banner
             would push the page down without shrinking it, clipping the bottom

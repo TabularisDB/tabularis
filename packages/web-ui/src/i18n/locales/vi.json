@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "Chế độ chỉ đọc",
+    "description": "Chặn thao tác ghi trên kết nối này. Bỏ qua tập lệnh khởi động khi bật chế độ này.",
+    "unsupported": "Trình điều khiển này không hỗ trợ truy vấn chỉ đọc được bảo vệ.",
+    "writeBlocked": "Kết nối này ở chế độ chỉ đọc. Tắt chế độ này trong cài đặt kết nối để cho phép ghi.",
+    "banner": "{{name}} — chỉ đọc"
+  },
   "serverFilePicker": {
     "title": "Duyệt tệp trên máy chủ",
     "subtitle": "Chọn một tệp hoặc thư mục trên máy chủ Tabularis",

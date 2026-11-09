@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "Modo somente leitura",
+    "description": "Bloqueia gravações nesta conexão. Os scripts de inicialização são ignorados neste modo.",
+    "unsupported": "Este driver não oferece consultas protegidas somente leitura.",
+    "writeBlocked": "Esta conexão é somente leitura. Desative este modo nas configurações para permitir gravações.",
+    "banner": "{{name}} — somente leitura"
+  },
   "serverFilePicker": {
     "title": "Explorar arquivos do servidor",
     "subtitle": "Selecione um arquivo ou pasta no host do Tabularis",

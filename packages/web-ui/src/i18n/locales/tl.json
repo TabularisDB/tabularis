@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "Read-only na mode",
+    "description": "Hinaharangan ang pagsusulat sa koneksyong ito. Nilalaktawan ang mga startup script habang naka-enable.",
+    "unsupported": "Hindi sinusuportahan ng driver na ito ang mga protektadong read-only na query.",
+    "writeBlocked": "Read-only ang koneksyong ito. I-disable ang mode na ito sa mga setting nito upang payagan ang pagsusulat.",
+    "banner": "{{name}} — read-only"
+  },
   "serverFilePicker": {
     "title": "Mag-browse ng mga file sa server",
     "subtitle": "Pumili ng file o folder sa Tabularis host",

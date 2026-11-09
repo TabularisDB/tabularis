@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "唯讀模式",
+    "description": "阻止透過此連線寫入。啟用時略過啟動指令碼。",
+    "unsupported": "此驅動程式不支援受保護的唯讀查詢。",
+    "writeBlocked": "此連線為唯讀。請在連線設定中停用此模式以允許寫入。",
+    "banner": "{{name}} — 唯讀模式"
+  },
     "serverFilePicker": {
         "title": "瀏覽伺服器檔案",
         "subtitle": "在 Tabularis 主機上選擇檔案或資料夾",

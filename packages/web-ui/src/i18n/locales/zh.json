@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "只读模式",
+    "description": "阻止通过此连接写入。启用时跳过启动脚本。",
+    "unsupported": "此驱动程序不支持受保护的只读查询。",
+    "writeBlocked": "此连接为只读。请在连接设置中关闭此模式以允许写入。",
+    "banner": "{{name}} — 只读模式"
+  },
   "serverFilePicker": {
     "title": "浏览服务器文件",
     "subtitle": "在 Tabularis 主机上选择文件或文件夹",

@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "Schreibgeschützter Modus",
+    "description": "Blockiert Schreibzugriffe auf diese Verbindung. Startskripte werden in diesem Modus übersprungen.",
+    "unsupported": "Dieser Treiber unterstützt keine geschützten schreibgeschützten Abfragen.",
+    "writeBlocked": "Diese Verbindung ist schreibgeschützt. Deaktivieren Sie diesen Modus in den Verbindungseinstellungen, um Schreibzugriffe zu erlauben.",
+    "banner": "{{name}} — schreibgeschützt"
+  },
   "serverFilePicker": {
     "title": "Serverdateien durchsuchen",
     "subtitle": "Datei oder Ordner auf dem Tabularis-Host auswählen",

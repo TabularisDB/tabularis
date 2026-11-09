@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "Modalità sola lettura",
+    "description": "Blocca le scritture su questa connessione. Gli script di avvio vengono ignorati in questa modalità.",
+    "unsupported": "Questo driver non supporta query protette in sola lettura.",
+    "writeBlocked": "Questa connessione è in sola lettura. Disattiva questa modalità nelle impostazioni per consentire le scritture.",
+    "banner": "{{name}} — sola lettura"
+  },
   "serverFilePicker": {
     "title": "Sfoglia i file del server",
     "subtitle": "Seleziona un file o una cartella sull'host Tabularis",

@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "Read-only mode",
+    "description": "Block writes on this connection. Startup scripts are skipped while enabled.",
+    "unsupported": "This driver does not support protected read-only queries.",
+    "writeBlocked": "This connection is read-only. Disable read-only mode in its settings to allow writes.",
+    "banner": "{{name}} — read-only mode"
+  },
   "serverFilePicker": {
     "title": "Browse server files",
     "subtitle": "Select a file or folder on the Tabularis host",

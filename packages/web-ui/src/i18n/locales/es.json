@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "Modo de solo lectura",
+    "description": "Bloquea las escrituras en esta conexión. Los scripts de inicio se omiten en este modo.",
+    "unsupported": "Este controlador no admite consultas protegidas de solo lectura.",
+    "writeBlocked": "Esta conexión es de solo lectura. Desactiva este modo en su configuración para permitir escrituras.",
+    "banner": "{{name}} — solo lectura"
+  },
   "serverFilePicker": {
     "title": "Explorar archivos del servidor",
     "subtitle": "Selecciona un archivo o carpeta en el host de Tabularis",

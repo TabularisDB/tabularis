@@ -1,4 +1,11 @@
 {
+  "readOnly": {
+    "label": "Mode lecture seule",
+    "description": "Bloque les écritures sur cette connexion. Les scripts de démarrage sont ignorés dans ce mode.",
+    "unsupported": "Ce pilote ne prend pas en charge les requêtes protégées en lecture seule.",
+    "writeBlocked": "Cette connexion est en lecture seule. Désactivez ce mode dans ses paramètres pour autoriser les écritures.",
+    "banner": "{{name}} — mode lecture seule"
+  },
   "serverFilePicker": {
     "title": "Parcourir les fichiers du serveur",
     "subtitle": "Sélectionnez un fichier ou dossier sur l'hôte Tabularis",

@@ -827,6 +827,7 @@ pub async fn create_view(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, database).await?;
 
@@ -844,6 +845,7 @@ pub async fn alter_view(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, database).await?;
 
@@ -860,6 +862,7 @@ pub async fn drop_view(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, database).await?;
 
@@ -876,6 +879,7 @@ pub async fn refresh_materialized_view(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, database).await?;
 
@@ -999,6 +1003,7 @@ pub async fn drop_routine(
     database: Option<String>,
     identity_args: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, database).await?;
 
@@ -1038,6 +1043,7 @@ pub async fn create_trigger(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, database).await?;
 
@@ -1055,6 +1061,7 @@ pub async fn drop_trigger(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, database).await?;
 
@@ -1161,6 +1168,7 @@ pub async fn drop_index(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, database).await?;
 
@@ -1178,6 +1186,7 @@ pub async fn drop_foreign_key(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, database).await?;
 
@@ -1236,6 +1245,7 @@ pub async fn create_db_user(
     host: String,
     password: String,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, None).await?;
     driver
@@ -1250,6 +1260,7 @@ pub async fn drop_db_user(
     user: String,
     host: String,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, None).await?;
     driver.drop_db_user(&params, &user, &host).await
@@ -1263,6 +1274,7 @@ pub async fn set_db_user_password(
     host: String,
     password: String,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, None).await?;
     driver
@@ -1282,6 +1294,7 @@ pub async fn apply_db_user_privileges(
     privileges: Vec<String>,
     grant: bool,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     let (driver, params) =
         connected_driver_and_params(runtime, session_id, connection_id, None).await?;
     driver

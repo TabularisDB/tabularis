@@ -19,6 +19,7 @@ pub mod productivity;
 mod productivity_tests;
 pub mod queries;
 pub mod query_sessions;
+pub mod read_only;
 pub mod records;
 pub mod table_transfers;
 pub mod themes;

@@ -390,6 +390,7 @@ pub async fn import_database(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, &connection_id)?;
     let (driver, mut params) =
         super::connections::resolve_saved_connection_params(runtime, session_id, &connection_id)?;
     if let Some(database) = database.filter(|database| !database.is_empty()) {
@@ -653,8 +654,10 @@ pub(crate) async fn stream_sql_rows<F>(
 where
     F: FnMut(&[String], Vec<SqlCell>) -> Result<(), String>,
 {
-    match driver {
-        "mysql" => {
+    // Protected exports use the same bounded query path as the editor,
+    // including for built-ins, rather than bypassing it with a raw stream.
+    match (driver, params.read_only) {
+        ("mysql", false) => {
             use sqlx::{Column, TypeInfo};
             let pool = get_mysql_pool(params).await?;
             let mut rows = sqlx::query(query).fetch(&pool);
@@ -674,7 +677,7 @@ where
                 yield_every_rows(&mut streamed).await;
             }
         }
-        "postgres" => {
+        ("postgres", false) => {
             let pool = get_postgres_pool(params).await?;
             let client = pool.get().await.map_err(|error| error.to_string())?;
             let query_params: Vec<i32> = Vec::new();
@@ -702,7 +705,7 @@ where
                 yield_every_rows(&mut streamed).await;
             }
         }
-        "sqlite" => {
+        ("sqlite", false) => {
             use sqlx::Column;
             let pool = get_sqlite_pool(params).await?;
             let mut rows = sqlx::query(query).fetch(&pool);
@@ -728,9 +731,20 @@ where
             let json_columns = json_column_names(&drv.get_columns(params, table, schema).await?);
             let mut page = 1u32;
             loop {
-                let result = drv
-                    .execute_query(params, query, Some(1000), page, schema)
-                    .await?;
+                let result = if params.read_only {
+                    super::read_only::execute_query(
+                        drv.as_ref(),
+                        params,
+                        query,
+                        Some(1000),
+                        page,
+                        schema,
+                    )
+                    .await?
+                } else {
+                    drv.execute_query(params, query, Some(1000), page, schema)
+                        .await?
+                };
                 let fetched = result.rows.len() as u32;
                 for row in result.rows {
                     let cells = plugin_row_cells(row, &result.columns, &json_columns);

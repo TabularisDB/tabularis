@@ -330,6 +330,14 @@ pub(crate) fn build_connection_key(
         base_key
     };
 
+    // A protected connection must never borrow an ordinary physical session.
+    // Writable connections retain their existing keys.
+    let key = if params.read_only {
+        format!("read_only:{key}")
+    } else {
+        key
+    };
+
     // Fold the startup script into the key so editing it forces a fresh pool
     // (whose new connections run the new script) instead of silently reusing
     // the cached pool keyed only by connection_id. Hashed to keep the key
@@ -519,6 +527,7 @@ async fn build_and_connect_mysql_pool(
     script: Option<&str>,
 ) -> Result<Pool<MySql>, String> {
     let options = build_mysql_options(params, override_db)?;
+    let script = if params.read_only { None } else { script };
 
     // Validate the startup script up front so a broken script fails fast with a
     // clearly attributed error (see `run_mysql_startup_script`). This uses the
@@ -536,12 +545,18 @@ async fn build_and_connect_mysql_pool(
     }
 
     let mut pool_options = sqlx::mysql::MySqlPoolOptions::new().max_connections(10);
-    if let Some(script) = script {
-        let script = script.to_owned();
+    if params.read_only || script.is_some() {
+        let read_only = params.read_only;
+        let script = script.map(str::to_owned);
         pool_options = pool_options.after_connect(move |conn, _meta| {
             let script = script.clone();
             Box::pin(async move {
-                conn.execute(script.as_str()).await?;
+                if read_only {
+                    conn.execute("SET SESSION TRANSACTION READ ONLY").await?;
+                }
+                if let Some(script) = script {
+                    conn.execute(script.as_str()).await?;
+                }
                 Ok(())
             })
         });
@@ -574,6 +589,9 @@ pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> Result
         .dbname(&format!("{}", params.database));
     if let Some(timeout) = connect_timeout(params) {
         cfg.connect_timeout(timeout);
+    }
+    if params.read_only {
+        cfg.options("-c default_transaction_read_only=on");
     }
 
     // Unset leaves tokio_postgres's default (`Prefer`). A set but unknown
@@ -896,13 +914,22 @@ impl ServerCertVerifier for VerifyCaCertVerifier {
 }
 
 fn build_sqlite_connectoptions(params: &ConnectionParams) -> SqliteConnectOptions {
-    SqliteConnectOptions::new().filename(expand_sqlite_filename(params.database.primary()))
+    let options =
+        SqliteConnectOptions::new().filename(expand_sqlite_filename(params.database.primary()));
+    if params.read_only {
+        options.read_only(true).pragma("query_only", "ON")
+    } else {
+        options
+    }
 }
 
 /// Return the connection's startup script if it is set and not blank.
 /// Whitespace-only scripts are treated as absent so the per-connection
 /// hook is skipped entirely rather than issuing an empty query.
 fn startup_script(params: &ConnectionParams) -> Option<String> {
+    if params.read_only {
+        return None;
+    }
     params
         .startup_script
         .as_ref()
@@ -910,6 +937,10 @@ fn startup_script(params: &ConnectionParams) -> Option<String> {
         .filter(|s| !s.is_empty())
         .map(str::to_owned)
 }
+
+#[cfg(test)]
+#[path = "pool_manager/read_only_tests.rs"]
+mod read_only_tests;
 
 /// Format a startup-script execution failure so the surfaced error clearly
 /// names the startup script as the cause, instead of reading like a bad host
@@ -1367,7 +1398,7 @@ pub(crate) fn connection_pool_prefix(driver: &str, connection_id: &str) -> Strin
     format!("{driver}:conn:{connection_id}:")
 }
 
-/// Remove and return every map entry whose key starts with `prefix`. The pools
+/// Remove every matching entry, including the isolated `read_only:` namespace. The pools
 /// are collected under a short-lived write lock and closed by the caller after
 /// the lock is released, so closing N pools never blocks other pool access.
 pub(crate) fn remove_pools_with_prefix<P>(
@@ -1376,7 +1407,11 @@ pub(crate) fn remove_pools_with_prefix<P>(
 ) -> Vec<(String, P)> {
     let keys: Vec<String> = pools
         .keys()
-        .filter(|k| k.starts_with(prefix))
+        .filter(|k| {
+            k.strip_prefix("read_only:")
+                .unwrap_or(k)
+                .starts_with(prefix)
+        })
         .cloned()
         .collect();
     keys.into_iter()

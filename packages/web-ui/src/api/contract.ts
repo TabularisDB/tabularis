@@ -129,6 +129,7 @@ export interface ThemePackageRequest {
 export type UiStateEntries = Readonly<Record<string, unknown>>;
 
 export interface ConnectionParameters {
+    read_only?: boolean;
     driver: string;
     database: string | string[];
     default_database?: string;
