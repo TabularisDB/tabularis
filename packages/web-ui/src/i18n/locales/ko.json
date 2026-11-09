@@ -685,6 +685,8 @@
     "appearance_editorTabSize": "탭 크기",
     "appearance_editorWordWrap": "자동 줄바꿈",
     "appearance_editorWordWrapDesc": "에디터에서 가로 스크롤 대신 긴 줄을 자동으로 줄바꿈합니다.",
+    "appearance_editorMinimap": "미니맵 표시",
+    "appearance_editorMinimapDesc": "빠르게 이동할 수 있도록 SQL 스크립트의 축소 보기를 표시합니다.",
     "appearance_editorHighlightInvisibleCharacters": "보이지 않는 문자 표시",
     "appearance_editorHighlightInvisibleCharactersDesc": "SQL에서 숨겨진 유니코드 문자와 비슷하게 보이는 문자를 표시합니다.",
     "appearance_editorShowLineNumbers": "줄 번호 표시",

@@ -748,6 +748,8 @@
     "appearance_editorTabSize": "Dimensione Tab",
     "appearance_editorWordWrap": "A Capo Automatico",
     "appearance_editorWordWrapDesc": "Manda a capo le righe lunghe nell'editor invece di scorrere orizzontalmente.",
+    "appearance_editorMinimap": "Mostra minimappa",
+    "appearance_editorMinimapDesc": "Mostra una panoramica in miniatura degli script SQL per navigare rapidamente.",
     "appearance_editorHighlightInvisibleCharacters": "Mostra caratteri invisibili",
     "appearance_editorHighlightInvisibleCharactersDesc": "Evidenzia i caratteri Unicode nascosti e quelli simili in SQL.",
     "appearance_editorShowLineNumbers": "Mostra Numeri di Riga",

@@ -740,6 +740,8 @@
     "appearance_editorTabSize": "Tab Size",
     "appearance_editorWordWrap": "Word Wrap",
     "appearance_editorWordWrapDesc": "I-wrap ang mahahabang linya sa editor sa halip na mag-scroll nang pahiga.",
+    "appearance_editorMinimap": "Ipakita ang Minimap",
+    "appearance_editorMinimapDesc": "Magpakita ng maliit na pangkalahatang-ideya ng mga SQL script para sa mabilis na pag-navigate.",
     "appearance_editorHighlightInvisibleCharacters": "Ipakita ang mga nakatagong character",
     "appearance_editorHighlightInvisibleCharactersDesc": "Markahan ang mga nakatagong Unicode at magkahawig na character sa SQL.",
     "appearance_editorShowLineNumbers": "Ipakita ang mga Line Number",

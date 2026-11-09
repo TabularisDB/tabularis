@@ -110,6 +110,7 @@ export interface Settings {
     editorLineHeight?: number;
     editorTabSize?: number;
     editorWordWrap?: boolean;
+    editorMinimap?: boolean;
     /** Highlight invisible Unicode and look-alike characters in SQL. Default: true. */
     editorHighlightInvisibleCharacters?: boolean;
     editorShowLineNumbers?: boolean;
@@ -265,6 +266,7 @@ export const DEFAULT_SETTINGS: Settings = {
     editorLineHeight: 1.5,
     editorTabSize: 2,
     editorWordWrap: true,
+    editorMinimap: false,
     editorHighlightInvisibleCharacters: true,
     editorShowLineNumbers: true,
     editorAcceptSuggestionOnEnter: true,

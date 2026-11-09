@@ -3265,6 +3265,7 @@ export const NewConnectionModal = ({
                             placeholder: t('newConnection.startupScriptPlaceholder', {
                                 defaultValue: "SELECT set_config('app.bypass_rls', 'on', false);",
                             }),
+                            minimap: {enabled: false},
                         }}
                     />
                 </div>

@@ -706,6 +706,8 @@
     "english": "English",
     "italian": "Italiano",
     "spanish": "Español",
+    "appearance_editorMinimap": "显示缩略图",
+    "appearance_editorMinimapDesc": "显示 SQL 脚本的缩小概览，方便快速导航。",
     "appearance_editorHighlightInvisibleCharacters": "显示不可见字符",
     "appearance_editorHighlightInvisibleCharactersDesc": "突出显示 SQL 中隐藏的 Unicode 字符和形似字符。",
     "formatter_title": "SQL 格式化",

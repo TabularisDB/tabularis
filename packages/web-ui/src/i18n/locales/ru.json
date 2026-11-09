@@ -705,6 +705,8 @@
     "appearance_editorTabSize": "Размер отступа",
     "appearance_editorWordWrap": "Перенос строк",
     "appearance_editorWordWrapDesc": "Переносить длинные строки в редакторе вместо горизонтальной прокрутки.",
+    "appearance_editorMinimap": "Показывать мини-карту",
+    "appearance_editorMinimapDesc": "Показывает уменьшенный обзор SQL-скриптов для быстрой навигации.",
     "appearance_editorHighlightInvisibleCharacters": "Показывать невидимые символы",
     "appearance_editorHighlightInvisibleCharactersDesc": "Выделять скрытые символы Unicode и похожие символы в SQL.",
     "appearance_editorShowLineNumbers": "Показывать номера строк",

@@ -734,6 +734,8 @@
     "appearance_editorTabSize": "Độ rộng tab",
     "appearance_editorWordWrap": "Tự xuống dòng",
     "appearance_editorWordWrapDesc": "Tự xuống dòng với các dòng dài thay vì cuộn ngang.",
+    "appearance_editorMinimap": "Hiện bản đồ thu nhỏ",
+    "appearance_editorMinimapDesc": "Hiển thị tổng quan thu nhỏ của các tập lệnh SQL để điều hướng nhanh.",
     "appearance_editorHighlightInvisibleCharacters": "Hiện ký tự ẩn",
     "appearance_editorHighlightInvisibleCharactersDesc": "Đánh dấu ký tự Unicode ẩn và ký tự trông giống nhau trong SQL.",
     "appearance_editorShowLineNumbers": "Hiện số dòng",

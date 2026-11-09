@@ -710,6 +710,8 @@
     "appearance_editorTabSize": "Tabgröße",
     "appearance_editorWordWrap": "Zeilenumbruch",
     "appearance_editorWordWrapDesc": "Lange Zeilen im Editor umbrechen statt horizontal zu scrollen.",
+    "appearance_editorMinimap": "Minimap anzeigen",
+    "appearance_editorMinimapDesc": "Zeigt eine verkleinerte Übersicht von SQL-Skripten zur schnellen Navigation an.",
     "appearance_editorHighlightInvisibleCharacters": "Unsichtbare Zeichen anzeigen",
     "appearance_editorHighlightInvisibleCharactersDesc": "Markiert versteckte Unicode-Zeichen und ähnlich aussehende Zeichen in SQL.",
     "appearance_editorShowLineNumbers": "Zeilennummern anzeigen",
