@@ -147,8 +147,13 @@ pub async fn fetch_plugin_registry(
         .plugins
         .into_iter()
         // Unknown or ambiguous kinds have no install path; keep them out of the
-        // Plugin Center so the kind filter only ever offers drivers and themes.
-        .filter(|plugin| matches!(plugin.kind.as_deref(), None | Some("driver") | Some("theme")))
+        // Plugin Center; cloud integrations use the executable driver path.
+        .filter(|plugin| {
+            matches!(
+                plugin.kind.as_deref(),
+                None | Some("driver") | Some("cloud") | Some("theme")
+            )
+        })
         .map(|plugin| {
             let (installed_version, platform) = if plugin.kind.as_deref() == Some("theme") {
                 (themes.version_of(&plugin.id), "universal")
@@ -554,7 +559,10 @@ async fn resolve_api_install_asset(
     platform: &str,
 ) -> Result<(String, Option<String>, String), String> {
     let detail = crate::plugins::tabularium::fetch_plugin_detail(base, plugin_id).await?;
-    if !matches!(detail.kind.as_deref(), None | Some("driver")) {
+    if !matches!(
+        detail.kind.as_deref(),
+        None | Some("driver") | Some("cloud")
+    ) {
         return Err(crate::plugins::package_kind::KIND_ERROR.into());
     }
     let target_version = match version {
