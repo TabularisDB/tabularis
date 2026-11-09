@@ -5,7 +5,7 @@ The native Oracle implementation is maintained in
 [tabularis-oracle-plugin](https://github.com/TabularisDB/tabularis-oracle-plugin).
 The paired Oracle change implements this RPC with dedicated DBMS_DEBUG target
 and controller sessions. Older plugin releases omit the capability and remain
-unsupported. Release the capability only after the native live tests pass.
+unsupported.
 
 ## Capability and wire format
 
@@ -84,9 +84,25 @@ records Oracle/Instant Client versions, and checks:
    stepping, stack and variables.
 2. An exception: execution failure, transaction outcome and resource release
    checked independently.
-3. Stop, client disconnect, process EOF, timeout and failed start: no rerun and
+3. Stop, concurrent cancellation, process EOF and failed start: no rerun and
    no abandoned target/control sessions.
-4. Missing privileges/debug information, unsupported types, ambiguous overload
+4. Missing privileges/debug information, unsupported types
    and changed source: no automatic DDL or privilege grants.
 
 Passing fake-driver tests is not evidence of Oracle support.
+
+### Recorded native integration
+
+The [companion Oracle PR #26](https://github.com/TabularisDB/tabularis-oracle-plugin/pull/26)
+at commit `b3d37a8c78e306bf345c3ee67ef08a1620822ba8` passed the
+[live Oracle integration job](https://github.com/lejyfps/tabularis-oracle-plugin/actions/runs/42633512836/job/129215569679)
+on November 9, 2026. The job ran the stdio plugin against Oracle AI Database
+26ai Free `23.26.3.0.0`, using Instant Client `23.26.2.0.0`; the live test was
+executed with `ORACLE_TEST_HOST` set. It confirmed the cases above, including
+an entry stop before the routine's INSERT, numeric OUT/function return values,
+all three step modes, rollback of uncommitted changes and release of both
+target/controller sessions.
+
+This evidence covers standalone procedures/functions with supported scalar
+numeric/character arguments. Packaged overloads and composite/date parameters
+remain unsupported; other Oracle versions require their own validation.
