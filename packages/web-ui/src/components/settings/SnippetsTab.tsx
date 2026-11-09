@@ -336,13 +336,10 @@ export function SnippetsTab() {
 
                     <div>
                         <div className="flex items-center justify-between mb-1">
-                            <label
-                                id="snippet-body-label"
-                                className="text-xs font-medium text-primary"
-                            >
+                            <span className="text-xs font-medium text-primary">
                                 {t('settings.snippets.bodyLabel', 'Snippet Body')}{' '}
                                 <span className="text-accent-error">*</span>
-                            </label>
+                            </span>
                             <span className="text-[11px] text-muted">
                                 {t(
                                     'settings.snippets.tabStopHint',
