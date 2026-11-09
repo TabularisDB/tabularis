@@ -81,7 +81,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     }, [client, updateSetting, showToast, t]);
     const [height, setHeight] = useState(0);
     const [modalOpen, setModalOpen] = useState(false);
-    const [frameRect, setFrameRect] = useState({left: 0, top: 0, width: 0});
+    const [frameRect, setFrameRect] = useState({left: 0, top: 0, width: 0, clip: 'none'});
     const [portalRoot] = useState(() => document.createElement('div'));
     const [resolvedFrame, setResolvedFrame] = useState<{
         pluginId: string;
@@ -122,17 +122,72 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     useLayoutEffect(() => {
         const anchor = anchorRef.current;
         if (!anchor) return;
+        let last: {left: number; top: number; width: number; clip: string} | null = null;
         const updatePosition = () => {
             const rect = anchor.getBoundingClientRect();
-            setFrameRect({left: rect.left, top: rect.top, width: rect.width});
+            let left = rect.left;
+            let right = rect.right;
+            let top = rect.top;
+            let bottom = rect.top + height;
+            for (
+                let parent = anchor.parentElement;
+                parent && parent !== document.body;
+                parent = parent.parentElement
+            ) {
+                const style = getComputedStyle(parent);
+                const clipsX = /^(auto|scroll|hidden|clip)$/.test(
+                    style.overflowX || style.overflow,
+                );
+                const clipsY = /^(auto|scroll|hidden|clip)$/.test(
+                    style.overflowY || style.overflow,
+                );
+                if (!clipsX && !clipsY) continue;
+                const bounds = parent.getBoundingClientRect();
+                const contentLeft = bounds.left + parent.clientLeft;
+                const contentTop = bounds.top + parent.clientTop;
+                if (clipsX) {
+                    left = Math.max(left, contentLeft);
+                    right = Math.min(right, contentLeft + parent.clientWidth);
+                }
+                if (clipsY) {
+                    top = Math.max(top, contentTop);
+                    bottom = Math.min(bottom, contentTop + parent.clientHeight);
+                }
+            }
+            const clamp = (value: number, size: number) => Math.min(size, Math.max(0, value));
+            const insets = [
+                clamp(top - rect.top, height),
+                clamp(rect.right - right, rect.width),
+                clamp(rect.top + height - bottom, height),
+                clamp(left - rect.left, rect.width),
+            ];
+            const clip = insets.every((inset) => inset === 0)
+                ? 'none'
+                : `inset(${insets.map((inset) => `${inset}px`).join(' ')})`;
+            if (
+                last?.left === rect.left &&
+                last.top === rect.top &&
+                last.width === rect.width &&
+                last.clip === clip
+            )
+                return;
+            last = {left: rect.left, top: rect.top, width: rect.width, clip};
+            setFrameRect(last);
         };
         updatePosition();
+        let animationFrame = 0;
+        const trackLayout = () => {
+            updatePosition();
+            animationFrame = window.requestAnimationFrame(trackLayout);
+        };
+        if (height > 0) animationFrame = window.requestAnimationFrame(trackLayout);
         const resizeObserver = new ResizeObserver(updatePosition);
         resizeObserver.observe(anchor);
         window.addEventListener('resize', updatePosition);
         window.addEventListener('scroll', updatePosition, true);
         return () => {
             resizeObserver.disconnect();
+            window.cancelAnimationFrame(animationFrame);
             window.removeEventListener('resize', updatePosition);
             window.removeEventListener('scroll', updatePosition, true);
         };
@@ -453,6 +508,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                           top: frameRect.top,
                           width: frameRect.width,
                           height,
+                          clipPath: frameRect.clip,
                           border: 0,
                           zIndex: 1,
                       }

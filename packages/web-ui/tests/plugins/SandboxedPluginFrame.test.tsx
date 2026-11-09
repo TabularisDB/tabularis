@@ -180,4 +180,32 @@ describe('SandboxedPluginFrame lifecycle', () => {
         expect(mocks.connect).toHaveBeenCalledTimes(1);
         expect(container.contains(iframe)).toBe(true);
     });
+
+    it('tracks layout-only movement and clips inline frames to scrolling ancestors', async () => {
+        const {container} = render(
+            <div data-testid="clip-parent" style={{overflow: 'hidden'}}>
+                {frame()}
+            </div>,
+        );
+        const parent = screen.getByTestId('clip-parent');
+        const anchor = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+        let left = 100;
+        vi.spyOn(anchor, 'getBoundingClientRect').mockImplementation(() =>
+            DOMRect.fromRect({x: left, y: 100, width: 200, height: 100}),
+        );
+        vi.spyOn(parent, 'getBoundingClientRect').mockReturnValue(
+            DOMRect.fromRect({x: 120, y: 120, width: 100, height: 50}),
+        );
+        Object.defineProperty(parent, 'clientWidth', {configurable: true, value: 100});
+        Object.defineProperty(parent, 'clientHeight', {configurable: true, value: 50});
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        act(() => handlers['ui.resize'](100));
+        const iframe = screen.getByTitle('Plugin google-sheets') as HTMLIFrameElement;
+        await waitFor(() => expect(iframe.style.clipPath).toBe('inset(20px 80px 30px 20px)'));
+        left = 110;
+        await waitFor(() => expect(iframe.style.left).toBe('110px'));
+        act(() => handlers['ui.modal'](true));
+        expect(iframe.style.clipPath).toBe('');
+        expect(screen.getByTitle('Plugin google-sheets')).toBe(iframe);
+    });
 });
