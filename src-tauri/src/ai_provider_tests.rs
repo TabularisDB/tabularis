@@ -198,21 +198,34 @@ fn success(provider: &str) -> serde_json::Value {
 
 #[tokio::test]
 async fn api_route_discovers_account_models_and_rejects_auth_errors() {
-    assert!(api_route::models_with_client(&Client::new(), "")
-        .await
-        .is_empty());
+    assert!(
+        api_route::models_with_client(&Client::new(), "", vec!["cached-model".into()])
+            .await
+            .is_empty()
+    );
     for (status, response, expected) in [
         (
             200,
             json!({"data":[{"id":"account-chat-model"}]}),
             vec!["account-chat-model"],
         ),
-        (401, json!({"error":"invalid key"}), vec![]),
-        (200, json!({"unexpected":"response"}), vec![]),
+        (401, json!({"error":"invalid key"}), vec!["cached-model"]),
+        (
+            503,
+            json!({"error":"temporarily unavailable"}),
+            vec!["cached-model"],
+        ),
+        (200, json!({"unexpected":"response"}), vec!["cached-model"]),
+        (200, json!({"data":[]}), vec![]),
     ] {
         let fixture = Fixture::new(true, vec![(status, response)]);
         assert_eq!(
-            api_route::models_with_client(&fixture.client, "fixture-key").await,
+            api_route::models_with_client(
+                &fixture.client,
+                "fixture-key",
+                vec!["cached-model".into()]
+            )
+            .await,
             expected
         );
         let requests = fixture.requests.join().unwrap();
@@ -226,6 +239,28 @@ async fn api_route_discovers_account_models_and_rejects_auth_errors() {
             .to_ascii_lowercase()
             .contains("authorization: bearer fixture-key"));
     }
+}
+
+#[tokio::test]
+async fn api_route_preserves_cached_models_when_the_network_is_unavailable() {
+    // Keep the proxy socket open without responding to force a local timeout.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let proxy = format!("http://{}", listener.local_addr().unwrap());
+    let client = Client::builder()
+        .no_proxy()
+        .proxy(reqwest::Proxy::all(proxy).unwrap())
+        .timeout(Duration::from_millis(100))
+        .build()
+        .unwrap();
+    assert_eq!(
+        api_route::models_with_client(&client, "fixture-key", vec!["cached-model".into()]).await,
+        ["cached-model"]
+    );
+    assert!(
+        api_route::models_with_client(&client, "fixture-key", vec![])
+            .await
+            .is_empty()
+    );
 }
 
 #[tokio::test]
