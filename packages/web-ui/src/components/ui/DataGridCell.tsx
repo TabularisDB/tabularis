@@ -24,6 +24,7 @@ import {
 import {isLongTextCellTarget, truncateCellPreview} from '@/utils/text';
 import {getForeignKeyForPreview} from '@/utils/foreignKeys';
 import {getDateInputMode} from '@/utils/dateInput';
+import type {FormatTone} from '@/utils/conditionalFormatting';
 import {renderDefaultCellContent} from '@/utils/dataGridCell';
 import {FIND_MATCH_CELL_CLASS, type FindMatchState} from '@/utils/gridFind';
 import {resolveResultFontFamily} from '@/utils/settings';
@@ -62,6 +63,10 @@ export interface DataGridCellProps {
     widthClassName?: string;
     /** Extra classes, e.g. the record tint in the transposed layout. */
     className?: string;
+    /** Text color from a conditional formatting rule (#991), or null. */
+    formatTextClass?: string | null;
+    /** Tone of the row rule that paints this cell's row (#991), for the frozen backdrop. */
+    formatRowTone?: FormatTone | null;
     style?: React.CSSProperties;
 }
 
@@ -89,6 +94,8 @@ export function DataGridCell({
     isZebra,
     widthClassName = 'max-w-[300px]',
     className = '',
+    formatTextClass = null,
+    formatRowTone = null,
     style,
 }: DataGridCellProps) {
     const {
@@ -177,8 +184,16 @@ export function DataGridCell({
         isJsonCell,
     });
 
+    // A conditional formatting color (#991) yields to the pending-change states,
+    // which carry their own meaning, and replaces the colorize-by-type color.
+    // Outside those states the only state class is the default text color,
+    // which it replaces too.
+    const formatClass =
+        formatTextClass && !isPendingDelete && !isInsertion && !isModified ? formatTextClass : '';
+
     let valueColorClass: string | undefined;
     if (
+        !formatClass &&
         resultColorClassMap &&
         rawCellValue !== null &&
         rawCellValue !== undefined &&
@@ -204,6 +219,7 @@ export function DataGridCell({
               isInsertion,
               isPendingDelete,
               isZebra: isZebra ?? isZebraStripedRow(rowIndex, zebraStripes),
+              formatTone: formatRowTone,
           })}`
         : '';
     const focusClass = !isFocused
@@ -280,7 +296,7 @@ export function DataGridCell({
                     ? {...style, left: frozenLeft ?? undefined, top: frozenTop ?? undefined}
                     : style
             }
-            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : `whitespace-nowrap truncate ${widthClassName}`} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${stateClass} ${selectedColIndices.has(colIndex) || isInRange ? 'bg-accent-primary/15' : ''} ${focusClass} ${FIND_MATCH_CELL_CLASS} ${className}`}
+            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : `whitespace-nowrap truncate ${widthClassName}`} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${formatClass ? '' : stateClass} ${selectedColIndices.has(colIndex) || isInRange ? 'bg-accent-primary/15' : ''} ${focusClass} ${FIND_MATCH_CELL_CLASS} ${formatClass} ${className}`}
             title={
                 // The hover tooltip would leak the real value of a masked cell.
                 !isEditing && !isMasked ? truncateCellPreview(formattedDisplay).text : ''
@@ -458,6 +474,7 @@ export function DataGridCell({
                                     displayText={formattedDisplay}
                                     isExpanded={isExpanded}
                                     isPendingDelete={isPendingDelete}
+                                    inheritColor={!!formatClass}
                                     onToggleExpand={() =>
                                         setExpandedCell(
                                             isExpanded
@@ -525,7 +542,12 @@ export function DataGridCell({
                             const blobContent = (
                                 <span className="inline-flex items-center gap-1 group/blobcell w-full min-w-0">
                                     <span className="truncate flex-1 min-w-0">
-                                        {renderDefaultCellContent(displayValue, formattedDisplay)}
+                                        {renderDefaultCellContent(
+                                            displayValue,
+                                            formattedDisplay,
+                                            undefined,
+                                            !!formatClass,
+                                        )}
                                     </span>
                                     <button
                                         type="button"
@@ -561,6 +583,7 @@ export function DataGridCell({
                                             displayValue,
                                             formattedDisplay,
                                             valueColorClass,
+                                            !!formatClass,
                                         )}
                                     </span>
                                     <button
@@ -584,6 +607,7 @@ export function DataGridCell({
                             displayValue,
                             formattedDisplay,
                             valueColorClass,
+                            !!formatClass,
                         );
                     })()}
                     {showCellMaskToggle && !isEditing && (

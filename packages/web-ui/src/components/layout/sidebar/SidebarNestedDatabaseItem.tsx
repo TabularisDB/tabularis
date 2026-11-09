@@ -173,7 +173,7 @@ export const SidebarNestedDatabaseItem = ({
                 aria-expanded={isExpanded}
                 className="flex items-center justify-between px-2 py-1.5 group/db cursor-pointer hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                 onClick={handleToggle}
-                onKeyDown={onActivationKey(handleToggle)}
+                onKeyDown={(event) => onActivationKey(handleToggle)(event)}
             >
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                     {isExpanded ? (

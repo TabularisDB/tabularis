@@ -6574,6 +6574,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 csvDelimiter={csvDelimiter}
                                                 csvIncludeHeaders={csvIncludeHeaders}
                                                 transposed={!!activeTab.transposed}
+                                                conditionalFormatting={activeTab.type === 'table'}
                                                 sortClause={activeTab.sortClause}
                                                 onSort={
                                                     activeTab.type === 'table' &&
