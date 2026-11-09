@@ -817,6 +817,8 @@
     "connectionHealthCheck": "연결 상태 확인",
     "pingInterval": "핑 간격",
     "pingIntervalDesc": "활성 연결이 살아있는지 확인하는 주기입니다. 0으로 설정하면 비활성화됩니다.",
+    "autoReconnect": "자동으로 다시 연결",
+    "autoReconnectDesc": "연결이 상태 확인에 실패하면 닫기 전에 한 번 다시 연결을 시도합니다. 중단된 쿼리는 다시 실행되지 않으며 열린 트랜잭션은 롤백됩니다.",
     "seconds": "초",
     "entries": "개",
     "queryHistory": "쿼리 기록",
@@ -2140,7 +2142,10 @@
   },
   "healthCheck": {
     "title": "연결이 끊어졌습니다",
-    "connectionLost": "데이터베이스 연결이 끊어졌습니다"
+    "connectionLost": "데이터베이스 연결이 끊어졌습니다",
+    "reconnecting": "연결이 끊어졌습니다. 다시 연결하는 중…",
+    "reconnected": "연결이 복구되었습니다.",
+    "reconnectedSessionsReset": "연결이 복구되었습니다. 열려 있던 쿼리 세션이 초기화되었고 커밋되지 않은 트랜잭션은 롤백되었습니다."
   },
   "erDiagram": {
     "title": "ER 다이어그램",

@@ -898,6 +898,8 @@
     "connectionHealthCheck": "Kiểm tra tình trạng kết nối",
     "pingInterval": "Chu kỳ ping",
     "pingIntervalDesc": "Tần suất kiểm tra các kết nối đang mở còn hoạt động hay không. Đặt 0 để tắt.",
+    "autoReconnect": "Tự động kết nối lại",
+    "autoReconnectDesc": "Khi một kết nối không vượt qua kiểm tra tình trạng, thử kết nối lại một lần trước khi đóng. Các truy vấn bị gián đoạn không bao giờ được chạy lại và các giao dịch đang mở sẽ được hoàn tác.",
     "seconds": "giây",
     "entries": "mục",
     "queryHistory": "Lịch sử truy vấn",
@@ -2220,7 +2222,10 @@
   },
   "healthCheck": {
     "title": "Mất kết nối",
-    "connectionLost": "Một kết nối cơ sở dữ liệu đã bị mất"
+    "connectionLost": "Một kết nối cơ sở dữ liệu đã bị mất",
+    "reconnecting": "Mất kết nối. Đang kết nối lại…",
+    "reconnected": "Đã khôi phục kết nối.",
+    "reconnectedSessionsReset": "Đã khôi phục kết nối. Các phiên truy vấn đang mở đã được đặt lại và mọi giao dịch chưa commit đã được hoàn tác."
   },
   "erDiagram": {
     "title": "Sơ đồ ER",

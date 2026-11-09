@@ -10,6 +10,11 @@ export interface EventDefinition<Payload, Authorization extends AuthorizationLev
     readonly authorization: Authorization;
 }
 
+/** A failed connection being recovered; a failed recovery arrives as `connection-health-failed`. */
+export type ConnectionLifecycleEvent =
+    | {connectionId: string; state: 'reconnecting'}
+    | {connectionId: string; state: 'reconnected'; releasedSessions: number};
+
 export interface EventMap {
     'session-transaction-state': EventDefinition<
         {session_id: string; in_transaction: boolean},
@@ -17,6 +22,7 @@ export interface EventMap {
     >;
     'connection-test-progress': EventDefinition<ConnectionTestProgressPayload, 'database'>;
     'connection-health-failed': EventDefinition<{connectionId: string; error: string}, 'database'>;
+    'connection-lifecycle': EventDefinition<ConnectionLifecycleEvent, 'database'>;
     'connections:active-changed': EventDefinition<string[], 'database'>;
     'database-dropped': EventDefinition<{connectionId: string; database: string}, 'database'>;
     'batch-statement-complete': EventDefinition<
@@ -94,6 +100,7 @@ export const EVENT_AUTHORIZATION = {
     'session-transaction-state': 'database',
     'connection-test-progress': 'database',
     'connection-health-failed': 'database',
+    'connection-lifecycle': 'database',
     'connections:active-changed': 'database',
     'database-dropped': 'database',
     'batch-statement-complete': 'database',

@@ -1,6 +1,9 @@
+use crate::application::connection_lifecycle::{
+    ConnectionLifecycle, ConnectionLifecycleEvent, HealthTracker, PingVerdict,
+    CONNECTION_LIFECYCLE_EVENT, RECONNECT_TIMEOUT,
+};
 pub(crate) use crate::health_check::*;
-use std::collections::HashMap;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tauri::Emitter;
 use tokio::sync::oneshot;
 
@@ -38,8 +41,12 @@ pub async fn start_ping_loop(app: tauri::AppHandle, interval_secs: u64) {
     );
 
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
-        let mut failure_counts: HashMap<String, u32> = HashMap::new();
+        let period = Duration::from_secs(interval_secs);
+        let mut interval = tokio::time::interval(period);
+        // The default `Burst` fires every missed tick back to back after a
+        // suspend, which counted two failures before the network was back.
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut tracker = HealthTracker::new(period);
 
         loop {
             tokio::select! {
@@ -48,7 +55,10 @@ pub async fn start_ping_loop(app: tauri::AppHandle, interval_secs: u64) {
                     break;
                 }
                 _ = interval.tick() => {
-                    ping_all_connections(&app, &mut failure_counts).await;
+                    if tracker.begin_tick(SystemTime::now()) {
+                        log::info!("Health check: resumed after a long gap, re-checking connections");
+                    }
+                    ping_all_connections(&app, &mut tracker).await;
                 }
             }
         }
@@ -61,9 +71,10 @@ pub async fn restart_ping_loop(app: tauri::AppHandle, interval_secs: u64) {
     start_ping_loop(app, interval_secs).await;
 }
 
-/// Ping every registered connection. On failure beyond the threshold,
-/// close the pool and emit an event to the frontend.
-async fn ping_all_connections(app: &tauri::AppHandle, failure_counts: &mut HashMap<String, u32>) {
+/// Ping every registered connection. A connection that fails the threshold
+/// gets one reconnect attempt when auto-reconnect is on, and is dropped
+/// otherwise.
+async fn ping_all_connections(app: &tauri::AppHandle, tracker: &mut HealthTracker) {
     // Snapshot the active set so we don't hold the lock during I/O.
     let active: Vec<String> = ACTIVE_CONNECTIONS.read().await.iter().cloned().collect();
 
@@ -83,37 +94,96 @@ async fn ping_all_connections(app: &tauri::AppHandle, failure_counts: &mut HashM
     .await;
 
     for (conn_id, result) in results {
-        match result {
-            Ok(()) => {
-                // Reset failure counter on success.
-                failure_counts.remove(&conn_id);
-            }
-            Err(err) => {
-                let count = failure_counts.entry(conn_id.clone()).or_insert(0);
-                *count += 1;
-                log::warn!(
-                    "Health check: ping failed for {} ({}/{}): {}",
-                    conn_id,
-                    count,
-                    FAILURE_THRESHOLD,
-                    err
-                );
+        let verdict = tracker.record(&conn_id, result.is_ok());
+        let Err(err) = result else { continue };
+        log::warn!("Health check: ping failed for {}: {}", conn_id, err);
+        if verdict != PingVerdict::Failed {
+            continue;
+        }
+        let auto_reconnect = crate::transport::desktop::config::load_config_internal(app)
+            .auto_reconnect
+            .unwrap_or(false);
+        if !auto_reconnect {
+            log::error!("Health check: connection {} failed, disconnecting", conn_id);
+            handle_connection_failure(app, &conn_id, &err).await;
+            continue;
+        }
+        recover_connection(app, &conn_id).await;
+    }
+}
 
-                if *count >= FAILURE_THRESHOLD {
-                    log::error!(
-                        "Health check: connection {} exceeded failure threshold, disconnecting",
-                        conn_id
-                    );
-                    failure_counts.remove(&conn_id);
-                    handle_connection_failure(app, &conn_id, &err).await;
-                }
-            }
+/// Replace the pools of a failed connection and test it once. Released tab
+/// sessions are not replayed: a statement may already have run on the server.
+async fn recover_connection(app: &tauri::AppHandle, connection_id: &str) {
+    log::warn!(
+        "Health check: connection {} failed, reconnecting once",
+        connection_id
+    );
+    emit_lifecycle(app, connection_id, ConnectionLifecycle::Reconnecting);
+
+    let released_sessions = close_connection_resources(app, connection_id).await;
+    let attempt = tokio::time::timeout(RECONNECT_TIMEOUT, reconnect(app, connection_id))
+        .await
+        .unwrap_or_else(|_| Err("Reconnect timed out".to_string()));
+
+    match attempt {
+        Ok(()) if !ACTIVE_CONNECTIONS.read().await.contains(connection_id) => {
+            close_connection_resources(app, connection_id).await;
+        }
+        Ok(()) => {
+            log::info!("Health check: connection {} reconnected", connection_id);
+            emit_lifecycle(
+                app,
+                connection_id,
+                ConnectionLifecycle::Reconnected { released_sessions },
+            );
+        }
+        Err(err) => {
+            log::error!(
+                "Health check: reconnect failed for {}: {}",
+                connection_id,
+                err
+            );
+            handle_connection_failure(app, connection_id, &err).await;
         }
     }
 }
 
-/// Ping a single connection by resolving its params and calling driver.ping().
-async fn ping_single_connection(app: &tauri::AppHandle, connection_id: &str) -> Result<(), String> {
+/// Open a fresh pool for a built-in driver and ping through it. Plugin drivers
+/// own their connections, so for them this is one more `ping`.
+async fn reconnect(app: &tauri::AppHandle, connection_id: &str) -> Result<(), String> {
+    let params = resolve_params(app, connection_id).await?;
+    let id = Some(connection_id);
+    match params.driver.as_str() {
+        "postgres" => drop(crate::pool_manager::get_postgres_pool_with_id(&params, id).await?),
+        "mysql" => drop(crate::pool_manager::get_mysql_pool_with_id(&params, id).await?),
+        "sqlite" => drop(crate::pool_manager::get_sqlite_pool_with_id(&params, id).await?),
+        _ => {}
+    }
+    let driver = crate::drivers::registry::get_driver(&params.driver)
+        .await
+        .ok_or_else(|| format!("Driver not found: {}", params.driver))?;
+    driver.ping(&params).await
+}
+
+fn emit_lifecycle(app: &tauri::AppHandle, connection_id: &str, lifecycle: ConnectionLifecycle) {
+    let event = ConnectionLifecycleEvent {
+        connection_id: connection_id.to_string(),
+        lifecycle,
+    };
+    if let Err(e) = app.emit(CONNECTION_LIFECYCLE_EVENT, event) {
+        log::error!(
+            "Health check: failed to emit {} event: {}",
+            CONNECTION_LIFECYCLE_EVENT,
+            e
+        );
+    }
+}
+
+async fn resolve_params(
+    app: &tauri::AppHandle,
+    connection_id: &str,
+) -> Result<crate::models::ConnectionParams, String> {
     let saved_conn =
         crate::transport::desktop::commands::find_connection_by_id(app, connection_id)?;
 
@@ -123,8 +193,12 @@ async fn ping_single_connection(app: &tauri::AppHandle, connection_id: &str) -> 
     let expanded_params =
         crate::transport::desktop::commands::expand_k8s_connection_params(app, &expanded_params)
             .await?;
-    let params =
-        crate::commands::resolve_connection_params_with_id(&expanded_params, connection_id)?;
+    crate::commands::resolve_connection_params_with_id(&expanded_params, connection_id)
+}
+
+/// Ping a single connection by resolving its params and calling driver.ping().
+async fn ping_single_connection(app: &tauri::AppHandle, connection_id: &str) -> Result<(), String> {
+    let params = resolve_params(app, connection_id).await?;
 
     // Check if pool exists before attempting ping (avoid creating new pools).
     let is_builtin = matches!(params.driver.as_str(), "mysql" | "postgres" | "sqlite");
@@ -141,11 +215,31 @@ async fn ping_single_connection(app: &tauri::AppHandle, connection_id: &str) -> 
         .map_err(|_| "Ping timed out".to_string())?
 }
 
-/// Close the pool, unregister the connection, and emit a failure event.
+/// Unregister the connection, close its pools, and emit a failure event.
 async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, error: &str) {
     // Unregister first to prevent further pings.
     unregister_connection(connection_id).await;
+    close_connection_resources(app, connection_id).await;
 
+    // Notify frontend.
+    let payload = serde_json::json!({
+        "connectionId": connection_id,
+        "error": error,
+    });
+    if let Err(e) = app.emit("connection-health-failed", payload) {
+        log::error!(
+            "Health check: failed to emit connection-health-failed event: {}",
+            e
+        );
+    }
+
+    // Broadcast the updated active-connection set so every window reconciles.
+    emit_active_changed(app).await;
+}
+
+/// Close every pool of the connection and release its pinned tab sessions.
+/// Returns how many sessions were released.
+async fn close_connection_resources(app: &tauri::AppHandle, connection_id: &str) -> usize {
     // Close all pools for the connection before resolving SSH params. Pool
     // keys depend only on connection_id (plus driver/database/TLS), not the
     // tunnel's local port, so `close_pools_for_connection_id` matches by
@@ -193,20 +287,5 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
         connection_id,
         params.as_ref(),
     )
-    .await;
-
-    // Notify frontend.
-    let payload = serde_json::json!({
-        "connectionId": connection_id,
-        "error": error,
-    });
-    if let Err(e) = app.emit("connection-health-failed", payload) {
-        log::error!(
-            "Health check: failed to emit connection-health-failed event: {}",
-            e
-        );
-    }
-
-    // Broadcast the updated active-connection set so every window reconciles.
-    emit_active_changed(app).await;
+    .await
 }

@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod api;
 pub mod connection_files;
+pub mod connection_lifecycle;
 pub mod connections;
 pub mod database_objects;
 pub mod database_transfers;
