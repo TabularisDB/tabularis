@@ -17,6 +17,8 @@ fn column(name: &str, data_type: &str) -> TableColumn {
         numeric_scale: None,
         comment: None,
         full_type: None,
+        default_sql: None,
+        on_update: None,
     }
 }
 
