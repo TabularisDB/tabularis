@@ -336,3 +336,50 @@ async fn read_only_table_export_keeps_rows_and_binary_values() {
     assert!(sql.contains("INSERT INTO"));
     assert!(sql.to_lowercase().contains("00ff"));
 }
+
+#[tokio::test]
+async fn read_only_native_dumps_match_writable_dumps_across_page_boundaries() {
+    let (_temp, _runtime, params) = fixture().await;
+    let driver: Arc<dyn DatabaseDriver> = Arc::new(crate::drivers::sqlite::SqliteDriver::new());
+    driver.execute_query(&params, "CREATE TABLE dump_values (id INTEGER, label TEXT, document JSON, payload BLOB, optional TEXT)", None, 1, None).await.unwrap();
+    driver.execute_query(&params, "WITH RECURSIVE n(id) AS (SELECT 1 UNION ALL SELECT id+1 FROM n WHERE id < 2105) INSERT INTO dump_values SELECT id, 'quote '' and unicode café', '{\"flag\":true}', X'00FF', NULL FROM n", None, 1, None).await.unwrap();
+    let mut outputs = Vec::new();
+    for read_only in [false, true] {
+        let params = ConnectionParams {
+            read_only,
+            ..params.clone()
+        };
+        let mut output = Vec::new();
+        crate::application::database_transfers::stream_sql_rows(
+            &driver,
+            &params,
+            "sqlite",
+            "SELECT * FROM dump_values ORDER BY id",
+            "dump_values",
+            None,
+            |names, cells| {
+                let cells = cells
+                    .into_iter()
+                    .map(|cell| {
+                        json!({
+                            "value":cell.value, "is_json":cell.is_json,
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                output.push(json!({"columns":names,"cells":cells}));
+                Ok(())
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(output.len(), 2105);
+        // Retain the exact SQL cell semantics, including the JSON/text distinction.
+        outputs.push(output);
+    }
+    for (index, (writable, protected)) in outputs[0].iter().zip(&outputs[1]).enumerate() {
+        assert_eq!(
+            writable, protected,
+            "export row {index} differs between policies"
+        );
+    }
+}

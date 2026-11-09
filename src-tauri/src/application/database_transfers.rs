@@ -654,10 +654,10 @@ pub(crate) async fn stream_sql_rows<F>(
 where
     F: FnMut(&[String], Vec<SqlCell>) -> Result<(), String>,
 {
-    // Protected exports use the same bounded query path as the editor,
-    // including for built-ins, rather than bypassing it with a raw stream.
-    match (driver, params.read_only) {
-        ("mysql", false) => {
+    // Built-in pools enforce the saved read-only policy at connection setup,
+    // so both modes retain native streaming and type-aware cell extraction.
+    match driver {
+        "mysql" => {
             use sqlx::{Column, TypeInfo};
             let pool = get_mysql_pool(params).await?;
             let mut rows = sqlx::query(query).fetch(&pool);
@@ -677,7 +677,7 @@ where
                 yield_every_rows(&mut streamed).await;
             }
         }
-        ("postgres", false) => {
+        "postgres" => {
             let pool = get_postgres_pool(params).await?;
             let client = pool.get().await.map_err(|error| error.to_string())?;
             let query_params: Vec<i32> = Vec::new();
@@ -705,7 +705,7 @@ where
                 yield_every_rows(&mut streamed).await;
             }
         }
-        ("sqlite", false) => {
+        "sqlite" => {
             use sqlx::Column;
             let pool = get_sqlite_pool(params).await?;
             let mut rows = sqlx::query(query).fetch(&pool);
