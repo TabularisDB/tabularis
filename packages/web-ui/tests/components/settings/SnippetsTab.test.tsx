@@ -9,6 +9,27 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
+vi.mock('@/hooks/useEditorTheme', () => ({useEditorTheme: () => ({id: 'test'})}));
+vi.mock('@/themes/themeRuntime', () => ({getMonacoThemeId: () => 'test'}));
+vi.mock('@/themes/themeUtils', () => ({loadMonacoTheme: vi.fn()}));
+vi.mock('@/components/ui/LazyMonaco', () => ({
+    MonacoEditor: ({
+        value,
+        onChange,
+        options,
+    }: {
+        value: string;
+        onChange: (v: string) => void;
+        options: {ariaLabel: string};
+    }) => (
+        <textarea
+            aria-label={options.ariaLabel}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+        />
+    ),
+}));
+
 describe('SnippetsTab', () => {
     beforeEach(() => {
         localStorage.clear();
@@ -35,7 +56,7 @@ describe('SnippetsTab', () => {
         fireEvent.change(screen.getByPlaceholderText(/e.g. selorders/i), {
             target: {value: 'invalid prefix with spaces'},
         });
-        fireEvent.change(screen.getByPlaceholderText(/SELECT \${1:columns}/i), {
+        fireEvent.change(screen.getByRole('textbox', {name: 'Snippet Body'}), {
             target: {value: 'SELECT 1;'},
         });
         fireEvent.click(screen.getByRole('button', {name: /Save/i}));
@@ -57,7 +78,7 @@ describe('SnippetsTab', () => {
         fireEvent.change(screen.getByPlaceholderText(/e.g. selorders/i), {
             target: {value: 'cntp'},
         });
-        fireEvent.change(screen.getByPlaceholderText(/SELECT \${1:columns}/i), {
+        fireEvent.change(screen.getByRole('textbox', {name: 'Snippet Body'}), {
             target: {value: 'SELECT COUNT(*) FROM orders WHERE status = ${1:pending};'},
         });
 
@@ -65,6 +86,22 @@ describe('SnippetsTab', () => {
 
         expect(screen.getByText('Count Pending')).toBeInTheDocument();
         expect(screen.getByText('cntp')).toBeInTheDocument();
+    });
+
+    it('preserves the snippet body and selected dialect when saving', () => {
+        render(<SnippetsTab />);
+        fireEvent.click(screen.getByRole('button', {name: /New Snippet/i}));
+        fireEvent.change(screen.getByPlaceholderText(/e.g. selorders/i), {
+            target: {value: 'pending'},
+        });
+        fireEvent.change(screen.getByRole('textbox', {name: 'Snippet Body'}), {
+            target: {value: 'SELECT ${1:column} FROM orders;'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'Dialect Scope'}));
+        fireEvent.click(screen.getByText('PostgreSQL'));
+        fireEvent.click(screen.getByRole('button', {name: /Save/i}));
+        expect(screen.getByText('SELECT ${1:column} FROM orders;')).toBeInTheDocument();
+        expect(screen.getByText('postgres')).toBeInTheDocument();
     });
 
     it('edits an existing snippet', () => {

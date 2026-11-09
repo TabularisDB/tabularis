@@ -1,4 +1,11 @@
-import {useState, useCallback} from 'react';
+import {useState, useCallback, useEffect, useRef} from 'react';
+import type {BeforeMount} from '@monaco-editor/react';
+import type * as Monaco from 'monaco-editor';
+import {MonacoEditor} from '@/components/ui/LazyMonaco';
+import {Select} from '@/components/ui/Select';
+import {useEditorTheme} from '@/hooks/useEditorTheme';
+import {loadMonacoTheme} from '@/themes/themeUtils';
+import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {useTranslation} from 'react-i18next';
 import {
     loadSqlSnippets,
@@ -14,6 +21,17 @@ import clsx from 'clsx';
 
 export function SnippetsTab() {
     const {t} = useTranslation();
+    const editorTheme = useEditorTheme();
+    const monacoRef = useRef<typeof Monaco | null>(null);
+
+    useEffect(() => {
+        if (monacoRef.current) loadMonacoTheme(editorTheme, monacoRef.current);
+    }, [editorTheme]);
+
+    const beforeMount: BeforeMount = (monaco) => {
+        monacoRef.current = monaco;
+        loadMonacoTheme(editorTheme, monaco);
+    };
     const [snippets, setSnippets] = useState<SqlSnippet[]>(() => loadSqlSnippets());
     const [editingSnippet, setEditingSnippet] = useState<SqlSnippet | null>(null);
     const [isCreating, setIsCreating] = useState(false);
@@ -217,19 +235,20 @@ export function SnippetsTab() {
                             >
                                 {t('settings.snippets.dialectLabel', 'Dialect Scope')}
                             </label>
-                            <select
+                            <Select
                                 id="snippet-dialect-select"
+                                ariaLabel={t('settings.snippets.dialectLabel', 'Dialect Scope')}
                                 value={dialect}
-                                onChange={(e) => setDialect(e.target.value as SqlDialectScope)}
-                                className="w-full px-3 py-1.5 rounded-lg bg-base border border-default text-primary focus:outline-none focus:border-focus text-xs"
-                            >
-                                <option value="all">
-                                    {t('settings.snippets.allDialects', 'All Dialects')}
-                                </option>
-                                <option value="postgres">PostgreSQL</option>
-                                <option value="mysql">MySQL / MariaDB</option>
-                                <option value="sqlite">SQLite</option>
-                            </select>
+                                options={['all', 'postgres', 'mysql', 'sqlite']}
+                                labels={{
+                                    all: t('settings.snippets.allDialects', 'All Dialects'),
+                                    postgres: 'PostgreSQL',
+                                    mysql: 'MySQL / MariaDB',
+                                    sqlite: 'SQLite',
+                                }}
+                                onChange={(value) => setDialect(value as SqlDialectScope)}
+                                searchable={false}
+                            />
                         </div>
 
                         <div>
@@ -256,7 +275,7 @@ export function SnippetsTab() {
                     <div>
                         <div className="flex items-center justify-between mb-1">
                             <label
-                                htmlFor="snippet-body-textarea"
+                                id="snippet-body-label"
                                 className="text-xs font-medium text-primary"
                             >
                                 {t('settings.snippets.bodyLabel', 'Snippet Body')}{' '}
@@ -269,15 +288,25 @@ export function SnippetsTab() {
                                 )}
                             </span>
                         </div>
-                        <textarea
-                            id="snippet-body-textarea"
-                            value={body}
-                            onChange={(e) => setBody(e.target.value)}
-                            placeholder="SELECT ${1:columns} FROM ${2:orders} WHERE ${3:condition};"
-                            rows={5}
-                            className="w-full px-3 py-2 rounded-lg bg-base border border-default text-primary placeholder:text-muted focus:outline-none focus:border-focus font-mono text-xs resize-y"
-                            required
-                        />
+                        <div className="overflow-hidden rounded-lg border border-default bg-base">
+                            <MonacoEditor
+                                height="150px"
+                                language="sql"
+                                value={body}
+                                theme={getMonacoThemeId(editorTheme.id)}
+                                beforeMount={beforeMount}
+                                onChange={(value) => setBody(value ?? '')}
+                                options={{
+                                    ariaLabel: t('settings.snippets.bodyLabel', 'Snippet Body'),
+                                    minimap: {enabled: false},
+                                    lineNumbers: 'on',
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    wordWrap: 'on',
+                                    tabSize: 4,
+                                }}
+                            />
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-default">
