@@ -402,6 +402,24 @@ pub async fn create_sqlite_database<R: Runtime>(
     .await
 }
 
+#[tauri::command]
+pub async fn open_data_file<R: Runtime>(
+    app: AppHandle<R>,
+    file_path: String,
+    workspace_name: String,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::OpenDataFile {
+            source: crate::application::data_files::DataFileSource::ServerPath(PathBuf::from(
+                file_path,
+            )),
+            workspace_name,
+        },
+    )
+    .await
+}
+
 pub fn get_config_path<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf, String> {
     let config_dir = crate::paths::get_app_config_dir();
     if !config_dir.exists() {

@@ -3128,3 +3128,54 @@ async fn database_backup_rpc_requires_local_admin_and_uses_the_shared_applicatio
         }
     }
 }
+
+#[tokio::test]
+async fn opens_data_files_only_for_local_admin_upload_sessions() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let payload = Bytes::from(
+        serde_json::to_vec(&serde_json::json!({
+            "uploadToken": Uuid::new_v4().to_string(),
+            "workspaceName": "Data files",
+        }))
+        .unwrap(),
+    );
+    let headers = json_headers();
+    let dispatch = |session: Option<Uuid>, granted: AuthorizationLevel| {
+        dispatcher.dispatch(
+            "open_data_file",
+            RequestId("open-data-file".to_string()),
+            &headers,
+            payload.clone(),
+            session,
+            granted,
+        )
+    };
+
+    // The workspace database can read host files through SQL.
+    let restricted = dispatch(Some(Uuid::new_v4()), AuthorizationLevel::Sensitive).await;
+    assert_eq!(restricted.status(), StatusCode::FORBIDDEN);
+
+    let without_session = dispatch(None, AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(without_session.status(), StatusCode::BAD_REQUEST);
+
+    let allowed = dispatch(Some(Uuid::new_v4()), AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(allowed.status(), StatusCode::OK);
+
+    let desktop_only_field = dispatcher
+        .dispatch(
+            "open_data_file",
+            RequestId("open-data-file-path".to_string()),
+            &json_headers(),
+            Bytes::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "filePath": "/etc/passwd",
+                    "workspaceName": "Data files",
+                }))
+                .unwrap(),
+            ),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
+    assert_eq!(desktop_only_field.status(), StatusCode::BAD_REQUEST);
+}

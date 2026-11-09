@@ -346,6 +346,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::save_connection,
             sqlite_database::create_sqlite_file,
             commands::create_sqlite_database,
+            commands::open_data_file,
             commands::delete_connection,
             commands::update_connection,
             commands::duplicate_connection,
