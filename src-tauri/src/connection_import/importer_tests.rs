@@ -1349,3 +1349,32 @@ UNQUOTED_DB_URL="postgres://charlie:${UNQUOTED_PASSWORD}@127.0.0.1:5434/warehous
     let unquoted_creds = env.credentials_by_index.get(&unquoted_idx).unwrap();
     assert_eq!(unquoted_creds.password.as_deref(), Some("raw$pass"));
 }
+
+#[tokio::test]
+async fn project_config_multibyte_at_size_boundary_does_not_panic() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env_file = tmp.path().join(".env");
+
+    // 65,535 ASCII characters followed by a 3-byte UTF-8 character (€) via variable expansion
+    let ascii_prefix = "a".repeat(65_535);
+    write(
+        &env_file,
+        format!(
+            "EURO=€\nBIG_PASS=\"{}${{EURO}}\"\nDATABASE_URL=\"postgres://user:${{BIG_PASS}}@127.0.0.1:5432/db\"\n",
+            ascii_prefix
+        ),
+    );
+
+    let importer = ProjectConfigImporter::default();
+    let env = importer.import(true, Some(tmp.path())).await.unwrap();
+
+    let conn = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("DATABASE_URL"))
+        .unwrap();
+    assert!(conn
+        .warnings
+        .iter()
+        .any(|w| w.contains("maximum value size limit")));
+}

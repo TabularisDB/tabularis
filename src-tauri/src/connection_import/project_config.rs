@@ -644,6 +644,56 @@ fn expand_key(
     }
 }
 
+fn append_bounded_str(
+    dest: &mut String,
+    src: &str,
+    max_len: usize,
+    var_warnings: &mut HashMap<String, Vec<String>>,
+    current_root_key: &str,
+) -> bool {
+    let remaining = max_len.saturating_sub(dest.len());
+    if src.len() <= remaining {
+        dest.push_str(src);
+        true
+    } else {
+        let mut split_idx = remaining;
+        while split_idx > 0 && !src.is_char_boundary(split_idx) {
+            split_idx -= 1;
+        }
+        dest.push_str(&src[..split_idx]);
+        var_warnings
+            .entry(current_root_key.to_string())
+            .or_default()
+            .push(format!(
+                "Variable interpolation exceeded maximum value size limit ({} bytes) for \"{}\"",
+                max_len, current_root_key
+            ));
+        false
+    }
+}
+
+fn append_bounded_char(
+    dest: &mut String,
+    c: char,
+    max_len: usize,
+    var_warnings: &mut HashMap<String, Vec<String>>,
+    current_root_key: &str,
+) -> bool {
+    if dest.len() + c.len_utf8() <= max_len {
+        dest.push(c);
+        true
+    } else {
+        var_warnings
+            .entry(current_root_key.to_string())
+            .or_default()
+            .push(format!(
+                "Variable interpolation exceeded maximum value size limit ({} bytes) for \"{}\"",
+                max_len, current_root_key
+            ));
+        false
+    }
+}
+
 fn expand_string(
     input: &str,
     raw_map: &HashMap<String, RawValue>,
@@ -675,13 +725,35 @@ fn expand_string(
             if let Some(&(_, '$')) = chars.peek() {
                 // Escaped dollar sign (\$): treat as literal '$' without variable interpolation
                 chars.next();
-                result.push('$');
+                if !append_bounded_char(
+                    &mut result,
+                    '$',
+                    MAX_EXPANDED_VALUE_LEN,
+                    var_warnings,
+                    current_root_key,
+                ) {
+                    break;
+                }
             } else if let Some(&(_, '\\')) = chars.peek() {
                 // Escaped backslash (\\): output single '\'
                 chars.next();
-                result.push('\\');
-            } else {
-                result.push('\\');
+                if !append_bounded_char(
+                    &mut result,
+                    '\\',
+                    MAX_EXPANDED_VALUE_LEN,
+                    var_warnings,
+                    current_root_key,
+                ) {
+                    break;
+                }
+            } else if !append_bounded_char(
+                &mut result,
+                '\\',
+                MAX_EXPANDED_VALUE_LEN,
+                var_warnings,
+                current_root_key,
+            ) {
+                break;
             }
         } else if c == '$' {
             if let Some(&(_, '{')) = chars.peek() {
@@ -736,34 +808,24 @@ fn expand_string(
                             budget,
                             current_root_key,
                         );
-                        let remaining = MAX_EXPANDED_VALUE_LEN.saturating_sub(result.len());
-                        if expanded_def.len() > remaining {
-                            result.push_str(&expanded_def[..remaining]);
-                            var_warnings
-                                .entry(current_root_key.to_string())
-                                .or_default()
-                                .push(format!(
-                                    "Variable interpolation exceeded maximum value size limit ({} bytes) for \"{}\"",
-                                    MAX_EXPANDED_VALUE_LEN, current_root_key
-                                ));
+                        if !append_bounded_str(
+                            &mut result,
+                            &expanded_def,
+                            MAX_EXPANDED_VALUE_LEN,
+                            var_warnings,
+                            current_root_key,
+                        ) {
                             break;
-                        } else {
-                            result.push_str(&expanded_def);
                         }
                     } else if is_defined {
-                        let remaining = MAX_EXPANDED_VALUE_LEN.saturating_sub(result.len());
-                        if expanded_val.len() > remaining {
-                            result.push_str(&expanded_val[..remaining]);
-                            var_warnings
-                                .entry(current_root_key.to_string())
-                                .or_default()
-                                .push(format!(
-                                    "Variable interpolation exceeded maximum value size limit ({} bytes) for \"{}\"",
-                                    MAX_EXPANDED_VALUE_LEN, current_root_key
-                                ));
+                        if !append_bounded_str(
+                            &mut result,
+                            &expanded_val,
+                            MAX_EXPANDED_VALUE_LEN,
+                            var_warnings,
+                            current_root_key,
+                        ) {
                             break;
-                        } else {
-                            result.push_str(&expanded_val);
                         }
                     } else {
                         var_warnings
@@ -775,9 +837,33 @@ fn expand_string(
                             ));
                     }
                 } else {
-                    result.push('$');
-                    result.push('{');
-                    result.push_str(&var_expr);
+                    if !append_bounded_char(
+                        &mut result,
+                        '$',
+                        MAX_EXPANDED_VALUE_LEN,
+                        var_warnings,
+                        current_root_key,
+                    ) {
+                        break;
+                    }
+                    if !append_bounded_char(
+                        &mut result,
+                        '{',
+                        MAX_EXPANDED_VALUE_LEN,
+                        var_warnings,
+                        current_root_key,
+                    ) {
+                        break;
+                    }
+                    if !append_bounded_str(
+                        &mut result,
+                        &var_expr,
+                        MAX_EXPANDED_VALUE_LEN,
+                        var_warnings,
+                        current_root_key,
+                    ) {
+                        break;
+                    }
                 }
             } else {
                 // Bare $VAR: [A-Za-z_][A-Za-z0-9_]*
@@ -792,7 +878,15 @@ fn expand_string(
                 }
 
                 if var_name.is_empty() {
-                    result.push('$');
+                    if !append_bounded_char(
+                        &mut result,
+                        '$',
+                        MAX_EXPANDED_VALUE_LEN,
+                        var_warnings,
+                        current_root_key,
+                    ) {
+                        break;
+                    }
                 } else {
                     deps.entry(current_root_key.to_string())
                         .or_default()
@@ -808,19 +902,14 @@ fn expand_string(
                             budget,
                             current_root_key,
                         );
-                        let remaining = MAX_EXPANDED_VALUE_LEN.saturating_sub(result.len());
-                        if expanded_val.len() > remaining {
-                            result.push_str(&expanded_val[..remaining]);
-                            var_warnings
-                                .entry(current_root_key.to_string())
-                                .or_default()
-                                .push(format!(
-                                    "Variable interpolation exceeded maximum value size limit ({} bytes) for \"{}\"",
-                                    MAX_EXPANDED_VALUE_LEN, current_root_key
-                                ));
+                        if !append_bounded_str(
+                            &mut result,
+                            &expanded_val,
+                            MAX_EXPANDED_VALUE_LEN,
+                            var_warnings,
+                            current_root_key,
+                        ) {
                             break;
-                        } else {
-                            result.push_str(&expanded_val);
                         }
                     } else {
                         var_warnings
@@ -833,8 +922,14 @@ fn expand_string(
                     }
                 }
             }
-        } else {
-            result.push(c);
+        } else if !append_bounded_char(
+            &mut result,
+            c,
+            MAX_EXPANDED_VALUE_LEN,
+            var_warnings,
+            current_root_key,
+        ) {
+            break;
         }
     }
 
