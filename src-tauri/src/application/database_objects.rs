@@ -1,4 +1,4 @@
-use crate::drivers::driver_trait::DatabaseDriver;
+use crate::drivers::driver_trait::{DatabaseDriver, SqlDialect};
 use crate::models::{
     ColumnDefinition, ConnectionParams, DbPrivilegeCatalog, DbUserGrantSet, DbUserInfo,
     RoutineCallArg, RoutineParameter,
@@ -1078,7 +1078,9 @@ async fn column_sql_builder_driver_and_params(
     let (driver, params) =
         sql_builder_driver_and_params(runtime, connection_id, database.clone()).await?;
     // MySQL must read sql_mode using the same secrets/tunnel/database as execution.
-    if driver.manifest().is_builtin && driver.manifest().capabilities.sql_dialect == "mysql" {
+    if driver.manifest().is_builtin
+        && driver.manifest().capabilities.sql_dialect == Some(SqlDialect::Mysql)
+    {
         connected_driver_and_params(runtime, None, connection_id, database).await
     } else {
         Ok((driver, params))
