@@ -18,6 +18,10 @@ export interface DriverCapabilities {
     in_memory?: boolean;
     /** CamelCase alias accepted for plugin compatibility. */
     inMemory?: boolean;
+    /** Data file formats (`csv`, `tsv`, `json`, `ndjson`, `parquet`, ...) the driver
+     * exposes as a queryable relation through the optional `open_data_file` RPC.
+     * Requires `file_based`. Omitted or empty: the driver does not open data files. */
+    data_files?: string[];
     /** The driver exposes a single implicit database (e.g. a flat search/document
      * store like Meilisearch). Skips the database tab + database-name field. */
     single_database?: boolean;
