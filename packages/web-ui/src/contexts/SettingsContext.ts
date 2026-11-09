@@ -16,6 +16,7 @@ export type AiProvider =
     | 'anthropic'
     | 'openrouter'
     | 'requesty'
+    | 'api-route'
     | 'ollama'
     | 'custom-openai'
     | 'minimax';

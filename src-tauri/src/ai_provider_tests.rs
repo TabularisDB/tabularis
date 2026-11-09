@@ -52,11 +52,15 @@ fn serve(
             key.eq_ignore_ascii_case("content-length")
                 .then(|| value.trim().parse::<usize>().unwrap())
         })
-        .unwrap();
+        .unwrap_or(0);
     assert!(length < 64 * 1024);
     let mut bytes = vec![0; length];
     stream.read_exact(&mut bytes).unwrap();
-    let body = serde_json::from_slice(&bytes).unwrap();
+    let body = if bytes.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap()
+    };
     let response = response.to_string();
     write!(stream, "HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}", response.len()).unwrap();
     stream.flush().unwrap();
@@ -168,6 +172,16 @@ async fn generate(provider: &str, fixture: &Fixture) -> Result<String, String> {
             )
             .await
         }
+        "api-route" => {
+            generate_custom_openai(
+                &fixture.client,
+                "fixture-key",
+                &req,
+                "SQL instructions",
+                api_route::BASE_URL,
+            )
+            .await
+        }
         "ollama" => generate_ollama(&fixture.client, &req, "SQL instructions", fixture.port).await,
         _ => unreachable!(),
     }
@@ -183,6 +197,52 @@ fn success(provider: &str) -> serde_json::Value {
 }
 
 #[tokio::test]
+async fn api_route_discovers_account_models_and_rejects_auth_errors() {
+    assert!(api_route::models_with_client(&Client::new(), "")
+        .await
+        .is_empty());
+    for (status, response, expected) in [
+        (
+            200,
+            json!({"data":[{"id":"account-chat-model"}]}),
+            vec!["account-chat-model"],
+        ),
+        (401, json!({"error":"invalid key"}), vec![]),
+        (200, json!({"unexpected":"response"}), vec![]),
+    ] {
+        let fixture = Fixture::new(true, vec![(status, response)]);
+        assert_eq!(
+            api_route::models_with_client(&fixture.client, "fixture-key").await,
+            expected
+        );
+        let requests = fixture.requests.join().unwrap();
+        assert_eq!(
+            requests[0].target,
+            "CONNECT global.api-route.com:443 HTTP/1.1"
+        );
+        assert!(requests[0].headers.starts_with("GET /v1/models "));
+        assert!(requests[0]
+            .headers
+            .to_ascii_lowercase()
+            .contains("authorization: bearer fixture-key"));
+    }
+}
+
+#[tokio::test]
+async fn api_route_requires_an_explicit_model_and_preserves_account_model_ids() {
+    let config = config::AppConfig::default();
+    assert!(resolve_model("api-route", "", &config, 11434)
+        .await
+        .is_err());
+    assert_eq!(
+        resolve_model("api-route", "account-chat-model", &config, 11434)
+            .await
+            .unwrap(),
+        "account-chat-model"
+    );
+}
+
+#[tokio::test]
 async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() {
     for provider in [
         "openai",
@@ -190,6 +250,7 @@ async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() 
         "openrouter",
         "minimax",
         "custom-openai",
+        "api-route",
         "ollama",
     ] {
         let fixture = Fixture::new(provider != "ollama", vec![(200, success(provider))]);
@@ -200,6 +261,9 @@ async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() 
         );
         let requests = fixture.requests.join().unwrap();
         let request = &requests[0];
+        if provider == "api-route" {
+            assert_eq!(request.target, "CONNECT global.api-route.com:443 HTTP/1.1");
+        }
         assert_eq!(request.body["model"], "fixture-model", "{provider}");
         assert!(
             request.body.get("input").is_none(),
@@ -298,6 +362,7 @@ async fn existing_providers_propagate_http_failures() {
         "anthropic",
         "openrouter",
         "custom-openai",
+        "api-route",
         "ollama",
     ] {
         let fixture = Fixture::new(
@@ -305,6 +370,9 @@ async fn existing_providers_propagate_http_failures() {
             vec![(400, json!({"error":"fixture-rejection"}))],
         );
         let error = generate(provider, &fixture).await.unwrap_err();
+        if provider == "api-route" {
+            assert!(error.starts_with("API Route Error:"));
+        }
         assert!(error.contains("fixture-rejection"), "{provider}: {error}");
         fixture.requests.join().unwrap();
     }
