@@ -123,7 +123,9 @@ test.beforeEach(async ({page}) => {
 });
 
 test('serves the shared UI and loads an authenticated UI extension', async ({page}) => {
-    await expect(page.locator('[data-testid="e2e-ui-extension"]')).toHaveText(
+    // The extension renders inside a sandboxed plugin iframe, not in the parent page.
+    const frame = page.frameLocator('iframe[title="Plugin e2e-ui-extension"]');
+    await expect(frame.locator('[data-testid="e2e-ui-extension"]')).toHaveText(
         'E2E UI extension loaded',
         {timeout: 15_000},
     );
