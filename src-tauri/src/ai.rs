@@ -372,6 +372,14 @@ async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String
         return Vec::new();
     };
 
+    fetch_custom_openai_models_with_client(&client, base_url, api_key).await
+}
+
+async fn fetch_custom_openai_models_with_client(
+    client: &Client,
+    base_url: &str,
+    api_key: &str,
+) -> Vec<String> {
     let url = build_api_url(base_url, "/models");
 
     let mut request = client.get(&url);

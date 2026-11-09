@@ -184,6 +184,11 @@ fn success(provider: &str) -> serde_json::Value {
 
 #[tokio::test]
 async fn custom_openai_discovers_models_with_optional_authentication() {
+    let client = Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .unwrap();
     for key in ["", "fixture-key"] {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/v1/", listener.local_addr().unwrap());
@@ -198,7 +203,10 @@ async fn custom_openai_discovers_models_with_optional_authentication() {
             headers
         });
 
-        assert_eq!(fetch_custom_openai_models(&url, key).await, ["local-model"]);
+        assert_eq!(
+            fetch_custom_openai_models_with_client(&client, &url, key).await,
+            ["local-model"]
+        );
         let headers = request.join().unwrap().to_ascii_lowercase();
         assert!(headers.starts_with("get /v1/models "));
         if key.is_empty() {
