@@ -108,6 +108,24 @@ export interface SqlitePathRequest {
     readonly path: string;
 }
 
+export interface OpenDataFileRequest {
+    /** Desktop-only source path. */
+    filePath?: string;
+    /** Browser-only opaque upload token. */
+    uploadToken?: string;
+    /** Name for the workspace connection when this call creates it. */
+    workspaceName: string;
+}
+
+/** A data file exposed as a table of the data file workspace connection. */
+export interface OpenedDataFile {
+    connectionId: string;
+    /** Id of the driver behind the workspace connection. */
+    driver: string;
+    table: string;
+    format: string;
+}
+
 /**
  * A local theme archive. Desktop sends a host path from the native dialog;
  * browsers send either an upload token (purpose {@link THEME_PACKAGE_UPLOAD_PURPOSE})
@@ -595,6 +613,8 @@ export interface CommandMap {
     >;
     create_sqlite_file: CommandDefinition<SqlitePathRequest, string, 'local-admin'>;
     create_sqlite_database: CommandDefinition<SqlitePathRequest, SavedConnection, 'local-admin'>;
+    // The workspace is a file-backed database whose SQL can read host files.
+    open_data_file: CommandDefinition<OpenDataFileRequest, OpenedDataFile, 'local-admin'>;
     get_installation_source: CommandDefinition<undefined, string | null, 'local-admin'>;
     // MCP client status and installation operate on host configuration files or
     // local client CLIs, so browsers may use them only in local-admin Web mode.

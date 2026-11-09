@@ -3110,5 +3110,22 @@
     "groups": { "builtin": "Integriert · offline", "installed": "Installierte Pakete", "personal": "Persönliche Designs" }, "modes": { "light": "Hell", "dark": "Dunkel", "high-contrast": "Hoher Kontrast" },
     "importErrors": { "unrecognized": "Kein erkanntes VS-Code-Design.", "modeRequired": "Modus auswählen und Vorschau erneut öffnen.", "includeOnly": "Reine Include-Designs sind nicht importierbar. Die tatsächlichen Farben bereitstellen.", "noSupportedData": "Keine unterstützten Farben oder SQL-Tokenregeln gefunden.", "invalidColor": "Ungültiger Wert einer unterstützten Farbe.", "invalidRules": "Ungültige oder zu viele Tokenregeln." },
     "diagnostics": { "unsupportedKey": "Nicht unterstütztes Feld", "unsupportedColor": "Nicht unterstützte Farbe", "unsupportedScope": "Nicht unterstützter Bereich", "scopeApproximation": "Angenäherte SQL-Zuordnung", "unsupportedStyle": "Nicht unterstützter Stil", "ignoredInclude": "Include nicht geladen", "ignoredSemanticTokens": "Semantische Tokens ignoriert", "unsupportedReference": "Externe Referenz nicht geladen", "unsupportedSetting": "Nicht unterstützte Einstellung", "tokenAlphaFlattened": "Token-Deckkraft gegen den Basishintergrund berechnet", "modeApproximation": "Modus überschrieben oder angenähert", "diagnosticsTruncated": "Weitere Diagnosen ausgelassen" }
+  },
+  "dataFiles": {
+    "workspaceName": "Datendateien",
+    "open": "Datendatei öffnen",
+    "openMenu": "Datendatei öffnen…",
+    "subtitle": "Eine CSV-, TSV-, JSON-, NDJSON- oder Parquet-Datei als Tabelle abfragen",
+    "fileFilter": "Datendateien",
+    "files": "Zu öffnende Dateien",
+    "pluginRequired": "Diese Dateien werden mit dem Plugin {{plugin}} geöffnet. Installiere oder aktualisiere es, um sie als Tabellen abzufragen.",
+    "installing": "Plugin {{plugin}} wird installiert…",
+    "opening": "Wird geöffnet…",
+    "failed": "Die Datei konnte nicht geöffnet werden.",
+    "unsupported": "Keine unterstützte Datendatei: {{files}}",
+    "pluginCannotOpen": "Das installierte Plugin kann {{files}} nicht öffnen. Aktualisiere es unter Einstellungen, Plugins.",
+    "installAndOpen": "Installieren und öffnen",
+    "dropTitle": "Ablegen, um als Tabelle zu öffnen",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

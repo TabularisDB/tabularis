@@ -3052,5 +3052,22 @@
     "groups": { "builtin": "内置 · 离线", "installed": "已安装主题包", "personal": "个人主题" }, "modes": { "light": "浅色", "dark": "深色", "high-contrast": "高对比度" },
     "importErrors": { "unrecognized": "无法识别此 VS Code 主题。", "modeRequired": "请选择模式，然后重新预览。", "includeOnly": "无法导入仅含 include 的主题。请提供实际颜色数据。", "noSupportedData": "未找到支持的颜色或 SQL 词法规则。", "invalidColor": "某个支持的颜色值无效。", "invalidRules": "词法规则无效或过多。" },
     "diagnostics": { "unsupportedKey": "不支持的字段", "unsupportedColor": "不支持的颜色", "unsupportedScope": "不支持的作用域", "scopeApproximation": "近似 SQL 作用域映射", "unsupportedStyle": "不支持的样式", "ignoredInclude": "未加载 include", "ignoredSemanticTokens": "已忽略语义词法标记", "unsupportedReference": "未加载外部引用", "unsupportedSetting": "不支持的设置", "tokenAlphaFlattened": "词法标记不透明度按基础背景计算", "modeApproximation": "模式已覆盖或近似转换", "diagnosticsTruncated": "已省略其他诊断信息" }
+  },
+  "dataFiles": {
+    "workspaceName": "数据文件",
+    "open": "打开数据文件",
+    "openMenu": "打开数据文件…",
+    "subtitle": "将 CSV、TSV、JSON、NDJSON 或 Parquet 文件作为表查询",
+    "fileFilter": "数据文件",
+    "files": "要打开的文件",
+    "pluginRequired": "这些文件通过 {{plugin}} 插件打开。请安装或更新该插件，以便将它们作为表查询。",
+    "installing": "正在安装 {{plugin}} 插件…",
+    "opening": "正在打开…",
+    "failed": "无法打开该文件。",
+    "unsupported": "不支持的数据文件：{{files}}",
+    "pluginCannotOpen": "已安装的插件无法打开 {{files}}。请在“设置”的“插件”中更新。",
+    "installAndOpen": "安装并打开",
+    "dropTitle": "松开以作为表打开",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

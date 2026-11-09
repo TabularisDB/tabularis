@@ -3261,5 +3261,22 @@
         "copyMetadata": "複製中繼資料",
         "copied": "已複製到剪貼簿",
         "copyFailed": "無法複製到剪貼簿，請再試一次。"
+    },
+    "dataFiles": {
+        "workspaceName": "資料檔案",
+        "open": "開啟資料檔案",
+        "openMenu": "開啟資料檔案…",
+        "subtitle": "將 CSV、TSV、JSON、NDJSON 或 Parquet 檔案當作資料表查詢",
+        "fileFilter": "資料檔案",
+        "files": "要開啟的檔案",
+        "pluginRequired": "這些檔案透過 {{plugin}} 外掛開啟。請安裝或更新該外掛，以便將它們當作資料表查詢。",
+        "installing": "正在安裝 {{plugin}} 外掛…",
+        "opening": "正在開啟…",
+        "failed": "無法開啟該檔案。",
+        "unsupported": "不支援的資料檔案：{{files}}",
+        "pluginCannotOpen": "已安裝的外掛無法開啟 {{files}}。請在「設定」的「外掛」中更新。",
+        "installAndOpen": "安裝並開啟",
+        "dropTitle": "放開以當作資料表開啟",
+        "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
     }
 }

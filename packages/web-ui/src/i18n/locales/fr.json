@@ -3189,5 +3189,22 @@
     "groups": { "builtin": "Intégrés · hors ligne", "installed": "Paquets installés", "personal": "Thèmes personnels" }, "modes": { "light": "Clair", "dark": "Sombre", "high-contrast": "Contraste élevé" },
     "importErrors": { "unrecognized": "Thème VS Code non reconnu.", "modeRequired": "Choisissez un mode puis relancez l’aperçu.", "includeOnly": "Les thèmes composés uniquement d’includes ne sont pas importables. Fournissez les couleurs réelles.", "noSupportedData": "Aucune couleur ou règle SQL prise en charge.", "invalidColor": "Valeur incorrecte pour une couleur prise en charge.", "invalidRules": "Règles de jetons incorrectes ou trop nombreuses." },
     "diagnostics": { "unsupportedKey": "Champ non pris en charge", "unsupportedColor": "Couleur non prise en charge", "unsupportedScope": "Portée non prise en charge", "scopeApproximation": "Correspondance SQL approximative", "unsupportedStyle": "Style non pris en charge", "ignoredInclude": "Include non chargé", "ignoredSemanticTokens": "Jetons sémantiques ignorés", "unsupportedReference": "Référence externe non chargée", "unsupportedSetting": "Réglage non pris en charge", "tokenAlphaFlattened": "Opacité des jetons calculée sur le fond de base", "modeApproximation": "Mode remplacé ou approximatif", "diagnosticsTruncated": "Diagnostics supplémentaires omis" }
+  },
+  "dataFiles": {
+    "workspaceName": "Fichiers de données",
+    "open": "Ouvrir un fichier de données",
+    "openMenu": "Ouvrir un fichier de données…",
+    "subtitle": "Interroger un fichier CSV, TSV, JSON, NDJSON ou Parquet comme une table",
+    "fileFilter": "Fichiers de données",
+    "files": "Fichiers à ouvrir",
+    "pluginRequired": "Ces fichiers s'ouvrent avec le plugin {{plugin}}. Installez-le ou mettez-le à jour pour les interroger comme des tables.",
+    "installing": "Installation du plugin {{plugin}}…",
+    "opening": "Ouverture…",
+    "failed": "Impossible d'ouvrir le fichier.",
+    "unsupported": "Fichier de données non pris en charge : {{files}}",
+    "pluginCannotOpen": "Le plugin installé ne peut pas ouvrir {{files}}. Mettez-le à jour dans Paramètres, Plugins.",
+    "installAndOpen": "Installer et ouvrir",
+    "dropTitle": "Déposez pour ouvrir comme une table",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

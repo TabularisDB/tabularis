@@ -3066,5 +3066,22 @@
     "groups": { "builtin": "기본 제공 · 오프라인", "installed": "설치된 패키지", "personal": "개인 테마" }, "modes": { "light": "밝게", "dark": "어둡게", "high-contrast": "고대비" },
     "importErrors": { "unrecognized": "인식할 수 없는 VS Code 테마입니다.", "modeRequired": "모드를 선택한 뒤 다시 미리 보세요.", "includeOnly": "include만 있는 테마는 가져올 수 없습니다. 실제 색상을 제공하세요.", "noSupportedData": "지원되는 색상 또는 SQL 토큰 규칙이 없습니다.", "invalidColor": "지원되는 색상의 값이 잘못되었습니다.", "invalidRules": "토큰 규칙이 잘못되었거나 너무 많습니다." },
     "diagnostics": { "unsupportedKey": "지원되지 않는 필드", "unsupportedColor": "지원되지 않는 색상", "unsupportedScope": "지원되지 않는 범위", "scopeApproximation": "근사 SQL 범위 매핑", "unsupportedStyle": "지원되지 않는 스타일", "ignoredInclude": "include를 불러오지 않음", "ignoredSemanticTokens": "의미 토큰 무시됨", "unsupportedReference": "외부 참조를 불러오지 않음", "unsupportedSetting": "지원되지 않는 설정", "tokenAlphaFlattened": "토큰 불투명도를 기본 배경에 합성", "modeApproximation": "모드 재정의 또는 근사 변환", "diagnosticsTruncated": "추가 진단 생략됨" }
+  },
+  "dataFiles": {
+    "workspaceName": "데이터 파일",
+    "open": "데이터 파일 열기",
+    "openMenu": "데이터 파일 열기…",
+    "subtitle": "CSV, TSV, JSON, NDJSON 또는 Parquet 파일을 테이블로 쿼리합니다",
+    "fileFilter": "데이터 파일",
+    "files": "열 파일",
+    "pluginRequired": "이 파일은 {{plugin}} 플러그인으로 엽니다. 테이블로 쿼리하려면 플러그인을 설치하거나 업데이트하세요.",
+    "installing": "{{plugin}} 플러그인 설치 중…",
+    "opening": "여는 중…",
+    "failed": "파일을 열 수 없습니다.",
+    "unsupported": "지원하지 않는 데이터 파일: {{files}}",
+    "pluginCannotOpen": "설치된 플러그인으로는 {{files}}을(를) 열 수 없습니다. 설정의 플러그인에서 업데이트하세요.",
+    "installAndOpen": "설치 후 열기",
+    "dropTitle": "놓아서 테이블로 열기",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

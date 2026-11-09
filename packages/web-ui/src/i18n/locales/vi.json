@@ -3186,5 +3186,22 @@
     "modes": { "light": "Sáng", "dark": "Tối", "high-contrast": "Tương phản cao" },
     "importErrors": { "unrecognized": "Không phải theme VS Code hợp lệ.", "modeRequired": "Hãy chọn chế độ cụ thể, rồi xem trước lại.", "includeOnly": "Không thể nhập theme chỉ gồm include. Hãy cung cấp màu thực tế.", "noSupportedData": "Không tìm thấy màu hoặc quy tắc token SQL nào được hỗ trợ.", "invalidColor": "Một màu được hỗ trợ có giá trị không hợp lệ.", "invalidRules": "Quy tắc token không hợp lệ hoặc quá nhiều." },
     "diagnostics": { "unsupportedKey": "Trường không được hỗ trợ", "unsupportedColor": "Màu không được hỗ trợ", "unsupportedScope": "Scope không được hỗ trợ", "scopeApproximation": "Ánh xạ scope SQL gần đúng", "unsupportedStyle": "Kiểu chữ không được hỗ trợ", "ignoredInclude": "Không tải include", "ignoredSemanticTokens": "Đã bỏ qua semantic token", "unsupportedReference": "Không tải tham chiếu bên ngoài", "unsupportedSetting": "Cài đặt không được hỗ trợ", "tokenAlphaFlattened": "Độ trong suốt của token đã được trộn sẵn với màu nền", "modeApproximation": "Chế độ bị ghi đè hoặc lấy gần đúng", "diagnosticsTruncated": "Đã lược bớt các chẩn đoán khác" }
+  },
+  "dataFiles": {
+    "workspaceName": "Tệp dữ liệu",
+    "open": "Mở tệp dữ liệu",
+    "openMenu": "Mở tệp dữ liệu…",
+    "subtitle": "Truy vấn tệp CSV, TSV, JSON, NDJSON hoặc Parquet như một bảng",
+    "fileFilter": "Tệp dữ liệu",
+    "files": "Tệp sẽ mở",
+    "pluginRequired": "Các tệp này được mở bằng plugin {{plugin}}. Hãy cài đặt hoặc cập nhật plugin để truy vấn chúng như các bảng.",
+    "installing": "Đang cài đặt plugin {{plugin}}…",
+    "opening": "Đang mở…",
+    "failed": "Không thể mở tệp.",
+    "unsupported": "Tệp dữ liệu không được hỗ trợ: {{files}}",
+    "pluginCannotOpen": "Plugin đã cài không thể mở {{files}}. Hãy cập nhật trong Cài đặt, Plugin.",
+    "installAndOpen": "Cài đặt và mở",
+    "dropTitle": "Thả để mở như một bảng",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

@@ -3131,5 +3131,22 @@
     "groups": { "builtin": "内蔵 · オフライン", "installed": "インストール済みパッケージ", "personal": "個人テーマ" }, "modes": { "light": "ライト", "dark": "ダーク", "high-contrast": "ハイコントラスト" },
     "importErrors": { "unrecognized": "VS Code テーマとして認識できません。", "modeRequired": "モードを選択して再度プレビューしてください。", "includeOnly": "include のみのテーマはインポートできません。実際の色データを指定してください。", "noSupportedData": "対応する色や SQL トークン規則がありません。", "invalidColor": "対応する色の値が無効です。", "invalidRules": "トークン規則が無効または多すぎます。" },
     "diagnostics": { "unsupportedKey": "非対応のフィールド", "unsupportedColor": "非対応の色", "unsupportedScope": "非対応のスコープ", "scopeApproximation": "近似的な SQL スコープ変換", "unsupportedStyle": "非対応のスタイル", "ignoredInclude": "include は読み込まれません", "ignoredSemanticTokens": "セマンティックトークンを無視", "unsupportedReference": "外部参照は読み込まれません", "unsupportedSetting": "非対応の設定", "tokenAlphaFlattened": "トークンの不透明度を基本背景に合成", "modeApproximation": "モードを上書きまたは近似", "diagnosticsTruncated": "追加の診断を省略" }
+  },
+  "dataFiles": {
+    "workspaceName": "データファイル",
+    "open": "データファイルを開く",
+    "openMenu": "データファイルを開く…",
+    "subtitle": "CSV、TSV、JSON、NDJSON、Parquet ファイルをテーブルとしてクエリします",
+    "fileFilter": "データファイル",
+    "files": "開くファイル",
+    "pluginRequired": "これらのファイルは {{plugin}} プラグインで開きます。テーブルとしてクエリするには、プラグインをインストールまたは更新してください。",
+    "installing": "{{plugin}} プラグインをインストールしています…",
+    "opening": "開いています…",
+    "failed": "ファイルを開けませんでした。",
+    "unsupported": "対応していないデータファイルです: {{files}}",
+    "pluginCannotOpen": "インストール済みのプラグインでは {{files}} を開けません。「設定」の「プラグイン」で更新してください。",
+    "installAndOpen": "インストールして開く",
+    "dropTitle": "ドロップしてテーブルとして開く",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

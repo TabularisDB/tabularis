@@ -3167,5 +3167,22 @@
     "groups": { "builtin": "Integrados · offline", "installed": "Pacotes instalados", "personal": "Temas pessoais" }, "modes": { "light": "Claro", "dark": "Escuro", "high-contrast": "Alto contraste" },
     "importErrors": { "unrecognized": "Tema do VS Code não reconhecido.", "modeRequired": "Escolha um modo e abra a prévia novamente.", "includeOnly": "Temas contendo apenas includes não podem ser importados. Forneça as cores reais.", "noSupportedData": "Nenhuma cor ou regra SQL compatível encontrada.", "invalidColor": "Uma cor compatível tem valor inválido.", "invalidRules": "Regras de tokens inválidas ou excessivas." },
     "diagnostics": { "unsupportedKey": "Campo não compatível", "unsupportedColor": "Cor não compatível", "unsupportedScope": "Escopo não compatível", "scopeApproximation": "Mapeamento SQL aproximado", "unsupportedStyle": "Estilo não compatível", "ignoredInclude": "Include não carregado", "ignoredSemanticTokens": "Tokens semânticos ignorados", "unsupportedReference": "Referência externa não carregada", "unsupportedSetting": "Configuração não compatível", "tokenAlphaFlattened": "Opacidade dos tokens calculada sobre o fundo base", "modeApproximation": "Modo substituído ou aproximado", "diagnosticsTruncated": "Diagnósticos adicionais omitidos" }
+  },
+  "dataFiles": {
+    "workspaceName": "Arquivos de dados",
+    "open": "Abrir arquivo de dados",
+    "openMenu": "Abrir arquivo de dados…",
+    "subtitle": "Consulte um arquivo CSV, TSV, JSON, NDJSON ou Parquet como uma tabela",
+    "fileFilter": "Arquivos de dados",
+    "files": "Arquivos a abrir",
+    "pluginRequired": "Estes arquivos são abertos com o plugin {{plugin}}. Instale-o ou atualize-o para consultá-los como tabelas.",
+    "installing": "Instalando o plugin {{plugin}}…",
+    "opening": "Abrindo…",
+    "failed": "Não foi possível abrir o arquivo.",
+    "unsupported": "Arquivo de dados não compatível: {{files}}",
+    "pluginCannotOpen": "O plugin instalado não consegue abrir {{files}}. Atualize-o em Configurações, Plugins.",
+    "installAndOpen": "Instalar e abrir",
+    "dropTitle": "Solte para abrir como tabela",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }
