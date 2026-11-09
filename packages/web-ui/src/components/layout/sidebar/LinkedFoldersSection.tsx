@@ -8,6 +8,7 @@ import {
     Folder,
     FolderOpen,
     FolderPlus,
+    GitBranch,
     Loader2,
     RefreshCw,
     X,
@@ -24,6 +25,7 @@ import {
     type LinkedListingState,
 } from '@/utils/linkedFolders';
 import type {LinkedFolderStatus} from '@/types/linkedFolders';
+import {LinkedFolderGitModal} from '@/components/modals/LinkedFolderGitModal';
 
 interface LinkedFoldersSectionProps {
     /** Open linked files by `folderId:relativePath`; `dirty` marks unsaved edits. */
@@ -46,6 +48,7 @@ export function LinkedFoldersSection({openFiles, onOpenFile}: LinkedFoldersSecti
     const unavailableReason = platform.negotiation.capabilities.linkLocalFolders;
 
     const [folders, setFolders] = useState<LinkedFolderStatus[]>([]);
+    const [gitFolder, setGitFolder] = useState<LinkedFolderStatus | null>(null);
     const [isLoading, setIsLoading] = useState(canLink);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -334,6 +337,22 @@ export function LinkedFoldersSection({openFiles, onOpenFile}: LinkedFoldersSecti
                                     </span>
                                 )}
                             </button>
+                            {isRoot && !unavailable && (
+                                <button
+                                    type="button"
+                                    className={iconButtonClassName}
+                                    aria-label={t('linkedGit.title')}
+                                    title={t('linkedGit.title')}
+                                    onClick={() =>
+                                        setGitFolder(
+                                            folders.find((folder) => folder.id === row.folderId) ??
+                                                null,
+                                        )
+                                    }
+                                >
+                                    <GitBranch size={12} aria-hidden="true" />
+                                </button>
+                            )}
                             {isRoot && (
                                 <button
                                     type="button"
@@ -352,6 +371,13 @@ export function LinkedFoldersSection({openFiles, onOpenFile}: LinkedFoldersSecti
                     );
                 })}
             </ul>
+            {gitFolder && (
+                <LinkedFolderGitModal
+                    key={gitFolder.id}
+                    folder={gitFolder}
+                    onClose={() => setGitFolder(null)}
+                />
+            )}
         </div>
     );
 }

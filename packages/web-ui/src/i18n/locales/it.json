@@ -3181,5 +3181,21 @@
     "groups": { "builtin": "Integrati · offline", "installed": "Pacchetti installati", "personal": "Temi personali" }, "modes": { "light": "Chiaro", "dark": "Scuro", "high-contrast": "Alto contrasto" },
     "importErrors": { "unrecognized": "Tema VS Code non riconosciuto.", "modeRequired": "Scegli una modalità e ripeti l'anteprima.", "includeOnly": "I temi con soli riferimenti include non sono importabili. Fornisci i colori effettivi.", "noSupportedData": "Nessun colore o regola SQL supportati.", "invalidColor": "Un colore supportato ha un valore non valido.", "invalidRules": "Regole dei token non valide o eccessive." },
     "diagnostics": { "unsupportedKey": "Campo non supportato", "unsupportedColor": "Colore non supportato", "unsupportedScope": "Ambito non supportato", "scopeApproximation": "Mappatura SQL approssimata", "unsupportedStyle": "Stile non supportato", "ignoredInclude": "Include non caricato", "ignoredSemanticTokens": "Token semantici ignorati", "unsupportedReference": "Riferimento esterno non caricato", "unsupportedSetting": "Impostazione non supportata", "tokenAlphaFlattened": "Opacità dei token calcolata sullo sfondo di base", "modeApproximation": "Modalità sostituita o approssimata", "diagnosticsTruncated": "Ulteriori diagnostiche omesse" }
+  },
+  "linkedGit": {
+    "title": "Esamina le modifiche Git",
+    "diskOnly": "I commit usano i file salvati su disco. Le bozze non salvate sono escluse. Saranno inclusi solo gli script selezionati ed esaminati.",
+    "desktopOnly": "Git per le cartelle SQL collegate è disponibile solo nell’app desktop.",
+    "refresh": "Aggiorna modifiche",
+    "commit": "Crea commit degli script selezionati",
+    "committed": "Commit {{commit}} creato.",
+    "renames": "M modificato · A aggiunto · D eliminato · ? non tracciato. Le rinomine appaiono come eliminazione e aggiunta; esamina entrambe.",
+    "empty": "Nessuno script SQL modificato.",
+    "files": "Script SQL modificati",
+    "include": "Includi {{path}} nel commit",
+    "review": "Esamina {{path}}",
+    "diff": "Differenze del file esaminato",
+    "choose": "Seleziona uno script per esaminarne le differenze prima di includerlo.",
+    "message": "Messaggio del commit"
   }
 }

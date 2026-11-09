@@ -3169,5 +3169,21 @@
     "groups": { "builtin": "内蔵 · オフライン", "installed": "インストール済みパッケージ", "personal": "個人テーマ" }, "modes": { "light": "ライト", "dark": "ダーク", "high-contrast": "ハイコントラスト" },
     "importErrors": { "unrecognized": "VS Code テーマとして認識できません。", "modeRequired": "モードを選択して再度プレビューしてください。", "includeOnly": "include のみのテーマはインポートできません。実際の色データを指定してください。", "noSupportedData": "対応する色や SQL トークン規則がありません。", "invalidColor": "対応する色の値が無効です。", "invalidRules": "トークン規則が無効または多すぎます。" },
     "diagnostics": { "unsupportedKey": "非対応のフィールド", "unsupportedColor": "非対応の色", "unsupportedScope": "非対応のスコープ", "scopeApproximation": "近似的な SQL スコープ変換", "unsupportedStyle": "非対応のスタイル", "ignoredInclude": "include は読み込まれません", "ignoredSemanticTokens": "セマンティックトークンを無視", "unsupportedReference": "外部参照は読み込まれません", "unsupportedSetting": "非対応の設定", "tokenAlphaFlattened": "トークンの不透明度を基本背景に合成", "modeApproximation": "モードを上書きまたは近似", "diagnosticsTruncated": "追加の診断を省略" }
+  },
+  "linkedGit": {
+    "title": "Gitの変更を確認",
+    "diskOnly": "コミットにはディスクに保存されたファイルを使用します。未保存の下書きは含まれません。確認してチェックしたスクリプトのみが対象です。",
+    "desktopOnly": "リンクしたSQLフォルダーのGit機能はデスクトップアプリでのみ利用できます。",
+    "refresh": "変更を更新",
+    "commit": "選択したスクリプトをコミット",
+    "committed": "コミット {{commit}} を作成しました。",
+    "renames": "M 変更 · A 追加 · D 削除 · ? 未追跡。名前変更は削除と追加として表示されるため、両方を確認してください。",
+    "empty": "変更されたSQLスクリプトはありません。",
+    "files": "変更されたSQLスクリプト",
+    "include": "{{path}} をコミットに含める",
+    "review": "{{path}} を確認",
+    "diff": "確認したファイルの差分",
+    "choose": "スクリプトを選択し、含める前に差分を確認してください。",
+    "message": "コミットメッセージ"
   }
 }
