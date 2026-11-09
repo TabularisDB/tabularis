@@ -12,6 +12,7 @@ import type {TabularisClient} from '@/api/client';
 import {API_VERSION} from '@/pluginApiVersion';
 import {isPluginApiCompatible} from '@/utils/pluginApiCompatibility';
 import {useSettings} from '@/hooks/useSettings';
+import {useDrivers} from '@/hooks/useDrivers';
 import {disposePluginExplainParsers, loadPluginExplainParsers} from '@/utils/pluginExplainLoader';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 
@@ -84,7 +85,9 @@ export const PluginSlotProvider = ({children}: PluginSlotProviderProps) => {
     const client = useTabularisClient();
     const [contributions, setContributions] = useState<SlotContribution[]>([]);
     const {settings} = useSettings();
-    const activeExternalDrivers = settings.activeExternalDrivers ?? [];
+    const {installedPlugins} = useDrivers();
+    const activeExternalDrivers =
+        settings.activeExternalDrivers ?? installedPlugins.map((plugin) => plugin.id);
     // Stable serialized key so the effect re-runs only when the enabled set changes.
     const enabledKey = [...activeExternalDrivers].sort().join(',');
     const loadedExplainFormatsRef = useRef<string[]>([]);

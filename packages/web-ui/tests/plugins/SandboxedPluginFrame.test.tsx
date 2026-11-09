@@ -67,6 +67,26 @@ describe('SandboxedPluginFrame lifecycle', () => {
         expect(mocks.close).toHaveBeenCalledTimes(1);
     });
 
+    it('restarts only the Google Sheets driver when its OAuth settings are synchronized', async () => {
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        await act(async () => {
+            await handlers['api.oauth.googleSync']();
+        });
+        expect(mocks.client.call).toHaveBeenCalledWith('restart_plugin_process', {
+            pluginId: 'google-sheets',
+        });
+    });
+
+    it('rejects OAuth synchronization from another plugin', async () => {
+        render(<SandboxedPluginFrame pluginId="other" module="ui/index.js" context={{}} />);
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        await expect(handlers['api.oauth.googleSync']()).rejects.toThrow(
+            'Google OAuth synchronization is only available to Google Sheets',
+        );
+        expect(mocks.client.call).not.toHaveBeenCalled();
+    });
+
     it('notifies the guest when the host close control or Escape dismisses its overlay', async () => {
         render(frame());
         await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
@@ -84,5 +104,26 @@ describe('SandboxedPluginFrame lifecycle', () => {
         });
         fireEvent.keyDown(window, {key: 'Escape'});
         expect(mocks.call).toHaveBeenCalledWith('ui.closeModal');
+    });
+
+    it('keeps a slot inside its host overlay while preserving the frame across guest modals', async () => {
+        const {container} = render(
+            <div data-testid="host-overlay" style={{position: 'fixed', zIndex: 100}}>
+                {frame()}
+            </div>,
+        );
+        const overlay = screen.getByTestId('host-overlay');
+        const iframe = overlay.querySelector('iframe');
+        expect(iframe).not.toBeNull();
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalledTimes(1));
+        act(() => handlers['ui.modal'](true));
+        expect(overlay.querySelector('iframe')).toBe(iframe);
+        expect(
+            overlay.contains(
+                screen.getByRole('button', {name: 'settings.plugins.closePluginOverlay'}),
+            ),
+        ).toBe(true);
+        expect(mocks.connect).toHaveBeenCalledTimes(1);
+        expect(container.contains(iframe)).toBe(true);
     });
 });

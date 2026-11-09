@@ -97,6 +97,9 @@ const guestApi = Object.freeze({
         };
         const setSettings = async (updates: Record<string, unknown>): Promise<void> => {
             for (const [key, value] of Object.entries(updates)) await setSetting(key, value);
+            if (pluginId === 'google-sheets' && Object.hasOwn(updates, 'access_token')) {
+                await callHost('api.oauth.googleSync');
+            }
         };
         return {getSetting, setSetting, setSettings};
     },

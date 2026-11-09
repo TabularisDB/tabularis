@@ -58,6 +58,18 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     const [height, setHeight] = useState(0);
     const [modalOpen, setModalOpen] = useState(false);
     const [frameRect, setFrameRect] = useState({left: 0, top: 0, width: 0});
+    const [portalRoot] = useState(() => document.createElement('div'));
+
+    useLayoutEffect(() => {
+        let parent = anchorRef.current?.parentElement ?? null;
+        while (parent && parent !== document.body) {
+            const style = getComputedStyle(parent);
+            if (style.position === 'fixed' && style.zIndex !== 'auto') break;
+            parent = parent.parentElement;
+        }
+        (parent ?? document.body).appendChild(portalRoot);
+        return () => portalRoot.remove();
+    }, [portalRoot]);
 
     useLayoutEffect(() => {
         const anchor = anchorRef.current;
@@ -191,6 +203,15 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                         },
                     };
                 });
+                return null;
+            },
+            'api.oauth.googleSync': async () => {
+                if (pluginId !== 'google-sheets') {
+                    throw new Error(
+                        'Google OAuth synchronization is only available to Google Sheets',
+                    );
+                }
+                await servicesRef.current.client.call('restart_plugin_process', {pluginId});
                 return null;
             },
             'api.openUrl': async (value: unknown) => {
@@ -371,7 +392,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 aria-hidden="true"
                 style={{width: '100%', height, pointerEvents: 'none'}}
             />
-            {createPortal(iframe, document.body)}
+            {createPortal(iframe, portalRoot)}
             {modalOpen &&
                 createPortal(
                     <button
@@ -384,7 +405,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     >
                         ×
                     </button>,
-                    document.body,
+                    portalRoot,
                 )}
         </>
     );

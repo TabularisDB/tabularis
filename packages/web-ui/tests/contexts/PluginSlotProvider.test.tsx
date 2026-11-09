@@ -11,6 +11,9 @@ const clientMock = vi.hoisted(() => ({
     call: vi.fn(),
     readPluginAsset: vi.fn(),
 }));
+const driverMock = vi.hoisted(() => ({installedPlugins: [] as {id: string}[]}));
+
+vi.mock('@/hooks/useDrivers', () => ({useDrivers: () => driverMock}));
 
 vi.mock('@/hooks/useTabularisClient', () => ({
     useTabularisClient: () => clientMock,
@@ -46,6 +49,27 @@ const renderWithSettings = (ui: React.ReactNode, value = settingsValue) =>
 describe('PluginSlotProvider', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        driverMock.installedPlugins = [];
+    });
+    it('loads installed extensions when the enabled preference is absent', async () => {
+        driverMock.installedPlugins = [{id: 'example-plugin'}];
+        clientMock.call.mockResolvedValue({
+            id: 'example-plugin',
+            ui_extensions: [{slot: 'sidebar.footer.actions', module: 'ui/index.js'}],
+        });
+        clientMock.readPluginAsset.mockRejectedValue(new Error('missing locale'));
+        let registry: PluginSlotRegistryType | undefined;
+        renderWithSettings(
+            <PluginSlotProvider>
+                <RegistryConsumer
+                    onRegistry={(value) => {
+                        registry = value;
+                    }}
+                />
+            </PluginSlotProvider>,
+            {...settingsValue, settings: {...DEFAULT_SETTINGS, activeExternalDrivers: undefined}},
+        );
+        await waitFor(() => expect(registry?.contributions).toHaveLength(1));
     });
     it('should provide a registry with no contributions initially', () => {
         let registry: PluginSlotRegistryType | undefined;
