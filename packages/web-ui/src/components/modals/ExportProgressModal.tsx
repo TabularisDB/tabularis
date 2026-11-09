@@ -11,6 +11,8 @@ interface ExportProgressModalProps {
     fileName: string;
     errorMessage?: string;
     warningMessage?: string;
+    /** Extra line under the row count, e.g. the written file's size. */
+    detailMessage?: string;
     onCancel: () => void;
     onClose: () => void;
 }
@@ -24,6 +26,7 @@ export const ExportProgressModal = ({
     fileName,
     errorMessage,
     warningMessage,
+    detailMessage,
 }: ExportProgressModalProps) => {
     const {t} = useTranslation();
 
@@ -81,6 +84,9 @@ export const ExportProgressModal = ({
                                         {rowsProcessed.toLocaleString()}
                                     </span>
                                 </p>
+                                {detailMessage && (
+                                    <p className="text-muted text-xs">{detailMessage}</p>
+                                )}
                                 {warningMessage && (
                                     <div className="mt-3 flex items-start gap-2 rounded border border-accent-warning/30 bg-accent-warning/10 px-3 py-2 text-left text-xs text-accent-warning">
                                         <AlertTriangle size={14} className="mt-0.5 shrink-0" />

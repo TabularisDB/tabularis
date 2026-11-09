@@ -20,6 +20,7 @@ mod productivity_tests;
 pub mod queries;
 pub mod query_sessions;
 pub mod records;
+pub mod table_transfers;
 pub mod themes;
 pub mod tunnels;
 pub mod ui_state;

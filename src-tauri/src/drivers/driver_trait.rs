@@ -188,6 +188,15 @@ pub struct DriverCapabilities {
     /// Defaults to `false`.
     #[serde(default)]
     pub readonly: bool,
+    /// Offers "Export table to SQL" on table nodes (#709). `None` (the
+    /// manifest omits it) means enabled; non-SQL plugins set `false`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table_export: Option<bool>,
+    /// Offers "Import table from SQL" on database and schema nodes (#709).
+    /// `None` means enabled; a `readonly` driver never imports, whatever
+    /// this says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table_import: Option<bool>,
     /// SQL dialect for the statement splitter / classifier, and for any
     /// other check that needs to distinguish "postgres-compatible" from
     /// "not." `None` when the manifest omits the field — deliberately NOT
@@ -1066,6 +1075,34 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<String, String> {
         Err("Fetching existing table DDL is not supported by this driver".into())
+    }
+
+    /// The table's approximate row count from the engine's own statistics,
+    /// shown when exporting a table (#709). Cheap: no table scan. `Ok(None)`
+    /// when the driver has no such estimate.
+    async fn get_approximate_row_count(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        Ok(None)
+    }
+
+    /// Renders complete `INSERT` statements for one batch of rows in the
+    /// driver's own dialect, for "Export table to SQL" (#709). `rows` are
+    /// positional and match `columns`, with values as the driver's own
+    /// `execute_query` returns them. `Ok(None)` asks the host to render the
+    /// batch itself from the driver's capabilities, which is what built-in
+    /// drivers and plugins without the RPC method get.
+    async fn render_insert_statements(
+        &self,
+        _table: &str,
+        _schema: Option<&str>,
+        _columns: &[String],
+        _rows: &[Vec<serde_json::Value>],
+    ) -> Result<Option<Vec<String>>, String> {
+        Ok(None)
     }
 
     async fn drop_index(

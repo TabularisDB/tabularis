@@ -259,11 +259,15 @@ enum DatabaseTransferRpcCommand {
     CancelDump,
     Import,
     CancelImport,
+    PreviewTableImport,
+    ImportTable,
+    CancelTableImport,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum GenericExportRpcCommand {
     ExportQuery,
+    ExportTable,
     CancelExport,
     ExportAiActivityJson,
     ExportAiActivityCsv,
@@ -407,6 +411,7 @@ enum MetadataRpcCommand {
     GetSchemas,
     GetTables,
     GetColumns,
+    GetApproximateRowCount,
     GetForeignKeys,
     GetIndexes,
     GetViews,
@@ -651,6 +656,28 @@ struct ImportDatabaseRequest {
     upload_token: String,
     schema: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExportTableRequest {
+    connection_id: String,
+    options: crate::application::table_transfers::TableExportOptions,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReadTableSqlHeaderRequest {
+    connection_id: String,
+    upload_token: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ImportTableRequest {
+    connection_id: String,
+    upload_token: String,
+    options: crate::application::table_transfers::TableImportOptions,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2236,6 +2263,9 @@ impl DatabaseTransferRpcCommand {
             "cancel_dump" => Self::CancelDump,
             "import_database" => Self::Import,
             "cancel_import" => Self::CancelImport,
+            "read_table_sql_header" => Self::PreviewTableImport,
+            "import_table_from_sql" => Self::ImportTable,
+            "cancel_table_import" => Self::CancelTableImport,
             _ => return None,
         })
     }
@@ -2245,6 +2275,7 @@ impl GenericExportRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
             "export_query_to_file" => Self::ExportQuery,
+            "export_table_to_sql" => Self::ExportTable,
             "cancel_export" => Self::CancelExport,
             "export_ai_activity_json" => Self::ExportAiActivityJson,
             "export_ai_activity_csv" => Self::ExportAiActivityCsv,
@@ -2257,7 +2288,8 @@ impl GenericExportRpcCommand {
     fn authorization(self) -> AuthorizationLevel {
         match self {
             Self::ExportQuery | Self::CancelExport => AuthorizationLevel::Database,
-            Self::ExportAiActivityJson
+            Self::ExportTable
+            | Self::ExportAiActivityJson
             | Self::ExportAiActivityCsv
             | Self::ExportAiSessionAsNotebook
             | Self::ExportLogs => AuthorizationLevel::Sensitive,
@@ -2484,6 +2516,7 @@ impl MetadataRpcCommand {
             "get_schemas" => Self::GetSchemas,
             "get_tables" => Self::GetTables,
             "get_columns" => Self::GetColumns,
+            "get_approximate_row_count" => Self::GetApproximateRowCount,
             "get_foreign_keys" => Self::GetForeignKeys,
             "get_indexes" => Self::GetIndexes,
             "get_views" => Self::GetViews,
@@ -2704,6 +2737,27 @@ fn decode_database_transfer_command(
                 connection_id: request.connection_id,
             }
         }
+        DatabaseTransferRpcCommand::PreviewTableImport => {
+            let request: ReadTableSqlHeaderRequest = decode_payload(body)?;
+            DatabaseTransferCommand::PreviewTableImport {
+                connection_id: request.connection_id,
+                upload_token: request.upload_token,
+            }
+        }
+        DatabaseTransferRpcCommand::ImportTable => {
+            let request: ImportTableRequest = decode_payload(body)?;
+            DatabaseTransferCommand::ImportTable {
+                connection_id: request.connection_id,
+                upload_token: request.upload_token,
+                options: request.options,
+            }
+        }
+        DatabaseTransferRpcCommand::CancelTableImport => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            DatabaseTransferCommand::CancelTableImport {
+                connection_id: request.connection_id,
+            }
+        }
     })
 }
 
@@ -2721,6 +2775,13 @@ fn decode_generic_export_command(
                 csv_delimiter: request.csv_delimiter,
                 database: request.database,
                 query_session_id: request.session_id,
+            }
+        }
+        GenericExportRpcCommand::ExportTable => {
+            let request: ExportTableRequest = decode_payload(body)?;
+            GenericExportCommand::ExportTable {
+                connection_id: request.connection_id,
+                options: request.options,
             }
         }
         GenericExportRpcCommand::CancelExport => {
@@ -3746,6 +3807,15 @@ fn decode_metadata_command(
         MetadataRpcCommand::GetColumns => {
             let request: TableMetadataRequest = decode_payload(body)?;
             MetadataCommand::GetColumns {
+                connection_id: request.connection_id,
+                table_name: request.table_name,
+                schema: request.schema,
+                database: request.database,
+            }
+        }
+        MetadataRpcCommand::GetApproximateRowCount => {
+            let request: TableMetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetApproximateRowCount {
                 connection_id: request.connection_id,
                 table_name: request.table_name,
                 schema: request.schema,
