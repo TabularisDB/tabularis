@@ -160,6 +160,26 @@ mod tests {
         assert_eq!(parsed.connect_timeout_secs, None);
     }
 
+    #[test]
+    fn query_timeout_round_trips_and_stays_absent_when_none() {
+        let with_timeout = ConnectionParams {
+            driver: "postgres".to_string(),
+            query_timeout_secs: Some(120),
+            ..ConnectionParams::default()
+        };
+        let json = serde_json::to_value(&with_timeout).unwrap();
+        assert_eq!(json["query_timeout_secs"], 120);
+        let back: ConnectionParams = serde_json::from_value(json).unwrap();
+        assert_eq!(back.query_timeout_secs, Some(120));
+
+        let json = serde_json::to_value(ConnectionParams::default()).unwrap();
+        assert!(json.get("query_timeout_secs").is_none());
+
+        let legacy = serde_json::json!({"driver": "postgres", "database": "appdb"});
+        let parsed: ConnectionParams = serde_json::from_value(legacy).unwrap();
+        assert_eq!(parsed.query_timeout_secs, None);
+    }
+
     #[cfg(unix)]
     #[test]
     fn write_private_file_creates_mode_0600_with_the_given_content() {

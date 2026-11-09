@@ -4,7 +4,7 @@ mod tests {
     use crate::pool_manager::{
         build_connection_key, build_mysql_options, connect_timeout, connection_pool_prefix,
         format_error_chain, is_pipes_as_concat_unsupported, mysql_connect_timeout,
-        postgres_pool_max_size_from_value, postgres_startup_script_timeout,
+        postgres_pool_max_size_from_value, postgres_startup_script_timeout, query_timeout,
         remove_pools_with_prefix, with_connect_timeout, DEFAULT_POSTGRES_POOL_MAX_SIZE,
     };
     use std::time::Duration;
@@ -352,6 +352,31 @@ mod tests {
 
         params.connect_timeout_secs = Some(7);
         assert_eq!(connect_timeout(&params), Some(Duration::from_secs(7)));
+    }
+
+    #[test]
+    fn query_timeout_is_unset_for_none_and_zero() {
+        let mut params = connection_params("postgres", None);
+        assert_eq!(query_timeout(&params), None);
+
+        params.query_timeout_secs = Some(0);
+        assert_eq!(query_timeout(&params), None);
+
+        params.query_timeout_secs = Some(30);
+        assert_eq!(query_timeout(&params), Some(Duration::from_secs(30)));
+    }
+
+    #[test]
+    fn query_timeout_does_not_split_the_pool() {
+        let unset = connection_params("postgres", None);
+        let mut limited = unset.clone();
+        limited.query_timeout_secs = Some(30);
+
+        // Enforced per statement on the client, so both share one pool.
+        assert_eq!(
+            build_connection_key(&unset, Some("conn-1")),
+            build_connection_key(&limited, Some("conn-1"))
+        );
     }
 
     #[test]

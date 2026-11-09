@@ -1400,6 +1400,8 @@
     "selectTypeFirst": "Hãy chọn context/namespace/loại trước",
     "useK8s": "Dùng Kubernetes Port-Forward",
     "useK8sConnection": "Kết nối đã lưu",
+    "queryTimeout": "Thời gian chờ truy vấn (giây)",
+    "queryTimeoutHint": "Dừng truy vấn trên máy chủ khi nó chạy quá thời gian này. Để trống để không giới hạn.",
     "startupScript": "Script khởi động",
     "startupScriptDescription": "Câu lệnh SQL chạy mỗi khi mở kết nối mới tới nguồn dữ liệu này. Dùng cho các thiết lập phiên như SET / set_config (ví dụ bỏ qua RLS). Phân tách các câu lệnh bằng dấu chấm phẩy.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",

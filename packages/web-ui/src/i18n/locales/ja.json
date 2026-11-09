@@ -1353,6 +1353,8 @@
     "selectTypeFirst": "先にコンテキスト/ネームスペース/タイプを選択してください",
     "useK8s": "Kubernetes ポートフォワードを使用",
     "useK8sConnection": "保存された接続",
+    "queryTimeout": "クエリタイムアウト（秒）",
+    "queryTimeoutHint": "クエリの実行がこの時間を超えるとサーバー上で停止します。空欄の場合は制限なしです。",
     "startupScript": "起動スクリプト",
     "startupScriptDescription": "このデータソースへの新規接続ごとに実行される SQL です。SET / set_config（例: RLS のバイパス）などのセッション設定に使用します。複数のステートメントはセミコロンで区切ってください。",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",

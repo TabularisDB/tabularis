@@ -136,6 +136,12 @@ pub struct DriverCapabilities {
     /// SQL-compatible drivers and hides the entry for the others.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub column_stats: bool,
+    /// Honours `ConnectionParams::query_timeout_secs`: the driver stops a
+    /// statement on the server once the limit passes. Omitted/false hides the
+    /// query-timeout field in the connection modal. Built-in PostgreSQL sets
+    /// this; plugins opt in via their manifest. Defaults to `false`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub query_timeout: bool,
     // DDL capabilities
     /// Supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables.
     #[serde(default)]

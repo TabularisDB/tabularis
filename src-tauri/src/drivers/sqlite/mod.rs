@@ -1068,6 +1068,7 @@ impl SqliteDriver {
                     column_comments: false,
                     drop_table_sql: false,
                     column_stats: false,
+                    query_timeout: false,
                     alter_column: false,
                     create_foreign_keys: false,
                     no_connection_required: false,

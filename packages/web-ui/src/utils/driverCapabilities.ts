@@ -64,6 +64,11 @@ export function supportsColumnStatsRpc(capabilities?: DriverCapabilities | null)
     return capabilities?.column_stats === true;
 }
 
+/** The driver honours query_timeout_secs (stops the statement on the server). */
+export function supportsQueryTimeout(capabilities?: DriverCapabilities | null): boolean {
+    return capabilities?.query_timeout === true;
+}
+
 export function findDriverManifest(
     driverId: string,
     drivers: PluginManifest[],

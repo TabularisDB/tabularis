@@ -6,6 +6,7 @@ import {
     supportsColumnComments,
     supportsPluginDropTableSql,
     supportsExplain,
+    supportsQueryTimeout,
     supportsInMemoryDatabase,
     findDriverManifest,
     getCapabilitiesForDriver,
@@ -176,6 +177,24 @@ describe('driverCapabilities', () => {
 
         it('should return false when capabilities are undefined', () => {
             expect(supportsExplain(undefined)).toBe(false);
+        });
+    });
+
+    describe('supportsQueryTimeout', () => {
+        it('should return true when query_timeout is true', () => {
+            expect(supportsQueryTimeout(makeCapabilities({query_timeout: true}))).toBe(true);
+        });
+
+        it('should return false when query_timeout is false', () => {
+            expect(supportsQueryTimeout(makeCapabilities({query_timeout: false}))).toBe(false);
+        });
+
+        it('should return false when query_timeout is not set (default false)', () => {
+            expect(supportsQueryTimeout(makeCapabilities())).toBe(false);
+        });
+
+        it('should return false when capabilities are null', () => {
+            expect(supportsQueryTimeout(null)).toBe(false);
         });
     });
 
