@@ -90,23 +90,29 @@ describe('ExplainSnapshotsModal', () => {
         expect(screen.getByText('Initial baseline')).toBeInTheDocument();
         expect(screen.getByText('Pinned MySQL plan')).toBeInTheDocument();
 
-        // Save new snapshot
-        const input = screen.getByPlaceholderText(/Enter snapshot name/i);
+        // Dialog accessibility attributes
+        const dialog = screen.getByRole('dialog');
+        expect(dialog).toHaveAttribute('aria-modal', 'true');
+        expect(dialog).toHaveAttribute('aria-labelledby');
+
+        // Input accessible label
+        const input = screen.getByLabelText(/Snapshot name/i);
         fireEvent.change(input, {target: {value: 'My New Snapshot'}});
         fireEvent.click(screen.getByRole('button', {name: /Save Snapshot/i}));
 
         expect(onSaveCurrent).toHaveBeenCalledWith('My New Snapshot');
     });
 
-    it('handles baseline selection, pin toggle, and delete', () => {
+    it('handles baseline selection, pin toggle, and delete with accessible controls', () => {
         const onSelectBaseline = vi.fn();
         const onTogglePinSnapshot = vi.fn();
         const onDeleteSnapshot = vi.fn();
+        const onClose = vi.fn();
 
         render(
             <ExplainSnapshotsModal
                 isOpen={true}
-                onClose={vi.fn()}
+                onClose={onClose}
                 snapshots={mockSnapshots}
                 currentBaselineId="snap-1"
                 onSelectBaseline={onSelectBaseline}
@@ -120,14 +126,40 @@ describe('ExplainSnapshotsModal', () => {
         // Active baseline should show Selected
         expect(screen.getByText(/Selected/i)).toBeInTheDocument();
 
-        // Pin toggle on snap-1 (snap-1 is unpinned, title is "Pin")
-        const pinButton = screen.getByTitle('Pin');
+        // Pin toggle on snap-1 (snap-1 is unpinned, aria-label is "Pin")
+        const pinButton = screen.getByRole('button', {name: 'Pin'});
         fireEvent.click(pinButton);
         expect(onTogglePinSnapshot).toHaveBeenCalledWith('snap-1');
 
         // Delete snap-1
-        const deleteButtons = screen.getAllByTitle('Delete');
+        const deleteButtons = screen.getAllByRole('button', {name: 'Delete'});
         fireEvent.click(deleteButtons[0]);
         expect(onDeleteSnapshot).toHaveBeenCalledWith('snap-1');
+
+        // Close button
+        const closeButton = screen.getByRole('button', {name: 'Close'});
+        fireEvent.click(closeButton);
+        expect(onClose).toHaveBeenCalled();
+    });
+
+    it('supports escape key dismissal via shared Modal', () => {
+        const onClose = vi.fn();
+
+        render(
+            <ExplainSnapshotsModal
+                isOpen={true}
+                onClose={onClose}
+                snapshots={[]}
+                currentBaselineId={null}
+                onSelectBaseline={vi.fn()}
+                onSaveCurrent={vi.fn()}
+                onTogglePinSnapshot={vi.fn()}
+                onDeleteSnapshot={vi.fn()}
+                canSaveCurrent={false}
+            />,
+        );
+
+        fireEvent.keyDown(window, {key: 'Escape'});
+        expect(onClose).toHaveBeenCalled();
     });
 });

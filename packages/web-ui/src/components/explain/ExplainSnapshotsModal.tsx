@@ -1,8 +1,9 @@
-import {memo, useState} from 'react';
+import {memo, useState, useRef, useEffect, useId} from 'react';
 import {useTranslation} from 'react-i18next';
 import {type ExplainSnapshot, formatCost, formatTime} from '@tabularis/explain';
 import {Camera, Pin, PinOff, Trash2, X, Split, Calendar, Database} from 'lucide-react';
 import clsx from 'clsx';
+import {Modal} from '@/components/ui/Modal';
 
 interface ExplainSnapshotsModalProps {
     isOpen: boolean;
@@ -30,6 +31,22 @@ export const ExplainSnapshotsModal = memo(
     }: ExplainSnapshotsModalProps) => {
         const {t} = useTranslation();
         const [newSnapshotName, setNewSnapshotName] = useState('');
+        const titleId = useId();
+        const inputId = useId();
+        const containerRef = useRef<HTMLDivElement>(null);
+        const inputRef = useRef<HTMLInputElement>(null);
+
+        useEffect(() => {
+            if (!isOpen) return;
+            const previous = document.activeElement;
+            const initial = inputRef.current ?? containerRef.current;
+            initial?.focus();
+            return () => {
+                if (previous instanceof HTMLElement && previous.isConnected) {
+                    previous.focus();
+                }
+            };
+        }, [isOpen]);
 
         if (!isOpen) return null;
 
@@ -41,13 +58,49 @@ export const ExplainSnapshotsModal = memo(
         };
 
         return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden text-xs">
+            <Modal isOpen={isOpen} onClose={onClose} closeOnBackdrop>
+                {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the dialog owns its Tab focus trap; the rule exempts <dialog> but not role="dialog" */}
+                <div
+                    ref={containerRef}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby={titleId}
+                    tabIndex={-1}
+                    className="bg-elevated border border-strong rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden text-xs outline-none"
+                    onKeyDown={(event) => {
+                        if (event.key !== 'Tab') return;
+                        const controls = Array.from(
+                            containerRef.current?.querySelectorAll<HTMLElement>(
+                                'button, input, select, textarea, a[href], [tabindex]',
+                            ) ?? [],
+                        ).filter(
+                            (element) =>
+                                element.tabIndex >= 0 &&
+                                !element.matches(':disabled') &&
+                                !element.closest('[hidden], [inert], [aria-hidden="true"]') &&
+                                getComputedStyle(element).display !== 'none' &&
+                                getComputedStyle(element).visibility !== 'hidden',
+                        );
+                        const first = controls[0];
+                        const last = controls.at(-1);
+                        if (!first) {
+                            event.preventDefault();
+                            return;
+                        }
+                        if (event.shiftKey && document.activeElement === first) {
+                            event.preventDefault();
+                            last?.focus();
+                        } else if (!event.shiftKey && document.activeElement === last) {
+                            event.preventDefault();
+                            first.focus();
+                        }
+                    }}
+                >
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-default bg-base/40">
                         <div className="flex items-center gap-2">
                             <Camera size={16} className="text-accent" />
-                            <h2 className="font-semibold text-primary text-sm">
+                            <h2 id={titleId} className="font-semibold text-primary text-sm">
                                 {t(
                                     'editor.visualExplain.snapshotsTitle',
                                     'Plan Snapshots & Baselines',
@@ -57,7 +110,8 @@ export const ExplainSnapshotsModal = memo(
                         <button
                             type="button"
                             onClick={onClose}
-                            className="p-1 rounded text-secondary hover:text-primary hover:bg-surface-secondary"
+                            className="p-1 rounded text-secondary hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                            aria-label={t('common.close', 'Close')}
                             title={t('common.close', 'Close')}
                         >
                             <X size={16} />
@@ -70,7 +124,12 @@ export const ExplainSnapshotsModal = memo(
                             onSubmit={handleSave}
                             className="flex gap-2 p-4 border-b border-default bg-surface/30"
                         >
+                            <label htmlFor={inputId} className="sr-only">
+                                {t('editor.visualExplain.snapshotNameLabel', 'Snapshot name')}
+                            </label>
                             <input
+                                id={inputId}
+                                ref={inputRef}
                                 type="text"
                                 value={newSnapshotName}
                                 onChange={(e) => setNewSnapshotName(e.target.value)}
@@ -82,7 +141,7 @@ export const ExplainSnapshotsModal = memo(
                             />
                             <button
                                 type="submit"
-                                className="px-3 py-1.5 rounded bg-accent-primary hover:bg-accent-primary/90 text-inverse font-medium transition-colors"
+                                className="px-3 py-1.5 rounded bg-accent-primary hover:bg-accent-primary/90 text-inverse font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                             >
                                 {t('editor.visualExplain.saveSnapshot', 'Save Snapshot')}
                             </button>
@@ -135,7 +194,7 @@ export const ExplainSnapshotsModal = memo(
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-3 text-muted text-[11px] mt-1">
+                                            <div className="flex flex-wrap items-center gap-3 text-muted text-[11px] mt-1">
                                                 <span className="flex items-center gap-1">
                                                     <Calendar size={11} />
                                                     {new Date(snap.createdAt).toLocaleDateString()}
@@ -144,6 +203,25 @@ export const ExplainSnapshotsModal = memo(
                                                     <span className="flex items-center gap-1 font-mono uppercase">
                                                         <Database size={11} />
                                                         {snap.context.engine}
+                                                    </span>
+                                                )}
+                                                {snap.context?.connectionName && (
+                                                    <span
+                                                        className="truncate max-w-[120px]"
+                                                        title={snap.context.connectionName}
+                                                    >
+                                                        {snap.context.connectionName}
+                                                    </span>
+                                                )}
+                                                {(snap.context?.databaseName ||
+                                                    snap.context?.schema) && (
+                                                    <span className="font-mono text-[10px] text-muted">
+                                                        {[
+                                                            snap.context.databaseName,
+                                                            snap.context.schema,
+                                                        ]
+                                                            .filter(Boolean)
+                                                            .join('.')}
                                                     </span>
                                                 )}
                                                 {snap.totalCost != null && (
@@ -166,7 +244,7 @@ export const ExplainSnapshotsModal = memo(
                                                 type="button"
                                                 onClick={() => onSelectBaseline(snap)}
                                                 className={clsx(
-                                                    'flex items-center gap-1 px-2.5 py-1 rounded border transition-colors text-xs font-medium',
+                                                    'flex items-center gap-1 px-2.5 py-1 rounded border transition-colors text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
                                                     isBaseline
                                                         ? 'bg-accent-primary text-inverse border-accent-primary'
                                                         : 'bg-surface hover:bg-surface-secondary text-primary border-default',
@@ -189,7 +267,18 @@ export const ExplainSnapshotsModal = memo(
                                             <button
                                                 type="button"
                                                 onClick={() => onTogglePinSnapshot(snap.id)}
-                                                className="p-1 rounded text-secondary hover:text-primary hover:bg-surface-secondary"
+                                                className="p-1 rounded text-secondary hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                aria-label={
+                                                    snap.isPinned
+                                                        ? t(
+                                                              'editor.visualExplain.unpinSnapshot',
+                                                              'Unpin',
+                                                          )
+                                                        : t(
+                                                              'editor.visualExplain.pinSnapshot',
+                                                              'Pin',
+                                                          )
+                                                }
                                                 title={
                                                     snap.isPinned
                                                         ? t(
@@ -212,7 +301,8 @@ export const ExplainSnapshotsModal = memo(
                                             <button
                                                 type="button"
                                                 onClick={() => onDeleteSnapshot(snap.id)}
-                                                className="p-1 rounded text-secondary hover:text-accent-error hover:bg-surface-secondary"
+                                                className="p-1 rounded text-secondary hover:text-accent-error hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                aria-label={t('common.delete', 'Delete')}
                                                 title={t('common.delete', 'Delete')}
                                             >
                                                 <Trash2 size={14} />
@@ -224,7 +314,7 @@ export const ExplainSnapshotsModal = memo(
                         )}
                     </div>
                 </div>
-            </div>
+            </Modal>
         );
     },
 );

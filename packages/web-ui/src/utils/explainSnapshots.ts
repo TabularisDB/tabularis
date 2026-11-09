@@ -4,24 +4,20 @@ import type {ExplainPlan} from '@tabularis/explain';
 const SNAPSHOTS_STORAGE_KEY = 'tabularis_explain_snapshots';
 export const MAX_EXPLAIN_SNAPSHOTS = 50;
 
-function getStorage(): Storage | null {
-    if (typeof window === 'undefined') return null;
-    try {
-        return window.localStorage;
-    } catch {
-        return null;
+function getStorage(): Storage {
+    if (typeof window === 'undefined' || !window.localStorage) {
+        throw new Error('Local storage is not available');
     }
+    return window.localStorage;
 }
 
 /**
  * Load all saved EXPLAIN plan snapshots.
  */
 export function loadExplainSnapshots(): ExplainSnapshot[] {
-    const storage = getStorage();
-    if (!storage) return [];
-
     try {
-        const raw = storage.getItem(SNAPSHOTS_STORAGE_KEY);
+        if (typeof window === 'undefined' || !window.localStorage) return [];
+        const raw = window.localStorage.getItem(SNAPSHOTS_STORAGE_KEY);
         if (!raw) return [];
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed)) return [];
@@ -34,16 +30,11 @@ export function loadExplainSnapshots(): ExplainSnapshot[] {
 
 /**
  * Persist an array of snapshots to storage.
+ * Throws when storage is unavailable or quota is exceeded.
  */
 export function persistExplainSnapshots(snapshots: ExplainSnapshot[]): void {
     const storage = getStorage();
-    if (!storage) return;
-
-    try {
-        storage.setItem(SNAPSHOTS_STORAGE_KEY, JSON.stringify(snapshots));
-    } catch (e) {
-        console.error('Failed to save explain snapshots to storage:', e);
-    }
+    storage.setItem(SNAPSHOTS_STORAGE_KEY, JSON.stringify(snapshots));
 }
 
 /**

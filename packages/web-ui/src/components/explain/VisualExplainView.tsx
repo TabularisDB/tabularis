@@ -61,6 +61,10 @@ export interface VisualExplainViewProps {
     selectedNodeId: string | null;
     onSelectNode: (id: string | null) => void;
     aiEnabled: boolean;
+    connectionId?: string;
+    connectionName?: string;
+    databaseName?: string;
+    schemaName?: string;
 }
 
 /**
@@ -76,6 +80,10 @@ export const VisualExplainView = ({
     selectedNodeId,
     onSelectNode,
     aiEnabled,
+    connectionId,
+    connectionName,
+    databaseName,
+    schemaName,
 }: VisualExplainViewProps) => {
     const {t} = useTranslation();
     const editorTheme = useEditorTheme();
@@ -110,7 +118,13 @@ export const VisualExplainView = ({
             name: 'Current Plan',
             createdAt: new Date().toISOString(),
             sql: plan.original_query || '',
-            context: {engine: plan.driver},
+            context: {
+                engine: plan.driver,
+                connectionId,
+                connectionName,
+                databaseName,
+                schema: schemaName,
+            },
             hasAnalyzeData: plan.has_analyze_data,
             planningTimeMs: plan.planning_time_ms,
             executionTimeMs: plan.execution_time_ms,
@@ -127,32 +141,84 @@ export const VisualExplainView = ({
             baselineMetrics,
             metrics?.byId,
         );
-    }, [plan, baselineSnapshot, metrics]);
+    }, [plan, baselineSnapshot, metrics, connectionId, connectionName, databaseName, schemaName]);
 
     const handleSaveCurrentSnapshot = useCallback(
         (name: string) => {
             if (!plan) return;
-            saveExplainSnapshot(plan, name, {
-                engine: plan.driver,
-            });
-            setSnapshots(loadExplainSnapshots());
-            showToast(t('editor.visualExplain.snapshotSaved', 'Plan snapshot saved successfully'), {
-                kind: 'success',
-            });
+            try {
+                saveExplainSnapshot(plan, name, {
+                    engine: plan.driver,
+                    connectionId,
+                    connectionName,
+                    databaseName,
+                    schema: schemaName,
+                });
+                setSnapshots(loadExplainSnapshots());
+                showToast(
+                    t('editor.visualExplain.snapshotSaved', 'Plan snapshot saved successfully'),
+                    {
+                        kind: 'success',
+                    },
+                );
+            } catch (error) {
+                console.error('Failed to save explain snapshot:', error);
+                showToast(
+                    t(
+                        'editor.visualExplain.snapshotSaveFailed',
+                        'Failed to save plan snapshot: storage limit reached or unavailable',
+                    ),
+                    {
+                        kind: 'error',
+                    },
+                );
+            }
         },
-        [plan, showToast, t],
+        [plan, connectionId, connectionName, databaseName, schemaName, showToast, t],
     );
 
-    const handleDeleteSnapshot = useCallback((id: string) => {
-        const remaining = deleteExplainSnapshot(id);
-        setSnapshots(remaining);
-        setBaselineSnapshot((prev) => (prev?.id === id ? null : prev));
-    }, []);
+    const handleDeleteSnapshot = useCallback(
+        (id: string) => {
+            try {
+                const remaining = deleteExplainSnapshot(id);
+                setSnapshots(remaining);
+                setBaselineSnapshot((prev) => (prev?.id === id ? null : prev));
+            } catch (error) {
+                console.error('Failed to delete explain snapshot:', error);
+                showToast(
+                    t(
+                        'editor.visualExplain.snapshotDeleteFailed',
+                        'Failed to delete snapshot from storage',
+                    ),
+                    {
+                        kind: 'error',
+                    },
+                );
+            }
+        },
+        [showToast, t],
+    );
 
-    const handleTogglePinSnapshot = useCallback((id: string) => {
-        const updated = togglePinExplainSnapshot(id);
-        setSnapshots(updated);
-    }, []);
+    const handleTogglePinSnapshot = useCallback(
+        (id: string) => {
+            try {
+                const updated = togglePinExplainSnapshot(id);
+                setSnapshots(updated);
+            } catch (error) {
+                console.error('Failed to pin explain snapshot:', error);
+                showToast(
+                    t(
+                        'editor.visualExplain.snapshotPinFailed',
+                        'Failed to update snapshot pin state in storage',
+                    ),
+                    {
+                        kind: 'error',
+                    },
+                );
+            }
+        },
+        [showToast, t],
+    );
 
     const handleSelectBaseline = useCallback((snap: ExplainSnapshot) => {
         setBaselineSnapshot((prev) => (prev?.id === snap.id ? null : snap));

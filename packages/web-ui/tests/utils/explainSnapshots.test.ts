@@ -88,4 +88,39 @@ describe('explainSnapshots store', () => {
         expect(mysqlCompatible).toHaveLength(1);
         expect(mysqlCompatible[0].name).toBe('MySQL Snap');
     });
+
+    it('propagates QuotaExceededError and prevents corrupting persisted state when setItem fails', () => {
+        const plan = makeMockPlan();
+        const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            const err = new DOMException('Quota exceeded', 'QuotaExceededError');
+            throw err;
+        });
+
+        expect(() => {
+            saveExplainSnapshot(plan, 'Fail Snap', {engine: 'postgres'});
+        }).toThrow(/Quota exceeded/);
+
+        setItemSpy.mockRestore();
+        expect(loadExplainSnapshots()).toEqual([]);
+    });
+
+    it('propagates failure when pinning or deleting snapshots fails to persist', () => {
+        const plan = makeMockPlan();
+        const snap = saveExplainSnapshot(plan, 'Initial Snap', {engine: 'postgres'});
+        expect(loadExplainSnapshots()).toHaveLength(1);
+
+        const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            throw new DOMException('Storage unavailable', 'QuotaExceededError');
+        });
+
+        expect(() => {
+            togglePinExplainSnapshot(snap.id);
+        }).toThrow();
+
+        expect(() => {
+            deleteExplainSnapshot(snap.id);
+        }).toThrow();
+
+        setItemSpy.mockRestore();
+    });
 });
