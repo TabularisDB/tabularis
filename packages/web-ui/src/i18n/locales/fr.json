@@ -563,6 +563,27 @@
   "settings": {
     "title": "Paramètres",
     "general": "Général",
+    "snippets": {
+      "title": "Extraits SQL",
+      "subtitle": "Définissez des modèles SQL réutilisables avec préfixes de déclenchement et tabulations pour la saisie semi-automatique de Monaco.",
+      "add": "Nouvel extrait",
+      "createTitle": "Créer un extrait",
+      "editTitle": "Modifier l'extrait",
+      "nameLabel": "Nom de l'extrait",
+      "prefixLabel": "Préfixe déclencheur",
+      "dialectLabel": "Portée du dialecte",
+      "allDialects": "Tous les dialectes",
+      "descriptionLabel": "Description",
+      "bodyLabel": "Corps de l'extrait",
+      "tabStopHint": "Utilisez ${1:espace réservé} pour les taquets de tabulation",
+      "noSnippets": "Aucun extrait SQL configuré pour le moment.",
+      "invalidPrefix": "Le préfixe ne doit contenir que des lettres, chiffres, tirets bas et tirets",
+      "invalidBody": "Le corps de l'extrait ne peut pas être vide",
+      "namePlaceholder": "ex. Select Active Orders",
+      "prefixPlaceholder": "ex. selorders",
+      "descPlaceholder": "ex. Sélectionner les commandes en attente",
+      "duplicatePrefix": "Un extrait avec ce préfixe existe déjà pour cette portée de dialecte"
+    },
     "privacy": "Confidentialité",
     "network": {
       "tab": "Network",

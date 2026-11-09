@@ -534,6 +534,27 @@
   "settings": {
     "title": "Configurações",
     "general": "Geral",
+    "snippets": {
+      "title": "Snippets SQL",
+      "subtitle": "Defina modelos SQL reutilizáveis com prefixos de disparo e marcadores de posição de tabulação para o preenchimento automático do Monaco.",
+      "add": "Novo snippet",
+      "createTitle": "Criar snippet",
+      "editTitle": "Editar snippet",
+      "nameLabel": "Nome do snippet",
+      "prefixLabel": "Prefixo de ativação",
+      "dialectLabel": "Escopo do dialeto",
+      "allDialects": "Todos os dialetos",
+      "descriptionLabel": "Descrição",
+      "bodyLabel": "Corpo do snippet",
+      "tabStopHint": "Use ${1:marcador} para paradas de tabulação editáveis",
+      "noSnippets": "Nenhum snippet SQL configurado ainda.",
+      "invalidPrefix": "O prefixo deve conter apenas letras, números, sublinhados e hífens",
+      "invalidBody": "O corpo do snippet não pode ficar vazio",
+      "namePlaceholder": "ex.: Select Active Orders",
+      "prefixPlaceholder": "ex.: selorders",
+      "descPlaceholder": "ex.: Selecionar pedidos com status pendente",
+      "duplicatePrefix": "Já existe um snippet com este prefixo para este escopo de dialeto"
+    },
     "privacy": "Privacidade",
     "network": {
       "tab": "Network",

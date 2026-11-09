@@ -508,6 +508,27 @@
   "settings": {
     "title": "설정",
     "general": "일반",
+    "snippets": {
+      "title": "SQL 스니펫",
+      "subtitle": "Monaco 자동 완성을 위해 트리거 접두사와 탭 스톱 자리 표시자가 포함된 재사용 가능한 SQL 템플릿을 정의합니다.",
+      "add": "새 스니펫",
+      "createTitle": "스니펫 생성",
+      "editTitle": "스니펫 편집",
+      "nameLabel": "스니펫 이름",
+      "prefixLabel": "트리거 접두사",
+      "dialectLabel": "방언 범위",
+      "allDialects": "모든 방언",
+      "descriptionLabel": "설명",
+      "bodyLabel": "스니펫 본문",
+      "tabStopHint": "편집 가능한 탭 정지 위치에는 ${1:자리표시자}를 사용하세요",
+      "noSnippets": "구성된 SQL 스니펫이 없습니다.",
+      "invalidPrefix": "접두사에는 영숫자, 밑줄, 하이픈만 포함할 수 있습니다",
+      "invalidBody": "스니펫 본문은 비워둘 수 없습니다",
+      "namePlaceholder": "예: Select Active Orders",
+      "prefixPlaceholder": "예: selorders",
+      "descPlaceholder": "예: 대기 중인 주문 선택",
+      "duplicatePrefix": "이 방언 범위에 동일한 접두사를 가진 스니펫이 이미 존재합니다"
+    },
     "privacy": "개인 정보",
     "network": {
       "tab": "Network",

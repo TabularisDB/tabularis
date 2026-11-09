@@ -540,6 +540,27 @@
   "settings": {
     "title": "Настройки",
     "general": "Общие",
+    "snippets": {
+      "title": "SQL-сниппеты",
+      "subtitle": "Определяйте шаблоны SQL с префиксами автодополнения и плейсхолдерами табуляции для редактора Monaco.",
+      "add": "Новый сниппет",
+      "createTitle": "Создать сниппет",
+      "editTitle": "Редактировать сниппет",
+      "nameLabel": "Название сниппета",
+      "prefixLabel": "Префикс запуска",
+      "dialectLabel": "Диалект",
+      "allDialects": "Все диалекты",
+      "descriptionLabel": "Описание",
+      "bodyLabel": "Тело сниппета",
+      "tabStopHint": "Используйте ${1:плейсхолдер} для редактируемых точек табуляции",
+      "noSnippets": "SQL-сниппеты еще не настроены.",
+      "invalidPrefix": "Префикс должен содержать только буквы, цифры, знаки подчеркивания и дефисы",
+      "invalidBody": "Тело сниппета не может быть пустым",
+      "namePlaceholder": "напр. Select Active Orders",
+      "prefixPlaceholder": "напр. selorders",
+      "descPlaceholder": "напр. Выбрать активные заказы",
+      "duplicatePrefix": "Сниппет с таким префиксом уже существует для этого диалекта"
+    },
     "privacy": "Конфиденциальность",
     "network": {
       "tab": "Network",

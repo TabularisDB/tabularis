@@ -563,6 +563,27 @@
   "settings": {
     "title": "Settings",
     "general": "General",
+    "snippets": {
+      "title": "SQL Snippets",
+      "subtitle": "Define reusable SQL templates with trigger prefixes and tab-stop placeholders for Monaco autocomplete.",
+      "add": "New Snippet",
+      "createTitle": "Create Snippet",
+      "editTitle": "Edit Snippet",
+      "nameLabel": "Snippet Name",
+      "prefixLabel": "Trigger Prefix",
+      "dialectLabel": "Dialect Scope",
+      "allDialects": "All Dialects",
+      "descriptionLabel": "Description",
+      "bodyLabel": "Snippet Body",
+      "tabStopHint": "Use ${1:placeholder} for editable tab stops",
+      "noSnippets": "No SQL snippets configured yet.",
+      "invalidPrefix": "Prefix must contain only letters, numbers, underscores, and hyphens",
+      "invalidBody": "Snippet body cannot be empty",
+      "namePlaceholder": "e.g. Select Active Orders",
+      "prefixPlaceholder": "e.g. selorders",
+      "descPlaceholder": "e.g. Select orders with pending status",
+      "duplicatePrefix": "A snippet with this prefix already exists for this dialect scope"
+    },
     "privacy": "Privacy",
     "network": {
       "tab": "Network",

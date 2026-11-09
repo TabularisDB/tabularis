@@ -545,6 +545,27 @@
   "settings": {
     "title": "Einstellungen",
     "general": "Allgemein",
+    "snippets": {
+      "title": "SQL-Snippets",
+      "subtitle": "Definieren Sie wiederverwendbare SQL-Vorlagen mit Auslösepräfixen und Tab-Stopp-Platzhaltern für die Monaco-Autovervollständigung.",
+      "add": "Neues Snippet",
+      "createTitle": "Snippet erstellen",
+      "editTitle": "Snippet bearbeiten",
+      "nameLabel": "Snippet-Name",
+      "prefixLabel": "Auslösepräfix",
+      "dialectLabel": "Dialekt-Geltungsbereich",
+      "allDialects": "Alle Dialekte",
+      "descriptionLabel": "Beschreibung",
+      "bodyLabel": "Snippet-Text",
+      "tabStopHint": "Verwenden Sie ${1:Platzhalter} für bearbeitbare Tab-Stopps",
+      "noSnippets": "Noch keine SQL-Snippets konfiguriert.",
+      "invalidPrefix": "Das Präfix darf nur Buchstaben, Zahlen, Unterstriche und Bindestriche enthalten",
+      "invalidBody": "Der Snippet-Text darf nicht leer sein",
+      "namePlaceholder": "z. B. Select Active Orders",
+      "prefixPlaceholder": "z. B. selorders",
+      "descPlaceholder": "z. B. Bestellungen mit ausstehendem Status auswählen",
+      "duplicatePrefix": "Ein Snippet mit diesem Präfix existiert bereits für diesen Dialektbereich"
+    },
     "privacy": "Datenschutz",
     "network": {
       "tab": "Network",

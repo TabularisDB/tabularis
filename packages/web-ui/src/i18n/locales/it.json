@@ -577,6 +577,27 @@
   "settings": {
     "title": "Impostazioni",
     "general": "Generali",
+    "snippets": {
+      "title": "Snippet SQL",
+      "subtitle": "Definisci modelli SQL riutilizzabili con prefissi di attivazione e segnaposto tab-stop per il completamento automatico di Monaco.",
+      "add": "Nuovo snippet",
+      "createTitle": "Crea snippet",
+      "editTitle": "Modifica snippet",
+      "nameLabel": "Nome snippet",
+      "prefixLabel": "Prefisso trigger",
+      "dialectLabel": "Ambito dialetto",
+      "allDialects": "Tutti i dialetti",
+      "descriptionLabel": "Descrizione",
+      "bodyLabel": "Corpo dello snippet",
+      "tabStopHint": "Usa ${1:segnaposto} per tab-stop modificabili",
+      "noSnippets": "Nessuno snippet SQL configurato finora.",
+      "invalidPrefix": "Il prefisso deve contenere solo lettere, numeri, trattini bassi e trattini",
+      "invalidBody": "Il corpo dello snippet non può essere vuoto",
+      "namePlaceholder": "es. Select Active Orders",
+      "prefixPlaceholder": "es. selorders",
+      "descPlaceholder": "es. Seleziona ordini in stato di attesa",
+      "duplicatePrefix": "Uno snippet con questo prefisso esiste già per questo ambito di dialetto"
+    },
     "privacy": "Privacy",
     "network": {
       "tab": "Network",

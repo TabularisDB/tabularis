@@ -563,6 +563,27 @@
   "settings": {
     "title": "Mga Setting",
     "general": "Pangkalahatan",
+    "snippets": {
+      "title": "Mga SQL Snippet",
+      "subtitle": "Tukuyin ang magagamit muling mga template ng SQL na may mga trigger prefix at tab-stop placeholder para sa Monaco autocomplete.",
+      "add": "Bagong Snippet",
+      "createTitle": "Gumawa ng Snippet",
+      "editTitle": "I-edit ang Snippet",
+      "nameLabel": "Pangalan ng Snippet",
+      "prefixLabel": "Trigger Prefix",
+      "dialectLabel": "Saklaw ng Dialect",
+      "allDialects": "Lahat ng Dialect",
+      "descriptionLabel": "Paglalarawan",
+      "bodyLabel": "Katawan ng Snippet",
+      "tabStopHint": "Gamitin ang ${1:placeholder} para sa mae-edit na tab stops",
+      "noSnippets": "Wala pang na-configure na mga SQL snippet.",
+      "invalidPrefix": "Dapat maglaman lamang ang prefix ng mga titik, numero, underscore, at gitling",
+      "invalidBody": "Hindi maaaring walang laman ang katawan ng snippet",
+      "namePlaceholder": "hal. Select Active Orders",
+      "prefixPlaceholder": "hal. selorders",
+      "descPlaceholder": "hal. Piliin ang mga order na may pending na status",
+      "duplicatePrefix": "Mayroon nang snippet na may ganitong prefix para sa dialect scope na ito"
+    },
     "privacy": "Privacy",
     "network": {
       "tab": "Network",
