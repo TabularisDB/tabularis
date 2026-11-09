@@ -2566,7 +2566,10 @@
     "downloading": "ダウンロード中...",
     "uploading": "アップロード中...",
     "openSidebar": "エディタで開く",
-    "imagePreview": "画像プレビュー"
+    "imagePreview": "画像プレビュー",
+    "editAs": "編集形式",
+    "text": "テキスト",
+    "hex": "16進数"
   },
   "visualExplainPage": {
     "title": "ビジュアル Explain",

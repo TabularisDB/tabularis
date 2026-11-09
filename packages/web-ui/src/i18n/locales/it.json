@@ -2598,7 +2598,10 @@
     "downloading": "Download in corso...",
     "uploading": "Caricamento in corso...",
     "openSidebar": "Apri nell'editor",
-    "imagePreview": "Anteprima immagine"
+    "imagePreview": "Anteprima immagine",
+    "editAs": "Modifica come",
+    "text": "Testo",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",

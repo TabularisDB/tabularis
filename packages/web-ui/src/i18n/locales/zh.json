@@ -2491,7 +2491,10 @@
     "downloading": "下载中...",
     "uploading": "上传中...",
     "openSidebar": "在编辑器中打开",
-    "imagePreview": "图片预览"
+    "imagePreview": "图片预览",
+    "editAs": "编辑格式",
+    "text": "文本",
+    "hex": "十六进制"
   },
   "visualExplainPage": {
     "title": "可视化执行计划",

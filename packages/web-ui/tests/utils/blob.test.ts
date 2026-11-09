@@ -14,7 +14,9 @@ import {
     extractBase64Payload,
     blobPayloadToBytes,
     blobHexToWireFormat,
+    blobTextToWireFormat,
     blobValueToEditableHex,
+    blobValueToEditableText,
 } from '@/utils/blob';
 
 describe('blob utilities', () => {
@@ -287,6 +289,51 @@ describe('blob utilities', () => {
         it('should reject odd-length and non-hex input', () => {
             expect(blobHexToWireFormat('ABC')).toBeNull();
             expect(blobHexToWireFormat('GG')).toBeNull();
+        });
+    });
+
+    describe('inline text editing', () => {
+        const utf8Wire = (text: string, mimeType = 'application/octet-stream') => {
+            const bytes = new TextEncoder().encode(text);
+            return `BLOB:${bytes.length}:${mimeType}:${btoa(String.fromCharCode(...bytes))}`;
+        };
+
+        it('edits a BLOB the grid shows as text, multi-byte characters included', () => {
+            expect(blobValueToEditableText(utf8Wire('C:\\data\\Café ✓.txt'))).toBe(
+                'C:\\data\\Café ✓.txt',
+            );
+            expect(blobValueToEditableText(utf8Wire('two\nlines\tand a tab'))).toBe(
+                'two\nlines\tand a tab',
+            );
+            expect(blobValueToEditableText(utf8Wire(''))).toBe('');
+        });
+
+        it('encodes edited text as UTF-8 in the BLOB wire format', () => {
+            expect(blobTextToWireFormat('é')).toBe('BLOB:2:application/octet-stream:w6k=');
+            expect(blobTextToWireFormat('ab', 'application/x-custom')).toBe(
+                'BLOB:2:application/x-custom:YWI=',
+            );
+        });
+
+        it('writes the same bytes back when the text is saved unchanged', () => {
+            const wire = utf8Wire('/var/data/naïve résumé.pdf');
+            expect(blobTextToWireFormat(blobValueToEditableText(wire)!)).toBe(wire);
+        });
+
+        it('keeps binary, recognized, truncated and large BLOBs out of text editing', () => {
+            expect(
+                blobValueToEditableText(`BLOB:2:application/octet-stream:${btoa('\x00\x01')}`),
+            ).toBeNull();
+            expect(blobValueToEditableText(utf8Wire('test', 'application/pdf'))).toBeNull();
+            expect(
+                blobValueToEditableText(`BLOB:10241:application/octet-stream:${btoa('preview')}`),
+            ).toBeNull();
+            expect(blobValueToEditableText(utf8Wire('x'.repeat(10 * 1024 + 1)))).toBeNull();
+        });
+
+        it('keeps CRLF text and a byte order mark out of text editing so their bytes survive', () => {
+            expect(blobValueToEditableText(utf8Wire('a\r\nb'))).toBeNull();
+            expect(blobValueToEditableText(utf8Wire('\uFEFFwith a BOM'))).toBeNull();
         });
     });
 

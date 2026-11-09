@@ -2602,7 +2602,10 @@
     "downloading": "Baixando...",
     "uploading": "Enviando...",
     "openSidebar": "Abrir no editor",
-    "imagePreview": "Pré-visualização da imagem"
+    "imagePreview": "Pré-visualização da imagem",
+    "editAs": "Editar como",
+    "text": "Texto",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Explicação Visual",
