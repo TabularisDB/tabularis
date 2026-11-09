@@ -3100,5 +3100,11 @@
     "groups": { "builtin": "Integriert · offline", "installed": "Installierte Pakete", "personal": "Persönliche Designs" }, "modes": { "light": "Hell", "dark": "Dunkel", "high-contrast": "Hoher Kontrast" },
     "importErrors": { "unrecognized": "Kein erkanntes VS-Code-Design.", "modeRequired": "Modus auswählen und Vorschau erneut öffnen.", "includeOnly": "Reine Include-Designs sind nicht importierbar. Die tatsächlichen Farben bereitstellen.", "noSupportedData": "Keine unterstützten Farben oder SQL-Tokenregeln gefunden.", "invalidColor": "Ungültiger Wert einer unterstützten Farbe.", "invalidRules": "Ungültige oder zu viele Tokenregeln." },
     "diagnostics": { "unsupportedKey": "Nicht unterstütztes Feld", "unsupportedColor": "Nicht unterstützte Farbe", "unsupportedScope": "Nicht unterstützter Bereich", "scopeApproximation": "Angenäherte SQL-Zuordnung", "unsupportedStyle": "Nicht unterstützter Stil", "ignoredInclude": "Include nicht geladen", "ignoredSemanticTokens": "Semantische Tokens ignoriert", "unsupportedReference": "Externe Referenz nicht geladen", "unsupportedSetting": "Nicht unterstützte Einstellung", "tokenAlphaFlattened": "Token-Deckkraft gegen den Basishintergrund berechnet", "modeApproximation": "Modus überschrieben oder angenähert", "diagnosticsTruncated": "Weitere Diagnosen ausgelassen" }
+  },
+  "aiInline": {
+    "title": "KI-Inline-Vervollständigung",
+    "enable": "SQL-Vorschläge beim Tippen",
+    "privacy": "Standardmäßig deaktiviert. Verwendet den unten gewählten KI-Anbieter und das Modell, auch lokale Anbieter. Sendet bis zu 4.000 Zeichen vor dem Cursor, 1.000 danach und 8.000 Zeichen zwischengespeicherter Tabellen-/Schemanamen. SQL kann sensible Werte enthalten. Ergebniszeilen, Tabellenkommentare und Zugangsdaten werden nie hinzugefügt. Es erfolgen keine zusätzlichen Datenbankabfragen.",
+    "keys": "Tab übernimmt, Escape verwirft. Autovervollständigung und Einrückung haben Vorrang. Die Übernahme fügt nur Text ein; vor dem Ausführen prüfen."
   }
 }

@@ -3122,5 +3122,11 @@
     "groups": { "builtin": "Kasama na · offline", "installed": "Mga naka-install na pakete", "personal": "Mga personal na tema" }, "modes": { "light": "Maliwanag", "dark": "Madilim", "high-contrast": "Mataas na contrast" },
     "importErrors": { "unrecognized": "Hindi nakilalang VS Code theme.", "modeRequired": "Pumili ng mode at silipin muli.", "includeOnly": "Hindi ma-import ang temang puro include lang. Ibigay ang aktuwal na mga kulay.", "noSupportedData": "Walang suportadong kulay o SQL token rule.", "invalidColor": "Mali ang halaga ng suportadong kulay.", "invalidRules": "Mali o sobra ang mga token rule." },
     "diagnostics": { "unsupportedKey": "Hindi suportadong field", "unsupportedColor": "Hindi suportadong kulay", "unsupportedScope": "Hindi suportadong saklaw", "scopeApproximation": "Tinatayang SQL mapping", "unsupportedStyle": "Hindi suportadong estilo", "ignoredInclude": "Hindi ni-load ang include", "ignoredSemanticTokens": "Binale-wala ang semantic token", "unsupportedReference": "Hindi ni-load ang panlabas na sanggunian", "unsupportedSetting": "Hindi suportadong setting", "tokenAlphaFlattened": "Kinalkula ang opacity ng token laban sa batayang background", "modeApproximation": "Pinalitan o tinantiya ang mode", "diagnosticsTruncated": "Hindi isinama ang dagdag na diagnostic" }
+  },
+  "aiInline": {
+    "title": "AI inline completion",
+    "enable": "Magmungkahi ng SQL habang nagta-type",
+    "privacy": "Naka-off bilang default. Ginagamit ang AI provider at model na pinili sa ibaba, kasama ang mga lokal na provider. Nagpapadala ng hanggang 4,000 character bago ang cursor, 1,000 pagkatapos nito at 8,000 character ng naka-cache na pangalan ng table/schema. Maaaring may sensitibong halaga ang SQL. Hindi idinadagdag ang mga result row, komento ng table o credential ng koneksyon. Walang dagdag na query sa database.",
+    "keys": "Tab para tanggapin, Escape para itago. Mas nauuna ang autocomplete at indentation. Teksto lang ang ipinapasok kapag tinanggap; suriin bago patakbuhin."
   }
 }

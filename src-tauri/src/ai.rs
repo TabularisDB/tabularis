@@ -9,6 +9,8 @@ use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod inline;
+
 // --- Data Structures ---
 
 #[derive(Serialize, Deserialize, Debug)]

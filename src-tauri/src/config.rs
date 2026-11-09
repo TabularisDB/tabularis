@@ -116,6 +116,8 @@ pub struct AppConfig {
     /// or `"both"`.
     pub cell_double_click_action: Option<String>,
     pub ai_enabled: Option<bool>,
+    /// Opt-in SQL ghost text. Missing values remain disabled.
+    pub ai_inline_completion_enabled: Option<bool>,
     pub ai_provider: Option<String>,
     pub ai_model: Option<String>,
     pub ai_custom_models: Option<HashMap<String, Vec<String>>>,

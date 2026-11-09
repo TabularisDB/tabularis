@@ -506,6 +506,8 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             config::reset_tabrename_prompt,
             // AI
             ai::generate_ai_query,
+            ai::complete_ai_inline,
+            ai::cancel_ai_inline,
             ai::explain_ai_query,
             ai::analyze_ai_explain_plan,
             ai::analyze_ai_crash_report,
