@@ -83,6 +83,30 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     const [modalOpen, setModalOpen] = useState(false);
     const [frameRect, setFrameRect] = useState({left: 0, top: 0, width: 0});
     const [portalRoot] = useState(() => document.createElement('div'));
+    const [resolvedFrame, setResolvedFrame] = useState<{
+        pluginId: string;
+        module: string;
+        url: string;
+    } | null>(null);
+    const frameUrl =
+        resolvedFrame?.pluginId === pluginId && resolvedFrame.module === module
+            ? resolvedFrame.url
+            : null;
+
+    useEffect(() => {
+        let cancelled = false;
+        void Promise.resolve(pluginFrameUrl(pluginId, module))
+            .then((url) => {
+                if (!cancelled) setResolvedFrame({pluginId, module, url});
+            })
+            .catch((error: unknown) => {
+                if (!cancelled)
+                    console.error(`[PluginSlot] Failed to authorize ${pluginId}/${module}`, error);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [pluginId, module]);
 
     useLayoutEffect(() => {
         let parent = anchorRef.current?.parentElement ?? null;
@@ -379,7 +403,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             rpcRef.current?.close();
             rpcRef.current = null;
         };
-    }, [module, pluginId]);
+    }, [module, pluginId, frameUrl]);
 
     useEffect(() => {
         contextRef.current = guestContext;
@@ -405,13 +429,13 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [modalOpen]);
 
-    const iframe = (
+    const iframe = frameUrl && (
         <iframe
             ref={frameRef}
             title={`Plugin ${pluginId}`}
             sandbox="allow-scripts"
             referrerPolicy="no-referrer"
-            src={pluginFrameUrl(pluginId, module)}
+            src={frameUrl}
             style={
                 modalOpen
                     ? {

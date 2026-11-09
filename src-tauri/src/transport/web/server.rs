@@ -334,8 +334,9 @@ fn router(
             "/api/v1/assets/plugins/:plugin_id/*asset_path",
             get(plugin_asset),
         )
+        .route("/api/v1/sandbox-ticket/:plugin_id", get(sandbox_ticket))
         .route(
-            "/api/v1/sandbox/plugins/:plugin_id/*asset_path",
+            "/api/v1/sandbox/plugins/:session_id/:ticket/:plugin_id/*asset_path",
             get(sandbox_plugin_asset),
         )
         .route("/api/*path", any(StatusCode::NOT_FOUND))
@@ -795,16 +796,39 @@ async fn plugin_asset(
 
 /// Serves the sandboxed plugin guest page, its runtime and the plugin's declared UI modules.
 ///
-/// Frames are sandboxed without `allow-same-origin`, so their sub-resource requests carry no
-/// session cookie (`SameSite=Strict`); `security_gate` therefore lets this prefix through after
-/// the host and origin checks. Only the embedded guest files and assets that
-/// `read_plugin_asset` authorizes for UI use (declared modules and locales) are reachable.
-async fn sandbox_plugin_asset(
-    State(state): State<WebServerState>,
-    Path((plugin_id, asset_path)): Path<(String, String)>,
+/// Opaque sandbox frames cannot send the session cookie on sub-resource requests.
+/// Their URLs therefore carry a session-bound, plugin-scoped read-only capability.
+async fn sandbox_ticket(
+    Extension(session): Extension<AuthenticatedSession>,
+    Path(plugin_id): Path<String>,
 ) -> Response {
     if crate::application::plugins::validate_plugin_id(&plugin_id).is_err() {
         return status_response(StatusCode::NOT_FOUND);
+    }
+    let base_url = format!(
+        "/api/v1/sandbox/plugins/{}/{}/{plugin_id}/",
+        session.event_scope(),
+        session.sandbox_ticket(&plugin_id)
+    );
+    let mut response = Json(serde_json::json!({"baseUrl": base_url})).into_response();
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+async fn sandbox_plugin_asset(
+    State(state): State<WebServerState>,
+    Path((session_id, ticket, plugin_id, asset_path)): Path<(Uuid, String, String, String)>,
+) -> Response {
+    if crate::application::plugins::validate_plugin_id(&plugin_id).is_err() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
+    if !state
+        .security
+        .verify_sandbox_ticket(session_id, &plugin_id, &ticket)
+    {
+        return status_response(StatusCode::UNAUTHORIZED);
     }
     let (bytes, content_type) = match asset_path.as_str() {
         "__guest__.html" => (SANDBOX_GUEST_HTML.to_vec(), "text/html; charset=utf-8"),
@@ -827,6 +851,7 @@ async fn sandbox_plugin_asset(
     headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
     headers.insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
     headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
     headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
     headers.insert(
         CONTENT_SECURITY_POLICY,
@@ -1115,8 +1140,8 @@ async fn security_gate(
     }
 
     let path = request.uri().path();
-    // Sandboxed plugin frames have an opaque origin and some browsers send `Origin: null`
-    // even for these read-only GETs, so the origin allowlist does not apply to them.
+    // Opaque frames may send Origin: null and cannot use the session cookie.
+    // The asset handler verifies a session-bound capability before serving bytes.
     let sandbox_asset = path.starts_with("/api/v1/sandbox/plugins/")
         && matches!(*request.method(), Method::GET | Method::HEAD);
 
@@ -1191,6 +1216,9 @@ async fn security_gate(
                     return authentication_error_response(error, false, None);
                 }
             }
+        }
+        None if path.starts_with("/api/v1/sandbox-ticket/") => {
+            return status_response(StatusCode::UNAUTHORIZED);
         }
         None if state.security.password_authentication() && request.method() == Method::GET => {
             return login_redirect_response(login_return_target(path));

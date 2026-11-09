@@ -166,6 +166,7 @@ describe('SandboxedPluginFrame lifecycle', () => {
             </div>,
         );
         const overlay = screen.getByTestId('host-overlay');
+        await waitFor(() => expect(overlay.querySelector('iframe')).not.toBeNull());
         const iframe = overlay.querySelector('iframe');
         expect(iframe).not.toBeNull();
         await waitFor(() => expect(mocks.connect).toHaveBeenCalledTimes(1));

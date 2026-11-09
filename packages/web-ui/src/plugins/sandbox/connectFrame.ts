@@ -1,13 +1,40 @@
 import {getActivePlatformCapabilities} from '@/platform/activeCapabilities';
 import {RpcPort} from './rpc';
 
-export function pluginFrameUrl(
+export async function pluginFrameUrl(
     pluginId: string,
     modulePath: string,
     mode: 'ui' | 'explain' = 'ui',
-): string {
+): Promise<string> {
     const query = new URLSearchParams({module: modulePath, mode});
-    return `${getActivePlatformCapabilities().pluginFrameBaseUrl()}${encodeURIComponent(pluginId)}/__guest__.html?${query}`;
+    const base = getActivePlatformCapabilities().pluginFrameBaseUrl();
+    if (base === '/api/v1/sandbox/plugins/') {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 15_000);
+        let response: Response;
+        try {
+            response = await fetch(`/api/v1/sandbox-ticket/${encodeURIComponent(pluginId)}`, {
+                credentials: 'same-origin',
+                cache: 'no-store',
+                signal: controller.signal,
+            });
+        } finally {
+            window.clearTimeout(timeout);
+        }
+        if (!response.ok) throw new Error(`Plugin sandbox access failed (${response.status})`);
+        const payload: unknown = await response.json();
+        if (
+            !payload ||
+            typeof payload !== 'object' ||
+            !('baseUrl' in payload) ||
+            typeof payload.baseUrl !== 'string' ||
+            !payload.baseUrl.startsWith('/api/v1/sandbox/plugins/') ||
+            !payload.baseUrl.endsWith(`/${encodeURIComponent(pluginId)}/`)
+        )
+            throw new Error('Invalid plugin sandbox access response');
+        return `${payload.baseUrl}__guest__.html?${query}`;
+    }
+    return `${base}${encodeURIComponent(pluginId)}/__guest__.html?${query}`;
 }
 
 export type PluginHostHandler = (...args: unknown[]) => unknown | Promise<unknown>;

@@ -328,24 +328,13 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         unauthorized_plugin_asset.status(),
         reqwest::StatusCode::UNAUTHORIZED
     );
-    // Sandboxed frames load without the session cookie and may send `Origin: null`.
-    let sandbox_guest = client
-        .get(format!(
-            "{base_url}/api/v1/sandbox/plugins/example-plugin/__guest__.html?module=ui%2Fdist%2Findex.js"
-        ))
-        .header("Origin", "null")
+    let denied_ticket = client
+        .get(format!("{base_url}/api/v1/sandbox-ticket/example-plugin"))
         .send()
         .await
         .unwrap();
-    assert_eq!(sandbox_guest.status(), reqwest::StatusCode::OK);
-    assert!(sandbox_guest
-        .headers()
-        .get("content-security-policy")
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .contains("script-src 'self'"));
-    let sandbox_module = client
+    assert_eq!(denied_ticket.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let unsigned_asset = client
         .get(format!(
             "{base_url}/api/v1/sandbox/plugins/example-plugin/ui/dist/index.js"
         ))
@@ -353,27 +342,7 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         .send()
         .await
         .unwrap();
-    assert_eq!(sandbox_module.status(), reqwest::StatusCode::OK);
-    let sandbox_private = client
-        .get(format!(
-            "{base_url}/api/v1/sandbox/plugins/example-plugin/ui/dist/private.txt"
-        ))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(sandbox_private.status(), reqwest::StatusCode::NOT_FOUND);
-    for path in [
-        "/api/v1/sandbox/plugins/missing-plugin/ui/dist/index.js",
-        "/api/v1/sandbox/plugins/invalid%24plugin/__guest__.html",
-        "/api/v1/sandbox/plugins/example-plugin/ui/%2e%2e/private.txt",
-    ] {
-        let response = client
-            .get(format!("{base_url}{path}"))
-            .send()
-            .await
-            .unwrap();
-        assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND, "{path}");
-    }
+    assert!(!unsigned_asset.status().is_success());
     assert!(uuid::Uuid::parse_str(
         unauthorized
             .headers()
@@ -422,6 +391,67 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
     assert!(set_cookie.contains("SameSite=Strict"));
     assert!(set_cookie.contains("Path=/"));
     let cookie = set_cookie.split(';').next().unwrap().to_string();
+
+    let ticket = client
+        .get(format!("{base_url}/api/v1/sandbox-ticket/example-plugin"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ticket.status(), reqwest::StatusCode::OK);
+    let ticket: Value = ticket.json().await.unwrap();
+    let sandbox_base = ticket["baseUrl"].as_str().unwrap().to_string();
+    for asset in [
+        "__guest__.html?module=ui%2Fdist%2Findex.js",
+        "ui/dist/index.js",
+    ] {
+        let response = client
+            .get(format!("{base_url}{sandbox_base}{asset}"))
+            .header("Origin", "null")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        assert!(response
+            .headers()
+            .get("content-security-policy")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("connect-src 'none'"));
+        assert_eq!(
+            response.headers().get("referrer-policy").unwrap(),
+            "no-referrer"
+        );
+    }
+    let wrong_plugin = sandbox_base.replace("example-plugin/", "missing-plugin/");
+    let response = client
+        .get(format!("{base_url}{wrong_plugin}__guest__.html"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let mut parts: Vec<_> = sandbox_base.split('/').collect();
+    parts[6] = "invalid-ticket";
+    let wrong_ticket = parts.join("/");
+    let response = client
+        .get(format!("{base_url}{wrong_ticket}__guest__.html"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let response = client
+        .get(format!("{base_url}{sandbox_base}ui/dist/private.txt"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
+    let response = client
+        .get(format!("{base_url}{sandbox_base}ui/%2e%2e/private.txt"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
 
     let replay = client.get(&bootstrap_url).send().await.unwrap();
     assert_eq!(replay.status(), reqwest::StatusCode::UNAUTHORIZED);
@@ -626,6 +656,12 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         .await
         .unwrap();
     assert_eq!(logout.status(), reqwest::StatusCode::NO_CONTENT);
+    let revoked_asset = client
+        .get(format!("{base_url}{sandbox_base}ui/dist/index.js"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(revoked_asset.status(), reqwest::StatusCode::UNAUTHORIZED);
     assert!(logout
         .headers()
         .get(SET_COOKIE)
@@ -779,6 +815,27 @@ async fn password_login_resumes_a_connection_link() {
         .next()
         .unwrap()
         .to_string();
+
+    let unauthenticated = get("/api/v1/sandbox-ticket/example-plugin").await.unwrap();
+    assert_eq!(unauthenticated.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let ticket = client
+        .get(format!("{base_url}/api/v1/sandbox-ticket/example-plugin"))
+        .header(HOST, "tabularis.example.com")
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ticket.status(), reqwest::StatusCode::OK);
+    let ticket: Value = ticket.json().await.unwrap();
+    let sandbox_base = ticket["baseUrl"].as_str().unwrap();
+    let guest = client
+        .get(format!("{base_url}{sandbox_base}__guest__.html"))
+        .header(HOST, "tabularis.example.com")
+        .header(ORIGIN, "null")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(guest.status(), reqwest::StatusCode::OK);
 
     // With the session, the link serves the app; the client opens the connection.
     let page = client

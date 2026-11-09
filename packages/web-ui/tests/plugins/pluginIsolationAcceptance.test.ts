@@ -114,7 +114,9 @@ describe('plugin isolation acceptance contract', () => {
         expect(transport).toMatch(/throw new Error\(["']method_not_allowed["']\)/);
 
         const backend = projectFile('src-tauri/src/application/queries.rs');
-        expect(backend).toContain('execute_read_only_query(&params, &query, None, 1');
+        expect(backend).toContain(
+            'execute_read_only_query(params, query, Some(WEB_MAX_ROWS_PER_PAGE), 1',
+        );
         expect(backend).toContain('classify_query_kind_for_capabilities(');
         expect(projectFile('src-tauri/src/drivers/driver_trait.rs')).toContain(
             'async fn execute_read_only_query(',

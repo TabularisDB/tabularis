@@ -61,7 +61,8 @@ async function createSandboxSession(
     frame.setAttribute('aria-hidden', 'true');
     frame.tabIndex = -1;
     frame.style.display = 'none';
-    frame.src = pluginFrameUrl(pluginId, modulePath, 'explain');
+    frame.src = await pluginFrameUrl(pluginId, modulePath, 'explain');
+    if (!shouldContinue()) throw new DOMException('Plugin loading cancelled', 'AbortError');
     document.body.append(frame);
 
     const controller = new AbortController();

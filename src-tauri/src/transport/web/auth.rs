@@ -1,6 +1,7 @@
 use crate::application::AuthorizationLevel;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
@@ -403,6 +404,30 @@ impl LocalSessionSecurity {
         self.lock_state().sessions.remove(&session.token_hash);
     }
 
+    /// Verify a read-only asset capability against an active session and plugin.
+    pub(crate) fn verify_sandbox_ticket(
+        &self,
+        session_id_value: Uuid,
+        plugin_id: &str,
+        ticket: &str,
+    ) -> bool {
+        let Ok(signature) = URL_SAFE_NO_PAD.decode(ticket) else {
+            return false;
+        };
+        let now = Instant::now();
+        let state = self.lock_state();
+        let Some(session) = state.sessions.iter().find_map(|(hash, session)| {
+            (session_id(*hash) == session_id_value && session.expires_at > now).then_some(session)
+        }) else {
+            return false;
+        };
+        let mut mac = Hmac::<Sha256>::new_from_slice(session.csrf_token.as_bytes())
+            .expect("HMAC accepts any key size");
+        mac.update(b"tabularis-sandbox-assets-v1\0");
+        mac.update(plugin_id.as_bytes());
+        mac.verify_slice(&signature).is_ok()
+    }
+
     fn authenticate_remote(
         &self,
         expected: TokenHash,
@@ -516,6 +541,13 @@ pub(crate) fn login_client(
 }
 
 impl AuthenticatedSession {
+    pub(crate) fn sandbox_ticket(&self, plugin_id: &str) -> String {
+        let mut mac = Hmac::<Sha256>::new_from_slice(self.csrf_token.as_bytes())
+            .expect("HMAC accepts any key size");
+        mac.update(b"tabularis-sandbox-assets-v1\0");
+        mac.update(plugin_id.as_bytes());
+        URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes())
+    }
     pub(crate) fn event_scope(&self) -> Uuid {
         session_id(self.token_hash)
     }

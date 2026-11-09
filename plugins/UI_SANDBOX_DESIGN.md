@@ -12,6 +12,11 @@ host and guest communicate over a transferred
 `MessagePort`. Host requests are checked against an explicit method allow-list;
 there is no generic Tauri command or `invoke` method in the guest API.
 
+In Web mode, the host obtains a read-only asset URL for each plugin through an
+authenticated session. Its signed capability is scoped to that plugin and
+expires with the session. Opaque iframe requests can use that URL without
+cookies; the capability does not authorize RPCs or access to another plugin.
+
 ## Exposed capabilities
 
 - Slot context, active connection metadata, theme data, and the plugin's own
@@ -83,7 +88,7 @@ EXPLAIN parsers:
 | [Elasticsearch](https://github.com/TabularisDB/tabularis-elasticsearch-plugin) | Database field via `onDatabaseChange` | Supported through the slot callback RPC. |
 | [Cloudflare D1](https://github.com/josejorge/tabularis_cloudflare_d1_plugin) | Help text, translations, and `openUrl` | Supported by the guest API, including the `defaultValue` translation fallback. |
 | [SQL Server](https://github.com/TabularisDB/tabularis-sqlserver-plugin) | Extra field, credential visibility callbacks, and custom EXPLAIN parser | UI callbacks use the slot RPC; the parser loads in the sandbox. |
-| [Google Sheets](https://github.com/TabularisDB/tabularis-google-sheets-plugin) | OAuth settings modal and database field | Companion PR uses `exchangeGoogleOAuthToken` and requires Tabularis 0.29.0. A restricted `getHost()` compatibility shim keeps the released 0.3.0 bundle working during migration. |
+| [Google Sheets](https://github.com/TabularisDB/tabularis-google-sheets-plugin) | OAuth settings modal and database field | Version 0.3.1 uses `exchangeGoogleOAuthToken` and requires Tabularis 0.32.0. A restricted `getHost()` compatibility shim keeps the released 0.3.0 bundle working during migration. |
 | Google BigQuery 0.2.0 | `connection-modal.extra_fields`; hides Password and stores its credential with `setSecretField`; custom EXPLAIN parser | Supported after forwarding `secretFields` and `setSecretField` over validated slot RPC; parser loads in the sandbox. |
 | Oracle | Custom EXPLAIN parser | Released parser bundle loads in the sandbox. |
 
