@@ -232,6 +232,8 @@
     "refreshRoutines": "Routinen aktualisieren",
     "objectSummary": "Objekte",
     "databases": "Datenbanken",
+    "newDatabase": "Neue Datenbank",
+    "newSchema": "Neues Schema",
     "failGetRoutineDefinition": "Abrufen der Routinen-Definition fehlgeschlagen: ",
     "schemas": "Schemata",
     "noSchemas": "Keine Schemata gefunden",
@@ -2147,6 +2149,24 @@
     "colRequired": "Mindestens eine Spalte ist erforderlich",
     "failCreate": "Erstellen der Tabelle fehlgeschlagen: ",
     "requiresExtension": "Erfordert Erweiterung: {{ext}}"
+  },
+  "createDatabase": {
+    "title": "Datenbank erstellen",
+    "subtitle": "Führt CREATE DATABASE auf diesem Server aus",
+    "name": "Datenbankname",
+    "namePlaceholder": "z. B. analytics, staging",
+    "create": "Datenbank erstellen",
+    "nameRequired": "Datenbankname ist erforderlich",
+    "failCreate": "Erstellen der Datenbank fehlgeschlagen: "
+  },
+  "createSchema": {
+    "title": "Schema erstellen",
+    "subtitle": "Führt CREATE SCHEMA in dieser Datenbank aus",
+    "name": "Schemaname",
+    "namePlaceholder": "z. B. store, reporting",
+    "create": "Schema erstellen",
+    "nameRequired": "Schemaname ist erforderlich",
+    "failCreate": "Erstellen des Schemas fehlgeschlagen: "
   },
   "schema": {
     "title": "Schema: {{table}}",

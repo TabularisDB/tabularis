@@ -222,6 +222,8 @@
     "onTable": "em {{table}}",
     "objectSummary": "Objetos",
     "databases": "Bancos de Dados",
+    "newDatabase": "Novo banco de dados",
+    "newSchema": "Novo esquema",
     "failGetRoutineDefinition": "Falha ao obter definição da rotina: ",
     "schemas": "Esquemas",
     "noSchemas": "Nenhum esquema encontrado",
@@ -2165,6 +2167,24 @@
     "colRequired": "É necessária ao menos uma coluna",
     "failCreate": "Falha ao criar tabela: ",
     "requiresExtension": "Requer extensão: {{ext}}"
+  },
+  "createDatabase": {
+    "title": "Criar banco de dados",
+    "subtitle": "Executa CREATE DATABASE neste servidor",
+    "name": "Nome do banco de dados",
+    "namePlaceholder": "ex.: analytics, staging",
+    "create": "Criar banco de dados",
+    "nameRequired": "O nome do banco de dados é obrigatório",
+    "failCreate": "Falha ao criar banco de dados: "
+  },
+  "createSchema": {
+    "title": "Criar esquema",
+    "subtitle": "Executa CREATE SCHEMA neste banco de dados",
+    "name": "Nome do esquema",
+    "namePlaceholder": "ex.: store, reporting",
+    "create": "Criar esquema",
+    "nameRequired": "O nome do esquema é obrigatório",
+    "failCreate": "Falha ao criar esquema: "
   },
   "schema": {
     "title": "Esquema: {{table}}",

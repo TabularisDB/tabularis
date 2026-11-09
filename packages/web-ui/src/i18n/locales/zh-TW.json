@@ -249,6 +249,8 @@
         "onTable": "於 {{table}}",
         "objectSummary": "物件",
         "databases": "資料庫",
+        "newDatabase": "新增資料庫",
+        "newSchema": "新增結構描述",
         "failGetRoutineDefinition": "取得預存程序定義失敗：",
         "schemas": "結構描述",
         "noSchemas": "找不到結構描述",
@@ -2191,6 +2193,24 @@
         "colRequired": "至少需要一欄",
         "failCreate": "建立資料表失敗：",
         "requiresExtension": "需要擴充功能：{{ext}}"
+    },
+    "createDatabase": {
+        "title": "建立資料庫",
+        "subtitle": "在此伺服器上執行 CREATE DATABASE",
+        "name": "資料庫名稱",
+        "namePlaceholder": "例如：analytics, staging",
+        "create": "建立資料庫",
+        "nameRequired": "資料庫名稱是必需的",
+        "failCreate": "建立資料庫失敗："
+    },
+    "createSchema": {
+        "title": "建立結構描述",
+        "subtitle": "在此資料庫中執行 CREATE SCHEMA",
+        "name": "結構描述名稱",
+        "namePlaceholder": "例如：store, reporting",
+        "create": "建立結構描述",
+        "nameRequired": "結構描述名稱是必需的",
+        "failCreate": "建立結構描述失敗："
     },
     "schema": {
         "title": "結構描述：{{table}}",

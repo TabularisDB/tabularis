@@ -245,6 +245,8 @@
     "onTable": "{{table}} に対して",
     "objectSummary": "オブジェクト",
     "databases": "データベース",
+    "newDatabase": "新しいデータベース",
+    "newSchema": "新しいスキーマ",
     "failGetRoutineDefinition": "ルーチン定義の取得に失敗しました: ",
     "schemas": "スキーマ",
     "noSchemas": "スキーマが見つかりません",
@@ -2158,6 +2160,24 @@
     "colRequired": "少なくとも 1 つのカラムが必要です",
     "failCreate": "テーブルの作成に失敗しました: ",
     "requiresExtension": "拡張機能が必要: {{ext}}"
+  },
+  "createDatabase": {
+    "title": "データベースを作成",
+    "subtitle": "このサーバーで CREATE DATABASE を実行します",
+    "name": "データベース名",
+    "namePlaceholder": "例: analytics, staging",
+    "create": "データベースを作成",
+    "nameRequired": "データベース名は必須です",
+    "failCreate": "データベースの作成に失敗しました: "
+  },
+  "createSchema": {
+    "title": "スキーマを作成",
+    "subtitle": "このデータベースで CREATE SCHEMA を実行します",
+    "name": "スキーマ名",
+    "namePlaceholder": "例: store, reporting",
+    "create": "スキーマを作成",
+    "nameRequired": "スキーマ名は必須です",
+    "failCreate": "スキーマの作成に失敗しました: "
   },
   "schema": {
     "title": "スキーマ: {{table}}",

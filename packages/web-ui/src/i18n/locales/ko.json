@@ -222,6 +222,8 @@
     "onTable": "{{table}} 테이블",
     "objectSummary": "객체",
     "databases": "데이터베이스",
+    "newDatabase": "새 데이터베이스",
+    "newSchema": "새 스키마",
     "failGetRoutineDefinition": "루틴 정의를 가져오지 못했습니다: ",
     "schemas": "스키마",
     "noSchemas": "스키마가 없습니다",
@@ -2121,6 +2123,24 @@
     "colRequired": "컬럼을 하나 이상 지정해야 합니다",
     "failCreate": "테이블 생성에 실패했습니다: ",
     "requiresExtension": "필요한 확장 기능: {{ext}}"
+  },
+  "createDatabase": {
+    "title": "데이터베이스 만들기",
+    "subtitle": "이 서버에서 CREATE DATABASE를 실행합니다",
+    "name": "데이터베이스 이름",
+    "namePlaceholder": "예: analytics, staging",
+    "create": "데이터베이스 만들기",
+    "nameRequired": "데이터베이스 이름은 필수입니다",
+    "failCreate": "데이터베이스 생성에 실패했습니다: "
+  },
+  "createSchema": {
+    "title": "스키마 만들기",
+    "subtitle": "이 데이터베이스에서 CREATE SCHEMA를 실행합니다",
+    "name": "스키마 이름",
+    "namePlaceholder": "예: store, reporting",
+    "create": "스키마 만들기",
+    "nameRequired": "스키마 이름은 필수입니다",
+    "failCreate": "스키마 생성에 실패했습니다: "
   },
   "schema": {
     "title": "스키마: {{table}}",

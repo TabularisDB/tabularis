@@ -232,6 +232,8 @@
     "refreshRoutines": "Actualizar Rutinas",
     "objectSummary": "Objetos",
     "databases": "Bases de Datos",
+    "newDatabase": "Nueva base de datos",
+    "newSchema": "Nuevo esquema",
     "failGetRoutineDefinition": "Error al obtener la definición de la rutina: ",
     "schemas": "Esquemas",
     "noSchemas": "No se encontraron esquemas",
@@ -2120,6 +2122,24 @@
     "colRequired": "Se requiere al menos una columna",
     "failCreate": "Error al crear la tabla: ",
     "requiresExtension": "Requiere extensión: {{ext}}"
+  },
+  "createDatabase": {
+    "title": "Crear base de datos",
+    "subtitle": "Ejecuta CREATE DATABASE en este servidor",
+    "name": "Nombre de la base de datos",
+    "namePlaceholder": "p. ej. analytics, staging",
+    "create": "Crear base de datos",
+    "nameRequired": "El nombre de la base de datos es obligatorio",
+    "failCreate": "Error al crear la base de datos: "
+  },
+  "createSchema": {
+    "title": "Crear esquema",
+    "subtitle": "Ejecuta CREATE SCHEMA en esta base de datos",
+    "name": "Nombre del esquema",
+    "namePlaceholder": "p. ej. store, reporting",
+    "create": "Crear esquema",
+    "nameRequired": "El nombre del esquema es obligatorio",
+    "failCreate": "Error al crear el esquema: "
   },
   "schema": {
     "title": "Esquema: {{table}}",
