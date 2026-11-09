@@ -2,6 +2,11 @@ import { vi } from "vitest";
 
 export const pluginSlotProbeContexts: Record<string, unknown>[] = [];
 
+/** These context tests do not exercise the server's sandbox-ticket endpoint. */
+export async function pluginFrameUrlMock(pluginId: string, modulePath: string): Promise<string> {
+  return `/sandbox-test/${encodeURIComponent(pluginId)}/__guest__.html?${new URLSearchParams({module: modulePath, mode: "ui"})}`;
+}
+
 /** Test double for the iframe's MessagePort, recording plain context messages. */
 export const connectFrameMock = vi.fn(async () => ({
   call: vi.fn(async (method: string, params: unknown[] = []) => {

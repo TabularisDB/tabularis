@@ -17,7 +17,11 @@ vi.mock('../../../src/plugins/sandbox/connectFrame', async () => {
         typeof import('../../../src/plugins/sandbox/connectFrame')
     >('../../../src/plugins/sandbox/connectFrame');
     const transport = await import('../../fixtures/pluginSlotProbeTransport');
-    return {...actual, connectFrame: transport.connectFrameMock};
+    return {
+        ...actual,
+        connectFrame: transport.connectFrameMock,
+        pluginFrameUrl: transport.pluginFrameUrlMock,
+    };
 });
 
 registerActivePlatformCapabilities({
