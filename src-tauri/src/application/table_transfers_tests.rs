@@ -44,6 +44,8 @@ fn column(name: &str, is_pk: bool, is_generated: bool) -> TableColumn {
         is_auto_increment: false,
         is_generated,
         default_value: None,
+        default_sql: None,
+        on_update: None,
         character_maximum_length: None,
         numeric_precision: None,
         numeric_scale: None,

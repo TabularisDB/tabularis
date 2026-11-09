@@ -294,6 +294,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         plugin_shutdown_grace_seconds,
         editor_highlight_invisible_characters,
         autocomplete_keyword_case,
+        sql_diagnostics_enabled,
         theme,
         follow_system_theme,
         light_theme_id,

@@ -86,6 +86,12 @@
     "warnConfirm": "Ituloy pa rin",
     "warnSnooze": "Huwag nang itanong para sa koneksyong ito (ngayong session)"
   },
+  "textStats": {
+    "characters": "Mga character: {{count}}",
+    "lines": "Mga linya: {{count}}",
+    "bytes": "Mga UTF-8 byte: {{count}}",
+    "charactersHint": "Mga Unicode code point, hindi grapheme cluster"
+  },
   "common": {
     "save": "I-save",
     "close": "Isara",
@@ -245,6 +251,8 @@
     "onTable": "sa {{table}}",
     "objectSummary": "Mga Object",
     "databases": "Mga Database",
+    "newDatabase": "Bagong Database",
+    "newSchema": "Bagong Schema",
     "failGetRoutineDefinition": "Hindi makuha ang definition ng routine: ",
     "schemas": "Mga Schema",
     "noSchemas": "Walang nahanap na schema",
@@ -555,6 +563,27 @@
   "settings": {
     "title": "Mga Setting",
     "general": "Pangkalahatan",
+    "snippets": {
+      "title": "Mga SQL Snippet",
+      "subtitle": "Tukuyin ang magagamit muling mga template ng SQL na may mga trigger prefix at tab-stop placeholder para sa Monaco autocomplete.",
+      "add": "Bagong Snippet",
+      "createTitle": "Gumawa ng Snippet",
+      "editTitle": "I-edit ang Snippet",
+      "nameLabel": "Pangalan ng Snippet",
+      "prefixLabel": "Trigger Prefix",
+      "dialectLabel": "Saklaw ng Dialect",
+      "allDialects": "Lahat ng Dialect",
+      "descriptionLabel": "Paglalarawan",
+      "bodyLabel": "Katawan ng Snippet",
+      "tabStopHint": "Gamitin ang ${1:placeholder} para sa mae-edit na tab stops",
+      "noSnippets": "Wala pang na-configure na mga SQL snippet.",
+      "invalidPrefix": "Dapat maglaman lamang ang prefix ng mga titik, numero, underscore, at gitling",
+      "invalidBody": "Hindi maaaring walang laman ang katawan ng snippet",
+      "namePlaceholder": "hal. Select Active Orders",
+      "prefixPlaceholder": "hal. selorders",
+      "descPlaceholder": "hal. Piliin ang mga order na may pending na status",
+      "duplicatePrefix": "Mayroon nang snippet na may ganitong prefix para sa dialect scope na ito"
+    },
     "privacy": "Privacy",
     "network": {
       "tab": "Network",
@@ -738,6 +767,9 @@
     "autocomplete_keywordCase": "Case ng keyword",
     "autocomplete_keywordCaseDesc": "Case ng mga SQL keyword na ini-insert ng autocomplete.",
     "autocomplete_keywordCaseMatch": "Sundin ang tina-type",
+    "diagnostics_title": "SQL diagnostics",
+    "diagnostics_enabled": "I-highlight ang mga hindi nareresolbang reference",
+    "diagnostics_enabledDesc": "Minamarkahan ang mga hindi kilalang table, column, at alias sa mga PostgreSQL SELECT statement gamit ang metadata na na-load na para sa koneksyon. Ang server pa rin ang masusunod at walang isinasagawa.",
     "editConfigJson": "I-edit ang config.json",
     "editConfigJsonDesc": "Direktang i-edit ang raw configuration file. Kailangan ng restart para mailapat ang mga pagbabago.",
     "configJsonModal": {
@@ -1696,6 +1728,14 @@
     "auto": "Auto"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "Hindi nahanap ang table o view na \"{{name}}\" sa na-load na metadata. Maaaring pansamantala ito o ginawa matapos ma-load ang metadata.",
+      "unresolvedColumn": "Walang column na \"{{name}}\"",
+      "unresolvedAlias": "Ang \"{{name}}\" ay hindi table o alias sa query na ito",
+      "ambiguousColumn": "Malabo ang reference sa column na \"{{name}}\"",
+      "unsupportedConstruct": "Limitado ang pagsusuri rito: hindi sinusuri ang {{name}}, kaya hindi nasusuri ang mga reference na nakadepende rito",
+      "metadataUnavailable": "Hindi available ang mga column ng \"{{name}}\", kaya hindi nasusuri ang mga reference dito"
+    },
     "noTabs": "Walang bukas na tab para sa connection na ito.",
     "newConsole": "Bagong Console",
     "noActiveSession": "Walang aktibong session. Pumili ng connection.",
@@ -1938,6 +1978,28 @@
       "noRawOutput": "Walang raw explain output na available para i-export.",
       "saveRawPlan": "I-save ang raw plan…",
       "saveRawError": "Nabigong i-save ang raw plan",
+      "snapshots": "Mga Snapshot",
+      "snapshotsTitle": "Mga Snapshot ng Plano at Baseline",
+      "saveSnapshot": "I-save ang snapshot",
+      "snapshotNamePlaceholder": "Pangalan ng snapshot (hal. Bago ang index)...",
+      "noSnapshots": "Wala pang naka-save na snapshot.",
+      "activeBaseline": "Aktibong baseline",
+      "setAsBaseline": "Ikumpara",
+      "isBaseline": "Napili",
+      "comparingAgainst": "Baseline",
+      "incompatibleBaseline": "Hindi tugmang baseline",
+      "clearBaseline": "I-clear ang baseline",
+      "operatorsChanged": "nabagong operator",
+      "snapshotSaved": "Matagumpay na na-save ang snapshot ng plano",
+      "snapshotNameLabel": "Pangalan ng snapshot",
+      "snapshotSaveFailed": "Nabigong i-save ang snapshot ng plano: naabot ang limitasyon ng storage o hindi available",
+      "snapshotDeleteFailed": "Nabigong i-delete ang snapshot mula sa storage",
+      "snapshotPinFailed": "Nabigong i-update ang pin status ng snapshot sa storage",
+      "analyzeMismatch": "Tantya vs Aktwal",
+      "analyzeMismatchTooltip": "Ang isang plano ay may aktwal na sukatan ng pagpapatupad (EXPLAIN ANALYZE) habang ang isa ay may mga pagtatantya lamang",
+      "pinSnapshot": "I-pin",
+      "unpinSnapshot": "I-unpin",
+      "time": "Oras",
       "formatText": "Teksto",
       "aiAnalysis": "AI Analysis",
       "aiAnalysisTitle": "AI Query Plan Analysis",
@@ -2034,6 +2096,8 @@
       "exportCsv": "I-export bilang CSV",
       "exportJson": "I-export bilang JSON",
       "exportHtml": "I-export bilang HTML",
+      "exportSql": "I-export ang SQL source",
+      "exportSqlEmpty": "Walang SQL na mai-export sa notebook na ito.",
       "parameters": "Mga Parameter",
       "paramName": "pangalan",
       "paramValue": "halaga",
@@ -2057,6 +2121,8 @@
       "expandSection": "I-expand ang Section",
       "collapseAll": "I-collapse Lahat",
       "expandAll": "I-expand Lahat",
+      "clearOutputs": "I-clear ang mga Output",
+      "clearOutputsConfirm": "I-clear ang mga ipinapakitang resulta, error at oras ng lahat ng cell? Mananatili ang mga query, parameter, chart at kasaysayan ng execution.",
       "outline": "Outline",
       "aiGenerate": "Gumawa ng SQL gamit ang AI",
       "aiExplain": "Ipaliwanag ang Query na ito gamit ang AI",
@@ -2178,6 +2244,24 @@
     "failCreate": "Hindi nagawa ang table: ",
     "requiresExtension": "Kailangan ng extension: {{ext}}"
   },
+  "createDatabase": {
+    "title": "Gumawa ng Database",
+    "subtitle": "Nagpapatakbo ng CREATE DATABASE sa server na ito",
+    "name": "Pangalan ng database",
+    "namePlaceholder": "hal. analytics, staging",
+    "create": "Gumawa ng Database",
+    "nameRequired": "Kailangan ang pangalan ng database",
+    "failCreate": "Hindi nagawa ang database: "
+  },
+  "createSchema": {
+    "title": "Gumawa ng Schema",
+    "subtitle": "Nagpapatakbo ng CREATE SCHEMA sa database na ito",
+    "name": "Pangalan ng schema",
+    "namePlaceholder": "hal. store, reporting",
+    "create": "Gumawa ng Schema",
+    "nameRequired": "Kailangan ang pangalan ng schema",
+    "failCreate": "Hindi nagawa ang schema: "
+  },
   "schema": {
     "title": "Schema: {{table}}",
     "loading": "Naglo-load ng schema...",
@@ -2275,6 +2359,7 @@
     "exportMermaid": "I-export bilang Mermaid diagram",
     "exportSuccess": "Na-export ang diagram",
     "exportDbml": "I-export bilang DBML",
+    "exportMarkdown": "I-export bilang Markdown",
     "export": "I-export"
   },
   "views": {
@@ -2528,6 +2613,7 @@
     "collapse": "I-collapse",
     "expandAll": "Palawakin lahat",
     "collapseAll": "Tiklupin lahat",
+    "sortKeys": "I-sort ang mga key",
     "search": "Maghanap",
     "copyPath": "Kopyahin ang Path",
     "copyValue": "Kopyahin ang Value",

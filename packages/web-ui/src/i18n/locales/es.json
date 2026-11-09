@@ -86,6 +86,12 @@
     "warnConfirm": "Ejecutar de todos modos",
     "warnSnooze": "No volver a preguntar para esta conexión (esta sesión)"
   },
+  "textStats": {
+    "characters": "Caracteres: {{count}}",
+    "lines": "Líneas: {{count}}",
+    "bytes": "Bytes UTF-8: {{count}}",
+    "charactersHint": "Puntos de código Unicode, no clústeres de grafemas"
+  },
   "common": {
     "save": "Guardar",
     "close": "Cerrar",
@@ -232,6 +238,8 @@
     "refreshRoutines": "Actualizar Rutinas",
     "objectSummary": "Objetos",
     "databases": "Bases de Datos",
+    "newDatabase": "Nueva base de datos",
+    "newSchema": "Nuevo esquema",
     "failGetRoutineDefinition": "Error al obtener la definición de la rutina: ",
     "schemas": "Esquemas",
     "noSchemas": "No se encontraron esquemas",
@@ -562,6 +570,27 @@
   "settings": {
     "title": "Configuración",
     "general": "General",
+    "snippets": {
+      "title": "Fragmentos SQL",
+      "subtitle": "Defina plantillas SQL reutilizables con prefijos de activación y marcadores de posición para el autocompletado de Monaco.",
+      "add": "Nuevo fragmento",
+      "createTitle": "Crear fragmento",
+      "editTitle": "Editar fragmento",
+      "nameLabel": "Nombre del fragmento",
+      "prefixLabel": "Prefijo disparador",
+      "dialectLabel": "Ámbito del dialecto",
+      "allDialects": "Todos los dialectos",
+      "descriptionLabel": "Descripción",
+      "bodyLabel": "Cuerpo del fragmento",
+      "tabStopHint": "Use ${1:marcador} para tabulaciones editables",
+      "noSnippets": "Aún no hay fragmentos SQL configurados.",
+      "invalidPrefix": "El prefijo solo debe contener letras, números, guiones bajos y guiones",
+      "invalidBody": "El cuerpo del fragmento no puede estar vacío",
+      "namePlaceholder": "p. ej. Select Active Orders",
+      "prefixPlaceholder": "p. ej. selorders",
+      "descPlaceholder": "p. ej. Seleccionar pedidos con estado pendiente",
+      "duplicatePrefix": "Ya existe un fragmento con este prefijo para este alcance de dialecto"
+    },
     "privacy": "Privacidad",
     "network": {
       "tab": "Network",
@@ -733,6 +762,9 @@
     "autocomplete_keywordCase": "Mayúsculas en palabras clave",
     "autocomplete_keywordCaseDesc": "Mayúsculas y minúsculas de las palabras clave SQL insertadas por el autocompletado.",
     "autocomplete_keywordCaseMatch": "Igualar lo escrito",
+    "diagnostics_title": "Diagnósticos SQL",
+    "diagnostics_enabled": "Resaltar referencias sin resolver",
+    "diagnostics_enabledDesc": "Marca tablas, columnas y alias desconocidos en sentencias SELECT de PostgreSQL usando los metadatos ya cargados de la conexión. El servidor sigue siendo la autoridad y no se ejecuta nada.",
     "editConfigJson": "Editar config.json",
     "editConfigJsonDesc": "Edita directamente el archivo de configuración en bruto. Se requiere reinicio para aplicar los cambios.",
     "configJsonModal": {
@@ -1694,6 +1726,14 @@
     "unsupportedDriver": "La edición de activadores no es compatible con este controlador."
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "No se encontró la tabla o vista \"{{name}}\" en los metadatos cargados. Puede ser temporal o haberse creado después de cargar los metadatos.",
+      "unresolvedColumn": "La columna \"{{name}}\" no existe",
+      "unresolvedAlias": "\"{{name}}\" no es una tabla ni un alias en esta consulta",
+      "ambiguousColumn": "La referencia a la columna \"{{name}}\" es ambigua",
+      "unsupportedConstruct": "El análisis es limitado aquí: {{name}} no se analiza, por lo que no se comprueban las referencias que dependen de él",
+      "metadataUnavailable": "Las columnas de \"{{name}}\" no están disponibles, por lo que no se comprueban las referencias a ella"
+    },
     "quickNavigator": {
       "placeholder": "Buscar tablas, vistas, rutinas, triggers...",
       "noResults": "No se encontraron elementos coincidentes",
@@ -1932,6 +1972,28 @@
       "noRawOutput": "No hay salida raw del explain disponible para exportar.",
       "saveRawPlan": "Guardar plan raw…",
       "saveRawError": "Error al guardar el plan raw",
+      "snapshots": "Instantáneas",
+      "snapshotsTitle": "Instantáneas del plan y líneas base",
+      "saveSnapshot": "Guardar instantánea",
+      "snapshotNamePlaceholder": "Nombre de la instantánea (ej. Antes del índice)...",
+      "noSnapshots": "Aún no hay instantáneas guardadas.",
+      "activeBaseline": "Línea base activa",
+      "setAsBaseline": "Comparar",
+      "isBaseline": "Seleccionado",
+      "comparingAgainst": "Línea base",
+      "incompatibleBaseline": "Línea base incompatible",
+      "clearBaseline": "Borrar línea base",
+      "operatorsChanged": "operadores cambiados",
+      "snapshotSaved": "Instantánea del plan guardada con éxito",
+      "snapshotNameLabel": "Nombre de la captura",
+      "snapshotSaveFailed": "Error al guardar la captura del plan: límite de almacenamiento alcanzado o no disponible",
+      "snapshotDeleteFailed": "Error al eliminar la captura del almacenamiento",
+      "snapshotPinFailed": "Error al actualizar el estado de fijación en el almacenamiento",
+      "analyzeMismatch": "Estimado vs Real",
+      "analyzeMismatchTooltip": "Un plan tiene métricas de ejecución reales (EXPLAIN ANALYZE) mientras que el otro solo tiene estimaciones",
+      "pinSnapshot": "Fijar",
+      "unpinSnapshot": "Desfijar",
+      "time": "Tiempo",
       "formatText": "Texto",
       "aiAnalysis": "Analisis IA",
       "aiAnalysisTitle": "Analisis IA del Plan de Ejecucion",
@@ -1976,6 +2038,8 @@
       "exportCsv": "Exportar como CSV",
       "exportJson": "Exportar como JSON",
       "exportHtml": "Exportar como HTML",
+      "exportSql": "Exportar código SQL",
+      "exportSqlEmpty": "Este notebook no tiene SQL para exportar.",
       "parameters": "Parámetros",
       "paramName": "nombre",
       "paramValue": "valor",
@@ -1999,6 +2063,8 @@
       "expandSection": "Expandir Sección",
       "collapseAll": "Contraer Todo",
       "expandAll": "Expandir Todo",
+      "clearOutputs": "Borrar Salidas",
+      "clearOutputsConfirm": "¿Borrar los resultados, errores y tiempos mostrados de todas las celdas? Se conservan las consultas, los parámetros, los gráficos y el historial de ejecución.",
       "outline": "Esquema",
       "aiGenerate": "Generar SQL con IA",
       "aiExplain": "Explicar esta Consulta con IA",
@@ -2121,6 +2187,24 @@
     "failCreate": "Error al crear la tabla: ",
     "requiresExtension": "Requiere extensión: {{ext}}"
   },
+  "createDatabase": {
+    "title": "Crear base de datos",
+    "subtitle": "Ejecuta CREATE DATABASE en este servidor",
+    "name": "Nombre de la base de datos",
+    "namePlaceholder": "p. ej. analytics, staging",
+    "create": "Crear base de datos",
+    "nameRequired": "El nombre de la base de datos es obligatorio",
+    "failCreate": "Error al crear la base de datos: "
+  },
+  "createSchema": {
+    "title": "Crear esquema",
+    "subtitle": "Ejecuta CREATE SCHEMA en esta base de datos",
+    "name": "Nombre del esquema",
+    "namePlaceholder": "p. ej. store, reporting",
+    "create": "Crear esquema",
+    "nameRequired": "El nombre del esquema es obligatorio",
+    "failCreate": "Error al crear el esquema: "
+  },
   "schema": {
     "title": "Esquema: {{table}}",
     "loading": "Cargando esquema...",
@@ -2216,6 +2300,7 @@
     "exportMermaid": "Exportar como diagrama Mermaid",
     "exportSuccess": "Diagrama exportado",
     "exportDbml": "Exportar como DBML",
+    "exportMarkdown": "Exportar como Markdown",
     "export": "Exportar"
   },
   "views": {
@@ -2425,6 +2510,7 @@
     "collapse": "Contraer",
     "expandAll": "Expandir todo",
     "collapseAll": "Contraer todo",
+    "sortKeys": "Ordenar claves",
     "search": "Buscar",
     "copyPath": "Copiar ruta",
     "copyValue": "Copiar valor",

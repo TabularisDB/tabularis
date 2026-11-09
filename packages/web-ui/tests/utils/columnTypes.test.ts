@@ -1,6 +1,8 @@
 import {describe, it, expect} from 'vitest';
 import {
     parseColumnType,
+    parseExistingColumnType,
+    existingColumnForm,
     buildColumnDefinition,
     getRequiredExtensions,
     isEnumType,
@@ -35,6 +37,14 @@ const pgTypes: DataTypeInfo[] = [
     makeType('TEXT[]', {category: 'array'}),
     makeType('HSTORE', {category: 'extension', requires_extension: 'hstore'}),
     makeType('DOUBLE PRECISION', {category: 'numeric'}),
+];
+
+const mysqlTypes: DataTypeInfo[] = [
+    makeType('VARCHAR', {category: 'string', requires_length: true, default_length: '255'}),
+    makeType('INT', {category: 'numeric', supports_auto_increment: true}),
+    makeType('TINYINT', {category: 'numeric', supports_auto_increment: true}),
+    makeType('DECIMAL', {category: 'numeric', requires_precision: true}),
+    makeType('TEXT', {category: 'string'}),
 ];
 
 describe('columnTypes utils', () => {
@@ -112,6 +122,163 @@ describe('columnTypes utils', () => {
         it('should handle BOOLEAN type', () => {
             const result = parseColumnType('boolean', pgTypes);
             expect(result).toEqual({type: 'BOOLEAN', length: ''});
+        });
+    });
+
+    describe('parseExistingColumnType', () => {
+        it('keeps the length MySQL reports in full_type', () => {
+            const column = {data_type: 'varchar', full_type: 'varchar(255)'};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'VARCHAR',
+                length: '255',
+            });
+        });
+
+        it('keeps precision and scale from full_type', () => {
+            const column = {data_type: 'decimal', full_type: 'decimal(10,2)'};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'DECIMAL',
+                length: '10,2',
+            });
+        });
+
+        it('keeps a display width such as tinyint(1)', () => {
+            const column = {data_type: 'tinyint', full_type: 'tinyint(1)'};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'TINYINT',
+                length: '1',
+            });
+        });
+
+        it('keeps modifiers after the base type, like unsigned', () => {
+            const column = {data_type: 'int', full_type: 'int unsigned'};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'INT UNSIGNED',
+                length: '',
+            });
+            const decimal = {data_type: 'decimal', full_type: 'decimal(10,2) unsigned'};
+            expect(parseExistingColumnType(decimal, mysqlTypes)).toEqual({
+                type: 'DECIMAL(10,2) UNSIGNED',
+                length: '',
+            });
+        });
+
+        it('keeps the PostgreSQL length from full_type', () => {
+            const column = {data_type: 'character varying', full_type: 'character varying(255)'};
+            expect(parseExistingColumnType(column, pgTypes)).toEqual({
+                type: 'CHARACTER VARYING',
+                length: '255',
+            });
+        });
+
+        it('uses the separately reported length when there is no full_type', () => {
+            const column = {data_type: 'varchar', character_maximum_length: 64};
+            expect(parseExistingColumnType(column, mysqlTypes)).toEqual({
+                type: 'VARCHAR',
+                length: '64',
+            });
+            const numeric = {data_type: 'numeric', numeric_precision: 12, numeric_scale: 3};
+            expect(parseExistingColumnType(numeric, pgTypes)).toEqual({
+                type: 'NUMERIC',
+                length: '12,3',
+            });
+        });
+
+        it('parses data_type as before when it already carries the full type', () => {
+            expect(parseExistingColumnType({data_type: 'VARCHAR(50)'}, pgTypes)).toEqual({
+                type: 'VARCHAR',
+                length: '50',
+            });
+            expect(parseExistingColumnType({data_type: 'INTEGER'}, pgTypes)).toEqual({
+                type: 'INTEGER',
+                length: '',
+            });
+            expect(
+                parseExistingColumnType({data_type: "enum('a','b')", full_type: null}, mysqlTypes),
+            ).toEqual({type: 'ENUM', length: "'a','b'"});
+        });
+    });
+
+    describe('existingColumnForm', () => {
+        const base = {
+            name: 'status',
+            data_type: 'varchar',
+            full_type: 'varchar(20)',
+            is_nullable: false,
+            is_pk: false,
+            is_auto_increment: false,
+        };
+
+        it('starts from the default as SQL and keeps ON UPDATE', () => {
+            expect(
+                existingColumnForm(
+                    {...base, default_sql: "'new'", on_update: 'CURRENT_TIMESTAMP'},
+                    mysqlTypes,
+                    false,
+                ),
+            ).toEqual({
+                name: 'status',
+                type: 'VARCHAR',
+                length: '20',
+                isNullable: false,
+                defaultValue: "'new'",
+                isPk: false,
+                isAutoInc: false,
+                comment: undefined,
+                onUpdate: 'CURRENT_TIMESTAMP',
+            });
+        });
+
+        it('leaves the default empty without default_sql or for auto-increment', () => {
+            expect(existingColumnForm(base, mysqlTypes, false).defaultValue).toBe('');
+            expect(
+                existingColumnForm(
+                    {...base, is_auto_increment: true, default_sql: "'1'"},
+                    mysqlTypes,
+                    false,
+                ).defaultValue,
+            ).toBe('');
+        });
+
+        it('carries the comment only when the driver supports comments', () => {
+            expect(existingColumnForm({...base, comment: 'Note'}, mysqlTypes, true).comment).toBe(
+                'Note',
+            );
+            expect(
+                existingColumnForm({...base, comment: 'Note'}, mysqlTypes, false).comment,
+            ).toBeUndefined();
+        });
+    });
+
+    describe('buildColumnDefinition: default and ON UPDATE', () => {
+        const form = {
+            name: 'updated',
+            type: 'TIMESTAMP',
+            isNullable: false,
+            defaultValue: 'CURRENT_TIMESTAMP',
+            isPk: false,
+            isAutoInc: false,
+            onUpdate: 'CURRENT_TIMESTAMP',
+        };
+
+        it('keeps ON UPDATE for TIMESTAMP and DATETIME', () => {
+            expect(buildColumnDefinition(form).on_update).toBe('CURRENT_TIMESTAMP');
+            expect(buildColumnDefinition({...form, type: 'datetime', length: '3'}).on_update).toBe(
+                'CURRENT_TIMESTAMP',
+            );
+        });
+
+        it('drops ON UPDATE when the type is changed to something else', () => {
+            expect(
+                buildColumnDefinition({...form, type: 'VARCHAR', length: '20'}),
+            ).not.toHaveProperty('on_update');
+        });
+
+        it('sends no default for an auto-increment column', () => {
+            expect(
+                buildColumnDefinition({...form, type: 'INT', isAutoInc: true, defaultValue: "'1'"})
+                    .default_value,
+            ).toBeNull();
         });
     });
 

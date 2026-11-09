@@ -15,6 +15,8 @@ fn column(name: &str, data_type: &str, is_pk: bool, is_nullable: bool) -> TableC
         numeric_scale: None,
         comment: None,
         full_type: None,
+        default_sql: None,
+        on_update: None,
     }
 }
 

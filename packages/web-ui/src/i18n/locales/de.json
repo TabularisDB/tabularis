@@ -86,6 +86,12 @@
     "warnConfirm": "Trotzdem ausführen",
     "warnSnooze": "Für diese Verbindung nicht mehr fragen (diese Sitzung)"
   },
+  "textStats": {
+    "characters": "Zeichen: {{count}}",
+    "lines": "Zeilen: {{count}}",
+    "bytes": "UTF-8-Bytes: {{count}}",
+    "charactersHint": "Unicode-Codepoints, keine Graphem-Cluster"
+  },
   "common": {
     "save": "Speichern",
     "close": "Schließen",
@@ -232,6 +238,8 @@
     "refreshRoutines": "Routinen aktualisieren",
     "objectSummary": "Objekte",
     "databases": "Datenbanken",
+    "newDatabase": "Neue Datenbank",
+    "newSchema": "Neues Schema",
     "failGetRoutineDefinition": "Abrufen der Routinen-Definition fehlgeschlagen: ",
     "schemas": "Schemata",
     "noSchemas": "Keine Schemata gefunden",
@@ -537,6 +545,27 @@
   "settings": {
     "title": "Einstellungen",
     "general": "Allgemein",
+    "snippets": {
+      "title": "SQL-Snippets",
+      "subtitle": "Definieren Sie wiederverwendbare SQL-Vorlagen mit Auslösepräfixen und Tab-Stopp-Platzhaltern für die Monaco-Autovervollständigung.",
+      "add": "Neues Snippet",
+      "createTitle": "Snippet erstellen",
+      "editTitle": "Snippet bearbeiten",
+      "nameLabel": "Snippet-Name",
+      "prefixLabel": "Auslösepräfix",
+      "dialectLabel": "Dialekt-Geltungsbereich",
+      "allDialects": "Alle Dialekte",
+      "descriptionLabel": "Beschreibung",
+      "bodyLabel": "Snippet-Text",
+      "tabStopHint": "Verwenden Sie ${1:Platzhalter} für bearbeitbare Tab-Stopps",
+      "noSnippets": "Noch keine SQL-Snippets konfiguriert.",
+      "invalidPrefix": "Das Präfix darf nur Buchstaben, Zahlen, Unterstriche und Bindestriche enthalten",
+      "invalidBody": "Der Snippet-Text darf nicht leer sein",
+      "namePlaceholder": "z. B. Select Active Orders",
+      "prefixPlaceholder": "z. B. selorders",
+      "descPlaceholder": "z. B. Bestellungen mit ausstehendem Status auswählen",
+      "duplicatePrefix": "Ein Snippet mit diesem Präfix existiert bereits für diesen Dialektbereich"
+    },
     "privacy": "Datenschutz",
     "network": {
       "tab": "Network",
@@ -708,6 +737,9 @@
     "autocomplete_keywordCase": "Schlüsselwort-Schreibweise",
     "autocomplete_keywordCaseDesc": "Groß-/Kleinschreibung von SQL-Schlüsselwörtern, die durch die Autovervollständigung eingefügt werden.",
     "autocomplete_keywordCaseMatch": "An Eingabe anpassen",
+    "diagnostics_title": "SQL-Diagnose",
+    "diagnostics_enabled": "Nicht aufgelöste Verweise hervorheben",
+    "diagnostics_enabledDesc": "Markiert unbekannte Tabellen, Spalten und Aliase in PostgreSQL-SELECT-Anweisungen anhand der bereits geladenen Metadaten der Verbindung. Der Server bleibt maßgeblich, es wird nichts ausgeführt.",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {
@@ -1665,6 +1697,14 @@
     "auto": "Auto"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "Tabelle oder Ansicht „{{name}}“ wurde in den geladenen Metadaten nicht gefunden. Sie könnte temporär sein oder nach dem Laden der Metadaten erstellt worden sein.",
+      "unresolvedColumn": "Spalte „{{name}}“ existiert nicht",
+      "unresolvedAlias": "„{{name}}“ ist keine Tabelle und kein Alias in dieser Abfrage",
+      "ambiguousColumn": "Spaltenverweis „{{name}}“ ist mehrdeutig",
+      "unsupportedConstruct": "Die Analyse ist hier eingeschränkt: {{name}} wird nicht analysiert, daher werden davon abhängige Verweise nicht geprüft",
+      "metadataUnavailable": "Die Spalten von „{{name}}“ sind nicht verfügbar, daher werden Verweise darauf nicht geprüft"
+    },
     "quickNavigator": {
       "placeholder": "Tabellen, Views, Routinen, Trigger suchen...",
       "noResults": "Keine passenden Elemente gefunden",
@@ -1907,6 +1947,28 @@
       "noRawOutput": "Keine rohe Explain-Ausgabe zum Exportieren verfügbar.",
       "saveRawPlan": "Rohplan speichern…",
       "saveRawError": "Rohplan konnte nicht gespeichert werden",
+      "snapshots": "Snapshots",
+      "snapshotsTitle": "Plan-Snapshots & Baselines",
+      "saveSnapshot": "Snapshot speichern",
+      "snapshotNamePlaceholder": "Snapshot-Namen eingeben (z. B. Vor Index)...",
+      "noSnapshots": "Noch keine Plan-Snapshots gespeichert.",
+      "activeBaseline": "Aktive Baseline",
+      "setAsBaseline": "Vergleichen",
+      "isBaseline": "Ausgewählt",
+      "comparingAgainst": "Baseline",
+      "incompatibleBaseline": "Inkompatible Baseline",
+      "clearBaseline": "Baseline zurücksetzen",
+      "operatorsChanged": "Operatoren geändert",
+      "snapshotSaved": "Plan-Snapshot erfolgreich gespeichert",
+      "snapshotNameLabel": "Snapshot-Name",
+      "snapshotSaveFailed": "Fehler beim Speichern des Plan-Snapshots: Speicherlimit erreicht oder nicht verfügbar",
+      "snapshotDeleteFailed": "Fehler beim Löschen des Snapshots aus dem Speicher",
+      "snapshotPinFailed": "Fehler beim Aktualisieren des Snapshot-Pin-Status im Speicher",
+      "analyzeMismatch": "Schätzung vs. Tatsächlich",
+      "analyzeMismatchTooltip": "Ein Plan enthält tatsächliche Ausführungsmetriken (EXPLAIN ANALYZE), während der andere nur Schätzungen enthält",
+      "pinSnapshot": "Anheften",
+      "unpinSnapshot": "Lösen",
+      "time": "Zeit",
       "formatText": "Text",
       "aiAnalysis": "KI-Analyse",
       "aiAnalysisTitle": "KI-Analyse des Abfrageplans",
@@ -2003,6 +2065,8 @@
       "exportCsv": "Als CSV exportieren",
       "exportJson": "Als JSON exportieren",
       "exportHtml": "Als HTML exportieren",
+      "exportSql": "SQL-Quelltext exportieren",
+      "exportSqlEmpty": "Dieses Notebook enthält kein SQL zum Exportieren.",
       "parameters": "Parameter",
       "paramName": "name",
       "paramValue": "wert",
@@ -2026,6 +2090,8 @@
       "expandSection": "Abschnitt ausklappen",
       "collapseAll": "Alle einklappen",
       "expandAll": "Alle ausklappen",
+      "clearOutputs": "Ausgaben löschen",
+      "clearOutputsConfirm": "Die angezeigten Ergebnisse, Fehler und Laufzeiten aller Zellen löschen? Abfragen, Parameter, Diagramme und der Ausführungsverlauf bleiben erhalten.",
       "outline": "Gliederung",
       "aiGenerate": "SQL mit KI generieren",
       "aiExplain": "Diese Abfrage mit KI erklären",
@@ -2148,6 +2214,24 @@
     "failCreate": "Erstellen der Tabelle fehlgeschlagen: ",
     "requiresExtension": "Erfordert Erweiterung: {{ext}}"
   },
+  "createDatabase": {
+    "title": "Datenbank erstellen",
+    "subtitle": "Führt CREATE DATABASE auf diesem Server aus",
+    "name": "Datenbankname",
+    "namePlaceholder": "z. B. analytics, staging",
+    "create": "Datenbank erstellen",
+    "nameRequired": "Datenbankname ist erforderlich",
+    "failCreate": "Erstellen der Datenbank fehlgeschlagen: "
+  },
+  "createSchema": {
+    "title": "Schema erstellen",
+    "subtitle": "Führt CREATE SCHEMA in dieser Datenbank aus",
+    "name": "Schemaname",
+    "namePlaceholder": "z. B. store, reporting",
+    "create": "Schema erstellen",
+    "nameRequired": "Schemaname ist erforderlich",
+    "failCreate": "Erstellen des Schemas fehlgeschlagen: "
+  },
   "schema": {
     "title": "Schema: {{table}}",
     "loading": "Schema wird geladen...",
@@ -2245,6 +2329,7 @@
     "exportMermaid": "Als Mermaid-Diagramm exportieren",
     "exportSuccess": "Diagramm exportiert",
     "exportDbml": "Als DBML exportieren",
+    "exportMarkdown": "Als Markdown exportieren",
     "export": "Exportieren"
   },
   "views": {
@@ -2464,6 +2549,7 @@
     "collapse": "Zuklappen",
     "expandAll": "Alle erweitern",
     "collapseAll": "Alle reduzieren",
+    "sortKeys": "Schlüssel sortieren",
     "search": "Suchen",
     "copyPath": "Pfad kopieren",
     "copyValue": "Wert kopieren",

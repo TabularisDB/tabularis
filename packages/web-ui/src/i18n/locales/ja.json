@@ -86,6 +86,12 @@
     "warnConfirm": "実行する",
     "warnSnooze": "この接続では今後確認しない（このセッション中）"
   },
+  "textStats": {
+    "characters": "文字数: {{count}}",
+    "lines": "行数: {{count}}",
+    "bytes": "UTF-8 バイト数: {{count}}",
+    "charactersHint": "Unicode コードポイント数(書記素クラスターではありません)"
+  },
   "common": {
     "save": "保存",
     "close": "閉じる",
@@ -245,6 +251,8 @@
     "onTable": "{{table}} に対して",
     "objectSummary": "オブジェクト",
     "databases": "データベース",
+    "newDatabase": "新しいデータベース",
+    "newSchema": "新しいスキーマ",
     "failGetRoutineDefinition": "ルーチン定義の取得に失敗しました: ",
     "schemas": "スキーマ",
     "noSchemas": "スキーマが見つかりません",
@@ -550,6 +558,27 @@
   "settings": {
     "title": "設定",
     "general": "一般",
+    "snippets": {
+      "title": "SQLスニペット",
+      "subtitle": "Monacoのオートコンプリート用に、トリガープレフィックスとタブストッププレースホルダーを備えた再利用可能なSQLテンプレートを定義します。",
+      "add": "新規スニペット",
+      "createTitle": "スニペットを作成",
+      "editTitle": "スニペットを編集",
+      "nameLabel": "スニペット名",
+      "prefixLabel": "トリガー接頭辞",
+      "dialectLabel": "対象方言",
+      "allDialects": "すべての方言",
+      "descriptionLabel": "説明",
+      "bodyLabel": "スニペット本文",
+      "tabStopHint": "編集可能なタブストップには ${1:placeholder} を使用します",
+      "noSnippets": "設定されたSQLスニペットはまだありません。",
+      "invalidPrefix": "接頭辞には英数字、アンダースコア、ハイフンのみ使用できます",
+      "invalidBody": "スニペット本文を入力してください",
+      "namePlaceholder": "例: Select Active Orders",
+      "prefixPlaceholder": "例: selorders",
+      "descPlaceholder": "例: 保留中の注文を選択",
+      "duplicatePrefix": "このダイアレクト範囲には同じプレフィックスのスニペットが既に存在します"
+    },
     "privacy": "プライバシー",
     "network": {
       "tab": "Network",
@@ -719,6 +748,9 @@
     "autocomplete_keywordCase": "キーワードの大文字/小文字",
     "autocomplete_keywordCaseDesc": "オートコンプリートで挿入されるSQLキーワードの大文字/小文字。",
     "autocomplete_keywordCaseMatch": "入力に合わせる",
+    "diagnostics_title": "SQL診断",
+    "diagnostics_enabled": "未解決の参照をハイライト",
+    "diagnostics_enabledDesc": "接続で既に読み込まれたメタデータを使い、PostgreSQL の SELECT 文内の不明なテーブル・列・エイリアスを示します。最終的な判断はサーバーが行い、SQL は実行されません。",
     "editConfigJson": "config.json を編集",
     "editConfigJsonDesc": "生の設定ファイルを直接編集します。変更を反映するには再起動が必要です。",
     "configJsonModal": {
@@ -1677,6 +1709,14 @@
     "auto": "自動"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "読み込まれたメタデータにテーブルまたはビュー「{{name}}」が見つかりません。一時テーブルか、メタデータ読み込み後に作成された可能性があります。",
+      "unresolvedColumn": "列「{{name}}」は存在しません",
+      "unresolvedAlias": "「{{name}}」はこのクエリ内のテーブルでもエイリアスでもありません",
+      "ambiguousColumn": "列参照「{{name}}」はあいまいです",
+      "unsupportedConstruct": "ここでは分析が制限されています: {{name}} は分析されないため、それに依存する参照は検査されません",
+      "metadataUnavailable": "「{{name}}」の列を取得できないため、それへの参照は検査されません"
+    },
     "quickNavigator": {
       "placeholder": "テーブル、ビュー、ルーチン、トリガーを検索...",
       "noResults": "一致する要素が見つかりません",
@@ -1918,6 +1958,28 @@
       "noRawOutput": "エクスポート可能な生の Explain 出力がありません。",
       "saveRawPlan": "未加工の実行計画を保存…",
       "saveRawError": "未加工の実行計画の保存に失敗しました",
+      "snapshots": "スナップショット",
+      "snapshotsTitle": "実行計画のスナップショットとベースライン",
+      "saveSnapshot": "スナップショットを保存",
+      "snapshotNamePlaceholder": "スナップショット名を入力（例：インデックス作成前）...",
+      "noSnapshots": "保存された実行計画スナップショットはまだありません。",
+      "activeBaseline": "アクティブなベースライン",
+      "setAsBaseline": "比較",
+      "isBaseline": "選択中",
+      "comparingAgainst": "ベースライン",
+      "incompatibleBaseline": "互換性のないベースライン",
+      "clearBaseline": "ベースラインをクリア",
+      "operatorsChanged": "個のオペレーターが変更",
+      "snapshotSaved": "実行計画のスナップショットを保存しました",
+      "snapshotNameLabel": "スナップショット名",
+      "snapshotSaveFailed": "プランスナップショットの保存に失敗しました: ストレージ上限または利用不可",
+      "snapshotDeleteFailed": "ストレージからのスナップショット削除に失敗しました",
+      "snapshotPinFailed": "ストレージ内のスナップショット固定状態の更新に失敗しました",
+      "analyzeMismatch": "推定 vs 実績",
+      "analyzeMismatchTooltip": "一方のプランには実際の実行メトリクス（EXPLAIN ANALYZE）があり、他方は推定のみです",
+      "pinSnapshot": "固定",
+      "unpinSnapshot": "固定解除",
+      "time": "時間",
       "formatText": "テキスト",
       "aiAnalysis": "AI 分析",
       "aiAnalysisTitle": "AI によるクエリ計画分析",
@@ -2014,6 +2076,8 @@
       "exportCsv": "CSV としてエクスポート",
       "exportJson": "JSON としてエクスポート",
       "exportHtml": "HTML としてエクスポート",
+      "exportSql": "SQL ソースをエクスポート",
+      "exportSqlEmpty": "このノートブックにはエクスポートする SQL がありません。",
       "parameters": "パラメータ",
       "paramName": "名前",
       "paramValue": "値",
@@ -2037,6 +2101,8 @@
       "expandSection": "セクションを展開",
       "collapseAll": "すべて折りたたむ",
       "expandAll": "すべて展開",
+      "clearOutputs": "出力をクリア",
+      "clearOutputsConfirm": "すべてのセルに表示中の結果、エラー、実行時間をクリアしますか？クエリ、パラメータ、チャート、実行履歴は保持されます。",
       "outline": "アウトライン",
       "aiGenerate": "AI で SQL を生成",
       "aiExplain": "このクエリを AI で説明",
@@ -2159,6 +2225,24 @@
     "failCreate": "テーブルの作成に失敗しました: ",
     "requiresExtension": "拡張機能が必要: {{ext}}"
   },
+  "createDatabase": {
+    "title": "データベースを作成",
+    "subtitle": "このサーバーで CREATE DATABASE を実行します",
+    "name": "データベース名",
+    "namePlaceholder": "例: analytics, staging",
+    "create": "データベースを作成",
+    "nameRequired": "データベース名は必須です",
+    "failCreate": "データベースの作成に失敗しました: "
+  },
+  "createSchema": {
+    "title": "スキーマを作成",
+    "subtitle": "このデータベースで CREATE SCHEMA を実行します",
+    "name": "スキーマ名",
+    "namePlaceholder": "例: store, reporting",
+    "create": "スキーマを作成",
+    "nameRequired": "スキーマ名は必須です",
+    "failCreate": "スキーマの作成に失敗しました: "
+  },
   "schema": {
     "title": "スキーマ: {{table}}",
     "loading": "スキーマを読み込み中...",
@@ -2256,6 +2340,7 @@
     "exportMermaid": "Mermaid 図としてエクスポート",
     "exportSuccess": "図をエクスポートしました",
     "exportDbml": "DBML としてエクスポート",
+    "exportMarkdown": "Markdown としてエクスポート",
     "export": "エクスポート"
   },
   "views": {
@@ -2501,7 +2586,8 @@
     "valid": "有効な JSON",
     "invalid": "無効な JSON",
     "expandAll": "すべて展開",
-    "collapseAll": "すべて折りたたむ"
+    "collapseAll": "すべて折りたたむ",
+    "sortKeys": "キーを並べ替え"
   },
   "jsonViewer": {
     "close": "閉じる",

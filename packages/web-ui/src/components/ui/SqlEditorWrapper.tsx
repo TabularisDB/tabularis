@@ -27,6 +27,11 @@ import type {RunContext} from '@/utils/runTarget';
 import {registerSqlFoldingProvider, setSqlFoldingDialect} from '@/utils/sqlFolding';
 import {installSqlFoldPreview} from '@/utils/sqlFoldPreview';
 import {
+    useSqlDiagnostics,
+    type SqlDiagnosticsOptions,
+    type SqlDiagnosticsTarget,
+} from '@/hooks/useSqlDiagnostics';
+import {
     getEditorCursorStatus,
     isSameEditorCursorStatus,
     type EditorCursorStatus,
@@ -61,6 +66,11 @@ interface SqlEditorWrapperProps {
      * (notebook cells, modals) keep their layout.
      */
     cursorStatus?: boolean;
+    /**
+     * Publishes metadata-aware diagnostics (unresolved tables, columns and
+     * aliases) as editor markers. Omit to leave the editor without them.
+     */
+    diagnostics?: SqlDiagnosticsOptions;
 }
 
 function isLinux(): boolean {
@@ -118,6 +128,7 @@ const SqlEditorInternal = ({
     onRunContextChange,
     foldPreview = false,
     cursorStatus = false,
+    diagnostics,
 }: SqlEditorWrapperProps & {editorKey: string}) => {
     const platform = usePlatformCapabilities();
     const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,6 +138,8 @@ const SqlEditorInternal = ({
     const foldPreviewRef = useRef<Monaco.IDisposable | null>(null);
     // The status is per editor instance: two mounted editors never share it.
     const [editorCursorStatus, setEditorCursorStatus] = useState<EditorCursorStatus | null>(null);
+    const [diagnosticsTarget, setDiagnosticsTarget] = useState<SqlDiagnosticsTarget | null>(null);
+    useSqlDiagnostics(diagnosticsTarget, diagnostics);
     const cursorStatusListenersRef = useRef<Monaco.IDisposable[]>([]);
     const onRunRef = useRef(onRun);
     onRunRef.current = onRun;
@@ -352,6 +365,7 @@ const SqlEditorInternal = ({
     const handleEditorMount: OnMount = (editor, monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
+        setDiagnosticsTarget({editor, monaco});
         setSqlFoldingDialect(editor.getModel(), dialectRef.current);
         if (foldPreview) {
             foldPreviewRef.current = installSqlFoldPreview(

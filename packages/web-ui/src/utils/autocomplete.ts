@@ -13,6 +13,13 @@ import {
 import {maskNestedSqlBodies, parseDerivedTables} from './derivedTables';
 import {dialectOptions, type QuoteRule} from './sqlSplitter';
 import {resolveSqlSyntax, syntaxKeywords} from './sqlSyntax';
+import {
+    loadSqlSnippets,
+    normalizeDriverToDialect,
+    isSnippetDialectCompatible,
+    isOffsetInCommentOrString,
+    type SqlSnippet,
+} from './sqlSnippets';
 
 export type AutocompleteKeywordCase = 'match' | 'upper' | 'lower';
 
@@ -140,21 +147,23 @@ const cleanupCache = () => {
     }
 };
 
-const getTableColumns = async (
+export const getTableColumns = async (
     client: TypedCommandCaller,
     connectionId: string,
     tableName: string,
     schema?: string | null,
+    database?: string | null,
+    /** Ignore cached entries older than this; callers that must not act on stale columns set it. */
+    maxAgeMs?: number,
 ) => {
     if (!connectionId || !tableName) return [];
 
-    const cacheKey = schema
-        ? `${connectionId}:${schema}:${tableName}`
-        : `${connectionId}:${tableName}`;
+    const scope = database ? `${connectionId}:${database}` : connectionId;
+    const cacheKey = schema ? `${scope}:${schema}:${tableName}` : `${scope}:${tableName}`;
     const cached = columnsCache.get(cacheKey);
 
     // Return cached data if valid
-    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+    if (cached && Date.now() - cached.timestamp < Math.min(cached.ttl, maxAgeMs ?? Infinity)) {
         return cached.data;
     }
 
@@ -163,6 +172,7 @@ const getTableColumns = async (
             connectionId,
             tableName,
             ...(schema ? {schema} : {}),
+            ...(database ? {database} : {}),
         });
 
         if (!Array.isArray(cols)) {
@@ -793,8 +803,43 @@ export const registerSqlAutocomplete = (
                   }))
                 : [];
 
+            // ============================================
+            // 5. SNIPPET SUGGESTIONS
+            // ============================================
+            // Offer reusable SQL snippets when keywords are allowed, cursor is not
+            // inside an opened quote or string/comment, and a prefix has been typed.
+            const hasDotMatch = Boolean(qualifiedDotMatch || simpleDotMatch || quotedDotMatch);
+            const currentDialect = normalizeDriverToDialect(driver);
+            const offerSnippets =
+                suggestionKinds.keywords &&
+                openQuoteColumn === null &&
+                !hasDotMatch &&
+                !sqlContext.inString &&
+                !sqlContext.inComment &&
+                !isOffsetInCommentOrString(sourceText, cursorOffset, currentDialect) &&
+                typedPrefix.length > 0;
+            const snippets: SqlSnippet[] = offerSnippets ? loadSqlSnippets() : [];
+            const snippetSuggestions = snippets
+                .filter(
+                    (s) =>
+                        s.prefix.toLowerCase().startsWith(typedPrefix.toLowerCase()) &&
+                        isSnippetDialectCompatible(s.dialect, currentDialect),
+                )
+                .map((s) => ({
+                    label: s.prefix,
+                    kind: monaco.languages.CompletionItemKind?.Snippet ?? 28,
+                    detail: s.name ? `${s.name} (Snippet)` : 'SQL Snippet',
+                    documentation: s.description || s.body,
+                    insertText: s.body,
+                    insertTextRules:
+                        monaco.languages.CompletionItemInsertTextRule?.InsertAsSnippet ?? 4,
+                    range,
+                    sortText: `0_0_${s.prefix}`,
+                }));
+
             return {
                 suggestions: [
+                    ...snippetSuggestions,
                     ...contextColumnSuggestions,
                     ...tableSuggestions,
                     ...keywordSuggestions,
