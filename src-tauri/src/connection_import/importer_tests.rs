@@ -1298,9 +1298,9 @@ async fn project_config_escaped_dollar_in_password_and_url() {
         r#"
 DB_PASSWORD="pa\$ss"
 DATABASE_URL="postgres://alice:${DB_PASSWORD}@127.0.0.1:5432/app"
-SINGLE_URL='postgres://bob:sec\$ret@127.0.0.1:5433/shop'
+SINGLE_DB_URL='postgres://bob:sec\$ret@127.0.0.1:5433/shop'
 UNQUOTED_PASSWORD=raw\$pass
-UNQUOTED_URL="postgres://charlie:${UNQUOTED_PASSWORD}@127.0.0.1:5434/warehouse"
+UNQUOTED_DB_URL="postgres://charlie:${UNQUOTED_PASSWORD}@127.0.0.1:5434/warehouse"
 "#,
     );
 
@@ -1325,7 +1325,7 @@ UNQUOTED_URL="postgres://charlie:${UNQUOTED_PASSWORD}@127.0.0.1:5434/warehouse"
     let single_conn = env
         .connections
         .iter()
-        .find(|c| c.name.contains("SINGLE_URL"))
+        .find(|c| c.name.contains("SINGLE_DB_URL"))
         .unwrap();
     let single_idx = env
         .connections
@@ -1339,7 +1339,7 @@ UNQUOTED_URL="postgres://charlie:${UNQUOTED_PASSWORD}@127.0.0.1:5434/warehouse"
     let unquoted_conn = env
         .connections
         .iter()
-        .find(|c| c.name.contains("UNQUOTED_URL"))
+        .find(|c| c.name.contains("UNQUOTED_DB_URL"))
         .unwrap();
     let unquoted_idx = env
         .connections
