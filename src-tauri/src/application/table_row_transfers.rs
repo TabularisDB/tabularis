@@ -141,10 +141,78 @@ impl Endpoint {
     }
 }
 
+fn is_loopback(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]")
+}
+
+fn same_host(a: Option<&str>, b: Option<&str>) -> bool {
+    let a = a.unwrap_or("localhost").trim().to_ascii_lowercase();
+    let b = b.unwrap_or("localhost").trim().to_ascii_lowercase();
+    a == b || (is_loopback(&a) && is_loopback(&b))
+}
+
+fn same_ssh_route(a: &ConnectionParams, b: &ConnectionParams) -> bool {
+    let (a_on, b_on) = (a.ssh_enabled == Some(true), b.ssh_enabled == Some(true));
+    if !a_on && !b_on {
+        return true;
+    }
+    if a_on != b_on {
+        return false;
+    }
+    match (&a.ssh_connection_id, &b.ssh_connection_id) {
+        (Some(x), Some(y)) => x == y,
+        (None, None) => {
+            a.ssh_host == b.ssh_host && a.ssh_port == b.ssh_port && a.ssh_user == b.ssh_user
+        }
+        _ => false,
+    }
+}
+
+/// True when two resolved connections reach the same database. Saved
+/// connections are aliases: a different connection id says nothing about
+/// whether the data lives in the same place. A tunnel that cannot be proven
+/// identical counts as a different route, so only a provable match blocks.
+fn reaches_same_database(a: &ConnectionParams, b: &ConnectionParams) -> bool {
+    if a.driver != b.driver {
+        return false;
+    }
+    match dialect_for_driver(&a.driver) {
+        Some(TransferDialect::Sqlite) => same_file(a.database.primary(), b.database.primary()),
+        Some(TransferDialect::Postgres) => {
+            a.database.primary() == b.database.primary()
+                && same_host(a.host.as_deref(), b.host.as_deref())
+                && a.port.unwrap_or(5432) == b.port.unwrap_or(5432)
+                && same_ssh_route(a, b)
+        }
+        None => false,
+    }
+}
+
+fn same_file(a: &str, b: &str) -> bool {
+    if a == b {
+        return true;
+    }
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
+/// True when the transfer would write a table into itself, whichever saved
+/// connections the two endpoints came from.
+fn is_same_table(
+    source: (&ConnectionParams, &str),
+    target: (&ConnectionParams, &str),
+    selection: &TableSelection,
+) -> bool {
+    reaches_same_database(source.0, target.0)
+        && source.1 == target.1
+        && selection.source_table == selection.target_table
+}
+
 async fn plan_tables(
     source: &Endpoint,
     target: &Endpoint,
-    same_connection: bool,
     selections: &[TableSelection],
 ) -> Result<(Vec<PlannedTable>, Vec<PlanIssue>), String> {
     let mut issues = Vec::new();
@@ -165,10 +233,11 @@ async fn plan_tables(
             .drv
             .get_columns(&target.params, &selection.target_table, target.schema_arg())
             .await?;
-        let same_table = same_connection
-            && source.params.database.primary() == target.params.database.primary()
-            && source.schema == target.schema
-            && selection.source_table == selection.target_table;
+        let same_table = is_same_table(
+            (&source.params, &source.schema),
+            (&target.params, &target.schema),
+            selection,
+        );
         let estimated_rows = if source_columns.is_empty() {
             None
         } else {
@@ -222,13 +291,7 @@ async fn resolve(
     .await?;
     ensure_supported_pair(&source.driver, &target.driver)?;
 
-    let (tables, issues) = plan_tables(
-        &source,
-        &target,
-        request.source_connection_id == request.target_connection_id,
-        &request.tables,
-    )
-    .await?;
+    let (tables, issues) = plan_tables(&source, &target, &request.tables).await?;
     Ok(Resolved { source, target, tables, issues })
 }
 

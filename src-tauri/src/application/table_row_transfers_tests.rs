@@ -208,7 +208,7 @@ async fn job(
     cancel_after: Option<u64>,
 ) -> (TableTransferResult, Arc<Events>, Vec<PlannedTable>) {
     let source = endpoint(pg_params(), schema).await;
-    let (tables, issues) = plan_tables(&source, &target, false, &[selection()]).await.unwrap();
+    let (tables, issues) = plan_tables(&source, &target, &[selection()]).await.unwrap();
     assert!(issues.is_empty());
     let dir = tempfile::tempdir().unwrap();
     let events = Arc::new(Events {
@@ -419,7 +419,7 @@ async fn plan_blocks_a_missing_target_table_and_never_creates_it() {
     get_sqlite_pool(&params).await.unwrap();
     let target = endpoint(params, "").await;
     let source = endpoint(pg_params(), schema).await;
-    let (tables, _) = plan_tables(&source, &target, false, &[selection()]).await.unwrap();
+    let (tables, _) = plan_tables(&source, &target, &[selection()]).await.unwrap();
     assert!(tables[0].plan.blocking);
     assert_eq!(tables[0].plan.issues[0].code, "targetTableNotFound");
     assert!(target.drv.get_columns(&target.params, "dst", None).await.unwrap().is_empty());
@@ -456,4 +456,83 @@ async fn detects_strict_sqlite_tables() {
     assert!(sqlite::is_strict_table(&pool, "STRICT_ANY").await);
     assert!(!sqlite::is_strict_table(&pool, "plain_any").await);
     assert!(!sqlite::is_strict_table(&pool, "missing").await);
+}
+
+fn saved_pg(host: &str, port: Option<u16>, database: &str) -> ConnectionParams {
+    ConnectionParams {
+        driver: "postgres".into(),
+        host: Some(host.into()),
+        port,
+        database: DatabaseSelection::Single(database.into()),
+        ..Default::default()
+    }
+}
+
+fn same_name() -> TableSelection {
+    TableSelection {
+        source_table: "alias_copy_test".into(),
+        target_table: "alias_copy_test".into(),
+        columns: vec![],
+    }
+}
+
+#[test]
+fn two_saved_connections_to_one_database_are_the_same_table() {
+    // Distinct saved ids resolve to the same server and database.
+    let a = saved_pg("db.example.com", Some(5432), "app");
+    let mut b = saved_pg("DB.example.com", None, "app");
+    b.username = Some("someone_else".into());
+    assert!(is_same_table((&a, "public"), (&b, "public"), &same_name()));
+}
+
+#[test]
+fn loopback_spellings_are_one_host() {
+    let a = saved_pg("localhost", Some(5432), "app");
+    let b = saved_pg("127.0.0.1", Some(5432), "app");
+    assert!(is_same_table((&a, "public"), (&b, "public"), &same_name()));
+}
+
+#[test]
+fn a_different_database_schema_table_host_or_port_is_not_the_same_table() {
+    let a = saved_pg("db", Some(5432), "app");
+    assert!(!is_same_table((&a, "public"), (&saved_pg("db", Some(5432), "other"), "public"), &same_name()));
+    assert!(!is_same_table((&a, "public"), (&a, "audit"), &same_name()));
+    assert!(!is_same_table((&a, "public"), (&saved_pg("db2", Some(5432), "app"), "public"), &same_name()));
+    assert!(!is_same_table((&a, "public"), (&saved_pg("db", Some(6543), "app"), "public"), &same_name()));
+    let renamed = TableSelection {
+        target_table: "alias_copy_test_2".into(),
+        ..same_name()
+    };
+    assert!(!is_same_table((&a, "public"), (&a, "public"), &renamed));
+}
+
+#[test]
+fn tunnels_only_match_when_provably_the_same_route() {
+    let mut a = saved_pg("db", Some(5432), "app");
+    let mut b = a.clone();
+    a.ssh_enabled = Some(true);
+    a.ssh_connection_id = Some("bastion-1".into());
+    assert!(!is_same_table((&a, "public"), (&b, "public"), &same_name()), "tunnel vs direct");
+
+    b.ssh_enabled = Some(true);
+    b.ssh_connection_id = Some("bastion-2".into());
+    assert!(!is_same_table((&a, "public"), (&b, "public"), &same_name()), "different bastions");
+
+    b.ssh_connection_id = Some("bastion-1".into());
+    assert!(is_same_table((&a, "public"), (&b, "public"), &same_name()));
+}
+
+#[test]
+fn sqlite_aliases_of_one_file_are_the_same_table() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a.db");
+    std::fs::File::create(&path).unwrap();
+    let via_dot = dir.path().join(".").join("a.db");
+    let a = sqlite_params(&path);
+    let b = sqlite_params(&via_dot);
+    assert!(is_same_table((&a, ""), (&b, ""), &same_name()));
+
+    let other = dir.path().join("b.db");
+    std::fs::File::create(&other).unwrap();
+    assert!(!is_same_table((&a, ""), (&sqlite_params(&other), ""), &same_name()));
 }
