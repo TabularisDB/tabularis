@@ -852,7 +852,6 @@ async fn sandbox_plugin_asset(
     headers.insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
     headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
     headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
-    headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
     headers.insert(
         CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(SANDBOX_GUEST_CSP),
