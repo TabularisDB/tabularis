@@ -11,8 +11,14 @@ use std::time::{Duration, SystemTime};
 /// Consecutive failed pings before a connection is recovered or dropped.
 pub const FAILURE_THRESHOLD: u32 = 2;
 
-/// Upper bound for the single reconnect attempt, including pool creation.
+/// Upper bound for one recovery: closing the old pools, opening a fresh one
+/// and pinging through it.
 pub const RECONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// How long teardown waits for a failed connection's pools to close. A
+/// connection still checked out by a query on a dead link would otherwise keep
+/// `sqlx::Pool::close` waiting forever.
+pub const POOL_CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Event emitted while a connection is being recovered. A connection that
 /// cannot be recovered is reported through `connection-health-failed`.
@@ -45,12 +51,13 @@ pub enum PingVerdict {
     Failed,
 }
 
-/// Failure counts for every pinged connection, plus the wall-clock time of the
-/// previous tick so a resume from sleep can be told apart from a dead link.
+/// Failure counts for every pinged connection, plus the wall-clock time the
+/// previous tick finished so a resume from sleep can be told apart from a dead
+/// link.
 #[derive(Debug)]
 pub struct HealthTracker {
     interval: Duration,
-    last_tick: Option<SystemTime>,
+    last_tick_end: Option<SystemTime>,
     failures: HashMap<String, u32>,
 }
 
@@ -58,28 +65,34 @@ impl HealthTracker {
     pub fn new(interval: Duration) -> Self {
         Self {
             interval,
-            last_tick: None,
+            last_tick_end: None,
             failures: HashMap::new(),
         }
     }
 
     /// Start a tick at wall-clock time `now`. Returns true when the gap since
-    /// the previous tick shows the machine was asleep. Failures counted before
-    /// the gap are forgotten, so a sleeping link gets a fresh ping before it
-    /// can be torn down.
+    /// the previous tick finished shows the machine was asleep. Failures
+    /// counted before the gap are forgotten, so a sleeping link gets a fresh
+    /// ping before it can be torn down.
     ///
-    /// The wall clock is used because the monotonic clock stops during suspend
-    /// on Linux and macOS.
+    /// The gap is measured from the end of the previous tick, so a tick slowed
+    /// by ping or reconnect timeouts is not mistaken for a sleep. The wall
+    /// clock is used because the monotonic clock stops during suspend on Linux
+    /// and macOS.
     pub fn begin_tick(&mut self, now: SystemTime) -> bool {
-        let resumed = self.last_tick.is_some_and(|last| {
+        let resumed = self.last_tick_end.is_some_and(|last| {
             now.duration_since(last)
                 .is_ok_and(|gap| gap > self.interval * 2)
         });
-        self.last_tick = Some(now);
         if resumed {
             self.failures.clear();
         }
         resumed
+    }
+
+    /// Finish a tick at wall-clock time `now`, after its pings and reconnects.
+    pub fn end_tick(&mut self, now: SystemTime) {
+        self.last_tick_end = Some(now);
     }
 
     pub fn record(&mut self, connection_id: &str, ping_ok: bool) -> PingVerdict {
@@ -134,18 +147,34 @@ mod tests {
         assert_eq!(tracker.record("b", false), PingVerdict::Suspect);
     }
 
+    fn tick(tracker: &mut HealthTracker, start: u64, end: u64) -> bool {
+        let resumed = tracker.begin_tick(at(start));
+        tracker.end_tick(at(end));
+        resumed
+    }
+
     #[test]
     fn regular_ticks_are_not_a_resume() {
         let mut tracker = HealthTracker::new(INTERVAL);
-        assert!(!tracker.begin_tick(at(0)));
-        assert!(!tracker.begin_tick(at(30)));
-        assert!(!tracker.begin_tick(at(90)));
+        assert!(!tick(&mut tracker, 0, 0));
+        assert!(!tick(&mut tracker, 30, 30));
+        assert!(!tick(&mut tracker, 90, 90));
+    }
+
+    #[test]
+    fn a_slow_tick_is_not_a_resume() {
+        let mut tracker = HealthTracker::new(Duration::from_secs(2));
+        tracker.begin_tick(at(0));
+        assert_eq!(tracker.record("a", false), PingVerdict::Suspect);
+        tracker.end_tick(at(5));
+        assert!(!tracker.begin_tick(at(7)));
+        assert_eq!(tracker.record("a", false), PingVerdict::Failed);
     }
 
     #[test]
     fn a_long_gap_forgets_failures_from_before_sleep() {
         let mut tracker = HealthTracker::new(INTERVAL);
-        tracker.begin_tick(at(0));
+        tick(&mut tracker, 0, 0);
         tracker.record("a", false);
         assert!(tracker.begin_tick(at(3_600)));
         assert_eq!(tracker.record("a", false), PingVerdict::Suspect);
@@ -155,7 +184,7 @@ mod tests {
     #[test]
     fn a_clock_moved_backwards_is_not_a_resume() {
         let mut tracker = HealthTracker::new(INTERVAL);
-        tracker.begin_tick(at(1_000));
+        tick(&mut tracker, 1_000, 1_000);
         tracker.record("a", false);
         assert!(!tracker.begin_tick(at(10)));
         assert_eq!(tracker.failures("a"), 1);

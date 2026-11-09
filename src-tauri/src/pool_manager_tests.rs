@@ -1697,6 +1697,55 @@ mod startup_script_tests {
     }
 }
 
+#[cfg(test)]
+mod bounded_close_tests {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use crate::pool_manager::{
+        close_pools_for_connection_id_within, get_sqlite_pool_with_id, has_pool,
+    };
+    use std::time::Duration;
+    use tempfile::NamedTempFile;
+
+    #[tokio::test]
+    async fn a_checked_out_connection_does_not_hold_up_teardown() {
+        let file = NamedTempFile::new().expect("temp file");
+        let conn_id = format!("bounded-close-{}", ulid::Ulid::new());
+        let params = ConnectionParams {
+            driver: "sqlite".to_string(),
+            database: DatabaseSelection::Single(file.path().to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+        let old_pool = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .unwrap();
+        let checked_out = old_pool.acquire().await.unwrap();
+
+        let closed = tokio::time::timeout(
+            Duration::from_secs(5),
+            close_pools_for_connection_id_within("sqlite", &conn_id, Duration::from_millis(200)),
+        )
+        .await
+        .expect("teardown must return within its bound");
+        assert!(!closed);
+        assert!(old_pool.is_closed());
+        assert!(!has_pool(&params, Some(&conn_id)).await);
+
+        let fresh_pool = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .unwrap();
+        let (one,): (i64,) = sqlx::query_as("SELECT 1")
+            .fetch_one(&fresh_pool)
+            .await
+            .unwrap();
+        assert_eq!(one, 1);
+
+        drop(checked_out);
+        assert!(
+            close_pools_for_connection_id_within("sqlite", &conn_id, Duration::from_secs(5)).await
+        );
+    }
+}
+
 /// Live checks that the connect timeout bounds a slow PostgreSQL startup
 /// script, both in the preflight and in each new pooled connection's hook.
 /// Run against a local server:
