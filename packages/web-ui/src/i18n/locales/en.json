@@ -721,6 +721,8 @@
     "appearance_editorWordWrapDesc": "Wrap long lines in the editor instead of scrolling horizontally.",
     "appearance_editorHighlightInvisibleCharacters": "Show invisible characters",
     "appearance_editorHighlightInvisibleCharactersDesc": "Mark hidden Unicode and look-alike characters in SQL.",
+    "appearance_editorMinimap": "Show Minimap",
+    "appearance_editorMinimapDesc": "Display a miniature overview of SQL scripts for quick navigation.",
     "appearance_editorShowLineNumbers": "Show Line Numbers",
     "appearance_editorShowLineNumbersDesc": "Display line numbers in the editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Accept Suggestion with Enter",

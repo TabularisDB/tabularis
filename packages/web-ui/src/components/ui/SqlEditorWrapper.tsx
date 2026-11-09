@@ -798,7 +798,7 @@ const SqlEditorInternal = ({
             onMount={handleEditorMount}
             options={{
                 accessibilitySupport: 'auto',
-                minimap: {enabled: false},
+                minimap: {enabled: settings.editorMinimap ?? false},
                 fontSize: settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT,
                 fontFamily: getFontCSS(settings.editorFontFamily ?? 'JetBrains Mono'),
                 lineHeight: settings.editorLineHeight ?? 1.5,

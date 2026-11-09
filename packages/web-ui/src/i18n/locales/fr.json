@@ -713,6 +713,8 @@
     "appearance_editorTabSize": "Taille de tabulation",
     "appearance_editorWordWrap": "Retour à la ligne automatique",
     "appearance_editorWordWrapDesc": "Retourne les longues lignes dans l’éditeur au lieu d’un défilement horizontal.",
+    "appearance_editorMinimap": "Afficher la minicarte",
+    "appearance_editorMinimapDesc": "Affiche un aperçu miniature des scripts SQL pour naviguer rapidement.",
     "appearance_editorHighlightInvisibleCharacters": "Afficher les caractères invisibles",
     "appearance_editorHighlightInvisibleCharactersDesc": "Signale les caractères Unicode invisibles et les caractères similaires dans le SQL.",
     "appearance_editorShowLineNumbers": "Afficher les numéros de ligne",

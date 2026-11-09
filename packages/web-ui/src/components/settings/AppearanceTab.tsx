@@ -258,6 +258,16 @@ export function AppearanceTab() {
                         </SettingRow>
 
                         <SettingRow
+                            label={t('settings.appearance_editorMinimap')}
+                            description={t('settings.appearance_editorMinimapDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.editorMinimap ?? false}
+                                onChange={(v) => updateSetting('editorMinimap', v)}
+                            />
+                        </SettingRow>
+
+                        <SettingRow
                             label={t('settings.appearance_editorShowLineNumbers')}
                             description={t('settings.appearance_editorShowLineNumbersDesc')}
                         >

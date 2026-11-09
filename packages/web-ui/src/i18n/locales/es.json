@@ -708,6 +708,8 @@
     "appearance_editorTabSize": "Tamaño de Tab",
     "appearance_editorWordWrap": "Ajuste de Línea",
     "appearance_editorWordWrapDesc": "Ajusta las líneas largas en el editor en vez de desplazarse horizontalmente.",
+    "appearance_editorMinimap": "Mostrar minimapa",
+    "appearance_editorMinimapDesc": "Muestra una vista en miniatura de los scripts SQL para navegar rápidamente.",
     "appearance_editorHighlightInvisibleCharacters": "Mostrar caracteres invisibles",
     "appearance_editorHighlightInvisibleCharactersDesc": "Marca caracteres Unicode ocultos y caracteres similares en SQL.",
     "appearance_editorShowLineNumbers": "Mostrar Números de Línea",

@@ -690,6 +690,8 @@
     "appearance_editorTabSize": "Tamanho da Tabulação",
     "appearance_editorWordWrap": "Quebra de Linha",
     "appearance_editorWordWrapDesc": "Quebra linhas longas no editor em vez de rolar horizontalmente.",
+    "appearance_editorMinimap": "Mostrar minimapa",
+    "appearance_editorMinimapDesc": "Exibe uma visão em miniatura dos scripts SQL para navegar rapidamente.",
     "appearance_editorHighlightInvisibleCharacters": "Mostrar caracteres invisíveis",
     "appearance_editorHighlightInvisibleCharactersDesc": "Destaca caracteres Unicode ocultos e caracteres parecidos no SQL.",
     "appearance_editorShowLineNumbers": "Mostrar Números de Linha",

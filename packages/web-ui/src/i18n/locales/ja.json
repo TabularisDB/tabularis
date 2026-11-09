@@ -694,6 +694,8 @@
     "appearance_editorTabSize": "タブサイズ",
     "appearance_editorWordWrap": "ワードラップ",
     "appearance_editorWordWrapDesc": "エディタ内の長い行を横スクロールせず折り返します。",
+    "appearance_editorMinimap": "ミニマップを表示",
+    "appearance_editorMinimapDesc": "SQLスクリプトの縮小表示で素早く移動できます。",
     "appearance_editorHighlightInvisibleCharacters": "不可視文字を表示",
     "appearance_editorHighlightInvisibleCharactersDesc": "SQL内の不可視Unicode文字や紛らわしい文字を強調表示します。",
     "appearance_editorShowLineNumbers": "行番号を表示",

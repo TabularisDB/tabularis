@@ -336,6 +336,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         editor_line_height,
         editor_tab_size,
         editor_word_wrap,
+        editor_minimap,
         editor_show_line_numbers,
         editor_accept_suggestion_on_enter,
         run_statement_under_cursor,
