@@ -328,6 +328,40 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         unauthorized_plugin_asset.status(),
         reqwest::StatusCode::UNAUTHORIZED
     );
+    // Sandboxed frames load without the session cookie and may send `Origin: null`.
+    let sandbox_guest = client
+        .get(format!(
+            "{base_url}/api/v1/sandbox/plugins/example-plugin/__guest__.html?module=ui%2Fdist%2Findex.js"
+        ))
+        .header("Origin", "null")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(sandbox_guest.status(), reqwest::StatusCode::OK);
+    assert!(sandbox_guest
+        .headers()
+        .get("content-security-policy")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .contains("script-src 'self'"));
+    let sandbox_module = client
+        .get(format!(
+            "{base_url}/api/v1/sandbox/plugins/example-plugin/ui/dist/index.js"
+        ))
+        .header("Origin", "null")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(sandbox_module.status(), reqwest::StatusCode::OK);
+    let sandbox_private = client
+        .get(format!(
+            "{base_url}/api/v1/sandbox/plugins/example-plugin/ui/dist/private.txt"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(sandbox_private.status(), reqwest::StatusCode::NOT_FOUND);
     assert!(uuid::Uuid::parse_str(
         unauthorized
             .headers()

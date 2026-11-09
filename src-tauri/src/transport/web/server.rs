@@ -1114,23 +1114,26 @@ async fn security_gate(
         return status_response(StatusCode::FORBIDDEN);
     }
 
+    let path = request.uri().path();
+    // Sandboxed plugin frames have an opaque origin and some browsers send `Origin: null`
+    // even for these read-only GETs, so the origin allowlist does not apply to them.
+    let sandbox_asset = path.starts_with("/api/v1/sandbox/plugins/")
+        && matches!(*request.method(), Method::GET | Method::HEAD);
+
     let origin = request
         .headers()
         .get(ORIGIN)
         .and_then(|value| value.to_str().ok());
-    if origin.is_some_and(|value| !state.security.origin_allowed(value)) {
+    if !sandbox_asset && origin.is_some_and(|value| !state.security.origin_allowed(value)) {
         audit_event("request", request_id, None, "outcome=denied reason=origin");
         return status_response(StatusCode::FORBIDDEN);
     }
 
-    let path = request.uri().path();
     let local_bootstrap =
         !state.security.is_remote() && path == BOOTSTRAP_PATH && request.method() == Method::GET;
     let password_login = state.security.password_authentication()
         && ((path == LOGIN_PAGE_PATH && request.method() == Method::GET)
             || (path == LOGIN_PATH && request.method() == Method::POST));
-    let sandbox_asset = path.starts_with("/api/v1/sandbox/plugins/")
-        && matches!(*request.method(), Method::GET | Method::HEAD);
     if path == "/healthz" || local_bootstrap || password_login || sandbox_asset {
         if path == LOGIN_PATH && !origin.is_some_and(|origin| state.security.origin_allowed(origin))
         {
