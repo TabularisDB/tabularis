@@ -2494,7 +2494,10 @@
     "downloading": "다운로드하는 중...",
     "uploading": "업로드하는 중...",
     "openSidebar": "에디터에서 열기",
-    "imagePreview": "이미지 미리보기"
+    "imagePreview": "이미지 미리보기",
+    "editAs": "편집 형식",
+    "text": "텍스트",
+    "hex": "16진수"
   },
   "visualExplainPage": {
     "title": "비주얼 익스플레인",

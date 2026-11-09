@@ -2543,7 +2543,10 @@
     "downloading": "Скачивание...",
     "uploading": "Загрузка...",
     "openSidebar": "Открыть в редакторе",
-    "imagePreview": "Предпросмотр изображения"
+    "imagePreview": "Предпросмотр изображения",
+    "editAs": "Редактировать как",
+    "text": "Текст",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Визуальный Explain",

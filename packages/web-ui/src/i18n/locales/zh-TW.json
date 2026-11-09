@@ -2520,7 +2520,10 @@
         "downloading": "下載中...",
         "uploading": "上傳中...",
         "openSidebar": "在編輯器中開啟",
-        "imagePreview": "圖片預覽"
+        "imagePreview": "圖片預覽",
+        "editAs": "編輯格式",
+        "text": "文字",
+        "hex": "十六進位"
     },
     "visualExplainPage": {
         "title": "視覺化執行計畫",

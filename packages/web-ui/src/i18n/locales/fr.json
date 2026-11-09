@@ -2560,7 +2560,10 @@
     "downloading": "Téléchargement...",
     "uploading": "Téléversement...",
     "openSidebar": "Ouvrir dans l’éditeur",
-    "imagePreview": "Aperçu de l’image"
+    "imagePreview": "Aperçu de l’image",
+    "editAs": "Modifier en",
+    "text": "Texte",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",

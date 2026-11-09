@@ -2591,7 +2591,10 @@
     "downloading": "Downloading...",
     "uploading": "Uploading...",
     "openSidebar": "Open in editor",
-    "imagePreview": "Image preview"
+    "imagePreview": "Image preview",
+    "editAs": "Edit as",
+    "text": "Text",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",

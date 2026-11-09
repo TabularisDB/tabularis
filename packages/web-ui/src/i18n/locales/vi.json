@@ -2565,7 +2565,10 @@
     "downloading": "Đang tải về...",
     "uploading": "Đang tải lên...",
     "openSidebar": "Mở trong trình sửa",
-    "imagePreview": "Xem trước hình ảnh"
+    "imagePreview": "Xem trước hình ảnh",
+    "editAs": "Chỉnh sửa dạng",
+    "text": "Văn bản",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",

@@ -2435,7 +2435,10 @@
     "downloading": "Descargando...",
     "uploading": "Subiendo...",
     "openSidebar": "Abrir en el editor",
-    "imagePreview": "Vista previa de imagen"
+    "imagePreview": "Vista previa de imagen",
+    "editAs": "Editar como",
+    "text": "Texto",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",

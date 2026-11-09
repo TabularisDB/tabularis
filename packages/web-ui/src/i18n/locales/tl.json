@@ -2550,7 +2550,10 @@
     "downloading": "Nagda-download...",
     "uploading": "Nag-a-upload...",
     "openSidebar": "Buksan sa editor",
-    "imagePreview": "Preview ng larawan"
+    "imagePreview": "Preview ng larawan",
+    "editAs": "I-edit bilang",
+    "text": "Teksto",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",
