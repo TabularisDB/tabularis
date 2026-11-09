@@ -85,6 +85,7 @@ export function useOpenDataFile(): OpenDataFile {
                 OPENING_NOTICE_DELAY_MS,
             );
             let opened: OpenedDataFile | undefined;
+            let failure: {error: unknown} | undefined;
             try {
                 for (const file of files) {
                     const source = await prepareDataFileSource(client, platform, file);
@@ -93,10 +94,17 @@ export function useOpenDataFile(): OpenDataFile {
                         workspaceName: t('dataFiles.workspaceName'),
                     });
                 }
+            } catch (error) {
+                failure = {error};
             } finally {
                 clearTimeout(reveal);
             }
-            if (!opened) return;
+            // Files opened before a failure are in the workspace already: show
+            // them, then report the file that did not open.
+            if (!opened) {
+                if (failure) throw failure.error;
+                return;
+            }
 
             await loadConnections();
             if (openConnectionIds.includes(opened.connectionId)) {
@@ -115,6 +123,7 @@ export function useOpenDataFile(): OpenDataFile {
                     objectName: opened.table,
                 }).open,
             });
+            if (failure) throw failure.error;
         },
         [
             client,

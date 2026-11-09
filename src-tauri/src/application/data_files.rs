@@ -160,14 +160,23 @@ fn move_upload(source: &Path, target: &Path) -> Result<(), String> {
         .map_err(|error| format!("Failed to store the uploaded data file: {error}"))
 }
 
+/// An uploaded data file stored beside the workspace.
+struct StoredUpload {
+    path: PathBuf,
+    /// This upload's own directory, `uploads/<table>/<token>/`.
+    directory: PathBuf,
+    file_name: String,
+}
+
 /// Keeps an uploaded file next to the workspace for as long as its table
-/// exists. Returns the stored path and the directory to remove on failure.
+/// exists. Every upload gets its own directory, so a file that replaces an
+/// earlier one of the same table leaves that one in place until it has opened.
 fn store_upload(
     runtime: &RuntimeContext,
     workspace: &Path,
     owner: Uuid,
     token: &str,
-) -> Result<(PathBuf, PathBuf, String), String> {
+) -> Result<StoredUpload, String> {
     let claimed = FileTransferStore::new(runtime.paths.data_dir()).claim_upload(
         owner,
         token,
@@ -179,19 +188,43 @@ fn store_upload(
     }
     let directory = workspace
         .join(UPLOADS_DIRECTORY)
-        .join(data_file_table_name(&file_name));
-    if directory.exists() {
-        fs::remove_dir_all(&directory)
-            .map_err(|error| format!("Failed to replace the uploaded data file: {error}"))?;
-    }
+        .join(data_file_table_name(&file_name))
+        .join(Uuid::new_v4().to_string());
     fs::create_dir_all(&directory)
         .map_err(|error| format!("Failed to store the uploaded data file: {error}"))?;
-    let target = directory.join(&file_name);
-    if let Err(error) = move_upload(claimed.path(), &target) {
-        let _ = fs::remove_dir_all(&directory);
+    let path = directory.join(&file_name);
+    if let Err(error) = move_upload(claimed.path(), &path) {
+        remove_upload(&directory);
         return Err(error);
     }
-    Ok((target, directory, file_name))
+    Ok(StoredUpload {
+        path,
+        directory,
+        file_name,
+    })
+}
+
+/// Removes one upload directory and, when it was the last one, its table's.
+fn remove_upload(directory: &Path) {
+    let _ = fs::remove_dir_all(directory);
+    if let Some(table_directory) = directory.parent() {
+        // Fails, as intended, while another upload of the table is still there.
+        let _ = fs::remove_dir(table_directory);
+    }
+}
+
+/// Removes the uploads an opened file has just replaced for its table.
+fn remove_replaced_uploads(current: &Path) {
+    let Some(entries) = current.parent().and_then(|table| fs::read_dir(table).ok()) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if entry.path() != current {
+            if let Err(error) = fs::remove_dir_all(entry.path()) {
+                log::warn!("Could not remove a replaced uploaded data file: {error}");
+            }
+        }
+    }
 }
 
 /// Removes uploaded files whose table is gone (for example after the user
@@ -205,13 +238,23 @@ async fn remove_unused_uploads(
     let Ok(entries) = fs::read_dir(workspace.join(UPLOADS_DIRECTORY)) else {
         return;
     };
-    let tables: HashSet<String> = match driver.get_views(params, None).await {
-        Ok(views) => views.into_iter().map(|view| view.name).collect(),
-        Err(error) => {
+    // The driver may expose a file as a view or as a table.
+    let listed = match (
+        driver.get_views(params, None).await,
+        driver.get_tables(params, None).await,
+    ) {
+        (Ok(views), Ok(tables)) => (views, tables),
+        (Err(error), _) | (_, Err(error)) => {
             log::warn!("Could not list data file tables to clean up uploads: {error}");
             return;
         }
     };
+    let tables: HashSet<String> = listed
+        .0
+        .into_iter()
+        .map(|view| view.name)
+        .chain(listed.1.into_iter().map(|table| table.name))
+        .collect();
     for entry in entries.flatten() {
         let unused = entry
             .file_name()
@@ -247,8 +290,8 @@ pub async fn open_with_driver(
             (path, None, file_name)
         }
         DataFileSource::SessionUpload { owner, token } => {
-            let (path, directory, file_name) = store_upload(runtime, &workspace, owner, &token)?;
-            (path, Some(directory), file_name)
+            let upload = store_upload(runtime, &workspace, owner, &token)?;
+            (upload.path, Some(upload.directory), upload.file_name)
         }
     };
     let format = data_file_format(&file_name).ok_or_else(|| unsupported_format(&file_name))?;
@@ -264,9 +307,12 @@ pub async fn open_with_driver(
         .await;
     if let Err(error) = opened {
         if let Some(directory) = upload_directory {
-            let _ = fs::remove_dir_all(directory);
+            remove_upload(&directory);
         }
         return Err(error);
+    }
+    if let Some(directory) = upload_directory {
+        remove_replaced_uploads(&directory);
     }
     remove_unused_uploads(driver.as_ref(), &params, &workspace).await;
 

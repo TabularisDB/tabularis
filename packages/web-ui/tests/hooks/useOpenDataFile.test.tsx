@@ -277,6 +277,32 @@ describe('useOpenDataFile', () => {
         expect(result.current.stage).toEqual({kind: 'idle'});
     });
 
+    it('shows the files that opened before reporting the one that failed', async () => {
+        let calls = 0;
+        mocks.call.mockImplementation(async (command: string) => {
+            if (command === 'get_registered_drivers') return [duckdb];
+            calls += 1;
+            if (calls === 2) throw new Error('Failed to open data file: malformed CSV');
+            return opened;
+        });
+        const files = [picked, {name: 'broken.csv', reference: '/data/broken.csv'}];
+        const {result} = renderHook(() => useOpenDataFile());
+
+        await act(() => result.current.open(files));
+
+        expect(mocks.loadConnections).toHaveBeenCalled();
+        expect(mocks.connect).toHaveBeenCalledWith('files-1');
+        expect(mocks.navigate).toHaveBeenCalledWith(
+            '/connections/files-1/editor',
+            expect.objectContaining({state: expect.objectContaining({tableName: 'orders'})}),
+        );
+        expect(result.current.stage).toEqual({
+            kind: 'error',
+            files,
+            message: 'Failed to open data file: malformed CSV',
+        });
+    });
+
     it('keeps a quick open silent and reveals a slow one', async () => {
         vi.useFakeTimers();
         let finishOpen: (value: typeof opened) => void = () => undefined;

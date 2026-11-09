@@ -190,20 +190,53 @@ async fn a_host_file_is_opened_in_place_in_the_driver_workspace() {
     assert!(file.is_file(), "the original file is left where it is");
 }
 
+/// The single upload stored for `table`, as `uploads/<table>/<token>/<file>`.
+fn stored_upload(uploads: &Path, table: &str) -> PathBuf {
+    let mut directories: Vec<PathBuf> = fs::read_dir(uploads.join(table))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(directories.len(), 1, "one upload per table");
+    let mut files: Vec<PathBuf> = fs::read_dir(directories.remove(0))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(files.len(), 1);
+    files.remove(0)
+}
+
+fn listing(
+    views: &'static [&'static str],
+    tables: &'static [&'static str],
+) -> impl Fn(&JsonRpcRequest) -> Result<Value, String> {
+    move |request| {
+        Ok(match request.method.as_str() {
+            "get_views" => json!(views
+                .iter()
+                .map(|name| json!({"name": name, "definition": null}))
+                .collect::<Vec<_>>()),
+            "get_tables" => json!(tables
+                .iter()
+                .map(|name| json!({"name": name}))
+                .collect::<Vec<_>>()),
+            _ => Value::Null,
+        })
+    }
+}
+
 #[tokio::test]
 async fn an_upload_is_kept_beside_the_workspace_and_stale_uploads_are_removed() {
     let (temp, runtime) = fixture();
     let owner = Uuid::new_v4();
     let token = upload(&runtime, owner, "orders.csv").await;
     let uploads = temp.path().join("data-files").join("duck").join("uploads");
-    fs::create_dir_all(uploads.join("dropped_table")).unwrap();
-    fs::write(uploads.join("dropped_table").join("old.csv"), "x\n").unwrap();
-    let (driver, requests) = recording_driver(|request| {
-        Ok(match request.method.as_str() {
-            "get_views" => json!([{"name": "orders", "definition": null}]),
-            _ => Value::Null,
-        })
-    });
+    fs::create_dir_all(uploads.join("dropped_table").join("old")).unwrap();
+    fs::write(
+        uploads.join("dropped_table").join("old").join("old.csv"),
+        "x\n",
+    )
+    .unwrap();
+    let (driver, requests) = recording_driver(listing(&["orders"], &[]));
 
     let prepared = open_with_driver(
         &runtime,
@@ -216,8 +249,9 @@ async fn an_upload_is_kept_beside_the_workspace_and_stale_uploads_are_removed() 
     .await
     .unwrap();
 
-    let stored = uploads.join("orders").join("orders.csv");
+    let stored = stored_upload(&uploads, "orders");
     assert_eq!(prepared.table, "orders");
+    assert_eq!(stored.file_name().unwrap(), "orders.csv");
     assert_eq!(fs::read_to_string(&stored).unwrap(), "id,name\n1,alice\n");
     assert_eq!(
         requests.lock().unwrap()[0].params["path"],
@@ -230,6 +264,93 @@ async fn an_upload_is_kept_beside_the_workspace_and_stale_uploads_are_removed() 
             .is_err(),
         "the upload token is consumed"
     );
+}
+
+#[tokio::test]
+async fn an_upload_survives_when_the_driver_lists_its_relation_as_a_table() {
+    let (temp, runtime) = fixture();
+    let owner = Uuid::new_v4();
+    let token = upload(&runtime, owner, "orders.csv").await;
+    let uploads = temp.path().join("data-files").join("duck").join("uploads");
+    let (driver, _requests) = recording_driver(listing(&[], &["orders"]));
+
+    open_with_driver(
+        &runtime,
+        driver,
+        DataFileSource::SessionUpload { owner, token },
+    )
+    .await
+    .unwrap();
+
+    assert!(stored_upload(&uploads, "orders").is_file());
+}
+
+#[tokio::test]
+async fn uploads_are_kept_when_the_driver_cannot_list_its_relations() {
+    let (temp, runtime) = fixture();
+    let owner = Uuid::new_v4();
+    let token = upload(&runtime, owner, "orders.csv").await;
+    let uploads = temp.path().join("data-files").join("duck").join("uploads");
+    fs::create_dir_all(uploads.join("other").join("one")).unwrap();
+    let (driver, _requests) = recording_driver(|request| match request.method.as_str() {
+        "get_tables" => Err("catalog unavailable".to_string()),
+        "get_views" => Ok(json!([])),
+        _ => Ok(Value::Null),
+    });
+
+    open_with_driver(
+        &runtime,
+        driver,
+        DataFileSource::SessionUpload { owner, token },
+    )
+    .await
+    .unwrap();
+
+    assert!(stored_upload(&uploads, "orders").is_file());
+    assert!(uploads.join("other").join("one").is_dir());
+}
+
+#[tokio::test]
+async fn a_new_upload_replaces_the_previous_one_only_after_it_opened() {
+    let (temp, runtime) = fixture();
+    let owner = Uuid::new_v4();
+    let uploads = temp.path().join("data-files").join("duck").join("uploads");
+    let fail_next = Arc::new(Mutex::new(false));
+    let failing = fail_next.clone();
+    let (driver, _requests) = recording_driver(move |request| {
+        if request.method == "open_data_file" && *failing.lock().unwrap() {
+            return Err("Failed to open data file".to_string());
+        }
+        listing(&["orders"], &[])(request)
+    });
+    let open = |token: String| {
+        open_with_driver(
+            &runtime,
+            driver.clone(),
+            DataFileSource::SessionUpload { owner, token },
+        )
+    };
+
+    open(upload(&runtime, owner, "orders.csv").await)
+        .await
+        .unwrap();
+    let first = stored_upload(&uploads, "orders");
+
+    // A replacement that does not open leaves the working file in place.
+    *fail_next.lock().unwrap() = true;
+    open(upload(&runtime, owner, "orders.csv").await)
+        .await
+        .unwrap_err();
+    assert_eq!(stored_upload(&uploads, "orders"), first);
+
+    // One that opens takes its place.
+    *fail_next.lock().unwrap() = false;
+    open(upload(&runtime, owner, "orders.csv").await)
+        .await
+        .unwrap();
+    let replaced = stored_upload(&uploads, "orders");
+    assert_ne!(replaced, first);
+    assert!(!first.exists());
 }
 
 #[tokio::test]
