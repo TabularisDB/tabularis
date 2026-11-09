@@ -1,4 +1,4 @@
-import {useEffect, useEffectEvent, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {ThemeDialog} from '@/components/ui/ThemeDialog';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
@@ -30,6 +30,8 @@ export const DebugRoutineModal = ({connectionId, routine, schema, database, onCl
     const sessionId = useRef<string | null>(null);
     const sessionConnectionId = useRef(connectionId);
     const pending = useRef(0);
+    const mounted = useRef(false);
+    const latestClient = useRef(client);
     const snapshot = response?.kind === 'session' ? response.session : null;
     const paused = snapshot?.execution === 'paused';
     const released = snapshot?.resources === 'released';
@@ -60,24 +62,30 @@ export const DebugRoutineModal = ({connectionId, routine, schema, database, onCl
         };
     }, [client, connectionId, routine.name, routine.identity_args, schema, database]);
 
-    const stopOnUnmount = useEffectEvent(() => {
-        const id = sessionId.current;
-        sessionId.current = null;
-        if (id)
-            void client
-                .call('routine_debug', {
-                    connectionId: sessionConnectionId.current,
-                    version: 1,
-                    command: {action: 'stop', session_id: id},
-                })
-                .catch((err: unknown) =>
-                    console.error(
-                        'Routine debugger cleanup could not confirm resource release:',
-                        err,
-                    ),
-                );
-    });
-    useEffect(() => () => stopOnUnmount(), []);
+    useEffect(() => {
+        latestClient.current = client;
+    }, [client]);
+
+    const stopSession = useCallback((id: string, owningConnectionId: string) => {
+        void latestClient.current
+            .call('routine_debug', {
+                connectionId: owningConnectionId,
+                version: 1,
+                command: {action: 'stop', session_id: id},
+            })
+            .catch((err: unknown) =>
+                console.error('Routine debugger cleanup could not confirm resource release:', err),
+            );
+    }, []);
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+            const id = sessionId.current;
+            sessionId.current = null;
+            if (id) stopSession(id, sessionConnectionId.current);
+        };
+    }, [stopSession]);
 
     const send = async (command: DebugCommand) => {
         pending.current += 1;
@@ -85,6 +93,10 @@ export const DebugRoutineModal = ({connectionId, routine, schema, database, onCl
         setError('');
         try {
             const next = await client.call('routine_debug', {connectionId, version: 1, command});
+            if (!mounted.current) {
+                if (next.kind === 'preview') stopSession(next.preview_id, connectionId);
+                return;
+            }
             if (next.kind === 'preview') {
                 sessionId.current = next.preview_id;
                 sessionConnectionId.current = connectionId;
@@ -100,10 +112,10 @@ export const DebugRoutineModal = ({connectionId, routine, schema, database, onCl
             );
             return next;
         } catch (err) {
-            setError(`${t('routineDebug.uncertain')} ${String(err)}`);
+            if (mounted.current) setError(`${t('routineDebug.uncertain')} ${String(err)}`);
         } finally {
             pending.current -= 1;
-            setBusy(pending.current > 0);
+            if (mounted.current) setBusy(pending.current > 0);
         }
     };
 

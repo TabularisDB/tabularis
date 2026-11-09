@@ -1,4 +1,5 @@
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {StrictMode} from 'react';
+import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {DebugRoutineModal} from '@/components/modals/DebugRoutineModal';
 
@@ -65,6 +66,60 @@ describe('routine debugger execution safety', () => {
         });
     });
     afterEach(cleanup);
+
+    it.each([false, true])(
+        'stops a late preview after close (replace client: %s)',
+        async (replaceClient) => {
+            let resolvePreview!: (value: typeof preview) => void;
+            const pendingPreview = new Promise<typeof preview>((resolve) => {
+                resolvePreview = resolve;
+            });
+            call.mockImplementation((method: string) =>
+                method === 'get_routine_parameters' ? Promise.resolve([]) : pendingPreview,
+            );
+            const onClose = vi.fn();
+            const modal = (connectionId: string) => (
+                <StrictMode>
+                    <DebugRoutineModal
+                        connectionId={connectionId}
+                        routine={{name: 'TEST', routine_type: 'PROCEDURE'}}
+                        schema="APP"
+                        database="FREEPDB1"
+                        onClose={onClose}
+                    />
+                </StrictMode>
+            );
+            const {rerender, unmount} = render(modal('oracle'));
+            await waitFor(() =>
+                expect(screen.getByRole('button', {name: 'routineDebug.preview'})).toBeEnabled(),
+            );
+            fireEvent.click(screen.getByRole('button', {name: 'routineDebug.preview'}));
+            const latestCall = replaceClient ? vi.fn().mockResolvedValue([]) : call;
+            if (replaceClient) {
+                clientState.current = {call: latestCall};
+                rerender(modal('other-connection'));
+            }
+            fireEvent.click(screen.getByRole('button', {name: 'common.close'}));
+            expect(onClose).toHaveBeenCalledOnce();
+            unmount();
+            expect(
+                latestCall.mock.calls.filter(([, request]) => request.command?.action === 'stop'),
+            ).toHaveLength(0);
+            await act(async () => resolvePreview(preview));
+            expect(latestCall).toHaveBeenCalledWith('routine_debug', {
+                connectionId: 'oracle',
+                version: 1,
+                command: {action: 'stop', session_id: 'preview'},
+            });
+            expect(
+                latestCall.mock.calls.filter(([, request]) => request.command?.action === 'stop'),
+            ).toHaveLength(1);
+            if (replaceClient)
+                expect(
+                    call.mock.calls.filter(([, request]) => request.command?.action === 'stop'),
+                ).toHaveLength(0);
+        },
+    );
 
     it('requires preview and explicit start, retaining stop after an uncertain start', async () => {
         render(
