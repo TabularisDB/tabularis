@@ -773,6 +773,9 @@
     "autocomplete_keywordCase": "Keyword case",
     "autocomplete_keywordCaseDesc": "Case of SQL keywords inserted by autocomplete",
     "autocomplete_keywordCaseMatch": "Match typing",
+    "diagnostics_title": "SQL diagnostics",
+    "diagnostics_enabled": "Highlight unresolved references",
+    "diagnostics_enabledDesc": "Mark unknown tables, columns and aliases in PostgreSQL SELECT statements using the metadata already loaded for the connection. The server stays authoritative and nothing is executed.",
     "editConfigJson": "Edit config.json",
     "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
     "configJsonModal": {
@@ -1764,6 +1767,14 @@
     "auto": "Auto"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "Table or view \"{{name}}\" was not found in the loaded metadata. It may be temporary or created after the metadata was loaded.",
+      "unresolvedColumn": "Column \"{{name}}\" does not exist",
+      "unresolvedAlias": "\"{{name}}\" is not a table or alias in this query",
+      "ambiguousColumn": "Column reference \"{{name}}\" is ambiguous",
+      "unsupportedConstruct": "Analysis is limited here: {{name}} is not analyzed, so references that depend on it are not checked",
+      "metadataUnavailable": "Columns of \"{{name}}\" are not available, so references to it are not checked"
+    },
     "noTabs": "No open tabs for this connection.",
     "newConsole": "New Console",
     "noActiveSession": "No active session. Please select a connection.",

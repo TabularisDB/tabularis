@@ -720,6 +720,9 @@
     "autocomplete_keywordCase": "关键字大小写",
     "autocomplete_keywordCaseDesc": "自动补全插入的 SQL 关键字的大小写。",
     "autocomplete_keywordCaseMatch": "跟随输入",
+    "diagnostics_title": "SQL 诊断",
+    "diagnostics_enabled": "高亮未解析的引用",
+    "diagnostics_enabledDesc": "使用连接已加载的元数据，标出 PostgreSQL SELECT 语句中未知的表、列和别名。最终以服务器为准，且不会执行任何 SQL。",
     "projectStatus": "项目状态",
     "roadmapDesc": "此项目是正在进行的工作 (WIP)。核心功能已稳定，但我们有更大的计划。",
     "support": "支持开发",
@@ -1669,6 +1672,14 @@
     "auto": "自动"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "在已加载的元数据中找不到表或视图“{{name}}”。它可能是临时表，或是在元数据加载之后创建的。",
+      "unresolvedColumn": "列“{{name}}”不存在",
+      "unresolvedAlias": "“{{name}}”不是此查询中的表或别名",
+      "ambiguousColumn": "列引用“{{name}}”存在歧义",
+      "unsupportedConstruct": "此处的分析受限：不会分析 {{name}}，因此不会检查依赖它的引用",
+      "metadataUnavailable": "无法获取“{{name}}”的列，因此不会检查对它的引用"
+    },
     "quickNavigator": {
       "placeholder": "搜索表、视图、例程、触发器...",
       "noResults": "未找到匹配的元素",

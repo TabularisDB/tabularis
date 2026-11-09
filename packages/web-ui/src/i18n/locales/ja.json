@@ -748,6 +748,9 @@
     "autocomplete_keywordCase": "キーワードの大文字/小文字",
     "autocomplete_keywordCaseDesc": "オートコンプリートで挿入されるSQLキーワードの大文字/小文字。",
     "autocomplete_keywordCaseMatch": "入力に合わせる",
+    "diagnostics_title": "SQL診断",
+    "diagnostics_enabled": "未解決の参照をハイライト",
+    "diagnostics_enabledDesc": "接続で既に読み込まれたメタデータを使い、PostgreSQL の SELECT 文内の不明なテーブル・列・エイリアスを示します。最終的な判断はサーバーが行い、SQL は実行されません。",
     "editConfigJson": "config.json を編集",
     "editConfigJsonDesc": "生の設定ファイルを直接編集します。変更を反映するには再起動が必要です。",
     "configJsonModal": {
@@ -1706,6 +1709,14 @@
     "auto": "自動"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "読み込まれたメタデータにテーブルまたはビュー「{{name}}」が見つかりません。一時テーブルか、メタデータ読み込み後に作成された可能性があります。",
+      "unresolvedColumn": "列「{{name}}」は存在しません",
+      "unresolvedAlias": "「{{name}}」はこのクエリ内のテーブルでもエイリアスでもありません",
+      "ambiguousColumn": "列参照「{{name}}」はあいまいです",
+      "unsupportedConstruct": "ここでは分析が制限されています: {{name}} は分析されないため、それに依存する参照は検査されません",
+      "metadataUnavailable": "「{{name}}」の列を取得できないため、それへの参照は検査されません"
+    },
     "quickNavigator": {
       "placeholder": "テーブル、ビュー、ルーチン、トリガーを検索...",
       "noResults": "一致する要素が見つかりません",

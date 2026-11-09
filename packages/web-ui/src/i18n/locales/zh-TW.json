@@ -777,6 +777,9 @@
         "autocomplete_keywordCase": "關鍵字大小寫",
         "autocomplete_keywordCaseDesc": "自動補全插入的 SQL 關鍵字的大小寫。",
         "autocomplete_keywordCaseMatch": "跟隨輸入",
+        "diagnostics_title": "SQL 診斷",
+        "diagnostics_enabled": "標示未解析的參照",
+        "diagnostics_enabledDesc": "使用連線已載入的中繼資料，標示 PostgreSQL SELECT 陳述式中未知的資料表、欄位與別名。最終仍以伺服器為準，且不會執行任何 SQL。",
         "editConfigJson": "編輯 config.json",
         "editConfigJsonDesc": "直接編輯原始設定檔。需要重新啟動才能套用變更。",
         "configJsonModal": {
@@ -1740,6 +1743,14 @@
         "auto": "自動"
     },
     "editor": {
+        "diagnostics": {
+            "unresolvedRelation": "在已載入的中繼資料中找不到資料表或檢視表「{{name}}」。它可能是暫存資料表，或是在中繼資料載入後才建立。",
+            "unresolvedColumn": "欄位「{{name}}」不存在",
+            "unresolvedAlias": "「{{name}}」不是此查詢中的資料表或別名",
+            "ambiguousColumn": "欄位參照「{{name}}」有歧義",
+            "unsupportedConstruct": "此處的分析受限：不會分析 {{name}}，因此不會檢查依賴它的參照",
+            "metadataUnavailable": "無法取得「{{name}}」的欄位，因此不會檢查對它的參照"
+        },
         "noTabs": "此連線無開啟的標籤。",
         "newConsole": "新建控制台",
         "noActiveSession": "無活動工作階段。請選擇一個連線。",

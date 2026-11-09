@@ -195,6 +195,7 @@ import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import {UserManagementView} from '@/components/users/UserManagementView';
 import {useSqlAutocompleteRegistration} from '@/hooks/useSqlAutocompleteRegistration';
+import {useSqlDiagnosticsOptions} from '@/hooks/useSqlDiagnosticsOptions';
 import {createNotebook, renameNotebook} from '@/utils/notebookStore';
 import type {OnMount, Monaco} from '@monaco-editor/react';
 import {useAlert} from '@/hooks/useAlert';
@@ -4623,6 +4624,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         enabled: !isNotebookTab && !isUsersTab,
     });
 
+    const sqlDiagnostics = useSqlDiagnosticsOptions(activeConnectionId, {
+        schema: activeTab?.schema ?? activeSchema,
+        database: activeTab?.database,
+        enabled: !isNotebookTab && !isUsersTab,
+    });
+
     // E2E: expose a submit-changes hook for tauri-wd tests. The WDIO
     // element.click() on the Submit button doesn't reliably trigger React's
     // onClick in WKWebView, so the test calls this directly. This mirrors
@@ -5758,6 +5765,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 dialect={activeDialect}
                                 foldPreview
                                 cursorStatus
+                                diagnostics={isActive ? sqlDiagnostics : undefined}
                                 onChange={(val) => {
                                     // Debounced Monaco edits can arrive after this tab becomes
                                     // inactive. The callback belongs to the tab's stable id;

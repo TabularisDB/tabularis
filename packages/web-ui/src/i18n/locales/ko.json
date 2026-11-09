@@ -712,6 +712,9 @@
     "autocomplete_keywordCase": "키워드 대소문자",
     "autocomplete_keywordCaseDesc": "자동완성으로 삽입되는 SQL 키워드의 대소문자.",
     "autocomplete_keywordCaseMatch": "입력에 맞춤",
+    "diagnostics_title": "SQL 진단",
+    "diagnostics_enabled": "확인되지 않은 참조 강조",
+    "diagnostics_enabledDesc": "연결에 이미 로드된 메타데이터를 사용해 PostgreSQL SELECT 문의 알 수 없는 테이블, 열, 별칭을 표시합니다. 최종 판단은 서버가 하며 SQL은 실행되지 않습니다.",
     "editConfigJson": "config.json 편집",
     "editConfigJsonDesc": "원본 설정 파일을 직접 편집합니다. 변경 사항을 적용하려면 재시작이 필요합니다.",
     "configJsonModal": {
@@ -1669,6 +1672,14 @@
     "auto": "자동"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "로드된 메타데이터에서 테이블 또는 뷰 \"{{name}}\"을(를) 찾을 수 없습니다. 임시 테이블이거나 메타데이터 로드 이후에 생성되었을 수 있습니다.",
+      "unresolvedColumn": "열 \"{{name}}\"이(가) 없습니다",
+      "unresolvedAlias": "\"{{name}}\"은(는) 이 쿼리의 테이블이나 별칭이 아닙니다",
+      "ambiguousColumn": "열 참조 \"{{name}}\"이(가) 모호합니다",
+      "unsupportedConstruct": "여기서는 분석이 제한됩니다: {{name}}은(는) 분석되지 않으므로 이에 의존하는 참조는 검사하지 않습니다",
+      "metadataUnavailable": "\"{{name}}\"의 열을 사용할 수 없으므로 해당 참조는 검사하지 않습니다"
+    },
     "noTabs": "이 연결에 열린 탭이 없습니다.",
     "newConsole": "새 콘솔",
     "noActiveSession": "활성 세션이 없습니다. 연결을 선택하세요.",

@@ -117,6 +117,8 @@ export interface Settings {
     runStatementUnderCursor?: boolean;
     /** Case of SQL keywords inserted by autocomplete. Default: "match". */
     autocompleteKeywordCase?: AutocompleteKeywordCase;
+    /** Mark unresolved tables, columns and aliases in PostgreSQL SELECT statements. Default: false. */
+    sqlDiagnosticsEnabled?: boolean;
     /** Delay destructive-query and production-write confirmations for five seconds. Default: false. */
     safetyConfirmationDelayEnabled?: boolean;
     /** Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true. */
@@ -268,6 +270,7 @@ export const DEFAULT_SETTINGS: Settings = {
     editorAcceptSuggestionOnEnter: true,
     runStatementUnderCursor: true,
     autocompleteKeywordCase: 'match',
+    sqlDiagnosticsEnabled: false,
     safetyConfirmationDelayEnabled: false,
     notifyLongQueries: true,
     notifyLongQueriesThresholdSec: 20,

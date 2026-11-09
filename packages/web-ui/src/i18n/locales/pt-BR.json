@@ -744,6 +744,9 @@
     "autocomplete_keywordCase": "Caixa das palavras-chave",
     "autocomplete_keywordCaseDesc": "Caixa das palavras-chave SQL inseridas pelo autocompletar.",
     "autocomplete_keywordCaseMatch": "Igual ao digitado",
+    "diagnostics_title": "Diagnósticos SQL",
+    "diagnostics_enabled": "Destacar referências não resolvidas",
+    "diagnostics_enabledDesc": "Marca tabelas, colunas e aliases desconhecidos em instruções SELECT do PostgreSQL usando os metadados já carregados da conexão. O servidor continua sendo a autoridade e nada é executado.",
     "editConfigJson": "Editar config.json",
     "editConfigJsonDesc": "Editar diretamente o arquivo de configuração bruto. É necessário reiniciar para aplicar as alterações.",
     "configJsonModal": {
@@ -1713,6 +1716,14 @@
     "auto": "Auto"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "A tabela ou view \"{{name}}\" não foi encontrada nos metadados carregados. Ela pode ser temporária ou ter sido criada depois que os metadados foram carregados.",
+      "unresolvedColumn": "A coluna \"{{name}}\" não existe",
+      "unresolvedAlias": "\"{{name}}\" não é uma tabela nem um alias nesta consulta",
+      "ambiguousColumn": "A referência à coluna \"{{name}}\" é ambígua",
+      "unsupportedConstruct": "A análise é limitada aqui: {{name}} não é analisado, então as referências que dependem dele não são verificadas",
+      "metadataUnavailable": "As colunas de \"{{name}}\" não estão disponíveis, então as referências a ela não são verificadas"
+    },
     "copyWithoutComments": "Copiar SQL sem comentários",
     "noTabs": "Nenhuma aba aberta para esta conexão.",
     "newConsole": "Novo Console",
