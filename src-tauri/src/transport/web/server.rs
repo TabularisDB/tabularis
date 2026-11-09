@@ -803,6 +803,9 @@ async fn sandbox_plugin_asset(
     State(state): State<WebServerState>,
     Path((plugin_id, asset_path)): Path<(String, String)>,
 ) -> Response {
+    if crate::application::plugins::validate_plugin_id(&plugin_id).is_err() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
     let (bytes, content_type) = match asset_path.as_str() {
         "__guest__.html" => (SANDBOX_GUEST_HTML.to_vec(), "text/html; charset=utf-8"),
         "__runtime__.js" => (
@@ -819,9 +822,6 @@ async fn sandbox_plugin_asset(
             Err(_) => return status_response(StatusCode::NOT_FOUND),
         },
     };
-    if crate::application::plugins::validate_plugin_id(&plugin_id).is_err() {
-        return status_response(StatusCode::NOT_FOUND);
-    }
     let mut response = Response::new(Body::from(bytes));
     let headers = response.headers_mut();
     headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));

@@ -362,6 +362,18 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         .await
         .unwrap();
     assert_eq!(sandbox_private.status(), reqwest::StatusCode::NOT_FOUND);
+    for path in [
+        "/api/v1/sandbox/plugins/missing-plugin/ui/dist/index.js",
+        "/api/v1/sandbox/plugins/invalid%24plugin/__guest__.html",
+        "/api/v1/sandbox/plugins/example-plugin/ui/%2e%2e/private.txt",
+    ] {
+        let response = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND, "{path}");
+    }
     assert!(uuid::Uuid::parse_str(
         unauthorized
             .headers()

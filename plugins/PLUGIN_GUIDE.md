@@ -717,9 +717,9 @@ in [`UI_SANDBOX_DESIGN.md`](./UI_SANDBOX_DESIGN.md).
 | `openUrl(url)` | `Promise<void>` | Open a URL in the system browser |
 | `exchangeGoogleOAuthToken(request)` | `Promise<GoogleOAuthTokenResponse>` | Exchange or refresh Google OAuth tokens at the host-fixed Google endpoint |
 
-`usePluginQuery().executeQuery()` returns all rows provided by the driver; the
-host does not silently cap plugin query results at 100 rows. Add a SQL `LIMIT`
-clause when only a bounded result set is needed.
+`usePluginQuery().executeQuery()` rejects results larger than 10,000 rows or
+16 MiB instead of returning an incomplete result. Add a SQL `LIMIT` clause or
+otherwise narrow the query when a result exceeds either bound.
 
 #### Plugin Modal
 

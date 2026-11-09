@@ -380,12 +380,28 @@ pub async fn execute_plugin_read_only_query(
 
     match params.driver.as_str() {
         "sqlite" | "postgres" | "mysql" | "mariadb" => {
-            driver
-                .execute_read_only_query(&params, &query, None, 1, schema.as_deref())
-                .await
+            execute_bounded_plugin_query(driver.as_ref(), &params, &query, schema.as_deref()).await
         }
         _ => Err("This driver does not support sandboxed read-only queries".to_string()),
     }
+}
+
+async fn execute_bounded_plugin_query(
+    driver: &dyn DatabaseDriver,
+    params: &crate::models::ConnectionParams,
+    query: &str,
+    schema: Option<&str>,
+) -> Result<QueryResult, String> {
+    let result = driver
+        .execute_read_only_query(params, query, Some(WEB_MAX_ROWS_PER_PAGE), 1, schema)
+        .await?;
+    if result.truncated {
+        return Err(format!(
+            "Plugin query returned more than {WEB_MAX_ROWS_PER_PAGE} rows; narrow the query or add a LIMIT"
+        ));
+    }
+    enforce_response_size(QueryResponsePolicy::WebBounded, &result)?;
+    Ok(result)
 }
 
 #[allow(clippy::too_many_arguments)]
