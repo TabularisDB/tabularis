@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {TableTransferModal} from '@/components/modals/TableTransferModal';
 import type {TableTransferPlan, TableTransferResult} from '@/api/contract';
@@ -111,9 +111,14 @@ async function reachReview() {
     fireEvent.change(screen.getByLabelText('tableRowTransfer.targetConnection'), {
         target: {value: 'lite-1'},
     });
-    await waitFor(() =>
-        expect(screen.getByLabelText('tableRowTransfer.targetTable')).toBeInTheDocument(),
-    );
+    // The select renders as soon as a target connection is chosen, but its
+    // options arrive after get_schemas/get_tables resolve (and loading resets
+    // the selected table), so wait for them instead of for the select itself.
+    await waitFor(() => {
+        const select = screen.getByLabelText('tableRowTransfer.targetTable');
+        expect(select).toBeEnabled();
+        expect(within(select).getByRole('option', {name: 'customers'})).toBeInTheDocument();
+    });
     fireEvent.change(screen.getByLabelText('tableRowTransfer.targetTable'), {
         target: {value: 'customers'},
     });
