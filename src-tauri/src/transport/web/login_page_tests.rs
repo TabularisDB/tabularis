@@ -112,3 +112,68 @@ async fn authentication_errors_render_on_the_same_page() {
         assert!(page.contains("<label for=\"password\">Password</label>"));
     }
 }
+
+const BUILTIN_THEMES: &str =
+    include_str!("../../../../packages/web-ui/src/themes/builtin-themes.json");
+
+fn custom_properties(block: &str) -> Vec<(&str, &str)> {
+    block
+        .split(';')
+        .filter_map(|declaration| declaration.trim().strip_prefix("--"))
+        .map(|declaration| {
+            let (name, value) = declaration.split_once(':').expect("name: value");
+            (name.trim(), value.trim())
+        })
+        .collect()
+}
+
+fn root_block(css: &str) -> &str {
+    let start = css.find(":root {").expect(":root block") + ":root {".len();
+    let end = css[start..].find('}').expect("closed :root block") + start;
+    &css[start..end]
+}
+
+fn theme_token<'a>(theme: &'a serde_json::Value, property: &str) -> &'a str {
+    let (group, key) = property.split_once('-').expect("group-key");
+    let path = match group {
+        "bg" | "text" | "accent" | "border" => format!("/colors/{group}/{key}"),
+        "font" => format!("/typography/fontFamily/{key}"),
+        "radius" => format!("/layout/borderRadius/{key}"),
+        _ => panic!("--{property} has no theme token mapping"),
+    };
+    theme
+        .pointer(&path)
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_else(|| panic!("--{property}: {path} missing from the theme"))
+}
+
+#[test]
+fn copied_tokens_match_the_builtin_tabularis_themes() {
+    let themes: Vec<serde_json::Value> = serde_json::from_str(BUILTIN_THEMES).unwrap();
+    let theme = |id: &str| {
+        themes
+            .iter()
+            .find(|theme| theme["id"] == id)
+            .unwrap_or_else(|| panic!("{id} in builtin-themes.json"))
+    };
+    let css = include_str!("login_page.css");
+    let dark_query = css
+        .find("@media (prefers-color-scheme: dark)")
+        .expect("dark media query");
+
+    for (block, theme) in [
+        (root_block(css), theme("tabularis-light")),
+        (root_block(&css[dark_query..]), theme("tabularis-dark")),
+    ] {
+        let properties = custom_properties(block);
+        assert!(!properties.is_empty());
+        for (property, value) in properties {
+            assert_eq!(
+                value,
+                theme_token(theme, property),
+                "--{property} in login_page.css drifted from {}",
+                theme["id"]
+            );
+        }
+    }
+}

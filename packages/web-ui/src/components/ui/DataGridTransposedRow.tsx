@@ -9,6 +9,7 @@ import {
 import {getFindMatchState} from '@/utils/gridFind';
 import {DataGridCell} from './DataGridCell';
 import type {RowCtx} from './DataGridRow';
+import {getFormatRowClass, getFormatTextClass, type RowFormat} from '@/utils/conditionalFormatting';
 
 /**
  * Per-record state for the record columns currently in the horizontal
@@ -21,6 +22,8 @@ export interface TransposedRecord {
     isInsertion: boolean;
     isPendingDelete: boolean;
     pkVal: string | null;
+    /** Conditional formatting of the record (#991), null or absent when no rule matches. */
+    format?: RowFormat | null;
 }
 
 // The whole-record tint, matching the row tint of the normal layout.
@@ -28,7 +31,7 @@ function getTransposedRecordClass(record: TransposedRecord): string {
     if (record.isSelected) return 'bg-accent-primary/10';
     if (record.isInsertion) return 'bg-semantic-new/8';
     if (record.isPendingDelete) return 'bg-semantic-deleted/10 opacity-60';
-    return '';
+    return getFormatRowClass(record.format) ?? '';
 }
 
 export interface MemoTransposedRowProps {
@@ -50,6 +53,8 @@ export interface MemoTransposedRowProps {
     expandedKind: 'json' | 'text' | null;
     /** Sticky `top` offset while this field row is frozen, otherwise null. */
     frozenTop: number | null;
+    /** Whether this field row gets the zebra-stripe background. */
+    isZebra: boolean;
     /** Find in results (#1298): matched column indices by row index. */
     findMatchesByRow: ReadonlyMap<number, ReadonlySet<number>>;
     /** Row index of the current find match when it is in this field. */
@@ -75,11 +80,16 @@ export const MemoTransposedRow = React.memo(function MemoTransposedRow({
     expandedRowIndex,
     expandedKind,
     frozenTop,
+    isZebra,
     findMatchesByRow,
     currentFindRowIndex,
 }: MemoTransposedRowProps) {
     return (
-        <tr data-field-index={colIndex} style={{height: DATA_GRID_ROW_HEIGHT}}>
+        <tr
+            data-field-index={colIndex}
+            style={{height: DATA_GRID_ROW_HEIGHT}}
+            className={isZebra ? 'bg-surface-secondary/40' : undefined}
+        >
             <th
                 scope="row"
                 data-col-index={colIndex}
@@ -93,7 +103,11 @@ export const MemoTransposedRow = React.memo(function MemoTransposedRow({
                         ? TRANSPOSED_FROZEN_FIELD_LABEL_CLASS
                         : TRANSPOSED_FIELD_LABEL_CLASS
                 } px-4 py-1.5 text-xs font-semibold tracking-wider border-b border-r border-default whitespace-nowrap truncate ${
-                    isFieldSelected ? 'text-primary bg-accent-primary/20' : 'text-secondary'
+                    isFieldSelected
+                        ? 'text-primary bg-accent-primary/20'
+                        : isZebra
+                          ? 'text-secondary bg-surface-secondary/40'
+                          : 'text-secondary'
                 }`}
             >
                 {label}
@@ -121,7 +135,8 @@ export const MemoTransposedRow = React.memo(function MemoTransposedRow({
                         findMatchesByRow.get(record.rowIndex) ?? null,
                         currentFindRowIndex === record.rowIndex ? colIndex : null,
                     )}
-                    isZebra={false}
+                    isZebra={isZebra}
+                    formatTextClass={getFormatTextClass(record.format, colIndex)}
                     widthClassName=""
                     className={getTransposedRecordClass(record)}
                     style={{width: TRANSPOSED_RECORD_WIDTH, maxWidth: TRANSPOSED_RECORD_WIDTH}}

@@ -1,5 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import {extractQueryParams, interpolateQueryParams, toBindParamName} from '@/utils/queryParameters';
+import {resolveSqlSyntax} from '@/utils/sqlSyntax';
+import type {DriverCapabilities} from '@/types/plugins';
 
 describe('queryParameters', () => {
     describe('toBindParamName', () => {
@@ -63,6 +65,27 @@ describe('queryParameters', () => {
             const sql = 'SELECT * FROM t WHERE col = :my_custom_param_1';
             expect(extractQueryParams(sql)).toEqual(['my_custom_param_1']);
         });
+
+        it('should ignore a colon that follows a word character', () => {
+            // SurrealQL record ids (`table:id`) and array slices are not placeholders.
+            expect(extractQueryParams("CREATE person:dave SET name = 'Dave'")).toEqual([]);
+            expect(
+                extractQueryParams('SELECT * FROM person WHERE best_friend = person:bob'),
+            ).toEqual([]);
+            expect(extractQueryParams('SELECT * FROM person:bob, person:_x1')).toEqual([]);
+            expect(extractQueryParams('SELECT arr[lo:hi] FROM t')).toEqual([]);
+        });
+
+        it('should still detect params after operators, punctuation and whitespace', () => {
+            expect(extractQueryParams(':id')).toEqual(['id']);
+            expect(extractQueryParams('WHERE id=:id')).toEqual(['id']);
+            expect(extractQueryParams('INSERT INTO t VALUES (:a, :b)')).toEqual(['a', 'b']);
+            expect(extractQueryParams('WHERE id IN(:x,:y)')).toEqual(['x', 'y']);
+            expect(extractQueryParams('WHERE a >:lo\n\tAND b<:hi')).toEqual(['lo', 'hi']);
+            expect(extractQueryParams('SELECT * FROM person:bob WHERE age > :min_age')).toEqual([
+                'min_age',
+            ]);
+        });
     });
 
     describe('interpolateQueryParams', () => {
@@ -89,6 +112,13 @@ describe('queryParameters', () => {
             const result = interpolateQueryParams(sql, {id: '10'});
             expect(result).toBe('SELECT val::text FROM t WHERE id = 10');
         });
+
+        it('should never rewrite the id part of a record id', () => {
+            const sql = 'UPDATE person:bob SET friend = :bob';
+            expect(interpolateQueryParams(sql, {bob: "'x'"})).toBe(
+                "UPDATE person:bob SET friend = 'x'",
+            );
+        });
     });
 
     describe('extractQueryParams with dialect (issue #458)', () => {
@@ -112,6 +142,26 @@ describe('queryParameters', () => {
 
         it('keeps the ::cast exclusion when a dialect is passed', () => {
             expect(extractQueryParams("SELECT 'x'::text, :id", 'postgres')).toEqual(['id']);
+            expect(extractQueryParams('SELECT :id::text, price::numeric', 'postgres')).toEqual([
+                'id',
+            ]);
+        });
+
+        it('ignores record ids in every dialect and with plugin capabilities', () => {
+            const sql = "CREATE person:dave SET name = 'Dave', age = :age";
+            for (const dialect of ['postgres', 'mysql', 'sqlite', 'mssql', 'oracle', 'generic']) {
+                expect(extractQueryParams(sql, dialect)).toEqual(['age']);
+            }
+            const surreal = resolveSqlSyntax({
+                sql_dialect: 'mysql',
+                identifier_quote: '`',
+            } as DriverCapabilities);
+            expect(
+                extractQueryParams('SELECT * FROM t WHERE best_friend = person:bob', surreal),
+            ).toEqual([]);
+            expect(
+                extractQueryParams("SELECT `a:b`, 'c:d' FROM person:e WHERE f = :g", surreal),
+            ).toEqual(['g']);
         });
 
         it('handles boundary cases around masked regions', () => {
@@ -164,7 +214,7 @@ describe('queryParameters', () => {
         });
 
         it('treats Object.prototype member names as unknown dialects', () => {
-            const sql = "SELECT 'x:y', :real";
+            const sql = "SELECT 'x :y', :real";
             expect(extractQueryParams(sql, '__proto__')).toEqual(['y', 'real']);
             expect(extractQueryParams(sql, 'toString')).toEqual(['y', 'real']);
         });
@@ -183,7 +233,7 @@ describe('queryParameters', () => {
         });
 
         it('falls back to maskless detection without a known dialect', () => {
-            const sql = "SELECT 'x:y', :real";
+            const sql = "SELECT 'x :y', :real";
             // Pre-#458 behavior is preserved verbatim when no dialect is known…
             expect(extractQueryParams(sql)).toEqual(['y', 'real']);
             expect(extractQueryParams(sql, 'does-not-exist')).toEqual(['y', 'real']);

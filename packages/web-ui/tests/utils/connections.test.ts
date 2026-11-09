@@ -1,6 +1,7 @@
 import {describe, it, expect, vi} from 'vitest';
 import {
     formatConnectionString,
+    formatHostPort,
     getDefaultPort,
     validateConnectionParams,
     getDriverLabel,
@@ -11,6 +12,8 @@ import {
     withoutBlankSslMode,
     parseConnectTimeoutSecs,
     MAX_CONNECT_TIMEOUT_SECS,
+    parseQueryTimeoutSecs,
+    MAX_QUERY_TIMEOUT_SECS,
     migrationDirectionForDriver,
     connectionOrderAfterMove,
     planGroupDrop,
@@ -538,6 +541,39 @@ describe('connections', () => {
         });
     });
 
+    describe('formatHostPort', () => {
+        it('appends the port to a plain host name or IPv4 address', () => {
+            expect(formatHostPort('localhost', 5432)).toBe('localhost:5432');
+            expect(formatHostPort('db.example.com', 3306)).toBe('db.example.com:3306');
+            expect(formatHostPort('192.168.1.10', 3306)).toBe('192.168.1.10:3306');
+        });
+
+        it('shows a URL host as typed', () => {
+            expect(formatHostPort('ws://127.0.0.1:8010', 8000)).toBe('ws://127.0.0.1:8010');
+            expect(formatHostPort('wss://db.example.com', 8000)).toBe('wss://db.example.com');
+            expect(formatHostPort('mongodb+srv://cluster.example.net', 27017)).toBe(
+                'mongodb+srv://cluster.example.net',
+            );
+        });
+
+        it('keeps a port the host already names', () => {
+            expect(formatHostPort('db.example.com:5433', 5432)).toBe('db.example.com:5433');
+            expect(formatHostPort('127.0.0.1:8010', 8000)).toBe('127.0.0.1:8010');
+            expect(formatHostPort('[::1]:5433', 5432)).toBe('[::1]:5433');
+        });
+
+        it('appends the port to IPv6 addresses, bracketing a bare one', () => {
+            expect(formatHostPort('[::1]', 5432)).toBe('[::1]:5432');
+            expect(formatHostPort('::1', 5432)).toBe('[::1]:5432');
+            expect(formatHostPort('2001:db8::1', 5432)).toBe('[2001:db8::1]:5432');
+        });
+
+        it('shows only the host when there is no port', () => {
+            expect(formatHostPort('localhost', undefined)).toBe('localhost');
+            expect(formatHostPort('localhost', null)).toBe('localhost');
+        });
+    });
+
     describe('connectionSubtitle', () => {
         const makeConn = (overrides: Partial<SavedConnection['params']> = {}): SavedConnection => ({
             id: '1',
@@ -613,6 +649,20 @@ describe('connections', () => {
         it('should keep empty database verbatim when capabilities are unknown', () => {
             const conn = makeConn({host: 'db.host', port: 3306, database: ''});
             expect(connectionSubtitle(conn, null)).toBe('db.host:3306  ·  ');
+        });
+
+        it('should not append the port to a URL host or a host that names its port', () => {
+            const ws = makeConn({host: 'ws://127.0.0.1:8010', port: 8000, database: 'mydb'});
+            expect(connectionSubtitle(ws, makeRemoteCaps())).toBe('ws://127.0.0.1:8010  ·  mydb');
+            const named = makeConn({host: 'db.host:5433', port: 5432, database: 'mydb'});
+            expect(connectionSubtitle(named, makeRemoteCaps())).toBe('db.host:5433  ·  mydb');
+        });
+
+        it('should keep IPv6 hosts readable', () => {
+            const bracketed = makeConn({host: '[::1]', port: 5432, database: 'mydb'});
+            expect(connectionSubtitle(bracketed, makeRemoteCaps())).toBe('[::1]:5432  ·  mydb');
+            const bare = makeConn({host: '::1', port: 5432, database: 'mydb'});
+            expect(connectionSubtitle(bare, makeRemoteCaps())).toBe('[::1]:5432  ·  mydb');
         });
 
         it('should use the translated database counter when provided', () => {
@@ -1100,5 +1150,22 @@ describe('parseConnectTimeoutSecs', () => {
     it('treats non-finite input as unset', () => {
         expect(parseConnectTimeoutSecs('1e999')).toBeUndefined();
         expect(parseConnectTimeoutSecs('abc')).toBeUndefined();
+    });
+});
+
+describe('parseQueryTimeoutSecs', () => {
+    it('reads whole seconds and keeps 0 as no limit', () => {
+        expect(parseQueryTimeoutSecs('30')).toBe(30);
+        expect(parseQueryTimeoutSecs('0')).toBe(0);
+    });
+
+    it('treats an empty or non-numeric field as unset', () => {
+        expect(parseQueryTimeoutSecs('')).toBeUndefined();
+        expect(parseQueryTimeoutSecs('abc')).toBeUndefined();
+    });
+
+    it('allows more than the connect timeout cap, up to one day', () => {
+        expect(parseQueryTimeoutSecs('7200')).toBe(7200);
+        expect(parseQueryTimeoutSecs('99999999999')).toBe(MAX_QUERY_TIMEOUT_SECS);
     });
 });

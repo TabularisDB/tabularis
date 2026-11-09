@@ -237,3 +237,53 @@ describe('file format hints', () => {
         expect(result.rows[149999]).toEqual(['1', 'a']);
     });
 });
+
+describe('cells copied from a spreadsheet', () => {
+    it('keeps a quoted cell with a line break in one cell', () => {
+        const result = parseClipboardText('name\tnote\nAlice\t"line 1\nline 2"\nBob\tok');
+        expect(result.rows).toEqual([
+            ['Alice', 'line 1\nline 2'],
+            ['Bob', 'ok'],
+        ]);
+    });
+
+    it('reads doubled quotes and tabs inside a quoted cell', () => {
+        const result = parseClipboardText('a\tb\n"say ""hi""\tthere"\tx');
+        expect(result.rows).toEqual([['say "hi"\tthere', 'x']]);
+    });
+
+    it('keeps CRLF line breaks inside and between quoted cells', () => {
+        const result = parseClipboardText('a\tb\r\n"one\r\ntwo"\tx\r\ny\tz');
+        expect(result.rows).toEqual([
+            ['one\r\ntwo', 'x'],
+            ['y', 'z'],
+        ]);
+    });
+
+    it('treats a quote that does not wrap the whole cell as text', () => {
+        const result = parseClipboardText('size\tlabel\n5"\t"quoted" text\n6"\tplain');
+        expect(result.rows).toEqual([
+            ['5"', '"quoted" text'],
+            ['6"', 'plain'],
+        ]);
+    });
+});
+
+describe('leading zeros', () => {
+    it('infers TEXT for codes with leading zeros, so they are kept', () => {
+        const result = parseClipboardText(
+            'zip\tphone\tid\n00123\t0612345678\t1\n02134\t0698765432\t2',
+        );
+        const type = (name: string) => result.inferredColumns.find((c) => c.name === name)?.sqlType;
+        expect(type('zip')).toBe('TEXT');
+        expect(type('phone')).toBe('TEXT');
+        expect(type('id')).toBe('INTEGER');
+    });
+
+    it('keeps zero itself and decimals below one numeric', () => {
+        const result = parseClipboardText('n\tr\n0\t0.5\n10\t1.25');
+        const type = (name: string) => result.inferredColumns.find((c) => c.name === name)?.sqlType;
+        expect(type('n')).toBe('INTEGER');
+        expect(type('r')).toBe('REAL');
+    });
+});

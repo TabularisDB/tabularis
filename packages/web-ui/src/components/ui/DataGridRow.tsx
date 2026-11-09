@@ -3,6 +3,12 @@ import {isZebraStripedRow, DATA_GRID_ROW_HEIGHT, type MergedRow} from '@/utils/d
 import {getFindMatchState} from '@/utils/gridFind';
 import {DataGridCell, DataGridExpansionRow} from './DataGridCell';
 import type {ForeignKey} from '@/types/editor';
+import {
+    getFormatGutterClass,
+    getFormatRowClass,
+    getFormatTextClass,
+    type RowFormat,
+} from '@/utils/conditionalFormatting';
 
 /**
  * Stable, per-grid dependencies shared by every row. Bundled into a single
@@ -129,6 +135,8 @@ export interface MemoRowProps {
     findMatchColIndices: ReadonlySet<number> | null;
     /** Column of the current find match when it is in this row. */
     currentFindColIndex: number | null;
+    /** Conditional formatting of this row (#991), null or absent when no rule matches. */
+    format?: RowFormat | null;
 }
 
 export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
@@ -147,6 +155,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         expandedKind,
         findMatchColIndices,
         currentFindColIndex,
+        format,
     } = rowCtx;
 
     const {
@@ -159,6 +168,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         openInSidebar,
         handleRowClick,
         onForeignKeyHidePanel,
+        t,
     } = ctx;
 
     return (
@@ -173,12 +183,15 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                           ? 'bg-semantic-new/8 border-l-4 border-semantic-new'
                           : isPendingDelete
                             ? 'bg-semantic-deleted/10 opacity-60'
-                            : isZebraStripedRow(rowIndex, zebraStripes)
-                              ? 'bg-surface-secondary/40 hover:bg-surface-secondary/90'
-                              : 'hover:bg-surface-secondary/50'
+                            : format?.row
+                              ? getFormatRowClass(format)
+                              : isZebraStripedRow(rowIndex, zebraStripes)
+                                ? 'bg-surface-secondary/40 hover:bg-surface-secondary/90'
+                                : 'hover:bg-surface-secondary/50'
                 }`}
             >
                 <td
+                    title={format ? format.names.join(', ') : undefined}
                     onClick={(e) => {
                         setFocusedCell(null);
                         onForeignKeyHidePanel?.();
@@ -198,12 +211,20 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                               ? 'bg-semantic-deleted/25 text-semantic-deleted line-through'
                               : isSelected
                                 ? 'bg-accent-primary/20 text-accent font-bold'
-                                : isZebraStripedRow(rowIndex, zebraStripes)
-                                  ? 'bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-base))] text-muted hover:bg-surface-tertiary'
-                                  : 'bg-base text-muted hover:bg-surface-secondary'
+                                : (getFormatGutterClass(format) ??
+                                  (isZebraStripedRow(rowIndex, zebraStripes)
+                                      ? 'bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-base))] text-muted hover:bg-surface-tertiary'
+                                      : 'bg-base text-muted hover:bg-surface-secondary'))
                     }`}
                 >
                     {isInsertion ? 'NEW' : rowIndex + 1}
+                    {format && (
+                        <span className="sr-only">
+                            {t('dataGrid.conditionalFormatting.matchedRules', {
+                                names: format.names.join(', '),
+                            })}
+                        </span>
+                    )}
                 </td>
                 {visibleColIndices.map((colIndex) => (
                     <DataGridCell
@@ -228,6 +249,8 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                             findMatchColIndices,
                             currentFindColIndex,
                         )}
+                        formatTextClass={getFormatTextClass(format, colIndex)}
+                        formatRowTone={format?.row?.tone ?? null}
                     />
                 ))}
             </tr>

@@ -26,7 +26,9 @@ import {
     ArrowDown,
     ArrowUpDown,
     Braces,
+    ClipboardList,
     ClipboardPaste,
+    ClipboardType,
     Copy,
     CopyPlus,
     Clock,
@@ -59,6 +61,7 @@ import {
     PinOff,
     RotateCcw,
     Columns3,
+    Paintbrush,
 } from 'lucide-react';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {getJsonViewerSessionHost} from '@/platform/secondaryWindowSessions';
@@ -94,6 +97,7 @@ import {
     resizeLockedColumn,
     getResizedTableWidth,
     isUuidColumnType,
+    isZebraStripedRow,
     type LockedColumnWidths,
     createDataGridResultCommands,
     type RangeExtendKey,
@@ -117,8 +121,18 @@ import {
     type CellWrite,
     type EditSelection,
 } from '@/utils/bulkCellEdit';
-import {pickPrimaryForeignKeyByColumn, getForeignKeyForPreview} from '@/utils/foreignKeys';
-import {getCellValueFilterOperators, type CellValueFilterOperator} from '@/utils/cellValueFilter';
+import {
+    pickPrimaryForeignKeyByColumn,
+    getForeignKeyForPreview,
+    isNumericColumnType,
+} from '@/utils/foreignKeys';
+import {
+    getCellValueFilterOperators,
+    isNumericClipboardValue,
+    parseClipboardInList,
+    MAX_CLIPBOARD_FILTER_VALUES,
+    type CellValueFilterOperator,
+} from '@/utils/cellValueFilter';
 import {
     getColumnStatsSupport,
     type ColumnStats,
@@ -179,10 +193,13 @@ import {getFitColumnWidth} from '@/utils/columnResize';
 import {resolveResultFontFamily} from '@/utils/settings';
 import {JumpToColumnModal} from '@/components/modals/JumpToColumnModal';
 import {SetCellsValueModal} from '@/components/modals/SetCellsValueModal';
+import {ConditionalFormattingModal} from '@/components/modals/ConditionalFormattingModal';
+import {useGridFormatRules} from '@/hooks/useGridFormatRules';
+import {compileFormatRules, getRowFormats} from '@/utils/conditionalFormatting';
 import {KeybindingsContext} from '@/contexts/KeybindingsContext';
 import {GridFindBar} from './GridFindBar';
 import {useGridFind} from '@/hooks/useGridFind';
-import {getFindRowTexts} from '@/utils/gridFind';
+import {getFindRowTexts, getRevealScrollDelta} from '@/utils/gridFind';
 
 /** Horizontal padding of a grid cell (px-4 on both sides) plus its 1px border. */
 const FIT_COLUMN_PADDING = 33;
@@ -292,6 +309,12 @@ interface DataGridProps {
      * columns. Display only: selection, editing and copy stay row-based.
      */
     transposed?: boolean;
+    /**
+     * Conditional formatting (#991): colors rows and cells from the rules saved
+     * for `tableName`, and offers their editor in the column header menu. Set on
+     * table tabs only.
+     */
+    conditionalFormatting?: boolean;
 }
 
 // Stable empty window for the record virtualizer while it is disabled.
@@ -330,6 +353,7 @@ const CELL_VALUE_FILTER_BADGES: Record<CellValueFilterOperator, string> = {
     'ends with': 'LIKE',
     'IS NULL': 'IS',
     'IS NOT NULL': 'IS NOT',
+    IN: 'IN',
 };
 
 // Value shown next to the column name in the "Filter by this value" submenu.
@@ -353,6 +377,7 @@ const CELL_VALUE_FILTER_LABEL_KEYS: Record<CellValueFilterOperator, string> = {
     'ends with': 'dataGrid.filterEndsWith',
     'IS NULL': 'dataGrid.filterIsNull',
     'IS NOT NULL': 'dataGrid.filterIsNotNull',
+    IN: 'dataGrid.filterIn',
 };
 
 // Why "Copy as SQL UPDATE" is disabled: there is no safe WHERE clause to build.
@@ -417,6 +442,7 @@ export const DataGrid = React.memo(function DataGrid({
     hiddenColumns: hiddenColumnsProp,
     onHiddenColumnsChange,
     transposed = false,
+    conditionalFormatting = false,
 }: DataGridProps) {
     const {t} = useTranslation();
     const client = useTabularisClient();
@@ -537,6 +563,16 @@ export const DataGrid = React.memo(function DataGrid({
     // so freezing the first field pins its row instead.
     const firstColumnFrozen = isFirstColumnFrozen && !transposed;
     const firstFieldRowFrozen = isFirstColumnFrozen && transposed;
+    // The frozen first field row sits right under the record header row, which
+    // is itself sticky only when sticky column headers are on.
+    const transposedFrozenTop = firstFieldRowFrozen
+        ? stickyColumnHeaders
+            ? DATA_GRID_ROW_HEIGHT
+            : 0
+        : null;
+    const transposedScrollPaddingTop =
+        (stickyColumnHeaders ? DATA_GRID_ROW_HEIGHT : 0) +
+        (transposedFrozenTop !== null ? DATA_GRID_ROW_HEIGHT : 0);
     const [columnStatsTarget, setColumnStatsTarget] = useState<{
         x: number;
         y: number;
@@ -863,6 +899,29 @@ export const DataGrid = React.memo(function DataGrid({
         // Sort by displayIndex (insertions are now at the end)
         return rows.sort((a, b) => a.displayIndex - b.displayIndex);
     }, [data, pendingInsertions, columns]);
+
+    // Conditional formatting (#991): the table's rules are evaluated once per
+    // loaded row here, so scrolling only looks the result up. Pending insertions
+    // are skipped: their "new row" styling wins anyway.
+    const formatRules = useGridFormatRules(
+        connectionId,
+        database,
+        activeSchema,
+        conditionalFormatting ? tableName : null,
+    );
+    const compiledFormatRules = useMemo(
+        () => compileFormatRules(formatRules.rules, columns),
+        [formatRules.rules, columns],
+    );
+    const rowFormats = useMemo(
+        () =>
+            getRowFormats(
+                compiledFormatRules,
+                mergedRows.map((row) => (row.type === 'existing' ? row.rowData : null)),
+            ),
+        [compiledFormatRules, mergedRows],
+    );
+    const [formatEditorColumn, setFormatEditorColumn] = useState<string | null>(null);
 
     const handleRowClick = useCallback(
         (index: number, event: React.MouseEvent) => {
@@ -3077,21 +3136,48 @@ export const DataGrid = React.memo(function DataGrid({
         (rowIndex: number) => rowVirtualizer.scrollToIndex(rowIndex, {align: 'center'}),
         [rowVirtualizer],
     );
-    // Transposed (#561), a match's record is a virtualized column: center it,
-    // then let the scroll padding keep its field clear of the sticky parts.
+    // Transposed (#561), a match's record is a virtualized column. As in the
+    // normal layout, the record is only centered when its cell is not fully
+    // visible beside the sticky field labels; then the scroll padding keeps the
+    // field clear of the sticky record header and the frozen first field.
     const revealTransposedMatch = useCallback(
         ({rowIndex, colIndex}: {rowIndex: number; colIndex: number}) => {
+            const scrollElement = parentRef.current;
+            const cellSelector = `td[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`;
+            const cell = scrollElement?.querySelector(cellSelector);
+            if (scrollElement && cell) {
+                const view = scrollElement.getBoundingClientRect();
+                const rect = cell.getBoundingClientRect();
+                const isRecordInView =
+                    getRevealScrollDelta(
+                        rect.left,
+                        rect.right,
+                        view.left + TRANSPOSED_FIELD_LABEL_WIDTH,
+                        view.left + scrollElement.clientWidth,
+                    ) === 0;
+                if (isRecordInView) {
+                    // A frozen cell never leaves the view vertically.
+                    const isFieldInView =
+                        getComputedStyle(cell).position === 'sticky' ||
+                        getRevealScrollDelta(
+                            rect.top,
+                            rect.bottom,
+                            view.top + transposedScrollPaddingTop,
+                            view.top + scrollElement.clientHeight,
+                        ) === 0;
+                    if (!isFieldInView) cell.scrollIntoView({block: 'nearest', inline: 'nearest'});
+                    return () => {};
+                }
+            }
             recordVirtualizer.scrollToIndex(rowIndex, {align: 'center'});
             const frame = requestAnimationFrame(() => {
                 parentRef.current
-                    ?.querySelector(
-                        `td[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`,
-                    )
+                    ?.querySelector(cellSelector)
                     ?.scrollIntoView({block: 'nearest', inline: 'nearest'});
             });
             return () => cancelAnimationFrame(frame);
         },
-        [recordVirtualizer],
+        [recordVirtualizer, transposedScrollPaddingTop],
     );
     const gridFind = useGridFind({
         rowCount: mergedRows.length,
@@ -3699,9 +3785,11 @@ export const DataGrid = React.memo(function DataGrid({
                     isPendingDelete:
                         !isInsertion && pkVal ? pendingDeletions?.[pkVal] !== undefined : false,
                     pkVal,
+                    format: rowFormats.get(rowIndex) ?? null,
                 };
             }),
         [
+            rowFormats,
             recordVirtualItems,
             tableRows,
             mergedRows,
@@ -3810,16 +3898,6 @@ export const DataGrid = React.memo(function DataGrid({
             (colIndex, position) => [headerGroup.headers[colIndex], colIndex, position] as const,
         );
 
-    // The frozen first field row sits right under the record header row, which
-    // is itself sticky only when sticky column headers are on.
-    const transposedFrozenTop = firstFieldRowFrozen
-        ? stickyColumnHeaders
-            ? DATA_GRID_ROW_HEIGHT
-            : 0
-        : null;
-    const transposedScrollPaddingTop =
-        (stickyColumnHeaders ? DATA_GRID_ROW_HEIGHT : 0) +
-        (transposedFrozenTop !== null ? DATA_GRID_ROW_HEIGHT : 0);
     // Item offsets include the label column (the virtualizer's paddingStart),
     // which the table already lays out as its own column.
     const transposedPaddingLeft =
@@ -3851,6 +3929,18 @@ export const DataGrid = React.memo(function DataGrid({
                         setValuePromptSelection(null);
                     }}
                     onClose={() => setValuePromptSelection(null)}
+                />
+            )}
+            {formatEditorColumn !== null && tableName && (
+                <ConditionalFormattingModal
+                    isOpen
+                    onClose={() => setFormatEditorColumn(null)}
+                    tableName={tableName}
+                    columns={columns}
+                    columnTypes={columnTypeMap}
+                    initialColumn={formatEditorColumn}
+                    rules={formatRules.rules}
+                    onSave={formatRules.saveRules}
                 />
             )}
             {isFindOpen && (
@@ -3941,6 +4031,7 @@ export const DataGrid = React.memo(function DataGrid({
                                             }
                                         }}
                                         style={{width: TRANSPOSED_RECORD_WIDTH}}
+                                        title={record.format?.names.join(', ')}
                                         className={`px-2 py-2 text-xs text-center border-b border-r border-default cursor-pointer select-none ${
                                             record.isInsertion
                                                 ? record.isSelected
@@ -3954,6 +4045,13 @@ export const DataGrid = React.memo(function DataGrid({
                                         }`}
                                     >
                                         {record.isInsertion ? 'NEW' : record.rowIndex + 1}
+                                        {record.format && (
+                                            <span className="sr-only">
+                                                {t('dataGrid.conditionalFormatting.matchedRules', {
+                                                    names: record.format.names.join(', '),
+                                                })}
+                                            </span>
+                                        )}
                                     </th>
                                 ))}
                                 <th
@@ -3967,7 +4065,7 @@ export const DataGrid = React.memo(function DataGrid({
                             </tr>
                         </thead>
                         <tbody>
-                            {visibleColIndices.map((colIndex) => {
+                            {visibleColIndices.map((colIndex, position) => {
                                 const colName = columns[colIndex];
                                 const isFieldEditing = editingCell?.colIndex === colIndex;
                                 const isFieldExpanded = expandedCell?.colIndex === colIndex;
@@ -4004,6 +4102,9 @@ export const DataGrid = React.memo(function DataGrid({
                                                     ? transposedFrozenTop
                                                     : null
                                             }
+                                            // Striped by screen position, so hidden
+                                            // fields don't break the alternation.
+                                            isZebra={isZebraStripedRow(position, zebraStripes)}
                                             findMatchesByRow={gridFind.matchesByRow}
                                             currentFindRowIndex={
                                                 gridFind.currentMatch?.colIndex === colIndex
@@ -4165,6 +4266,7 @@ export const DataGrid = React.memo(function DataGrid({
                                         findMatchColIndices={
                                             gridFind.matchesByRow.get(rowIndex) ?? null
                                         }
+                                        format={rowFormats.get(rowIndex) ?? null}
                                         currentFindColIndex={
                                             gridFind.currentMatch?.rowIndex === rowIndex
                                                 ? gridFind.currentMatch.colIndex
@@ -4349,6 +4451,133 @@ export const DataGrid = React.memo(function DataGrid({
                                                 setContextMenu(null);
                                             },
                                         })),
+                                        {separator: true},
+                                        // "Column = clipboard": the whole clipboard text is one
+                                        // value. Read the clipboard when the item is clicked (not
+                                        // when the menu opens) and trim before comparing; an
+                                        // empty clipboard shows a short message instead of a
+                                        // filter.
+                                        {
+                                            label: t('dataGrid.filterEqualsClipboard', {
+                                                column: colName,
+                                            }),
+                                            icon: ClipboardType,
+                                            action: async () => {
+                                                setContextMenu(null);
+                                                try {
+                                                    const clipboardText = (
+                                                        await platform.readClipboard()
+                                                    ).trim();
+                                                    if (!clipboardText) {
+                                                        showToast(
+                                                            t('dataGrid.filterClipboardEmpty'),
+                                                            {
+                                                                kind: 'error',
+                                                            },
+                                                        );
+                                                        return;
+                                                    }
+                                                    // A non-numeric clipboard value on a numeric
+                                                    // column (e.g. a spreadsheet header) would be
+                                                    // silently cast to 0 by MySQL or rejected
+                                                    // outright by PostgreSQL.
+                                                    if (
+                                                        isNumericColumnType(colDataType) &&
+                                                        !isNumericClipboardValue(clipboardText)
+                                                    ) {
+                                                        showToast(
+                                                            t('dataGrid.filterClipboardNoNumeric'),
+                                                            {
+                                                                kind: 'error',
+                                                            },
+                                                        );
+                                                        return;
+                                                    }
+                                                    onFilterByValue(
+                                                        colName,
+                                                        '=',
+                                                        clipboardText,
+                                                        colDataType || undefined,
+                                                    );
+                                                } catch (e) {
+                                                    console.error('Failed to read clipboard:', e);
+                                                    showToast(
+                                                        t('dataGrid.filterClipboardReadFailed'),
+                                                        {
+                                                            kind: 'error',
+                                                        },
+                                                    );
+                                                }
+                                            },
+                                        },
+                                        // "Column IN (clipboard)": split clipboard text into
+                                        // lines (blank lines and duplicates dropped, values
+                                        // capped) and build an IN list typed for the column.
+                                        {
+                                            label: t('dataGrid.filterInClipboard', {
+                                                column: colName,
+                                            }),
+                                            icon: ClipboardList,
+                                            action: async () => {
+                                                setContextMenu(null);
+                                                try {
+                                                    const clipboardText =
+                                                        await platform.readClipboard();
+                                                    const {values, truncated, nonNumericDropped} =
+                                                        parseClipboardInList(clipboardText, {
+                                                            columnType: colDataType || undefined,
+                                                        });
+                                                    if (values.length === 0) {
+                                                        // Distinguish "nothing was pasted" from "the
+                                                        // clipboard held text but none of it is
+                                                        // numeric", otherwise the latter misleadingly
+                                                        // says empty.
+                                                        showToast(
+                                                            t(
+                                                                nonNumericDropped > 0
+                                                                    ? 'dataGrid.filterClipboardNoNumeric'
+                                                                    : 'dataGrid.filterClipboardEmpty',
+                                                            ),
+                                                            {kind: 'error'},
+                                                        );
+                                                        return;
+                                                    }
+                                                    if (nonNumericDropped > 0) {
+                                                        showToast(
+                                                            t(
+                                                                'dataGrid.filterClipboardNonNumericDropped',
+                                                                {
+                                                                    count: nonNumericDropped,
+                                                                },
+                                                            ),
+                                                            {kind: 'warning'},
+                                                        );
+                                                    }
+                                                    if (truncated) {
+                                                        showToast(
+                                                            t('dataGrid.filterClipboardTruncated', {
+                                                                max: MAX_CLIPBOARD_FILTER_VALUES,
+                                                            }),
+                                                            {kind: 'warning'},
+                                                        );
+                                                    }
+                                                    onFilterByValue(
+                                                        colName,
+                                                        'IN',
+                                                        values,
+                                                        colDataType || undefined,
+                                                    );
+                                                } catch (e) {
+                                                    console.error('Failed to read clipboard:', e);
+                                                    showToast(
+                                                        t('dataGrid.filterClipboardReadFailed'),
+                                                        {
+                                                            kind: 'error',
+                                                        },
+                                                    );
+                                                }
+                                            },
+                                        },
                                     ],
                                 });
                             }
@@ -4794,6 +5023,20 @@ export const DataGrid = React.memo(function DataGrid({
                                   ]
                                 : []),
                             ...columnVisibilityItems(headerContextMenu),
+                            ...(formatRules.available
+                                ? [
+                                      {
+                                          label: t('dataGrid.conditionalFormatting.menu'),
+                                          icon: Paintbrush,
+                                          action: () => {
+                                              setFormatEditorColumn(
+                                                  columns[headerContextMenu.colIndex] ?? '',
+                                              );
+                                              setHeaderContextMenu(null);
+                                          },
+                                      } as ContextMenuItem,
+                                  ]
+                                : []),
                             // Freezing pins the first field: its column normally, its
                             // row when transposed. Widths belong to the normal layout;
                             // the transposed one has fixed widths.

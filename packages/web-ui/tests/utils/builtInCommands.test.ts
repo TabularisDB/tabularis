@@ -13,6 +13,8 @@ const labels = {
     inspectTable: 'Inspect structure',
     generateSql: 'Generate SQL templates',
     countRows: 'Count rows',
+    exportTableToSql: 'Export table to SQL...',
+    importTableFromSql: 'Import table from SQL...',
     navigationCategory: 'Navigation',
     connectionCategory: 'Connection',
     editorCategory: 'Editor',
@@ -126,6 +128,54 @@ describe('createBuiltInCommandItems', () => {
 
         expect(paletteModals.inspect).toHaveBeenCalledWith(scope.table);
         expect(paletteModals.generateSql).toHaveBeenCalledWith(scope.table);
+    });
+
+    it('should offer the sidebar table transfer commands and run them', async () => {
+        const exportTable = vi.fn();
+        const importTable = vi.fn();
+        const items = createBuiltInCommandItems(
+            createScope(),
+            labels,
+            modals(),
+            getShortcut,
+            undefined,
+            {
+                exportTable: {description: 'shop.public.orders', run: exportTable},
+                importTable: {description: 'shop.public', run: importTable},
+            },
+        );
+
+        const exportCommand = findItem(items, 'table.export-to-sql');
+        const importCommand = findItem(items, 'table.import-from-sql');
+        expect(exportCommand.title).toBe('Export table to SQL...');
+        expect(exportCommand.description).toBe('shop.public.orders');
+        expect(exportCommand.group).toBe('Table');
+        expect(exportCommand.shortcut).toBeUndefined();
+        expect(importCommand.title).toBe('Import table from SQL...');
+        expect(importCommand.description).toBe('shop.public');
+        await exportCommand.primaryAction.execute();
+        await importCommand.primaryAction.execute();
+        expect(exportTable).toHaveBeenCalledTimes(1);
+        expect(importTable).toHaveBeenCalledTimes(1);
+    });
+
+    it('should omit table transfer commands the sidebar does not offer', () => {
+        const ids = (tableTransfer?: Parameters<typeof createBuiltInCommandItems>[5]) =>
+            createBuiltInCommandItems(
+                createScope(),
+                labels,
+                modals(),
+                getShortcut,
+                undefined,
+                tableTransfer,
+            ).map((item) => item.id);
+
+        expect(ids()).not.toContain('table.export-to-sql');
+        expect(ids()).not.toContain('table.import-from-sql');
+        expect(ids({importTable: {run: vi.fn()}})).toEqual(
+            expect.arrayContaining(['table.import-from-sql']),
+        );
+        expect(ids({importTable: {run: vi.fn()}})).not.toContain('table.export-to-sql');
     });
 
     it('should omit contextual commands outside their context', () => {

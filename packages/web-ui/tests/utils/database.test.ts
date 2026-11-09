@@ -4,6 +4,7 @@ import {
     isSchemaBasedMultiDbCapable,
     isSchemaBasedMultiDb,
     hasOptedIntoDatabaseSelection,
+    hasDefaultDatabaseInput,
     usesMultiDatabaseLayout,
     isMultiDatabaseSelection,
     getTableDataChangeScope,
@@ -348,6 +349,63 @@ describe('hasOptedIntoDatabaseSelection', () => {
 
     it('is false for null capabilities', () => {
         expect(hasOptedIntoDatabaseSelection(null, ['a'])).toBe(false);
+    });
+});
+
+describe('hasDefaultDatabaseInput', () => {
+    const databaseField = {label: 'Namespace/Database', placeholder: 'namespace/database'};
+
+    it('is true for a flat multi-db plugin that declares the database field', () => {
+        expect(
+            hasDefaultDatabaseInput({
+                capabilities: baseCapabilities,
+                connection_fields: {database: databaseField},
+            }),
+        ).toBe(true);
+        // An empty declaration opts in too, with the host's label.
+        expect(
+            hasDefaultDatabaseInput({
+                capabilities: baseCapabilities,
+                connection_fields: {database: {}},
+            }),
+        ).toBe(true);
+    });
+
+    it('is false when the driver declares no database field (built-in drivers never do)', () => {
+        expect(hasDefaultDatabaseInput({capabilities: baseCapabilities})).toBe(false);
+        expect(
+            hasDefaultDatabaseInput({
+                capabilities: baseCapabilities,
+                connection_fields: {host: {label: 'Endpoint'}},
+            }),
+        ).toBe(false);
+    });
+
+    it('is false when the plugin hides the database field', () => {
+        expect(
+            hasDefaultDatabaseInput({
+                capabilities: baseCapabilities,
+                connection_fields: {database: {hidden: true}},
+            }),
+        ).toBe(false);
+    });
+
+    it('is false for drivers that keep the Database input on the General tab or have none', () => {
+        const connection_fields = {database: databaseField};
+        for (const capabilities of [
+            postgresCapabilities,
+            {...baseCapabilities, file_based: true},
+            {...baseCapabilities, single_database: true},
+            {...baseCapabilities, no_connection_required: true},
+            {...baseCapabilities, connection_uri: true},
+        ]) {
+            expect(hasDefaultDatabaseInput({capabilities, connection_fields})).toBe(false);
+        }
+    });
+
+    it('is false without a driver', () => {
+        expect(hasDefaultDatabaseInput(null)).toBe(false);
+        expect(hasDefaultDatabaseInput(undefined)).toBe(false);
     });
 });
 
