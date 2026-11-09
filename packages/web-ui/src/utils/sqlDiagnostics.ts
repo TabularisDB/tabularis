@@ -936,6 +936,33 @@ export function parseSelectStatement(sql: string): ParsedSelect | null {
 
     // ----- SELECT core and queries -----
 
+    const isBareName = (item: Token[], ref: ColumnRef): boolean => {
+        let end = item.length;
+        while (
+            end > 1 &&
+            item[end - 1].kind === 'word' &&
+            ORDER_SUFFIX_WORDS.has(item[end - 1].value)
+        ) {
+            end--;
+        }
+        let from = 0;
+        while (end - from > 2 && isSymbol(item[from], '(') && isSymbol(item[end - 1], ')')) {
+            let depth = 0;
+            let closesAt = -1;
+            for (let k = from; k < end; k++) {
+                if (isSymbol(item[k], '(')) depth++;
+                else if (isSymbol(item[k], ')') && --depth === 0) {
+                    closesAt = k;
+                    break;
+                }
+            }
+            if (closesAt !== end - 1) break;
+            from++;
+            end--;
+        }
+        return end - from === 1 && item[from].start === ref.name.start;
+    };
+
     const parseOrderItems = (select: SelectNode) => {
         for (;;) {
             const start = i;
@@ -943,15 +970,11 @@ export function parseSelectStatement(sql: string): ParsedSelect | null {
             scan(select, {stops: EXPRESSION_STOPS, target: select.orderRefs, stopAtComma: true}, 0);
             const added = select.orderRefs.slice(before);
             const [ref] = added;
-            const suffix = tokens.slice(start + 1, i);
             if (
                 added.length === 1 &&
                 !ref.star &&
                 ref.qualifier.length === 0 &&
-                tokens[start]?.start === ref.name.start &&
-                suffix.every(
-                    (token) => token.kind === 'word' && ORDER_SUFFIX_WORDS.has(token.value),
-                )
+                isBareName(tokens.slice(start, i), ref)
             ) {
                 ref.outputFirst = true;
             }

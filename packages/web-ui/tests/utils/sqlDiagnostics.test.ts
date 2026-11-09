@@ -312,6 +312,32 @@ describe('sqlDiagnostics', () => {
             ]);
         });
 
+        it('treats a parenthesized bare ORDER BY name like the bare name', () => {
+            expect(errors(`SELECT a.id AS id ${joined} ORDER BY (id)`)).toEqual([]);
+            expect(errors(`SELECT a.id AS id ${joined} ORDER BY ((id))`)).toEqual([]);
+            expect(errors(`SELECT a.id AS id ${joined} ORDER BY (id) DESC NULLS LAST`)).toEqual([]);
+            expect(
+                errors(`SELECT a.id AS id, a.total ${joined} ORDER BY (total), ((id)) ASC`),
+            ).toEqual([]);
+            expect(errors(`SELECT a.id ${joined} ORDER BY (total)`)).toEqual([
+                'ambiguousColumn:total',
+            ]);
+        });
+
+        it('keeps expressions made of parentheses input-first', () => {
+            for (const clause of [
+                '(id) + 1',
+                '(id) + (id)',
+                '(id + 1)',
+                '((id) + 1)',
+                'abs((id))',
+            ]) {
+                const found = errors(`SELECT a.id AS id ${joined} ORDER BY ${clause}`);
+                expect(found.length).toBeGreaterThan(0);
+                expect(new Set(found)).toEqual(new Set(['ambiguousColumn:id']));
+            }
+        });
+
         it('applies input-column rules to a name inside an ORDER BY expression', () => {
             expect(errors(`SELECT a.id AS id ${joined} ORDER BY id + 1`)).toEqual([
                 'ambiguousColumn:id',
