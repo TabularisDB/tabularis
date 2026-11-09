@@ -2074,6 +2074,8 @@
             "expandSection": "展開區域",
             "collapseAll": "全部摺疊",
             "expandAll": "全部展開",
+            "clearOutputs": "清除輸出",
+            "clearOutputsConfirm": "清除所有儲存格中顯示的結果、錯誤和執行時間？查詢、引數、圖表和執行歷史將會保留。",
             "outline": "大綱",
             "aiGenerate": "使用 AI 產生 SQL",
             "aiExplain": "使用 AI 解釋此查詢",

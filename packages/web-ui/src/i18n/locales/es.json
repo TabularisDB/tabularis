@@ -2003,6 +2003,8 @@
       "expandSection": "Expandir Sección",
       "collapseAll": "Contraer Todo",
       "expandAll": "Expandir Todo",
+      "clearOutputs": "Borrar Salidas",
+      "clearOutputsConfirm": "¿Borrar los resultados, errores y tiempos mostrados de todas las celdas? Se conservan las consultas, los parámetros, los gráficos y el historial de ejecución.",
       "outline": "Esquema",
       "aiGenerate": "Generar SQL con IA",
       "aiExplain": "Explicar esta Consulta con IA",

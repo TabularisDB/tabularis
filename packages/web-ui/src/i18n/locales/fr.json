@@ -2070,6 +2070,8 @@
       "expandSection": "Développer la section",
       "collapseAll": "Tout réduire",
       "expandAll": "Tout développer",
+      "clearOutputs": "Effacer les sorties",
+      "clearOutputsConfirm": "Effacer les résultats, erreurs et durées affichés pour toutes les cellules ? Les requêtes, paramètres, graphiques et l’historique d’exécution sont conservés.",
       "outline": "Plan",
       "aiGenerate": "Générer du SQL avec l’IA",
       "aiExplain": "Expliquer cette requête avec l’IA",

@@ -2048,6 +2048,8 @@
       "expandSection": "Expandir Seção",
       "collapseAll": "Recolher Tudo",
       "expandAll": "Expandir Tudo",
+      "clearOutputs": "Limpar Saídas",
+      "clearOutputsConfirm": "Limpar os resultados, erros e tempos exibidos em todas as células? As consultas, os parâmetros, os gráficos e o histórico de execução são mantidos.",
       "outline": "Estrutura",
       "aiGenerate": "Gerar SQL com IA",
       "aiExplain": "Explicar esta Consulta com IA",

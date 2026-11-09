@@ -2061,6 +2061,8 @@
       "expandSection": "I-expand ang Section",
       "collapseAll": "I-collapse Lahat",
       "expandAll": "I-expand Lahat",
+      "clearOutputs": "I-clear ang mga Output",
+      "clearOutputsConfirm": "I-clear ang mga ipinapakitang resulta, error at oras ng lahat ng cell? Mananatili ang mga query, parameter, chart at kasaysayan ng execution.",
       "outline": "Outline",
       "aiGenerate": "Gumawa ng SQL gamit ang AI",
       "aiExplain": "Ipaliwanag ang Query na ito gamit ang AI",

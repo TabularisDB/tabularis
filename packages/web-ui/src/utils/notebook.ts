@@ -47,6 +47,26 @@ export function removeCellFromCells(cells: NotebookCell[], cellId: string): Note
     return cells.filter((c) => c.id !== cellId);
 }
 
+/** Whether an SQL cell currently displays a result, an error or an execution time. */
+function hasCellOutput(cell: NotebookCell): boolean {
+    return cell.type === 'sql' && (!!cell.result || !!cell.error || cell.executionTime != null);
+}
+
+export function hasCellOutputs(cells: NotebookCell[]): boolean {
+    return cells.some(hasCellOutput);
+}
+
+/**
+ * Drop the live output (result, error, execution time) of every SQL cell.
+ * Everything else is kept, including content, parameters, chart configuration
+ * and the per-cell execution history. Cells without output are returned as is.
+ */
+export function clearCellOutputs(cells: NotebookCell[]): NotebookCell[] {
+    return cells.map((cell) =>
+        hasCellOutput(cell) ? {...cell, result: null, error: undefined, executionTime: null} : cell,
+    );
+}
+
 export function moveCellInCells(
     cells: NotebookCell[],
     cellId: string,

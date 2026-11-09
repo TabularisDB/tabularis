@@ -2030,6 +2030,8 @@
       "expandSection": "Abschnitt ausklappen",
       "collapseAll": "Alle einklappen",
       "expandAll": "Alle ausklappen",
+      "clearOutputs": "Ausgaben löschen",
+      "clearOutputsConfirm": "Die angezeigten Ergebnisse, Fehler und Laufzeiten aller Zellen löschen? Abfragen, Parameter, Diagramme und der Ausführungsverlauf bleiben erhalten.",
       "outline": "Gliederung",
       "aiGenerate": "SQL mit KI generieren",
       "aiExplain": "Diese Abfrage mit KI erklären",

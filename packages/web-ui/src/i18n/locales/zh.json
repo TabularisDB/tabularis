@@ -2003,6 +2003,8 @@
       "expandSection": "展开区域",
       "collapseAll": "全部折叠",
       "expandAll": "全部展开",
+      "clearOutputs": "清除输出",
+      "clearOutputsConfirm": "清除所有单元格中显示的结果、错误和执行时间？查询、参数、图表和执行历史将保留。",
       "outline": "大纲",
       "aiGenerate": "使用 AI 生成 SQL",
       "aiExplain": "使用 AI 解释此查询",

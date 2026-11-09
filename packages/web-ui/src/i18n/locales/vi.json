@@ -2081,6 +2081,8 @@
       "expandSection": "Mở rộng phần",
       "collapseAll": "Thu gọn tất cả",
       "expandAll": "Mở rộng tất cả",
+      "clearOutputs": "Xóa đầu ra",
+      "clearOutputsConfirm": "Xóa kết quả, lỗi và thời gian đang hiển thị của tất cả các ô? Truy vấn, tham số, biểu đồ và lịch sử chạy được giữ nguyên.",
       "outline": "Mục lục",
       "aiGenerate": "Sinh SQL bằng AI",
       "aiExplain": "Giải thích truy vấn này bằng AI",

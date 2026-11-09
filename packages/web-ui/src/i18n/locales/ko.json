@@ -2005,6 +2005,8 @@
       "expandSection": "섹션 펼치기",
       "collapseAll": "모두 접기",
       "expandAll": "모두 펼치기",
+      "clearOutputs": "출력 지우기",
+      "clearOutputsConfirm": "모든 셀에 표시된 결과, 오류, 실행 시간을 지울까요? 쿼리, 매개변수, 차트, 실행 기록은 유지됩니다.",
       "outline": "개요",
       "aiGenerate": "AI로 SQL 생성",
       "aiExplain": "AI로 이 쿼리 설명",
