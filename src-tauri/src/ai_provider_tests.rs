@@ -183,6 +183,60 @@ fn success(provider: &str) -> serde_json::Value {
 }
 
 #[tokio::test]
+async fn custom_openai_discovers_models_with_optional_authentication() {
+    for key in ["", "fixture-key"] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/v1/", listener.local_addr().unwrap());
+        let request = thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
+            let headers = read_headers(&mut socket);
+            let body = r#"{"data":[{"id":"local-model"}]}"#;
+            write!(socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            headers
+        });
+
+        assert_eq!(fetch_custom_openai_models(&url, key).await, ["local-model"]);
+        let headers = request.join().unwrap().to_ascii_lowercase();
+        assert!(headers.starts_with("get /v1/models "));
+        if key.is_empty() {
+            assert!(!headers.contains("authorization:"));
+        } else {
+            assert!(headers.contains("authorization: bearer fixture-key"));
+        }
+    }
+}
+
+#[tokio::test]
+async fn custom_openai_generates_without_an_authorization_header_when_no_key_is_set() {
+    let fixture = Fixture::new(false, vec![(200, success("custom-openai"))]);
+    let req = AiGenerateRequest {
+        provider: "custom-openai".into(),
+        model: "local-model".into(),
+        prompt: "Count authors".into(),
+        schema: String::new(),
+    };
+    let url = format!("http://127.0.0.1:{}/v1", fixture.port);
+    assert_eq!(
+        generate_custom_openai(&fixture.client, "", &req, "SQL instructions", &url)
+            .await
+            .unwrap(),
+        "SELECT COUNT(*) FROM authors;"
+    );
+    let requests = fixture.requests.join().unwrap();
+    assert!(requests[0]
+        .headers
+        .starts_with("POST /v1/chat/completions "));
+    assert!(!requests[0]
+        .headers
+        .to_ascii_lowercase()
+        .contains("authorization:"));
+    assert_eq!(requests[0].body["model"], "local-model");
+}
+
+#[tokio::test]
 async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() {
     for provider in [
         "openai",
