@@ -110,10 +110,20 @@ impl DebugCommand {
             Self::ReadVariables {
                 session_id,
                 frame_id,
-                ..
+                names,
             } => {
                 if session_id.is_empty() || frame_id.is_empty() {
                     return Err("Variable reads require a session and frame".into());
+                }
+                if names.len() > 128
+                    || names
+                        .iter()
+                        .any(|name| name.trim().is_empty() || name.len() > 128)
+                {
+                    return Err(
+                        "Variable reads accept at most 128 non-empty names of up to 128 bytes"
+                            .into(),
+                    );
                 }
             }
             Self::Stop { session_id }

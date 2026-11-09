@@ -11,6 +11,8 @@ This guide details how to implement and register a custom external plugin.
 Native routine debugging is an optional, versioned capability. See
 [Routine debugger protocol v1](./ROUTINE_DEBUG.md) for the RPC, lifecycle,
 write protections and required native integration evidence.
+Implement `stop` for unused native preview IDs as well as execution session IDs,
+so closing or expiring a preview discards its saved state without execution.
 
 Plugins that connect to more than one database engine can opt in to
 [connection metadata discovery](./CONNECTION_METADATA.md) to report capabilities

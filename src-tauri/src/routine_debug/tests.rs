@@ -85,6 +85,43 @@ fn readonly_keeps_cleanup_but_rejects_execution_and_evaluation() {
     .is_err());
 }
 
+#[tokio::test]
+async fn variable_read_limits_reject_unbounded_and_blank_names_before_native_rpc() {
+    let legacy = crate::plugins::driver::test_driver(|_| Value::Null);
+    let mut manifest = legacy.manifest().clone();
+    manifest.capabilities.routine_debug = Some(1);
+    let driver = crate::plugins::driver::test_driver_with_manifest(manifest, |_| {
+        panic!("Invalid variable names must not reach the native debugger")
+    });
+    for names in [
+        vec!["X".into(); 129],
+        vec![String::new()],
+        vec![" \t".into()],
+        vec!["X".repeat(129)],
+        vec!["é".repeat(65)],
+    ] {
+        let command = DebugCommand::ReadVariables {
+            session_id: "s".into(),
+            frame_id: "f".into(),
+            names,
+        };
+        assert!(driver
+            .routine_debug(&ConnectionParams::default(), 1, &command)
+            .await
+            .unwrap_err()
+            .contains("128"));
+    }
+    for names in [vec![], vec!["X".repeat(128); 128]] {
+        assert!(DebugCommand::ReadVariables {
+            session_id: "s".into(),
+            frame_id: "f".into(),
+            names
+        }
+        .validate(1, false)
+        .is_ok());
+    }
+}
+
 #[test]
 fn preview_response_must_preserve_overload_arguments_and_protocol() {
     for (field, value) in [

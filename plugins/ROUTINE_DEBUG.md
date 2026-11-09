@@ -30,13 +30,16 @@ format; `packages/web-ui/src/types/routineDebug.ts` mirrors it.
 | `read_stack` | `session_id` | Read frames with IDs scoped to this stop. |
 | `read_variables` | `session_id`, `frame_id`, `names` | Read named variables only. Reject assignments, calls and expressions. |
 | `status` | `session_id` | Observe only; never resume, restart or reconnect the target. |
-| `stop` | `session_id` | Idempotently cancel target execution and release resources. |
+| `stop` | `session_id` | Idempotently cancel target execution and release resources. For a never-started preview, the host sends its native preview ID to discard saved preview state without execution. |
 
 `target` contains `database`, `schema`, `name`, `routine_type` and opaque
 `identity_args`. Empty identity is valid only for unambiguous routines.
 Arguments are `{position,value}` with unique one-based positions and bound
 JSON values, never SQL expressions. Validate modes, types and overload against
 the catalog. Revalidate the saved preview/source identity before start.
+Variable reads accept at most 128 names, each non-blank and at most 128 UTF-8
+bytes. An empty list requests the driver's default variable set; identifier
+syntax is validated by the native driver without evaluating expressions.
 
 Preview returns `{kind:"preview",version:1,preview_id,target,arguments,source,warnings}`.
 All other actions return `{kind:"session",version:1,session:DebugSnapshot}`.
@@ -61,6 +64,9 @@ at the next stop.
   Handle `$/cancelRequest` and concurrent stop without restarting execution.
 - The host records start before awaiting the plugin. Lost replies never cause
   automatic reruns. The plugin must also deduplicate session IDs.
+- The host reserves preview capacity before the native call and discards unused
+  native previews on close, expiry and disconnect. A native preview must have a
+  bounded lifetime even if its response is lost or the host exits.
 - Transport loss leaves the identity available for status/stop, with unknown
   outcomes. Stop must interrupt execution; detaching can let the routine run.
 - Read-only drivers reject operations except status/stop. Production execution

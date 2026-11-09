@@ -2,11 +2,11 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {DebugRoutineModal} from '@/components/modals/DebugRoutineModal';
 
-const {call, guard} = vi.hoisted(() => ({call: vi.fn(), guard: vi.fn()}));
-vi.mock('@/hooks/useTabularisClient', () => {
-    const client = {call};
-    return {useTabularisClient: () => client};
+const {call, guard, clientState} = vi.hoisted(() => {
+    const call = vi.fn();
+    return {call, guard: vi.fn(), clientState: {current: {call}}};
 });
+vi.mock('@/hooks/useTabularisClient', () => ({useTabularisClient: () => clientState.current}));
 vi.mock('@/hooks/useProductionGuard', () => ({useProductionGuard: () => guard}));
 vi.mock('react-i18next', () => ({useTranslation: () => ({t: (key: string) => key})}));
 
@@ -54,6 +54,7 @@ describe('routine debugger execution safety', () => {
         ).toHaveLength(1);
     });
     beforeEach(() => {
+        clientState.current = {call};
         call.mockReset();
         guard.mockReset();
         guard.mockResolvedValue(true);
@@ -122,5 +123,56 @@ describe('routine debugger execution safety', () => {
         expect(
             call.mock.calls.filter(([, request]) => request.command?.action === 'start'),
         ).toHaveLength(0);
+    });
+
+    it('keeps a live session on client replacement and uses the latest client on unmount', async () => {
+        const modal = (
+            <DebugRoutineModal
+                connectionId="oracle"
+                routine={{name: 'TEST', routine_type: 'PROCEDURE'}}
+                schema="APP"
+                database="FREEPDB1"
+                onClose={vi.fn()}
+            />
+        );
+        const {rerender, unmount} = render(modal);
+        await waitFor(() =>
+            expect(screen.getByRole('button', {name: 'routineDebug.preview'})).toBeEnabled(),
+        );
+        fireEvent.click(screen.getByRole('button', {name: 'routineDebug.preview'}));
+        await screen.findByText('May commit');
+        fireEvent.click(screen.getByRole('button', {name: 'routineDebug.start'}));
+        await screen.findByRole('alert');
+        const latestCall = vi.fn(call.getMockImplementation());
+        clientState.current = {call: latestCall};
+        rerender(
+            <DebugRoutineModal
+                connectionId="oracle"
+                routine={{name: 'TEST', routine_type: 'PROCEDURE'}}
+                schema="APP"
+                database="FREEPDB1"
+                onClose={vi.fn()}
+            />,
+        );
+        await waitFor(() =>
+            expect(latestCall).toHaveBeenCalledWith('get_routine_parameters', expect.anything()),
+        );
+        expect(
+            call.mock.calls.filter(([, request]) => request.command?.action === 'stop'),
+        ).toHaveLength(0);
+        expect(
+            latestCall.mock.calls.filter(([, request]) => request.command?.action === 'stop'),
+        ).toHaveLength(0);
+        fireEvent.click(screen.getByRole('button', {name: 'routineDebug.status'}));
+        await waitFor(() =>
+            expect(latestCall).toHaveBeenCalledWith(
+                'routine_debug',
+                expect.objectContaining({command: {action: 'status', session_id: 'preview'}}),
+            ),
+        );
+        unmount();
+        expect(
+            latestCall.mock.calls.filter(([, request]) => request.command?.action === 'stop'),
+        ).toHaveLength(1);
     });
 });
