@@ -2727,6 +2727,9 @@ impl DatabaseDriver for MysqlDriver {
         column: crate::models::ColumnDefinition,
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
+        if column.comment.as_deref().unwrap_or("").is_empty() {
+            return self.get_add_column_sql(table, column, schema).await;
+        }
         let pool = get_mysql_pool(params).await?;
         let mut driver = Self::new();
         driver.no_backslash_escapes = server_no_backslash_escapes(&pool).await?;
@@ -2741,6 +2744,11 @@ impl DatabaseDriver for MysqlDriver {
         new_column: crate::models::ColumnDefinition,
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
+        if new_column.comment.as_deref().unwrap_or("").is_empty() {
+            return self
+                .get_alter_column_sql(table, old_column, new_column, schema)
+                .await;
+        }
         let pool = get_mysql_pool(params).await?;
         let mut driver = Self::new();
         driver.no_backslash_escapes = server_no_backslash_escapes(&pool).await?;

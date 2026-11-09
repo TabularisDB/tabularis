@@ -2,6 +2,43 @@ use super::MysqlDriver;
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ColumnDefinition;
 
+#[tokio::test]
+async fn comment_free_builders_and_comment_removal_work_without_connection_details() {
+    let driver = MysqlDriver::new();
+    let params = crate::models::ConnectionParams::default();
+    for comment in [None, Some("")] {
+        let new = column(comment);
+        assert_eq!(
+            driver
+                .get_add_column_sql_for_connection(&params, "t", new.clone(), None)
+                .await
+                .unwrap(),
+            driver
+                .get_add_column_sql("t", new.clone(), None)
+                .await
+                .unwrap()
+        );
+        for old_comment in [None, Some("existing\\comment")] {
+            assert_eq!(
+                driver
+                    .get_alter_column_sql_for_connection(
+                        &params,
+                        "t",
+                        column(old_comment),
+                        new.clone(),
+                        None
+                    )
+                    .await
+                    .unwrap(),
+                driver
+                    .get_alter_column_sql("t", column(old_comment), new.clone(), None)
+                    .await
+                    .unwrap()
+            );
+        }
+    }
+}
+
 fn column(comment: Option<&str>) -> ColumnDefinition {
     ColumnDefinition {
         name: "updated".into(),

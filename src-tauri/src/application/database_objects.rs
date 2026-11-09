@@ -9,6 +9,10 @@ use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
 
+#[cfg(test)]
+#[path = "database_objects_tests.rs"]
+mod database_objects_tests;
+
 #[derive(Debug)]
 pub enum DatabaseObjectCommand {
     GetTableQueryTemplate {
@@ -1074,11 +1078,13 @@ async fn column_sql_builder_driver_and_params(
     runtime: &RuntimeContext,
     connection_id: &str,
     database: Option<String>,
+    comment: Option<&str>,
 ) -> Result<(Arc<dyn DatabaseDriver>, ConnectionParams), String> {
     let (driver, params) =
         sql_builder_driver_and_params(runtime, connection_id, database.clone()).await?;
-    // MySQL must read sql_mode using the same secrets/tunnel/database as execution.
-    if driver.manifest().is_builtin
+    // Only nonempty comments need mode-aware literals; ordinary previews stay offline.
+    if !comment.unwrap_or("").is_empty()
+        && driver.manifest().is_builtin
         && driver.manifest().capabilities.sql_dialect == Some(SqlDialect::Mysql)
     {
         connected_driver_and_params(runtime, None, connection_id, database).await
@@ -1095,8 +1101,13 @@ pub async fn get_add_column_sql(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let (driver, params) =
-        column_sql_builder_driver_and_params(runtime, connection_id, database).await?;
+    let (driver, params) = column_sql_builder_driver_and_params(
+        runtime,
+        connection_id,
+        database,
+        column.comment.as_deref(),
+    )
+    .await?;
     driver
         .get_add_column_sql_for_connection(&params, &table, column, schema.as_deref())
         .await
@@ -1111,8 +1122,13 @@ pub async fn get_alter_column_sql(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let (driver, params) =
-        column_sql_builder_driver_and_params(runtime, connection_id, database).await?;
+    let (driver, params) = column_sql_builder_driver_and_params(
+        runtime,
+        connection_id,
+        database,
+        new_column.comment.as_deref(),
+    )
+    .await?;
     driver
         .get_alter_column_sql_for_connection(
             &params,
