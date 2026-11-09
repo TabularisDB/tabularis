@@ -1070,6 +1070,21 @@ pub async fn get_create_table_sql(
         .await
 }
 
+async fn column_sql_builder_driver_and_params(
+    runtime: &RuntimeContext,
+    connection_id: &str,
+    database: Option<String>,
+) -> Result<(Arc<dyn DatabaseDriver>, ConnectionParams), String> {
+    let (driver, params) =
+        sql_builder_driver_and_params(runtime, connection_id, database.clone()).await?;
+    // MySQL must read sql_mode using the same secrets/tunnel/database as execution.
+    if driver.manifest().is_builtin && driver.manifest().capabilities.sql_dialect == "mysql" {
+        connected_driver_and_params(runtime, None, connection_id, database).await
+    } else {
+        Ok((driver, params))
+    }
+}
+
 pub async fn get_add_column_sql(
     runtime: &RuntimeContext,
     connection_id: &str,
@@ -1078,9 +1093,10 @@ pub async fn get_add_column_sql(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let (driver, _) = sql_builder_driver_and_params(runtime, connection_id, database).await?;
+    let (driver, params) =
+        column_sql_builder_driver_and_params(runtime, connection_id, database).await?;
     driver
-        .get_add_column_sql(&table, column, schema.as_deref())
+        .get_add_column_sql_for_connection(&params, &table, column, schema.as_deref())
         .await
 }
 
@@ -1093,9 +1109,16 @@ pub async fn get_alter_column_sql(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let (driver, _) = sql_builder_driver_and_params(runtime, connection_id, database).await?;
+    let (driver, params) =
+        column_sql_builder_driver_and_params(runtime, connection_id, database).await?;
     driver
-        .get_alter_column_sql(&table, old_column, new_column, schema.as_deref())
+        .get_alter_column_sql_for_connection(
+            &params,
+            &table,
+            old_column,
+            new_column,
+            schema.as_deref(),
+        )
         .await
 }
 

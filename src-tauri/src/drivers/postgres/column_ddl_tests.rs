@@ -2,6 +2,33 @@ use super::PostgresDriver;
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ColumnDefinition;
 
+#[tokio::test]
+async fn connection_aware_defaults_preserve_the_existing_builder_contract() {
+    let driver = PostgresDriver::new();
+    let params = crate::models::ConnectionParams::default();
+    let new = column(Some("note"));
+    assert_eq!(
+        driver
+            .get_add_column_sql_for_connection(&params, "t", new.clone(), Some("s"))
+            .await
+            .unwrap(),
+        driver
+            .get_add_column_sql("t", new.clone(), Some("s"))
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        driver
+            .get_alter_column_sql_for_connection(&params, "t", column(None), new.clone(), Some("s"))
+            .await
+            .unwrap(),
+        driver
+            .get_alter_column_sql("t", column(None), new, Some("s"))
+            .await
+            .unwrap()
+    );
+}
+
 fn column(comment: Option<&str>) -> ColumnDefinition {
     ColumnDefinition {
         name: "email".into(),

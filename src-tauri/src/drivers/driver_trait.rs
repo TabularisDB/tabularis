@@ -1024,6 +1024,30 @@ pub trait DatabaseDriver: Send + Sync {
         Err("DDL generation not supported".into())
     }
 
+    /// Connection-aware DDL defaults to the existing builder for drivers that
+    /// do not need server settings to render literals.
+    async fn get_add_column_sql_for_connection(
+        &self,
+        _params: &ConnectionParams,
+        table: &str,
+        column: ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        self.get_add_column_sql(table, column, schema).await
+    }
+
+    async fn get_alter_column_sql_for_connection(
+        &self,
+        _params: &ConnectionParams,
+        table: &str,
+        old_column: ColumnDefinition,
+        new_column: ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        self.get_alter_column_sql(table, old_column, new_column, schema)
+            .await
+    }
+
     async fn get_create_index_sql(
         &self,
         _table: &str,
