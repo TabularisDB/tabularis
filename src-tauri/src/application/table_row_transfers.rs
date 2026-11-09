@@ -198,16 +198,99 @@ fn same_file(a: &str, b: &str) -> bool {
     }
 }
 
-/// True when the transfer would write a table into itself, whichever saved
-/// connections the two endpoints came from.
-fn is_same_table(
-    source: (&ConnectionParams, &str),
-    target: (&ConnectionParams, &str),
-    selection: &TableSelection,
-) -> bool {
-    reaches_same_database(source.0, target.0)
-        && source.1 == target.1
-        && selection.source_table == selection.target_table
+/// What the server says about itself. Host names are only labels: `localhost.`,
+/// `127.0.0.1` and a DNS alias can all name one server, so the server's own
+/// answer decides when the names do not already prove it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ServerIdentity {
+    /// `pg_control_system().system_identifier`: unique per cluster, and the
+    /// same whatever address or tunnel reached it. Not every role may read it.
+    system_id: Option<String>,
+    /// The server-side address and port of the session (NULL on a unix socket).
+    address: Option<(String, i32)>,
+    database: String,
+}
+
+/// Some(true) when both identities are the same database, Some(false) when
+/// they provably differ, None when they cannot be told apart.
+fn compare_identities(a: &ServerIdentity, b: &ServerIdentity) -> Option<bool> {
+    if a.database != b.database {
+        return Some(false);
+    }
+    match (&a.system_id, &b.system_id) {
+        (Some(x), Some(y)) => return Some(x == y),
+        (None, None) => {}
+        // One side is unreadable: the other cannot settle it.
+        _ => return None,
+    }
+    match (&a.address, &b.address) {
+        // Other differing addresses may still be one server (IPv4 vs IPv6).
+        (Some((x, xp)), Some((y, yp))) if xp == yp && (x == y || (is_loopback(x) && is_loopback(y))) => {
+            Some(true)
+        }
+        _ => None,
+    }
+}
+
+async fn probe_identity(params: &ConnectionParams) -> Option<ServerIdentity> {
+    let pool = get_postgres_pool(params).await.ok()?;
+    let client = pool.get().await.ok()?;
+    let row = client
+        .query_one(
+            "SELECT current_database()::text, host(inet_server_addr()), inet_server_port()",
+            &[],
+        )
+        .await
+        .ok()?;
+    let database: String = row.try_get(0).ok()?;
+    let host: Option<String> = row.try_get(1).ok()?;
+    let port: Option<i32> = row.try_get(2).ok()?;
+    // Outside a transaction a refused read leaves the session usable.
+    let system_id = match client
+        .query_opt("SELECT system_identifier::text FROM pg_control_system()", &[])
+        .await
+    {
+        Ok(Some(row)) => row.try_get::<_, String>(0).ok(),
+        _ => None,
+    };
+    Some(ServerIdentity { system_id, address: host.zip(port), database })
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum SameTable {
+    Yes,
+    No,
+    /// The names match but nothing proves the two connections reach different
+    /// databases. Blocked: writing a table into itself is not undoable.
+    Unverified,
+}
+
+/// Decides whether the transfer would write a table into itself, whichever
+/// saved connections the two endpoints came from.
+async fn same_table(source: &Endpoint, target: &Endpoint, selection: &TableSelection) -> SameTable {
+    if source.schema != target.schema
+        || selection.source_table != selection.target_table
+        || source.params.driver != target.params.driver
+    {
+        return SameTable::No;
+    }
+    if reaches_same_database(&source.params, &target.params) {
+        return SameTable::Yes;
+    }
+    if source.dialect != TransferDialect::Postgres
+        || source.params.database.primary() != target.params.database.primary()
+    {
+        return SameTable::No;
+    }
+    let (a, b) = tokio::join!(probe_identity(&source.params), probe_identity(&target.params));
+    match (a, b) {
+        (Some(a), Some(b)) => match compare_identities(&a, &b) {
+            Some(true) => SameTable::Yes,
+            Some(false) => SameTable::No,
+            None => SameTable::Unverified,
+        },
+        _ => SameTable::Unverified,
+    }
 }
 
 async fn plan_tables(
@@ -233,11 +316,7 @@ async fn plan_tables(
             .drv
             .get_columns(&target.params, &selection.target_table, target.schema_arg())
             .await?;
-        let same_table = is_same_table(
-            (&source.params, &source.schema),
-            (&target.params, &target.schema),
-            selection,
-        );
+        let verdict = same_table(source, target, selection).await;
         let estimated_rows = if source_columns.is_empty() {
             None
         } else {
@@ -252,15 +331,20 @@ async fn plan_tables(
         } else {
             false
         };
-        tables.push(build_table_plan(&PlanInputs {
+        let mut planned = build_table_plan(&PlanInputs {
             selection,
             source_columns: &source_columns,
             target_columns: &target_columns,
             target_dialect: target.dialect,
             target_strict,
             estimated_rows,
-            same_table,
-        }));
+            same_table: verdict == SameTable::Yes,
+        });
+        if verdict == SameTable::Unverified {
+            planned.plan.issues.push(PlanIssue::new("targetIdentityUnverified", None));
+            planned.plan.blocking = true;
+        }
+        tables.push(planned);
     }
     Ok((tables, issues))
 }

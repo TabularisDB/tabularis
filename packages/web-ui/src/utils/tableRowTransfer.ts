@@ -17,6 +17,7 @@ export const TABLE_TRANSFER_ISSUE_CODES = [
     'sourceTableNotFound',
     'targetTableNotFound',
     'sourceEqualsTarget',
+    'targetIdentityUnverified',
     'unknownSourceColumn',
     'unknownTargetColumn',
     'noTargetColumn',

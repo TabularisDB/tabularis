@@ -2422,6 +2422,7 @@
       "sourceTableNotFound": "Hindi nakita ang source na talahanayan.",
       "targetTableNotFound": "Walang target na talahanayan. Hindi gumagawa ng talahanayan ang paglilipat.",
       "sourceEqualsTarget": "Iisang talahanayan ang source at target.",
+      "targetIdentityUnverified": "Hindi makumpirma ng Tabularis na magkaibang database ang naaabot ng source at target na koneksyon, kaya naka-block ang paglilipat upang hindi masulat ang isang talahanayan sa sarili nito.",
       "unknownSourceColumn": "Hindi kilalang source column",
       "unknownTargetColumn": "Hindi kilalang target column",
       "noTargetColumn": "Walang tugmang target column; imapa o tahasang laktawan",

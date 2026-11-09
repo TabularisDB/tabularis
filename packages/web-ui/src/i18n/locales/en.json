@@ -2463,6 +2463,7 @@
       "sourceTableNotFound": "The source table was not found.",
       "targetTableNotFound": "The target table does not exist. Tables are never created by a transfer.",
       "sourceEqualsTarget": "The source and the target are the same table.",
+      "targetIdentityUnverified": "Tabularis cannot confirm that the source and target connections reach different databases, so the transfer is blocked to avoid writing a table into itself.",
       "unknownSourceColumn": "Unknown source column",
       "unknownTargetColumn": "Unknown target column",
       "noTargetColumn": "No target column matches; map it or skip it explicitly",

@@ -468,42 +468,19 @@ fn saved_pg(host: &str, port: Option<u16>, database: &str) -> ConnectionParams {
     }
 }
 
-fn same_name() -> TableSelection {
-    TableSelection {
-        source_table: "alias_copy_test".into(),
-        target_table: "alias_copy_test".into(),
-        columns: vec![],
-    }
-}
-
 #[test]
-fn two_saved_connections_to_one_database_are_the_same_table() {
-    // Distinct saved ids resolve to the same server and database.
+fn string_identity_matches_aliases_that_are_provably_one_server() {
     let a = saved_pg("db.example.com", Some(5432), "app");
     let mut b = saved_pg("DB.example.com", None, "app");
     b.username = Some("someone_else".into());
-    assert!(is_same_table((&a, "public"), (&b, "public"), &same_name()));
-}
-
-#[test]
-fn loopback_spellings_are_one_host() {
-    let a = saved_pg("localhost", Some(5432), "app");
-    let b = saved_pg("127.0.0.1", Some(5432), "app");
-    assert!(is_same_table((&a, "public"), (&b, "public"), &same_name()));
-}
-
-#[test]
-fn a_different_database_schema_table_host_or_port_is_not_the_same_table() {
-    let a = saved_pg("db", Some(5432), "app");
-    assert!(!is_same_table((&a, "public"), (&saved_pg("db", Some(5432), "other"), "public"), &same_name()));
-    assert!(!is_same_table((&a, "public"), (&a, "audit"), &same_name()));
-    assert!(!is_same_table((&a, "public"), (&saved_pg("db2", Some(5432), "app"), "public"), &same_name()));
-    assert!(!is_same_table((&a, "public"), (&saved_pg("db", Some(6543), "app"), "public"), &same_name()));
-    let renamed = TableSelection {
-        target_table: "alias_copy_test_2".into(),
-        ..same_name()
-    };
-    assert!(!is_same_table((&a, "public"), (&a, "public"), &renamed));
+    assert!(reaches_same_database(&a, &b));
+    assert!(reaches_same_database(
+        &saved_pg("localhost", Some(5432), "app"),
+        &saved_pg("127.0.0.1", Some(5432), "app"),
+    ));
+    assert!(!reaches_same_database(&a, &saved_pg("db.example.com", Some(5432), "other")));
+    assert!(!reaches_same_database(&a, &saved_pg("db2", Some(5432), "app")));
+    assert!(!reaches_same_database(&a, &saved_pg("db.example.com", Some(6543), "app")));
 }
 
 #[test]
@@ -512,27 +489,185 @@ fn tunnels_only_match_when_provably_the_same_route() {
     let mut b = a.clone();
     a.ssh_enabled = Some(true);
     a.ssh_connection_id = Some("bastion-1".into());
-    assert!(!is_same_table((&a, "public"), (&b, "public"), &same_name()), "tunnel vs direct");
-
+    assert!(!reaches_same_database(&a, &b), "tunnel vs direct");
     b.ssh_enabled = Some(true);
     b.ssh_connection_id = Some("bastion-2".into());
-    assert!(!is_same_table((&a, "public"), (&b, "public"), &same_name()), "different bastions");
-
+    assert!(!reaches_same_database(&a, &b), "different bastions");
     b.ssh_connection_id = Some("bastion-1".into());
-    assert!(is_same_table((&a, "public"), (&b, "public"), &same_name()));
+    assert!(reaches_same_database(&a, &b));
 }
 
 #[test]
-fn sqlite_aliases_of_one_file_are_the_same_table() {
+fn sqlite_aliases_of_one_file_are_one_database() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("a.db");
     std::fs::File::create(&path).unwrap();
-    let via_dot = dir.path().join(".").join("a.db");
     let a = sqlite_params(&path);
-    let b = sqlite_params(&via_dot);
-    assert!(is_same_table((&a, ""), (&b, ""), &same_name()));
-
+    assert!(reaches_same_database(&a, &sqlite_params(&dir.path().join(".").join("a.db"))));
     let other = dir.path().join("b.db");
     std::fs::File::create(&other).unwrap();
-    assert!(!is_same_table((&a, ""), (&sqlite_params(&other), ""), &same_name()));
+    assert!(!reaches_same_database(&a, &sqlite_params(&other)));
+}
+
+fn identity(system_id: Option<&str>, address: Option<(&str, i32)>, database: &str) -> ServerIdentity {
+    ServerIdentity {
+        system_id: system_id.map(str::to_string),
+        address: address.map(|(host, port)| (host.to_string(), port)),
+        database: database.to_string(),
+    }
+}
+
+#[test]
+fn server_identity_ignores_the_name_used_to_reach_it() {
+    // `localhost.` reaches the server over ::1, `127.0.0.1` over IPv4.
+    let v6 = identity(Some("77"), Some(("::1", 54320)), "testdb");
+    let v4 = identity(Some("77"), Some(("127.0.0.1", 54320)), "testdb");
+    assert_eq!(compare_identities(&v6, &v4), Some(true));
+    // Another cluster is a different database even with the same name and address.
+    let other = identity(Some("88"), Some(("127.0.0.1", 54320)), "testdb");
+    assert_eq!(compare_identities(&v4, &other), Some(false));
+    assert_eq!(compare_identities(&v4, &identity(Some("77"), None, "other")), Some(false));
+}
+
+#[test]
+fn without_a_cluster_id_only_the_same_address_proves_identity() {
+    let a = identity(None, Some(("10.0.0.5", 5432)), "app");
+    assert_eq!(compare_identities(&a, &identity(None, Some(("10.0.0.5", 5432)), "app")), Some(true));
+    let v6 = identity(None, Some(("::1", 5432)), "app");
+    let v4 = identity(None, Some(("127.0.0.1", 5432)), "app");
+    assert_eq!(compare_identities(&v6, &v4), Some(true));
+    // Different addresses might still be one server, so nothing is proven.
+    assert_eq!(compare_identities(&a, &identity(None, Some(("10.0.0.6", 5432)), "app")), None);
+    assert_eq!(compare_identities(&a, &identity(None, None, "app")), None);
+    // One unreadable cluster id cannot be settled by the other side.
+    assert_eq!(compare_identities(&a, &identity(Some("1"), Some(("10.0.0.5", 5432)), "app")), None);
+}
+
+// --- Plan / run through two saved connections -------------------------------
+
+struct SavedPair {
+    _dir: tempfile::TempDir,
+    runtime: RuntimeContext,
+}
+
+/// A runtime whose connections file holds saved connections `a` and `b`.
+fn runtime_with(a: ConnectionParams, b: ConnectionParams) -> SavedPair {
+    let dir = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            dir.path().to_path_buf(),
+            dir.path().to_path_buf(),
+        )),
+        Arc::new(Events { cancel_when_written: None, progress: StdMutex::default() }),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let saved = |id: &str, params: ConnectionParams| crate::models::SavedConnection {
+        id: id.into(),
+        name: id.into(),
+        params,
+        plugin_secret_keys: vec![],
+        group_id: None,
+        sort_order: None,
+        detect_json_in_text_columns: None,
+        appearance: None,
+        tag_ids: None,
+        environment: None,
+    };
+    let file = crate::models::ConnectionsFile {
+        connections: vec![saved("conn-a", a), saved("conn-b", b)],
+        ..Default::default()
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+    SavedPair { _dir: dir, runtime }
+}
+
+fn self_copy_request(schema: &str, table: &str) -> TableTransferRequest {
+    TableTransferRequest {
+        source_connection_id: "conn-a".into(),
+        target_connection_id: "conn-b".into(),
+        source_schema: Some(schema.into()),
+        target_schema: Some(schema.into()),
+        tables: vec![TableSelection {
+            source_table: table.into(),
+            target_table: table.into(),
+            columns: vec![],
+        }],
+        source_database: None,
+        target_database: None,
+        conflict: ConflictMode::Fail,
+        batch_rows: None,
+        transfer_id: Some("self-copy".into()),
+    }
+}
+
+async fn alias_copy_fixture(schema: &str) -> Option<tokio::sync::MutexGuard<'static, ()>> {
+    let guard = FIXTURE_LOCK.lock().await;
+    crate::pool_manager::close_pool(&pg_params()).await;
+    if get_postgres_pool(&pg_params()).await.ok()?.get().await.is_err() {
+        eprintln!("SKIPPING: PostgreSQL not available on port 54320");
+        return None;
+    }
+    pg_exec(&format!(
+        "DROP SCHEMA IF EXISTS {schema} CASCADE; CREATE SCHEMA {schema};
+         CREATE TABLE {schema}.alias_copy_test(id integer, note text);
+         INSERT INTO {schema}.alias_copy_test VALUES (1, 'first'), (2, 'second');"
+    ))
+    .await;
+    Some(guard)
+}
+
+/// Two saved connections to the same server, one spelled `localhost.` (which
+/// resolves over ::1 here) and one `127.0.0.1`, must not copy a table into itself.
+async fn assert_self_copy_is_rejected(host_a: &str, host_b: &str, schema: &str) {
+    let Some(_fixture) = alias_copy_fixture(schema).await else {
+        return;
+    };
+    let mut a = pg_params();
+    a.host = Some(host_a.into());
+    let mut b = pg_params();
+    b.host = Some(host_b.into());
+    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new()).await;
+    let reachable = match get_postgres_pool(&a).await {
+        Ok(pool) => pool.get().await.is_ok(),
+        Err(_) => false,
+    };
+    if !reachable {
+        eprintln!("SKIPPING: {host_a} is not reachable");
+        pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
+        return;
+    }
+    let pair = runtime_with(a, b);
+    let request = self_copy_request(schema, "alias_copy_test");
+
+    let plan = plan(&pair.runtime, None, request.clone()).await.unwrap();
+    assert!(plan.blocking);
+    assert_eq!(plan.tables[0].issues[0].code, "sourceEqualsTarget");
+
+    let state = state();
+    let error = run(&pair.runtime, &state, None, request).await.unwrap_err();
+    assert!(error.contains("blocking issues"), "{error}");
+    assert_eq!(
+        pg_scalar(&format!("SELECT count(*)::text FROM {schema}.alias_copy_test")).await,
+        "2",
+        "nothing is written back into the source"
+    );
+    pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
+}
+
+#[tokio::test]
+async fn two_saved_connections_through_dns_dot_and_ip_cannot_copy_a_table_into_itself() {
+    assert_self_copy_is_rejected("localhost.", "127.0.0.1", "tt_alias_dot").await;
+}
+
+#[tokio::test]
+async fn two_saved_connections_with_loopback_spellings_cannot_copy_a_table_into_itself() {
+    assert_self_copy_is_rejected("localhost", "127.0.0.1", "tt_alias_loop").await;
+}
+
+#[test]
+fn a_table_with_the_same_name_on_another_server_is_still_allowed() {
+    // Same database, schema and table names, but a different cluster: a legitimate copy.
+    let a = identity(Some("1"), Some(("10.0.0.5", 5432)), "app");
+    let b = identity(Some("2"), Some(("10.0.0.6", 5432)), "app");
+    assert_eq!(compare_identities(&a, &b), Some(false));
 }

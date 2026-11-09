@@ -2437,6 +2437,7 @@
       "sourceTableNotFound": "Không tìm thấy bảng nguồn.",
       "targetTableNotFound": "Bảng đích không tồn tại. Việc chuyển không bao giờ tạo bảng.",
       "sourceEqualsTarget": "Nguồn và đích là cùng một bảng.",
+      "targetIdentityUnverified": "Tabularis không thể xác nhận kết nối nguồn và đích trỏ tới các cơ sở dữ liệu khác nhau, nên việc chuyển bị chặn để tránh ghi một bảng vào chính nó.",
       "unknownSourceColumn": "Cột nguồn không xác định",
       "unknownTargetColumn": "Cột đích không xác định",
       "noTargetColumn": "Không có cột đích khớp; hãy ánh xạ hoặc bỏ qua rõ ràng",

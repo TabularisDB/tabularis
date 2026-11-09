@@ -2311,6 +2311,7 @@
       "sourceTableNotFound": "未找到源表。",
       "targetTableNotFound": "目标表不存在。传输不会创建表。",
       "sourceEqualsTarget": "源和目标是同一张表。",
+      "targetIdentityUnverified": "Tabularis 无法确认源连接和目标连接指向不同的数据库，因此已阻止此传输，以免将表写入自身。",
       "unknownSourceColumn": "未知的源列",
       "unknownTargetColumn": "未知的目标列",
       "noTargetColumn": "没有匹配的目标列；请映射或明确跳过",

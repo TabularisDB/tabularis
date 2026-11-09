@@ -2358,6 +2358,7 @@
       "sourceTableNotFound": "Die Quelltabelle wurde nicht gefunden.",
       "targetTableNotFound": "Die Zieltabelle existiert nicht. Eine Übertragung legt nie Tabellen an.",
       "sourceEqualsTarget": "Quelle und Ziel sind dieselbe Tabelle.",
+      "targetIdentityUnverified": "Tabularis kann nicht bestätigen, dass Quell- und Zielverbindung unterschiedliche Datenbanken erreichen. Die Übertragung wird blockiert, damit keine Tabelle in sich selbst geschrieben wird.",
       "unknownSourceColumn": "Unbekannte Quellspalte",
       "unknownTargetColumn": "Unbekannte Zielspalte",
       "noTargetColumn": "Keine Zielspalte passt; zuordnen oder ausdrücklich überspringen",

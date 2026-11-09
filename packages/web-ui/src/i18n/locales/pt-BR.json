@@ -2406,6 +2406,7 @@
       "sourceTableNotFound": "A tabela de origem não foi encontrada.",
       "targetTableNotFound": "A tabela de destino não existe. Uma transferência nunca cria tabelas.",
       "sourceEqualsTarget": "Origem e destino são a mesma tabela.",
+      "targetIdentityUnverified": "O Tabularis não consegue confirmar que as conexões de origem e destino acessam bancos de dados diferentes, então a transferência foi bloqueada para não gravar uma tabela nela mesma.",
       "unknownSourceColumn": "Coluna de origem desconhecida",
       "unknownTargetColumn": "Coluna de destino desconhecida",
       "noTargetColumn": "Nenhuma coluna de destino corresponde; mapeie ou ignore explicitamente",

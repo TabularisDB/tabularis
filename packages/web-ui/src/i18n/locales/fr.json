@@ -2432,6 +2432,7 @@
       "sourceTableNotFound": "La table source est introuvable.",
       "targetTableNotFound": "La table cible n'existe pas. Un transfert ne crée jamais de table.",
       "sourceEqualsTarget": "La source et la cible sont la même table.",
+      "targetIdentityUnverified": "Tabularis ne peut pas confirmer que les connexions source et cible atteignent des bases de données différentes ; le transfert est bloqué pour éviter d'écrire une table dans elle-même.",
       "unknownSourceColumn": "Colonne source inconnue",
       "unknownTargetColumn": "Colonne cible inconnue",
       "noTargetColumn": "Aucune colonne cible ne correspond ; associez-la ou ignorez-la explicitement",
