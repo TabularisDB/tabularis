@@ -2305,6 +2305,7 @@
     "exportMermaid": "I-export bilang Mermaid diagram",
     "exportSuccess": "Na-export ang diagram",
     "exportDbml": "I-export bilang DBML",
+    "exportMarkdown": "I-export bilang Markdown",
     "export": "I-export"
   },
   "views": {

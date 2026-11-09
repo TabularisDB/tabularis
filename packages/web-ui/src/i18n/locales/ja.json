@@ -2286,6 +2286,7 @@
     "exportMermaid": "Mermaid 図としてエクスポート",
     "exportSuccess": "図をエクスポートしました",
     "exportDbml": "DBML としてエクスポート",
+    "exportMarkdown": "Markdown としてエクスポート",
     "export": "エクスポート"
   },
   "views": {

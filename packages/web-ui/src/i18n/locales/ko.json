@@ -2249,6 +2249,7 @@
     "exportMermaid": "Mermaid 다이어그램으로 내보내기",
     "exportSuccess": "다이어그램 내보내기 완료",
     "exportDbml": "DBML로 내보내기",
+    "exportMarkdown": "Markdown으로 내보내기",
     "export": "내보내기"
   },
   "views": {
