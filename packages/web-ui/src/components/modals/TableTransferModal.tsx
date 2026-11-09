@@ -330,7 +330,9 @@ export const TableTransferModal = ({
                                         void onTargetConnection(event.target.value)
                                     }
                                 >
-                                    <option value="">{t('tableRowTransfer.selectPlaceholder')}</option>
+                                    <option value="">
+                                        {t('tableRowTransfer.selectPlaceholder')}
+                                    </option>
                                     {targetConnections.map((connection) => (
                                         <option key={connection.id} value={connection.id}>
                                             {connection.name}
@@ -339,7 +341,9 @@ export const TableTransferModal = ({
                                 </select>
                             </label>
                             {capabilities && targetConnections.length === 0 && (
-                                <p className="text-xs text-muted">{t('tableRowTransfer.noTargets')}</p>
+                                <p className="text-xs text-muted">
+                                    {t('tableRowTransfer.noTargets')}
+                                </p>
                             )}
                             {databaseOptions.length > 0 && (
                                 <label className="flex flex-col gap-1 text-xs font-semibold text-muted uppercase">
@@ -403,7 +407,9 @@ export const TableTransferModal = ({
                                 </label>
                             )}
                             {targetConnectionId !== '' && !busy && targetTables.length === 0 && (
-                                <p className="text-xs text-muted">{t('tableRowTransfer.noTables')}</p>
+                                <p className="text-xs text-muted">
+                                    {t('tableRowTransfer.noTables')}
+                                </p>
                             )}
                         </div>
                     )}
@@ -517,7 +523,9 @@ export const TableTransferModal = ({
                                                                 `tableRowTransfer.rule.${column.rule}Hint`,
                                                             )}
                                                         >
-                                                            {t(`tableRowTransfer.rule.${column.rule}`)}
+                                                            {t(
+                                                                `tableRowTransfer.rule.${column.rule}`,
+                                                            )}
                                                         </span>
                                                     ) : (
                                                         <span className="text-muted">
