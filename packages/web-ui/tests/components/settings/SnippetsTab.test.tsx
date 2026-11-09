@@ -14,6 +14,26 @@ const mocks = vi.hoisted(() => ({
     theme: {id: 'test'},
 }));
 vi.mock('@/hooks/useEditorTheme', () => ({useEditorTheme: () => mocks.theme}));
+vi.mock('@/hooks/useDrivers', () => ({
+    useDrivers: () => ({
+        drivers: [
+            {
+                id: 'postgres',
+                name: 'PostgreSQL',
+                is_builtin: true,
+                capabilities: {sql_dialect: 'postgres'},
+            },
+            {id: 'mysql', name: 'MySQL', is_builtin: true, capabilities: {sql_dialect: 'mysql'}},
+            {id: 'sqlite', name: 'SQLite', is_builtin: true, capabilities: {sql_dialect: 'sqlite'}},
+            {
+                id: 'oracle',
+                name: 'Oracle',
+                is_builtin: false,
+                capabilities: {sql_dialect: 'oracle'},
+            },
+        ],
+    }),
+}));
 vi.mock('@/utils/monaco', () => ({
     ensureMonaco: async () => ({editor: {colorize: mocks.colorize}}),
 }));
@@ -108,7 +128,20 @@ describe('SnippetsTab', () => {
         fireEvent.click(screen.getByText('PostgreSQL'));
         fireEvent.click(screen.getByRole('button', {name: /Save/i}));
         expect(screen.getByText('SELECT ${1:column} FROM orders;')).toBeInTheDocument();
-        expect(screen.getByText('postgres')).toBeInTheDocument();
+        expect(screen.getByText('PostgreSQL')).toBeInTheDocument();
+    });
+
+    it('lists enabled driver scopes and saves a plugin-specific snippet', () => {
+        render(<SnippetsTab />);
+        fireEvent.click(screen.getByRole('button', {name: /New Snippet/i}));
+        fireEvent.change(screen.getByPlaceholderText(/e.g. selorders/i), {target: {value: 'ora'}});
+        fireEvent.change(screen.getByRole('textbox', {name: 'Snippet Body'}), {
+            target: {value: 'SELECT * FROM dual;'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'Dialect Scope'}));
+        fireEvent.click(screen.getByText('Oracle'));
+        fireEvent.click(screen.getByRole('button', {name: /Save/i}));
+        expect(screen.getByText('Oracle')).toBeInTheDocument();
     });
 
     it('highlights previews with the snippet dialect', async () => {

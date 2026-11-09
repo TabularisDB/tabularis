@@ -4,6 +4,8 @@ import type * as Monaco from 'monaco-editor';
 import {MonacoEditor} from '@/components/ui/LazyMonaco';
 import {Select} from '@/components/ui/Select';
 import {useEditorTheme} from '@/hooks/useEditorTheme';
+import {useDrivers} from '@/hooks/useDrivers';
+import type {PluginManifest} from '@/types/plugins';
 import {loadMonacoTheme} from '@/themes/themeUtils';
 import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {useTranslation} from 'react-i18next';
@@ -15,21 +17,28 @@ import {
     validateSnippetBody,
     type SqlSnippet,
     type SqlDialectScope,
+    normalizeDriverToDialect,
 } from '@/utils/sqlSnippets';
 import {Plus, Trash2, Edit2, Code2, AlertCircle, Check} from 'lucide-react';
 import clsx from 'clsx';
 import DOMPurify from 'dompurify';
 import {ensureMonaco} from '@/utils/monaco';
 
-function snippetLanguage(dialect: SqlDialectScope | undefined): string {
+function snippetLanguage(dialect: SqlDialectScope | undefined, drivers: PluginManifest[]): string {
+    if (dialect?.startsWith('driver:')) {
+        const driverId = dialect.slice(7);
+        const driver = drivers.find((item) => item.id === driverId);
+        dialect = driver ? normalizeDriverToDialect(driver) : 'all';
+    }
     if (dialect === 'postgres') return 'pgsql';
     if (dialect === 'mysql') return 'mysql';
     return 'sql';
 }
 
-function SnippetPreview({snippet}: {snippet: SqlSnippet}) {
+function SnippetPreview({snippet, drivers}: {snippet: SqlSnippet; drivers: PluginManifest[]}) {
     const theme = useEditorTheme();
     const [html, setHtml] = useState<string | null>(null);
+    const language = snippetLanguage(snippet.dialect, drivers);
 
     useEffect(() => {
         let cancelled = false;
@@ -37,11 +46,7 @@ function SnippetPreview({snippet}: {snippet: SqlSnippet}) {
             .then(async (monaco) => {
                 if (cancelled) return;
                 loadMonacoTheme(theme, monaco);
-                const result = await monaco.editor.colorize(
-                    snippet.body,
-                    snippetLanguage(snippet.dialect),
-                    {tabSize: 4},
-                );
+                const result = await monaco.editor.colorize(snippet.body, language, {tabSize: 4});
                 if (!cancelled) setHtml(result);
             })
             .catch(() => {
@@ -50,7 +55,7 @@ function SnippetPreview({snippet}: {snippet: SqlSnippet}) {
         return () => {
             cancelled = true;
         };
-    }, [snippet.body, snippet.dialect, theme]);
+    }, [snippet.body, language, theme]);
 
     const className =
         'mt-2 p-2 rounded bg-elevated/70 border border-default/60 font-mono text-[11px] text-primary whitespace-pre-wrap overflow-x-auto max-h-24';
@@ -64,6 +69,7 @@ function SnippetPreview({snippet}: {snippet: SqlSnippet}) {
 export function SnippetsTab() {
     const {t} = useTranslation();
     const editorTheme = useEditorTheme();
+    const {drivers} = useDrivers();
     const monacoRef = useRef<typeof Monaco | null>(null);
 
     useEffect(() => {
@@ -84,6 +90,25 @@ export function SnippetsTab() {
     const [body, setBody] = useState('');
     const [description, setDescription] = useState('');
     const [dialect, setDialect] = useState<SqlDialectScope>('all');
+    const scopes: SqlDialectScope[] = [
+        'all',
+        ...drivers
+            .map((driver): SqlDialectScope =>
+                driver.is_builtin ? normalizeDriverToDialect(driver) : `driver:${driver.id}`,
+            )
+            .filter((scope) => scope !== 'all'),
+    ];
+    const labels: Record<string, string> = {
+        all: t('settings.snippets.allDialects', 'All Dialects'),
+    };
+    for (const driver of drivers) {
+        const scope = driver.is_builtin ? normalizeDriverToDialect(driver) : `driver:${driver.id}`;
+        if (scope !== 'all') labels[scope] = driver.name;
+    }
+    if (dialect && !scopes.includes(dialect)) {
+        scopes.push(dialect);
+        labels[dialect] = dialect.startsWith('driver:') ? dialect.slice(7) : dialect;
+    }
     const [formError, setFormError] = useState<string | null>(null);
 
     const refresh = useCallback(() => {
@@ -281,13 +306,8 @@ export function SnippetsTab() {
                                 id="snippet-dialect-select"
                                 ariaLabel={t('settings.snippets.dialectLabel', 'Dialect Scope')}
                                 value={dialect}
-                                options={['all', 'postgres', 'mysql', 'sqlite']}
-                                labels={{
-                                    all: t('settings.snippets.allDialects', 'All Dialects'),
-                                    postgres: 'PostgreSQL',
-                                    mysql: 'MySQL / MariaDB',
-                                    sqlite: 'SQLite',
-                                }}
+                                options={[...new Set(scopes)]}
+                                labels={labels}
                                 onChange={(value) => setDialect(value as SqlDialectScope)}
                                 searchable={false}
                             />
@@ -333,7 +353,7 @@ export function SnippetsTab() {
                         <div className="overflow-hidden rounded-lg border border-default bg-base">
                             <MonacoEditor
                                 height="150px"
-                                language={snippetLanguage(dialect)}
+                                language={snippetLanguage(dialect, drivers)}
                                 value={body}
                                 theme={getMonacoThemeId(editorTheme.id)}
                                 beforeMount={beforeMount}
@@ -400,7 +420,8 @@ export function SnippetsTab() {
                                     </span>
                                     {snippet.dialect && snippet.dialect !== 'all' && (
                                         <span className="px-1.5 py-0.5 rounded uppercase font-mono text-[10px] bg-surface-secondary text-secondary border border-default">
-                                            {snippet.dialect}
+                                            {labels[snippet.dialect] ??
+                                                snippet.dialect.replace(/^driver:/, '')}
                                         </span>
                                     )}
                                 </div>
@@ -409,7 +430,7 @@ export function SnippetsTab() {
                                         {snippet.description}
                                     </p>
                                 )}
-                                <SnippetPreview snippet={snippet} />
+                                <SnippetPreview snippet={snippet} drivers={drivers} />
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0 pt-0.5">

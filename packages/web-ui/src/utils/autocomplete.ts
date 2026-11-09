@@ -297,6 +297,7 @@ export const registerSqlAutocomplete = (
     driver?: string | PluginManifest | DriverCapabilities | null,
     client?: TypedCommandCaller,
     keywordCase: AutocompleteKeywordCase = 'match',
+    driverId?: string | null,
 ) => {
     // Declared `sql_syntax` keywords and functions join the shared list.
     const keywords = syntaxKeywords(
@@ -823,7 +824,7 @@ export const registerSqlAutocomplete = (
                 .filter(
                     (s) =>
                         s.prefix.toLowerCase().startsWith(typedPrefix.toLowerCase()) &&
-                        isSnippetDialectCompatible(s.dialect, currentDialect),
+                        isSnippetDialectCompatible(s.dialect, currentDialect, driverId),
                 )
                 .map((s) => ({
                     label: s.prefix,
