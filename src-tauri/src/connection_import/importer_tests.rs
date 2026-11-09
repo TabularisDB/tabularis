@@ -1359,7 +1359,7 @@ async fn project_config_multibyte_at_size_boundary_does_not_panic() {
     let ascii_prefix = "a".repeat(65_535);
     write(
         &env_file,
-        format!(
+        &format!(
             "EURO=€\nBIG_PASS=\"{}${{EURO}}\"\nDATABASE_URL=\"postgres://user:${{BIG_PASS}}@127.0.0.1:5432/db\"\n",
             ascii_prefix
         ),
