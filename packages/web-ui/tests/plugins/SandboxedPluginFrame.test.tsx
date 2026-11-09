@@ -88,6 +88,29 @@ describe('SandboxedPluginFrame lifecycle', () => {
         expect(mocks.update).not.toHaveBeenCalled();
     });
 
+    it('explains when remote sessions lack administrator access', async () => {
+        mocks.client.call.mockRejectedValue(
+            Object.assign(new Error('Forbidden'), {code: 'FORBIDDEN'}),
+        );
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        await expect(handlers['api.setting.set']('client_id', 'value')).rejects.toThrow(
+            'Changing shared plugin settings requires administrator access.',
+        );
+        expect(mocks.update).not.toHaveBeenCalled();
+    });
+
+    it('accepts persisted JSON objects with reordered keys', async () => {
+        mocks.client.call.mockImplementation(async () => ({
+            plugins: {'google-sheets': {settings: {options: {first: 1, nested: {a: 2, z: 3}}}}},
+        }));
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        await expect(
+            handlers['api.setting.set']('options', {nested: {z: 3, a: 2}, first: 1}),
+        ).resolves.toBeNull();
+    });
+
     it('reports settings that were not persisted', async () => {
         mocks.update = vi.fn().mockResolvedValue(undefined);
         render(frame());

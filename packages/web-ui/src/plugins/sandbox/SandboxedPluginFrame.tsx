@@ -20,6 +20,30 @@ interface Props {
 
 const MAX_HEIGHT = 4000;
 
+function equalJsonValues(left: unknown, right: unknown): boolean {
+    if (left === right) return true;
+    if (Array.isArray(left) || Array.isArray(right)) {
+        return (
+            Array.isArray(left) &&
+            Array.isArray(right) &&
+            left.length === right.length &&
+            left.every((value, index) => equalJsonValues(value, right[index]))
+        );
+    }
+    if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
+    const leftRecord = left as Record<string, unknown>;
+    const rightRecord = right as Record<string, unknown>;
+    const keys = Object.keys(leftRecord);
+    return (
+        keys.length === Object.keys(rightRecord).length &&
+        keys.every(
+            (key) =>
+                Object.hasOwn(rightRecord, key) &&
+                equalJsonValues(leftRecord[key], rightRecord[key]),
+        )
+    );
+}
+
 export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     const client = useTabularisClient();
     const {settings, updateSetting} = useSettings();
@@ -194,7 +218,21 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 const safeValue = JSON.parse(serialized) as unknown;
                 // Plugin credentials are shared server configuration. Check authorization
                 // before changing the UI: SettingsProvider logs persistence failures.
-                await servicesRef.current.client.call('get_config', undefined);
+                try {
+                    await servicesRef.current.client.call('get_config', undefined);
+                } catch (error) {
+                    if (
+                        typeof error === 'object' &&
+                        error !== null &&
+                        'code' in error &&
+                        error.code === 'FORBIDDEN'
+                    ) {
+                        throw new Error(
+                            'Changing shared plugin settings requires administrator access.',
+                        );
+                    }
+                    throw error;
+                }
                 let persistence: Promise<void> = Promise.resolve();
                 flushSync(() => {
                     persistence = servicesRef.current.updateSetting('plugins', (previous) => {
@@ -212,7 +250,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 await persistence;
                 const saved = await servicesRef.current.client.call('get_config', undefined);
                 const stored = saved.plugins?.[pluginId]?.settings?.[key];
-                if (JSON.stringify(stored) !== serialized) {
+                if (!equalJsonValues(stored, safeValue)) {
                     throw new Error('Plugin setting could not be saved');
                 }
                 return null;
