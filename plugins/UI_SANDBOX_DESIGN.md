@@ -90,3 +90,15 @@ EXPLAIN parsers:
 This audit is based on the public registry's plugin manifests and released
 bundles for UI extensions and EXPLAIN parsers. The Google Sheets companion
 release must ship before this sandbox change so existing installs keep working.
+
+### Theme and modal lifecycle
+
+Guest CSS exposes the host color tokens (`--text-primary`, `--bg-elevated`,
+`--accent-primary`, and the other theme colors), font families and corner radii.
+Legacy `--color-*` aliases remain available for existing bundles. New plugin UI
+should use the canonical theme tokens, including `--text-inverse` over the
+primary accent, rather than fixed dark colors.
+
+Settings and theme updates reuse the existing MessagePort. Closing a modal from
+its own controls or from the host dismisses the guest dialog and returns its
+frame to the slot; frame sizing measures normal content, excluding fixed modals.

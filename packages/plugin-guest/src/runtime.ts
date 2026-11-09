@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as ReactJSXRuntime from 'react/jsx-runtime';
 import {createRoot} from 'react-dom/client';
 import * as explainApi from '@tabularis/explain';
+import {pluginGuestThemeVariables} from '../../web-ui/src/utils/pluginGuestTheme';
 import {RpcPort} from '../../web-ui/src/plugins/sandbox/rpc';
 import {hydratePluginSlotContext} from '../../web-ui/src/plugins/sandbox/slotContext';
 
@@ -165,6 +166,7 @@ window.addEventListener('securitypolicyviolation', (event) => {
 });
 
 function GuestRoot({component: Component}: {component: PluginComponent}) {
+    const dialogId = React.useId();
     const [modal, setModal] = React.useState<GuestModalOptions | null>(null);
     const modalApi = React.useMemo(
         () => ({
@@ -174,8 +176,48 @@ function GuestRoot({component: Component}: {component: PluginComponent}) {
         [],
     );
     React.useEffect(() => {
+        const close = () => setModal(null);
+        window.addEventListener('tabularis:close-modal', close);
+        return () => window.removeEventListener('tabularis:close-modal', close);
+    }, []);
+    React.useEffect(() => {
         void callHost('ui.modal', modal !== null).catch(() => undefined);
-    }, [modal]);
+        if (!modal) return;
+        const previousFocus = document.activeElement;
+        const dialog = document.getElementById(dialogId);
+        dialog?.focus();
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') modalApi.closeModal();
+            if (event.key !== 'Tab') return;
+            const controls = dialog?.querySelectorAll<HTMLElement>(
+                'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
+            );
+            const first = controls?.[0];
+            const last = controls?.[controls.length - 1];
+            if (!first || !last) {
+                event.preventDefault();
+                return;
+            }
+            if (
+                event.shiftKey &&
+                (document.activeElement === first || document.activeElement === dialog)
+            ) {
+                event.preventDefault();
+                last.focus();
+            } else if (
+                !event.shiftKey &&
+                (document.activeElement === last || document.activeElement === dialog)
+            ) {
+                event.preventDefault();
+                first.focus();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown);
+            if (previousFocus instanceof HTMLElement) previousFocus.focus();
+        };
+    }, [modal, modalApi, dialogId]);
     const modalStyle: React.CSSProperties = {
         position: 'fixed',
         inset: 0,
@@ -183,7 +225,7 @@ function GuestRoot({component: Component}: {component: PluginComponent}) {
         display: 'grid',
         placeItems: 'center',
         padding: 16,
-        background: 'rgba(0,0,0,.6)',
+        background: 'var(--bg-overlay)',
     };
     const dialogStyle: React.CSSProperties = {
         width:
@@ -196,10 +238,10 @@ function GuestRoot({component: Component}: {component: PluginComponent}) {
                     : 'min(100%, 900px)',
         maxHeight: '90%',
         overflow: 'auto',
-        background: themeColor('bg', 'elevated', '#111827'),
-        color: themeColor('text', 'primary', '#f9fafb'),
-        border: `1px solid ${themeColor('border', 'default', '#374151')}`,
-        borderRadius: 12,
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-primary)',
+        border: '1px solid var(--border-default)',
+        borderRadius: 'var(--radius-lg)',
         padding: 16,
     };
     return React.createElement(
@@ -218,9 +260,10 @@ function GuestRoot({component: Component}: {component: PluginComponent}) {
                 React.createElement(
                     'section',
                     {
+                        id: dialogId,
                         role: 'dialog',
                         'aria-modal': true,
-                        'aria-label': modal.title,
+                        'aria-labelledby': `${dialogId}-title`,
                         style: dialogStyle,
                         onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
                             if (event.key === 'Escape') modalApi.closeModal();
@@ -237,11 +280,18 @@ function GuestRoot({component: Component}: {component: PluginComponent}) {
                                 marginBottom: 12,
                             },
                         },
-                        React.createElement('h2', null, modal.title),
+                        React.createElement('h2', {id: `${dialogId}-title`}, modal.title),
                         React.createElement(
                             'button',
                             {
                                 type: 'button',
+                                style: {
+                                    color: 'var(--text-primary)',
+                                    background: 'var(--surface-secondary)',
+                                    border: '1px solid var(--border-strong)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    outlineColor: 'var(--border-focus)',
+                                },
                                 onClick: modalApi.closeModal,
                                 'aria-label': 'Close dialog',
                             },
@@ -254,79 +304,15 @@ function GuestRoot({component: Component}: {component: PluginComponent}) {
     );
 }
 
-const THEME_CSS_VARIABLES: Record<string, Record<string, string>> = {
-    bg: {
-        base: '--bg-base',
-        elevated: '--bg-elevated',
-        overlay: '--bg-overlay',
-        input: '--bg-input',
-        tooltip: '--bg-tooltip',
-    },
-    surface: {
-        primary: '--surface-primary',
-        secondary: '--surface-secondary',
-        tertiary: '--surface-tertiary',
-        hover: '--surface-hover',
-        active: '--surface-active',
-        disabled: '--surface-disabled',
-    },
-    text: {
-        primary: '--text-primary',
-        secondary: '--text-secondary',
-        muted: '--text-muted',
-        disabled: '--text-disabled',
-        accent: '--text-accent',
-        inverse: '--text-inverse',
-    },
-    accent: {
-        primary: '--accent-primary',
-        secondary: '--accent-secondary',
-        success: '--accent-success',
-        warning: '--accent-warning',
-        error: '--accent-error',
-        info: '--accent-info',
-    },
-    border: {
-        subtle: '--border-subtle',
-        default: '--border-default',
-        strong: '--border-strong',
-        focus: '--border-focus',
-    },
-    semantic: {
-        string: '--semantic-string',
-        number: '--semantic-number',
-        boolean: '--semantic-boolean',
-        date: '--semantic-date',
-        null: '--semantic-null',
-        primaryKey: '--semantic-pk',
-        foreignKey: '--semantic-fk',
-        index: '--semantic-index',
-        modified: '--semantic-modified',
-        deleted: '--semantic-deleted',
-        new: '--semantic-new',
-    },
-};
-
 function applyGuestTheme(): void {
     const theme = asRecord(currentContext.theme);
-    const colors = asRecord(theme.colors);
     const root = document.documentElement;
     root.style.colorScheme = theme.isDark === true ? 'dark' : 'light';
-    for (const [group, tokens] of Object.entries(THEME_CSS_VARIABLES)) {
-        const values = asRecord(colors[group]);
-        for (const [token, variable] of Object.entries(tokens)) {
-            const value = values[token];
-            if (typeof value === 'string') root.style.setProperty(variable, value);
-        }
+    for (const [variable, value] of Object.entries(pluginGuestThemeVariables(theme))) {
+        root.style.setProperty(variable, value);
     }
-    const textColor = asRecord(colors.text).primary;
-    if (typeof textColor === 'string') document.body.style.color = textColor;
-}
-
-function themeColor(group: string, token: string, fallback: string): string {
-    const colors = asRecord(asRecord(currentContext.theme).colors);
-    const value = asRecord(colors[group])[token];
-    return typeof value === 'string' ? value : fallback;
+    document.body.style.color = 'var(--text-primary)';
+    document.body.style.fontFamily = 'var(--font-sans)';
 }
 
 Object.assign(guestWindow, {
@@ -399,6 +385,10 @@ function start(port: MessagePort): void {
             }
             throw new Error('method_not_allowed');
         }
+        if (method === 'ui.closeModal') {
+            window.dispatchEvent(new Event('tabularis:close-modal'));
+            return null;
+        }
         if (method === 'slot.context') {
             const next = Array.isArray(args) ? args[0] : args;
             if (next && typeof next === 'object' && !Array.isArray(next)) {
@@ -444,10 +434,10 @@ function start(port: MessagePort): void {
         renderPlugin();
         const resizeObserver = new ResizeObserver(() => {
             void rpc
-                .call('ui.resize', [document.documentElement.scrollHeight])
+                .call('ui.resize', [Math.ceil(rootElement.getBoundingClientRect().height)])
                 .catch(() => undefined);
         });
-        resizeObserver.observe(document.body);
+        resizeObserver.observe(rootElement);
     };
     pluginScript.onerror = () => {
         void rpc.call('host.loadFailed', ['Plugin bundle failed to load']).catch(() => undefined);

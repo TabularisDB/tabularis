@@ -99,7 +99,7 @@ describe('plugin isolation acceptance contract', () => {
         }
         expect(host).toContain('isReadOnlyQuery(query)');
         expect(host).toContain('navigator.userActivation?.isActive');
-        expect(host).toContain("t('plugins.closePluginOverlay')");
+        expect(host).toContain("t('settings.plugins.closePluginOverlay')");
         expect(host).toContain('execute_plugin_read_only_query');
         expect(host).toContain('setSecretField');
         expect(host).toContain('100dvh');

@@ -41,14 +41,20 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 ? {
                       themeId: theme.currentTheme.id,
                       themeName: theme.currentTheme.name,
-                      isDark: !theme.currentTheme.id.includes('-light'),
+                      isDark: theme.currentTheme.monacoTheme.base !== 'vs',
                       colors: theme.currentTheme.colors,
+                      layout: theme.currentTheme.layout,
+                      typography: theme.currentTheme.typography,
                   }
                 : null,
         }),
         [context, i18n, language, pluginId, settings.plugins, theme],
     );
     const contextRef = useRef(guestContext);
+    const servicesRef = useRef({client, updateSetting, showToast, t});
+    useLayoutEffect(() => {
+        servicesRef.current = {client, updateSetting, showToast, t};
+    }, [client, updateSetting, showToast, t]);
     const [height, setHeight] = useState(0);
     const [modalOpen, setModalOpen] = useState(false);
     const [frameRect, setFrameRect] = useState({left: 0, top: 0, width: 0});
@@ -150,7 +156,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 if (typeof active.connectionId !== 'string' || !active.connectionId) {
                     throw new Error('No active connection');
                 }
-                return client.call('execute_plugin_read_only_query', {
+                return servicesRef.current.client.call('execute_plugin_read_only_query', {
                     connectionId: active.connectionId,
                     query,
                     ...(typeof active.schema === 'string' && active.schema
@@ -165,7 +171,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     );
                 }
                 const toastKind = kind === 'error' || kind === 'warning' ? kind : 'info';
-                showToast(text, {kind: toastKind});
+                servicesRef.current.showToast(text, {kind: toastKind});
             },
             'api.setting.set': async (key: unknown, value: unknown) => {
                 if (typeof key !== 'string' || !key) throw new Error('Setting key is required');
@@ -174,7 +180,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     throw new Error('Plugin settings must be JSON values smaller than 64 KiB');
                 }
                 const safeValue = JSON.parse(serialized) as unknown;
-                await updateSetting('plugins', (previous) => {
+                await servicesRef.current.updateSetting('plugins', (previous) => {
                     const plugins = previous ?? {};
                     const pluginConfig = plugins[pluginId] ?? {};
                     return {
@@ -267,7 +273,8 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             'api.compatibility.legacyGoogleOAuth': () => {
                 if (pluginId !== 'google-sheets' || legacyOAuthHintShown.current) return;
                 legacyOAuthHintShown.current = true;
-                showToast(t('plugins.legacyGoogleSheetsOAuthHint'), {kind: 'warning'});
+                const {showToast, t} = servicesRef.current;
+                showToast(t('settings.plugins.legacyGoogleSheetsOAuthHint'), {kind: 'warning'});
             },
             'host.loadFailed': (message: unknown) => {
                 console.error(`[PluginSlot] ${pluginId}/${module}: ${String(message)}`);
@@ -301,7 +308,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             rpcRef.current?.close();
             rpcRef.current = null;
         };
-    }, [client, module, pluginId, showToast, t, updateSetting]);
+    }, [module, pluginId]);
 
     useEffect(() => {
         contextRef.current = guestContext;
@@ -310,10 +317,18 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             .catch(() => undefined);
     }, [guestContext]);
 
+    const closeModal = () => {
+        setModalOpen(false);
+        void rpcRef.current?.call('ui.closeModal').catch(() => undefined);
+    };
+
     useEffect(() => {
         if (!modalOpen) return;
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setModalOpen(false);
+            if (event.key === 'Escape') {
+                setModalOpen(false);
+                void rpcRef.current?.call('ui.closeModal').catch(() => undefined);
+            }
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
@@ -361,9 +376,9 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 createPortal(
                     <button
                         type="button"
-                        aria-label={t('plugins.closePluginOverlay')}
-                        title={t('plugins.closePluginOverlay')}
-                        onClick={() => setModalOpen(false)}
+                        aria-label={t('settings.plugins.closePluginOverlay')}
+                        title={t('settings.plugins.closePluginOverlay')}
+                        onClick={closeModal}
                         className="fixed top-3 right-3 h-8 w-8 rounded-full bg-surface-secondary text-primary border border-default shadow-lg hover:bg-surface-tertiary"
                         style={{zIndex: 2_147_483_647}}
                     >
