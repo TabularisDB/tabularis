@@ -18,7 +18,7 @@ import {
     progressPercent,
     summarizeResult,
     withMapping,
-} from '@/utils/tableTransfer';
+} from '@/utils/tableRowTransfer';
 import type {
     TableTransferColumnMapping,
     TableTransferConflictMode,
@@ -231,7 +231,7 @@ export const TableTransferModal = ({
             );
             setResult(outcome);
             if (outcome.status === 'completed')
-                showAlert(t('tableTransfer.success'), {kind: 'info'});
+                showAlert(t('tableRowTransfer.success'), {kind: 'info'});
         } catch (failure) {
             setError(String(failure));
             setTransferId(null);
@@ -295,7 +295,7 @@ export const TableTransferModal = ({
                 <div className="flex items-center justify-between p-4 border-b border-default bg-base">
                     <div>
                         <h2 id={titleId} className="text-lg font-semibold text-primary">
-                            {t('tableTransfer.title')}
+                            {t('tableRowTransfer.title')}
                         </h2>
                         <p className="text-xs text-secondary font-mono flex items-center gap-1.5">
                             {sourceTable}
@@ -315,13 +315,13 @@ export const TableTransferModal = ({
 
                 <div className="p-4 overflow-y-auto flex flex-col gap-4">
                     <InlineBanner tone="neutral" icon={<TriangleAlert size={14} />}>
-                        {t('tableTransfer.appendOnly')}
+                        {t('tableRowTransfer.appendOnly')}
                     </InlineBanner>
 
                     {step === 'target' && (
                         <div className="flex flex-col gap-3">
                             <label className="flex flex-col gap-1 text-xs font-semibold text-muted uppercase">
-                                {t('tableTransfer.targetConnection')}
+                                {t('tableRowTransfer.targetConnection')}
                                 <select
                                     className={FIELD_CLASS}
                                     value={targetConnectionId}
@@ -330,7 +330,7 @@ export const TableTransferModal = ({
                                         void onTargetConnection(event.target.value)
                                     }
                                 >
-                                    <option value="">{t('tableTransfer.selectPlaceholder')}</option>
+                                    <option value="">{t('tableRowTransfer.selectPlaceholder')}</option>
                                     {targetConnections.map((connection) => (
                                         <option key={connection.id} value={connection.id}>
                                             {connection.name}
@@ -339,11 +339,11 @@ export const TableTransferModal = ({
                                 </select>
                             </label>
                             {capabilities && targetConnections.length === 0 && (
-                                <p className="text-xs text-muted">{t('tableTransfer.noTargets')}</p>
+                                <p className="text-xs text-muted">{t('tableRowTransfer.noTargets')}</p>
                             )}
                             {databaseOptions.length > 0 && (
                                 <label className="flex flex-col gap-1 text-xs font-semibold text-muted uppercase">
-                                    {t('tableTransfer.targetDatabase')}
+                                    {t('tableRowTransfer.targetDatabase')}
                                     <select
                                         className={FIELD_CLASS}
                                         value={targetDatabase}
@@ -362,7 +362,7 @@ export const TableTransferModal = ({
                             )}
                             {schemas.length > 0 && (
                                 <label className="flex flex-col gap-1 text-xs font-semibold text-muted uppercase">
-                                    {t('tableTransfer.targetSchema')}
+                                    {t('tableRowTransfer.targetSchema')}
                                     <select
                                         className={FIELD_CLASS}
                                         value={targetSchema}
@@ -381,7 +381,7 @@ export const TableTransferModal = ({
                             )}
                             {targetConnectionId !== '' && (
                                 <label className="flex flex-col gap-1 text-xs font-semibold text-muted uppercase">
-                                    {t('tableTransfer.targetTable')}
+                                    {t('tableRowTransfer.targetTable')}
                                     <select
                                         className={FIELD_CLASS}
                                         value={targetTable}
@@ -392,7 +392,7 @@ export const TableTransferModal = ({
                                         }}
                                     >
                                         <option value="">
-                                            {t('tableTransfer.selectPlaceholder')}
+                                            {t('tableRowTransfer.selectPlaceholder')}
                                         </option>
                                         {targetTables.map((table) => (
                                             <option key={table} value={table}>
@@ -403,7 +403,7 @@ export const TableTransferModal = ({
                                 </label>
                             )}
                             {targetConnectionId !== '' && !busy && targetTables.length === 0 && (
-                                <p className="text-xs text-muted">{t('tableTransfer.noTables')}</p>
+                                <p className="text-xs text-muted">{t('tableRowTransfer.noTables')}</p>
                             )}
                         </div>
                     )}
@@ -414,7 +414,7 @@ export const TableTransferModal = ({
                                 <div role="alert">
                                     <InlineBanner tone="red" icon={<XCircle size={14} />}>
                                         <div className="flex flex-col gap-1">
-                                            <strong>{t('tableTransfer.blocked')}</strong>
+                                            <strong>{t('tableRowTransfer.blocked')}</strong>
                                             <ul className="list-disc pl-4">
                                                 {issues.map((issue) => (
                                                     <li key={`${issue.code}:${issue.column ?? ''}`}>
@@ -435,24 +435,24 @@ export const TableTransferModal = ({
                             <div className="border border-default rounded-lg overflow-auto max-h-[320px]">
                                 <table className="w-full text-left text-xs">
                                     <caption className="sr-only">
-                                        {t('tableTransfer.mapping')}
+                                        {t('tableRowTransfer.mapping')}
                                     </caption>
                                     <thead className="bg-base text-muted sticky top-0">
                                         <tr>
                                             <th scope="col" className="p-2">
-                                                {t('tableTransfer.sourceColumn')}
+                                                {t('tableRowTransfer.sourceColumn')}
                                             </th>
                                             <th scope="col" className="p-2">
-                                                {t('tableTransfer.sourceType')}
+                                                {t('tableRowTransfer.sourceType')}
                                             </th>
                                             <th scope="col" className="p-2">
-                                                {t('tableTransfer.targetColumn')}
+                                                {t('tableRowTransfer.targetColumn')}
                                             </th>
                                             <th scope="col" className="p-2">
-                                                {t('tableTransfer.targetType')}
+                                                {t('tableRowTransfer.targetType')}
                                             </th>
                                             <th scope="col" className="p-2">
-                                                {t('tableTransfer.conversion')}
+                                                {t('tableRowTransfer.conversion')}
                                             </th>
                                         </tr>
                                     </thead>
@@ -471,7 +471,7 @@ export const TableTransferModal = ({
                                                 <td className="p-2">
                                                     <select
                                                         aria-label={t(
-                                                            'tableTransfer.targetColumnFor',
+                                                            'tableRowTransfer.targetColumnFor',
                                                             {
                                                                 column: column.sourceColumn,
                                                             },
@@ -493,7 +493,7 @@ export const TableTransferModal = ({
                                                         }
                                                     >
                                                         <option value="">
-                                                            {t('tableTransfer.skipColumn')}
+                                                            {t('tableRowTransfer.skipColumn')}
                                                         </option>
                                                         {targetColumns.map((name) => (
                                                             <option key={name} value={name}>
@@ -514,14 +514,14 @@ export const TableTransferModal = ({
                                                         <span
                                                             className="text-secondary"
                                                             title={t(
-                                                                `tableTransfer.rule.${column.rule}Hint`,
+                                                                `tableRowTransfer.rule.${column.rule}Hint`,
                                                             )}
                                                         >
-                                                            {t(`tableTransfer.rule.${column.rule}`)}
+                                                            {t(`tableRowTransfer.rule.${column.rule}`)}
                                                         </span>
                                                     ) : (
                                                         <span className="text-muted">
-                                                            {t('tableTransfer.skipped')}
+                                                            {t('tableRowTransfer.skipped')}
                                                         </span>
                                                     )}
                                                 </td>
@@ -532,7 +532,7 @@ export const TableTransferModal = ({
                             </div>
                             <fieldset className="flex flex-col gap-2">
                                 <legend className="text-xs font-semibold text-muted uppercase mb-1">
-                                    {t('tableTransfer.conflictLabel')}
+                                    {t('tableRowTransfer.conflictLabel')}
                                 </legend>
                                 {(['fail', 'skip'] as const).map((mode) => (
                                     <label
@@ -547,9 +547,9 @@ export const TableTransferModal = ({
                                             className="mt-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                         />
                                         <span>
-                                            {t(`tableTransfer.conflict.${mode}`)}
+                                            {t(`tableRowTransfer.conflict.${mode}`)}
                                             <span className="block text-xs text-muted">
-                                                {t(`tableTransfer.conflict.${mode}Hint`)}
+                                                {t(`tableRowTransfer.conflict.${mode}Hint`)}
                                             </span>
                                         </span>
                                     </label>
@@ -557,7 +557,7 @@ export const TableTransferModal = ({
                             </fieldset>
                             {tablePlan.estimatedRows !== null && (
                                 <p className="text-xs text-muted">
-                                    {t('tableTransfer.estimatedRows', {
+                                    {t('tableRowTransfer.estimatedRows', {
                                         count: tablePlan.estimatedRows.toLocaleString(),
                                     })}
                                 </p>
@@ -571,11 +571,11 @@ export const TableTransferModal = ({
                                 <>
                                     <div className="flex items-center gap-2 text-sm text-secondary">
                                         <Loader2 size={16} className="animate-spin" />
-                                        {t('tableTransfer.running')}
+                                        {t('tableRowTransfer.running')}
                                     </div>
                                     <div
                                         role="progressbar"
-                                        aria-label={t('tableTransfer.running')}
+                                        aria-label={t('tableRowTransfer.running')}
                                         aria-valuemin={0}
                                         aria-valuemax={100}
                                         aria-valuenow={percent ?? undefined}
@@ -591,7 +591,7 @@ export const TableTransferModal = ({
                                         />
                                     </div>
                                     <p className="text-xs text-muted">
-                                        {t('tableTransfer.progress', {
+                                        {t('tableRowTransfer.progress', {
                                             written: (progress?.rows_written ?? 0).toLocaleString(),
                                             skipped: (progress?.rows_skipped ?? 0).toLocaleString(),
                                         })}
@@ -608,23 +608,23 @@ export const TableTransferModal = ({
                                         ) : (
                                             <XCircle size={18} />
                                         )}
-                                        {t(`tableTransfer.status.${summary.status}`)}
+                                        {t(`tableRowTransfer.status.${summary.status}`)}
                                     </div>
                                     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
                                         <dt className="text-muted">
-                                            {t('tableTransfer.rowsWritten')}
+                                            {t('tableRowTransfer.rowsWritten')}
                                         </dt>
                                         <dd className="font-mono text-primary">
                                             {summary.rowsWritten.toLocaleString()}
                                         </dd>
                                         <dt className="text-muted">
-                                            {t('tableTransfer.rowsSkipped')}
+                                            {t('tableRowTransfer.rowsSkipped')}
                                         </dt>
                                         <dd className="font-mono text-primary">
                                             {summary.rowsSkipped.toLocaleString()}
                                         </dd>
                                         <dt className="text-muted">
-                                            {t('tableTransfer.rowsFailed')}
+                                            {t('tableRowTransfer.rowsFailed')}
                                         </dt>
                                         <dd className="font-mono text-primary">
                                             {summary.rowsFailed.toLocaleString()}
@@ -636,7 +636,7 @@ export const TableTransferModal = ({
                                             role="status"
                                             icon={<TriangleAlert size={14} />}
                                         >
-                                            {t('tableTransfer.committedRemain', {
+                                            {t('tableRowTransfer.committedRemain', {
                                                 count: summary.rowsWritten.toLocaleString(),
                                             })}
                                         </InlineBanner>
@@ -674,7 +674,7 @@ export const TableTransferModal = ({
                                 onClick={() => void planWith([], true)}
                             >
                                 {busy && <Loader2 size={14} className="animate-spin" />}
-                                {t('tableTransfer.review')}
+                                {t('tableRowTransfer.review')}
                             </button>
                         </>
                     )}
@@ -694,7 +694,7 @@ export const TableTransferModal = ({
                                 disabled={blocked || busy}
                                 onClick={() => void startTransfer()}
                             >
-                                {t('tableTransfer.start')}
+                                {t('tableRowTransfer.start')}
                             </button>
                         </>
                     )}

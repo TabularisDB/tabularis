@@ -28,10 +28,12 @@ import {
     isQueryHistoryFilterActive,
     queryHistoryDatabaseFilterFor,
     validateQueryHistoryDateRange,
+    validateQueryHistoryMinDuration,
     QUERY_HISTORY_OUTCOME_OPTIONS,
     QUERY_HISTORY_TIME_RANGE_OPTIONS,
     type QueryHistoryDatabaseFilter,
     type QueryHistoryDateRangeError,
+    type QueryHistoryMinDurationError,
     type QueryHistoryOutcomeFilter,
     type QueryHistoryTimeRange,
 } from '@/utils/queryHistoryFilter';
@@ -94,10 +96,24 @@ function HistoryDateField({
     );
 }
 
+// The duration field shares the date fields' box so the filter rows line up;
+// it is a plain text field with a numeric keyboard hint, so an unusable value
+// stays visible and can be explained instead of being dropped by the browser.
+const durationFieldClassName =
+    'relative min-w-0 flex items-center gap-1 bg-input border border-default rounded px-1.5 focus-within:border-focus/50';
+
+const durationInputClassName =
+    'w-full min-w-0 appearance-none bg-transparent py-1 text-[11px] text-primary tabular-nums placeholder:text-muted focus:outline-none';
+
 const RANGE_ERROR_LABEL_KEYS: Record<QueryHistoryDateRangeError, string> = {
     invalidFrom: 'sidebar.historyDateRangeInvalidFrom',
     invalidTo: 'sidebar.historyDateRangeInvalidTo',
     inverted: 'sidebar.historyDateRangeInverted',
+};
+
+const MIN_DURATION_ERROR_LABEL_KEYS: Record<QueryHistoryMinDurationError, string> = {
+    invalid: 'sidebar.historyMinDurationInvalid',
+    negative: 'sidebar.historyMinDurationNegative',
 };
 
 const OUTCOME_LABEL_KEYS: Record<QueryHistoryOutcomeFilter, string> = {
@@ -141,6 +157,7 @@ export function QueryHistorySection({
     const [from, setFrom] = useState('');
     const [to, setTo] = useState('');
     const [database, setDatabase] = useState<QueryHistoryDatabaseFilter>('all');
+    const [minDurationMs, setMinDurationMs] = useState('');
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
     // "custom" is a mode of the time-range select, not a second filter: the
@@ -148,6 +165,7 @@ export function QueryHistorySection({
     const isCustomRange = timeRange === 'custom';
 
     const rangeError = validateQueryHistoryDateRange(from, to);
+    const minDurationError = validateQueryHistoryMinDuration(minDurationMs);
 
     const databaseChoices = useMemo(() => getQueryHistoryDatabaseChoices(entries), [entries]);
     // A database that is no longer among the loaded entries (another connection's
@@ -163,6 +181,7 @@ export function QueryHistorySection({
         database,
         from,
         to,
+        minDurationMs,
     });
 
     const filteredEntries = useMemo(
@@ -174,9 +193,20 @@ export function QueryHistorySection({
                 database,
                 from,
                 to,
+                minDurationMs,
                 timeZone: settings.displayTimezone,
             }),
-        [entries, search, outcome, timeRange, database, from, to, settings.displayTimezone],
+        [
+            entries,
+            search,
+            outcome,
+            timeRange,
+            database,
+            from,
+            to,
+            minDurationMs,
+            settings.displayTimezone,
+        ],
     );
 
     const groupedEntries = useMemo(
@@ -476,6 +506,40 @@ export function QueryHistorySection({
                 </div>
             )}
 
+            {/* Minimum recorded duration (session-only, same as the filters above) */}
+            <div className="px-2 pb-1.5">
+                {/* The label wraps the input, so a click anywhere in the box reaches it. */}
+                <label className={durationFieldClassName}>
+                    <span className="text-[11px] text-muted shrink-0">
+                        {t('sidebar.historyMinDuration')}
+                    </span>
+                    <input
+                        type="text"
+                        inputMode="decimal"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        autoComplete="off"
+                        spellCheck={false}
+                        value={minDurationMs}
+                        onChange={(e) => setMinDurationMs(e.target.value)}
+                        placeholder="0"
+                        aria-label={t('sidebar.historyMinDurationFilter')}
+                        aria-invalid={minDurationError !== null}
+                        className={durationInputClassName}
+                    />
+                    <span className="text-[11px] text-muted shrink-0">
+                        {t('sidebar.historyMinDurationUnit')}
+                    </span>
+                </label>
+            </div>
+
+            {/* Explain a threshold that cannot be applied instead of ignoring it */}
+            {minDurationError && (
+                <div role="alert" className="px-3 pb-1 text-[10px] text-accent-warning">
+                    {t(MIN_DURATION_ERROR_LABEL_KEYS[minDurationError])}
+                </div>
+            )}
+
             {/* Filtered / total counter whenever any filter is active */}
             {filterActive && (
                 <div className="px-3 pb-1 flex items-center justify-between gap-2 text-[10px] text-muted">
@@ -491,6 +555,7 @@ export function QueryHistorySection({
                             setDatabase('all');
                             setFrom('');
                             setTo('');
+                            setMinDurationMs('');
                         }}
                         className="shrink-0 underline hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                     >

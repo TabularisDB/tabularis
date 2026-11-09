@@ -1760,6 +1760,55 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    /// Optional RPC method (#709): the table's approximate row count, for
+    /// the export dialog. A plugin without it (-32601) shows none.
+    async fn get_approximate_row_count(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        let params = self.connection_params.as_ref().unwrap_or(params);
+        let res = self
+            .process
+            .call_detailed(
+                "get_approximate_row_count",
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// Optional RPC method (#709): a plugin with non-standard literals
+    /// renders its own `INSERT` statements. A plugin without it (-32601)
+    /// gets the host renderer, driven by its manifest capabilities.
+    async fn render_insert_statements(
+        &self,
+        table: &str,
+        schema: Option<&str>,
+        columns: &[String],
+        rows: &[Vec<serde_json::Value>],
+    ) -> Result<Option<Vec<String>>, String> {
+        let res = self
+            .process
+            .call_detailed(
+                "render_insert_statements",
+                json!({ "table": table, "schema": schema, "columns": columns, "rows": rows }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v)
+                .map(Some)
+                .map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
     async fn drop_index(
         &self,
         params: &ConnectionParams,
@@ -2172,6 +2221,19 @@ where
     }
 }
 
+/// Like [`test_driver_result`], with the plugin's own manifest: its id is
+/// the driver id connections use, and its capabilities drive the host.
+#[cfg(test)]
+pub(crate) fn test_driver_with_manifest<F>(manifest: PluginManifest, handle_request: F) -> RpcDriver
+where
+    F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
+{
+    RpcDriver {
+        manifest,
+        ..test_driver_result(handle_request)
+    }
+}
+
 /// Like [`test_driver_result`], but lets the handler return a raw
 /// [`PluginCallError`] instead of always getting wrapped into `Transport` —
 /// needed to simulate a real JSON-RPC `Remote` error (with a `code`) for
@@ -2495,6 +2557,7 @@ mod tests {
             startup_script: None,
             pooler_mode: None,
             connect_timeout_secs: None,
+            query_timeout_secs: None,
             use_iam_auth: None,
             extra: HashMap::new(),
             connection_id: Some("conn-1".to_string()),
@@ -3243,6 +3306,111 @@ mod tests {
             .expect("fallback returns empty vec");
 
         assert!(views.is_empty());
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_approximate_row_count_falls_back_when_method_missing() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "get_approximate_row_count");
+            Err("Method not found (-32601)".to_string())
+        });
+
+        let count = driver
+            .get_approximate_row_count(&test_connection_params(), "users", None)
+            .await
+            .expect("a missing method means no estimate");
+
+        assert_eq!(count, None);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_approximate_row_count_forwards_the_estimate() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "get_approximate_row_count");
+            assert_eq!(request.params["table"], "users");
+            assert_eq!(request.params["schema"], "dbo");
+            Ok(json!(128400))
+        });
+
+        let count = driver
+            .get_approximate_row_count(&test_connection_params(), "users", Some("dbo"))
+            .await
+            .expect("the plugin returns its estimate");
+        assert_eq!(count, Some(128400));
+
+        let none = test_driver_result(|_| Ok(json!(null)))
+            .get_approximate_row_count(&test_connection_params(), "users", None)
+            .await
+            .expect("null means no estimate");
+        assert_eq!(none, None);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_approximate_row_count_reports_other_errors() {
+        let driver = test_driver_result(|_| Err("boom".to_string()));
+
+        let result = driver
+            .get_approximate_row_count(&test_connection_params(), "users", None)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_falls_back_when_method_missing() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            Err("Method not found (-32601)".to_string())
+        });
+
+        let rendered = driver
+            .render_insert_statements("users", None, &["id".to_string()], &[vec![json!(1)]])
+            .await
+            .expect("a missing method falls back to the host renderer");
+
+        assert!(rendered.is_none());
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_forwards_the_batch() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            assert_eq!(request.params["table"], "users");
+            assert_eq!(request.params["schema"], "dbo");
+            assert_eq!(request.params["columns"], json!(["id", "name"]));
+            assert_eq!(request.params["rows"], json!([[1, "Ann"], [2, null]]));
+            Ok(json!([
+                "INSERT INTO [users] ([id], [name]) VALUES (1, N'Ann'), (2, NULL);"
+            ]))
+        });
+
+        let rendered = driver
+            .render_insert_statements(
+                "users",
+                Some("dbo"),
+                &["id".to_string(), "name".to_string()],
+                &[vec![json!(1), json!("Ann")], vec![json!(2), json!(null)]],
+            )
+            .await
+            .expect("the plugin renders the batch");
+
+        assert_eq!(
+            rendered,
+            Some(vec![
+                "INSERT INTO [users] ([id], [name]) VALUES (1, N'Ann'), (2, NULL);".to_string()
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_reports_other_errors() {
+        let driver = test_driver_result(|_| Err("boom".to_string()));
+
+        let result = driver
+            .render_insert_statements("users", None, &["id".to_string()], &[vec![json!(1)]])
+            .await;
+
+        assert!(result.is_err());
     }
 
     /// Regression: the ER diagram against a plugin lacking `get_schema_snapshot`

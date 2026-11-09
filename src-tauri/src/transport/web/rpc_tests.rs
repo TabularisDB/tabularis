@@ -167,6 +167,20 @@ impl ApplicationApi for FixtureApplication {
                     "size": 64
                 })
             }
+            crate::application::generic_exports::GenericExportCommand::ExportTable { .. } => {
+                serde_json::json!({
+                    "rows": 2,
+                    "bytes": 256,
+                    "structureSource": "driver",
+                    "file": {
+                        "kind": "download",
+                        "fileName": "users_20261030-120000.sql",
+                        "mimeType": "application/sql",
+                        "token": "table-export-download-token",
+                        "size": 256
+                    }
+                })
+            }
             crate::application::generic_exports::GenericExportCommand::CancelExport { .. } => {
                 Value::Null
             }
@@ -1222,6 +1236,32 @@ async fn routes_database_transfer_jobs_through_the_shared_application_api() {
             "cancel_table_transfer",
             serde_json::json!({"transferId": "transfer-1"}),
         ),
+        (
+            "read_table_sql_header",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "uploadToken": Uuid::new_v4().to_string()
+            }),
+        ),
+        (
+            "import_table_from_sql",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "uploadToken": Uuid::new_v4().to_string(),
+                "options": {"ifExists": "drop_and_recreate", "schema": "public"}
+            }),
+        ),
+        (
+            "cancel_table_import",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "export_table_to_sql",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "options": {"table": "users", "content": "structure_only", "schema": "public"}
+            }),
+        ),
     ];
 
     for (command, payload) in commands {
@@ -1257,6 +1297,10 @@ async fn routes_all_metadata_commands_through_the_shared_application_api() {
         ),
         (
             "get_columns",
+            serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
+        ),
+        (
+            "get_approximate_row_count",
             serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
         ),
         (

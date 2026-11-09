@@ -6,11 +6,14 @@ import {
     supportsColumnComments,
     supportsPluginDropTableSql,
     supportsExplain,
+    supportsQueryTimeout,
     supportsInMemoryDatabase,
     findDriverManifest,
     getCapabilitiesForDriver,
     speaksGenericSql,
     supportsColumnStatsRpc,
+    supportsTableExport,
+    supportsTableImport,
 } from '@/utils/driverCapabilities';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 
@@ -35,6 +38,35 @@ const makeManifest = (id: string, caps: Partial<DriverCapabilities> = {}): Plugi
 });
 
 describe('driverCapabilities', () => {
+    describe('supportsTableExport', () => {
+        it('is on unless the driver opts out', () => {
+            expect(supportsTableExport(makeCapabilities())).toBe(true);
+            expect(supportsTableExport(null)).toBe(true);
+            expect(supportsTableExport(makeCapabilities({readonly: true}))).toBe(true);
+            expect(supportsTableExport(makeCapabilities({table_export: false}))).toBe(false);
+        });
+
+        it('honours a plugin with its own dialect', () => {
+            const plugin = makeCapabilities({identifier_quote: '[', sql_dialect: 'mssql'});
+            expect(supportsTableExport(plugin)).toBe(true);
+        });
+    });
+
+    describe('supportsTableImport', () => {
+        it('is on for writable drivers that do not opt out', () => {
+            expect(supportsTableImport(makeCapabilities())).toBe(true);
+            expect(supportsTableImport(makeCapabilities({table_import: true}))).toBe(true);
+        });
+
+        it('is off for read-only drivers and plugins that opt out', () => {
+            expect(supportsTableImport(makeCapabilities({readonly: true}))).toBe(false);
+            expect(
+                supportsTableImport(makeCapabilities({readonly: true, table_import: true})),
+            ).toBe(false);
+            expect(supportsTableImport(makeCapabilities({table_import: false}))).toBe(false);
+        });
+    });
+
     describe('isLocalDriver', () => {
         it('should return true when file_based is true', () => {
             expect(isLocalDriver(makeCapabilities({file_based: true}))).toBe(true);
@@ -176,6 +208,24 @@ describe('driverCapabilities', () => {
 
         it('should return false when capabilities are undefined', () => {
             expect(supportsExplain(undefined)).toBe(false);
+        });
+    });
+
+    describe('supportsQueryTimeout', () => {
+        it('should return true when query_timeout is true', () => {
+            expect(supportsQueryTimeout(makeCapabilities({query_timeout: true}))).toBe(true);
+        });
+
+        it('should return false when query_timeout is false', () => {
+            expect(supportsQueryTimeout(makeCapabilities({query_timeout: false}))).toBe(false);
+        });
+
+        it('should return false when query_timeout is not set (default false)', () => {
+            expect(supportsQueryTimeout(makeCapabilities())).toBe(false);
+        });
+
+        it('should return false when capabilities are null', () => {
+            expect(supportsQueryTimeout(null)).toBe(false);
         });
     });
 

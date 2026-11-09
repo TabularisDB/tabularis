@@ -1,193 +1,190 @@
-import {describe, expect, it} from 'vitest';
-import type {TableTransferColumnPlan, TableTransferPlan, TableTransferResult} from '@/api/contract';
+import {describe, expect, it, vi} from 'vitest';
+import type {TabularisClient} from '@/api/client';
+import type {TableImportPreview} from '@/api/contract';
+import type {PlatformCapabilities} from '@/platform/capabilities';
 import {
-    TABLE_TRANSFER_ISSUE_CODES,
-    buildTransferRequest,
-    canTransferFrom,
-    isPlanBlocked,
-    isTransferPair,
-    issueMessageKey,
-    mappingsFromPlan,
-    progressPercent,
-    summarizeResult,
-    withMapping,
+    canStartTableImport,
+    chooseTableExportTarget,
+    deliverTableExport,
+    ifExistsOptions,
+    prepareTableImportSource,
+    resolveImportSchema,
+    tableExportFileName,
 } from '@/utils/tableTransfer';
-import en from '@/i18n/locales/en.json';
 
-const pairs = [
-    {source: 'postgres', target: 'postgres'},
-    {source: 'postgres', target: 'sqlite'},
-];
+function asClient(value: object): TabularisClient {
+    return value as unknown as TabularisClient;
+}
 
-const column = (overrides: Partial<TableTransferColumnPlan>): TableTransferColumnPlan => ({
-    sourceColumn: 'id',
-    sourceType: 'integer',
-    targetColumn: 'id',
-    targetType: 'INTEGER',
-    rule: 'exact',
-    skipped: false,
-    issue: null,
-    ...overrides,
-});
+function asPlatform(value: object): PlatformCapabilities {
+    return value as unknown as PlatformCapabilities;
+}
 
-const plan = (overrides: Partial<TableTransferPlan> = {}): TableTransferPlan => ({
-    tables: [
-        {
-            sourceTable: 'customers',
-            targetTable: 'customers',
-            columns: [column({})],
-            issues: [],
-            blocking: false,
-            estimatedRows: 10,
+function preview(overrides: Partial<TableImportPreview> = {}): TableImportPreview {
+    return {
+        header: {
+            formatVersion: 1,
+            tabularisVersion: '0.30.0',
+            driver: 'postgres',
+            driverVersion: null,
+            source: 'shop.public.orders',
+            table: 'orders',
+            content: 'structure_and_data',
+            structureSource: 'driver',
+            rows: 2,
+            exported: '2026-10-30T10:00:00Z',
         },
-    ],
-    issues: [],
-    blocking: false,
-    ...overrides,
-});
+        structure: 'CREATE TABLE "orders" ("id" integer);',
+        structureTruncated: false,
+        problem: null,
+        ...overrides,
+    };
+}
 
-describe('capability matrix helpers', () => {
-    it('reads supported pairs from the backend matrix, never from driver names', () => {
-        expect(canTransferFrom(pairs, 'postgres')).toBe(true);
-        expect(canTransferFrom(pairs, 'sqlite')).toBe(false);
-        expect(canTransferFrom(pairs, 'my-plugin')).toBe(false);
-        expect(isTransferPair(pairs, 'postgres', 'sqlite')).toBe(true);
-        expect(isTransferPair(pairs, 'sqlite', 'postgres')).toBe(false);
-        expect(isTransferPair([], 'postgres', 'postgres')).toBe(false);
-    });
-});
-
-describe('buildTransferRequest', () => {
-    it('omits empty optionals and sends explicit mappings only when present', () => {
-        const request = buildTransferRequest({
-            sourceConnectionId: 'a',
-            sourceSchema: 'public',
-            targetConnectionId: 'b',
-            sourceTable: 'customers',
-            targetTable: 'customers',
-            columns: [],
+describe('tableTransfer', () => {
+    describe('tableExportFileName', () => {
+        it('names the file after the table and the local time', () => {
+            expect(tableExportFileName('orders', new Date(2026, 8, 3, 14, 21, 7))).toBe(
+                'orders_20260903-142107.sql',
+            );
         });
-        expect(request).toEqual({
-            sourceConnectionId: 'a',
-            sourceSchema: 'public',
-            targetConnectionId: 'b',
-            tables: [{sourceTable: 'customers', targetTable: 'customers'}],
+
+        it('replaces characters file systems reject', () => {
+            expect(tableExportFileName('my orders/2026.v2', new Date(2026, 0, 1, 0, 0, 0))).toBe(
+                'my_orders_2026_v2_20260101-000000.sql',
+            );
+            expect(tableExportFileName('', new Date(2026, 0, 1, 0, 0, 0))).toBe(
+                'table_20260101-000000.sql',
+            );
         });
     });
 
-    it('carries mapping, conflict mode and transfer id', () => {
-        const request = buildTransferRequest({
-            sourceConnectionId: 'a',
-            sourceDatabase: 'app',
-            targetConnectionId: 'b',
-            targetDatabase: 'copy',
-            targetSchema: 'staging',
-            sourceTable: 's',
-            targetTable: 't',
-            columns: [{sourceColumn: 'x', targetColumn: null}],
-            conflict: 'skip',
-            transferId: 'job-1',
+    describe('chooseTableExportTarget', () => {
+        it('asks for a native save path on desktop', async () => {
+            const chooseSaveTarget = vi.fn().mockResolvedValue({reference: '/tmp/orders.sql'});
+            await expect(
+                chooseTableExportTarget(
+                    asPlatform({negotiation: {environment: 'tauri'}, chooseSaveTarget}),
+                    'orders.sql',
+                ),
+            ).resolves.toEqual({filePath: '/tmp/orders.sql'});
+            expect(chooseSaveTarget).toHaveBeenCalledWith(
+                expect.objectContaining({suggestedName: 'orders.sql'}),
+            );
         });
-        expect(request.conflict).toBe('skip');
-        expect(request.transferId).toBe('job-1');
-        expect(request.targetDatabase).toBe('copy');
-        expect(request.tables[0].columns).toEqual([{sourceColumn: 'x', targetColumn: null}]);
-    });
-});
 
-describe('column mapping edits', () => {
-    it('pins resolved mappings and keeps explicit skips', () => {
-        const mappings = mappingsFromPlan([
-            column({}),
-            column({sourceColumn: 'note', targetColumn: null, skipped: true, rule: null}),
-            column({
-                sourceColumn: 'ghost',
-                targetColumn: null,
-                issue: 'noTargetColumn',
-                rule: null,
-            }),
-        ]);
-        expect(mappings).toEqual([
-            {sourceColumn: 'id', targetColumn: 'id'},
-            {sourceColumn: 'note', targetColumn: null},
-        ]);
-    });
+        it('returns null when the save dialog is closed', async () => {
+            await expect(
+                chooseTableExportTarget(
+                    asPlatform({
+                        negotiation: {environment: 'tauri'},
+                        chooseSaveTarget: vi.fn().mockResolvedValue(null),
+                    }),
+                    'orders.sql',
+                ),
+            ).resolves.toBeNull();
+        });
 
-    it('replaces the mapping of one source column', () => {
-        const next = withMapping(
-            [
-                {sourceColumn: 'a', targetColumn: 'x'},
-                {sourceColumn: 'b', targetColumn: 'y'},
-            ],
-            'a',
-            null,
-        );
-        expect(next).toContainEqual({sourceColumn: 'a', targetColumn: null});
-        expect(next).toContainEqual({sourceColumn: 'b', targetColumn: 'y'});
-        expect(next).toHaveLength(2);
-    });
-});
-
-describe('isPlanBlocked', () => {
-    it('blocks without a plan and on any blocking issue', () => {
-        expect(isPlanBlocked(null)).toBe(true);
-        expect(isPlanBlocked(plan())).toBe(false);
-        expect(isPlanBlocked(plan({blocking: true}))).toBe(true);
-        expect(isPlanBlocked(plan({issues: [{code: 'targetReadOnly'}]}))).toBe(true);
-        const table = plan().tables[0];
-        expect(isPlanBlocked(plan({tables: [{...table, blocking: true}]}))).toBe(true);
-    });
-});
-
-describe('summarizeResult', () => {
-    const result = (
-        status: TableTransferResult['status'],
-        rowsWritten: number,
-    ): TableTransferResult => ({
-        transferId: 't',
-        status,
-        tables: [
-            {
-                sourceTable: 's',
-                targetTable: 't',
-                status,
-                rowsRead: rowsWritten + 5,
-                rowsWritten,
-                rowsSkipped: 2,
-                rowsFailed: 5,
-                error: null,
-            },
-        ],
-    });
-
-    it('reports committed work that remains after an unfinished transfer', () => {
-        expect(summarizeResult(result('cancelled', 500)).leavesCommittedRows).toBe(true);
-        expect(summarizeResult(result('failed', 0)).leavesCommittedRows).toBe(false);
-        expect(summarizeResult(result('completed', 500)).leavesCommittedRows).toBe(false);
-        expect(summarizeResult(result('failed', 1000))).toMatchObject({
-            rowsWritten: 1000,
-            rowsSkipped: 2,
-            rowsFailed: 5,
+        it('needs no path in the browser', async () => {
+            await expect(
+                chooseTableExportTarget(asPlatform({negotiation: {environment: 'browser'}}), 'x'),
+            ).resolves.toEqual({});
         });
     });
-});
 
-describe('progressPercent', () => {
-    it('needs an estimate and never reaches 100 before completion', () => {
-        expect(progressPercent(10, null)).toBeNull();
-        expect(progressPercent(10, 0)).toBeNull();
-        expect(progressPercent(50, 200)).toBe(25);
-        expect(progressPercent(500, 200)).toBe(99);
+    describe('deliverTableExport', () => {
+        it('downloads browser exports', async () => {
+            const requestDownload = vi.fn().mockResolvedValue(undefined);
+            await deliverTableExport(
+                asClient({requestDownload}),
+                asPlatform({negotiation: {environment: 'browser'}}),
+                {
+                    rows: 1,
+                    bytes: 10,
+                    structureSource: 'driver',
+                    file: {
+                        kind: 'download',
+                        fileName: 'orders.sql',
+                        mimeType: 'application/sql',
+                        token: 'download-token',
+                        size: 10,
+                    },
+                },
+            );
+            expect(requestDownload).toHaveBeenCalledWith('download-token');
+        });
+
+        it('does nothing on desktop', async () => {
+            const requestDownload = vi.fn();
+            await deliverTableExport(
+                asClient({requestDownload}),
+                asPlatform({negotiation: {environment: 'tauri'}}),
+                {rows: 1, bytes: 10, structureSource: 'generated', file: null},
+            );
+            expect(requestDownload).not.toHaveBeenCalled();
+        });
     });
-});
 
-describe('issue messages', () => {
-    it('has an English string for every backend issue code', () => {
-        const issues = en.tableTransfer.issue as Record<string, string>;
-        for (const code of TABLE_TRANSFER_ISSUE_CODES) {
-            expect(issues[code], code).toBeTruthy();
-            expect(issueMessageKey(code)).toBe(`tableTransfer.issue.${code}`);
-        }
-        expect(issueMessageKey('somethingNew')).toBe('tableTransfer.issue.unknown');
+    describe('prepareTableImportSource', () => {
+        it('uploads browser files with the table-import purpose', async () => {
+            const uploadFile = vi.fn().mockResolvedValue({token: 'upload-token'});
+            await expect(
+                prepareTableImportSource(
+                    asClient({uploadFile}),
+                    asPlatform({
+                        negotiation: {environment: 'browser'},
+                        readInputBlob: vi.fn().mockResolvedValue(new Blob(['-- x'])),
+                    }),
+                    {name: 'orders.sql', reference: 'browser-file:1'},
+                ),
+            ).resolves.toEqual({uploadToken: 'upload-token'});
+            expect(uploadFile).toHaveBeenCalledWith(
+                expect.objectContaining({fileName: 'orders.sql', purpose: 'table-import'}),
+            );
+        });
+
+        it('keeps desktop paths local', async () => {
+            await expect(
+                prepareTableImportSource(
+                    asClient({}),
+                    asPlatform({negotiation: {environment: 'tauri'}}),
+                    {name: 'orders.sql', reference: '/tmp/orders.sql'},
+                ),
+            ).resolves.toEqual({filePath: '/tmp/orders.sql'});
+        });
+    });
+
+    describe('ifExistsOptions', () => {
+        it('offers appending only when the file has rows', () => {
+            expect(ifExistsOptions('structure_and_data')).toEqual([
+                'fail',
+                'drop_and_recreate',
+                'append',
+            ]);
+            expect(ifExistsOptions('structure_only')).toEqual(['fail', 'drop_and_recreate']);
+        });
+    });
+
+    describe('resolveImportSchema', () => {
+        it('prefers the typed schema, then the node schema', () => {
+            expect(resolveImportSchema(' staging ', 'public')).toBe('staging');
+            expect(resolveImportSchema('', 'public')).toBe('public');
+            expect(resolveImportSchema('  ', undefined)).toBeUndefined();
+        });
+    });
+
+    describe('canStartTableImport', () => {
+        it('needs a preview without problems', () => {
+            expect(canStartTableImport(null, 'fail')).toBe(false);
+            expect(canStartTableImport(preview({problem: 'read-only'}), 'fail')).toBe(false);
+            expect(canStartTableImport(preview(), 'fail')).toBe(true);
+        });
+
+        it('refuses to append a structure-only file', () => {
+            const structureOnly = preview();
+            structureOnly.header = {...structureOnly.header, content: 'structure_only', rows: 0};
+            expect(canStartTableImport(structureOnly, 'append')).toBe(false);
+            expect(canStartTableImport(structureOnly, 'drop_and_recreate')).toBe(true);
+        });
     });
 });

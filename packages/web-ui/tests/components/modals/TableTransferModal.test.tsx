@@ -108,18 +108,18 @@ function setup(
 
 async function reachReview() {
     await act(async () => {});
-    fireEvent.change(screen.getByLabelText('tableTransfer.targetConnection'), {
+    fireEvent.change(screen.getByLabelText('tableRowTransfer.targetConnection'), {
         target: {value: 'lite-1'},
     });
     await waitFor(() =>
-        expect(screen.getByLabelText('tableTransfer.targetTable')).toBeInTheDocument(),
+        expect(screen.getByLabelText('tableRowTransfer.targetTable')).toBeInTheDocument(),
     );
-    fireEvent.change(screen.getByLabelText('tableTransfer.targetTable'), {
+    fireEvent.change(screen.getByLabelText('tableRowTransfer.targetTable'), {
         target: {value: 'customers'},
     });
-    fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.review'}));
+    fireEvent.click(screen.getByRole('button', {name: 'tableRowTransfer.review'}));
     await waitFor(() =>
-        expect(screen.getByRole('button', {name: 'tableTransfer.start'})).toBeInTheDocument(),
+        expect(screen.getByRole('button', {name: 'tableRowTransfer.start'})).toBeInTheDocument(),
     );
 }
 
@@ -151,7 +151,7 @@ describe('TableTransferModal', () => {
             }),
         });
 
-        fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.start'}));
+        fireEvent.click(screen.getByRole('button', {name: 'tableRowTransfer.start'}));
         await waitFor(() => expect(mocks.guard).toHaveBeenCalledWith('lite-1'));
         await waitFor(() =>
             expect(mocks.call).toHaveBeenCalledWith(
@@ -165,23 +165,23 @@ describe('TableTransferModal', () => {
                 expect.objectContaining({cancellationId: expect.any(String)}),
             ),
         );
-        expect(await screen.findByText('tableTransfer.status.completed')).toBeInTheDocument();
+        expect(await screen.findByText('tableRowTransfer.status.completed')).toBeInTheDocument();
     });
 
     it('does not start while the plan has blocking issues', async () => {
         setup(okPlan(true));
         await reachReview();
         expect(screen.getByRole('alert')).toHaveTextContent(
-            'tableTransfer.issue.incompatibleTypes',
+            'tableRowTransfer.issue.incompatibleTypes',
         );
-        expect(screen.getByRole('button', {name: 'tableTransfer.start'})).toBeDisabled();
+        expect(screen.getByRole('button', {name: 'tableRowTransfer.start'})).toBeDisabled();
     });
 
     it('does not run when the production write guard is declined', async () => {
         setup();
         await reachReview();
         mocks.guard.mockResolvedValue(false);
-        fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.start'}));
+        fireEvent.click(screen.getByRole('button', {name: 'tableRowTransfer.start'}));
         await act(async () => {});
         expect(mocks.call).not.toHaveBeenCalledWith(
             'run_table_transfer',
@@ -199,7 +199,7 @@ describe('TableTransferModal', () => {
             }),
         );
         await reachReview();
-        fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.start'}));
+        fireEvent.click(screen.getByRole('button', {name: 'tableRowTransfer.start'}));
         const cancel = await screen.findByRole('button', {name: 'common.cancel'});
         fireEvent.click(cancel);
         await waitFor(() =>
@@ -210,8 +210,8 @@ describe('TableTransferModal', () => {
         await act(async () => {
             finish(result('cancelled', 500));
         });
-        expect(await screen.findByText('tableTransfer.status.cancelled')).toBeInTheDocument();
-        expect(screen.getByText('tableTransfer.committedRemain')).toBeInTheDocument();
+        expect(await screen.findByText('tableRowTransfer.status.cancelled')).toBeInTheDocument();
+        expect(screen.getByText('tableRowTransfer.committedRemain')).toBeInTheDocument();
     });
 
     it('returns to the review step with the error when the run request fails', async () => {
@@ -223,12 +223,12 @@ describe('TableTransferModal', () => {
             }),
         );
         await reachReview();
-        fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.start'}));
+        fireEvent.click(screen.getByRole('button', {name: 'tableRowTransfer.start'}));
         await screen.findByRole('button', {name: 'common.cancel'});
         await act(async () => {
             fail(new Error('connection lost'));
         });
         expect(await screen.findByText(/connection lost/)).toBeInTheDocument();
-        expect(screen.getByRole('button', {name: 'tableTransfer.start'})).toBeEnabled();
+        expect(screen.getByRole('button', {name: 'tableRowTransfer.start'})).toBeEnabled();
     });
 });

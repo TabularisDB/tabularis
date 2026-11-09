@@ -1454,6 +1454,31 @@ describe('getFrozenCellBackdropClass', () => {
         );
     });
 
+    it('should paint the tone of a conditional formatting row rule (#991)', () => {
+        const cls = getFrozenCellBackdropClass({...row, isZebra: true, formatTone: 'warning'});
+        expect(cls).toContain(
+            'before:bg-[color-mix(in_srgb,var(--accent-warning)_15%,var(--bg-elevated))]',
+        );
+        expect(cls).toContain(
+            'group-hover:before:bg-[color-mix(in_srgb,var(--accent-warning)_25%,var(--bg-elevated))]',
+        );
+        expect(cls).not.toContain('var(--surface-secondary)_40%');
+    });
+
+    it('should keep the plain backdrop for a muted row rule', () => {
+        expect(getFrozenCellBackdropClass({...row, isZebra: true, formatTone: 'muted'})).toContain(
+            'before:bg-elevated',
+        );
+    });
+
+    it('should let the edit states win over a row rule', () => {
+        for (const state of [{isSelected: true}, {isInsertion: true}, {isPendingDelete: true}]) {
+            expect(
+                getFrozenCellBackdropClass({...row, ...state, formatTone: 'danger'}),
+            ).not.toContain('var(--accent-error)');
+        }
+    });
+
     it('should not add a hover tint to selected, inserted or deleted rows', () => {
         for (const state of [{isSelected: true}, {isInsertion: true}, {isPendingDelete: true}]) {
             expect(getFrozenCellBackdropClass({...row, ...state})).not.toContain('group-hover:');
