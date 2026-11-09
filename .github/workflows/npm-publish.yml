@@ -62,7 +62,7 @@ permissions:
 jobs:
   detect:
     name: Detect unpublished versions
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
     steps:
@@ -125,7 +125,7 @@ jobs:
     name: Publish ${{ matrix.package.name }}@${{ matrix.package.version }}
     needs: detect
     if: needs.detect.outputs.packages != '[]'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       id-token: write # npm provenance attestation
@@ -175,7 +175,7 @@ jobs:
     needs: [detect, publish]
     # Also after a partial failure: tag whatever did reach npm.
     if: ${{ !cancelled() && needs.detect.outputs.packages != '[]' && !inputs.dry_run }}
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write # push tags
       issues: write # relabel the release PR
@@ -233,7 +233,7 @@ jobs:
     # Runs after publish/tag so a just-merged release PR is already marked
     # tagged; otherwise release-please would refuse to open new release PRs.
     if: ${{ !cancelled() && !inputs.dry_run }}
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write # release branches
       pull-requests: write

@@ -276,6 +276,7 @@ Every release is documented in [CHANGELOG.md](./CHANGELOG.md).
 - **ER Diagram:** Interactive Entity-Relationship visualization (pan, zoom, layout) with selective table diagram generation.
 - **Context Actions:** Show data, count rows, modify schema, duplicate/delete tables.
 - **SQL Dump & Import:** Export and restore databases with a single flow.
+- **Table Export & Import:** Save one table, its structure and rows, as a SQL file and import it into any connection that uses the same driver, from the sidebar or the command palette.
 
 ### SQL Editor
 

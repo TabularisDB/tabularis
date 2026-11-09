@@ -54,6 +54,19 @@ export const UI_STATE_KEYS = {
         key: 'tabularis:explorer-pins',
         parseLegacy: (): undefined => undefined,
     },
+    // Expanded explorer tree nodes of every connection (see utils/explorerExpansion).
+    // Cached for the first paint so the tree does not open with a visible jump.
+    explorerExpanded: {
+        key: 'tabularis:explorer-expanded',
+        parseLegacy: (): undefined => undefined,
+        firstPaintCache: true,
+    },
+    // Height of the SQL editor above the results panel, in pixels.
+    editorPanelHeight: {
+        key: 'tabularis:editor-panel-height',
+        parseLegacy: (): undefined => undefined,
+        firstPaintCache: true,
+    },
     // Column order of the Visual EXPLAIN table view, `#` excluded.
     explainTableColumns: {
         key: 'tabularis:explain-table-columns',

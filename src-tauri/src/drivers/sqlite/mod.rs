@@ -639,7 +639,20 @@ pub async fn get_table_ddl(params: &ConnectionParams, table_name: &str) -> Resul
         .fetch_one(&pool)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(format!("{};", row.0))
+    // The table's own indexes; those SQLite creates for PRIMARY KEY and
+    // UNIQUE constraints have no SQL and come with the table.
+    let indexes: Vec<(String,)> = sqlx::query_as(
+        "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL ORDER BY name",
+    )
+    .bind(table_name)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let mut ddl = format!("{};", row.0);
+    for (index,) in indexes {
+        ddl.push_str(&format!("\n{index};"));
+    }
+    Ok(ddl)
 }
 
 /// Executes one statement against an already-acquired SQLite connection.
@@ -1066,12 +1079,15 @@ impl SqliteDriver {
                     column_comments: false,
                     drop_table_sql: false,
                     column_stats: false,
+                    query_timeout: false,
                     alter_column: false,
                     create_foreign_keys: false,
                     no_connection_required: false,
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    table_export: None,
+                    table_import: None,
                     triggers: true,
                     supports_ssl: false,
                     user_management: false,

@@ -36,6 +36,12 @@ For plugins with `capabilities.schemas: true`, the host does **not** rewrite
 plugin must use `schema` to select the namespace within its database.
 Single-database values and requests with no matching selection are unchanged.
 
+For plugins with `capabilities.schemas: false`, a connection saved with **All
+databases** selects none: the host lists them with `get_databases` when it
+connects, and `schema` names the one the explorer is on. `params.database` is
+then the connection's `default_database` when the plugin asks for one (see
+[Connection Fields](#connection-fields)), and empty otherwise.
+
 ### Lifecycle
 
 1. Tabularis discovers plugins in its data folder at startup:
@@ -118,6 +124,7 @@ One manifest tells Tabularis everything about your plugin — and, when you publ
 | `version` | string | Plugin version (semver, **no leading `v`**). Must equal the release tag with any `v` prefix stripped — the registry rejects tag/manifest mismatches. |
 | `description` | string | Short description shown in the plugins list. Optional for the registry; max **280 chars**. |
 | `default_port` | number \| null | Default TCP port. Use `null` for file-based databases. |
+| `default_username` | string | Optional username pre-filled in the connection modal for a new connection (e.g. `"root"`). |
 | `executable` | string | Relative path to the executable inside the plugin folder. |
 | `capabilities` | object | Feature flags (see below). |
 | `data_types` | array | List of supported data types (see below). |
@@ -155,8 +162,11 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
+| `table_export` | bool | Offers **Export table to SQL...** on table nodes. Defaults to `true`; set `false` for non-SQL plugins. See [Table Export and Import](#table-export-and-import). |
+| `table_import` | bool | Offers **Import table from SQL...** on database and schema nodes. Defaults to `true`; set `false` for non-SQL plugins. Always off when `readonly` is `true`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
+| `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL sets this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
 
 For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
 
@@ -365,6 +375,7 @@ The optional `connection_fields` object adapts the host-owned inputs of the conn
 - Overrides are presentation only: a hidden input is not rendered, but the value already saved for it is left untouched and still sent to the driver.
 - A hidden `database` input is not required on Test Connection or Save.
 - Hiding `host` also hides the "Load databases" action next to the database input.
+- A flat multi-database driver (`schemas: false`, not file- or folder-based, not `single_database`) has no Database input: its `database` holds the databases picked on the Databases tab, or none for All databases. Declaring `database` without `hidden` adds the input to the top of that tab, with your label and placeholder, for a value the driver needs besides that selection (SurrealDB's `namespace/database` to sign in to). Load Databases sends it as `params.database`, and so does Test Connection while no database is chosen. The connection saves it as `params.default_database`, and the host sends it as `params.database` while the connection selects none. Drivers that don't declare `database` are unchanged.
 - Use the `connection-modal.extra_fields` slot for the inputs the driver needs instead, and `setSecretField` for credentials (see [SlotContext](#slotcontext)).
 
 ---
@@ -877,7 +888,7 @@ Your plugin must run an event loop that:
 
 The `params.params` object is a `ConnectionParams` — the same values the user entered in the connection form. The top-level `params` may contain additional method-specific fields (e.g., `schema`, `table`, `column_name`, etc.).
 
-Optional settings appear only when the user set them. For example, `connect_timeout_secs` is the number of seconds to wait for a new connection. A plugin that supports a connect timeout should honor it and use its own default when it is absent.
+Optional settings appear only when the user set them. For example, `connect_timeout_secs` is the number of seconds to wait for a new connection. A plugin that supports a connect timeout should honor it and use its own default when it is absent. Likewise, `query_timeout_secs` is the number of seconds a statement may run; 0 or absent means no limit. Declare `capabilities.query_timeout: true` only when the plugin can cancel a running statement and will stop it on the server once the limit passes; the connection modal shows the field solely for that capability.
 
 ### Successful Response
 
@@ -1900,6 +1911,74 @@ the flag and always run the generic statement.
 **Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "constraint_name": string }`
 
 **Result:** `null` on success, or an error.
+
+---
+
+### Table Export and Import
+
+**Export table to SQL...** writes one table, its structure and optionally its
+rows, to a `.sql` file in your driver's dialect; **Import table from SQL...**
+reads such a file back into a connection that uses the same driver. Both work
+for a plugin that implements nothing new:
+
+- **Structure:** the host calls `get_table_ddl` below; without it, it builds
+  `CREATE TABLE` from `get_columns` and `get_create_table_sql`, and marks the
+  file `Structure-Source: generated` (indexes, constraints and defaults may be
+  missing).
+- **Rows:** the host pages `execute_query` with 1000 rows per page, ordered by
+  the primary key. Your paging must be deterministic and report
+  `pagination.has_more` correctly, or rows are lost or repeated.
+- **Literals:** without `render_insert_statements` below, the host renders
+  `INSERT` statements from `identifier_quote`, `sql_dialect` and
+  `sql_syntax` (string escaping and boolean literals).
+- **Import:** the host runs each statement through `execute_query` with the
+  target `schema`, and drops the table again when an import that created it
+  fails. Without `manage_tables` only **Append rows** into an existing table
+  is possible.
+
+Identifiers in the file are not schema-qualified, so a file can be imported
+into any database or schema of a server using the same driver. Set
+`table_export` and `table_import` to `false` when your engine has no SQL.
+
+#### `get_table_ddl` *(optional)*
+
+The engine's own `CREATE TABLE` (and index statements) for an existing table,
+also used by **Dump Database**. Return it unqualified, or qualified exactly as
+`<quoted schema>.<quoted table>` with your `identifier_quote` (the host strips
+that prefix). Answer `-32601` Method not found when you can't.
+
+**Params:** `{ "params": ConnectionParams, "table": string, "schema": string | null }`
+
+**Result:** `"CREATE TABLE [orders] (\n  [id] int NOT NULL PRIMARY KEY\n);"`
+
+---
+
+#### `render_insert_statements` *(optional)*
+
+Renders complete `INSERT` statements for one batch of up to 500 rows, for
+engines whose literals the host can't write (dates, decimals, binary, arrays,
+JSON, `N'...'` strings). `rows` are positional arrays matching `columns`, with
+values as your own `execute_query` returned them. No database access: this is
+pure rendering. Each statement may end with `;` or not.
+
+**Params:** `{ "table": string, "schema": string | null, "columns": string[], "rows": any[][] }`
+
+**Result:** `["INSERT INTO [orders] ([id], [note]) VALUES (1, N'it''s'), (2, NULL);"]`
+
+A `-32601` Method not found error makes the host render this and every later
+batch itself. Any other error stops the export.
+
+---
+
+#### `get_approximate_row_count` *(optional)*
+
+The table's approximate row count from the engine's own statistics, shown in
+the **Export table to SQL...** dialog. Keep it cheap: no table scan. Return
+`null` when there is no estimate; `-32601` Method not found shows none.
+
+**Params:** `{ "params": ConnectionParams, "table": string, "schema": string | null }`
+
+**Result:** `128400`
 
 ---
 

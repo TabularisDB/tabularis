@@ -203,6 +203,12 @@ pub struct ConnectionParams {
     )]
     pub connection_uri_in_keychain: Option<bool>,
     pub database: DatabaseSelection,
+    /// Database a plugin driver gets as `database` while the connection selects
+    /// none ("All databases"). Typed on the connection modal's Databases tab
+    /// by flat multi-database plugins that declare `connection_fields.database`,
+    /// such as the `namespace/database` a SurrealDB user signs in to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_database: Option<String>,
     pub ssl_mode: Option<String>,
     pub ssl_ca: Option<String>,
     pub ssl_cert: Option<String>,
@@ -294,6 +300,12 @@ pub struct ConnectionParams {
     /// PostgreSQL). Forwarded to driver plugins as part of `params`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connect_timeout_secs: Option<u32>,
+    /// Seconds a statement may run before it is cancelled on the server. None
+    /// or 0 means no limit. The built-in PostgreSQL driver applies it to each
+    /// statement run through `execute_query`. Driver plugins receive it in
+    /// `params` and may honor it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_timeout_secs: Option<u32>,
     /// Opaque, plugin-specific connection fields. The host does not interpret
     /// these — they are persisted verbatim and forwarded to the driver plugin
     /// as part of `params`, so plugins can carry custom connection settings

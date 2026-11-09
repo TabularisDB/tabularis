@@ -155,6 +155,32 @@ mod tests {
         assert!(params.extra.is_empty());
     }
 
+    /// `default_database` (typed on the Databases tab of a flat multi-database
+    /// plugin) is kept next to an "All databases" selection, and connections
+    /// without one neither fail to load nor gain the field when written back.
+    #[test]
+    fn connection_params_round_trip_default_database() {
+        let params = ConnectionParams {
+            driver: "surrealdb".to_string(),
+            database: DatabaseSelection::Single(String::new()),
+            default_database: Some("app/main".to_string()),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&params).expect("serialize params");
+        let restored: ConnectionParams =
+            serde_json::from_str(&json).expect("deserialize params");
+        assert_eq!(restored.default_database.as_deref(), Some("app/main"));
+        assert_eq!(restored.database, DatabaseSelection::Single(String::new()));
+
+        let legacy: ConnectionParams =
+            serde_json::from_str(r#"{"driver": "mysql", "host": "localhost", "database": ""}"#)
+                .expect("legacy params without default_database");
+        assert_eq!(legacy.default_database, None);
+        let json = serde_json::to_string(&legacy).expect("serialize legacy params");
+        assert!(!json.contains("default_database"));
+    }
+
     /// `extra` entries survive a persist round-trip untouched — the host must
     /// not interpret or rewrite plugin-specific values.
     #[test]

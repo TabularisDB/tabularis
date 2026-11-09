@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen} from '@testing-library/react';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {ConnectionCard, type ConnectionCardProps} from '@/components/connections/ConnectionCard';
@@ -162,5 +162,50 @@ describe('ConnectionCard driver updates', () => {
         });
         render(<Cards />);
         expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    });
+});
+
+describe('ConnectionCard driver chip', () => {
+    beforeEach(() => {
+        vi.mocked(usePluginRegistry).mockReturnValue({
+            plugins: [],
+            updates: [],
+            loading: false,
+            error: null,
+            refresh: vi.fn(),
+        });
+    });
+
+    function renderCard(driverId: string, manifests: PluginManifest[]) {
+        render(
+            <MemoryRouter>
+                <ConnectionCard
+                    {...props}
+                    conn={{...props.conn, params: {driver: driverId, database: 'db'}}}
+                    allDrivers={manifests}
+                    enabledDrivers={manifests}
+                />
+            </MemoryRouter>,
+        );
+    }
+
+    it("shows a plugin driver's manifest name as written", () => {
+        renderCard('surrealdb', [{...driver, id: 'surrealdb', name: 'SurrealDB'}]);
+        const chip = screen.getByText('SurrealDB');
+        expect(chip).not.toHaveClass('capitalize');
+        expect(screen.queryByText('surrealdb')).not.toBeInTheDocument();
+    });
+
+    it('keeps the capitalized id for built-in, legacy and unknown drivers', () => {
+        renderCard('postgres', [{...driver, id: 'postgres', name: 'PostgreSQL', is_builtin: true}]);
+        expect(screen.getByText('postgres')).toHaveClass('capitalize');
+        cleanup();
+
+        renderCard('duckdb', [{...driver, id: 'duckdb', name: 'duckdb'}]);
+        expect(screen.getByText('duckdb')).toHaveClass('capitalize');
+        cleanup();
+
+        renderCard('mystery', []);
+        expect(screen.getByText('mystery')).toHaveClass('capitalize');
     });
 });

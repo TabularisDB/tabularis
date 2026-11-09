@@ -1209,6 +1209,25 @@ pub async fn get_columns<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn get_approximate_row_count<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table_name: String,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<Option<u64>, String> {
+    crate::application::metadata::get_approximate_row_count(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table_name,
+        schema,
+        database,
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn get_foreign_keys<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,

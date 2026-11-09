@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import {cleanup} from '@testing-library/react';
 import {afterEach} from 'vitest';
 import {vi} from 'vitest';
+import {UI_STATE_CACHE_KEY, uiStateStore} from '@/utils/uiStateStore';
 
 class MockResizeObserver implements ResizeObserver {
     constructor(_callback: ResizeObserverCallback) {}
@@ -33,6 +34,9 @@ for (const name of ['localStorage', 'sessionStorage'] as const) {
 // Cleanup after each test
 afterEach(() => {
     cleanup();
+    // Shared UI state (e.g. expanded explorer nodes) must not leak into the next test.
+    localStorage.removeItem(UI_STATE_CACHE_KEY);
+    uiStateStore.reset();
 });
 
 // Mock browser APIs missing in JSDOM for Monaco Editor
@@ -177,6 +181,8 @@ vi.mock('lucide-react', () => ({
     Code: () => null,
     FileText: () => null,
     FileIcon: () => null,
+    FileDown: () => null,
+    FileUp: () => null,
     ImageIcon: () => null,
     Command: () => null,
     Braces: () => null,
