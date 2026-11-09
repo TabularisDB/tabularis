@@ -1064,6 +1064,7 @@ impl SqliteDriver {
                     materialized_views: false,
                     routines: false,
                     routine_management: false,
+                    routine_debug: None,
                     file_based: true,
                     folder_based: false,
                     // sqlx pools several connections; each would get its own `:memory:` database.

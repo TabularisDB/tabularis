@@ -8,6 +8,10 @@ Tabularis supports extending its capabilities via a JSON-RPC based external plug
 
 This guide details how to implement and register a custom external plugin.
 
+Native routine debugging is an optional, versioned capability. See
+[Routine debugger protocol v1](./ROUTINE_DEBUG.md) for the RPC, lifecycle,
+write protections and required native integration evidence.
+
 Plugins that connect to more than one database engine can opt in to
 [connection metadata discovery](./CONNECTION_METADATA.md) to report capabilities
 and data types for each connection. Existing plugins keep their static manifests.

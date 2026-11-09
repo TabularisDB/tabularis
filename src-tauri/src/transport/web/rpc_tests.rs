@@ -6,6 +6,26 @@ use axum::http::header::CONTENT_TYPE;
 use axum::http::HeaderValue;
 use uuid::Uuid;
 
+#[test]
+fn routine_debug_web_command_preserves_native_identity_and_rejects_extra_fields() {
+    let body = br#"{"connectionId":"oracle","version":1,"command":{"action":"step","session_id":"session","mode":"over"}}"#;
+    let command =
+        decode_database_object_command(DatabaseObjectRpcCommand::RoutineDebug, body).unwrap();
+    assert!(
+        matches!(command, DatabaseObjectCommand::RoutineDebug { version: 1, command: crate::routine_debug::DebugCommand::Step { session_id, mode: crate::routine_debug::DebugStep::Over }, .. } if session_id == "session")
+    );
+    let invalid = br#"{"connectionId":"oracle","version":1,"command":{"action":"start","preview_id":"p","session_id":"s","sql":"CALL other()"}}"#;
+    assert!(
+        decode_database_object_command(DatabaseObjectRpcCommand::RoutineDebug, invalid).is_err()
+    );
+    assert!(matches!(
+        RpcCommand::parse("routine_debug"),
+        Some(RpcCommand::DatabaseObject(
+            DatabaseObjectRpcCommand::RoutineDebug
+        ))
+    ));
+}
+
 struct FixtureApplication {
     delay: Duration,
     saved_params: HashMap<String, ConnectionParams>,

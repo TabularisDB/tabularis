@@ -604,6 +604,23 @@ pub async fn get_routine_parameters<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn routine_debug<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    version: u32,
+    command: crate::routine_debug::DebugCommand,
+) -> Result<crate::routine_debug::DebugResponse, String> {
+    crate::application::routine_debug::execute(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        version,
+        command,
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn get_routine_definition<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,

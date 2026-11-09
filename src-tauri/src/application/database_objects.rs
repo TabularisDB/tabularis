@@ -11,6 +11,11 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum DatabaseObjectCommand {
+    RoutineDebug {
+        connection_id: String,
+        version: u32,
+        command: crate::routine_debug::DebugCommand,
+    },
     GetTableQueryTemplate {
         connection_id: String,
         request: crate::models::TableQueryTemplateRequest,
@@ -241,6 +246,14 @@ pub async fn execute(
     command: DatabaseObjectCommand,
 ) -> Result<Value, String> {
     match command {
+        DatabaseObjectCommand::RoutineDebug {
+            connection_id,
+            version,
+            command,
+        } => json(
+            super::routine_debug::execute(runtime, session_id, &connection_id, version, command)
+                .await?,
+        ),
         DatabaseObjectCommand::GetTableQueryTemplate {
             connection_id,
             request,

@@ -1,4 +1,5 @@
 import type {DatabaseBackupStatus} from '@/types/databaseBackup';
+import type {DebugCommand, DebugResponse} from '@/types/routineDebug';
 import type {ChatGptModel, ChatGptSession} from '@/types/chatgpt';
 import type {TableQueryTemplateRequest} from '@/utils/tableQueryTemplates';
 import type {DataTypeRegistry} from '@/types/dataTypes';
@@ -914,6 +915,11 @@ export interface CommandMap {
     >;
     get_routine_edit_script: CommandDefinition<RoutineTargetRequest, string, 'database'>;
     drop_routine: CommandDefinition<RoutineTargetRequest, void, 'database'>;
+    routine_debug: CommandDefinition<
+        {connectionId: string; version: 1; command: DebugCommand},
+        DebugResponse,
+        'database'
+    >;
 
     get_trigger_definition: CommandDefinition<TriggerTargetRequest, string, 'database'>;
     create_trigger: CommandDefinition<MetadataRequest & {triggerSql: string}, void, 'database'>;

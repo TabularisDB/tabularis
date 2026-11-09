@@ -86,6 +86,8 @@ export interface DriverCapabilities {
     user_management?: boolean;
     /** Supports managing stored routines (run with parameters, create from template, edit, drop). Defaults to false. */
     routine_management?: boolean;
+    /** Versioned native routine debugger protocol. Omitted means unsupported. */
+    routine_debug?: number;
     /** Supports materialized views (e.g. PostgreSQL). When false, the frontend skips fetching materialized views entirely. Defaults to false. */
     materialized_views?: boolean;
     /** Shows the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal.
