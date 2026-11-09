@@ -117,6 +117,54 @@
     "beta": "Beta",
     "dismiss": "Dismiss"
   },
+  "linkedFolders": {
+    "tab": "SQL Files",
+    "chooseTitle": "Choose a folder of SQL scripts",
+    "link": "Link folder",
+    "refresh": "Refresh SQL Files",
+    "empty": "Link a folder to browse its SQL scripts.",
+    "needsConnection": "Connect to a database before opening a SQL file.",
+    "linkError": "Could not link the folder",
+    "unlinkError": "Could not unlink the folder",
+    "unlink": "Unlink {{name}}",
+    "rootUnavailable": "Unavailable",
+    "fileUnsaved": "{{name}} (unsaved changes)",
+    "unavailableTitle": "SQL Files are not available here",
+    "unavailableMessage": "Linking a local folder needs the desktop app. In the browser, use Open SQL file to import a file.",
+    "status": {
+      "loading": "Loading…",
+      "empty": "No SQL files",
+      "truncated": "Only the first entries are shown"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "The saved list of linked folders could not be read. Fix or remove linked_folders.json in the config folder.",
+      "linked_folder_not_found": "This linked folder no longer exists in your list.",
+      "linked_folder_unavailable": "The folder is missing or cannot be read.",
+      "linked_folder_limit_reached": "The maximum number of linked folders is reached. Unlink one first.",
+      "linked_path_outside_root": "The path is outside the linked folder.",
+      "linked_path_not_sql_file": "Only .sql, .psql and .pgsql files can be opened here.",
+      "linked_directory_unreadable": "This folder cannot be read.",
+      "linked_file_unreadable": "This file cannot be read. It may be missing, too large or not UTF-8.",
+      "linked_file_too_large": "This file is too large to save (limit 50 MB).",
+      "linked_file_write_failed": "The file could not be written. Check its permissions and free disk space.",
+      "linked_file_conflict_modified": "The file changed on disk.",
+      "linked_file_conflict_missing": "The file no longer exists on disk."
+    },
+    "conflict": {
+      "reload": "Reload from disk",
+      "saveAs": "Save as copy…",
+      "modified": {
+        "title": "File changed on disk",
+        "message": "{{name}} was modified outside Tabularis since you opened or last saved it. Nothing was written. Overwrite the file with your version, save your version as a copy, or reload the disk version and discard your edits.",
+        "overwrite": "Overwrite file"
+      },
+      "missing": {
+        "title": "File missing on disk",
+        "message": "{{name}} was deleted or moved outside Tabularis. Your edits are kept in the editor. Recreate the file with your version, or save it as a copy elsewhere.",
+        "overwrite": "Recreate file"
+      }
+    }
+  },
   "sidebar": {
     "connections": "Connections",
     "settings": "Settings",

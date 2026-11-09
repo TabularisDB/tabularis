@@ -117,6 +117,54 @@
     "beta": "ベータ",
     "dismiss": "閉じる"
   },
+  "linkedFolders": {
+    "tab": "SQL ファイル",
+    "chooseTitle": "SQL スクリプトのフォルダーを選択",
+    "link": "フォルダーをリンク",
+    "refresh": "SQL ファイルを更新",
+    "empty": "フォルダーをリンクして SQL スクリプトを参照します。",
+    "needsConnection": "SQL ファイルを開く前にデータベースに接続してください。",
+    "linkError": "フォルダーをリンクできませんでした",
+    "unlinkError": "フォルダーのリンクを解除できませんでした",
+    "unlink": "{{name}} のリンクを解除",
+    "rootUnavailable": "利用不可",
+    "fileUnsaved": "{{name}}（未保存の変更あり）",
+    "unavailableTitle": "ここでは SQL ファイルを利用できません",
+    "unavailableMessage": "ローカルフォルダーのリンクにはデスクトップアプリが必要です。ブラウザーでは「SQL ファイルを開く」でファイルをインポートしてください。",
+    "status": {
+      "loading": "読み込み中…",
+      "empty": "SQL ファイルがありません",
+      "truncated": "先頭の項目のみ表示しています"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "保存済みのリンクフォルダー一覧を読み取れません。設定フォルダーの linked_folders.json を修正または削除してください。",
+      "linked_folder_not_found": "このリンクフォルダーは一覧にありません。",
+      "linked_folder_unavailable": "フォルダーが存在しないか、読み取れません。",
+      "linked_folder_limit_reached": "リンクできるフォルダー数の上限に達しました。先に 1 つ解除してください。",
+      "linked_path_outside_root": "パスがリンクフォルダーの外にあります。",
+      "linked_path_not_sql_file": "ここでは .sql、.psql、.pgsql ファイルのみ開けます。",
+      "linked_directory_unreadable": "このフォルダーを読み取れません。",
+      "linked_file_unreadable": "このファイルを読み取れません。存在しない、大きすぎる、または UTF-8 ではない可能性があります。",
+      "linked_file_too_large": "このファイルは大きすぎて保存できません（上限 50 MB）。",
+      "linked_file_write_failed": "ファイルを書き込めませんでした。権限とディスクの空き容量を確認してください。",
+      "linked_file_conflict_modified": "ファイルがディスク上で変更されました。",
+      "linked_file_conflict_missing": "ファイルがディスク上に存在しません。"
+    },
+    "conflict": {
+      "reload": "ディスクから再読み込み",
+      "saveAs": "コピーとして保存…",
+      "modified": {
+        "title": "ファイルがディスク上で変更されました",
+        "message": "{{name}} は、開いたか最後に保存した後に Tabularis の外部で変更されました。何も書き込まれていません。自分のバージョンで上書きするか、コピーとして保存するか、ディスクのバージョンを再読み込みして編集を破棄してください。",
+        "overwrite": "ファイルを上書き"
+      },
+      "missing": {
+        "title": "ディスク上にファイルがありません",
+        "message": "{{name}} は Tabularis の外部で削除または移動されました。編集内容はエディターに残っています。自分のバージョンでファイルを再作成するか、別の場所にコピーとして保存してください。",
+        "overwrite": "ファイルを再作成"
+      }
+    }
+  },
   "sidebar": {
     "connections": "接続",
     "settings": "設定",

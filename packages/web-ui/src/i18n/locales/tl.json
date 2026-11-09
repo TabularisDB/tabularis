@@ -117,6 +117,54 @@
     "beta": "Beta",
     "dismiss": "Isara"
   },
+  "linkedFolders": {
+    "tab": "Mga SQL File",
+    "chooseTitle": "Pumili ng folder ng mga SQL script",
+    "link": "I-link ang folder",
+    "refresh": "I-refresh ang mga SQL File",
+    "empty": "Mag-link ng folder para i-browse ang mga SQL script nito.",
+    "needsConnection": "Kumonekta muna sa database bago magbukas ng SQL file.",
+    "linkError": "Hindi ma-link ang folder",
+    "unlinkError": "Hindi ma-unlink ang folder",
+    "unlink": "I-unlink ang {{name}}",
+    "rootUnavailable": "Hindi available",
+    "fileUnsaved": "{{name}} (may hindi pa nase-save na pagbabago)",
+    "unavailableTitle": "Hindi available dito ang mga SQL File",
+    "unavailableMessage": "Kailangan ng desktop app para mag-link ng lokal na folder. Sa browser, gamitin ang Buksan ang SQL file para mag-import ng file.",
+    "status": {
+      "loading": "Naglo-load…",
+      "empty": "Walang SQL file",
+      "truncated": "Ang unang mga entry lang ang ipinapakita"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "Hindi mabasa ang naka-save na listahan ng mga naka-link na folder. Ayusin o alisin ang linked_folders.json sa config folder.",
+      "linked_folder_not_found": "Wala na sa listahan mo ang naka-link na folder na ito.",
+      "linked_folder_unavailable": "Nawawala o hindi mabasa ang folder.",
+      "linked_folder_limit_reached": "Naabot na ang pinakamataas na bilang ng mga naka-link na folder. Mag-unlink muna ng isa.",
+      "linked_path_outside_root": "Nasa labas ng naka-link na folder ang path.",
+      "linked_path_not_sql_file": "Mga .sql, .psql at .pgsql na file lang ang mabubuksan dito.",
+      "linked_directory_unreadable": "Hindi mabasa ang folder na ito.",
+      "linked_file_unreadable": "Hindi mabasa ang file na ito. Maaaring nawawala ito, masyadong malaki o hindi UTF-8.",
+      "linked_file_too_large": "Masyadong malaki ang file para i-save (limit na 50 MB).",
+      "linked_file_write_failed": "Hindi maisulat ang file. Suriin ang mga permission at libreng espasyo sa disk.",
+      "linked_file_conflict_modified": "Nagbago ang file sa disk.",
+      "linked_file_conflict_missing": "Wala na ang file sa disk."
+    },
+    "conflict": {
+      "reload": "I-reload mula sa disk",
+      "saveAs": "I-save bilang kopya…",
+      "modified": {
+        "title": "Nagbago ang file sa disk",
+        "message": "Binago ang {{name}} sa labas ng Tabularis mula nang buksan o huling i-save mo ito. Walang naisulat. I-overwrite ang file gamit ang bersyon mo, i-save ito bilang kopya, o i-reload ang bersyon sa disk at itapon ang mga edit mo.",
+        "overwrite": "I-overwrite ang file"
+      },
+      "missing": {
+        "title": "Nawawala ang file sa disk",
+        "message": "Binura o inilipat ang {{name}} sa labas ng Tabularis. Nananatili sa editor ang mga edit mo. Muling likhain ang file gamit ang bersyon mo, o i-save ito bilang kopya sa ibang lugar.",
+        "overwrite": "Muling likhain ang file"
+      }
+    }
+  },
   "sidebar": {
     "connections": "Mga Koneksyon",
     "settings": "Mga Setting",
