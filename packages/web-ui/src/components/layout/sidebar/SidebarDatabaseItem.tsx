@@ -32,6 +32,8 @@ import {formatObjectCount} from '@/utils/schema';
 import {fuzzyFilter} from '@/utils/fuzzy';
 import {resolvePins} from '@/utils/explorerPins';
 import {useExplorerPins} from '@/hooks/useExplorerPins';
+import {useExplorerExpanded} from '@/hooks/useExplorerExpanded';
+import {expansionKey} from '@/utils/explorerExpansion';
 import {onActivationKey} from '@/utils/keyboardEvents';
 
 interface SidebarDatabaseItemProps {
@@ -108,7 +110,12 @@ export const SidebarDatabaseItem = ({
 }: SidebarDatabaseItemProps) => {
     const {t} = useTranslation();
 
-    const [isExpanded, setIsExpanded] = useState(activeSchema === databaseName);
+    // Saved across restarts; the active database still opens on mount.
+    const {isExpanded, setExpanded, reveal} = useExplorerExpanded(
+        expansionKey(connectionId, ['db', databaseName]),
+        false,
+        {revealed: activeSchema === databaseName},
+    );
     const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
     const [tablesOpen, setTablesOpen] = useState(true);
     const [viewsOpen, setViewsOpen] = useState(true);
@@ -142,7 +149,7 @@ export const SidebarDatabaseItem = ({
     if (activeSchema !== prevActiveSchema) {
         setPrevActiveSchema(activeSchema);
         if (activeSchema === databaseName) {
-            setIsExpanded(true);
+            reveal();
         }
     }
 
@@ -157,7 +164,7 @@ export const SidebarDatabaseItem = ({
         routines.length > 0 ? groupRoutinesByType(routines) : {procedures: [], functions: []};
 
     const handleToggle = () => {
-        setIsExpanded((current) => !current);
+        setExpanded(!isExpanded);
     };
 
     const itemCount = isLoaded

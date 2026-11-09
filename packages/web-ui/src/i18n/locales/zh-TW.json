@@ -1410,6 +1410,8 @@
         "selectTypeFirst": "請先選擇上下文/名稱空間/類型",
         "useK8s": "使用 Kubernetes 連接埠轉發",
         "useK8sConnection": "已儲存的連線",
+        "queryTimeout": "查詢逾時（秒）",
+        "queryTimeoutHint": "查詢執行超過此時間時在伺服器上停止。留空則不限制。",
         "startupScript": "啟動指令碼",
         "startupScriptDescription": "每次新建到此資料來源的連線時執行的 SQL。可用於工作階段設定，例如 SET / set_config（如繞過 RLS）。多條語句請用分號分隔。",
         "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",

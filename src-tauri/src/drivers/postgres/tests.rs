@@ -1924,6 +1924,139 @@ mod live_pg_routine_overloads {
     }
 }
 
+/// Query timeout and Stop against a live server. Each test looks for its own
+/// statement in `pg_stat_activity` to prove the server stopped running it,
+/// not just that the client stopped waiting.
+///
+/// Ignored by default; see `live_pg_temporal_and_uuid_regression` for setup.
+#[cfg(test)]
+mod live_pg_query_timeout {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use std::time::{Duration, Instant};
+
+    fn test_params() -> Option<ConnectionParams> {
+        if std::env::var("TABULARIS_TEST_PG").is_err() {
+            return None;
+        }
+        Some(ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some(
+                std::env::var("TABULARIS_TEST_PG_HOST").unwrap_or_else(|_| "localhost".to_string()),
+            ),
+            port: std::env::var("TABULARIS_TEST_PG_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .or(Some(55432)),
+            username: Some(
+                std::env::var("TABULARIS_TEST_PG_USER").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            password: Some(
+                std::env::var("TABULARIS_TEST_PG_PASSWORD")
+                    .unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            database: DatabaseSelection::Single(
+                std::env::var("TABULARIS_TEST_PG_DB").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            ..Default::default()
+        })
+    }
+
+    /// Whether another backend is running a statement containing `marker`.
+    async fn server_is_running(params: &ConnectionParams, marker: &str) -> bool {
+        let pool = crate::pool_manager::get_postgres_pool(params)
+            .await
+            .expect("connect to test postgres");
+        let client = pool.get().await.expect("get client");
+        let row = client
+            .query_one(
+                "SELECT count(*) FROM pg_stat_activity \
+                 WHERE state = 'active' AND pid <> pg_backend_pid() \
+                 AND position($1 in query) > 0",
+                &[&marker],
+            )
+            .await
+            .expect("read pg_stat_activity");
+        row.get::<_, i64>(0) > 0
+    }
+
+    async fn wait_until(params: &ConnectionParams, marker: &str, running: bool) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            if server_is_running(params, marker).await == running {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        false
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_query_timeout_stops_the_statement_on_the_server() {
+        let Some(mut params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        params.query_timeout_secs = Some(1);
+        let marker = "tabularis_989_timeout";
+        let queries = vec![
+            format!("SELECT pg_sleep(60) /* {marker} */"),
+            "SELECT 1 AS still_usable".to_string(),
+        ];
+
+        let start = Instant::now();
+        let results = super::super::execute_batch(&params, &queries, None, 1, None, None)
+            .await
+            .expect("the batch completes");
+
+        let elapsed = start.elapsed();
+        assert!(elapsed < Duration::from_secs(10), "took {elapsed:?}");
+        let error = results[0].error.as_deref().unwrap_or_default();
+        assert!(
+            error.contains("stopped after 1 s"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            results[1].result.is_some(),
+            "the connection is usable after the cancel: {:?}",
+            results[1].error
+        );
+        assert!(
+            wait_until(&params, marker, false).await,
+            "the server is still running the timed-out statement"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_dropped_run_stops_the_statement_on_the_server() {
+        let Some(params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let marker = "tabularis_989_stop";
+        let query = format!("SELECT pg_sleep(60) /* {marker} */");
+
+        // What the Stop button does: abort the task running the query.
+        let run = {
+            let params = params.clone();
+            tokio::spawn(async move {
+                super::super::execute_query(&params, &query, None, 1, None).await
+            })
+        };
+        assert!(
+            wait_until(&params, marker, true).await,
+            "the statement never started"
+        );
+        run.abort();
+
+        assert!(
+            wait_until(&params, marker, false).await,
+            "the server kept running the statement after Stop"
+        );
+    }
+}
+
 /// What `RoutineInfo` puts on the wire for each kind of dialect (#893).
 ///
 /// The field is read in TypeScript, where `null` and `undefined` are different

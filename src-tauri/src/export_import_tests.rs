@@ -26,6 +26,7 @@ mod tests {
                     ssh_enabled: Some(false),
                     save_in_keychain: Some(true),
                     connect_timeout_secs: Some(10),
+                    query_timeout_secs: Some(120),
                     ..Default::default()
                 },
                 plugin_secret_keys: vec![],
@@ -63,6 +64,7 @@ mod tests {
         assert_eq!(deserialized.ssh_connections.len(), 1);
         assert_eq!(deserialized.connections[0].params.password, Some("password".to_string()));
         assert_eq!(deserialized.connections[0].params.connect_timeout_secs, Some(10));
+        assert_eq!(deserialized.connections[0].params.query_timeout_secs, Some(120));
         assert_eq!(deserialized.ssh_connections[0].password, Some("ssh_password".to_string()));
     }
 

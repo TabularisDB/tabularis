@@ -61,6 +61,10 @@ export interface DriverCapabilities {
      * Defaults to false: SQL-compatible drivers (see `speaksGenericSql`) keep the
      * host's generic SQL, the others don't show the menu entry. */
     column_stats?: boolean;
+    /** Honours query_timeout_secs: the driver stops a statement on the server
+     * once the limit passes. Shows the query-timeout field in the connection
+     * modal. Built-in PostgreSQL sets this; plugins opt in. Defaults to false. */
+    query_timeout?: boolean;
     // DDL capabilities (optional, default to false when not present)
     alter_column?: boolean;
     create_foreign_keys?: boolean;
@@ -70,6 +74,10 @@ export interface DriverCapabilities {
     manage_tables?: boolean;
     /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */
     readonly?: boolean;
+    /** Offers "Export table to SQL" on table nodes. Defaults to true; non-SQL plugins set false. */
+    table_export?: boolean;
+    /** Offers "Import table from SQL" on database and schema nodes. Defaults to true; ignored (off) when readonly. */
+    table_import?: boolean;
     /** Supports EXPLAIN / query plan visualization. When false, the Visual Explain UI is hidden for connections using this driver. Defaults to false. */
     explain?: boolean;
     /** Supports listing and managing database triggers. Defaults to false. */
