@@ -21,6 +21,7 @@ import {
     chooseNotebookImport,
     downloadNotebook,
     downloadNotebookHtml,
+    downloadNotebookSql,
 } from '@/utils/notebookTransfer';
 import {isTypingTarget} from '@/utils/keyboardEvents';
 import {
@@ -575,6 +576,26 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         }
     }, [params, platform, showAlert, stopOnError, t, tab.title]);
 
+    const handleExportSql = useCallback(async () => {
+        try {
+            const outcome = await downloadNotebookSql(platform, tab.title, {
+                cells: cellsRef.current,
+            });
+            if (outcome === 'empty') {
+                showAlert(t('editor.notebook.exportSqlEmpty'), {kind: 'info'});
+            } else if (outcome === 'downloaded') {
+                showAlert(t('editor.notebook.exportSuccess'), {kind: 'info'});
+            }
+        } catch (e) {
+            console.error('SQL export failed:', e);
+            showAlert(
+                t('editor.notebook.exportError') ||
+                    `Export failed: ${e instanceof Error ? e.message : String(e)}`,
+                {kind: 'error'},
+            );
+        }
+    }, [platform, showAlert, t, tab.title]);
+
     const handleImport = useCallback(async () => {
         try {
             const imported = await chooseNotebookImport(platform);
@@ -763,6 +784,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         onRunAll: runAll,
         onExport: handleExport,
         onExportHtml: handleExportHtml,
+        onExportSql: handleExportSql,
         onImport: handleImport,
         isRunning: isRunningAll,
         stopOnError,
