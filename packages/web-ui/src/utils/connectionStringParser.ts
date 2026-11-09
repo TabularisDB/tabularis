@@ -51,11 +51,6 @@ interface ResolvedDriver {
 }
 
 /**
- * Groups of interchangeable URI schemes. When a driver registers any
- * protocol of a group, the other members become aliases for the same
- * driver (e.g. `postgresql://` works wherever `postgres://` does).
- */
-/**
  * Decodes a percent-encoded URL part. A `%` that does not start a valid escape (a
  * password such as `pa%ss` pasted as is) keeps the text the user typed instead of
  * throwing, since the URL parser passes such a part through unchanged.
@@ -68,6 +63,11 @@ function decodeUriPart(value: string): string {
     }
 }
 
+/**
+ * Groups of interchangeable URI schemes. When a driver registers any
+ * protocol of a group, the other members become aliases for the same
+ * driver (e.g. `postgresql://` works wherever `postgres://` does).
+ */
 const PROTOCOL_ALIAS_GROUPS: ReadonlyArray<ReadonlyArray<string>> = [
     ['postgres', 'postgresql'],
     ['mysql', 'mariadb'],
