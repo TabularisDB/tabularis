@@ -126,6 +126,7 @@ import {PageIndicator} from '@/components/ui/PageIndicator';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
 import {totalPageCount} from '@/utils/pagination';
+import {batchSnapshotLimit, isSnapshotResult, snapshotPage} from '@/utils/batchSnapshot';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
 import {TransposeIcon} from '@/components/icons/TransposeIcon';
 import {HiddenColumnsIndicator} from '@/components/ui/HiddenColumnsIndicator';
@@ -256,6 +257,9 @@ import clsx from 'clsx';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {createRequestId} from '@/api/errors';
 import {downloadGeneratedFile, downloadTextFile} from '@/utils/fileDownloads';
+import {useUiState} from '@/hooks/useUiState';
+import {UI_STATE_KEYS} from '@/utils/uiStateStore';
+import {DEFAULT_EDITOR_PANEL_HEIGHT, resolveEditorPanelHeight} from '@/utils/editorPanelHeight';
 
 const LOADED_ROWS_EXPORT_MIME_TYPES: Record<ResultExportFormat, string> = {
     csv: 'text/csv',
@@ -516,8 +520,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [showNewRowModal, setShowNewRowModal] = useState(false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
-    const [editorHeight, setEditorHeight] = useState(300);
-    const editorHeightRef = useRef(300);
+    // Saved across restarts and shared by every editor pane (see utils/editorPanelHeight).
+    const [storedEditorHeight, setEditorHeight] = useUiState<unknown>(
+        UI_STATE_KEYS.editorPanelHeight,
+        DEFAULT_EDITOR_PANEL_HEIGHT,
+    );
+    const editorHeight = resolveEditorPanelHeight(storedEditorHeight, window.innerHeight);
+    const editorHeightRef = useRef(editorHeight);
     // Root of this editor instance: the resize logic must stay scoped to it,
     // in split view every pane mounts its own Editor
     const editorRootRef = useRef<HTMLDivElement>(null);
@@ -1798,8 +1807,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                         historyDb,
                     );
                 }
+                const snapshot = pageSize && isSnapshotResult(res) ? res : undefined;
                 patchResultEntry(targetTabId, entry.id, {
-                    result: res,
+                    result: snapshot && pageSize ? snapshotPage(snapshot, 1, pageSize) : res,
+                    snapshot,
                     executionTime: execTime,
                     isLoading: false,
                     activeTable: tableName,
@@ -1829,7 +1840,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {
                         connectionId: activeConnectionId,
                         queries: entries.map((e) => e.query),
-                        limit: pageSize,
+                        // Capture a snapshot per statement: later pages are cut from
+                        // it, since re-running a statement after the batch would see
+                        // different session state (#205).
+                        limit: batchSnapshotLimit(pageSize),
                         page: 1,
                         batchId,
                         // The tab is the session: a transaction it leaves open keeps
@@ -2006,6 +2020,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const schema = currentTab?.schema ?? activeSchema;
 
             scrollTopByEntryKeyRef.current.delete(`${targetTabId}:${entryId}`);
+
+            // Run All results page through the rows captured during the batch.
+            if (entry.snapshot && currentTab?.results) {
+                const pageResult = snapshotPage(entry.snapshot, pageNum, pageSize ?? 0);
+                updateTab(targetTabId, {
+                    results: updateResultEntry(currentTab.results, entryId, {
+                        result: pageResult,
+                        page: pageResult.pagination?.page ?? 1,
+                    }),
+                });
+                return;
+            }
 
             // Mark this entry as loading
             if (currentTab?.results) {
@@ -4658,6 +4684,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const startResize = () => {
         isDragging.current = true;
+        editorHeightRef.current = editorHeight;
+        // `editorHeight` is clamped to the current window: only a real drag may
+        // save, or a plain click would overwrite a height saved on a larger screen.
+        let didResize = false;
         document.body.style.cursor = 'row-resize';
         const activeEditor = activeTab ? editorsRef.current[activeTab.id] : undefined;
 
@@ -4683,6 +4713,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const newHeight = e.clientY - panelTop;
             if (newHeight > 100 && newHeight < maxHeight) {
                 editorHeightRef.current = newHeight;
+                didResize = true;
                 if (rafRef.current) cancelAnimationFrame(rafRef.current);
                 rafRef.current = requestAnimationFrame(() => {
                     panels.forEach((el) => {
@@ -4697,7 +4728,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             document.body.style.cursor = '';
             overlay.remove();
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            setEditorHeight(editorHeightRef.current);
+            if (didResize) setEditorHeight(editorHeightRef.current);
             requestAnimationFrame(() => activeEditor?.layout());
             document.removeEventListener('mousemove', handleResize);
             document.removeEventListener('mouseup', stopResize);

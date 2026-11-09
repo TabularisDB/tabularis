@@ -258,9 +258,9 @@ describe('cellValueFilter', () => {
 
         it('accepts a capabilities object instead of a driver id for IN', () => {
             const capabilities = {identifier_quote: '`'} as DriverCapabilities;
-            expect(
-                buildCellValueFilterClause('id', 'IN', [1, 2], capabilities, 'integer'),
-            ).toBe('`id` IN (1, 2)');
+            expect(buildCellValueFilterClause('id', 'IN', [1, 2], capabilities, 'integer')).toBe(
+                '`id` IN (1, 2)',
+            );
         });
     });
 

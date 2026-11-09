@@ -32,6 +32,12 @@ pub enum MetadataCommand {
         schema: Option<String>,
         database: Option<String>,
     },
+    GetApproximateRowCount {
+        connection_id: String,
+        table_name: String,
+        schema: Option<String>,
+        database: Option<String>,
+    },
     GetForeignKeys {
         connection_id: String,
         table_name: String,
@@ -135,6 +141,22 @@ pub async fn execute(
             database,
         } => json(
             get_columns(
+                runtime,
+                session_id,
+                &connection_id,
+                table_name,
+                schema,
+                database,
+            )
+            .await?,
+        ),
+        MetadataCommand::GetApproximateRowCount {
+            connection_id,
+            table_name,
+            schema,
+            database,
+        } => json(
+            get_approximate_row_count(
                 runtime,
                 session_id,
                 &connection_id,
@@ -397,6 +419,23 @@ pub async fn get_columns(
 
     driver
         .get_columns(&params, &table_name, schema.as_deref())
+        .await
+}
+
+/// The table's approximate row count from the engine's statistics, or
+/// `None` when the driver has none (#709).
+pub async fn get_approximate_row_count(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+    table_name: String,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<Option<u64>, String> {
+    let (driver, params) = driver_and_params(runtime, session_id, connection_id, database).await?;
+
+    driver
+        .get_approximate_row_count(&params, &table_name, schema.as_deref())
         .await
 }
 

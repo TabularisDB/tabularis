@@ -114,6 +114,7 @@ pub mod storage_location;
 #[cfg(test)]
 pub mod storage_location_tests;
 
+pub mod table_sql;
 pub mod team_share;
 
 pub mod theme_models;

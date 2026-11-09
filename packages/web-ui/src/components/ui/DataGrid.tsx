@@ -96,6 +96,7 @@ import {
     resizeLockedColumn,
     getResizedTableWidth,
     isUuidColumnType,
+    isZebraStripedRow,
     type LockedColumnWidths,
     createDataGridResultCommands,
     type RangeExtendKey,
@@ -194,7 +195,7 @@ import {SetCellsValueModal} from '@/components/modals/SetCellsValueModal';
 import {KeybindingsContext} from '@/contexts/KeybindingsContext';
 import {GridFindBar} from './GridFindBar';
 import {useGridFind} from '@/hooks/useGridFind';
-import {getFindRowTexts} from '@/utils/gridFind';
+import {getFindRowTexts, getRevealScrollDelta} from '@/utils/gridFind';
 
 /** Horizontal padding of a grid cell (px-4 on both sides) plus its 1px border. */
 const FIT_COLUMN_PADDING = 33;
@@ -551,6 +552,16 @@ export const DataGrid = React.memo(function DataGrid({
     // so freezing the first field pins its row instead.
     const firstColumnFrozen = isFirstColumnFrozen && !transposed;
     const firstFieldRowFrozen = isFirstColumnFrozen && transposed;
+    // The frozen first field row sits right under the record header row, which
+    // is itself sticky only when sticky column headers are on.
+    const transposedFrozenTop = firstFieldRowFrozen
+        ? stickyColumnHeaders
+            ? DATA_GRID_ROW_HEIGHT
+            : 0
+        : null;
+    const transposedScrollPaddingTop =
+        (stickyColumnHeaders ? DATA_GRID_ROW_HEIGHT : 0) +
+        (transposedFrozenTop !== null ? DATA_GRID_ROW_HEIGHT : 0);
     const [columnStatsTarget, setColumnStatsTarget] = useState<{
         x: number;
         y: number;
@@ -3091,21 +3102,48 @@ export const DataGrid = React.memo(function DataGrid({
         (rowIndex: number) => rowVirtualizer.scrollToIndex(rowIndex, {align: 'center'}),
         [rowVirtualizer],
     );
-    // Transposed (#561), a match's record is a virtualized column: center it,
-    // then let the scroll padding keep its field clear of the sticky parts.
+    // Transposed (#561), a match's record is a virtualized column. As in the
+    // normal layout, the record is only centered when its cell is not fully
+    // visible beside the sticky field labels; then the scroll padding keeps the
+    // field clear of the sticky record header and the frozen first field.
     const revealTransposedMatch = useCallback(
         ({rowIndex, colIndex}: {rowIndex: number; colIndex: number}) => {
+            const scrollElement = parentRef.current;
+            const cellSelector = `td[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`;
+            const cell = scrollElement?.querySelector(cellSelector);
+            if (scrollElement && cell) {
+                const view = scrollElement.getBoundingClientRect();
+                const rect = cell.getBoundingClientRect();
+                const isRecordInView =
+                    getRevealScrollDelta(
+                        rect.left,
+                        rect.right,
+                        view.left + TRANSPOSED_FIELD_LABEL_WIDTH,
+                        view.left + scrollElement.clientWidth,
+                    ) === 0;
+                if (isRecordInView) {
+                    // A frozen cell never leaves the view vertically.
+                    const isFieldInView =
+                        getComputedStyle(cell).position === 'sticky' ||
+                        getRevealScrollDelta(
+                            rect.top,
+                            rect.bottom,
+                            view.top + transposedScrollPaddingTop,
+                            view.top + scrollElement.clientHeight,
+                        ) === 0;
+                    if (!isFieldInView) cell.scrollIntoView({block: 'nearest', inline: 'nearest'});
+                    return () => {};
+                }
+            }
             recordVirtualizer.scrollToIndex(rowIndex, {align: 'center'});
             const frame = requestAnimationFrame(() => {
                 parentRef.current
-                    ?.querySelector(
-                        `td[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`,
-                    )
+                    ?.querySelector(cellSelector)
                     ?.scrollIntoView({block: 'nearest', inline: 'nearest'});
             });
             return () => cancelAnimationFrame(frame);
         },
-        [recordVirtualizer],
+        [recordVirtualizer, transposedScrollPaddingTop],
     );
     const gridFind = useGridFind({
         rowCount: mergedRows.length,
@@ -3824,16 +3862,6 @@ export const DataGrid = React.memo(function DataGrid({
             (colIndex, position) => [headerGroup.headers[colIndex], colIndex, position] as const,
         );
 
-    // The frozen first field row sits right under the record header row, which
-    // is itself sticky only when sticky column headers are on.
-    const transposedFrozenTop = firstFieldRowFrozen
-        ? stickyColumnHeaders
-            ? DATA_GRID_ROW_HEIGHT
-            : 0
-        : null;
-    const transposedScrollPaddingTop =
-        (stickyColumnHeaders ? DATA_GRID_ROW_HEIGHT : 0) +
-        (transposedFrozenTop !== null ? DATA_GRID_ROW_HEIGHT : 0);
     // Item offsets include the label column (the virtualizer's paddingStart),
     // which the table already lays out as its own column.
     const transposedPaddingLeft =
@@ -3981,7 +4009,7 @@ export const DataGrid = React.memo(function DataGrid({
                             </tr>
                         </thead>
                         <tbody>
-                            {visibleColIndices.map((colIndex) => {
+                            {visibleColIndices.map((colIndex, position) => {
                                 const colName = columns[colIndex];
                                 const isFieldEditing = editingCell?.colIndex === colIndex;
                                 const isFieldExpanded = expandedCell?.colIndex === colIndex;
@@ -4018,6 +4046,9 @@ export const DataGrid = React.memo(function DataGrid({
                                                     ? transposedFrozenTop
                                                     : null
                                             }
+                                            // Striped by screen position, so hidden
+                                            // fields don't break the alternation.
+                                            isZebra={isZebraStripedRow(position, zebraStripes)}
                                             findMatchesByRow={gridFind.matchesByRow}
                                             currentFindRowIndex={
                                                 gridFind.currentMatch?.colIndex === colIndex
@@ -4377,7 +4408,9 @@ export const DataGrid = React.memo(function DataGrid({
                                             action: async () => {
                                                 setContextMenu(null);
                                                 try {
-                                                    const clipboardText = (await platform.readClipboard()).trim();
+                                                    const clipboardText = (
+                                                        await platform.readClipboard()
+                                                    ).trim();
                                                     if (!clipboardText) {
                                                         showToast(
                                                             t('dataGrid.filterClipboardEmpty'),
@@ -4431,7 +4464,8 @@ export const DataGrid = React.memo(function DataGrid({
                                             action: async () => {
                                                 setContextMenu(null);
                                                 try {
-                                                    const clipboardText = await platform.readClipboard();
+                                                    const clipboardText =
+                                                        await platform.readClipboard();
                                                     const {values, truncated, nonNumericDropped} =
                                                         parseClipboardInList(clipboardText, {
                                                             columnType: colDataType || undefined,

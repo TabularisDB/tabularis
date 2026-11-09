@@ -259,6 +259,64 @@ describe('EditorErrorBoundary', () => {
             expect(screen.getByText('editor.errorBoundary.analyzeWithAi')).toBeEnabled();
         });
 
+        it('renders Markdown in the analysis', async () => {
+            callMock.mockResolvedValue(
+                [
+                    'The editor could not render a component.',
+                    '',
+                    '1. **Restart Tabularis** and reopen the connection.',
+                    '2. Check the error mentioning `ReviewFixture`.',
+                    '',
+                    '```text',
+                    'Error: component failed to render',
+                    '```',
+                ].join('\n'),
+            );
+
+            renderAtEditor(<Crasher />);
+            fireEvent.click(screen.getByText('editor.errorBoundary.analyzeWithAi'));
+
+            const bold = await screen.findByText('Restart Tabularis');
+            expect(bold.tagName).toBe('STRONG');
+            expect(screen.getAllByRole('listitem')).toHaveLength(2);
+            expect(screen.getByText('ReviewFixture').tagName).toBe('CODE');
+            const block = screen.getByText('Error: component failed to render');
+            expect(block.closest('pre')).toHaveClass('overflow-x-auto');
+            expect(screen.getByRole('status')).not.toHaveTextContent('**');
+        });
+
+        it('keeps plain-text line breaks readable', async () => {
+            callMock.mockResolvedValue('First line\nSecond line');
+
+            renderAtEditor(<Crasher />);
+            fireEvent.click(screen.getByText('editor.errorBoundary.analyzeWithAi'));
+
+            const paragraph = (await screen.findByText(/First line/)).closest('p');
+            expect(paragraph).toHaveClass('whitespace-pre-line');
+            expect(paragraph?.textContent).toBe('First line\nSecond line');
+        });
+
+        it('does not render raw HTML and opens safe links externally', async () => {
+            callMock.mockResolvedValue(
+                [
+                    '<script>window.__pwned = true</script><img src=x onerror="alert(1)">',
+                    '',
+                    '[docs](https://example.com/docs) [bad](javascript:alert(1))',
+                ].join('\n'),
+            );
+
+            const {container} = renderAtEditor(<Crasher />);
+            fireEvent.click(screen.getByText('editor.errorBoundary.analyzeWithAi'));
+
+            const link = await screen.findByRole('link', {name: 'docs'});
+            expect(container.querySelector('script, img')).toBeNull();
+            expect(screen.queryByRole('link', {name: 'bad'})).not.toBeInTheDocument();
+            expect(screen.getByText('bad').closest('a')).toBeNull();
+
+            fireEvent.click(link);
+            expect(openExternalUrl).toHaveBeenCalledWith('https://example.com/docs');
+        });
+
         it('sends the redacted report to the configured provider', async () => {
             crashMessage = 'connect postgres://admin:hunter2@db.internal/app failed';
             callMock.mockResolvedValue('analysis');

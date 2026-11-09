@@ -3,6 +3,7 @@ import type {TableTarget} from '@/types/databaseObjects';
 import type {PaletteItem} from '@/types/palette';
 import {createTableCountRequest, createTableConsoleRequest} from './databaseObjectActions';
 import {PINNED_PALETTE_RELEVANCE} from './paletteItems';
+import type {TableTransferCommands} from './tableTransferCommands';
 
 interface BuiltInCommandLabels {
     openSettings: string;
@@ -12,6 +13,8 @@ interface BuiltInCommandLabels {
     inspectTable: string;
     generateSql: string;
     countRows: string;
+    exportTableToSql?: string;
+    importTableFromSql?: string;
     navigationCategory: string;
     connectionCategory: string;
     editorCategory: string;
@@ -44,6 +47,7 @@ export function createBuiltInCommandItems(
     modals: BuiltInCommandModals,
     getShortcut: (shortcutId: string) => string | undefined,
     editorActions?: BuiltInCommandEditorActions,
+    tableTransfer?: TableTransferCommands,
 ): PaletteItem[] {
     const items: PaletteItem[] = [
         {
@@ -197,6 +201,40 @@ export function createBuiltInCommandItems(
                 },
             },
         );
+    }
+
+    // Registered by the explorer sidebar for its selected node (#709).
+    const exportTable = tableTransfer?.exportTable;
+    if (exportTable && labels.exportTableToSql) {
+        items.push({
+            id: 'table.export-to-sql',
+            title: labels.exportTableToSql,
+            description: exportTable.description,
+            group: labels.tableCategory,
+            keywords: ['export', 'sql', 'dump', 'backup', 'table', 'file'],
+            icon: 'command',
+            primaryAction: {
+                id: 'table.export-to-sql',
+                label: labels.exportTableToSql,
+                execute: exportTable.run,
+            },
+        });
+    }
+    const importTable = tableTransfer?.importTable;
+    if (importTable && labels.importTableFromSql) {
+        items.push({
+            id: 'table.import-from-sql',
+            title: labels.importTableFromSql,
+            description: importTable.description,
+            group: labels.tableCategory,
+            keywords: ['import', 'sql', 'restore', 'table', 'file'],
+            icon: 'command',
+            primaryAction: {
+                id: 'table.import-from-sql',
+                label: labels.importTableFromSql,
+                execute: importTable.run,
+            },
+        });
     }
 
     const editorCommands = scope.getEditorCommands?.();
