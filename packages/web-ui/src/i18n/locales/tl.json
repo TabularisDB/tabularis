@@ -2481,6 +2481,7 @@
     "collapse": "I-collapse",
     "expandAll": "Palawakin lahat",
     "collapseAll": "Tiklupin lahat",
+    "sortKeys": "I-sort ang mga key",
     "search": "Maghanap",
     "copyPath": "Kopyahin ang Path",
     "copyValue": "Kopyahin ang Value",

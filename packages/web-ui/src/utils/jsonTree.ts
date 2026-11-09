@@ -1,4 +1,4 @@
-import type {ExternalTriggers, JsonData} from 'json-edit-react';
+import type {CompareFunction, ExternalTriggers, JsonData} from 'json-edit-react';
 
 export {isJsonColumn} from './json';
 
@@ -32,3 +32,13 @@ export function hasCollapsibleNodes(value: unknown): boolean {
 export function buildCollapseTrigger(collapsed: boolean): ExternalTriggers {
     return {collapse: {path: [], collapsed, includeChildren: true}};
 }
+
+const keyCollator = new Intl.Collator(undefined, {numeric: true});
+
+/**
+ * Orders object keys for the tree's `keySort`. The editor's default compares
+ * keys as plain strings, which shows "10" before "2"; this keeps digit runs in
+ * numeric order and ignores case at the first pass ("apple" before "Banana").
+ */
+export const compareJsonKeys: CompareFunction = ([a], [b]) =>
+    keyCollator.compare(String(a), String(b));

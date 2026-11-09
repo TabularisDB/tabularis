@@ -2378,6 +2378,7 @@
     "collapse": "Contraer",
     "expandAll": "Expandir todo",
     "collapseAll": "Contraer todo",
+    "sortKeys": "Ordenar claves",
     "search": "Buscar",
     "copyPath": "Copiar ruta",
     "copyValue": "Copiar valor",

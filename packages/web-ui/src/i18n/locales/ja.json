@@ -2454,7 +2454,8 @@
     "valid": "有効な JSON",
     "invalid": "無効な JSON",
     "expandAll": "すべて展開",
-    "collapseAll": "すべて折りたたむ"
+    "collapseAll": "すべて折りたたむ",
+    "sortKeys": "キーを並べ替え"
   },
   "jsonViewer": {
     "close": "閉じる",

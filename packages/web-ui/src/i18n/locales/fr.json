@@ -2491,6 +2491,7 @@
     "collapse": "Réduire",
     "expandAll": "Tout développer",
     "collapseAll": "Tout réduire",
+    "sortKeys": "Trier les clés",
     "search": "Rechercher",
     "copyPath": "Copier le chemin",
     "copyValue": "Copier la valeur",
