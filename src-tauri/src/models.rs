@@ -514,6 +514,16 @@ pub struct TableColumn {
     /// `data_type`, which keeps the base name other code matches on (#1277).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub full_type: Option<String>,
+    /// The column default as SQL that can go after `DEFAULT` in DDL as is
+    /// (`'new'`, `CURRENT_TIMESTAMP`, `(uuid())`). `default_value` is what the
+    /// server reports, which for MySQL is raw text (`new`), so the column
+    /// editor uses this one to restate the default on ALTER (#271).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_sql: Option<String>,
+    /// `ON UPDATE` expression of the column (MySQL `CURRENT_TIMESTAMP`), so
+    /// an ALTER that restates the column keeps it (#271).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -756,6 +766,10 @@ pub struct ColumnDefinition {
     /// omitted from the payload when unset so legacy request shapes hold.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
+    /// `ON UPDATE` expression to keep when a column is restated (MySQL
+    /// `CHANGE` / `MODIFY`). Omitted from the payload when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

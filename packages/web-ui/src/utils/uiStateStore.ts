@@ -54,6 +54,11 @@ export const UI_STATE_KEYS = {
         key: 'tabularis:explorer-pins',
         parseLegacy: (): undefined => undefined,
     },
+    // Conditional formatting rules of every table (see utils/conditionalFormatting).
+    gridFormatRules: {
+        key: 'tabularis:grid-format-rules',
+        parseLegacy: (): undefined => undefined,
+    },
     // Expanded explorer tree nodes of every connection (see utils/explorerExpansion).
     // Cached for the first paint so the tree does not open with a visible jump.
     explorerExpanded: {

@@ -218,12 +218,15 @@ pub async fn get_columns(
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
                 is_generated: false,
+                // PostgreSQL reports the default as SQL already.
+                default_sql: default_value.clone(),
                 default_value,
                 character_maximum_length,
                 numeric_precision,
                 numeric_scale,
                 comment: r.try_get("comment").ok(),
                 full_type,
+                on_update: None,
             }
         })
         .collect())
@@ -404,12 +407,15 @@ pub async fn get_all_columns_batch(
             is_nullable: null_str == "YES",
             is_auto_increment: is_auto,
             is_generated: false,
+            // PostgreSQL reports the default as SQL already.
+            default_sql: default_value.clone(),
             default_value,
             character_maximum_length,
             numeric_precision,
             numeric_scale,
             comment: row.try_get("comment").ok(),
             full_type,
+            on_update: None,
         };
 
         result
@@ -1738,12 +1744,15 @@ pub async fn get_view_columns(
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
                 is_generated: false,
+                // PostgreSQL reports the default as SQL already.
+                default_sql: default_value.clone(),
                 default_value,
                 character_maximum_length,
                 numeric_precision,
                 numeric_scale,
                 comment: None,
                 full_type,
+                on_update: None,
             }
         })
         .collect())
@@ -1815,6 +1824,8 @@ pub async fn get_materialized_view_columns(
             comment: None,
             // `data_type` is already `format_type(...)` here.
             full_type: None,
+            default_sql: None,
+            on_update: None,
         })
         .collect())
 }

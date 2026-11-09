@@ -46,6 +46,8 @@ fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> 
         is_nullable: notnull == 0,
         is_auto_increment: false,
         is_generated: hidden == 2 || hidden == 3,
+        // PRAGMA reports the default as SQL already.
+        default_sql: dflt_value.clone(),
         default_value: dflt_value,
         character_maximum_length: None,
         numeric_precision: None,
@@ -54,6 +56,7 @@ fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> 
         // `type` from PRAGMA table_xinfo is already the declared type
         // (`VARCHAR(255)`, `DECIMAL(10,2)`), so there is nothing to add.
         full_type: None,
+        on_update: None,
     })
 }
 

@@ -307,12 +307,14 @@ fn config_merge_keeps_plugin_timeouts_and_query_notifications() {
             plugin_call_timeout_seconds: Some(90),
             notify_long_queries: Some(true),
             notify_long_queries_threshold_sec: Some(30),
+            sql_diagnostics_enabled: Some(true),
             ..Default::default()
         },
     );
     assert_eq!(config.plugin_call_timeout_seconds, Some(90));
     assert_eq!(config.notify_long_queries, Some(true));
     assert_eq!(config.notify_long_queries_threshold_sec, Some(30));
+    assert_eq!(config.sql_diagnostics_enabled, Some(true));
 }
 
 #[test]

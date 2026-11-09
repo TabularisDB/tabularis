@@ -869,6 +869,7 @@ async fn table_structure(
             is_pk: column.is_pk,
             is_auto_increment: column.is_auto_increment,
             default_value: column.default_value.clone(),
+            on_update: column.on_update.clone(),
             comment: None,
         })
         .collect::<Vec<_>>();

@@ -896,6 +896,17 @@ export const DatabaseProvider = ({children}: {children: ReactNode}) => {
         [client, activeConnectionId, connectionDataMap, updateConnectionData, loadSchemaData],
     );
 
+    const refreshSchemas = useCallback(
+        async (targetConnectionId?: string) => {
+            const connId = targetConnectionId ?? activeConnectionId;
+            if (!connId) return [];
+            const schemasResult = await client.call('get_schemas', {connectionId: connId});
+            updateConnectionData(connId, {schemas: schemasResult});
+            return schemasResult;
+        },
+        [client, activeConnectionId, updateConnectionData],
+    );
+
     const loadNestedSchemaData = useCallback(
         async (database: string, schema: string, targetConnectionId?: string) => {
             const connId = targetConnectionId ?? activeConnectionId;
@@ -2444,6 +2455,7 @@ export const DatabaseProvider = ({children}: {children: ReactNode}) => {
                 loadSchemaData,
                 refreshSchemaData,
                 setSelectedSchemas,
+                refreshSchemas,
                 loadDatabaseData,
                 refreshDatabaseData,
                 setSelectedDatabases,
