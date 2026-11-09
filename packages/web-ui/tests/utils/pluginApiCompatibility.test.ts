@@ -2,12 +2,14 @@ import {describe, expect, it} from 'vitest';
 import {isPluginApiCompatible} from '@/utils/pluginApiCompatibility';
 import {API_VERSION} from '@/pluginApiVersion';
 
-it('gates the current provider contract while retaining older plugin APIs', () => {
+it('gates unported provider bundles while retaining the legacy sandbox facade', () => {
     const providerFixture = {api_version: '0.2.7'};
     expect(isPluginApiCompatible('0.2.0', providerFixture.api_version)).toBe(false);
     expect(isPluginApiCompatible('0.2.6', providerFixture.api_version)).toBe(false);
-    expect(isPluginApiCompatible(API_VERSION, providerFixture.api_version)).toBe(true);
-    expect(isPluginApiCompatible(API_VERSION, '0.2.0')).toBe(true);
+    expect(isPluginApiCompatible(API_VERSION, providerFixture.api_version)).toBe(false);
+    expect(isPluginApiCompatible(API_VERSION, '0.2.0')).toBe(false);
+    expect(isPluginApiCompatible(API_VERSION, '0.4.0')).toBe(true);
+    expect(isPluginApiCompatible(API_VERSION, '0.1.2')).toBe(false);
     expect(isPluginApiCompatible(API_VERSION, '0.1.1')).toBe(true);
 });
 

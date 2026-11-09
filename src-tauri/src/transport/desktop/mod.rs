@@ -6,7 +6,6 @@ pub mod ai_approval_watcher;
 pub mod ai_commands;
 pub mod askpass;
 pub mod backup;
-pub mod database_backup;
 pub mod chatgpt;
 pub mod clipboard_import;
 pub mod commands;
@@ -14,6 +13,9 @@ pub mod config;
 pub mod connection_appearance;
 pub mod connection_import_commands;
 pub mod connection_window;
+#[cfg(test)]
+mod connection_window_tests;
+pub mod database_backup;
 pub mod dump_commands;
 #[cfg(feature = "e2e-testing")]
 pub mod e2e_dialog_mock;
@@ -29,22 +31,21 @@ pub mod preferences;
 pub mod proxy;
 pub mod query_history;
 pub mod runtime;
+pub mod sandbox_protocol;
 pub mod saved_queries;
 pub mod sql_file;
 pub mod sqlite_database;
 pub mod storage_location;
 pub mod system_theme;
 pub mod task_manager;
+#[cfg(test)]
+mod tests;
 pub mod theme_commands;
 pub mod theme_packages;
 pub mod ui_state_commands;
 pub mod updater;
 pub mod window_decorations;
 pub mod window_placement;
-#[cfg(test)]
-mod connection_window_tests;
-#[cfg(test)]
-mod tests;
 
 use tauri::Manager;
 
@@ -107,7 +108,10 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_deep_link::init());
+        .plugin(tauri_plugin_deep_link::init())
+        .register_uri_scheme_protocol("tabularis-plugin", |ctx, request| {
+            crate::transport::desktop::sandbox_protocol::handle(ctx.app_handle(), request)
+        });
 
     // Dialog plugin: real in production, mocked under e2e-testing (the mock
     // auto-accepts ask()/confirm() so native Tauri confirm dialogs — which
@@ -408,6 +412,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::set_selected_databases,
             commands::get_tables,
             commands::get_columns,
+            commands::get_approximate_row_count,
             commands::get_foreign_keys,
             commands::get_indexes,
             commands::delete_record,
@@ -421,6 +426,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::get_file_stats,
             commands::read_file_as_data_url,
             commands::execute_query,
+            commands::execute_plugin_read_only_query,
             commands::execute_query_batch,
             commands::release_query_session,
             commands::get_server_now,
@@ -598,6 +604,10 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             dump_commands::cancel_dump,
             dump_commands::import_database,
             dump_commands::cancel_import,
+            dump_commands::export_table_to_sql,
+            dump_commands::read_table_sql_header,
+            dump_commands::import_table_from_sql,
+            dump_commands::cancel_table_import,
             // Updater
             updater::check_for_updates,
             updater::download_and_install_update,
@@ -653,6 +663,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             task_manager::get_tabularis_children,
             task_manager::kill_plugin_process,
             task_manager::restart_plugin_process,
+            task_manager::sync_plugin_settings,
             task_manager::open_task_manager_window,
             // Connection Appearance
             connection_appearance::save_connection_icon,

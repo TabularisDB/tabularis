@@ -1196,3 +1196,261 @@ describe('SqlEditorWrapper debounced value sync', () => {
         expect(mockOnChange).not.toHaveBeenCalledWith('ab');
     });
 });
+
+describe('SqlEditorWrapper cursor status (#1396)', () => {
+    const mockOnChange = vi.fn();
+    const mockOnRun = vi.fn();
+
+    interface PositionLike {
+        lineNumber: number;
+        column: number;
+    }
+    type Listener = () => void;
+
+    /** Positions to UTF-16 offsets the way a Monaco model does. */
+    const offsetIn = (text: string, {lineNumber, column}: PositionLike) => {
+        const lines = text.split('\n');
+        let offset = 0;
+        for (let i = 0; i < lineNumber - 1; i++) offset += lines[i].length + 1;
+        return offset + column - 1;
+    };
+
+    /** Mounts an editor mock whose selection, content and model events can be fired. */
+    const mountStatusEditor = (text: string) => {
+        const listeners = {
+            selection: [] as Listener[],
+            content: [] as Listener[],
+            model: [] as Listener[],
+        };
+        const disposed: string[] = [];
+        let value = text;
+        let position: PositionLike | null = {lineNumber: 1, column: 1};
+        let ranges: Array<[PositionLike, PositionLike]> = [];
+        const model = {
+            getValue: () => value,
+            getVersionId: () => 1,
+            getOffsetAt: (at: PositionLike) => offsetIn(value, at),
+        };
+        const subscribe = (bucket: Listener[], name: string) =>
+            vi.fn((listener: Listener) => {
+                bucket.push(listener);
+                return {dispose: () => disposed.push(name)};
+            });
+        const editor = {
+            addAction: vi.fn(),
+            addCommand: vi.fn(),
+            dispose: vi.fn(),
+            getContribution: vi.fn(() => null),
+            getModel: () => model,
+            getPosition: () => position,
+            getSelections: () =>
+                ranges.map(([start, end]) => ({
+                    isEmpty: () =>
+                        start.lineNumber === end.lineNumber && start.column === end.column,
+                    getStartPosition: () => start,
+                    getEndPosition: () => end,
+                })),
+            getSelection: () => null,
+            createDecorationsCollection: vi.fn(() => ({clear: vi.fn(), set: vi.fn()})),
+            onDidChangeCursorSelection: subscribe(listeners.selection, 'selection'),
+            onDidChangeModelContent: subscribe(listeners.content, 'content'),
+            onDidChangeModel: subscribe(listeners.model, 'model'),
+            onKeyDown: vi.fn(),
+            trigger: vi.fn(),
+        };
+        const monaco = {
+            KeyMod: {CtrlCmd: 1, Shift: 2, Alt: 4},
+            KeyCode: {KeyX: 8, KeyC: 16, KeyV: 32, Enter: 64, KeyF: 128, KeyA: 256},
+        };
+        act(() => {
+            monacoRenderState.onMount?.(editor, monaco);
+        });
+        const fire = (bucket: Listener[]) => {
+            act(() => {
+                bucket.forEach((listener) => listener());
+            });
+        };
+        return {
+            editor,
+            disposed,
+            select: (next: Array<[PositionLike, PositionLike]>, cursor: PositionLike) => {
+                ranges = next;
+                position = cursor;
+                fire(listeners.selection);
+            },
+            replaceModel: (nextText: string, cursor: PositionLike) => {
+                value = nextText;
+                ranges = [];
+                position = cursor;
+                fire(listeners.model);
+            },
+            edit: (nextText: string, cursor: PositionLike) => {
+                value = nextText;
+                position = cursor;
+                fire(listeners.content);
+            },
+        };
+    };
+
+    const at = (lineNumber: number, column: number): PositionLike => ({lineNumber, column});
+    const statusOf = (element: HTMLElement) => ({
+        line: element.getAttribute('data-line'),
+        column: element.getAttribute('data-column'),
+        selections: element.getAttribute('data-selections'),
+        selected: element.getAttribute('data-selected'),
+    });
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        monacoRenderState.onMount = undefined;
+        matchesShortcutMock.mockReturnValue(false);
+        settingsValue.settings = DEFAULT_SETTINGS;
+    });
+
+    it('is off by default and subscribes to nothing extra', () => {
+        render(
+            <SqlEditorWrapper initialValue="SELECT 1" onChange={mockOnChange} onRun={mockOnRun} />,
+            {
+                wrapper,
+            },
+        );
+        const {editor} = mountStatusEditor('SELECT 1');
+
+        expect(screen.queryByRole('status')).toBeNull();
+        expect(editor.onDidChangeModel).not.toHaveBeenCalled();
+    });
+
+    it('follows the cursor, multiline and multiple selections, and a cleared selection', () => {
+        const text = "SELECT 1;\nSELECT '😀';\nSELECT 3;";
+        render(
+            <SqlEditorWrapper
+                initialValue={text}
+                onChange={mockOnChange}
+                onRun={mockOnRun}
+                cursorStatus
+            />,
+            {wrapper},
+        );
+        const {select} = mountStatusEditor(text);
+
+        const status = screen.getByRole('status', {name: 'editor.cursorStatusLabel'});
+        expect(statusOf(status)).toEqual({line: '1', column: '1', selections: '0', selected: '0'});
+        expect(status).toHaveTextContent(/^editor\.cursorPosition$/);
+
+        // A multiline selection through the emoji: 13 UTF-16 code units, where
+        // '😀' counts as two (it would be four bytes).
+        select([[at(1, 8), at(2, 11)]], at(2, 11));
+        expect(statusOf(status)).toEqual({
+            line: '2',
+            column: '11',
+            selections: '1',
+            selected: '13',
+        });
+        expect(status).toHaveTextContent('editor.cursorSelection');
+
+        // Two column-mode selections plus a plain cursor, which does not count.
+        select(
+            [
+                [at(1, 1), at(1, 7)],
+                [at(3, 1), at(3, 7)],
+                [at(2, 3), at(2, 3)],
+            ],
+            at(3, 7),
+        );
+        expect(statusOf(status)).toEqual({line: '3', column: '7', selections: '2', selected: '12'});
+        expect(status).toHaveTextContent('editor.cursorSelections');
+
+        // Clearing the selection leaves the position only.
+        select([[at(2, 4), at(2, 4)]], at(2, 4));
+        expect(statusOf(status)).toEqual({line: '2', column: '4', selections: '0', selected: '0'});
+        expect(status).toHaveTextContent(/^editor\.cursorPosition$/);
+    });
+
+    it('recomputes on content changes and when the editor switches models', () => {
+        render(
+            <SqlEditorWrapper
+                initialValue="SELECT 1"
+                onChange={mockOnChange}
+                onRun={mockOnRun}
+                cursorStatus
+            />,
+            {wrapper},
+        );
+        const {select, edit, replaceModel} = mountStatusEditor('SELECT 1');
+        const status = screen.getByRole('status');
+
+        select([[at(1, 1), at(1, 9)]], at(1, 9));
+        expect(statusOf(status)).toEqual({line: '1', column: '9', selections: '1', selected: '8'});
+
+        // Typing over the selection: the content event carries the new state.
+        edit('SELECT 1\nSELECT 2', at(2, 9));
+        expect(statusOf(status).line).toBe('2');
+
+        // A new model attached to the same editor: the old selection is gone
+        // and the position belongs to the new model.
+        replaceModel('-- fresh', at(1, 3));
+        expect(statusOf(status)).toEqual({line: '1', column: '3', selections: '0', selected: '0'});
+    });
+
+    it('keeps the status of each editor separate', () => {
+        const text = 'SELECT 1';
+        render(
+            <SqlEditorWrapper
+                initialValue={text}
+                onChange={mockOnChange}
+                onRun={mockOnRun}
+                editorKey="first"
+                cursorStatus
+            />,
+            {wrapper},
+        );
+        const first = mountStatusEditor(text);
+        first.select([[at(1, 1), at(1, 7)]], at(1, 7));
+
+        render(
+            <SqlEditorWrapper
+                initialValue={text}
+                onChange={mockOnChange}
+                onRun={mockOnRun}
+                editorKey="second"
+                cursorStatus
+            />,
+            {wrapper},
+        );
+        const second = mountStatusEditor(text);
+        second.select([], at(1, 3));
+
+        const [firstStatus, secondStatus] = screen.getAllByRole('status');
+        expect(statusOf(firstStatus)).toEqual({
+            line: '1',
+            column: '7',
+            selections: '1',
+            selected: '6',
+        });
+        expect(statusOf(secondStatus)).toEqual({
+            line: '1',
+            column: '3',
+            selections: '0',
+            selected: '0',
+        });
+    });
+
+    it('disposes its listeners on unmount', () => {
+        const {unmount} = render(
+            <SqlEditorWrapper
+                initialValue="SELECT 1"
+                onChange={mockOnChange}
+                onRun={mockOnRun}
+                cursorStatus
+            />,
+            {wrapper},
+        );
+        const {disposed, editor} = mountStatusEditor('SELECT 1');
+        expect(disposed).toEqual([]);
+
+        unmount();
+
+        expect(disposed.sort()).toEqual(['content', 'model', 'selection']);
+        expect(editor.dispose).toHaveBeenCalledOnce();
+    });
+});

@@ -26,8 +26,9 @@ pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{
     escape_identifier, inline_str_placeholders, is_raw_sql_function, is_wkt_geometry,
-    mysql_bytes_literal, mysql_column_types, mysql_row_max_length, mysql_row_str,
-    mysql_row_str_opt, mysql_string_literal,
+    mysql_bytes_literal, mysql_column_types, mysql_default_sql, mysql_on_update,
+    mysql_row_max_length, mysql_row_str, mysql_row_str_opt, mysql_server_flags,
+    mysql_string_literal,
 };
 use row_identity::get_float_columns;
 use sqlx::{Column, Row};
@@ -322,7 +323,7 @@ pub async fn get_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
+        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED), VERSION(), @@sql_mode
         FROM information_schema.columns
         WHERE table_schema = ? AND table_name = ?
         ORDER BY ordinal_position
@@ -356,6 +357,21 @@ pub async fn get_columns(
 
             let is_auto_increment = extra.contains("auto_increment");
 
+            let (is_mariadb, no_backslash_escapes) =
+                mysql_server_flags(&mysql_row_str(r, 11), &mysql_row_str(r, 12));
+            let default_sql = if !is_auto_increment {
+                mysql_default_sql(
+                    default_val.as_deref(),
+                    &extra,
+                    &data_type,
+                    is_mariadb,
+                    no_backslash_escapes,
+                )
+            } else {
+                None
+            };
+            let on_update = mysql_on_update(&extra);
+
             let default_value = if !is_auto_increment {
                 match default_val {
                     Some(val) if !val.is_empty() && !val.eq_ignore_ascii_case("null") => Some(val),
@@ -378,6 +394,8 @@ pub async fn get_columns(
                 numeric_scale,
                 comment: mysql_row_str_opt(r, 8),
                 full_type,
+                default_sql,
+                on_update,
             }
         })
         .collect())
@@ -457,7 +475,7 @@ pub async fn get_all_columns_batch(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
+        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED), VERSION(), @@sql_mode
         FROM information_schema.columns
         WHERE table_schema = ?
         ORDER BY table_name, ordinal_position
@@ -492,6 +510,21 @@ pub async fn get_all_columns_batch(
 
         let is_auto_increment = extra.contains("auto_increment");
 
+        let (is_mariadb, no_backslash_escapes) =
+            mysql_server_flags(&mysql_row_str(row, 12), &mysql_row_str(row, 13));
+        let default_sql = if !is_auto_increment {
+            mysql_default_sql(
+                default_val.as_deref(),
+                &extra,
+                &data_type,
+                is_mariadb,
+                no_backslash_escapes,
+            )
+        } else {
+            None
+        };
+        let on_update = mysql_on_update(&extra);
+
         let default_value = if !is_auto_increment {
             match default_val {
                 Some(val) if !val.is_empty() && !val.eq_ignore_ascii_case("null") => Some(val),
@@ -514,6 +547,8 @@ pub async fn get_all_columns_batch(
             numeric_scale,
             comment: mysql_row_str_opt(row, 9),
             full_type,
+            default_sql,
+            on_update,
         };
 
         result
@@ -706,7 +741,6 @@ fn build_mysql_pk_where(
     Ok(pairs)
 }
 
-
 pub async fn save_blob_column_to_file(
     params: &ConnectionParams,
     table: &str,
@@ -776,7 +810,10 @@ async fn mysql_fetch_one_with_pk(
             .await
             .map_err(|e| e.to_string())
     } else {
-        qb3.build().fetch_one(&pool).await.map_err(|e| e.to_string())
+        qb3.build()
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -1084,6 +1121,29 @@ pub async fn get_table_ddl(params: &ConnectionParams, table_name: &str) -> Resul
     Ok(format!("{};", create_sql))
 }
 
+/// `information_schema.TABLES.TABLE_ROWS`: exact for MyISAM, an estimate
+/// for InnoDB.
+pub async fn get_approximate_row_count(
+    params: &ConnectionParams,
+    table_name: &str,
+    schema: Option<&str>,
+) -> Result<Option<u64>, String> {
+    let db_name = schema.unwrap_or_else(|| params.database.primary());
+    let pool = get_mysql_pool(params).await?;
+    let text = resolve_text_proto(&pool, params).await?;
+    let rows = fetch_all_rows(
+        &pool,
+        text,
+        "SELECT CAST(table_rows AS CHAR) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
+        &[db_name, table_name],
+    )
+    .await?;
+    Ok(rows
+        .first()
+        .and_then(|row| mysql_row_str_opt(row, 0))
+        .and_then(|rows| rows.parse().ok()))
+}
+
 pub async fn get_views(
     params: &ConnectionParams,
     schema: Option<&str>,
@@ -1240,6 +1300,9 @@ pub async fn get_view_columns(
                 numeric_scale,
                 comment: None,
                 full_type,
+                // View columns can't be altered, so no DDL default is needed.
+                default_sql: None,
+                on_update: None,
             }
         })
         .collect())
@@ -1676,7 +1739,9 @@ pub async fn get_triggers(
 
 // --- User management ---------------------------------------------------
 
-pub async fn get_db_users(params: &ConnectionParams) -> Result<Vec<crate::models::DbUserInfo>, String> {
+pub async fn get_db_users(
+    params: &ConnectionParams,
+) -> Result<Vec<crate::models::DbUserInfo>, String> {
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
     // `account_locked` exists on MySQL 5.7+ / MariaDB 10.4+; older servers
@@ -1703,12 +1768,9 @@ pub async fn get_db_users(params: &ConnectionParams) -> Result<Vec<crate::models
                 // No SELECT privilege on mysql.user: degrade to the connected
                 // account only — everyone may run SHOW GRANTS on themselves.
                 Err(_) => {
-                    let row =
-                        fetch_one_row(&pool, text, "SELECT CURRENT_USER()", &[]).await?;
+                    let row = fetch_one_row(&pool, text, "SELECT CURRENT_USER()", &[]).await?;
                     let current = mysql_row_str(&row, 0);
-                    let (user, host) = current
-                        .rsplit_once('@')
-                        .unwrap_or((current.as_str(), "%"));
+                    let (user, host) = current.rsplit_once('@').unwrap_or((current.as_str(), "%"));
                     return Ok(vec![crate::models::DbUserInfo {
                         user: user.to_string(),
                         host: host.to_string(),
@@ -1763,7 +1825,10 @@ pub async fn create_db_user(
     host: &str,
     password: &str,
 ) -> Result<(), String> {
-    exec_user_stmt(params, |nbe| users::create_user_sql(user, host, password, nbe)).await
+    exec_user_stmt(params, |nbe| {
+        users::create_user_sql(user, host, password, nbe)
+    })
+    .await
 }
 
 pub async fn drop_db_user(params: &ConnectionParams, user: &str, host: &str) -> Result<(), String> {
@@ -1776,7 +1841,10 @@ pub async fn set_db_user_password(
     host: &str,
     password: &str,
 ) -> Result<(), String> {
-    exec_user_stmt(params, |nbe| users::set_password_sql(user, host, password, nbe)).await
+    exec_user_stmt(params, |nbe| {
+        users::set_password_sql(user, host, password, nbe)
+    })
+    .await
 }
 
 pub async fn get_db_user_privileges(
@@ -1948,12 +2016,15 @@ impl MysqlDriver {
                     column_comments: false,
                     drop_table_sql: false,
                     column_stats: false,
+                    query_timeout: false,
                     alter_column: true,
                     create_foreign_keys: true,
                     no_connection_required: false,
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    table_export: None,
+                    table_import: None,
                     triggers: true,
                     user_management: true,
                     supports_ssl: true,
@@ -2269,9 +2340,7 @@ impl DatabaseDriver for MysqlDriver {
         get_routine_definition(params, routine_name, routine_type, schema).await
     }
 
-    async fn get_db_privilege_catalog(
-        &self,
-    ) -> Result<crate::models::DbPrivilegeCatalog, String> {
+    async fn get_db_privilege_catalog(&self) -> Result<crate::models::DbPrivilegeCatalog, String> {
         Ok(users::privilege_catalog())
     }
 
@@ -2629,6 +2698,10 @@ impl DatabaseDriver for MysqlDriver {
         if let Some(default) = &new_column.default_value {
             def.push_str(&format!(" DEFAULT {}", default));
         }
+        // CHANGE / MODIFY restate the whole column, so keep its ON UPDATE.
+        if let Some(on_update) = &new_column.on_update {
+            def.push_str(&format!(" ON UPDATE {}", on_update));
+        }
         Ok(vec![def])
     }
 
@@ -2690,6 +2763,15 @@ impl DatabaseDriver for MysqlDriver {
         _schema: Option<&str>,
     ) -> Result<String, String> {
         get_table_ddl(params, table).await
+    }
+
+    async fn get_approximate_row_count(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        get_approximate_row_count(params, table, schema).await
     }
 
     async fn drop_index(

@@ -19,6 +19,7 @@ export {
     usePluginTheme,
     openUrl,
     copyText,
+    exchangeGoogleOAuthToken,
 } from './hooks';
 
 export {getHost, assertHostCompat} from './host';
@@ -42,6 +43,8 @@ export type {
     PluginConfig,
     ThemeColors,
     PluginQueryResult,
+    GoogleOAuthTokenRequest,
+    GoogleOAuthTokenResponse,
     PluginTranslator,
     TabularisHostApi,
     UsePluginQueryReturn,

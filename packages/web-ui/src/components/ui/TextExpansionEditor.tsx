@@ -4,6 +4,7 @@ import {Columns2, GitCompare} from 'lucide-react';
 import {CellCodeEditor} from './CellCodeEditor';
 import {CellDiffEditor} from './CellDiffEditor';
 import {formatTextForEditor} from '@/utils/text';
+import {computeTextStats} from '@/utils/textStats';
 import {MIN_SIDE_BY_SIDE_WIDTH, useContainerWidth} from '@/hooks/useContainerWidth';
 
 interface TextExpansionEditorProps {
@@ -40,6 +41,7 @@ export const TextExpansionEditor = ({
         setDraft(initial);
     }
 
+    const stats = useMemo(() => computeTextStats(draft), [draft]);
     const isDirty = draft !== initial;
     const hasDiff = originalText !== null && originalText !== draft;
     const showDiff = diffEnabled && hasDiff && originalText !== null;
@@ -134,6 +136,13 @@ export const TextExpansionEditor = ({
                         height="100%"
                     />
                 )}
+            </div>
+            <div data-testid="text-stats" className="flex items-center gap-3 text-xs text-muted">
+                <span title={t('textStats.charactersHint')}>
+                    {t('textStats.characters', {count: stats.characters})}
+                </span>
+                <span>{t('textStats.lines', {count: stats.lines})}</span>
+                <span>{t('textStats.bytes', {count: stats.bytes})}</span>
             </div>
         </div>
     );

@@ -55,6 +55,9 @@ pub enum PluginCommand {
     RestartProcess {
         plugin_id: String,
     },
+    SyncSettings {
+        plugin_id: String,
+    },
 }
 
 pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result<Value, String> {
@@ -120,6 +123,10 @@ pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result
         }
         PluginCommand::RestartProcess { plugin_id } => {
             restart_plugin_process(runtime, plugin_id).await?;
+            Ok(Value::Null)
+        }
+        PluginCommand::SyncSettings { plugin_id } => {
+            sync_plugin_settings(runtime, plugin_id).await?;
             Ok(Value::Null)
         }
     }
@@ -231,7 +238,8 @@ pub async fn install_plugin(
         match resolve_api_install_asset(&base, &plugin_id, version.as_deref(), &platform).await {
             Ok(resolved) => resolved,
             Err(api_error)
-                if has_selected_registry || api_error == crate::plugins::package_kind::KIND_ERROR =>
+                if has_selected_registry
+                    || api_error == crate::plugins::package_kind::KIND_ERROR =>
             {
                 return Err(api_error)
             }
@@ -309,7 +317,8 @@ pub fn get_plugin_manifest(
     plugin_id: String,
 ) -> Result<PluginManifest, String> {
     validate_plugin_id(&plugin_id)?;
-    let plugin_dir = crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), &plugin_id)?;
+    let plugin_dir =
+        crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), &plugin_id)?;
     let config: ConfigManifest = installer::read_manifest(&plugin_dir)
         .map_err(|error| format!("Failed to read manifest for '{plugin_id}': {error}"))?;
     Ok(plugin_manifest(config))
@@ -399,6 +408,19 @@ pub async fn restart_plugin_process(
     Ok(())
 }
 
+pub async fn sync_plugin_settings(
+    runtime: &RuntimeContext,
+    plugin_id: String,
+) -> Result<(), String> {
+    validate_plugin_id(&plugin_id)?;
+    let driver = crate::drivers::registry::get_driver(&plugin_id)
+        .await
+        .ok_or_else(|| format!("Plugin driver '{plugin_id}' is not running"))?;
+    let config = super::persistence::load_config(runtime);
+    let (_, settings) = plugin_configuration(&config, &plugin_id);
+    driver.sync_plugin_settings(settings).await
+}
+
 /// Tells the frontend that connection metadata derived from this driver may
 /// have changed (see `crate::transport::desktop::plugins::connection_metadata::notify_plugin_reload`).
 fn notify_plugin_reload(runtime: &RuntimeContext, plugin_id: &str) {
@@ -473,7 +495,8 @@ async fn load_plugin(
     config: &AppConfig,
     plugin_id: &str,
 ) -> Result<(), String> {
-    let plugin_dir = crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), plugin_id)?;
+    let plugin_dir =
+        crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), plugin_id)?;
     let (interpreter_override, settings) = plugin_configuration(config, plugin_id);
     crate::plugins::manager::load_plugin_from_dir(&plugin_dir, interpreter_override, settings).await
 }

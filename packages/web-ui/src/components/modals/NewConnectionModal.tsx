@@ -68,12 +68,18 @@ import {
     hasDefaultDatabaseInput,
     hasOptedIntoDatabaseSelection,
 } from '@/utils/database';
-import {parseConnectTimeoutSecs, updateExtraField, withoutBlankSslMode} from '@/utils/connections';
+import {
+    parseConnectTimeoutSecs,
+    parseQueryTimeoutSecs,
+    updateExtraField,
+    withoutBlankSslMode,
+} from '@/utils/connections';
 import {normalizeLocalDatabasePath, sanitizeLocalFilePath} from '@/utils/fsPath';
 import {
     IN_MEMORY_DATABASE,
     isLocalDriver,
     supportsInMemoryDatabase,
+    supportsQueryTimeout,
 } from '@/utils/driverCapabilities';
 import {toErrorMessage} from '@/utils/errors';
 import {classifyConnectionError, type ClassifiedConnectionError} from '@/utils/connectionErrors';
@@ -176,6 +182,8 @@ interface ConnectionParams {
     pooler_mode?: string;
     /** Seconds to wait for a new connection; unset keeps the driver default. */
     connect_timeout_secs?: number;
+    /** Seconds a statement may run before it is cancelled on the server; unset or 0 means no limit. */
+    query_timeout_secs?: number;
     // Opaque plugin-specific connection fields, forwarded verbatim to the
     // driver/plugin and persisted as-is in connections.json.
     extra?: Record<string, string>;
@@ -328,6 +336,7 @@ export const NewConnectionModal = ({
     // no dialect).
     const isPostgresDialect = activeDriver?.capabilities?.sql_dialect === 'postgres';
     const isMysqlDialect = activeDriver?.capabilities?.sql_dialect === 'mysql';
+    const showsQueryTimeout = supportsQueryTimeout(activeDriver?.capabilities);
 
     // ── driver install state ──
     const [installStatus, setInstallStatus] = useState<'idle' | 'installing' | 'error'>('idle');
@@ -2476,6 +2485,11 @@ export const NewConnectionModal = ({
                     ? paramsBase
                     : withoutBlankSslMode(withInlineK8sPaths(paramsBase, inlinePaths.options))
             ) as ConnectionParams;
+            // Only drivers with capabilities.query_timeout honour the field;
+            // drop a stale value so a plugin connection can't save a no-op.
+            if (!showsQueryTimeout) {
+                delete params.query_timeout_secs;
+            }
             const appearancePayload =
                 appearance.icon || appearance.accentColor ? appearance : undefined;
             const finalImagePath = appearance.icon?.type === 'image' ? appearance.icon.path : null;
@@ -3314,6 +3328,22 @@ export const NewConnectionModal = ({
                     />
                     <p className="text-xs text-muted leading-snug">
                         {t('newConnection.connectTimeoutHint')}
+                    </p>
+                </div>
+            )}
+
+            {showsQueryTimeout && (
+                <div className="flex flex-col gap-1">
+                    <FieldInput
+                        label={t('newConnection.queryTimeout')}
+                        value={formData.query_timeout_secs}
+                        onChange={(v) =>
+                            updateField('query_timeout_secs', parseQueryTimeoutSecs(v))
+                        }
+                        type="number"
+                    />
+                    <p className="text-xs text-muted leading-snug">
+                        {t('newConnection.queryTimeoutHint')}
                     </p>
                 </div>
             )}

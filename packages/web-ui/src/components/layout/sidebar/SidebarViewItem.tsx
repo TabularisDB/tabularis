@@ -10,6 +10,8 @@ import type {ContextMenuData} from '@/types/sidebar';
 import type {DriverCapabilities} from '@/types/plugins';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {onActivationKey} from '@/utils/keyboardEvents';
+import {useExplorerExpanded} from '@/hooks/useExplorerExpanded';
+import {expansionKey} from '@/utils/explorerExpansion';
 
 interface SidebarViewItemProps {
     view: {name: string};
@@ -52,7 +54,15 @@ export const SidebarViewItem = ({
     const {t} = useTranslation();
     const ViewIcon = materialized ? Layers : Eye;
 
-    const [isExpanded, setIsExpanded] = useState(false);
+    const {isExpanded, setExpanded} = useExplorerExpanded(
+        expansionKey(connectionId, [
+            materialized ? 'materialized-view' : 'view',
+            database,
+            schema,
+            view.name,
+        ]),
+        false,
+    );
     const [columns, setColumns] = useState<TableColumn[]>([]);
     const [indexes, setIndexes] = useState<Index[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -96,7 +106,7 @@ export const SidebarViewItem = ({
 
     const handleExpand = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setIsExpanded((prev) => !prev);
+        setExpanded(!isExpanded);
     };
 
     const handleContextMenu = (e: React.MouseEvent) => {

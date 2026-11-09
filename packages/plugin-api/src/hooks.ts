@@ -10,10 +10,13 @@ import type {
     UsePluginThemeReturn,
     UsePluginToastReturn,
     PluginTranslator,
+    GoogleOAuthTokenRequest,
+    GoogleOAuthTokenResponse,
 } from './types';
 
 /**
- * Execute read-only SQL queries against the active connection.
+ * Execute SQL against the active connection after a best-effort statement filter.
+ * This is not a security boundary; use read-only database grants for that guarantee.
  * Returns `{ executeQuery, loading, error }` — `executeQuery` resolves with
  * `{ columns, rows }` or throws a plain Error with the host's error message.
  */
@@ -91,4 +94,11 @@ export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
 /** Provider account operations that do not require a saved database connection. */
 export function usePluginAccount(pluginId: string): UsePluginAccountReturn {
     return getHost().usePluginAccount(pluginId);
+}
+
+/** Exchange or refresh Google OAuth tokens through the host's fixed token endpoint. */
+export function exchangeGoogleOAuthToken(
+    request: GoogleOAuthTokenRequest,
+): Promise<GoogleOAuthTokenResponse> {
+    return getHost().exchangeGoogleOAuthToken(request);
 }

@@ -125,7 +125,8 @@ jobs:
     name: Publish ${{ matrix.package.name }}@${{ matrix.package.version }}
     needs: detect
     if: needs.detect.outputs.packages != '[]'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # npm provenance only supports GitHub-hosted runners.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write # npm provenance attestation

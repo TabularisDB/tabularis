@@ -21,7 +21,7 @@ const tauriImportExceptions = [
 export default defineConfig([
     globalIgnores([
         'dist',
-        'packages/create-plugin/dist',
+        'packages/*/dist',
         'packages/web-ui/tests',
         'tests',
         // The native macOS suite under e2e/ has its own toolchain; the browser

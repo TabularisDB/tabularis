@@ -197,6 +197,7 @@ import {PluginWorkspaceView} from '@/components/plugins/PluginWorkspaceView';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import {UserManagementView} from '@/components/users/UserManagementView';
 import {useSqlAutocompleteRegistration} from '@/hooks/useSqlAutocompleteRegistration';
+import {useSqlDiagnosticsOptions} from '@/hooks/useSqlDiagnosticsOptions';
 import {createNotebook, renameNotebook} from '@/utils/notebookStore';
 import type {OnMount, Monaco} from '@monaco-editor/react';
 import {useAlert} from '@/hooks/useAlert';
@@ -259,6 +260,9 @@ import clsx from 'clsx';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {createRequestId} from '@/api/errors';
 import {downloadGeneratedFile, downloadTextFile} from '@/utils/fileDownloads';
+import {useUiState} from '@/hooks/useUiState';
+import {UI_STATE_KEYS} from '@/utils/uiStateStore';
+import {DEFAULT_EDITOR_PANEL_HEIGHT, resolveEditorPanelHeight} from '@/utils/editorPanelHeight';
 
 const LOADED_ROWS_EXPORT_MIME_TYPES: Record<ResultExportFormat, string> = {
     csv: 'text/csv',
@@ -519,8 +523,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [showNewRowModal, setShowNewRowModal] = useState(false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
-    const [editorHeight, setEditorHeight] = useState(300);
-    const editorHeightRef = useRef(300);
+    // Saved across restarts and shared by every editor pane (see utils/editorPanelHeight).
+    const [storedEditorHeight, setEditorHeight] = useUiState<unknown>(
+        UI_STATE_KEYS.editorPanelHeight,
+        DEFAULT_EDITOR_PANEL_HEIGHT,
+    );
+    const editorHeight = resolveEditorPanelHeight(storedEditorHeight, window.innerHeight);
+    const editorHeightRef = useRef(editorHeight);
     // Root of this editor instance: the resize logic must stay scoped to it,
     // in split view every pane mounts its own Editor
     const editorRootRef = useRef<HTMLDivElement>(null);
@@ -4618,6 +4627,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         enabled: !isNotebookTab && !isUsersTab && !isPluginWorkspaceTab,
     });
 
+    const sqlDiagnostics = useSqlDiagnosticsOptions(activeConnectionId, {
+        schema: activeTab?.schema ?? activeSchema,
+        database: activeTab?.database,
+        enabled: !isNotebookTab && !isUsersTab,
+    });
+
     // E2E: expose a submit-changes hook for tauri-wd tests. The WDIO
     // element.click() on the Submit button doesn't reliably trigger React's
     // onClick in WKWebView, so the test calls this directly. This mirrors
@@ -4679,6 +4694,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const startResize = () => {
         isDragging.current = true;
+        editorHeightRef.current = editorHeight;
+        // `editorHeight` is clamped to the current window: only a real drag may
+        // save, or a plain click would overwrite a height saved on a larger screen.
+        let didResize = false;
         document.body.style.cursor = 'row-resize';
         const activeEditor = activeTab ? editorsRef.current[activeTab.id] : undefined;
 
@@ -4704,6 +4723,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const newHeight = e.clientY - panelTop;
             if (newHeight > 100 && newHeight < maxHeight) {
                 editorHeightRef.current = newHeight;
+                didResize = true;
                 if (rafRef.current) cancelAnimationFrame(rafRef.current);
                 rafRef.current = requestAnimationFrame(() => {
                     panels.forEach((el) => {
@@ -4718,7 +4738,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             document.body.style.cursor = '';
             overlay.remove();
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            setEditorHeight(editorHeightRef.current);
+            if (didResize) setEditorHeight(editorHeightRef.current);
             requestAnimationFrame(() => activeEditor?.layout());
             document.removeEventListener('mousemove', handleResize);
             document.removeEventListener('mouseup', stopResize);
@@ -5763,6 +5783,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 initialValue={tab.query}
                                 dialect={activeDialect}
                                 foldPreview
+                                cursorStatus
+                                diagnostics={isActive ? sqlDiagnostics : undefined}
                                 onChange={(val) => {
                                     // Debounced Monaco edits can arrive after this tab becomes
                                     // inactive. The callback belongs to the tab's stable id;
@@ -6583,6 +6605,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 csvDelimiter={csvDelimiter}
                                                 csvIncludeHeaders={csvIncludeHeaders}
                                                 transposed={!!activeTab.transposed}
+                                                conditionalFormatting={activeTab.type === 'table'}
                                                 sortClause={activeTab.sortClause}
                                                 onSort={
                                                     activeTab.type === 'table' &&

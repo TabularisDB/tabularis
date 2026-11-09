@@ -9,6 +9,7 @@ import type {SlotComponentProps} from '@/types/pluginSlots';
 vi.mock('@/hooks/useTabularisClient', () => ({
     useTabularisClient: () => ({call: vi.fn()}),
 }));
+vi.mock('@/hooks/useDrivers', () => ({useDrivers: () => ({installedPlugins: []})}));
 
 const settingsValue = {
     settings: DEFAULT_SETTINGS,

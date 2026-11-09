@@ -328,6 +328,7 @@ export function defineTransportContractSuite(
                 'enable_plugin',
                 'kill_plugin_process',
                 'restart_plugin_process',
+                'sync_plugin_settings',
                 'uninstall_plugin',
             ] as const) {
                 await expect(
@@ -1209,6 +1210,10 @@ async function handleRequest(
             response: null,
         },
         restart_plugin_process: {
+            request: {pluginId: 'postgres-driver'},
+            response: null,
+        },
+        sync_plugin_settings: {
             request: {pluginId: 'postgres-driver'},
             response: null,
         },

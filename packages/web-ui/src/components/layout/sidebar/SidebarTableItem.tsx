@@ -20,6 +20,8 @@ import type {ContextMenuData} from '@/types/sidebar';
 import type {DriverCapabilities} from '@/types/plugins';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {onActivationKey} from '@/utils/keyboardEvents';
+import {useExplorerExpanded} from '@/hooks/useExplorerExpanded';
+import {expansionKey} from '@/utils/explorerExpansion';
 
 interface SidebarTableItemProps {
     table: {name: string; comment?: string | null};
@@ -79,7 +81,10 @@ const SidebarTableItemImpl = ({
     void onAddForeignKey;
     void onDropForeignKey;
 
-    const [isExpanded, setIsExpanded] = useState(false);
+    const {isExpanded, setExpanded} = useExplorerExpanded(
+        expansionKey(connectionId, ['table', database, schema, table.name]),
+        false,
+    );
     const [columns, setColumns] = useState<TableColumn[]>([]);
     const [foreignKeys, setForeignKeys] = useState<ForeignKey[]>([]);
     const [indexes, setIndexes] = useState<Index[]>([]);
@@ -134,7 +139,7 @@ const SidebarTableItemImpl = ({
 
     const handleExpand = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setIsExpanded((prev) => !prev);
+        setExpanded(!isExpanded);
     };
 
     const handleContextMenu = (e: React.MouseEvent, type: string, name: string) => {

@@ -108,4 +108,26 @@ describe('JsonCell', () => {
         expect(screen.queryByRole('button', {name: /expand/i})).toBeNull();
         expect(screen.queryByRole('button', {name: /viewer/i})).toBeNull();
     });
+
+    it('drops the syntax colors when the cell color must show (#991)', () => {
+        const {container, rerender} = render(
+            <JsonCell {...baseProps} value={{a: 1, b: null}} displayText='{"a": 1, "b": null}' />,
+        );
+        const colored = () =>
+            Array.from(container.querySelectorAll('[data-token]')).filter((el) =>
+                /\btext-/.test(el.className),
+            );
+        expect(colored().length).toBeGreaterThan(0);
+
+        rerender(
+            <JsonCell
+                {...baseProps}
+                value={{a: 1, b: null}}
+                displayText='{"a": 1, "b": null}'
+                inheritColor
+            />,
+        );
+        expect(colored()).toHaveLength(0);
+        expect(container.querySelector('[data-token="null"]')?.className).toBe('italic');
+    });
 });

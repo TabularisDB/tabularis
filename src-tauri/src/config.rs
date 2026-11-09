@@ -197,6 +197,8 @@ pub struct AppConfig {
     pub formatter_dense_operators: Option<bool>,
     /// Case of SQL keywords inserted by autocomplete: "match" | "upper" | "lower"
     pub autocomplete_keyword_case: Option<String>,
+    /// Mark unresolved tables, columns and aliases in PostgreSQL SELECT statements. Default: false.
+    pub sql_diagnostics_enabled: Option<bool>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
     /// Maximum number of query history entries per connection. Default: 500.
@@ -648,6 +650,7 @@ mod tests {
         assert!(config.safety_confirmation_delay_enabled.is_none());
         assert!(config.notify_long_queries.is_none());
         assert!(config.notify_long_queries_threshold_sec.is_none());
+        assert!(config.sql_diagnostics_enabled.is_none());
         assert!(config.editor_theme.is_none());
         assert!(config.result_font_family.is_none());
         assert!(config.editor_font_family.is_none());
@@ -676,6 +679,7 @@ mod tests {
         config.safety_confirmation_delay_enabled = Some(true);
         config.notify_long_queries = Some(true);
         config.notify_long_queries_threshold_sec = Some(20);
+        config.sql_diagnostics_enabled = Some(true);
 
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("editorFontFamily"));
@@ -691,6 +695,7 @@ mod tests {
         assert!(json.contains("safetyConfirmationDelayEnabled"));
         assert!(json.contains("notifyLongQueries"));
         assert!(json.contains("notifyLongQueriesThresholdSec"));
+        assert!(json.contains("sqlDiagnosticsEnabled"));
         // snake_case must not appear
         assert!(!json.contains("editor_font_family"));
         assert!(!json.contains("result_font_family"));
@@ -698,6 +703,7 @@ mod tests {
         assert!(!json.contains("safety_confirmation_delay_enabled"));
         assert!(!json.contains("notify_long_queries"));
         assert!(!json.contains("notify_long_queries_threshold_sec"));
+        assert!(!json.contains("sql_diagnostics_enabled"));
     }
 
     #[test]
@@ -715,7 +721,8 @@ mod tests {
             "editorAcceptSuggestionOnEnter": true,
             "safetyConfirmationDelayEnabled": true,
             "notifyLongQueries": true,
-            "notifyLongQueriesThresholdSec": 30
+            "notifyLongQueriesThresholdSec": 30,
+            "sqlDiagnosticsEnabled": true
         }"#;
 
         let config: AppConfig = serde_json::from_str(json).unwrap();
@@ -731,6 +738,7 @@ mod tests {
         assert_eq!(config.safety_confirmation_delay_enabled, Some(true));
         assert_eq!(config.notify_long_queries, Some(true));
         assert_eq!(config.notify_long_queries_threshold_sec, Some(30));
+        assert_eq!(config.sql_diagnostics_enabled, Some(true));
     }
 
     #[test]

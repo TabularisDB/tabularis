@@ -333,6 +333,18 @@ export function AppearanceTab() {
                         </SettingRow>
                     </SettingSection>
 
+                    <SettingSection title={t('settings.diagnostics_title')}>
+                        <SettingRow
+                            label={t('settings.diagnostics_enabled')}
+                            description={t('settings.diagnostics_enabledDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.sqlDiagnosticsEnabled ?? false}
+                                onChange={(v) => updateSetting('sqlDiagnosticsEnabled', v)}
+                            />
+                        </SettingRow>
+                    </SettingSection>
+
                     <SettingSection title={t('settings.formatter_title')}>
                         <SettingRow
                             label={t('settings.formatter_keywordCase')}

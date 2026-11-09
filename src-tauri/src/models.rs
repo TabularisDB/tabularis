@@ -101,10 +101,7 @@ pub fn single_db_before_multi_transition(
     if previous.is_multi() || !new.is_multi() {
         return None;
     }
-    previous
-        .as_vec()
-        .into_iter()
-        .find(|s| !s.trim().is_empty())
+    previous.as_vec().into_iter().find(|s| !s.trim().is_empty())
 }
 
 impl std::fmt::Display for DatabaseSelection {
@@ -303,6 +300,12 @@ pub struct ConnectionParams {
     /// PostgreSQL). Forwarded to driver plugins as part of `params`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connect_timeout_secs: Option<u32>,
+    /// Seconds a statement may run before it is cancelled on the server. None
+    /// or 0 means no limit. The built-in PostgreSQL driver applies it to each
+    /// statement run through `execute_query`. Driver plugins receive it in
+    /// `params` and may honor it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_timeout_secs: Option<u32>,
     /// Opaque, plugin-specific connection fields. The host does not interpret
     /// these — they are persisted verbatim and forwarded to the driver plugin
     /// as part of `params`, so plugins can carry custom connection settings
@@ -511,6 +514,16 @@ pub struct TableColumn {
     /// `data_type`, which keeps the base name other code matches on (#1277).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub full_type: Option<String>,
+    /// The column default as SQL that can go after `DEFAULT` in DDL as is
+    /// (`'new'`, `CURRENT_TIMESTAMP`, `(uuid())`). `default_value` is what the
+    /// server reports, which for MySQL is raw text (`new`), so the column
+    /// editor uses this one to restate the default on ALTER (#271).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_sql: Option<String>,
+    /// `ON UPDATE` expression of the column (MySQL `CURRENT_TIMESTAMP`), so
+    /// an ALTER that restates the column keeps it (#271).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -701,8 +714,8 @@ pub struct ViewInfo {
 pub struct TriggerInfo {
     pub name: String,
     pub table_name: String,
-    pub event: String,   // e.g. "INSERT", "UPDATE", "DELETE", "INSERT OR UPDATE"
-    pub timing: String,  // "BEFORE", "AFTER", "INSTEAD OF"
+    pub event: String,  // e.g. "INSERT", "UPDATE", "DELETE", "INSERT OR UPDATE"
+    pub timing: String, // "BEFORE", "AFTER", "INSTEAD OF"
     pub definition: Option<String>,
 }
 
@@ -753,6 +766,10 @@ pub struct ColumnDefinition {
     /// omitted from the payload when unset so legacy request shapes hold.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
+    /// `ON UPDATE` expression to keep when a column is restated (MySQL
+    /// `CHANGE` / `MODIFY`). Omitted from the payload when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -780,7 +797,9 @@ mod appearance_tests {
 
     #[test]
     fn icon_override_pack_roundtrip() {
-        let v = IconOverride::Pack { id: "server".into() };
+        let v = IconOverride::Pack {
+            id: "server".into(),
+        };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"pack","id":"server"}"#);
         let back: IconOverride = serde_json::from_str(&s).unwrap();
@@ -789,7 +808,9 @@ mod appearance_tests {
 
     #[test]
     fn icon_override_emoji_roundtrip() {
-        let v = IconOverride::Emoji { value: "🐘".into() };
+        let v = IconOverride::Emoji {
+            value: "🐘".into()
+        };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"emoji","value":"🐘"}"#);
         let back: IconOverride = serde_json::from_str(&s).unwrap();
@@ -798,7 +819,9 @@ mod appearance_tests {
 
     #[test]
     fn icon_override_image_roundtrip() {
-        let v = IconOverride::Image { path: "connection-icons/abc.png".into() };
+        let v = IconOverride::Image {
+            path: "connection-icons/abc.png".into(),
+        };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"image","path":"connection-icons/abc.png"}"#);
         let back: IconOverride = serde_json::from_str(&s).unwrap();
@@ -814,7 +837,10 @@ mod appearance_tests {
 
     #[test]
     fn connection_appearance_with_only_color_serializes_compactly() {
-        let a = ConnectionAppearance { icon: None, accent_color: Some("#ff0000".into()) };
+        let a = ConnectionAppearance {
+            icon: None,
+            accent_color: Some("#ff0000".into()),
+        };
         let s = serde_json::to_string(&a).unwrap();
         assert_eq!(s, r##"{"accentColor":"#ff0000"}"##);
     }
