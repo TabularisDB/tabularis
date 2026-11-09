@@ -1,5 +1,5 @@
 import {useContext, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {createPortal} from 'react-dom';
+import {createPortal, flushSync} from 'react-dom';
 import {useTranslation} from 'react-i18next';
 import {useSettings} from '@/hooks/useSettings';
 import {useToast} from '@/hooks/useToast';
@@ -192,17 +192,29 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     throw new Error('Plugin settings must be JSON values smaller than 64 KiB');
                 }
                 const safeValue = JSON.parse(serialized) as unknown;
-                await servicesRef.current.updateSetting('plugins', (previous) => {
-                    const plugins = previous ?? {};
-                    const pluginConfig = plugins[pluginId] ?? {};
-                    return {
-                        ...plugins,
-                        [pluginId]: {
-                            ...pluginConfig,
-                            settings: {...(pluginConfig.settings ?? {}), [key]: safeValue},
-                        },
-                    };
+                // Plugin credentials are shared server configuration. Check authorization
+                // before changing the UI: SettingsProvider logs persistence failures.
+                await servicesRef.current.client.call('get_config', undefined);
+                let persistence: Promise<void> = Promise.resolve();
+                flushSync(() => {
+                    persistence = servicesRef.current.updateSetting('plugins', (previous) => {
+                        const plugins = previous ?? {};
+                        const pluginConfig = plugins[pluginId] ?? {};
+                        return {
+                            ...plugins,
+                            [pluginId]: {
+                                ...pluginConfig,
+                                settings: {...(pluginConfig.settings ?? {}), [key]: safeValue},
+                            },
+                        };
+                    });
                 });
+                await persistence;
+                const saved = await servicesRef.current.client.call('get_config', undefined);
+                const stored = saved.plugins?.[pluginId]?.settings?.[key];
+                if (JSON.stringify(stored) !== serialized) {
+                    throw new Error('Plugin setting could not be saved');
+                }
                 return null;
             },
             'api.oauth.googleSync': async () => {
@@ -211,7 +223,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                         'Google OAuth synchronization is only available to Google Sheets',
                     );
                 }
-                await servicesRef.current.client.call('restart_plugin_process', {pluginId});
+                await servicesRef.current.client.call('sync_plugin_settings', {pluginId});
                 return null;
             },
             'api.openUrl': async (value: unknown) => {

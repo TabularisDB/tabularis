@@ -738,6 +738,7 @@ export interface CommandMap {
     get_plugin_startup_errors: CommandDefinition<undefined, PluginLoadError[], 'local-admin'>;
     kill_plugin_process: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
     restart_plugin_process: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
+    sync_plugin_settings: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
 
     test_connection: CommandDefinition<{request: TestConnectionRequest}, string, 'database'>;
     disconnect_connection: CommandDefinition<ConnectionIdRequest, void, 'database'>;

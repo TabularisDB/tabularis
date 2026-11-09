@@ -27,6 +27,13 @@ vi.mock('@/plugins/sandbox/connectFrame', () => ({
 }));
 
 let handlers: Record<string, PluginHostHandler>;
+let persistedPlugins: typeof DEFAULT_SETTINGS.plugins;
+const savePlugins = async (
+    _key: unknown,
+    update: (previous: typeof persistedPlugins) => typeof persistedPlugins,
+) => {
+    persistedPlugins = update(persistedPlugins);
+};
 const frame = () => (
     <SandboxedPluginFrame pluginId="google-sheets" module="ui/auth.js" context={{}} />
 );
@@ -34,7 +41,11 @@ const frame = () => (
 describe('SandboxedPluginFrame lifecycle', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.update = vi.fn().mockResolvedValue(undefined);
+        persistedPlugins = {};
+        mocks.update = vi.fn(savePlugins);
+        mocks.client.call.mockImplementation(async (command: string) =>
+            command === 'get_config' ? {plugins: persistedPlugins} : null,
+        );
         mocks.connect.mockImplementation(async (_frame, methods) => {
             handlers = methods;
             return {call: mocks.call, close: mocks.close};
@@ -54,7 +65,7 @@ describe('SandboxedPluginFrame lifecycle', () => {
             await handlers['api.setting.set']('client_id', 'first');
         });
         const previousWriter = mocks.update;
-        mocks.update = vi.fn().mockResolvedValue(undefined);
+        mocks.update = vi.fn(savePlugins);
         rerender(frame());
         await act(async () => {
             await handlers['api.setting.set']('client_secret', 'second');
@@ -67,13 +78,32 @@ describe('SandboxedPluginFrame lifecycle', () => {
         expect(mocks.close).toHaveBeenCalledTimes(1);
     });
 
-    it('restarts only the Google Sheets driver when its OAuth settings are synchronized', async () => {
+    it('fails a plugin settings write when the session cannot read shared configuration', async () => {
+        mocks.client.call.mockRejectedValue(new Error('Administrator access required'));
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        await expect(handlers['api.setting.set']('client_id', 'value')).rejects.toThrow(
+            'Administrator access required',
+        );
+        expect(mocks.update).not.toHaveBeenCalled();
+    });
+
+    it('reports settings that were not persisted', async () => {
+        mocks.update = vi.fn().mockResolvedValue(undefined);
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        await expect(handlers['api.setting.set']('client_id', 'value')).rejects.toThrow(
+            'Plugin setting could not be saved',
+        );
+    });
+
+    it('synchronizes only the Google Sheets driver without restarting it', async () => {
         render(frame());
         await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
         await act(async () => {
             await handlers['api.oauth.googleSync']();
         });
-        expect(mocks.client.call).toHaveBeenCalledWith('restart_plugin_process', {
+        expect(mocks.client.call).toHaveBeenCalledWith('sync_plugin_settings', {
             pluginId: 'google-sheets',
         });
     });

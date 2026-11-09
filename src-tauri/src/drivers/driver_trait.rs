@@ -484,6 +484,14 @@ pub trait DatabaseDriver: Send + Sync {
     /// Built-in sqlx-based drivers hold no background process; the default is a no-op.
     async fn shutdown(&self) {}
 
+    /// Refresh a running plugin's settings without stopping its process.
+    async fn sync_plugin_settings(
+        &self,
+        _settings: HashMap<String, serde_json::Value>,
+    ) -> Result<(), String> {
+        Err("This driver does not support plugin settings synchronization".into())
+    }
+
     /// Like [`shutdown`](Self::shutdown), but stops the background process at
     /// once instead of letting in-flight calls finish. For a host that is
     /// exiting, when no caller is left to read their results.

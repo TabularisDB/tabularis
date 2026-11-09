@@ -228,6 +228,7 @@ enum PluginRpcCommand {
     GetStartupErrors,
     KillProcess,
     RestartProcess,
+    SyncSettings,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -2225,6 +2226,7 @@ impl PluginRpcCommand {
             "get_plugin_startup_errors" => Self::GetStartupErrors,
             "kill_plugin_process" => Self::KillProcess,
             "restart_plugin_process" => Self::RestartProcess,
+            "sync_plugin_settings" => Self::SyncSettings,
             _ => return None,
         })
     }
@@ -3099,6 +3101,12 @@ fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<Plugi
         PluginRpcCommand::RestartProcess => {
             let request: PluginIdRequest = decode_payload(body)?;
             PluginCommand::RestartProcess {
+                plugin_id: request.plugin_id,
+            }
+        }
+        PluginRpcCommand::SyncSettings => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::SyncSettings {
                 plugin_id: request.plugin_id,
             }
         }

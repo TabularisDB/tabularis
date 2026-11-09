@@ -768,6 +768,13 @@ impl DatabaseDriver for RpcDriver {
         self.process.shutdown().await;
     }
 
+    async fn sync_plugin_settings(&self, settings: HashMap<String, Value>) -> Result<(), String> {
+        self.process
+            .call("initialize", json!({ "settings": settings }))
+            .await?;
+        Ok(())
+    }
+
     async fn terminate(&self) {
         self.process.terminate().await;
     }
@@ -2299,6 +2306,29 @@ pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver 
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn syncing_settings_keeps_the_process_available() {
+        use super::*;
+        use crate::drivers::driver_trait::DatabaseDriver;
+        let driver = test_driver(|request| {
+            if request.method == "initialize" {
+                assert_eq!(request.params["settings"]["access_token"], "new-token");
+            }
+            serde_json::Value::Null
+        });
+        driver
+            .sync_plugin_settings(HashMap::from([(
+                "access_token".to_string(),
+                serde_json::json!("new-token"),
+            )]))
+            .await
+            .unwrap();
+        driver
+            .process
+            .call("ping", serde_json::json!({}))
+            .await
+            .unwrap();
+    }
     use super::*;
     use crate::models::DatabaseSelection;
     use crate::plugins::rpc::JsonRpcError;

@@ -53,6 +53,9 @@ pub enum PluginCommand {
     RestartProcess {
         plugin_id: String,
     },
+    SyncSettings {
+        plugin_id: String,
+    },
 }
 
 pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result<Value, String> {
@@ -107,6 +110,10 @@ pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result
         }
         PluginCommand::RestartProcess { plugin_id } => {
             restart_plugin_process(runtime, plugin_id).await?;
+            Ok(Value::Null)
+        }
+        PluginCommand::SyncSettings { plugin_id } => {
+            sync_plugin_settings(runtime, plugin_id).await?;
             Ok(Value::Null)
         }
     }
@@ -386,6 +393,19 @@ pub async fn restart_plugin_process(
         .map_err(|error| format!("Failed to restart plugin '{plugin_id}': {error}"))?;
     notify_plugin_reload(runtime, &plugin_id);
     Ok(())
+}
+
+pub async fn sync_plugin_settings(
+    runtime: &RuntimeContext,
+    plugin_id: String,
+) -> Result<(), String> {
+    validate_plugin_id(&plugin_id)?;
+    let driver = crate::drivers::registry::get_driver(&plugin_id)
+        .await
+        .ok_or_else(|| format!("Plugin driver '{plugin_id}' is not running"))?;
+    let config = super::persistence::load_config(runtime);
+    let (_, settings) = plugin_configuration(&config, &plugin_id);
+    driver.sync_plugin_settings(settings).await
 }
 
 /// Tells the frontend that connection metadata derived from this driver may

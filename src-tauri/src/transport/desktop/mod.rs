@@ -656,6 +656,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             task_manager::get_tabularis_children,
             task_manager::kill_plugin_process,
             task_manager::restart_plugin_process,
+            task_manager::sync_plugin_settings,
             task_manager::open_task_manager_window,
             // Connection Appearance
             connection_appearance::save_connection_icon,

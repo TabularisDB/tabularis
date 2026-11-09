@@ -465,6 +465,7 @@ Immediately after spawning the plugin process, Tabularis sends an `initialize` c
 - Returning an error response is safe — Tabularis silently ignores any `initialize` failure.
 - Plugins that do not implement `initialize` are unaffected (the error is ignored).
 - Use `initialize` to store settings in your plugin's state before any query arrives.
+- Google Sheets may receive another `initialize` after its OAuth settings change. It must replace the settings safely while requests are in progress; the host keeps the plugin process running. Updating shared plugin settings requires administrator authorization in Web mode.
 
 #### Handling `initialize` in Rust
 
