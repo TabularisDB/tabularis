@@ -78,7 +78,11 @@ test('inline suggestions accept as one undoable text insertion without executing
         await expect
             .poll(() => page.evaluate(() => window.__e2e_editor.getValue()))
             .toBe('SELECT 1 AS ai_inline;');
-        await page.keyboard.press('ControlOrMeta+z');
+        // Monaco chooses shortcuts from the emulated UA; ControlOrMeta uses the runner OS.
+        const undoShortcut = await page.evaluate(() =>
+            navigator.userAgent.includes('Macintosh') ? 'Meta+z' : 'Control+z',
+        );
+        await page.keyboard.press(undoShortcut);
         await expect
             .poll(() => page.evaluate(() => window.__e2e_editor.getValue()))
             .toBe('SELECT ');
