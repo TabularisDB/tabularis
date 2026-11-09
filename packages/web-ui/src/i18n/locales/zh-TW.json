@@ -2576,7 +2576,10 @@
         "downloading": "下載中...",
         "uploading": "上傳中...",
         "openSidebar": "在編輯器中開啟",
-        "imagePreview": "圖片預覽"
+        "imagePreview": "圖片預覽",
+        "editAs": "編輯格式",
+        "text": "文字",
+        "hex": "十六進位"
     },
     "visualExplainPage": {
         "title": "視覺化執行計畫",
@@ -3261,6 +3264,12 @@
         "copyMetadata": "複製中繼資料",
         "copied": "已複製到剪貼簿",
         "copyFailed": "無法複製到剪貼簿，請再試一次。"
+    },
+    "aiInline": {
+        "title": "AI 行內補全",
+        "enable": "輸入時建議 SQL",
+        "privacy": "預設關閉。使用下方選擇的 AI 供應商和模型，包括本機供應商。最多傳送游標前 4,000 個字元、游標後 1,000 個字元，以及 8,000 個字元的快取資料表與結構描述名稱。SQL 可能含有敏感值。不會加入結果列、資料表註解或連線認證，也不會執行額外的資料庫查詢。",
+        "keys": "Tab 接受，Escape 隱藏。自動補全和縮排優先。接受建議只會插入文字，請在執行前檢查。"
     },
     "dataFiles": {
         "workspaceName": "資料檔案",

@@ -2624,7 +2624,10 @@
     "downloading": "Téléchargement...",
     "uploading": "Téléversement...",
     "openSidebar": "Ouvrir dans l’éditeur",
-    "imagePreview": "Aperçu de l’image"
+    "imagePreview": "Aperçu de l’image",
+    "editAs": "Modifier en",
+    "text": "Texte",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",
@@ -3189,6 +3192,12 @@
     "groups": { "builtin": "Intégrés · hors ligne", "installed": "Paquets installés", "personal": "Thèmes personnels" }, "modes": { "light": "Clair", "dark": "Sombre", "high-contrast": "Contraste élevé" },
     "importErrors": { "unrecognized": "Thème VS Code non reconnu.", "modeRequired": "Choisissez un mode puis relancez l’aperçu.", "includeOnly": "Les thèmes composés uniquement d’includes ne sont pas importables. Fournissez les couleurs réelles.", "noSupportedData": "Aucune couleur ou règle SQL prise en charge.", "invalidColor": "Valeur incorrecte pour une couleur prise en charge.", "invalidRules": "Règles de jetons incorrectes ou trop nombreuses." },
     "diagnostics": { "unsupportedKey": "Champ non pris en charge", "unsupportedColor": "Couleur non prise en charge", "unsupportedScope": "Portée non prise en charge", "scopeApproximation": "Correspondance SQL approximative", "unsupportedStyle": "Style non pris en charge", "ignoredInclude": "Include non chargé", "ignoredSemanticTokens": "Jetons sémantiques ignorés", "unsupportedReference": "Référence externe non chargée", "unsupportedSetting": "Réglage non pris en charge", "tokenAlphaFlattened": "Opacité des jetons calculée sur le fond de base", "modeApproximation": "Mode remplacé ou approximatif", "diagnosticsTruncated": "Diagnostics supplémentaires omis" }
+  },
+  "aiInline": {
+    "title": "Complétion IA en ligne",
+    "enable": "Suggérer du SQL pendant la saisie",
+    "privacy": "Désactivée par défaut. Utilise le fournisseur et le modèle IA choisis ci-dessous, y compris les fournisseurs locaux. Envoie au maximum 4 000 caractères avant le curseur, 1 000 après et 8 000 caractères de noms de tables/schémas en cache. Le SQL peut contenir des valeurs sensibles. Aucune ligne de résultat, aucun commentaire de table ni identifiant de connexion ne sont ajoutés. Aucune requête supplémentaire à la base.",
+    "keys": "Tab accepte et Échap masque. La saisie semi-automatique et l’indentation sont prioritaires. Accepter insère uniquement du texte ; vérifiez-le avant exécution."
   },
   "dataFiles": {
     "workspaceName": "Fichiers de données",

@@ -306,6 +306,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         result_color_by_type,
         result_type_colors,
         ai_enabled,
+        ai_inline_completion_enabled,
         ai_provider,
         ai_model,
         ai_custom_models,

@@ -34,6 +34,7 @@ macro_rules! require_pg {
 }
 
 mod blob;
+mod column_comments;
 mod column_metadata;
 mod crud;
 mod ddl_generation;

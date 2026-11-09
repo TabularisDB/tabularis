@@ -240,6 +240,8 @@ enum AiRpcCommand {
     CheckKeyStatus,
     GetModels,
     GenerateQuery,
+    CompleteInline,
+    CancelInline,
     ExplainQuery,
     AnalyzeExplainPlan,
     AnalyzeCrashReport,
@@ -2279,6 +2281,8 @@ impl AiRpcCommand {
             "check_ai_key_status" => Self::CheckKeyStatus,
             "get_ai_models" => Self::GetModels,
             "generate_ai_query" => Self::GenerateQuery,
+            "complete_ai_inline" => Self::CompleteInline,
+            "cancel_ai_inline" => Self::CancelInline,
             "explain_ai_query" => Self::ExplainQuery,
             "analyze_ai_explain_plan" => Self::AnalyzeExplainPlan,
             "analyze_ai_crash_report" => Self::AnalyzeCrashReport,
@@ -2678,6 +2682,21 @@ fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, St
         AiRpcCommand::GenerateQuery => {
             let request: AiRequest<crate::ai::AiGenerateRequest> = decode_payload(body)?;
             AiCommand::GenerateQuery(request.req)
+        }
+        AiRpcCommand::CompleteInline => {
+            let request: AiRequest<crate::ai::inline::InlineRequest> = decode_payload(body)?;
+            AiCommand::CompleteInline(request.req)
+        }
+        AiRpcCommand::CancelInline => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase", deny_unknown_fields)]
+            struct Cancel {
+                request_id: String,
+            }
+            let request: Cancel = decode_payload(body)?;
+            AiCommand::CancelInline {
+                request_id: request.request_id,
+            }
         }
         AiRpcCommand::ExplainQuery => {
             let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;

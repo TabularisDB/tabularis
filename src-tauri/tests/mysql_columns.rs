@@ -437,6 +437,7 @@ async fn column_lengths_are_reported() {
         exercise_column_lengths(&mut connection, &params, &schema).await;
         exercise_full_types(&mut connection, &params, &schema).await;
         exercise_defaults_survive_rename(&mut connection, &params, &schema).await;
+        exercise_column_comments(&mut connection, &params, &schema).await;
     })
     .catch_unwind()
     .await;
@@ -460,4 +461,99 @@ async fn column_lengths_are_reported() {
         cleanup_error.is_none(),
         "fixture cleanup failed: {cleanup_error:?}"
     );
+}
+
+async fn exercise_column_comments(
+    connection: &mut MySqlConnection,
+    params: &ConnectionParams,
+    schema: &str,
+) {
+    let driver = mysql::MysqlDriver::new();
+    for no_backslash in [false, true] {
+        let table = if no_backslash {
+            "comments_ansi"
+        } else {
+            "comments_default"
+        };
+        execute(connection, &format!("CREATE TABLE {}.{} (id INT PRIMARY KEY, stamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)", quoted(schema), quoted(table))).await;
+        let mut selected = params.clone();
+        selected.startup_script = Some(format!(
+            "SET SESSION sql_mode = '{}'",
+            if no_backslash {
+                "NO_BACKSLASH_ESCAPES"
+            } else {
+                ""
+            }
+        ));
+        let before = mysql::get_columns(&selected, table, Some(schema))
+            .await
+            .unwrap();
+        let original = as_definition(before.iter().find(|c| c.name == "stamp").unwrap(), "stamp");
+        let mut previous = original.clone();
+        for text in [
+            Some("Customer's note\\path\n日本語"),
+            Some("replacement"),
+            None,
+        ] {
+            let mut new = original.clone();
+            new.comment = text.map(str::to_string);
+            for sql in driver
+                .get_alter_column_sql_for_connection(
+                    &selected,
+                    table,
+                    previous,
+                    new.clone(),
+                    Some(schema),
+                )
+                .await
+                .unwrap()
+            {
+                mysql::execute_query(&selected, &sql, None, 1, Some(schema))
+                    .await
+                    .unwrap();
+            }
+            let mut columns = mysql::get_columns(&selected, table, Some(schema))
+                .await
+                .unwrap();
+            let actual = columns.iter_mut().find(|c| c.name == "stamp").unwrap();
+            assert_eq!(actual.comment.as_deref(), text);
+            actual.comment = None;
+            assert_eq!(
+                serde_json::to_value(&columns).unwrap(),
+                serde_json::to_value(&before).unwrap()
+            );
+            previous = new;
+        }
+        let added = ColumnDefinition {
+            name: "notes".into(),
+            data_type: "TEXT".into(),
+            is_nullable: true,
+            default_value: None,
+            on_update: None,
+            comment: Some("New column's note\\path".into()),
+            ..original
+        };
+        for sql in driver
+            .get_add_column_sql_for_connection(&selected, table, added, Some(schema))
+            .await
+            .unwrap()
+        {
+            mysql::execute_query(&selected, &sql, None, 1, Some(schema))
+                .await
+                .unwrap();
+        }
+        let columns = mysql::get_columns(&selected, table, Some(schema))
+            .await
+            .unwrap();
+        assert_eq!(
+            columns
+                .iter()
+                .find(|c| c.name == "notes")
+                .unwrap()
+                .comment
+                .as_deref(),
+            Some("New column's note\\path")
+        );
+        close_pool(&selected).await;
+    }
 }

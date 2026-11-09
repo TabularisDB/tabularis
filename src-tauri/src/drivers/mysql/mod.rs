@@ -11,6 +11,8 @@ mod stmt_classify;
 mod users;
 
 #[cfg(test)]
+mod column_comment_tests;
+#[cfg(test)]
 mod stmt_classify_tests;
 
 #[cfg(test)]
@@ -1981,11 +1983,13 @@ fn mysql_numeric_setting(key: &str, default: u64) -> u64 {
 
 pub struct MysqlDriver {
     manifest: PluginManifest,
+    no_backslash_escapes: bool,
 }
 
 impl MysqlDriver {
     pub fn new() -> Self {
         Self {
+            no_backslash_escapes: false,
             manifest: PluginManifest {
                 id: "mysql".to_string(),
                 name: "MySQL".to_string(),
@@ -2014,7 +2018,7 @@ impl MysqlDriver {
                     serial_type: String::new(),
                     inline_pk: false,
                     table_query_templates: false,
-                    column_comments: false,
+                    column_comments: true,
                     drop_table_sql: false,
                     column_stats: false,
                     query_timeout: false,
@@ -2661,6 +2665,12 @@ impl DatabaseDriver for MysqlDriver {
         if column.is_pk {
             def.push_str(" PRIMARY KEY");
         }
+        if let Some(comment) = &column.comment {
+            def.push_str(&format!(
+                " COMMENT {}",
+                mysql_string_literal(comment, self.no_backslash_escapes)
+            ));
+        }
         Ok(vec![def])
     }
 
@@ -2703,7 +2713,54 @@ impl DatabaseDriver for MysqlDriver {
         if let Some(on_update) = &new_column.on_update {
             def.push_str(&format!(" ON UPDATE {}", on_update));
         }
+        // MODIFY/CHANGE restates the definition, so retain unchanged comments too.
+        if new_column.comment.is_some() || old_column.comment.is_some() {
+            def.push_str(&format!(
+                " COMMENT {}",
+                mysql_string_literal(
+                    new_column.comment.as_deref().unwrap_or(""),
+                    self.no_backslash_escapes
+                )
+            ));
+        }
         Ok(vec![def])
+    }
+
+    async fn get_add_column_sql_for_connection(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        column: crate::models::ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        if column.comment.as_deref().unwrap_or("").is_empty() {
+            return self.get_add_column_sql(table, column, schema).await;
+        }
+        let pool = get_mysql_pool(params).await?;
+        let mut driver = Self::new();
+        driver.no_backslash_escapes = server_no_backslash_escapes(&pool).await?;
+        driver.get_add_column_sql(table, column, schema).await
+    }
+
+    async fn get_alter_column_sql_for_connection(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        old_column: crate::models::ColumnDefinition,
+        new_column: crate::models::ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        if new_column.comment.as_deref().unwrap_or("").is_empty() {
+            return self
+                .get_alter_column_sql(table, old_column, new_column, schema)
+                .await;
+        }
+        let pool = get_mysql_pool(params).await?;
+        let mut driver = Self::new();
+        driver.no_backslash_escapes = server_no_backslash_escapes(&pool).await?;
+        driver
+            .get_alter_column_sql(table, old_column, new_column, schema)
+            .await
     }
 
     async fn get_create_index_sql(
