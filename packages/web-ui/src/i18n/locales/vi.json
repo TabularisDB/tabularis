@@ -86,6 +86,12 @@
     "warnConfirm": "Vẫn chạy",
     "warnSnooze": "Không hỏi lại cho kết nối này (trong phiên hiện tại)"
   },
+  "textStats": {
+    "characters": "Ký tự: {{count}}",
+    "lines": "Dòng: {{count}}",
+    "bytes": "Byte UTF-8: {{count}}",
+    "charactersHint": "Điểm mã Unicode, không phải cụm grapheme"
+  },
   "common": {
     "save": "Lưu",
     "close": "Đóng",
@@ -243,6 +249,8 @@
     "onTable": "trên {{table}}",
     "objectSummary": "Đối tượng",
     "databases": "Cơ sở dữ liệu",
+    "newDatabase": "Cơ sở dữ liệu mới",
+    "newSchema": "Schema mới",
     "failGetRoutineDefinition": "Không lấy được định nghĩa routine: ",
     "schemas": "Schema",
     "noSchemas": "Không tìm thấy schema nào",
@@ -2065,6 +2073,8 @@
       "exportCsv": "Xuất ra CSV",
       "exportJson": "Xuất ra JSON",
       "exportHtml": "Xuất ra HTML",
+      "exportSql": "Xuất mã nguồn SQL",
+      "exportSqlEmpty": "Sổ tay này không có SQL để xuất.",
       "parameters": "Tham số",
       "paramName": "tên",
       "paramValue": "giá trị",
@@ -2088,6 +2098,8 @@
       "expandSection": "Mở rộng phần",
       "collapseAll": "Thu gọn tất cả",
       "expandAll": "Mở rộng tất cả",
+      "clearOutputs": "Xóa đầu ra",
+      "clearOutputsConfirm": "Xóa kết quả, lỗi và thời gian đang hiển thị của tất cả các ô? Truy vấn, tham số, biểu đồ và lịch sử chạy được giữ nguyên.",
       "outline": "Mục lục",
       "aiGenerate": "Sinh SQL bằng AI",
       "aiExplain": "Giải thích truy vấn này bằng AI",
@@ -2204,6 +2216,24 @@
     "failCreate": "Không tạo được bảng: ",
     "requiresExtension": "Cần extension: {{ext}}"
   },
+  "createDatabase": {
+    "title": "Tạo cơ sở dữ liệu",
+    "subtitle": "Chạy CREATE DATABASE trên máy chủ này",
+    "name": "Tên cơ sở dữ liệu",
+    "namePlaceholder": "vd. analytics, staging",
+    "create": "Tạo cơ sở dữ liệu",
+    "nameRequired": "Tên cơ sở dữ liệu là bắt buộc",
+    "failCreate": "Không tạo được cơ sở dữ liệu: "
+  },
+  "createSchema": {
+    "title": "Tạo schema",
+    "subtitle": "Chạy CREATE SCHEMA trong cơ sở dữ liệu này",
+    "name": "Tên schema",
+    "namePlaceholder": "vd. store, reporting",
+    "create": "Tạo schema",
+    "nameRequired": "Tên schema là bắt buộc",
+    "failCreate": "Không tạo được schema: "
+  },
   "schema": {
     "title": "Schema: {{table}}",
     "loading": "Đang tải schema...",
@@ -2301,6 +2331,7 @@
     "exportMermaid": "Xuất ra sơ đồ Mermaid",
     "exportSuccess": "Đã xuất sơ đồ",
     "exportDbml": "Xuất ra DBML",
+    "exportMarkdown": "Xuất ra Markdown",
     "export": "Xuất"
   },
   "views": {
@@ -2483,6 +2514,7 @@
     "collapse": "Thu gọn",
     "expandAll": "Mở rộng tất cả",
     "collapseAll": "Thu gọn tất cả",
+    "sortKeys": "Sắp xếp khóa",
     "search": "Tìm kiếm",
     "copyPath": "Sao chép đường dẫn",
     "copyValue": "Sao chép giá trị",

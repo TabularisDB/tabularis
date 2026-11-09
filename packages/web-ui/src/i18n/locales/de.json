@@ -86,6 +86,12 @@
     "warnConfirm": "Trotzdem ausführen",
     "warnSnooze": "Für diese Verbindung nicht mehr fragen (diese Sitzung)"
   },
+  "textStats": {
+    "characters": "Zeichen: {{count}}",
+    "lines": "Zeilen: {{count}}",
+    "bytes": "UTF-8-Bytes: {{count}}",
+    "charactersHint": "Unicode-Codepoints, keine Graphem-Cluster"
+  },
   "common": {
     "save": "Speichern",
     "close": "Schließen",
@@ -232,6 +238,8 @@
     "refreshRoutines": "Routinen aktualisieren",
     "objectSummary": "Objekte",
     "databases": "Datenbanken",
+    "newDatabase": "Neue Datenbank",
+    "newSchema": "Neues Schema",
     "failGetRoutineDefinition": "Abrufen der Routinen-Definition fehlgeschlagen: ",
     "schemas": "Schemata",
     "noSchemas": "Keine Schemata gefunden",
@@ -2014,6 +2022,8 @@
       "exportCsv": "Als CSV exportieren",
       "exportJson": "Als JSON exportieren",
       "exportHtml": "Als HTML exportieren",
+      "exportSql": "SQL-Quelltext exportieren",
+      "exportSqlEmpty": "Dieses Notebook enthält kein SQL zum Exportieren.",
       "parameters": "Parameter",
       "paramName": "name",
       "paramValue": "wert",
@@ -2037,6 +2047,8 @@
       "expandSection": "Abschnitt ausklappen",
       "collapseAll": "Alle einklappen",
       "expandAll": "Alle ausklappen",
+      "clearOutputs": "Ausgaben löschen",
+      "clearOutputsConfirm": "Die angezeigten Ergebnisse, Fehler und Laufzeiten aller Zellen löschen? Abfragen, Parameter, Diagramme und der Ausführungsverlauf bleiben erhalten.",
       "outline": "Gliederung",
       "aiGenerate": "SQL mit KI generieren",
       "aiExplain": "Diese Abfrage mit KI erklären",
@@ -2159,6 +2171,24 @@
     "failCreate": "Erstellen der Tabelle fehlgeschlagen: ",
     "requiresExtension": "Erfordert Erweiterung: {{ext}}"
   },
+  "createDatabase": {
+    "title": "Datenbank erstellen",
+    "subtitle": "Führt CREATE DATABASE auf diesem Server aus",
+    "name": "Datenbankname",
+    "namePlaceholder": "z. B. analytics, staging",
+    "create": "Datenbank erstellen",
+    "nameRequired": "Datenbankname ist erforderlich",
+    "failCreate": "Erstellen der Datenbank fehlgeschlagen: "
+  },
+  "createSchema": {
+    "title": "Schema erstellen",
+    "subtitle": "Führt CREATE SCHEMA in dieser Datenbank aus",
+    "name": "Schemaname",
+    "namePlaceholder": "z. B. store, reporting",
+    "create": "Schema erstellen",
+    "nameRequired": "Schemaname ist erforderlich",
+    "failCreate": "Erstellen des Schemas fehlgeschlagen: "
+  },
   "schema": {
     "title": "Schema: {{table}}",
     "loading": "Schema wird geladen...",
@@ -2256,6 +2286,7 @@
     "exportMermaid": "Als Mermaid-Diagramm exportieren",
     "exportSuccess": "Diagramm exportiert",
     "exportDbml": "Als DBML exportieren",
+    "exportMarkdown": "Als Markdown exportieren",
     "export": "Exportieren"
   },
   "views": {
@@ -2404,6 +2435,7 @@
     "collapse": "Zuklappen",
     "expandAll": "Alle erweitern",
     "collapseAll": "Alle reduzieren",
+    "sortKeys": "Schlüssel sortieren",
     "search": "Suchen",
     "copyPath": "Pfad kopieren",
     "copyValue": "Wert kopieren",

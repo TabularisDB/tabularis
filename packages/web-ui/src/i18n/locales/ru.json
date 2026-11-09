@@ -86,6 +86,12 @@
     "warnConfirm": "Выполнить всё равно",
     "warnSnooze": "Больше не спрашивать для этого подключения (в этой сессии)"
   },
+  "textStats": {
+    "characters": "Символов: {{count}}",
+    "lines": "Строк: {{count}}",
+    "bytes": "Байт UTF-8: {{count}}",
+    "charactersHint": "Кодовые точки Unicode, а не кластеры графем"
+  },
   "common": {
     "save": "Сохранить",
     "close": "Закрыть",
@@ -245,6 +251,8 @@
     "onTable": "на {{table}}",
     "objectSummary": "Объекты",
     "databases": "Базы данных",
+    "newDatabase": "Новая база данных",
+    "newSchema": "Новая схема",
     "failGetRoutineDefinition": "Не удалось получить определение подпрограммы: ",
     "schemas": "Схемы",
     "noSchemas": "Схемы не найдены",
@@ -2031,6 +2039,8 @@
       "exportCsv": "Экспортировать как CSV",
       "exportJson": "Экспортировать как JSON",
       "exportHtml": "Экспортировать как HTML",
+      "exportSql": "Экспортировать исходный SQL",
+      "exportSqlEmpty": "В этом блокноте нет SQL для экспорта.",
       "parameters": "Параметры",
       "paramName": "имя",
       "paramValue": "значение",
@@ -2054,6 +2064,8 @@
       "expandSection": "Развернуть раздел",
       "collapseAll": "Свернуть все",
       "expandAll": "Развернуть все",
+      "clearOutputs": "Очистить вывод",
+      "clearOutputsConfirm": "Очистить отображаемые результаты, ошибки и время выполнения во всех ячейках? Запросы, параметры, диаграммы и история выполнения сохранятся.",
       "outline": "Структура",
       "aiGenerate": "Сгенерировать SQL с помощью AI",
       "aiExplain": "Объяснить запрос с помощью AI",
@@ -2182,6 +2194,24 @@
     "failCreate": "Не удалось создать таблицу: ",
     "requiresExtension": "Требуется расширение: {{ext}}"
   },
+  "createDatabase": {
+    "title": "Создать базу данных",
+    "subtitle": "Выполняет CREATE DATABASE на этом сервере",
+    "name": "Имя базы данных",
+    "namePlaceholder": "напр. analytics, staging",
+    "create": "Создать базу данных",
+    "nameRequired": "Имя базы данных обязательно",
+    "failCreate": "Не удалось создать базу данных: "
+  },
+  "createSchema": {
+    "title": "Создать схему",
+    "subtitle": "Выполняет CREATE SCHEMA в этой базе данных",
+    "name": "Имя схемы",
+    "namePlaceholder": "напр. store, reporting",
+    "create": "Создать схему",
+    "nameRequired": "Имя схемы обязательно",
+    "failCreate": "Не удалось создать схему: "
+  },
   "schema": {
     "title": "Схема: {{table}}",
     "loading": "Загрузка схемы...",
@@ -2279,6 +2309,7 @@
     "exportMermaid": "Экспортировать как диаграмму Mermaid",
     "exportSuccess": "Диаграмма экспортирована",
     "exportDbml": "Экспортировать как DBML",
+    "exportMarkdown": "Экспортировать как Markdown",
     "export": "Экспорт"
   },
   "views": {
@@ -2461,6 +2492,7 @@
     "collapse": "Свернуть",
     "expandAll": "Развернуть все",
     "collapseAll": "Свернуть все",
+    "sortKeys": "Сортировать ключи",
     "search": "Поиск",
     "copyPath": "Копировать путь",
     "copyValue": "Копировать значение",

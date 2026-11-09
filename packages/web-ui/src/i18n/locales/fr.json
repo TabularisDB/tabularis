@@ -86,6 +86,12 @@
     "warnConfirm": "Exécuter quand même",
     "warnSnooze": "Ne plus demander pour cette connexion (cette session)"
   },
+  "textStats": {
+    "characters": "Caractères : {{count}}",
+    "lines": "Lignes : {{count}}",
+    "bytes": "Octets UTF-8 : {{count}}",
+    "charactersHint": "Points de code Unicode, pas des clusters de graphèmes"
+  },
   "common": {
     "save": "Enregistrer",
     "close": "Fermer",
@@ -245,6 +251,8 @@
     "onTable": "sur {{table}}",
     "objectSummary": "Objets",
     "databases": "Bases de données",
+    "newDatabase": "Nouvelle base de données",
+    "newSchema": "Nouveau schéma",
     "failGetRoutineDefinition": "Échec de récupération de la définition de la routine : ",
     "schemas": "Schémas",
     "noSchemas": "Aucun schéma trouvé",
@@ -2054,6 +2062,8 @@
       "exportCsv": "Exporter en CSV",
       "exportJson": "Exporter en JSON",
       "exportHtml": "Exporter en HTML",
+      "exportSql": "Exporter le source SQL",
+      "exportSqlEmpty": "Ce notebook ne contient aucun SQL à exporter.",
       "parameters": "Paramètres",
       "paramName": "nom",
       "paramValue": "valeur",
@@ -2077,6 +2087,8 @@
       "expandSection": "Développer la section",
       "collapseAll": "Tout réduire",
       "expandAll": "Tout développer",
+      "clearOutputs": "Effacer les sorties",
+      "clearOutputsConfirm": "Effacer les résultats, erreurs et durées affichés pour toutes les cellules ? Les requêtes, paramètres, graphiques et l’historique d’exécution sont conservés.",
       "outline": "Plan",
       "aiGenerate": "Générer du SQL avec l’IA",
       "aiExplain": "Expliquer cette requête avec l’IA",
@@ -2199,6 +2211,24 @@
     "failCreate": "Échec de la création de la table : ",
     "requiresExtension": "Extension requise : {{ext}}"
   },
+  "createDatabase": {
+    "title": "Créer une base de données",
+    "subtitle": "Exécute CREATE DATABASE sur ce serveur",
+    "name": "Nom de la base de données",
+    "namePlaceholder": "p. ex. analytics, staging",
+    "create": "Créer la base de données",
+    "nameRequired": "Le nom de la base de données est obligatoire",
+    "failCreate": "Échec de la création de la base de données : "
+  },
+  "createSchema": {
+    "title": "Créer un schéma",
+    "subtitle": "Exécute CREATE SCHEMA dans cette base de données",
+    "name": "Nom du schéma",
+    "namePlaceholder": "p. ex. store, reporting",
+    "create": "Créer le schéma",
+    "nameRequired": "Le nom du schéma est obligatoire",
+    "failCreate": "Échec de la création du schéma : "
+  },
   "schema": {
     "title": "Schéma : {{table}}",
     "loading": "Chargement du schéma...",
@@ -2296,6 +2326,7 @@
     "exportMermaid": "Exporter en diagramme Mermaid",
     "exportSuccess": "Diagramme exporté",
     "exportDbml": "Exporter en DBML",
+    "exportMarkdown": "Exporter en Markdown",
     "export": "Exporter"
   },
   "views": {
@@ -2478,6 +2509,7 @@
     "collapse": "Réduire",
     "expandAll": "Tout développer",
     "collapseAll": "Tout réduire",
+    "sortKeys": "Trier les clés",
     "search": "Rechercher",
     "copyPath": "Copier le chemin",
     "copyValue": "Copier la valeur",

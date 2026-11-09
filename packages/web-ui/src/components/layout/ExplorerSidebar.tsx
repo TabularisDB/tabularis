@@ -76,6 +76,7 @@ import type {NotebookMetadata} from '@/types/notebook';
 import {ContextMenu, type ContextMenuItem} from '@/components/ui/ContextMenu';
 import {SchemaModal} from '@/components/modals/SchemaModal';
 import {CreateTableModal} from '@/components/modals/CreateTableModal';
+import {CreateContainerModal} from '@/components/modals/CreateContainerModal';
 import {QueryModal} from '@/components/modals/QueryModal';
 import {SavedQueryFolderModal} from '@/components/modals/SavedQueryFolderModal';
 import {MoveSavedQueryModal} from '@/components/modals/MoveSavedQueryModal';
@@ -146,6 +147,12 @@ import {
     supportsTableExport,
     supportsTableImport,
 } from '@/utils/driverCapabilities';
+import {
+    appendCreatedName,
+    selectionAfterCreate,
+    supportsCreateDatabase,
+    supportsCreateSchema,
+} from '@/utils/createContainer';
 import {newConsoleForDatabase} from '@/utils/newConsole';
 import {openEditor} from '@/utils/editorNavigation';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
@@ -211,6 +218,7 @@ export const ExplorerSidebar = ({
         refreshSchemaData,
         selectedSchemas,
         setSelectedSchemas,
+        refreshSchemas,
         needsSchemaSelection,
         selectedDatabases,
         setSelectedDatabases,
@@ -324,6 +332,9 @@ export const ExplorerSidebar = ({
         identityArgs?: string | null;
     } | null>(null);
     const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
+    const [createContainer, setCreateContainer] = useState<
+        {kind: 'database'} | {kind: 'schema'; database?: string; selected: string[]} | null
+    >(null);
     const [createTableTarget, setCreateTableTarget] = useState<CreateTableTarget>(
         DEFAULT_CREATE_TABLE_TARGET,
     );
@@ -493,6 +504,35 @@ export const ExplorerSidebar = ({
             await refreshTables();
         }
         setSchemaVersion((v) => v + 1);
+    };
+
+    const handleCreateContainerSuccess = async (name: string) => {
+        if (!createContainer || !activeConnectionId) return;
+        if (createContainer.kind === 'database') {
+            const allDatabasesMode = connectionDataMap[activeConnectionId]?.allDatabasesMode;
+            if (allDatabasesMode) {
+                await refreshDatabaseSelection(activeConnectionId, {notifyWhenUnchanged: false});
+            } else {
+                setSelectedDatabases(appendCreatedName(selectedDatabases, name));
+            }
+            return;
+        }
+
+        // Empty `selected` is the first-connect picker — do not persist a singleton.
+        const next = selectionAfterCreate(createContainer.selected, name);
+        if (createContainer.database) {
+            await loadNestedSchemas(createContainer.database, undefined, true);
+            if (next) {
+                await setSelectedSchemasForDatabase(createContainer.database, next);
+            }
+        } else {
+            await refreshSchemas();
+            if (next) {
+                await setSelectedSchemas(next);
+            } else {
+                setPendingSchemaSelection((prev) => new Set(prev).add(name));
+            }
+        }
     };
 
     /**
@@ -931,6 +971,8 @@ export const ExplorerSidebar = ({
     };
 
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
+    const canCreateDatabase = supportsCreateDatabase(activeCapabilities);
+    const canCreateSchema = supportsCreateSchema(activeCapabilities);
     // The nested schema-based multi-db tree (Postgres) also has its own
     // per-database action icons (SidebarNestedDatabaseItem), same as the flat
     // multi-db case below — but the header actions dropdown's gate only ever
@@ -1887,8 +1929,26 @@ export const ExplorerSidebar = ({
                                         {needsSchemaSelection ? (
                                             /* Schema picker (first connect, no saved preference) */
                                             <div className="px-3 py-2">
-                                                <div className="text-xs font-semibold uppercase text-muted tracking-wider mb-2">
-                                                    {t('sidebar.schemas')}
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="text-xs font-semibold uppercase text-muted tracking-wider">
+                                                        {t('sidebar.schemas')}
+                                                    </div>
+                                                    {canCreateSchema && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setCreateContainer({
+                                                                    kind: 'schema',
+                                                                    selected: selectedSchemas,
+                                                                })
+                                                            }
+                                                            className="p-1 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                            title={t('sidebar.newSchema')}
+                                                            aria-label={t('sidebar.newSchema')}
+                                                        >
+                                                            <Plus size={14} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <div className="text-xs text-secondary mb-2">
                                                     {t('sidebar.selectSchemasHint')}
@@ -2003,179 +2063,197 @@ export const ExplorerSidebar = ({
                                                         {t('sidebar.schemas')} (
                                                         {selectedSchemas.length}/{schemas.length})
                                                     </span>
-                                                    <div className="relative">
-                                                        <button
-                                                            onClick={() => {
-                                                                setPendingSchemaSelection(
-                                                                    new Set(selectedSchemas),
-                                                                );
-                                                                setIsSchemaFilterOpen(
-                                                                    !isSchemaFilterOpen,
-                                                                );
-                                                            }}
-                                                            className={`p-1 rounded transition-colors mr-1.5 ${
-                                                                selectedSchemas.length <
-                                                                schemas.length
-                                                                    ? 'text-accent bg-accent-primary/10'
-                                                                    : 'text-muted hover:text-secondary hover:bg-surface-secondary'
-                                                            }`}
-                                                            title={t('sidebar.editSchemas')}
-                                                        >
-                                                            <Settings2 size={14} />
-                                                        </button>
-                                                        {isSchemaFilterOpen && (
-                                                            <>
-                                                                <div
-                                                                    role="presentation"
-                                                                    className="fixed inset-0 z-40"
-                                                                    onClick={closeSchemaFilter}
-                                                                />
-                                                                <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[300px] flex flex-col">
-                                                                    <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
-                                                                        <span className="text-xs font-semibold text-secondary">
-                                                                            {t(
-                                                                                'sidebar.editSchemas',
-                                                                            )}
-                                                                        </span>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (
-                                                                                    pendingSchemaSelection.size ===
-                                                                                    schemas.length
-                                                                                ) {
-                                                                                    setPendingSchemaSelection(
-                                                                                        new Set(),
-                                                                                    );
-                                                                                } else {
-                                                                                    setPendingSchemaSelection(
-                                                                                        new Set(
-                                                                                            schemas,
-                                                                                        ),
-                                                                                    );
-                                                                                }
-                                                                            }}
-                                                                            className="text-xs text-accent hover:underline"
-                                                                        >
-                                                                            {pendingSchemaSelection.size ===
-                                                                            schemas.length
-                                                                                ? t(
-                                                                                      'sidebar.deselectAll',
-                                                                                  )
-                                                                                : t(
-                                                                                      'sidebar.selectAll',
-                                                                                  )}
-                                                                        </button>
-                                                                    </div>
-                                                                    <div className="overflow-y-auto py-1">
-                                                                        {schemas.map(
-                                                                            (schemaName) => {
-                                                                                const isSelected =
-                                                                                    pendingSchemaSelection.has(
-                                                                                        schemaName,
-                                                                                    );
-                                                                                return (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        key={
-                                                                                            schemaName
-                                                                                        }
-                                                                                        aria-pressed={
-                                                                                            isSelected
-                                                                                        }
-                                                                                        onClick={() => {
-                                                                                            const next =
-                                                                                                new Set(
-                                                                                                    pendingSchemaSelection,
-                                                                                                );
-                                                                                            if (
-                                                                                                isSelected
-                                                                                            ) {
-                                                                                                next.delete(
-                                                                                                    schemaName,
-                                                                                                );
-                                                                                            } else {
-                                                                                                next.add(
-                                                                                                    schemaName,
-                                                                                                );
-                                                                                            }
-                                                                                            setPendingSchemaSelection(
-                                                                                                next,
-                                                                                            );
-                                                                                        }}
-                                                                                        className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
-                                                                                            isSelected
-                                                                                                ? 'text-primary hover:bg-surface-secondary'
-                                                                                                : 'text-muted hover:bg-surface-secondary'
-                                                                                        }`}
-                                                                                    >
-                                                                                        <div
-                                                                                            className={`w-4 h-4 flex items-center justify-center shrink-0 ${
-                                                                                                isSelected
-                                                                                                    ? 'text-accent'
-                                                                                                    : 'text-muted'
-                                                                                            }`}
-                                                                                        >
-                                                                                            {isSelected ? (
-                                                                                                <CheckSquare
-                                                                                                    size={
-                                                                                                        14
-                                                                                                    }
-                                                                                                />
-                                                                                            ) : (
-                                                                                                <Square
-                                                                                                    size={
-                                                                                                        14
-                                                                                                    }
-                                                                                                />
-                                                                                            )}
-                                                                                        </div>
-                                                                                        <span className="text-sm truncate select-none">
-                                                                                            {
+                                                    <div className="flex items-center">
+                                                        {canCreateSchema && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setCreateContainer({
+                                                                        kind: 'schema',
+                                                                        selected: selectedSchemas,
+                                                                    })
+                                                                }
+                                                                className="p-1 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors mr-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                                title={t('sidebar.newSchema')}
+                                                                aria-label={t('sidebar.newSchema')}
+                                                            >
+                                                                <Plus size={14} />
+                                                            </button>
+                                                        )}
+                                                        <div className="relative">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setPendingSchemaSelection(
+                                                                        new Set(selectedSchemas),
+                                                                    );
+                                                                    setIsSchemaFilterOpen(
+                                                                        !isSchemaFilterOpen,
+                                                                    );
+                                                                }}
+                                                                className={`p-1 rounded transition-colors mr-1.5 ${
+                                                                    selectedSchemas.length <
+                                                                    schemas.length
+                                                                        ? 'text-accent bg-accent-primary/10'
+                                                                        : 'text-muted hover:text-secondary hover:bg-surface-secondary'
+                                                                }`}
+                                                                title={t('sidebar.editSchemas')}
+                                                            >
+                                                                <Settings2 size={14} />
+                                                            </button>
+                                                            {isSchemaFilterOpen && (
+                                                                <>
+                                                                    <div
+                                                                        role="presentation"
+                                                                        className="fixed inset-0 z-40"
+                                                                        onClick={closeSchemaFilter}
+                                                                    />
+                                                                    <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[300px] flex flex-col">
+                                                                        <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
+                                                                            <span className="text-xs font-semibold text-secondary">
+                                                                                {t(
+                                                                                    'sidebar.editSchemas',
+                                                                                )}
+                                                                            </span>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (
+                                                                                        pendingSchemaSelection.size ===
+                                                                                        schemas.length
+                                                                                    ) {
+                                                                                        setPendingSchemaSelection(
+                                                                                            new Set(),
+                                                                                        );
+                                                                                    } else {
+                                                                                        setPendingSchemaSelection(
+                                                                                            new Set(
+                                                                                                schemas,
+                                                                                            ),
+                                                                                        );
+                                                                                    }
+                                                                                }}
+                                                                                className="text-xs text-accent hover:underline"
+                                                                            >
+                                                                                {pendingSchemaSelection.size ===
+                                                                                schemas.length
+                                                                                    ? t(
+                                                                                          'sidebar.deselectAll',
+                                                                                      )
+                                                                                    : t(
+                                                                                          'sidebar.selectAll',
+                                                                                      )}
+                                                                            </button>
+                                                                        </div>
+                                                                        <div className="overflow-y-auto py-1">
+                                                                            {schemas.map(
+                                                                                (schemaName) => {
+                                                                                    const isSelected =
+                                                                                        pendingSchemaSelection.has(
+                                                                                            schemaName,
+                                                                                        );
+                                                                                    return (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            key={
                                                                                                 schemaName
                                                                                             }
-                                                                                        </span>
-                                                                                    </button>
-                                                                                );
-                                                                            },
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="px-3 pt-2 border-t border-default">
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (
+                                                                                            aria-pressed={
+                                                                                                isSelected
+                                                                                            }
+                                                                                            onClick={() => {
+                                                                                                const next =
+                                                                                                    new Set(
+                                                                                                        pendingSchemaSelection,
+                                                                                                    );
+                                                                                                if (
+                                                                                                    isSelected
+                                                                                                ) {
+                                                                                                    next.delete(
+                                                                                                        schemaName,
+                                                                                                    );
+                                                                                                } else {
+                                                                                                    next.add(
+                                                                                                        schemaName,
+                                                                                                    );
+                                                                                                }
+                                                                                                setPendingSchemaSelection(
+                                                                                                    next,
+                                                                                                );
+                                                                                            }}
+                                                                                            className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                                                                                                isSelected
+                                                                                                    ? 'text-primary hover:bg-surface-secondary'
+                                                                                                    : 'text-muted hover:bg-surface-secondary'
+                                                                                            }`}
+                                                                                        >
+                                                                                            <div
+                                                                                                className={`w-4 h-4 flex items-center justify-center shrink-0 ${
+                                                                                                    isSelected
+                                                                                                        ? 'text-accent'
+                                                                                                        : 'text-muted'
+                                                                                                }`}
+                                                                                            >
+                                                                                                {isSelected ? (
+                                                                                                    <CheckSquare
+                                                                                                        size={
+                                                                                                            14
+                                                                                                        }
+                                                                                                    />
+                                                                                                ) : (
+                                                                                                    <Square
+                                                                                                        size={
+                                                                                                            14
+                                                                                                        }
+                                                                                                    />
+                                                                                                )}
+                                                                                            </div>
+                                                                                            <span className="text-sm truncate select-none">
+                                                                                                {
+                                                                                                    schemaName
+                                                                                                }
+                                                                                            </span>
+                                                                                        </button>
+                                                                                    );
+                                                                                },
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="px-3 pt-2 border-t border-default">
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (
+                                                                                        pendingSchemaSelection.size >
+                                                                                        0
+                                                                                    ) {
+                                                                                        setSelectedSchemas(
+                                                                                            Array.from(
+                                                                                                pendingSchemaSelection,
+                                                                                            ),
+                                                                                        );
+                                                                                    }
+                                                                                    setIsSchemaFilterOpen(
+                                                                                        false,
+                                                                                    );
+                                                                                }}
+                                                                                disabled={
+                                                                                    pendingSchemaSelection.size ===
+                                                                                    0
+                                                                                }
+                                                                                className={`w-full flex items-center justify-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
                                                                                     pendingSchemaSelection.size >
                                                                                     0
-                                                                                ) {
-                                                                                    setSelectedSchemas(
-                                                                                        Array.from(
-                                                                                            pendingSchemaSelection,
-                                                                                        ),
-                                                                                    );
-                                                                                }
-                                                                                setIsSchemaFilterOpen(
-                                                                                    false,
-                                                                                );
-                                                                            }}
-                                                                            disabled={
-                                                                                pendingSchemaSelection.size ===
-                                                                                0
-                                                                            }
-                                                                            className={`w-full flex items-center justify-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
-                                                                                pendingSchemaSelection.size >
-                                                                                0
-                                                                                    ? 'bg-accent-primary text-inverse hover:bg-accent-primary/90'
-                                                                                    : 'bg-surface-secondary text-muted cursor-not-allowed'
-                                                                            }`}
-                                                                        >
-                                                                            <Check size={12} />
-                                                                            {t(
-                                                                                'sidebar.confirmSelection',
-                                                                            )}
-                                                                        </button>
+                                                                                        ? 'bg-accent-primary text-inverse hover:bg-accent-primary/90'
+                                                                                        : 'bg-surface-secondary text-muted cursor-not-allowed'
+                                                                                }`}
+                                                                            >
+                                                                                <Check size={12} />
+                                                                                {t(
+                                                                                    'sidebar.confirmSelection',
+                                                                                )}
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            </>
-                                                        )}
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 {selectedSchemas.map((schemaName) => (
@@ -2379,6 +2457,19 @@ export const ExplorerSidebar = ({
                                                 )
                                             </span>
                                             <div className="flex items-center gap-1">
+                                                {canCreateDatabase && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setCreateContainer({kind: 'database'})
+                                                        }
+                                                        className="p-1 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                        title={t('sidebar.newDatabase')}
+                                                        aria-label={t('sidebar.newDatabase')}
+                                                    >
+                                                        <Plus size={14} />
+                                                    </button>
+                                                )}
                                                 <div className="relative">
                                                     <button
                                                         onClick={async () => {
@@ -2844,6 +2935,19 @@ export const ExplorerSidebar = ({
                                                 {t('sidebar.databases')} ({selectedDatabases.length}
                                                 )
                                             </span>
+                                            {canCreateDatabase && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setCreateContainer({kind: 'database'})
+                                                    }
+                                                    className="p-1 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                    title={t('sidebar.newDatabase')}
+                                                    aria-label={t('sidebar.newDatabase')}
+                                                >
+                                                    <Plus size={14} />
+                                                </button>
+                                            )}
                                         </div>
 
                                         <div className="px-3 pb-1.5">
@@ -3061,6 +3165,18 @@ export const ExplorerSidebar = ({
                                                         schema,
                                                         database,
                                                     })
+                                                }
+                                                onCreateSchema={
+                                                    canCreateSchema
+                                                        ? () =>
+                                                              setCreateContainer({
+                                                                  kind: 'schema',
+                                                                  database: dbName,
+                                                                  selected:
+                                                                      nestedDatabaseDataMap[dbName]
+                                                                          ?.selectedSchemas ?? [],
+                                                              })
+                                                        : undefined
                                                 }
                                                 showTriggers={activeCapabilities?.triggers === true}
                                             />
@@ -4939,6 +5055,18 @@ export const ExplorerSidebar = ({
                     database={
                         createTableTarget.kind === 'nested' ? createTableTarget.database : undefined
                     }
+                />
+            )}
+
+            {createContainer && (
+                <CreateContainerModal
+                    isOpen
+                    kind={createContainer.kind}
+                    database={
+                        createContainer.kind === 'schema' ? createContainer.database : undefined
+                    }
+                    onClose={() => setCreateContainer(null)}
+                    onSuccess={handleCreateContainerSuccess}
                 />
             )}
 

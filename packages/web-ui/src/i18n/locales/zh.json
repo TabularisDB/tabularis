@@ -86,6 +86,12 @@
     "warnConfirm": "仍然执行",
     "warnSnooze": "此连接不再询问（本次会话）"
   },
+  "textStats": {
+    "characters": "字符数:{{count}}",
+    "lines": "行数:{{count}}",
+    "bytes": "UTF-8 字节数:{{count}}",
+    "charactersHint": "按 Unicode 码点计数,而非字形簇"
+  },
   "common": {
     "save": "保存",
     "close": "关闭",
@@ -231,6 +237,8 @@
     "refreshRoutines": "刷新存储过程",
     "objectSummary": "对象",
     "databases": "数据库",
+    "newDatabase": "新建数据库",
+    "newSchema": "新建模式",
     "failGetRoutineDefinition": "获取存储过程定义失败：",
     "schemas": "模式",
     "noSchemas": "未找到模式",
@@ -1987,6 +1995,8 @@
       "exportCsv": "导出为 CSV",
       "exportJson": "导出为 JSON",
       "exportHtml": "导出为 HTML",
+      "exportSql": "导出 SQL 源码",
+      "exportSqlEmpty": "此笔记本没有可导出的 SQL。",
       "parameters": "参数",
       "paramName": "名称",
       "paramValue": "值",
@@ -2010,6 +2020,8 @@
       "expandSection": "展开区域",
       "collapseAll": "全部折叠",
       "expandAll": "全部展开",
+      "clearOutputs": "清除输出",
+      "clearOutputsConfirm": "清除所有单元格中显示的结果、错误和执行时间？查询、参数、图表和执行历史将保留。",
       "outline": "大纲",
       "aiGenerate": "使用 AI 生成 SQL",
       "aiExplain": "使用 AI 解释此查询",
@@ -2117,6 +2129,24 @@
     "colRequired": "至少需要一列",
     "failCreate": "创建表失败："
   },
+  "createDatabase": {
+    "title": "创建数据库",
+    "subtitle": "在此服务器上运行 CREATE DATABASE",
+    "name": "数据库名称",
+    "namePlaceholder": "例如：analytics, staging",
+    "create": "创建数据库",
+    "nameRequired": "数据库名称是必需的",
+    "failCreate": "创建数据库失败："
+  },
+  "createSchema": {
+    "title": "创建模式",
+    "subtitle": "在此数据库中运行 CREATE SCHEMA",
+    "name": "模式名称",
+    "namePlaceholder": "例如：store, reporting",
+    "create": "创建模式",
+    "nameRequired": "模式名称是必需的",
+    "failCreate": "创建模式失败："
+  },
   "schema": {
     "title": "模式：{{table}}",
     "loading": "加载模式中...",
@@ -2209,6 +2239,7 @@
     "exportMermaid": "导出为 Mermaid 图表",
     "exportSuccess": "图表已导出",
     "exportDbml": "导出为 DBML",
+    "exportMarkdown": "导出为 Markdown",
     "export": "导出"
   },
   "views": {
@@ -2357,6 +2388,7 @@
     "collapse": "折叠",
     "expandAll": "全部展开",
     "collapseAll": "全部折叠",
+    "sortKeys": "排序键",
     "search": "搜索",
     "copyPath": "复制路径",
     "copyValue": "复制值",

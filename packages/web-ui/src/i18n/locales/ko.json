@@ -63,6 +63,12 @@
     "matchCase": "대소문자 구분",
     "matchCaseHint": "대소문자를 구분합니다 (LIKE). 해제하면 구분하지 않습니다 (ILIKE)."
   },
+  "textStats": {
+    "characters": "문자: {{count}}",
+    "lines": "줄: {{count}}",
+    "bytes": "UTF-8 바이트: {{count}}",
+    "charactersHint": "유니코드 코드 포인트 기준이며 자소 클러스터가 아닙니다"
+  },
   "common": {
     "save": "저장",
     "close": "닫기",
@@ -222,6 +228,8 @@
     "onTable": "{{table}} 테이블",
     "objectSummary": "객체",
     "databases": "데이터베이스",
+    "newDatabase": "새 데이터베이스",
+    "newSchema": "새 스키마",
     "failGetRoutineDefinition": "루틴 정의를 가져오지 못했습니다: ",
     "schemas": "스키마",
     "noSchemas": "스키마가 없습니다",
@@ -1989,6 +1997,8 @@
       "exportCsv": "CSV로 내보내기",
       "exportJson": "JSON으로 내보내기",
       "exportHtml": "HTML로 내보내기",
+      "exportSql": "SQL 소스 내보내기",
+      "exportSqlEmpty": "이 노트북에는 내보낼 SQL이 없습니다.",
       "parameters": "매개변수",
       "paramName": "이름",
       "paramValue": "값",
@@ -2012,6 +2022,8 @@
       "expandSection": "섹션 펼치기",
       "collapseAll": "모두 접기",
       "expandAll": "모두 펼치기",
+      "clearOutputs": "출력 지우기",
+      "clearOutputsConfirm": "모든 셀에 표시된 결과, 오류, 실행 시간을 지울까요? 쿼리, 매개변수, 차트, 실행 기록은 유지됩니다.",
       "outline": "개요",
       "aiGenerate": "AI로 SQL 생성",
       "aiExplain": "AI로 이 쿼리 설명",
@@ -2133,6 +2145,24 @@
     "failCreate": "테이블 생성에 실패했습니다: ",
     "requiresExtension": "필요한 확장 기능: {{ext}}"
   },
+  "createDatabase": {
+    "title": "데이터베이스 만들기",
+    "subtitle": "이 서버에서 CREATE DATABASE를 실행합니다",
+    "name": "데이터베이스 이름",
+    "namePlaceholder": "예: analytics, staging",
+    "create": "데이터베이스 만들기",
+    "nameRequired": "데이터베이스 이름은 필수입니다",
+    "failCreate": "데이터베이스 생성에 실패했습니다: "
+  },
+  "createSchema": {
+    "title": "스키마 만들기",
+    "subtitle": "이 데이터베이스에서 CREATE SCHEMA를 실행합니다",
+    "name": "스키마 이름",
+    "namePlaceholder": "예: store, reporting",
+    "create": "스키마 만들기",
+    "nameRequired": "스키마 이름은 필수입니다",
+    "failCreate": "스키마 생성에 실패했습니다: "
+  },
   "schema": {
     "title": "스키마: {{table}}",
     "loading": "스키마를 불러오는 중...",
@@ -2230,6 +2260,7 @@
     "exportMermaid": "Mermaid 다이어그램으로 내보내기",
     "exportSuccess": "다이어그램 내보내기 완료",
     "exportDbml": "DBML로 내보내기",
+    "exportMarkdown": "Markdown으로 내보내기",
     "export": "내보내기"
   },
   "views": {
@@ -2412,6 +2443,7 @@
     "collapse": "접기",
     "expandAll": "모두 펼치기",
     "collapseAll": "모두 접기",
+    "sortKeys": "키 정렬",
     "search": "검색",
     "copyPath": "경로 복사",
     "copyValue": "값 복사",

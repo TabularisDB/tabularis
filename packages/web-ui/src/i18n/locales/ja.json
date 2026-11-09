@@ -86,6 +86,12 @@
     "warnConfirm": "実行する",
     "warnSnooze": "この接続では今後確認しない（このセッション中）"
   },
+  "textStats": {
+    "characters": "文字数: {{count}}",
+    "lines": "行数: {{count}}",
+    "bytes": "UTF-8 バイト数: {{count}}",
+    "charactersHint": "Unicode コードポイント数(書記素クラスターではありません)"
+  },
   "common": {
     "save": "保存",
     "close": "閉じる",
@@ -245,6 +251,8 @@
     "onTable": "{{table}} に対して",
     "objectSummary": "オブジェクト",
     "databases": "データベース",
+    "newDatabase": "新しいデータベース",
+    "newSchema": "新しいスキーマ",
     "failGetRoutineDefinition": "ルーチン定義の取得に失敗しました: ",
     "schemas": "スキーマ",
     "noSchemas": "スキーマが見つかりません",
@@ -2025,6 +2033,8 @@
       "exportCsv": "CSV としてエクスポート",
       "exportJson": "JSON としてエクスポート",
       "exportHtml": "HTML としてエクスポート",
+      "exportSql": "SQL ソースをエクスポート",
+      "exportSqlEmpty": "このノートブックにはエクスポートする SQL がありません。",
       "parameters": "パラメータ",
       "paramName": "名前",
       "paramValue": "値",
@@ -2048,6 +2058,8 @@
       "expandSection": "セクションを展開",
       "collapseAll": "すべて折りたたむ",
       "expandAll": "すべて展開",
+      "clearOutputs": "出力をクリア",
+      "clearOutputsConfirm": "すべてのセルに表示中の結果、エラー、実行時間をクリアしますか？クエリ、パラメータ、チャート、実行履歴は保持されます。",
       "outline": "アウトライン",
       "aiGenerate": "AI で SQL を生成",
       "aiExplain": "このクエリを AI で説明",
@@ -2170,6 +2182,24 @@
     "failCreate": "テーブルの作成に失敗しました: ",
     "requiresExtension": "拡張機能が必要: {{ext}}"
   },
+  "createDatabase": {
+    "title": "データベースを作成",
+    "subtitle": "このサーバーで CREATE DATABASE を実行します",
+    "name": "データベース名",
+    "namePlaceholder": "例: analytics, staging",
+    "create": "データベースを作成",
+    "nameRequired": "データベース名は必須です",
+    "failCreate": "データベースの作成に失敗しました: "
+  },
+  "createSchema": {
+    "title": "スキーマを作成",
+    "subtitle": "このデータベースで CREATE SCHEMA を実行します",
+    "name": "スキーマ名",
+    "namePlaceholder": "例: store, reporting",
+    "create": "スキーマを作成",
+    "nameRequired": "スキーマ名は必須です",
+    "failCreate": "スキーマの作成に失敗しました: "
+  },
   "schema": {
     "title": "スキーマ: {{table}}",
     "loading": "スキーマを読み込み中...",
@@ -2267,6 +2297,7 @@
     "exportMermaid": "Mermaid 図としてエクスポート",
     "exportSuccess": "図をエクスポートしました",
     "exportDbml": "DBML としてエクスポート",
+    "exportMarkdown": "Markdown としてエクスポート",
     "export": "エクスポート"
   },
   "views": {
@@ -2441,7 +2472,8 @@
     "valid": "有効な JSON",
     "invalid": "無効な JSON",
     "expandAll": "すべて展開",
-    "collapseAll": "すべて折りたたむ"
+    "collapseAll": "すべて折りたたむ",
+    "sortKeys": "キーを並べ替え"
   },
   "jsonViewer": {
     "close": "閉じる",

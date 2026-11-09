@@ -93,6 +93,12 @@
     "warnConfirm": "Esegui comunque",
     "warnSnooze": "Non chiedere più per questa connessione (questa sessione)"
   },
+  "textStats": {
+    "characters": "Caratteri: {{count}}",
+    "lines": "Righe: {{count}}",
+    "bytes": "Byte UTF-8: {{count}}",
+    "charactersHint": "Punti di codice Unicode, non cluster di grafemi"
+  },
   "common": {
     "save": "Salva",
     "close": "Chiudi",
@@ -239,6 +245,8 @@
     "refreshRoutines": "Aggiorna Routine",
     "objectSummary": "Oggetti",
     "databases": "Database",
+    "newDatabase": "Nuovo database",
+    "newSchema": "Nuovo schema",
     "failGetRoutineDefinition": "Impossibile recuperare la definizione della routine: ",
     "schemas": "Schemi",
     "noSchemas": "Nessuno schema trovato",
@@ -2074,6 +2082,8 @@
       "exportCsv": "Esporta come CSV",
       "exportJson": "Esporta come JSON",
       "exportHtml": "Esporta come HTML",
+      "exportSql": "Esporta sorgente SQL",
+      "exportSqlEmpty": "Questo notebook non contiene SQL da esportare.",
       "parameters": "Parametri",
       "paramName": "nome",
       "paramValue": "valore",
@@ -2097,6 +2107,8 @@
       "expandSection": "Espandi Sezione",
       "collapseAll": "Comprimi Tutto",
       "expandAll": "Espandi Tutto",
+      "clearOutputs": "Cancella Output",
+      "clearOutputsConfirm": "Cancellare i risultati, gli errori e i tempi mostrati per tutte le celle? Query, parametri, grafici e cronologia delle esecuzioni vengono mantenuti.",
       "outline": "Sommario",
       "aiGenerate": "Genera SQL con AI",
       "aiExplain": "Spiega questa Query con AI",
@@ -2219,6 +2231,24 @@
     "failCreate": "Creazione tabella fallita: ",
     "requiresExtension": "Richiede estensione: {{ext}}"
   },
+  "createDatabase": {
+    "title": "Crea database",
+    "subtitle": "Esegue CREATE DATABASE su questo server",
+    "name": "Nome del database",
+    "namePlaceholder": "es. analytics, staging",
+    "create": "Crea database",
+    "nameRequired": "Il nome del database è obbligatorio",
+    "failCreate": "Creazione del database fallita: "
+  },
+  "createSchema": {
+    "title": "Crea schema",
+    "subtitle": "Esegue CREATE SCHEMA in questo database",
+    "name": "Nome dello schema",
+    "namePlaceholder": "es. store, reporting",
+    "create": "Crea schema",
+    "nameRequired": "Il nome dello schema è obbligatorio",
+    "failCreate": "Creazione dello schema fallita: "
+  },
   "schema": {
     "title": "Schema: {{table}}",
     "loading": "Caricamento schema...",
@@ -2316,6 +2346,7 @@
     "exportMermaid": "Esporta come diagramma Mermaid",
     "exportSuccess": "Diagramma esportato",
     "exportDbml": "Esporta come DBML",
+    "exportMarkdown": "Esporta come Markdown",
     "export": "Esporta"
   },
   "views": {
@@ -2464,6 +2495,7 @@
     "collapse": "Comprimi",
     "expandAll": "Espandi tutto",
     "collapseAll": "Comprimi tutto",
+    "sortKeys": "Ordina chiavi",
     "search": "Cerca",
     "copyPath": "Copia percorso",
     "copyValue": "Copia valore",

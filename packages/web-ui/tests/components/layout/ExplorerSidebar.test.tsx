@@ -1566,3 +1566,274 @@ describe('ExplorerSidebar — saved query actions', () => {
         });
     });
 });
+
+describe('ExplorerSidebar — create database / schema actions (#839)', () => {
+    const stubSidebarHooks = () => {
+        vi.mocked(useSavedQueries).mockReturnValue({
+            queries: [],
+            folders: [],
+            deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
+            updateQuery: vi.fn(),
+            saveQuery: vi.fn(),
+        } as unknown as ReturnType<typeof useSavedQueries>);
+        vi.mocked(useQueryHistory).mockReturnValue({
+            entries: [],
+            isLoading: false,
+            deleteEntry: vi.fn(),
+            clearHistory: vi.fn(),
+            recoveryNotice: null,
+            dismissRecoveryNotice: vi.fn(),
+        } as unknown as ReturnType<typeof useQueryHistory>);
+        vi.mocked(useAlert).mockReturnValue({
+            showAlert: vi.fn(),
+        } as unknown as ReturnType<typeof useAlert>);
+        vi.mocked(useDrivers).mockReturnValue({
+            allDrivers: [],
+        } as unknown as ReturnType<typeof useDrivers>);
+        vi.mocked(useEditor).mockReturnValue({
+            tabs: [],
+            openNotebook: vi.fn(),
+            updateTab: vi.fn(),
+            closeTab: vi.fn(),
+            addTab: vi.fn(),
+            setActiveTabId: vi.fn(),
+        } as unknown as ReturnType<typeof useEditor>);
+        vi.mocked(useSettings).mockReturnValue({
+            settings: {displayTimezone: 'auto'},
+        } as unknown as ReturnType<typeof useSettings>);
+        vi.mocked(useConnectionLayoutContext).mockReturnValue({
+            splitView: {connectionIds: []},
+            isSplitVisible: false,
+            explorerConnectionId: null,
+            setExplorerConnectionId: vi.fn(),
+        } as unknown as ReturnType<typeof useConnectionLayoutContext>);
+        vi.mocked(useDatabaseObjectNavigation).mockReturnValue({
+            open: vi.fn(),
+            count: vi.fn(),
+            newConsole: vi.fn(),
+            openRoutineDefinition: vi.fn(),
+            openTriggerDefinition: vi.fn(),
+            openDefinition: vi.fn(),
+        } as unknown as ReturnType<typeof useDatabaseObjectNavigation>);
+    };
+
+    const baseDatabaseState = {
+        activeConnectionId: 'c1',
+        activeDriver: 'mysql',
+        activeTable: null,
+        setActiveTable: vi.fn(),
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        schemas: [] as string[],
+        connectionDataMap: {c1: {}},
+        schemaDataMap: {},
+        databaseDataMap: {},
+        nestedDatabaseDataMap: {},
+        selectedSchemas: [] as string[],
+        selectedDatabases: [] as string[],
+        connections: [],
+        isLoadingTables: false,
+        isLoadingSchemas: false,
+        needsSchemaSelection: false,
+        connect: vi.fn(),
+        loadSchemaData: vi.fn(),
+        refreshSchemaData: vi.fn(),
+        setSelectedSchemas: vi.fn(),
+        refreshSchemas: vi.fn(),
+        loadDatabaseData: vi.fn(),
+        setSelectedDatabases: vi.fn(),
+        loadNestedSchemas: vi.fn(),
+        setSelectedSchemasForDatabase: vi.fn(),
+        refreshDatabaseSelection: vi.fn(),
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        stubSidebarHooks();
+    });
+
+    it('offers New Database on a MySQL multi-database connection', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeCapabilities: {
+                schemas: false,
+                file_based: false,
+                folder_based: false,
+                identifier_quote: '`',
+                sql_dialect: 'mysql',
+            },
+            selectedDatabases: ['app'],
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.newDatabase'}));
+        expect(screen.getByText('createDatabase.title')).toBeInTheDocument();
+    });
+
+    it('offers New Schema on a single-database PostgreSQL connection', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: {
+                schemas: true,
+                file_based: false,
+                folder_based: false,
+                identifier_quote: '"',
+                sql_dialect: 'postgres',
+            },
+            schemas: ['public'],
+            selectedSchemas: ['public'],
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.newSchema'}));
+        expect(screen.getByText('createSchema.title')).toBeInTheDocument();
+    });
+
+    it('hides New Database on SQLite', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'sqlite',
+            activeCapabilities: {
+                schemas: false,
+                file_based: true,
+                folder_based: false,
+                identifier_quote: '"',
+                sql_dialect: 'sqlite',
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        expect(screen.queryByRole('button', {name: 'sidebar.newDatabase'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'sidebar.newSchema'})).not.toBeInTheDocument();
+    });
+
+    const postgresCaps = {
+        schemas: true,
+        file_based: false,
+        folder_based: false,
+        identifier_quote: '"',
+        sql_dialect: 'postgres',
+    };
+
+    const submitCreateSchema = async (name: string) => {
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.newSchema'}));
+        fireEvent.change(screen.getByLabelText('createSchema.name'), {target: {value: name}});
+        fireEvent.click(screen.getByRole('button', {name: 'createSchema.create'}));
+        await waitFor(() => {
+            expect(invoke).toHaveBeenCalledWith(
+                'execute_query',
+                expect.objectContaining({query: `CREATE SCHEMA "${name}"`}),
+            );
+        });
+    };
+
+    it('refreshes the picker after creating a schema with none selected', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            schemas: ['public'],
+            selectedSchemas: [],
+            needsSchemaSelection: true,
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.refreshSchemas).toHaveBeenCalled();
+        });
+        expect(baseDatabaseState.setSelectedSchemas).not.toHaveBeenCalled();
+    });
+
+    it('adds a created schema to an existing selection', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            schemas: ['public'],
+            selectedSchemas: ['public'],
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.setSelectedSchemas).toHaveBeenCalledWith(['public', 'store']);
+        });
+        expect(baseDatabaseState.refreshSchemas).toHaveBeenCalled();
+    });
+
+    it('keeps the nested schema picker open after creating a schema with none selected', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            selectedDatabases: ['app'],
+            nestedDatabaseDataMap: {
+                app: {
+                    schemas: ['public'],
+                    schemasLoaded: true,
+                    isLoadingSchemas: false,
+                    selectedSchemas: [],
+                    activeSchema: null,
+                    needsSchemaSelection: true,
+                    schemaDataMap: {},
+                },
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.loadNestedSchemas).toHaveBeenCalledWith(
+                'app',
+                undefined,
+                true,
+            );
+        });
+        expect(baseDatabaseState.setSelectedSchemasForDatabase).not.toHaveBeenCalled();
+        expect(baseDatabaseState.setSelectedSchemas).not.toHaveBeenCalled();
+    });
+
+    it('adds a created schema to a nested database that already has a selection', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            selectedDatabases: ['app'],
+            nestedDatabaseDataMap: {
+                app: {
+                    schemas: ['public'],
+                    schemasLoaded: true,
+                    isLoadingSchemas: false,
+                    selectedSchemas: ['public'],
+                    activeSchema: 'public',
+                    needsSchemaSelection: false,
+                    schemaDataMap: {},
+                },
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.setSelectedSchemasForDatabase).toHaveBeenCalledWith('app', [
+                'public',
+                'store',
+            ]);
+        });
+        expect(baseDatabaseState.loadNestedSchemas).toHaveBeenCalledWith('app', undefined, true);
+    });
+});

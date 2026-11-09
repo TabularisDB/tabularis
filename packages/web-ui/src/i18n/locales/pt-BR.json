@@ -63,6 +63,12 @@
     "matchCase": "Diferenciar maiúsculas",
     "matchCaseHint": "Diferencia maiúsculas de minúsculas (LIKE). Desmarque para ignorar (ILIKE)."
   },
+  "textStats": {
+    "characters": "Caracteres: {{count}}",
+    "lines": "Linhas: {{count}}",
+    "bytes": "Bytes UTF-8: {{count}}",
+    "charactersHint": "Pontos de código Unicode, não clusters de grafemas"
+  },
   "common": {
     "save": "Salvar",
     "close": "Fechar",
@@ -222,6 +228,8 @@
     "onTable": "em {{table}}",
     "objectSummary": "Objetos",
     "databases": "Bancos de Dados",
+    "newDatabase": "Novo banco de dados",
+    "newSchema": "Novo esquema",
     "failGetRoutineDefinition": "Falha ao obter definição da rotina: ",
     "schemas": "Esquemas",
     "noSchemas": "Nenhum esquema encontrado",
@@ -2032,6 +2040,8 @@
       "exportCsv": "Exportar como CSV",
       "exportJson": "Exportar como JSON",
       "exportHtml": "Exportar como HTML",
+      "exportSql": "Exportar código SQL",
+      "exportSqlEmpty": "Este notebook não tem SQL para exportar.",
       "parameters": "Parâmetros",
       "paramName": "nome",
       "paramValue": "valor",
@@ -2055,6 +2065,8 @@
       "expandSection": "Expandir Seção",
       "collapseAll": "Recolher Tudo",
       "expandAll": "Expandir Tudo",
+      "clearOutputs": "Limpar Saídas",
+      "clearOutputsConfirm": "Limpar os resultados, erros e tempos exibidos em todas as células? As consultas, os parâmetros, os gráficos e o histórico de execução são mantidos.",
       "outline": "Estrutura",
       "aiGenerate": "Gerar SQL com IA",
       "aiExplain": "Explicar esta Consulta com IA",
@@ -2177,6 +2189,24 @@
     "failCreate": "Falha ao criar tabela: ",
     "requiresExtension": "Requer extensão: {{ext}}"
   },
+  "createDatabase": {
+    "title": "Criar banco de dados",
+    "subtitle": "Executa CREATE DATABASE neste servidor",
+    "name": "Nome do banco de dados",
+    "namePlaceholder": "ex.: analytics, staging",
+    "create": "Criar banco de dados",
+    "nameRequired": "O nome do banco de dados é obrigatório",
+    "failCreate": "Falha ao criar banco de dados: "
+  },
+  "createSchema": {
+    "title": "Criar esquema",
+    "subtitle": "Executa CREATE SCHEMA neste banco de dados",
+    "name": "Nome do esquema",
+    "namePlaceholder": "ex.: store, reporting",
+    "create": "Criar esquema",
+    "nameRequired": "O nome do esquema é obrigatório",
+    "failCreate": "Falha ao criar esquema: "
+  },
   "schema": {
     "title": "Esquema: {{table}}",
     "loading": "Carregando esquema...",
@@ -2270,7 +2300,12 @@
     "showAllTables": "Mostrar Todas as Tabelas",
     "showAll": "Mostrar Tudo",
     "focusedOn": "Focado em",
-    "focusOnTable": "Focar na Tabela"
+    "focusOnTable": "Focar na Tabela",
+    "exportMermaid": "Exportar como diagrama Mermaid",
+    "exportSuccess": "Diagrama exportado",
+    "exportDbml": "Exportar como DBML",
+    "exportMarkdown": "Exportar como Markdown",
+    "export": "Exportar"
   },
   "views": {
     "createView": "Criar View",
@@ -2452,6 +2487,7 @@
     "collapse": "Recolher",
     "expandAll": "Expandir tudo",
     "collapseAll": "Recolher tudo",
+    "sortKeys": "Ordenar chaves",
     "search": "Buscar",
     "copyPath": "Copiar Caminho",
     "copyValue": "Copiar Valor",

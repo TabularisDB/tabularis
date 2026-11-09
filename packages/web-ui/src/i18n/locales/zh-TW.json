@@ -90,6 +90,12 @@
         "warnConfirm": "仍然執行",
         "warnSnooze": "此連線不再詢問（本次工作階段）"
     },
+    "textStats": {
+      "characters": "字元數:{{count}}",
+      "lines": "行數:{{count}}",
+      "bytes": "UTF-8 位元組數:{{count}}",
+      "charactersHint": "依 Unicode 碼位計數,而非字素簇"
+    },
     "common": {
         "save": "儲存",
         "close": "關閉",
@@ -249,6 +255,8 @@
         "onTable": "於 {{table}}",
         "objectSummary": "物件",
         "databases": "資料庫",
+        "newDatabase": "新增資料庫",
+        "newSchema": "新增結構描述",
         "failGetRoutineDefinition": "取得預存程序定義失敗：",
         "schemas": "結構描述",
         "noSchemas": "找不到結構描述",
@@ -2058,6 +2066,8 @@
             "exportCsv": "匯出為 CSV",
             "exportJson": "匯出為 JSON",
             "exportHtml": "匯出為 HTML",
+            "exportSql": "匯出 SQL 原始碼",
+            "exportSqlEmpty": "此筆記本沒有可匯出的 SQL。",
             "parameters": "引數",
             "paramName": "名稱",
             "paramValue": "值",
@@ -2081,6 +2091,8 @@
             "expandSection": "展開區域",
             "collapseAll": "全部摺疊",
             "expandAll": "全部展開",
+            "clearOutputs": "清除輸出",
+            "clearOutputsConfirm": "清除所有儲存格中顯示的結果、錯誤和執行時間？查詢、引數、圖表和執行歷史將會保留。",
             "outline": "大綱",
             "aiGenerate": "使用 AI 產生 SQL",
             "aiExplain": "使用 AI 解釋此查詢",
@@ -2203,6 +2215,24 @@
         "failCreate": "建立資料表失敗：",
         "requiresExtension": "需要擴充功能：{{ext}}"
     },
+    "createDatabase": {
+        "title": "建立資料庫",
+        "subtitle": "在此伺服器上執行 CREATE DATABASE",
+        "name": "資料庫名稱",
+        "namePlaceholder": "例如：analytics, staging",
+        "create": "建立資料庫",
+        "nameRequired": "資料庫名稱是必需的",
+        "failCreate": "建立資料庫失敗："
+    },
+    "createSchema": {
+        "title": "建立結構描述",
+        "subtitle": "在此資料庫中執行 CREATE SCHEMA",
+        "name": "結構描述名稱",
+        "namePlaceholder": "例如：store, reporting",
+        "create": "建立結構描述",
+        "nameRequired": "結構描述名稱是必需的",
+        "failCreate": "建立結構描述失敗："
+    },
     "schema": {
         "title": "結構描述：{{table}}",
         "loading": "載入結構描述中...",
@@ -2300,6 +2330,7 @@
         "exportMermaid": "匯出為 Mermaid 圖表",
         "exportSuccess": "圖表已匯出",
         "exportDbml": "匯出為 DBML",
+        "exportMarkdown": "匯出為 Markdown",
         "export": "匯出"
     },
     "views": {
@@ -2438,6 +2469,7 @@
         "collapse": "摺疊",
         "expandAll": "全部展開",
         "collapseAll": "全部摺疊",
+        "sortKeys": "排序鍵",
         "search": "搜尋",
         "copyPath": "複製路徑",
         "copyValue": "複製值",

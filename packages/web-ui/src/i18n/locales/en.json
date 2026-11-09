@@ -86,6 +86,12 @@
     "warnConfirm": "Run anyway",
     "warnSnooze": "Don't ask again for this connection (this session)"
   },
+  "textStats": {
+    "characters": "Characters: {{count}}",
+    "lines": "Lines: {{count}}",
+    "bytes": "UTF-8 bytes: {{count}}",
+    "charactersHint": "Unicode code points, not grapheme clusters"
+  },
   "common": {
     "save": "Save",
     "close": "Close",
@@ -245,6 +251,8 @@
     "onTable": "on {{table}}",
     "objectSummary": "Objects",
     "databases": "Databases",
+    "newDatabase": "New Database",
+    "newSchema": "New Schema",
     "failGetRoutineDefinition": "Failed to get routine definition: ",
     "schemas": "Schemas",
     "noSchemas": "No schemas found",
@@ -2085,6 +2093,8 @@
       "exportCsv": "Export as CSV",
       "exportJson": "Export as JSON",
       "exportHtml": "Export as HTML",
+      "exportSql": "Export SQL source",
+      "exportSqlEmpty": "This notebook has no SQL to export.",
       "parameters": "Parameters",
       "paramName": "name",
       "paramValue": "value",
@@ -2108,6 +2118,8 @@
       "expandSection": "Expand Section",
       "collapseAll": "Collapse All",
       "expandAll": "Expand All",
+      "clearOutputs": "Clear Outputs",
+      "clearOutputsConfirm": "Clear the displayed results, errors and timings of all cells? Queries, parameters, charts and execution history are kept.",
       "outline": "Outline",
       "aiGenerate": "Generate SQL with AI",
       "aiExplain": "Explain this Query with AI",
@@ -2230,6 +2242,24 @@
     "failCreate": "Failed to create table: ",
     "requiresExtension": "Requires extension: {{ext}}"
   },
+  "createDatabase": {
+    "title": "Create Database",
+    "subtitle": "Runs CREATE DATABASE on this server",
+    "name": "Database name",
+    "namePlaceholder": "e.g. analytics, staging",
+    "create": "Create Database",
+    "nameRequired": "Database name is required",
+    "failCreate": "Failed to create database: "
+  },
+  "createSchema": {
+    "title": "Create Schema",
+    "subtitle": "Runs CREATE SCHEMA in this database",
+    "name": "Schema name",
+    "namePlaceholder": "e.g. store, reporting",
+    "create": "Create Schema",
+    "nameRequired": "Schema name is required",
+    "failCreate": "Failed to create schema: "
+  },
   "schema": {
     "title": "Schema: {{table}}",
     "loading": "Loading schema...",
@@ -2327,6 +2357,7 @@
     "exportMermaid": "Export as Mermaid diagram",
     "exportSuccess": "Diagram exported",
     "exportDbml": "Export as DBML",
+    "exportMarkdown": "Export as Markdown",
     "export": "Export"
   },
   "views": {
@@ -2509,6 +2540,7 @@
     "collapse": "Collapse",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
+    "sortKeys": "Sort keys",
     "search": "Search",
     "copyPath": "Copy Path",
     "copyValue": "Copy Value",
