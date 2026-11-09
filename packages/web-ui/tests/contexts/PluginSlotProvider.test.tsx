@@ -11,6 +11,9 @@ const clientMock = vi.hoisted(() => ({
     call: vi.fn(),
     readPluginAsset: vi.fn(),
 }));
+const driverMock = vi.hoisted(() => ({installedPlugins: [] as {id: string}[]}));
+
+vi.mock('@/hooks/useDrivers', () => ({useDrivers: () => driverMock}));
 
 vi.mock('@/hooks/useTabularisClient', () => ({
     useTabularisClient: () => clientMock,
@@ -46,6 +49,27 @@ const renderWithSettings = (ui: React.ReactNode, value = settingsValue) =>
 describe('PluginSlotProvider', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        driverMock.installedPlugins = [];
+    });
+    it('loads installed extensions when the enabled preference is absent', async () => {
+        driverMock.installedPlugins = [{id: 'example-plugin'}];
+        clientMock.call.mockResolvedValue({
+            id: 'example-plugin',
+            ui_extensions: [{slot: 'sidebar.footer.actions', module: 'ui/index.js'}],
+        });
+        clientMock.readPluginAsset.mockRejectedValue(new Error('missing locale'));
+        let registry: PluginSlotRegistryType | undefined;
+        renderWithSettings(
+            <PluginSlotProvider>
+                <RegistryConsumer
+                    onRegistry={(value) => {
+                        registry = value;
+                    }}
+                />
+            </PluginSlotProvider>,
+            {...settingsValue, settings: {...DEFAULT_SETTINGS, activeExternalDrivers: undefined}},
+        );
+        await waitFor(() => expect(registry?.contributions).toHaveLength(1));
     });
     it('should provide a registry with no contributions initially', () => {
         let registry: PluginSlotRegistryType | undefined;
@@ -64,7 +88,7 @@ describe('PluginSlotProvider', () => {
         expect(registry!.contributions).toHaveLength(0);
     });
 
-    it('should load compatible bundles through the active transport', async () => {
+    it('should register compatible UI bundles without evaluating them in the host', async () => {
         let registry: PluginSlotRegistryType | undefined;
         clientMock.call.mockResolvedValue({
             id: 'example-plugin',
@@ -81,13 +105,7 @@ describe('PluginSlotProvider', () => {
                 },
             ],
         });
-        clientMock.readPluginAsset.mockImplementation((_pluginId: string, assetPath: string) =>
-            assetPath.startsWith('locales/')
-                ? Promise.reject(new Error('missing locale'))
-                : Promise.resolve(
-                      'var __tabularis_plugin__ = function PluginSlot() { return null; };',
-                  ),
-        );
+        clientMock.readPluginAsset.mockRejectedValue(new Error('missing locale'));
         const activeSettings = {
             ...settingsValue,
             settings: {
@@ -108,7 +126,10 @@ describe('PluginSlotProvider', () => {
         );
 
         await waitFor(() => expect(registry?.contributions).toHaveLength(1));
-        expect(clientMock.readPluginAsset).toHaveBeenCalledWith('example-plugin', 'ui/index.js');
+        expect(clientMock.readPluginAsset).not.toHaveBeenCalledWith(
+            'example-plugin',
+            'ui/index.js',
+        );
     });
 
     it('should skip bundles that require an incompatible plugin API', async () => {

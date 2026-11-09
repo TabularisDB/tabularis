@@ -278,6 +278,10 @@ export interface ExecuteQueryRequest extends MetadataRequest {
     page?: number;
 }
 
+export interface ExecutePluginReadOnlyQueryRequest extends MetadataRequest {
+    query: string;
+}
+
 export interface ExecuteQueryBatchRequest extends MetadataRequest {
     sessionId?: string;
     queries: string[];
@@ -734,6 +738,7 @@ export interface CommandMap {
     get_plugin_startup_errors: CommandDefinition<undefined, PluginLoadError[], 'local-admin'>;
     kill_plugin_process: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
     restart_plugin_process: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
+    sync_plugin_settings: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
 
     test_connection: CommandDefinition<{request: TestConnectionRequest}, string, 'database'>;
     disconnect_connection: CommandDefinition<ConnectionIdRequest, void, 'database'>;
@@ -1004,6 +1009,11 @@ export interface CommandMap {
     >;
 
     execute_query: CommandDefinition<ExecuteQueryRequest, QueryResult, 'database'>;
+    execute_plugin_read_only_query: CommandDefinition<
+        ExecutePluginReadOnlyQueryRequest,
+        QueryResult,
+        'database'
+    >;
     execute_query_batch: CommandDefinition<
         ExecuteQueryBatchRequest,
         BatchStatementResult[],

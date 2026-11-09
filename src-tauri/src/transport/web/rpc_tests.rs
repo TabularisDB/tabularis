@@ -724,6 +724,7 @@ fn registers_plugin_lifecycle_commands_with_local_admin_authorization() {
         "get_plugin_startup_errors",
         "kill_plugin_process",
         "restart_plugin_process",
+        "sync_plugin_settings",
     ] {
         let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
         assert_eq!(
@@ -995,6 +996,10 @@ async fn rejects_destructive_operations_without_local_admin_authorization() {
         ),
         (
             "restart_plugin_process",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
+            "sync_plugin_settings",
             serde_json::json!({"pluginId": "postgres-driver"}),
         ),
     ] {
@@ -1686,6 +1691,10 @@ async fn routes_plugin_lifecycle_commands_through_the_shared_application_api() {
         ),
         ("get_plugin_startup_errors", Value::Null),
         (
+            "sync_plugin_settings",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
             "kill_plugin_process",
             serde_json::json!({"pluginId": "postgres-driver"}),
         ),
@@ -1713,7 +1722,7 @@ async fn routes_plugin_lifecycle_commands_through_the_shared_application_api() {
         .contexts
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    assert_eq!(contexts.len(), 13);
+    assert_eq!(contexts.len(), 14);
     assert!(contexts
         .iter()
         .all(|context| context.authorization == AuthorizationLevel::LocalAdmin));
@@ -3096,9 +3105,25 @@ async fn connection_policy_accepts_omitted_blank_ssl_mode_on_saved_connections()
 #[tokio::test]
 async fn database_backup_rpc_requires_local_admin_and_uses_the_shared_application() {
     let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
-    for command in ["get_database_backup_status", "run_database_backup_now", "cancel_database_backup"] {
-        for (authorization, expected) in [(AuthorizationLevel::Database, StatusCode::FORBIDDEN), (AuthorizationLevel::LocalAdmin, StatusCode::OK)] {
-            let response = dispatcher.dispatch(command, RequestId(command.to_string()), &json_headers(), Bytes::from_static(b"null"), Some(Uuid::new_v4()), authorization).await;
+    for command in [
+        "get_database_backup_status",
+        "run_database_backup_now",
+        "cancel_database_backup",
+    ] {
+        for (authorization, expected) in [
+            (AuthorizationLevel::Database, StatusCode::FORBIDDEN),
+            (AuthorizationLevel::LocalAdmin, StatusCode::OK),
+        ] {
+            let response = dispatcher
+                .dispatch(
+                    command,
+                    RequestId(command.to_string()),
+                    &json_headers(),
+                    Bytes::from_static(b"null"),
+                    Some(Uuid::new_v4()),
+                    authorization,
+                )
+                .await;
             assert_eq!(response.status(), expected, "{command}");
         }
     }

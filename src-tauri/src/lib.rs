@@ -6,9 +6,9 @@
 pub mod ai;
 pub mod ai_activity;
 #[cfg(test)]
-pub mod ai_activity_tests;
-#[cfg(test)]
 pub mod ai_activity_lexer_tests;
+#[cfg(test)]
+pub mod ai_activity_tests;
 pub mod ai_approval;
 #[cfg(test)]
 pub mod ai_approval_tests;
@@ -23,7 +23,6 @@ pub mod ai_schema_context_tests;
 pub mod application;
 pub mod askpass;
 pub mod backup;
-pub mod database_backup;
 pub mod chatgpt;
 pub mod cli;
 pub mod clipboard_import;
@@ -36,6 +35,7 @@ pub mod connection_cache;
 #[cfg(test)]
 pub mod connection_cache_tests;
 pub mod connection_import;
+pub mod database_backup;
 
 pub mod connection_migrations;
 #[cfg(test)]
@@ -97,14 +97,14 @@ pub mod sandbox_tests;
 pub mod saved_queries;
 #[cfg(test)]
 pub mod saved_queries_tests;
-pub mod sql_database_statements;
-pub mod sql_file;
-#[cfg(test)]
-pub mod sql_file_tests;
 pub mod saved_query_folders;
 #[cfg(test)]
 pub mod saved_query_folders_tests;
 pub mod secret_store;
+pub mod sql_database_statements;
+pub mod sql_file;
+#[cfg(test)]
+pub mod sql_file_tests;
 pub mod sqlite_database;
 #[cfg(test)]
 pub mod sqlite_database_tests;
@@ -124,7 +124,6 @@ pub mod ui_state;
 
 #[cfg(test)]
 pub mod ui_state_tests;
-
 
 /// Tauri's global runtime in the desktop app; the ambient Tokio runtime of
 /// `tabularis web` and `--mcp` otherwise.
@@ -212,9 +211,11 @@ pub fn run() {
             let web_data_dir = application.context.paths.data_dir().to_path_buf();
             let web_plugins_dir = application.context.paths.plugins_dir();
             let database_backup_scheduler = database_backup::spawn_database_backup_scheduler(
-                application.context.clone(), application_state.dump_cancellation.clone(),
+                application.context.clone(),
+                application_state.dump_cancellation.clone(),
             );
-            let approval_heartbeat = runtime::lifecycle::start_approval_heartbeat(&application.context);
+            let approval_heartbeat =
+                runtime::lifecycle::start_approval_heartbeat(&application.context);
             let approval_watcher = ai_approval_watcher::spawn_headless(
                 application.context.clone(),
                 application_state.clone(),
@@ -267,4 +268,3 @@ pub fn run() {
         std::process::exit(2);
     }
 }
-

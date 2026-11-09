@@ -15,6 +15,7 @@ mod tests;
 pub use files::*;
 pub use schedule::*;
 
+use crate::runtime::RuntimeContext;
 use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -23,7 +24,6 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use crate::runtime::RuntimeContext;
 
 use crate::config::DatabaseBackupPlan;
 use crate::dump_commands::{
@@ -258,16 +258,31 @@ where
     let target_path = dest_dir.join(&file_name);
     let target = target_path.display().to_string();
 
-    let staging = match tempfile::Builder::new().prefix(".pending-backup-").tempfile_in(dest_dir) {
+    let staging = match tempfile::Builder::new()
+        .prefix(".pending-backup-")
+        .tempfile_in(dest_dir)
+    {
         Ok(file) => file,
-        Err(error) => return failed(BackupOutcome::Error, format!("Failed to create backup file: {error}")),
+        Err(error) => {
+            return failed(
+                BackupOutcome::Error,
+                format!("Failed to create backup file: {error}"),
+            )
+        }
     };
     let result = dump(staging.path().display().to_string()).await;
-    let result = if cancel_requested.load(Ordering::SeqCst) { Err(DUMP_CANCELLED.to_string()) } else { result };
+    let result = if cancel_requested.load(Ordering::SeqCst) {
+        Err(DUMP_CANCELLED.to_string())
+    } else {
+        result
+    };
     match result {
         Ok(()) => {
             if let Err(error) = staging.persist(&target_path) {
-                return failed(BackupOutcome::Error, format!("Failed to publish database backup: {error}"));
+                return failed(
+                    BackupOutcome::Error,
+                    format!("Failed to publish database backup: {error}"),
+                );
             }
             let retention = if plan.retention > 0 {
                 plan.retention as usize
@@ -348,7 +363,11 @@ pub async fn run_database_backup(
     .await
 }
 
-async fn run_plan_once(runtime: &RuntimeContext, cancellation_state: &DumpCancellationState, trigger: &str) -> Result<String, String> {
+async fn run_plan_once(
+    runtime: &RuntimeContext,
+    cancellation_state: &DumpCancellationState,
+    trigger: &str,
+) -> Result<String, String> {
     let config = crate::application::persistence::load_config(runtime);
     let plan = config
         .database_backup_plan
@@ -420,7 +439,10 @@ async fn run_plan_once(runtime: &RuntimeContext, cancellation_state: &DumpCancel
 
 // ---------- Background scheduler ----------
 
-pub fn spawn_database_backup_scheduler(runtime: RuntimeContext, cancellation_state: Arc<DumpCancellationState>) -> crate::async_rt::JoinHandle<()> {
+pub fn spawn_database_backup_scheduler(
+    runtime: RuntimeContext,
+    cancellation_state: Arc<DumpCancellationState>,
+) -> crate::async_rt::JoinHandle<()> {
     crate::async_rt::spawn(async move {
         // App-open boundary: scheduler runs every 30 seconds while Tabularis is open
         loop {
@@ -498,16 +520,17 @@ pub async fn get_database_backup_status(
     })
 }
 
-pub async fn run_database_backup_now(runtime: &RuntimeContext, cancellation_state: &DumpCancellationState) -> Result<String, String> {
+pub async fn run_database_backup_now(
+    runtime: &RuntimeContext,
+    cancellation_state: &DumpCancellationState,
+) -> Result<String, String> {
     run_database_backup(runtime, cancellation_state, "manual").await
 }
 
 /// Cancels the run in progress, whatever the plan says now. Before the dump
 /// task exists (e.g. during the SSH/K8s setup) the flag alone stops it: the
 /// dump checks it once the setup is done and again right after registering.
-pub async fn cancel_database_backup(
-    state: &DumpCancellationState,
-) -> Result<(), String> {
+pub async fn cancel_database_backup(state: &DumpCancellationState) -> Result<(), String> {
     if !RUNTIME_STATE.is_running.load(Ordering::SeqCst) {
         return Err("No database backup is running".into());
     }

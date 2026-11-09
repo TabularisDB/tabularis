@@ -53,13 +53,13 @@ SQLite `EXPLAIN QUERY PLAN` rows:
 import { parseExplain, parseExplainFor, parseRawExplain } from "@tabularis/explain";
 
 // Sniff the format of a pasted blob or an uploaded file:
-const plan = parseExplain(raw);
+const plan = await parseExplain(raw);
 
 // Or name the engine when the caller knows it:
-const hinted = parseExplainFor(raw, "mysql");
+const hinted = await parseExplainFor(raw, "mysql");
 
 // Or parse the raw payload a host driver handed over:
-const fromDriver = parseRawExplain({ engine, format, payload, original_query });
+const fromDriver = await parseRawExplain({ engine, format, payload, original_query });
 ```
 
 A host obtains the bytes however it likes — a driver, a pasted textarea, an
@@ -86,6 +86,9 @@ registerExplainParser({
 ```
 
 Import the parser package before calling `parseRawExplain` or source detection.
+These helpers are asynchronous because plugin parsers run in isolated guest
+frames. Await `detectFormat`, `detectFormatFor`, `parseExplain`,
+`parseExplainFor`, `parseRawExplain`, and `resolveExplainOutput`.
 Registering the same format again replaces it, which supports plugin upgrades;
 call `unregisterExplainParser(format)` when unloading it.
 

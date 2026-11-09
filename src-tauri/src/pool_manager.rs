@@ -1,6 +1,8 @@
 use crate::models::ConnectionParams;
 use crate::sqlite_database::expand_sqlite_filename;
-use deadpool_postgres::{Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool};
+use deadpool_postgres::{
+    Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool,
+};
 use once_cell::sync::Lazy;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{verify_server_cert_signed_by_trust_anchor, WebPkiServerVerifier};
@@ -13,7 +15,9 @@ use rustls::DigitallySignedStruct;
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
 use sha2::{Digest, Sha256};
-use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite};
+use sqlx::{
+    sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -975,8 +979,7 @@ async fn run_postgres_startup_script(
     tls: MakeRustlsConnect,
     script: &str,
 ) -> Result<(), String> {
-    let (mut client, connection) =
-        cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
+    let (mut client, connection) = cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
     // tokio_postgres needs the connection future polled on its own task.
     let driver = tokio::spawn(async move {
         let _ = connection.await;

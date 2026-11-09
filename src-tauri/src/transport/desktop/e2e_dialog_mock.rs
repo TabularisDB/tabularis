@@ -22,7 +22,10 @@
 //! / `Value::Null` satisfy.
 
 use serde_json::{json, Value};
-use tauri::{plugin::{Builder, TauriPlugin}, Runtime};
+use tauri::{
+    plugin::{Builder, TauriPlugin},
+    Runtime,
+};
 
 fn env_path(var: &str) -> Value {
     match std::env::var(var) {
@@ -32,17 +35,35 @@ fn env_path(var: &str) -> Value {
 }
 
 #[tauri::command]
-async fn ask(_message: Value, _title: Option<Value>, _kind: Option<Value>, _yes_button_label: Option<Value>, _no_button_label: Option<Value>) -> Result<Value, String> {
+async fn ask(
+    _message: Value,
+    _title: Option<Value>,
+    _kind: Option<Value>,
+    _yes_button_label: Option<Value>,
+    _no_button_label: Option<Value>,
+) -> Result<Value, String> {
     Ok(json!(true))
 }
 
 #[tauri::command]
-async fn confirm(_message: Value, _title: Option<Value>, _kind: Option<Value>, _ok_button_label: Option<Value>, _cancel_button_label: Option<Value>) -> Result<Value, String> {
+async fn confirm(
+    _message: Value,
+    _title: Option<Value>,
+    _kind: Option<Value>,
+    _ok_button_label: Option<Value>,
+    _cancel_button_label: Option<Value>,
+) -> Result<Value, String> {
     Ok(json!(true))
 }
 
 #[tauri::command]
-async fn message(_message: Value, _title: Option<Value>, _kind: Option<Value>, _ok_button_label: Option<Value>, _buttons: Option<Value>) -> Result<Value, String> {
+async fn message(
+    _message: Value,
+    _title: Option<Value>,
+    _kind: Option<Value>,
+    _ok_button_label: Option<Value>,
+    _buttons: Option<Value>,
+) -> Result<Value, String> {
     Ok(Value::Null)
 }
 
@@ -58,8 +79,6 @@ async fn save(_options: Value) -> Result<Value, String> {
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::<R>::new("dialog")
-        .invoke_handler(tauri::generate_handler![
-            ask, confirm, message, open, save
-        ])
+        .invoke_handler(tauri::generate_handler![ask, confirm, message, open, save])
         .build()
 }

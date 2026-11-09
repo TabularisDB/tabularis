@@ -359,8 +359,23 @@ fn database_backup_plan_survives_unrelated_config_updates() {
         "enabled": true, "connectionId": "sqlite-review", "time": "03:15", "timezone": "UTC",
         "destinationDirectory": "/backups", "retention": 3,
         "includeStructure": true, "includeData": true
-    })).unwrap();
-    save_config(&runtime, AppConfig { database_backup_plan: Some(plan.clone()), ..Default::default() }).unwrap();
-    save_config(&runtime, AppConfig { language: Some("de".to_string()), ..Default::default() }).unwrap();
+    }))
+    .unwrap();
+    save_config(
+        &runtime,
+        AppConfig {
+            database_backup_plan: Some(plan.clone()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    save_config(
+        &runtime,
+        AppConfig {
+            language: Some("de".to_string()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert_eq!(load_config(&runtime).database_backup_plan, Some(plan));
 }

@@ -136,7 +136,10 @@ pub fn read_manifest<T: serde::de::DeserializeOwned>(dir: &Path) -> Result<T, St
         // typed deserialization can discard it and before any plugin activation.
         if crate::plugins::compat::has_legacy_manifest(dir) {
             path = dir.join("manifest.json");
-            log::warn!("Using legacy manifest.json in {:?} — republish as .tabularium", dir);
+            log::warn!(
+                "Using legacy manifest.json in {:?} — republish as .tabularium",
+                dir
+            );
         } else {
             return Err(format!("No .tabularium manifest in {:?}", dir));
         }
@@ -454,7 +457,11 @@ pub async fn download_and_install_into(
     // Retire flat/renamed copies only after the kind-scoped install succeeds.
     for path in previous.into_iter().filter(|path| path != &final_dir) {
         if let Err(error) = fs::remove_dir_all(&path) {
-            log::warn!("Installed driver but could not remove fallback {:?}: {}", path, error);
+            log::warn!(
+                "Installed driver but could not remove fallback {:?}: {}",
+                path,
+                error
+            );
         }
     }
     log::info!("Plugin '{}' installed successfully", plugin_id);
@@ -469,7 +476,10 @@ pub fn uninstall(plugin_id: &str) -> Result<(), String> {
 pub fn uninstall_from(plugins_dir: &Path, plugin_id: &str) -> Result<(), String> {
     super::layout::resolve_driver(plugins_dir, plugin_id)?;
     // Remove fallback copies first so uninstall cannot resurrect an older bundle.
-    for path in super::layout::driver_candidates(plugins_dir)?.into_iter().rev() {
+    for path in super::layout::driver_candidates(plugins_dir)?
+        .into_iter()
+        .rev()
+    {
         if super::layout::driver_identity(&path).as_deref() == Some(plugin_id) {
             fs::remove_dir_all(&path)
                 .map_err(|e| format!("Failed to remove plugin '{}': {}", plugin_id, e))?;

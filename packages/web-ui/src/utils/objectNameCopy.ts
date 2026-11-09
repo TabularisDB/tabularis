@@ -13,7 +13,6 @@ export function formatObjectNameForCopy(
     if (format === 'quoted') return quoteIdentifier(name, driver);
     return quoteTableRef(name, driver, schema);
 }
-
 /**
  * Formats column names in result-column order as a comma-separated list of
  * SQL identifiers quoted with the active driver's identifier quote.

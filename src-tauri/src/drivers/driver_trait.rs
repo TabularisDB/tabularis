@@ -484,6 +484,14 @@ pub trait DatabaseDriver: Send + Sync {
     /// Built-in sqlx-based drivers hold no background process; the default is a no-op.
     async fn shutdown(&self) {}
 
+    /// Refresh a running plugin's settings without stopping its process.
+    async fn sync_plugin_settings(
+        &self,
+        _settings: HashMap<String, serde_json::Value>,
+    ) -> Result<(), String> {
+        Err("This driver does not support plugin settings synchronization".into())
+    }
+
     /// Like [`shutdown`](Self::shutdown), but stops the background process at
     /// once instead of letting in-flight calls finish. For a host that is
     /// exiting, when no caller is left to read their results.
@@ -751,7 +759,7 @@ pub trait DatabaseDriver: Send + Sync {
         routine_type: &str,
         schema: Option<&str>,
         /* Unused by the generic statement: a dialect that needs a signature to
-           name one routine overrides this, as the PostgreSQL driver does */
+        name one routine overrides this, as the PostgreSQL driver does */
         _identity_args: Option<&str>,
     ) -> Result<(), String> {
         let sql = crate::drivers::common::generic_drop_routine_sql(

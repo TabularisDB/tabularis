@@ -1,8 +1,8 @@
 use super::build_mysql_pk_where;
-use super::{is_text_protocol_stmt, push_mysql_update_value, MysqlDriver, TextProto};
 use super::helpers::{
     inline_str_placeholders, mysql_bytes_literal, mysql_column_types, mysql_string_literal,
 };
+use super::{is_text_protocol_stmt, push_mysql_update_value, MysqlDriver, TextProto};
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::{ConnectionParams, DatabaseSelection};
 

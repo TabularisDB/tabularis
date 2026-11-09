@@ -511,7 +511,9 @@ impl PluginProcess {
 
         let (tx, rx) = oneshot::channel();
         if !self.accepting_calls.load(Ordering::Acquire) {
-            return Err("Plugin is shutting down; new RPC calls are rejected".to_string().into());
+            return Err("Plugin is shutting down; new RPC calls are rejected"
+                .to_string()
+                .into());
         }
         let permit = self.sender.reserve().await.map_err(|_| {
             if self.accepting_calls.load(Ordering::Acquire) {
@@ -521,18 +523,18 @@ impl PluginProcess {
             }
         })?;
         if !self.accepting_calls.load(Ordering::Acquire) {
-            return Err("Plugin is shutting down; new RPC calls are rejected".to_string().into());
+            return Err("Plugin is shutting down; new RPC calls are rejected"
+                .to_string()
+                .into());
         }
         permit.send(PluginCommand::Call(req, tx));
 
         let Some(timeout) = timeout else {
-            return rx
-                .await
-                .unwrap_or_else(|_| {
-                    Err(dropped_plugin_response_error(
-                        !self.accepting_calls.load(Ordering::Acquire),
-                    ))
-                });
+            return rx.await.unwrap_or_else(|_| {
+                Err(dropped_plugin_response_error(
+                    !self.accepting_calls.load(Ordering::Acquire),
+                ))
+            });
         };
 
         match tokio::time::timeout(timeout, rx).await {
@@ -656,7 +658,9 @@ impl RpcDriver {
         // schema selection (route_selected_plugin_database in call()). The
         // array must survive to that point — flattening it here to a single
         // primary would destroy the selection before it can be applied.
-        if self.process.route_selected_database && matches!(params.database, DatabaseSelection::Multiple(_)) {
+        if self.process.route_selected_database
+            && matches!(params.database, DatabaseSelection::Multiple(_))
+        {
             // Only resolve an empty primary to the fallback database so
             // the pool can connect; leave a non-empty Multiple intact.
             if params.database.primary().is_empty() {
@@ -762,6 +766,13 @@ impl DatabaseDriver for RpcDriver {
 
     async fn shutdown(&self) {
         self.process.shutdown().await;
+    }
+
+    async fn sync_plugin_settings(&self, settings: HashMap<String, Value>) -> Result<(), String> {
+        self.process
+            .call("initialize", json!({ "settings": settings }))
+            .await?;
+        Ok(())
     }
 
     async fn terminate(&self) {
@@ -2295,6 +2306,29 @@ pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver 
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn syncing_settings_keeps_the_process_available() {
+        use super::*;
+        use crate::drivers::driver_trait::DatabaseDriver;
+        let driver = test_driver(|request| {
+            if request.method == "initialize" {
+                assert_eq!(request.params["settings"]["access_token"], "new-token");
+            }
+            serde_json::Value::Null
+        });
+        driver
+            .sync_plugin_settings(HashMap::from([(
+                "access_token".to_string(),
+                serde_json::json!("new-token"),
+            )]))
+            .await
+            .unwrap();
+        driver
+            .process
+            .call("ping", serde_json::json!({}))
+            .await
+            .unwrap();
+    }
     use super::*;
     use crate::models::DatabaseSelection;
     use crate::plugins::rpc::JsonRpcError;
@@ -2307,7 +2341,6 @@ mod tests {
             "Plugin process did not respond"
         );
     }
-
 
     #[test]
     fn selected_plugin_database_routing_only_changes_multi_database_requests() {
@@ -2367,8 +2400,7 @@ mod tests {
             // for schema-based plugins; route_selected_database is false so
             // route_selected_plugin_database does not run.
             assert_eq!(
-                req.params["params"]["database"],
-                "sales",
+                req.params["params"]["database"], "sales",
                 "a SQL schema with the same name as a database must not select it"
             );
             json!({
@@ -2382,8 +2414,7 @@ mod tests {
             .unwrap()
             .route_selected_database = false;
         let mut params = test_connection_params();
-        params.database =
-            DatabaseSelection::Multiple(vec!["sales".into(), "analytics".into()]);
+        params.database = DatabaseSelection::Multiple(vec!["sales".into(), "analytics".into()]);
         let (result, _) = driver
             .execute_query_in_session(
                 &params,
@@ -2422,9 +2453,20 @@ mod tests {
         let mut params = test_connection_params();
         params.database = DatabaseSelection::Multiple(vec!["0".to_string(), "3".to_string()]);
 
-        assert!(driver.get_tables(&params, Some("3")).await.unwrap().is_empty());
+        assert!(driver
+            .get_tables(&params, Some("3"))
+            .await
+            .unwrap()
+            .is_empty());
         let (query_result, _in_tx) = driver
-            .execute_query_in_session(&params, "GET db3-key", None, 1, Some("3"), Some("db3-session"))
+            .execute_query_in_session(
+                &params,
+                "GET db3-key",
+                None,
+                1,
+                Some("3"),
+                Some("db3-session"),
+            )
             .await
             .unwrap();
         assert_eq!(query_result.rows.len(), 1);
@@ -2493,8 +2535,12 @@ mod tests {
 
         let results = driver
             .execute_batch(
-                &params, &["GET db3-only-key".to_string()],
-                None, 1, Some("3"), None,
+                &params,
+                &["GET db3-only-key".to_string()],
+                None,
+                1,
+                Some("3"),
+                None,
             )
             .await
             .expect("batch request");
@@ -2511,7 +2557,11 @@ mod tests {
         });
         let mut params = test_connection_params();
         params.database = DatabaseSelection::Single("0".to_string());
-        assert!(driver.get_tables(&params, Some("3")).await.unwrap().is_empty());
+        assert!(driver
+            .get_tables(&params, Some("3"))
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     fn test_connection_params() -> ConnectionParams {
@@ -3755,10 +3805,16 @@ mod tests {
         params.default_database = Some(" app/main ".to_string());
 
         params.database = DatabaseSelection::Single(String::new());
-        assert_eq!(driver.with_primary_database(&params).database.primary(), "app/main");
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "app/main"
+        );
 
         params.database = DatabaseSelection::Multiple(vec![]);
-        assert_eq!(driver.with_primary_database(&params).database.primary(), "app/main");
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "app/main"
+        );
     }
 
     /// `default_database` only stands in while no database is selected: a
@@ -3769,7 +3825,10 @@ mod tests {
         let mut params = test_connection_params(); // database: Single("db")
         params.default_database = Some("app".to_string());
 
-        assert_eq!(driver.with_primary_database(&params).database.primary(), "db");
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "db"
+        );
 
         let selection = DatabaseSelection::Multiple(vec!["app/logs".into(), "app/main".into()]);
         params.database = selection.clone();
@@ -3786,10 +3845,16 @@ mod tests {
         params.database = DatabaseSelection::Single(String::new());
 
         params.default_database = Some("analytics".to_string());
-        assert_eq!(driver.with_primary_database(&params).database.primary(), "analytics");
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "analytics"
+        );
 
         params.default_database = Some("   ".to_string());
-        assert_eq!(driver.with_primary_database(&params).database.primary(), "postgres");
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "postgres"
+        );
     }
 
     /// Regression: a PostgreSQL-plugin connection saved with "Choose
