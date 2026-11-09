@@ -7,9 +7,17 @@ import type {RelationResolver, SqlDiagnostic, SqlDiagnosticCode} from '@/utils/s
 /** Marker owner: keeps these markers apart from any other source of markers. */
 export const SQL_DIAGNOSTICS_OWNER = 'tabularis-sql-diagnostics';
 export const SQL_DIAGNOSTICS_DEBOUNCE_MS = 500;
+/** Oldest cached column list diagnostics will trust before re-reading it. */
+export const SQL_DIAGNOSTICS_COLUMNS_MAX_AGE_MS = 5_000;
 
 export interface SqlDiagnosticsOptions {
     resolveRelation: RelationResolver;
+    /**
+     * Identifies what the markers were computed for (connection, database,
+     * schema). Markers are cleared when it changes; a new `resolveRelation`
+     * with the same key (a metadata refresh) keeps them until fresh ones land.
+     */
+    contextKey: string;
 }
 
 export interface SqlDiagnosticsTarget {
@@ -31,7 +39,9 @@ const MESSAGE_KEYS: Record<SqlDiagnosticCode, string> = {
  * model. Analysis is debounced, cancelled by the next edit, and its result is
  * dropped when the text or the options changed while it ran. Nothing is sent
  * to the server except the column lookups of relations the query names.
- * Disabled (and markers removed) while `options` is undefined.
+ * Disabled (and markers removed) while `options` is undefined. Existing
+ * markers stay in place while a re-analysis is pending, unless the context
+ * itself changed.
  */
 export function useSqlDiagnostics(
     target: SqlDiagnosticsTarget | null,
@@ -41,6 +51,18 @@ export function useSqlDiagnostics(
     const editor = target?.editor;
     const monaco = target?.monaco;
     const resolveRelation = options?.resolveRelation;
+    const contextKey = options?.contextKey;
+
+    // Owns marker removal: runs only when diagnostics are switched off or the
+    // context changes, not on every metadata refresh.
+    useEffect(() => {
+        const model = editor?.getModel();
+        if (!editor || !monaco || !model || contextKey === undefined) return;
+        return () => {
+            if (!model.isDisposed())
+                monaco.editor.setModelMarkers(model, SQL_DIAGNOSTICS_OWNER, []);
+        };
+    }, [editor, monaco, contextKey]);
 
     useEffect(() => {
         const model = editor?.getModel();
@@ -104,8 +126,6 @@ export function useSqlDiagnostics(
             subscription.dispose();
             if (timer) clearTimeout(timer);
             controller?.abort();
-            if (!model.isDisposed())
-                monaco.editor.setModelMarkers(model, SQL_DIAGNOSTICS_OWNER, []);
         };
     }, [editor, monaco, resolveRelation, t]);
 }

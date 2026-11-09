@@ -59,8 +59,12 @@ function createFakeEditor(initial: string) {
 const ordersResolver = (): RelationResolver =>
     vi.fn(async () => ({status: 'found' as const, columns: ['id', 'total']}));
 
-const optionsFor = (resolveRelation: RelationResolver): SqlDiagnosticsOptions => ({
+const optionsFor = (
+    resolveRelation: RelationResolver,
+    contextKey = 'ctx',
+): SqlDiagnosticsOptions => ({
     resolveRelation,
+    contextKey,
 });
 
 const flush = async () => {
@@ -157,30 +161,46 @@ describe('useSqlDiagnostics', () => {
 
     it('clears markers and discards in-flight work when the context changes', async () => {
         const fake = createFakeEditor('SELECT o.total FROM orders o');
-        const first: RelationResolver = async () => ({status: 'found', columns: ['id', 'total']});
-        const second: RelationResolver = async () => ({status: 'found', columns: ['id']});
+        const narrow: RelationResolver = async () => ({status: 'found', columns: ['id']});
+        const wide: RelationResolver = async () => ({status: 'found', columns: ['id', 'total']});
 
         const {rerender} = renderHook(
             ({options}: {options: SqlDiagnosticsOptions}) =>
                 useSqlDiagnostics(fake.target, options),
-            {initialProps: {options: optionsFor(first)}},
+            {initialProps: {options: optionsFor(narrow, 'conn-a')}},
         );
         await flush();
-        expect(fake.setModelMarkers).toHaveBeenLastCalledWith(
-            expect.anything(),
-            SQL_DIAGNOSTICS_OWNER,
-            [],
-        );
+        expect(fake.setModelMarkers.mock.calls.at(-1)?.[2]).toHaveLength(1);
 
-        rerender({options: optionsFor(second)});
+        rerender({options: optionsFor(wide, 'conn-b')});
         expect(fake.setModelMarkers).toHaveBeenLastCalledWith(
             expect.anything(),
             SQL_DIAGNOSTICS_OWNER,
             [],
         );
         await flush();
-        const markers = fake.setModelMarkers.mock.calls.at(-1)?.[2] as Array<{code: string}>;
-        expect(markers.map((m) => m.code)).toEqual(['unresolvedColumn']);
+        expect(fake.setModelMarkers.mock.calls.at(-1)?.[2]).toEqual([]);
+    });
+
+    it('keeps existing markers while a metadata refresh is re-analyzed', async () => {
+        const fake = createFakeEditor('SELECT o.total FROM orders o');
+        const narrow: RelationResolver = async () => ({status: 'found', columns: ['id']});
+        const wide: RelationResolver = async () => ({status: 'found', columns: ['id', 'total']});
+
+        const {rerender} = renderHook(
+            ({options}: {options: SqlDiagnosticsOptions}) =>
+                useSqlDiagnostics(fake.target, options),
+            {initialProps: {options: optionsFor(narrow)}},
+        );
+        await flush();
+        expect(fake.setModelMarkers).toHaveBeenCalledTimes(1);
+
+        rerender({options: optionsFor(wide)});
+        expect(fake.setModelMarkers).toHaveBeenCalledTimes(1);
+
+        await flush();
+        expect(fake.setModelMarkers).toHaveBeenCalledTimes(2);
+        expect(fake.setModelMarkers.mock.calls.at(-1)?.[2]).toEqual([]);
     });
 
     it('does nothing without options and removes its markers when they go away', async () => {

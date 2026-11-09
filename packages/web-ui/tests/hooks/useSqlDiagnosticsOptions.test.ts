@@ -5,6 +5,7 @@ import {DEFAULT_SETTINGS, SettingsContext, type Settings} from '@/contexts/Setti
 import {useSqlDiagnosticsOptions} from '@/hooks/useSqlDiagnosticsOptions';
 import {useDatabase} from '@/hooks/useDatabase';
 import {getTableColumns} from '@/utils/autocomplete';
+import {SQL_DIAGNOSTICS_COLUMNS_MAX_AGE_MS} from '@/hooks/useSqlDiagnostics';
 
 const clientMock = vi.hoisted(() => ({call: vi.fn()}));
 
@@ -109,6 +110,7 @@ describe('useSqlDiagnosticsOptions', () => {
             'orders',
             'public',
             null,
+            SQL_DIAGNOSTICS_COLUMNS_MAX_AGE_MS,
         );
         expect(await resolve?.({name: 'order_totals'})).toEqual({status: 'found', columns: ['id']});
         expect(await resolve?.({name: 'ghost'})).toEqual({status: 'missing'});
@@ -141,6 +143,7 @@ describe('useSqlDiagnosticsOptions', () => {
             'invoices',
             'sales',
             null,
+            SQL_DIAGNOSTICS_COLUMNS_MAX_AGE_MS,
         );
     });
 
@@ -173,8 +176,17 @@ describe('useSqlDiagnosticsOptions', () => {
             'events',
             'public',
             'analytics',
+            SQL_DIAGNOSTICS_COLUMNS_MAX_AGE_MS,
         );
         expect(await resolve?.({name: 'orders'})).toEqual({status: 'missing'});
+    });
+
+    it('keys the context by connection, database and schema', () => {
+        const wrapper = settingsWrapperFor({sqlDiagnosticsEnabled: true});
+        const {result} = renderHook(() => useSqlDiagnosticsOptions('conn-1', {schema: 'sales'}), {
+            wrapper,
+        });
+        expect(result.current?.contextKey).toBe(JSON.stringify(['conn-1', null, 'sales']));
     });
 
     it('keeps the same options while nothing relevant changes', () => {

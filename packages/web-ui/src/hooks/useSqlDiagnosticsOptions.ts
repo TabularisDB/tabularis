@@ -6,7 +6,7 @@ import {isSchemaBasedMultiDb} from '@/utils/database';
 import {createRelationResolver} from '@/utils/sqlDiagnosticsMetadata';
 import {useDatabase} from './useDatabase';
 import {useTabularisClient} from './useTabularisClient';
-import type {SqlDiagnosticsOptions} from './useSqlDiagnostics';
+import {SQL_DIAGNOSTICS_COLUMNS_MAX_AGE_MS, type SqlDiagnosticsOptions} from './useSqlDiagnostics';
 
 type Options = {
     schema?: string | null;
@@ -30,7 +30,9 @@ const relationNames = (data: Pick<SchemaData, 'tables' | 'views' | 'materialized
  * is on and the driver is PostgreSQL, the only dialect analyzed so far.
  *
  * Only metadata the app already loaded is listed; columns are read per
- * relation a query names, through the bounded autocomplete cache.
+ * relation a query names, through the bounded autocomplete cache. Cached
+ * columns are accepted only while fresh, so a definite error never rests on
+ * columns from before a DDL statement ran.
  */
 export function useSqlDiagnosticsOptions(
     connectionId: string | null,
@@ -85,10 +87,18 @@ export function useSqlDiagnosticsOptions(
                 searchPath,
                 listRelations,
                 fetchColumns: async (target, name) =>
-                    (await getTableColumns(client, connectionId, name, target, database)).map(
-                        (column) => column.label,
-                    ),
+                    (
+                        await getTableColumns(
+                            client,
+                            connectionId,
+                            name,
+                            target,
+                            database,
+                            SQL_DIAGNOSTICS_COLUMNS_MAX_AGE_MS,
+                        )
+                    ).map((column) => column.label),
             }),
+            contextKey: JSON.stringify([connectionId, database, schema]),
         };
     }, [
         active,

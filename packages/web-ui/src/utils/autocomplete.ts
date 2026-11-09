@@ -146,6 +146,8 @@ export const getTableColumns = async (
     tableName: string,
     schema?: string | null,
     database?: string | null,
+    /** Ignore cached entries older than this; callers that must not act on stale columns set it. */
+    maxAgeMs?: number,
 ) => {
     if (!connectionId || !tableName) return [];
 
@@ -154,7 +156,7 @@ export const getTableColumns = async (
     const cached = columnsCache.get(cacheKey);
 
     // Return cached data if valid
-    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+    if (cached && Date.now() - cached.timestamp < Math.min(cached.ttl, maxAgeMs ?? Infinity)) {
         return cached.data;
     }
 
