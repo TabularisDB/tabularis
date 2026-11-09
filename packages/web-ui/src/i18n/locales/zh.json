@@ -1,4 +1,7 @@
 {
+  "pluginWorkspace": {
+    "unavailable": "此工作区不可用。请在设置中启用或重新安装其插件。"
+  },
   "serverFilePicker": {
     "title": "浏览服务器文件",
     "subtitle": "在 Tabularis 主机上选择文件或文件夹",

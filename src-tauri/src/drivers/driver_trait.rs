@@ -435,6 +435,14 @@ pub trait DatabaseDriver: Send + Sync {
 
     fn manifest(&self) -> &PluginManifest;
 
+    /// Optional connection-scoped extension envelope for external plugins.
+    async fn call_extension(
+        &self,
+        _request: serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        Err("This driver does not support plugin extensions".into())
+    }
+
     fn has_connection_metadata(&self) -> bool {
         false
     }

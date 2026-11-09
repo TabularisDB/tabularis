@@ -1,3 +1,4 @@
+import {SlotAnchor} from '@/components/ui/SlotAnchor';
 import {useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import {copyTextToClipboard} from '@/utils/clipboard';
 import {useNavigate} from 'react-router-dom';
@@ -1454,6 +1455,17 @@ export const ExplorerSidebar = ({
                     </div>
                 </div>
 
+                <SlotAnchor
+                    name="explorer.connection.actions"
+                    context={{
+                        connectionId: activeConnectionId,
+                        connectionName: activeConnectionName ?? null,
+                        driver: activeDriver,
+                        schema: activeSchema,
+                    }}
+                    className="shrink-0 min-w-0 flex flex-col gap-2 px-3 py-2 border-b border-default"
+                />
+
                 {/* Tab bar */}
                 <div className="flex items-center border-b border-default bg-base px-1">
                     {[
@@ -1858,6 +1870,18 @@ export const ExplorerSidebar = ({
                             onOpen={handleOpenNotebook}
                             onRename={handleRenameNotebook}
                             onDelete={handleDeleteNotebook}
+                        />
+                    )}
+
+                    {sidebarTab === 'structure' && (
+                        <SlotAnchor
+                            name="explorer.services"
+                            context={{
+                                connectionId: activeConnectionId,
+                                connectionName: activeConnectionName ?? null,
+                                driver: activeDriver,
+                                schema: activeSchema,
+                            }}
                         />
                     )}
 

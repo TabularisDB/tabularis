@@ -1,4 +1,12 @@
-import {useCallback, useLayoutEffect, useRef, useState, useImperativeHandle, type Ref} from 'react';
+import {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+    useImperativeHandle,
+    type Ref,
+} from 'react';
 import {act, render, screen} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {invoke} from '@tauri-apps/api/core';
@@ -8,12 +16,17 @@ import {createAutoRefreshSchedule, type AutoRefreshSchedule} from '@/utils/autoR
 import type {Tab, QueryResult} from '@/types/editor';
 import type {DataGrid as DataGridType, DataGridCommandTarget} from '@/components/ui/DataGrid';
 import type {ComponentProps} from 'react';
+import {SettingsContext, DEFAULT_SETTINGS} from '@/contexts/SettingsContext';
+import {PluginSlotContext} from '@/contexts/PluginSlotContext';
+import type {SlotComponentProps} from '@/types/pluginSlots';
 
 // Captures the `onRunQuery` prop the Editor passes to TableToolbar so the test
 // can drive it directly, exercising the real `runToolbarQuery` callback
 // without rendering the filter-value picker UI.
 let capturedRunToolbarQuery: ((sql: string) => Promise<QueryResult>) | undefined;
 let capturedRefresh: (() => void) | undefined;
+let capturedRunQuery: ((query: string) => void) | undefined;
+let capturedRunMultipleQueries: ((queries: string[]) => void) | undefined;
 // Same for the DataGrid's column statistics loader (issue #1001).
 type LoadColumnStats = NonNullable<ComponentProps<typeof DataGridType>['onLoadColumnStats']>;
 let capturedLoadColumnStats: LoadColumnStats | undefined;
@@ -92,7 +105,17 @@ vi.mock('@/components/modals/AiExplainModal', () => ({AiExplainModal: () => null
 vi.mock('@/components/modals/VisualExplainModal', () => ({VisualExplainModal: () => null}));
 vi.mock('@/components/modals/NewRowModal', () => ({NewRowModal: () => null}));
 vi.mock('@/components/modals/QuerySelectionModal', () => ({
-    QuerySelectionModal: () => null,
+    QuerySelectionModal: ({
+        onSelect,
+        onRunAll,
+    }: {
+        onSelect: (query: string) => void;
+        onRunAll: (queries: string[]) => void;
+    }) => {
+        capturedRunQuery = onSelect;
+        capturedRunMultipleQueries = onRunAll;
+        return null;
+    },
 }));
 vi.mock('@/components/modals/ConfirmModal', () => ({ConfirmModal: () => null}));
 vi.mock('@/components/modals/ExplainSelectionModal', () => ({
@@ -720,5 +743,98 @@ describe('column statistics from plugin drivers (#1137)', () => {
             await capturedLoadColumnStats?.('id', ALL, controller.signal).catch(() => {});
         });
         expect(statsCalls()).toHaveLength(0);
+    });
+});
+
+describe('plugin workspace editor isolation', () => {
+    beforeEach(() => {
+        capturedRunToolbarQuery = undefined;
+        vi.mocked(invoke).mockReset();
+        vi.mocked(invoke).mockResolvedValue([]);
+        mocks.guard.mockClear();
+    });
+
+    it('hides SQL panels and prevents direct or shortcut query execution', async () => {
+        render(
+            <Harness
+                initialTabs={[
+                    {
+                        ...initialTab('workspace'),
+                        type: 'plugin-workspace',
+                        pluginId: 'custom',
+                        workspaceId: 'services',
+                        activeTable: null,
+                        query: 'SELECT 1; SELECT 2;',
+                    },
+                ]}
+            />,
+        );
+        expect(screen.queryByTitle('Show Results Panel')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('grid')).not.toBeInTheDocument();
+        expect(capturedRunToolbarQuery).toBeUndefined();
+        await act(async () => {
+            capturedRunQuery?.('SELECT 1');
+            capturedRunMultipleQueries?.(['SELECT 1', 'SELECT 2']);
+            window.dispatchEvent(new KeyboardEvent('keydown', {key: 'F5', ctrlKey: true}));
+            window.dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'F5', ctrlKey: true, shiftKey: true}),
+            );
+        });
+        expect(
+            vi
+                .mocked(invoke)
+                .mock.calls.filter(
+                    ([command]) => command === 'execute_query' || command === 'execute_query_batch',
+                ),
+        ).toEqual([]);
+        expect(mocks.guard).not.toHaveBeenCalled();
+    });
+    it('unmounts provider content when switching tabs or closing the workspace', () => {
+        const cleanup = vi.fn();
+        const Content = ({context}: SlotComponentProps) => {
+            useEffect(() => cleanup, []);
+            return <div>Provider connection: {context.connectionId}</div>;
+        };
+        const registry = {
+            contributions: [],
+            register: () => () => {},
+            registerAll: () => () => {},
+            getSlotContributions: () => [
+                {pluginId: 'custom', slot: 'editor.workspace.content' as const, component: Content},
+            ],
+        };
+        const workspace = {
+            ...initialTab('workspace'),
+            type: 'plugin-workspace' as const,
+            pluginId: 'custom',
+            workspaceId: 'services',
+            activeTable: null,
+        };
+        const {unmount} = render(
+            <SettingsContext.Provider
+                value={{
+                    settings: {...DEFAULT_SETTINGS, activeExternalDrivers: ['custom']},
+                    updateSetting: mocks.noop,
+                    isLoading: false,
+                }}
+            >
+                <PluginSlotContext.Provider value={registry}>
+                    <Harness
+                        initialTabs={[
+                            workspace,
+                            {...initialTab('console-1'), type: 'console', activeTable: null},
+                        ]}
+                    />
+                </PluginSlotContext.Provider>
+            </SettingsContext.Provider>,
+        );
+        expect(screen.getByText('Provider connection: connection-1')).toBeInTheDocument();
+        act(() => screen.getByRole('button', {name: 'console-1'}).click());
+        expect(screen.queryByText('Provider connection: connection-1')).not.toBeInTheDocument();
+        expect(cleanup).toHaveBeenCalledOnce();
+        act(() => screen.getByRole('button', {name: 'workspace'}).click());
+        expect(screen.getByText('Provider connection: connection-1')).toBeInTheDocument();
+        unmount();
+        expect(cleanup).toHaveBeenCalledTimes(2);
     });
 });

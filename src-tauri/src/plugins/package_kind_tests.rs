@@ -8,6 +8,7 @@ fn explicit_legacy_driver_rule_keeps_executable_and_ui_only_manifests() {
         json!({"name":"legacy","executable":"driver"}),
         json!({"name":"ui-only","ui_extensions":[]}),
         json!({"kind":"driver"}),
+        json!({"kind":"cloud","executable":"driver"}),
     ] {
         assert!(require_driver_kind(value.to_string().as_bytes()).is_ok());
     }
@@ -70,5 +71,21 @@ fn generic_manifest_read_cannot_discard_an_executable_theme_kind() {
             crate::plugins::installer::read_manifest::<serde_json::Value>(temp.path()).unwrap_err(),
             KIND_ERROR
         );
+    }
+}
+
+#[test]
+fn cloud_archives_keep_the_executable_driver_install_path() {
+    for name in [".tabularium", "manifest.json"] {
+        let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        writer
+            .start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        writer
+            .write_all(br#"{"name":"cloud-fixture","kind":"cloud","executable":"driver"}"#)
+            .unwrap();
+        let mut archive =
+            zip::ZipArchive::new(Cursor::new(writer.finish().unwrap().into_inner())).unwrap();
+        assert!(validate_archive_kind(&mut archive).is_ok());
     }
 }

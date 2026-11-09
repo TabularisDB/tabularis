@@ -214,6 +214,11 @@ enum OperationalRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PluginRpcCommand {
+    Account,
+    CallExtension,
+    SetSecrets,
+    SecretFields,
+    DeleteSecrets,
     GetRuntimeWarnings,
     FetchRegistry,
     FetchPreview,
@@ -2129,8 +2134,12 @@ impl RpcCommand {
                 application_error_code: "NOTEBOOK_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
-            Self::Plugin(_) => CommandMetadata {
-                authorization: AuthorizationLevel::LocalAdmin,
+            Self::Plugin(command) => CommandMetadata {
+                authorization: if command == PluginRpcCommand::SecretFields {
+                    AuthorizationLevel::Database
+                } else {
+                    AuthorizationLevel::LocalAdmin
+                },
                 application_error_code: "PLUGIN_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
@@ -2212,6 +2221,11 @@ impl OperationalRpcCommand {
 impl PluginRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "plugin_account" => Self::Account,
+            "call_plugin_extension" => Self::CallExtension,
+            "set_plugin_secrets" => Self::SetSecrets,
+            "get_plugin_secret_fields" => Self::SecretFields,
+            "delete_plugin_secrets" => Self::DeleteSecrets,
             "get_plugin_runtime_warnings" => Self::GetRuntimeWarnings,
             "fetch_plugin_registry" => Self::FetchRegistry,
             "fetch_tabularium_plugin_preview" => Self::FetchPreview,
@@ -3021,7 +3035,21 @@ fn decode_mcp_host_command(
 }
 
 fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<PluginCommand, String> {
+    use crate::application::plugin_extensions::ExtensionCommand;
     Ok(match command {
+        PluginRpcCommand::Account => PluginCommand::Account(decode_payload(body)?),
+        PluginRpcCommand::CallExtension => {
+            PluginCommand::Extension(ExtensionCommand::Call(decode_payload(body)?))
+        }
+        PluginRpcCommand::SetSecrets => {
+            PluginCommand::Extension(ExtensionCommand::SetSecrets(decode_payload(body)?))
+        }
+        PluginRpcCommand::SecretFields => {
+            PluginCommand::Extension(ExtensionCommand::SecretFields(decode_payload(body)?))
+        }
+        PluginRpcCommand::DeleteSecrets => {
+            PluginCommand::Extension(ExtensionCommand::DeleteSecrets(decode_payload(body)?))
+        }
         PluginRpcCommand::FetchRegistry => {
             decode_empty_payload(body)?;
             PluginCommand::FetchRegistry

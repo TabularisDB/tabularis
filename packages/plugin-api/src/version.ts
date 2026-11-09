@@ -1,5 +1,5 @@
 /**
- * API version of this package. Must match the version field of package.json.
+ * Host contract version. Kept separate from the package release version.
  * Bump when the host API shape changes in a way that plugin bundles can observe.
  */
 export const API_VERSION = '0.4.0';

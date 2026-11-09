@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import type {ReactNode, ComponentType} from 'react';
 
 export interface PluginModalOptions {
     title: string;
@@ -137,6 +137,17 @@ export type PluginTranslator = (key: string, options?: Record<string, unknown>) 
  * import the named hooks/helpers from `@tabularis/plugin-api` instead.
  */
 export interface TabularisHostApi {
+    PluginSelect: ComponentType<PluginSelectProps>;
+    copyText: (text: string) => Promise<void>;
+    PluginResourceList: ComponentType<PluginResourceListProps>;
+    PluginCodeEditor: ComponentType<PluginCodeEditorProps>;
+    PluginExplorerSection: ComponentType<PluginExplorerSectionProps>;
+    PluginDataGrid: ComponentType<PluginDataGridProps>;
+    PluginConnectionAction: ComponentType<PluginConnectionActionProps>;
+    PluginWorkspaceShell: ComponentType<PluginWorkspaceShellProps>;
+    usePluginWorkspace: (pluginId: string) => UsePluginWorkspaceReturn;
+    usePluginAccount: (pluginId: string) => UsePluginAccountReturn;
+    usePluginRpc: (pluginId: string, connectionId?: string) => UsePluginRpcReturn;
     usePluginQuery: () => UsePluginQueryReturn;
     usePluginConnection: () => UsePluginConnectionReturn;
     usePluginToast: () => UsePluginToastReturn;
@@ -148,4 +159,131 @@ export interface TabularisHostApi {
     exchangeGoogleOAuthToken: (
         request: GoogleOAuthTokenRequest,
     ) => Promise<GoogleOAuthTokenResponse>;
+}
+
+/** Searchable host-themed selection for provider forms, including empty-string values. */
+export interface PluginSelectProps {
+    id?: string;
+    ariaLabel?: string;
+    ariaDescribedBy?: string;
+    value: string;
+    options: ReadonlyArray<{value: string; label: string; description?: string}>;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+    placeholder?: string;
+    loading?: boolean;
+    loadingLabel?: string;
+}
+
+/** Connection-scoped calls to a trusted plugin process. Secrets are write-only from UI code. */
+export interface UsePluginRpcReturn {
+    call: <T = unknown>(method: string, args?: Record<string, unknown>) => Promise<T>;
+    saveSecrets: (secrets: Record<string, string>) => Promise<void>;
+    secretFields: () => Promise<string[]>;
+    deleteSecrets: () => Promise<void>;
+}
+
+/** Host-rendered entry point for a provider's connection tools. */
+export interface PluginConnectionActionProps {
+    providerName: string;
+    label: string;
+    description?: string;
+    icon?: ReactNode;
+    brandColor?: string;
+    disabled?: boolean;
+    onClick: () => void;
+}
+
+/** A persistent connection-bound editor workspace. Never put credentials in its ID or title. */
+export interface OpenPluginWorkspaceOptions {
+    id: string;
+    title: string;
+    /** Must match the currently active connection in the slot and editor. */
+    connectionId?: string;
+}
+
+export interface UsePluginWorkspaceReturn {
+    openWorkspace: (options: OpenPluginWorkspaceOptions) => string;
+}
+
+/** Native-themed layout for a provider workspace; data and navigation stay plugin-owned. */
+export interface PluginWorkspaceShellProps {
+    title: string;
+    subtitle?: string;
+    icon?: ReactNode;
+    brandColor?: string;
+    tabs?: ReadonlyArray<{id: string; label: string; icon?: ReactNode}>;
+    activeTab?: string;
+    onTabChange?: (id: string) => void;
+    children: ReactNode;
+    actions?: ReactNode;
+}
+
+/** Connection services rendered as native Explorer rows, each opening its own editor tab. */
+export interface PluginExplorerSectionProps {
+    pluginId: string;
+    providerName: string;
+    connectionId?: string;
+    icon?: ReactNode;
+    items: ReadonlyArray<{id: string; label: string; icon?: string}>;
+    disabled?: boolean;
+}
+
+/** Read-only provider results rendered by the host's native data grid. */
+export interface PluginDataGridProps {
+    columns: string[];
+    rows: unknown[][];
+    connectionId?: string | null;
+    label?: string;
+    /** Fill the available editor area instead of sizing to a short dataset. */
+    fill?: boolean;
+}
+
+/** Account metadata and connection imports; stored secret values never return to UI code. */
+export interface PluginAccountImportResult {
+    id: string;
+    name: string;
+    warnings: string[];
+}
+
+export interface UsePluginAccountReturn {
+    /** Saved connections belonging to this provider, without credentials. */
+    connections: ReadonlyArray<{id: string; name: string}>;
+    openConnection: (connectionId: string, sourceConnectionId?: string) => Promise<void>;
+    callConnection: <T = unknown>(
+        connectionId: string,
+        method: string,
+        args?: Record<string, unknown>,
+    ) => Promise<T>;
+    prepare: <T = unknown>(method: string, args?: Record<string, unknown>) => Promise<T>;
+    connect: (secrets: Record<string, string>) => Promise<void>;
+    secretFields: () => Promise<string[]>;
+    disconnect: () => Promise<void>;
+    call: <T = unknown>(method: string, args?: Record<string, unknown>) => Promise<T>;
+    importConnection: (args: Record<string, unknown>) => Promise<PluginAccountImportResult>;
+}
+
+export interface PluginResourceListProps {
+    items: ReadonlyArray<{id: string; title: string; subtitle?: string; status?: string}>;
+    onOpen: (id: string) => void;
+    emptyMessage: string;
+    label?: string;
+}
+
+export interface PluginCodeEditorProps {
+    value: string;
+    onChange: (value: string) => void;
+    language?: 'javascript' | 'typescript' | 'json' | 'plaintext';
+    /** A display filename; the host isolates the underlying model per editor. */
+    fileName?: string;
+    onDiagnostics?: (
+        diagnostics: ReadonlyArray<{
+            severity: 'error' | 'warning' | 'info';
+            message: string;
+            line: number;
+            column: number;
+        }>,
+    ) => void;
+    readOnly?: boolean;
+    label?: string;
 }

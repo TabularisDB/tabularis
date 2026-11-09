@@ -96,6 +96,8 @@ pub struct AppConfig {
     pub result_page_size: Option<u32>,
     pub font_family: Option<String>,
     pub font_size: Option<u32>,
+    /// Native desktop interface zoom percentage. Missing values retain 100%.
+    pub interface_scale: Option<u32>,
     /// Colorize query result cell values by their data type (number, string,
     /// date, boolean). Default: false — values render in the primary text color.
     pub result_color_by_type: Option<bool>,
@@ -990,3 +992,7 @@ mod tests {
         assert!(config.column_masking_overrides.is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "config/interface_scale_tests.rs"]
+mod interface_scale_tests;

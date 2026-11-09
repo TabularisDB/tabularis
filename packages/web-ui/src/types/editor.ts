@@ -101,7 +101,7 @@ export type AutoRefreshInterval = 0 | 5000 | 10000 | 30000 | 60000;
 export interface Tab {
     id: string;
     title: string;
-    type: 'console' | 'table' | 'query_builder' | 'notebook' | 'users';
+    type: 'console' | 'table' | 'query_builder' | 'notebook' | 'users' | 'plugin-workspace';
     query: string;
     result: QueryResult | null;
     error: string;
@@ -143,6 +143,8 @@ export interface Tab {
     materialized?: boolean; // Grid data is read-only (e.g. materialized views: only REFRESH writes)
     results?: QueryResultEntry[];
     activeResultId?: string;
+    pluginId?: string; // Owner of a plugin workspace tab
+    workspaceId?: string; // Stable plugin-owned workspace identifier
     notebookId?: string; // Reference to notebook file in config dir
     notebookState?: NotebookState; // Deprecated: kept for migration of old tabs
     sourceFilePath?: string;

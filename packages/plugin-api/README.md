@@ -4,6 +4,8 @@ Public API surface for [Tabularis](https://github.com/TabularisDB/tabularis) plu
 
 Plugin bundles import hooks, the `defineSlot` helper, and shared types from this package. The Tabularis host injects the actual runtime implementation — the published package ships as thin stubs, so your bundle stays small and the host remains the single source of truth.
 
+> The host and sandbox now use API `0.4.0`. The provider prototype API `0.2.7` is not sandbox-compatible: its account/service/workspace hooks and native resources still need a scoped guest bridge. Those bundles are skipped by the compatibility gate. Keep the Neon preview on its documented pinned Core revision until that migration is complete.
+
 ## Install
 
 ```bash
@@ -71,6 +73,53 @@ this API when migrating an OAuth UI extension.
 
 All hooks must run inside a React component loaded by Tabularis. Calling them outside the host throws a clear error instead of failing silently.
 
+## Provider account connections
+
+`connection-modal.setup` lets a driver own login and import inside Add Connection
+(runtime API `0.2.2`). Its manifest declaration hides generic SQL fields even
+when the UI cannot load. It receives `{driver, connectionId, isEditing,
+onConnectionCreated, onClose}`; refresh after import with `onConnectionCreated`,
+then close with `onClose`. Editing keeps host metadata controls and Save.
+
+`connections.actions` mounts provider-owned actions beside Add Connection and supplies
+`onConnectionCreated()`. Use `usePluginAccount(pluginId)` there to store account
+credentials in the host secret store, list safe account metadata, and import a
+connection without returning SQL passwords or service secrets to UI code. A single
+account bundle is stored per provider. All account operations require `local-admin`
+authorization in the web host.
+
+`connect(secrets)` replaces the provider's account bundle, `secretFields()` returns
+names only, and `disconnect()` removes it. `call(method, args)` sends a trusted
+plugin process an account-scoped extension envelope. `importConnection(args)` calls
+its `account_import` method and lets the host save the returned connection and
+service credentials, returning only `{id, name, warnings}`. The hook refreshes shared
+connection state after import, including when launched from Settings. The optional
+`onConnectionCreated()` callback lets an entry point refresh additional local state. Disconnecting an
+account does not revoke remote credentials or remove previously imported connections.
+
+API `0.2.3` adds `prepare(method, args)` for prerequisite detection and interactive
+sign-in setup before account credentials exist. It requires local-admin access
+and forwards an empty secret object with `context.scope: "account-setup"` to the
+enabled owning plugin. Plugins must allowlist setup methods and return only safe
+metadata; the secret-bearing `account_import` method stays reserved for the host.
+`copyText(text)` uses the host clipboard for installation commands or diagnostics.
+
+## Connection-scoped plugin services
+
+`usePluginRpc` uses the active saved connection unless an explicit connection ID is supplied. The host checks that the enabled external plugin owns that connection and sends its resolved saved parameters and stored secrets only to that plugin process. The UI cannot supply connection credentials in the envelope or read stored secret values.
+
+```tsx
+const services = usePluginRpc("my-plugin");
+await services.saveSecrets({ API_TOKEN: token });
+const configuredFields = await services.secretFields(); // ["API_TOKEN"], never values
+const result = await services.call<{ ready: boolean }>("service_status");
+await services.deleteSecrets();
+```
+
+The driver receives JSON-RPC method `extension` with `{ method, args, params, secrets, context: { plugin_id, connection_id } }`. Extension methods must be namespaced identifiers, and arguments must be an object of at most 1 MiB. Secret bundles contain 1–64 nonempty string fields, totaling at most 64 KiB. Saving replaces the complete bundle.
+
+In the web host, extension calls and secret writes/deletion require `local-admin` authorization because opaque plugin methods may mutate resources. Listing configured field names requires `database` authorization. Both desktop and browser UI use the same typed host client.
+
 ## Compatibility
 
 The package exports `API_VERSION` and `MIN_HOST_VERSION`. Declare `API_VERSION` as `api_version` on each manifest `ui_extensions` entry so the host can reject incompatible bundles before executing them. Plugin authors can also opt in to a fail-fast compatibility check at component entry:
@@ -80,10 +129,11 @@ import { assertHostCompat } from "@tabularis/plugin-api";
 assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VERSION
 ```
 
-| Package version | Minimum Tabularis | Notes |
+| Package version | Minimum host API | Notes |
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` | Initial release |
 | `0.1.1`         | `0.1.0` | Typed slots and automatic manifest compatibility gate |
+| Prototype snapshot (unreleased) | `0.2.7` | Provider hooks and native resources; awaiting sandbox migration |
 | `0.3.0`         | `0.3.0` | Sandboxed UI API and callback RPC |
 | `0.4.0`         | `0.4.0` | Secret-field slot callback and fixed Google OAuth exchange |
 
@@ -94,3 +144,74 @@ See the full slot list and context contracts in [`plugins/PLUGIN_GUIDE.md` § 3b
 ## License
 
 Apache-2.0, same as Tabularis.
+
+## Provider workspaces
+
+Register an `editor.workspace.content` slot and open it from a connection action:
+
+```tsx
+const {openWorkspace} = usePluginWorkspace("my-plugin");
+openWorkspace({id: "services", title: "My provider", connectionId: context.connectionId});
+```
+
+Only the owning plugin's contributions render. The same workspace and connection
+focus the existing tab; other connections are isolated. `connectionId` must match
+the active slot and editor connection; the hook throws on a mismatch. IDs and tab
+metadata are persisted, never React content or runtime service state. Avoid secrets
+in IDs and titles. Content unmounts when backgrounded or closed: effect cleanup
+must cancel polling, subscriptions and pending requests. Use
+`usePluginRpc(pluginId, context.connectionId)` for stable service binding.
+
+Use `PluginExplorerSection` in `explorer.services` with `pluginId`, `providerName`,
+optional `connectionId`/`icon`/`disabled`, and `items: [{id, label, icon?}]`. Each
+service opens a separate native main tab titled `Provider · Service`; repeated
+clicks focus it. Supported icons: `overview`, `database`, `users`, `storage`,
+`functions`, `ai`, `realtime`, `settings`, `documents`, `security` (unknown: document).
+
+`PluginWorkspaceShell` renders a compact native header and full-width scrolling
+content. Pass a title, optional subtitle/icon/actions, and children. Internal tabs
+are optional; existing `tabs`, `activeTab`, `onTabChange` callers remain supported.
+Optional `brandColor` only affects their navigation indicator.
+
+`PluginDataGrid` uses the actual host read-only grid with `columns: string[]`,
+`rows: unknown[][]`, optional `connectionId: string | null`, and optional `label`.
+It provides native copy settings and column resizing in a bounded view, without
+mutation callbacks or SQL generation. `PluginConnectionAction` remains supported.
+
+`PluginResourceList` provides ordinary host navigation for `{id,title,subtitle?,status?}`
+items and an `onOpen(id)` callback. `PluginCodeEditor` provides controlled non-SQL
+Monaco editing through `value`, `onChange`, `language`, `readOnly` and `label`; its
+parent supplies the height. Both require runtime API 0.2.1 and share host theme
+and accessibility behavior. API 0.2.4 adds `typescript`, an optional `fileName`
+(display name, with an isolated host model), and `onDiagnostics(items)` where
+items contain `severity`, `message`, `line` and `column`. JS/TS syntax, completion,
+and type checking use the bundled Monaco worker and local Node.js declarations;
+no CDN or automatic npm package/type downloads are needed. Models are disposed
+when the editor closes or changes language.
+
+
+### Provider connection navigation (API 0.2.5)
+
+`usePluginAccount(pluginId)` exposes `connections: [{id, name}]` for that driver's
+saved connections, `callConnection<T>(id, method, args?)` for the existing scoped
+extension transport, and `openConnection(id, sourceConnectionId?)`. Activation
+validates driver ownership and optionally rejects stale actions if the selected
+source connection changed while loading. It reuses open connection state or uses
+the ordinary connect/rollback lifecycle, then navigates to the connection's own
+editor URL. It never changes another connection's target, credentials or SQL tabs.
+Use provider-owned metadata methods to match exact project/environment/database/
+role identities before reusing an existing connection.
+
+### Provider form selection (API 0.2.7)
+
+`PluginSelect` provides a searchable, themed combobox and popup. Pass controlled
+`value`, `onChange(value)` and `options: [{value, label, description?}]`; empty-string
+values are supported. `placeholder` is separate from the selectable options.
+Associate a visible label through `id`, or provide `ariaLabel`. Optional `disabled`
+and `ariaDescribedBy` expose prerequisites and field instructions. `loading` blocks
+selection, displays a spinner and announces the translated `loadingLabel`.
+
+Typing filters labels and descriptions. Arrow keys, Home/End and Enter navigate
+and select. Escape closes the popup before its containing dialog, and Tab moves
+normally to the next field. The host owns theme colors, fonts, radii, popup
+positioning and viewport bounds; plugins supply values and translated labels.

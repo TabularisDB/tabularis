@@ -1,5 +1,17 @@
 import {describe, expect, it} from 'vitest';
 import {isPluginApiCompatible} from '@/utils/pluginApiCompatibility';
+import {API_VERSION} from '@/pluginApiVersion';
+
+it('gates unported provider bundles while retaining the legacy sandbox facade', () => {
+    const providerFixture = {api_version: '0.2.7'};
+    expect(isPluginApiCompatible('0.2.0', providerFixture.api_version)).toBe(false);
+    expect(isPluginApiCompatible('0.2.6', providerFixture.api_version)).toBe(false);
+    expect(isPluginApiCompatible(API_VERSION, providerFixture.api_version)).toBe(false);
+    expect(isPluginApiCompatible(API_VERSION, '0.2.0')).toBe(false);
+    expect(isPluginApiCompatible(API_VERSION, '0.4.0')).toBe(true);
+    expect(isPluginApiCompatible(API_VERSION, '0.1.2')).toBe(false);
+    expect(isPluginApiCompatible(API_VERSION, '0.1.1')).toBe(true);
+});
 
 describe('pluginApiCompatibility', () => {
     it('should accept legacy declarations and compatible patch versions', () => {
@@ -13,6 +25,16 @@ describe('pluginApiCompatibility', () => {
         expect(isPluginApiCompatible('0.1.1', '0.2.0')).toBe(false);
         expect(isPluginApiCompatible('1.2.0', '2.0.0')).toBe(false);
         expect(isPluginApiCompatible('0.1.1', 'latest')).toBe(false);
+    });
+
+    it('should retain published API 0.1 bundles on the additive 0.2 host', () => {
+        expect(isPluginApiCompatible('0.2.0', '0.1.0')).toBe(true);
+        expect(isPluginApiCompatible('0.2.0', '0.1.1')).toBe(true);
+        expect(isPluginApiCompatible('0.2.0', '0.1.2')).toBe(false);
+        expect(isPluginApiCompatible('0.1.1', '0.2.0')).toBe(false);
+        expect(isPluginApiCompatible('0.2.0', '0.2.0')).toBe(true);
+        expect(isPluginApiCompatible('0.2.0', '0.2.1')).toBe(false);
+        expect(isPluginApiCompatible('0.2.0', '0.3.0')).toBe(false);
     });
 
     it('should apply stable-major compatibility after version one', () => {

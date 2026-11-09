@@ -1,4 +1,7 @@
 {
+  "pluginWorkspace": {
+    "unavailable": "This workspace is unavailable. Enable or reinstall its plugin in Settings."
+  },
   "serverFilePicker": {
     "title": "Browse server files",
     "subtitle": "Select a file or folder on the Tabularis host",
@@ -704,6 +707,9 @@
       "customPlaceholder": "e.g., Comic Sans MS",
       "enterFontName": "Enter font name above"
     },
+    "interfaceScale": "Interface scale",
+    "interfaceScaleDesc": "Resize the entire desktop interface, including tabs, icons, dialogs and editors. Try 125% on a large display.",
+    "interfaceScaleBrowser": "Use your browser’s zoom controls to resize the web interface.",
     "fontSize": "Font Size",
     "fontSizeLabel": "Font Size",
     "fontSizeDesc": "Adjust the base font size used throughout the application (10-20px).",
@@ -1852,6 +1858,9 @@
     "showErrorDetails": "Show details",
     "hideErrorDetails": "Hide details",
     "errorBoundary": {
+      "loadTitle": "The editor could not be loaded",
+      "loadDescription": "Some editor files could not be loaded. Reload the app to fetch them again. Your saved tabs and drafts are kept.",
+      "reloadApp": "Reload app",
       "title": "The editor crashed unexpectedly",
       "description": "Something in the editor failed to render. The error is shown below — try again, or go back to your connections.",
       "retry": "Try again",

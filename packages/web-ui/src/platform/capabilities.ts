@@ -188,6 +188,8 @@ export interface PlatformCapabilities {
     openStorageLocation(): Promise<void>;
     /** Apply the theme to native window chrome; a no-op where there is none. */
     setNativeWindowTheme(theme: NativeWindowTheme | null): Promise<void>;
+    /** Native engine zoom; browsers retain their own page zoom controls. */
+    setInterfaceScale?(factor: number): Promise<void>;
     getSystemIsDark(): Promise<boolean>;
     /**
      * Subscribe to operating-system light/dark changes. The listener is also

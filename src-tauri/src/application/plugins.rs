@@ -13,6 +13,8 @@ const MAX_PLUGIN_ID_LENGTH: usize = 128;
 
 #[derive(Clone, Debug)]
 pub enum PluginCommand {
+    Account(super::plugin_accounts::AccountRequest),
+    Extension(super::plugin_extensions::ExtensionCommand),
     GetRuntimeWarnings,
     FetchRegistry,
     FetchPreview {
@@ -60,6 +62,17 @@ pub enum PluginCommand {
 
 pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result<Value, String> {
     match command {
+        PluginCommand::Account(_) => Err("Provider accounts require application state".into()),
+        PluginCommand::Extension(command) => {
+            super::plugin_extensions::execute(
+                runtime,
+                None,
+                super::AuthorizationLevel::LocalAdmin,
+                command,
+            )
+            .await
+        }
+
         PluginCommand::FetchRegistry => json(fetch_plugin_registry(runtime).await?),
         PluginCommand::FetchPreview {
             slug,
@@ -141,11 +154,11 @@ pub async fn fetch_plugin_registry(
         .plugins
         .into_iter()
         // Unknown or ambiguous kinds have no install path; keep them out of the
-        // Plugin Center so the kind filter only ever offers drivers and themes.
+        // Plugin Center; cloud integrations use the executable driver path.
         .filter(|plugin| {
             matches!(
                 plugin.kind.as_deref(),
-                None | Some("driver") | Some("theme")
+                None | Some("driver") | Some("cloud") | Some("theme")
             )
         })
         .map(|plugin| {
@@ -569,7 +582,10 @@ async fn resolve_api_install_asset(
     platform: &str,
 ) -> Result<(String, Option<String>, String), String> {
     let detail = crate::plugins::tabularium::fetch_plugin_detail(base, plugin_id).await?;
-    if !matches!(detail.kind.as_deref(), None | Some("driver")) {
+    if !matches!(
+        detail.kind.as_deref(),
+        None | Some("driver") | Some("cloud")
+    ) {
         return Err(crate::plugins::package_kind::KIND_ERROR.into());
     }
     let target_version = match version {

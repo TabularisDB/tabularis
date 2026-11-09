@@ -15,7 +15,11 @@ export {
     usePluginTheme,
     usePluginTranslation,
     openUrl,
+    copyText,
 } from './hooks/usePluginApi';
+
+export {usePluginRpc} from './hooks/usePluginRpc';
+export type {UsePluginRpcReturn} from './types/pluginRpc';
 
 // Types
 export type {SlotComponentProps, SlotContext, SlotName} from './types/pluginSlots';
@@ -31,3 +35,28 @@ export function defineSlot(
 ): {readonly __slot: string; readonly component: unknown} {
     return {__slot: slot, component} as const;
 }
+
+export {PluginConnectionAction} from './components/plugins/PluginConnectionAction';
+export type {PluginConnectionActionProps} from './types/pluginWorkspace';
+
+export {usePluginWorkspace} from './hooks/usePluginWorkspace';
+export type {
+    OpenPluginWorkspaceOptions,
+    UsePluginWorkspaceReturn,
+} from './types/pluginWorkspaceTab';
+export {PluginWorkspaceShell} from './components/plugins/PluginWorkspaceShell';
+export type {PluginWorkspaceShellProps} from './types/pluginWorkspaceShell';
+
+export {PluginExplorerSection} from './components/plugins/PluginExplorerSection';
+export type {PluginExplorerSectionProps} from './types/pluginExplorerSection';
+export {PluginDataGrid} from './components/plugins/PluginDataGrid';
+export {PluginResourceList} from './components/plugins/PluginResourceList';
+export {PluginCodeEditor} from './components/plugins/PluginCodeEditor';
+export type {PluginResourceListProps, PluginCodeEditorProps} from './types/pluginResources';
+export type {PluginDataGridProps} from './types/pluginDataGrid';
+
+export {usePluginAccount} from './hooks/usePluginAccount';
+export type {UsePluginAccountReturn, PluginAccountImportResult} from './types/pluginAccount';
+
+export {PluginSelect} from './components/plugins/PluginSelect';
+export type {PluginSelectProps} from './types/pluginSelect';

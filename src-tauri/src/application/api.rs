@@ -413,9 +413,29 @@ impl ApplicationApi for RuntimeApplicationApi {
 
     async fn execute_plugin_command(
         &self,
-        _context: ApplicationRequestContext,
+        context: ApplicationRequestContext,
         command: plugins::PluginCommand,
     ) -> Result<Value, ApplicationError> {
+        if let plugins::PluginCommand::Account(request) = command {
+            return super::plugin_accounts::execute(
+                &self.runtime,
+                &self.state,
+                context.authorization,
+                request,
+            )
+            .await
+            .map_err(ApplicationError::new);
+        }
+        if let plugins::PluginCommand::Extension(command) = command {
+            return super::plugin_extensions::execute(
+                &self.runtime,
+                context.session_id,
+                context.authorization,
+                command,
+            )
+            .await
+            .map_err(ApplicationError::new);
+        }
         plugins::execute(&self.runtime, command)
             .await
             .map_err(ApplicationError::new)

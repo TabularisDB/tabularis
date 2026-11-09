@@ -13,8 +13,10 @@ export const Accordion = ({title, isOpen, onToggle, children, actions}: Accordio
     <div className="flex flex-col mb-2">
         <div className="flex items-center justify-between pl-2 pr-3 py-1 group/acc">
             <button
+                type="button"
+                aria-expanded={isOpen}
                 onClick={onToggle}
-                className="flex min-w-0 items-center gap-2 text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors select-none flex-1"
+                className="flex cursor-pointer min-w-0 items-center gap-2 text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors select-none flex-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             >
                 {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 <span className="truncate">{title}</span>

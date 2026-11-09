@@ -33,7 +33,8 @@ const driverState = vi.hoisted(() => ({
     defaultUsername: undefined as string | undefined,
     multiDatabase: false,
     uriPassthrough: false,
-    catalogueDriver: 'mysql' as 'mysql' | 'sqlite',
+    setupDeclared: true,
+    catalogueDriver: 'mysql' as 'mysql' | 'sqlite' | 'cloud-provider',
     connectionFields: undefined as
         Record<string, {hidden?: boolean; label?: string; placeholder?: string}> | undefined,
 }));
@@ -124,6 +125,20 @@ vi.mock('@/components/ui/Select', () => ({
 vi.mock('@/hooks/useDrivers', () => ({
     useDrivers: () => ({
         drivers: [
+            {
+                id: 'cloud-provider',
+                name: 'Cloud Provider',
+                version: '1.0.0',
+                ui_extensions: driverState.setupDeclared
+                    ? [{slot: 'connection-modal.setup', module: './setup.js'}]
+                    : [],
+                capabilities: {
+                    file_based: false,
+                    supports_ssl: true,
+                    schemas: true,
+                    sql_dialect: 'postgres',
+                },
+            },
             {
                 id: 'mysql',
                 name: 'MySQL',
@@ -262,7 +277,12 @@ vi.mock('@/hooks/useSettings', () => ({
 vi.mock('@/hooks/useConnectionCatalogue', () => ({
     useConnectionCatalogue: () => {
         const engine = driverState.catalogueDriver;
-        const name = engine === 'sqlite' ? 'SQLite' : 'MySQL';
+        const name =
+            engine === 'cloud-provider'
+                ? 'Cloud Provider'
+                : engine === 'sqlite'
+                  ? 'SQLite'
+                  : 'MySQL';
         return {
             groups: [
                 {
@@ -2316,6 +2336,168 @@ describe('NewConnectionModal extra_fields slot plugin secrets', () => {
             expect(invokeArgs('update_connection')).toBeDefined();
         });
         expect(invokeArgs('update_connection')?.pluginSecretChanges).toEqual({});
+    });
+});
+
+describe('NewConnectionModal plugin-owned setup', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.catalogueDriver = 'cloud-provider';
+        driverState.setupDeclared = true;
+        vi.mocked(invoke).mockImplementation(async (command) =>
+            ['list_databases', 'list_connection_tags'].includes(String(command)) ? [] : 'ok',
+        );
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+    });
+
+    afterEach(() => {
+        driverState.catalogueDriver = 'mysql';
+    });
+
+    function renderSetup(pluginId = 'cloud-provider', initialConnection?: InitialConnection) {
+        const onSave = vi.fn();
+        const onClose = vi.fn();
+        const contexts: SlotComponentProps['context'][] = [];
+        const registry = registryWith({
+            pluginId,
+            slot: 'connection-modal.setup',
+            component: ({context}) => {
+                contexts.push(context);
+                return (
+                    <>
+                        <span>Provider login</span>
+                        <button
+                            onClick={() => {
+                                void (context.onConnectionCreated as () => void)();
+                            }}
+                        >
+                            Import provider
+                        </button>
+                        <button onClick={context.onClose as () => void}>Done provider</button>
+                    </>
+                );
+            },
+        });
+        render(
+            <PluginSlotContext.Provider value={registry}>
+                <NewConnectionModal
+                    isOpen
+                    onClose={onClose}
+                    onSave={onSave}
+                    initialConnection={initialConnection}
+                />
+            </PluginSlotContext.Provider>,
+        );
+        return {onSave, onClose, contexts};
+    }
+
+    it('replaces the new connection form and actions with owner setup and refreshes before closing', async () => {
+        const {onSave, onClose, contexts} = renderSetup();
+        pickEngineFromCatalogue();
+        expect(await screen.findByText('Provider login')).toBeInTheDocument();
+        expect(contexts.at(-1)).toEqual({
+            driver: 'cloud-provider',
+            connectionId: null,
+            isEditing: false,
+            onConnectionCreated: expect.any(Function),
+            onClose: expect.any(Function),
+        });
+        expect(
+            screen.queryByPlaceholderText('newConnection.namePlaceholder'),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'environment.label'})).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('localhost')).not.toBeInTheDocument();
+        expect(screen.queryByText('newConnection.connectionString')).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', {name: 'newConnection.general'}),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', {name: 'newConnection.testConnection'}),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'newConnection.save'})).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: 'Import provider'}));
+        expect(onSave).toHaveBeenCalledOnce();
+        expect(onClose).not.toHaveBeenCalled();
+        expect(
+            vi
+                .mocked(invoke)
+                .mock.calls.some(([c]) => c === 'save_connection' || c === 'test_connection'),
+        ).toBe(false);
+        fireEvent.click(screen.getByRole('button', {name: 'Done provider'}));
+        expect(onClose).toHaveBeenCalledOnce();
+        fireEvent.click(screen.getByRole('button', {name: 'newConnection.changeDatabase'}));
+        expect(
+            screen.getByRole('button', {name: 'connectionCatalogue.connectTo'}),
+        ).toBeInTheDocument();
+    });
+
+    it('fails closed when the manifest declares setup but the UI is missing', async () => {
+        renderModal();
+        pickEngineFromCatalogue();
+        expect(await screen.findByText('pluginWorkspace.unavailable')).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('localhost')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'newConnection.save'})).not.toBeInTheDocument();
+    });
+
+    it('keeps the normal form when a contribution has no setup manifest declaration', async () => {
+        driverState.setupDeclared = false;
+        renderSetup();
+        pickEngineFromCatalogue();
+        expect(await screen.findByPlaceholderText('localhost')).toBeInTheDocument();
+        expect(screen.queryByText('Provider login')).not.toBeInTheDocument();
+        expect(
+            screen.getByRole('button', {name: 'newConnection.testConnection'}),
+        ).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'newConnection.save'})).toBeInTheDocument();
+    });
+
+    it('does not render another plugin in the selected provider setup', async () => {
+        renderSetup('another-plugin');
+        pickEngineFromCatalogue();
+        expect(await screen.findByText('pluginWorkspace.unavailable')).toBeInTheDocument();
+        expect(screen.queryByText('Provider login')).not.toBeInTheDocument();
+    });
+
+    it('keeps editing metadata and credentials while hiding SQL and network fields', async () => {
+        const initial = createInitialConnection({
+            driver: 'cloud-provider',
+            database: '',
+            host: 'bound.example',
+            username: 'owner',
+            save_in_keychain: true,
+            extra: {project_id: 'project-1'},
+        });
+        vi.mocked(invoke).mockImplementation(async (command) =>
+            command === 'get_connection_by_id'
+                ? {...initial, params: {...initial.params, password: 'loaded-secret'}}
+                : ['list_databases', 'list_connection_tags'].includes(String(command))
+                  ? []
+                  : 'ok',
+        );
+        const {contexts, onSave} = renderSetup('cloud-provider', initial);
+        expect(await screen.findByText('Provider login')).toBeInTheDocument();
+        expect(contexts.at(-1)).toMatchObject({connectionId: initial.id, isEditing: true});
+        const name = screen.getByPlaceholderText('newConnection.namePlaceholder');
+        await waitFor(() => expect(name).toHaveValue(initial.name));
+        fireEvent.change(name, {target: {value: 'Renamed provider'}});
+        expect(screen.queryByPlaceholderText('localhost')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'SSL'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'SSH'})).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', {name: 'newConnection.advanced'}),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', {name: 'newConnection.testConnection'}),
+        ).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: 'newConnection.appearance'}));
+        expect(screen.getByRole('button', {name: 'settings.privacy'})).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: 'newConnection.save'}));
+        await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+        expect(updateConnectionPayload()).toMatchObject(initial.params);
+        expect(updateConnectionPayload()).not.toHaveProperty('password');
+        expect(vi.mocked(invoke).mock.calls.some(([c]) => c === 'save_connection')).toBe(false);
     });
 });
 

@@ -21,6 +21,7 @@ pub mod dump_commands;
 pub mod e2e_dialog_mock;
 pub mod explain_import;
 pub mod export;
+pub mod external_url;
 pub mod health_check;
 pub mod log_commands;
 pub mod mcp;
@@ -333,6 +334,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         })
         .invoke_handler(tauri::generate_handler![
             system_theme::get_linux_system_theme,
+            external_url::open_external_url,
             is_debug_mode,
             open_devtools,
             close_devtools,
@@ -631,6 +633,11 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             notebooks::rename_notebook,
             notebooks::list_notebooks,
             // Plugin Registry
+            plugins::extensions::call_plugin_extension,
+            plugins::accounts::plugin_account,
+            plugins::extensions::set_plugin_secrets,
+            plugins::extensions::get_plugin_secret_fields,
+            plugins::extensions::delete_plugin_secrets,
             plugins::commands::fetch_plugin_registry,
             plugins::commands::install_plugin,
             plugins::commands::cancel_plugin_install,

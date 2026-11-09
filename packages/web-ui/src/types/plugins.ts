@@ -237,7 +237,8 @@ export interface PluginManifest {
     /** Optional map of generic inferred type names to driver-specific types.
      * Used during paste/import to resolve map_inferred_type() locally. */
     type_mappings?: Record<string, string>;
-    /** UI extension declarations for slot-based rendering (Phase 2). */
+    /** UI slot declarations. External drivers declaring `connection-modal.setup`
+     * own onboarding and hide generic SQL fields even when their UI fails to load. */
     ui_extensions?: UIExtensionManifestEntry[];
     /** Deprecation notice for a built-in driver being retired in favour of a
      * plugin. Absent/undefined for non-deprecated drivers. */

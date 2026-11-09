@@ -705,6 +705,10 @@ impl RpcDriver {
 
 #[async_trait]
 impl DatabaseDriver for RpcDriver {
+    async fn call_extension(&self, request: Value) -> Result<Value, String> {
+        self.process.call("extension", request).await
+    }
+
     fn has_connection_metadata(&self) -> bool {
         self.connection_metadata
     }

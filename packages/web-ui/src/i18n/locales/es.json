@@ -1,4 +1,7 @@
 {
+  "pluginWorkspace": {
+    "unavailable": "Este espacio de trabajo no está disponible. Activa o reinstala su plugin en Configuración."
+  },
   "serverFilePicker": {
     "title": "Explorar archivos del servidor",
     "subtitle": "Selecciona un archivo o carpeta en el host de Tabularis",

@@ -43,6 +43,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
     const [tabs, setTabs] = useState<Tab[]>([]);
     const [activeTabIds, setActiveTabIds] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
+    const loadedConnectionIdRef = useRef<string | null>(null);
     const recentTabs = useRef<Record<string, string[]>>({});
     const previewTabs = useRef<Record<string, string | null>>({});
     const historySnapshot = useRef<{
@@ -158,6 +159,9 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
 
     // Load tabs from file storage when connection changes
     useEffect(() => {
+        let cancelled = false;
+        // Invalidate synchronously before the persistence effect sees this connection.
+        loadedConnectionIdRef.current = null;
         if (!activeConnectionId) {
             setTabs([]);
             setIsLoading(false);
@@ -168,6 +172,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
         // saved result-stripped, so reloading them here would wipe the query
         // results of every tab whenever the user switches connections (#292).
         if (tabsRef.current.some((t) => t.connectionId === activeConnectionId)) {
+            loadedConnectionIdRef.current = activeConnectionId;
             setIsLoading(false);
             return;
         }
@@ -177,6 +182,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
             try {
                 const {tabs: loadedTabs, activeTabId: loadedActiveTabId} =
                     await loadEditorPreferences(client, activeConnectionId);
+                if (cancelled) return;
 
                 // Migrate old notebook tabs: notebookState → notebookId
                 for (const tab of loadedTabs) {
@@ -196,6 +202,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
                     }
                 }
 
+                if (cancelled) return;
                 if (loadedTabs.length > 0) {
                     // Merge loaded tabs with tabs from other connections
                     setTabs((prev) => {
@@ -226,6 +233,7 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
                     }));
                 }
             } catch (e) {
+                if (cancelled) return;
                 console.error('Failed to load preferences:', e);
                 // Fallback: create initial tab, preserving other connections' tabs
                 const initialTab = createInitialTabState(activeConnectionId);
@@ -240,11 +248,17 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
                     [activeConnectionId]: initialTab.id,
                 }));
             } finally {
-                setIsLoading(false);
+                if (!cancelled) {
+                    loadedConnectionIdRef.current = activeConnectionId;
+                    setIsLoading(false);
+                }
             }
         };
 
-        loadPreferences();
+        void loadPreferences();
+        return () => {
+            cancelled = true;
+        };
     }, [activeConnectionId, client]);
 
     const createInitialTab = useCallback(
@@ -265,7 +279,12 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
 
     // Save tabs to file storage when they change
     useEffect(() => {
-        if (!activeConnectionId || isLoading) return;
+        if (
+            !activeConnectionId ||
+            isLoading ||
+            loadedConnectionIdRef.current !== activeConnectionId
+        )
+            return;
 
         const connectionTabs = tabs.filter((t) => t.connectionId === activeConnectionId);
         const activeTabId = activeTabIds[activeConnectionId] || null;
@@ -303,6 +322,41 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
     const addTab = useCallback(
         (partial?: Partial<Tab>, options?: AddTabOptions) => {
             if (!activeConnectionId) return '';
+
+            if (partial?.type === 'plugin-workspace') {
+                // Explorer slots can have a different database scope than this editor.
+                if (
+                    !partial.pluginId ||
+                    !partial.workspaceId ||
+                    (partial.connectionId && partial.connectionId !== activeConnectionId)
+                )
+                    return '';
+                const existing = tabsRef.current.find(
+                    (tab) =>
+                        tab.type === 'plugin-workspace' &&
+                        tab.connectionId === activeConnectionId &&
+                        tab.pluginId === partial.pluginId &&
+                        tab.workspaceId === partial.workspaceId,
+                );
+                if (existing) {
+                    setActiveTabId(existing.id);
+                    return existing.id;
+                }
+                const tab = createInitialTab({
+                    ...partial,
+                    id: generateTabId(),
+                    connectionId: activeConnectionId,
+                    title: partial.title || 'Workspace',
+                    query: '',
+                    activeTable: null,
+                    readOnly: true,
+                });
+                // Reserve immediately so repeated opens before React renders still focus one tab.
+                tabsRef.current = [...tabsRef.current, tab];
+                setTabs((prev) => [...prev, tab]);
+                setActiveTabId(tab.id);
+                return tab.id;
+            }
 
             if (!options?.forceNew) {
                 const existing = findExistingTableTab(

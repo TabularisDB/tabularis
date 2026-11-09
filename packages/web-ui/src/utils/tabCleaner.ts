@@ -7,7 +7,7 @@ import {normalizeAutoRefreshInterval} from './autoRefresh';
 export interface CleanedTab {
     id: string;
     title: string;
-    type: 'console' | 'table' | 'query_builder' | 'notebook' | 'users';
+    type: Tab['type'];
     query: string;
     page: number;
     activeTable: string | null;
@@ -23,6 +23,8 @@ export interface CleanedTab {
     transposed?: boolean;
     autoRefreshIntervalMs?: Tab['autoRefreshIntervalMs'];
     queryParams?: Record<string, string>;
+    pluginId?: string;
+    workspaceId?: string;
     notebookId?: string;
     schema?: string;
     readOnly?: boolean;
@@ -41,6 +43,20 @@ export interface CleanedTab {
  * @returns A cleaned tab with only persistent data
  */
 export function cleanTabForStorage(tab: Tab): CleanedTab {
+    if (tab.type === 'plugin-workspace') {
+        return {
+            id: tab.id,
+            title: tab.title,
+            type: tab.type,
+            connectionId: tab.connectionId,
+            pluginId: tab.pluginId,
+            workspaceId: tab.workspaceId,
+            query: '',
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+        };
+    }
     return {
         id: tab.id,
         title: tab.title,
@@ -77,6 +93,10 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
  * @returns A full tab with default values for temporary fields
  */
 export function restoreTabFromStorage(cleanedTab: Partial<Tab>): Tab {
+    // Workspace persistence is an allowlist: never revive arbitrary plugin runtime state.
+    if (cleanedTab.type === 'plugin-workspace') {
+        cleanedTab = cleanTabForStorage(cleanedTab as Tab);
+    }
     return {
         ...cleanedTab,
         id: cleanedTab.id || '',

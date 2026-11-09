@@ -10,7 +10,6 @@ import {
     type SaveDialogOptions,
 } from '@tauri-apps/plugin-dialog';
 import {readFile, writeFile} from '@tauri-apps/plugin-fs';
-import {openUrl} from '@tauri-apps/plugin-opener';
 import {readText, writeHtml, writeText} from '@tauri-apps/plugin-clipboard-manager';
 import {
     isPermissionGranted,
@@ -18,6 +17,7 @@ import {
     sendNotification,
 } from '@tauri-apps/plugin-notification';
 import {UserAttentionType, getCurrentWindow} from '@tauri-apps/api/window';
+import {getCurrentWebview} from '@tauri-apps/api/webview';
 import {WebviewWindow} from '@tauri-apps/api/webviewWindow';
 import {
     PLATFORM_CAPABILITY_NAMES,
@@ -81,6 +81,7 @@ export interface TauriPlatformOperations {
     restartApplication(): Promise<void>;
     openStorageLocation(): Promise<void>;
     setNativeWindowTheme(theme: NativeWindowTheme | null): Promise<void>;
+    setInterfaceScale(factor: number): Promise<void>;
     getSystemIsDark(): Promise<boolean>;
     listenForSystemThemeChanges(onChange: SystemThemeListener): Promise<() => void>;
     currentWindowLabel(): string;
@@ -268,7 +269,7 @@ const defaultTauriOperations: TauriPlatformOperations = {
     writeClipboardHtml: writeHtml,
     writeFileContents: writeFile,
     readFileContents: readFile,
-    openUrl,
+    openUrl: (url) => invoke<void>('open_external_url', {url}),
     isNotificationPermissionGranted: isPermissionGranted,
     requestNotificationPermission: requestPermission,
     sendNotification,
@@ -289,6 +290,7 @@ const defaultTauriOperations: TauriPlatformOperations = {
     restartApplication: () => invoke<void>('relaunch_app'),
     openStorageLocation: () => invoke<void>('open_storage_location'),
     setNativeWindowTheme: (theme) => getCurrentWindow().setTheme(theme),
+    setInterfaceScale: (factor) => getCurrentWebview().setZoom(factor),
     getSystemIsDark: getTauriSystemIsDark,
     listenForSystemThemeChanges: listenForTauriSystemThemeChanges,
     currentWindowLabel: () => getCurrentWindow().label,
@@ -531,6 +533,10 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
 
     setNativeWindowTheme(theme: NativeWindowTheme | null): Promise<void> {
         return this.operations.setNativeWindowTheme(theme);
+    }
+
+    setInterfaceScale(factor: number): Promise<void> {
+        return this.operations.setInterfaceScale(factor);
     }
 
     getSystemIsDark(): Promise<boolean> {

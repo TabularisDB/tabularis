@@ -73,6 +73,7 @@ import {AiDropdownButton} from '@/components/ui/AiDropdownButton';
 import {VisualExplainModal} from '@/components/modals/VisualExplainModal';
 import {
     Play,
+    Cloud,
     Plus,
     Minus,
     Download,
@@ -192,6 +193,7 @@ import type {
     ResultsSessionSnapshot,
 } from '@/platform/secondaryWindowSessions';
 import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
+import {PluginWorkspaceView} from '@/components/plugins/PluginWorkspaceView';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import {UserManagementView} from '@/components/users/UserManagementView';
 import {useSqlAutocompleteRegistration} from '@/hooks/useSqlAutocompleteRegistration';
@@ -628,6 +630,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const isNotebookTab = activeTab?.type === 'notebook';
     // Users tabs render full-height like notebooks: no SQL toolbar, no results panel.
     const isUsersTab = activeTab?.type === 'users';
+    const isPluginWorkspaceTab = activeTab?.type === 'plugin-workspace';
     // Grid | Chart toggle for a query tab's single result (table tabs keep the grid).
     const resultChartEnabled =
         !!activeTab && !isTableTab && (activeTab.result?.columns.length ?? 0) > 0;
@@ -1278,7 +1281,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             if (!activeConnectionId || !targetTabId) return;
 
             const originalTab = tabsRef.current.find((t) => t.id === targetTabId);
-            if (!originalTab) return;
+            if (!originalTab || originalTab.type === 'plugin-workspace') return;
             const targetConnectionId = originalTab.connectionId;
             const schedule = getAutoRefreshSchedule(targetTabId);
             if (!automaticRefresh) schedule.invalidate();
@@ -1709,7 +1712,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             if (!activeConnectionId || !targetTabId) return;
 
             const targetTab = tabsRef.current.find((t) => t.id === targetTabId);
-            if (!targetTab) return;
+            if (!targetTab || targetTab.type === 'plugin-workspace') return;
 
             const mayRun = await guardQueryExecution(
                 queries.flatMap((q) => splitQueries(q, activeDialect)),
@@ -2620,7 +2623,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             : runButtonBase;
 
     const handleRunAll = useCallback(() => {
-        if (!activeTab) return;
+        if (!activeTab || activeTab.type === 'plugin-workspace') return;
         // Prefer the live editor content — activeTab.query lags behind by the
         // onChange debounce.
         const editor = editorsRef.current[activeTab.id];
@@ -2632,7 +2635,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     }, [activeTab, activeDialect, runQuery, runMultipleQueries]);
 
     const handleRunButton = useCallback(() => {
-        if (!activeTab) return;
+        if (!activeTab || activeTab.type === 'plugin-workspace') return;
 
         // Table Tab: run query with filter/sort/limit from activeTab
         if (activeTab.type === 'table') {
@@ -4621,7 +4624,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         monaco: monacoInstance,
         schema: activeTab?.schema ?? activeSchema,
         database: activeTab?.database,
-        enabled: !isNotebookTab && !isUsersTab,
+        enabled: !isNotebookTab && !isUsersTab && !isPluginWorkspaceTab,
     });
 
     const sqlDiagnostics = useSqlDiagnosticsOptions(activeConnectionId, {
@@ -5149,6 +5152,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 <Network size={12} className="text-accent-secondary shrink-0" />
                             ) : tab.type === 'notebook' ? (
                                 <BookOpen size={12} className="text-accent-warning shrink-0" />
+                            ) : tab.type === 'plugin-workspace' ? (
+                                <Cloud size={12} className="text-accent shrink-0" />
                             ) : tab.type === 'users' ? (
                                 <UsersRound size={12} className="text-accent-success shrink-0" />
                             ) : (
@@ -5315,12 +5320,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 </button>
             </div>
 
-            {/* Toolbar — hidden for notebook and users tabs. A size container so buttons can
+            {/* Toolbar — hidden for full-height workspace, notebook and users tabs. A size container so buttons can
           collapse to icon-only in narrow split panes; the explicit z-index
           keeps its dropdowns above the editor and the table toolbar (z-30):
           the container creates a stacking context that would otherwise paint
           below later siblings. */}
-            {!isNotebookTab && !isUsersTab && (
+            {!isNotebookTab && !isUsersTab && !isPluginWorkspaceTab && (
                 <div className="@container relative z-40 flex items-center py-2 pl-2 pr-3 border-b border-default bg-elevated gap-1.5 @[560px]:gap-2 h-[50px]">
                     {!activeTab.readOnly && activeTab.isLoading ? (
                         <button
@@ -5707,6 +5712,20 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
                 const isActive = tab.id === activeTabId;
 
+                if (tab.type === 'plugin-workspace') {
+                    if (!isActive) return null;
+                    return (
+                        <div key={tab.id} className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                            <PluginWorkspaceView
+                                tab={tab}
+                                driver={activeDriver}
+                                schema={activeSchema ?? null}
+                                connectionName={activeConnectionName}
+                            />
+                        </div>
+                    );
+                }
+
                 // Users tabs get full-height rendering (no SQL editor / results panel)
                 if (tab.type === 'users') {
                     return (
@@ -5821,7 +5840,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             })}
 
             {/* Resize Bar & Results Panel */}
-            {!isNotebookTab && !isUsersTab && (isTableTab || !isResultsCollapsed) ? (
+            {!isNotebookTab &&
+            !isUsersTab &&
+            !isPluginWorkspaceTab &&
+            (isTableTab || !isResultsCollapsed) ? (
                 <>
                     {isTableTab ? (
                         <TableToolbar
@@ -6644,7 +6666,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                         )}
                     </div>
                 </>
-            ) : (
+            ) : isPluginWorkspaceTab ? null : (
                 // Show Results Button (when collapsed)
                 <div className="h-10 bg-elevated border-t border-default flex items-center justify-end px-2">
                     <button
@@ -6817,9 +6839,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                           },
                                       ]
                                     : []),
-                                ...(!['console', 'notebook', 'query_builder', 'users'].includes(
-                                    contextTab?.type ?? '',
-                                )
+                                ...(![
+                                    'console',
+                                    'notebook',
+                                    'query_builder',
+                                    'users',
+                                    'plugin-workspace',
+                                ].includes(contextTab?.type ?? '')
                                     ? [
                                           {
                                               label: t('editor.convertToConsole'),

@@ -10,6 +10,7 @@ import {PluginModalProvider} from './contexts/PluginModalProvider';
 import {AlertProvider} from './contexts/AlertProvider';
 import {Connections} from './pages/Connections';
 import {LoadingState} from './components/ui/LoadingState';
+import {LazyConnectionEditorRoute} from './components/ui/LazyConnectionEditorRoute';
 import {ConnectionHealthMonitor} from './components/ConnectionHealthMonitor';
 import {UpdateNotificationModal} from './components/modals/UpdateNotificationModal';
 import {CommunityModal} from './components/modals/CommunityModal';
@@ -20,6 +21,7 @@ import {SshAskpassGate} from './components/modals/SshAskpassGate';
 import {BrowserPlatformDialogs} from './components/modals/BrowserPlatformDialogs';
 import {useUpdate} from './hooks/useUpdate';
 import {useChangelog} from './hooks/useChangelog';
+import {useInterfaceScale} from './hooks/useInterfaceScale';
 import {useSettings} from './hooks/useSettings';
 import {useDeepLinkInstall} from './hooks/useDeepLinkInstall';
 import {useUiState, useUiStateReady} from './hooks/useUiState';
@@ -30,10 +32,6 @@ import {isVersionAtMost, isVersionNewer} from './utils/versionCompare';
 import {useTabularisClient} from './hooks/useTabularisClient';
 import {BROWSER_ROUTES, WEB_UI_BASE_PATH} from './routing';
 
-// The editor route owns the Editor import, so lazy-loading it keeps Editor in its own chunk.
-const ConnectionEditorRoute = lazy(() =>
-    import('./pages/ConnectionEditorRoute').then((m) => ({default: m.ConnectionEditorRoute})),
-);
 const McpPage = lazy(() => import('./pages/McpPage').then((m) => ({default: m.McpPage})));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({default: m.Settings})));
 const SchemaDiagramPage = lazy(() =>
@@ -66,6 +64,7 @@ export function App() {
         error: updateError,
     } = useUpdate();
     const {settings, updateSetting, isLoading: isSettingsLoading} = useSettings();
+    useInterfaceScale(settings.interfaceScale, isSettingsLoading);
     useResultTypeColors();
     const [isDebugMode, setIsDebugMode] = useState(false);
     const deepLinkInstall = useDeepLinkInstall();
@@ -181,11 +180,11 @@ export function App() {
                                                     />
                                                     <Route
                                                         path={BROWSER_ROUTES.editor}
-                                                        element={<ConnectionEditorRoute />}
+                                                        element={<LazyConnectionEditorRoute />}
                                                     />
                                                     <Route
                                                         path={BROWSER_ROUTES.connectionEditor}
-                                                        element={<ConnectionEditorRoute />}
+                                                        element={<LazyConnectionEditorRoute />}
                                                     />
                                                     <Route
                                                         path={BROWSER_ROUTES.mcp}

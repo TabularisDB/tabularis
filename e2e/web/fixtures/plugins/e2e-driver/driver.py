@@ -23,7 +23,8 @@ def dispatch(request: dict[str, object]) -> dict[str, object]:
         return error(0, "Invalid request id")
 
     method = request.get("method")
-    if method in {"initialize", "ping", "test_connection"}:
+    # Legacy drivers can predate optional initialization and provider extensions.
+    if method in {"ping", "test_connection"}:
         return success(request_id, None)
     if method == "get_databases":
         return success(request_id, ["fixture"])

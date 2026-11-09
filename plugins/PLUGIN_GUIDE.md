@@ -549,11 +549,54 @@ Add an optional `ui_extensions` array to your manifest:
 | `row-editor-sidebar.header.actions` | Sidebar header action buttons | `connectionId`, `tableName`, `schema`, `driver`, `rowData`, `rowIndex` | "Copy as JSON", audit links |
 | `data-grid.toolbar.actions` | Table toolbar (right side) | `connectionId`, `tableName`, `schema`, `driver` | Export buttons, analysis tools |
 | `data-grid.context-menu.items` | Right-click context menu on grid rows | `connectionId`, `tableName`, `schema`, `driver`, `columnName`, `rowIndex`, `rowData` | Row-level custom actions |
-| `sidebar.footer.actions` | Explorer sidebar footer | `connectionId`, `driver` | Status indicators, quick actions |
+| `editor.workspace.content` | Full-height main editor workspace | `pluginId`, `workspaceId`, `connectionId`, `driver`, `schema`, `connectionName?` | Provider-owned service UI; only the owning plugin renders |
+| `explorer.services` | Scrollable Explorer Structure body, before schema/tree sections | `connectionId`, `connectionName`, `driver`, `schema` | Native provider service rows opening main tabs |
+| `explorer.connection.actions` | Connection explorer, below its header | `connectionId`, `connectionName`, `driver`, `schema` | Connection-specific service tools |
+| `sidebar.footer.actions` | Narrow navigation icon rail footer (icon-sized controls) | `connectionId`, `driver` | Status indicators, quick actions |
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
 | `settings.plugin.before_settings` | Content above plugin settings form | `targetPluginId` | OAuth panels, status banners |
+| `connection-modal.setup` | Add Connection after choosing the driver; General when editing | `driver`, `connectionId`, `isEditing`, `onConnectionCreated`, `onClose` | Provider-owned login and connection import; only the selected driver plugin renders. Requires runtime API `0.2.2` |
 | `connection-modal.connection_content` | Inside the connection form | `driver`, `database`, `connectionName`, `onDatabaseChange` | Custom connection fields; the callback is bridged over host RPC |
 | `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `credentialFieldsHidden`, `setCredentialFieldsHidden`, `secretFields`, `setSecretField` | Plugin-specific connection fields (e.g. AWS region), including values stored per connection in the OS keychain. `setCredentialFieldsHidden(true)` hides and clears the host username/password inputs for drivers that authenticate without a login; while hidden the host also ignores the login of an imported connection string and drops the stored password on save. These callbacks are host RPC methods; callback functions are not cloned into the guest context. |
+
+### Provider-owned connection setup
+
+> Prototype API `0.2.7` is awaiting migration to the sandbox API `0.4.0`. The host skips these provider UI bundles; the executable SQL driver remains independent. Do not relabel an old provider bundle as `0.4.0` without implementing its scoped guest bridge.
+
+An external driver can own its Add Connection flow by declaring a
+`connection-modal.setup` entry in `ui_extensions` with `api_version: "0.2.2"`.
+Use this for provider login, project/branch selection and connection import.
+This is a UI opt-in; it does not require `no_connection_required` or a new
+backend capability. Declare the driver's real database capabilities normally.
+
+The host reads the selected driver's manifest, so a missing or incompatible
+bundle shows an unavailable message instead of generic SQL fields. The slot
+only accepts contributions owned by that driver. Existing `connection_content`
+and `extra_fields` integrations keep their current behavior.
+
+```tsx
+import {defineSlot} from "@tabularis/plugin-api";
+
+export default defineSlot("connection-modal.setup", ({context}) => {
+  // context: {driver: string, connectionId: string | null, isEditing: boolean,
+  //   onConnectionCreated: () => void | Promise<void>, onClose: () => void}
+  return <ProviderSetup context={context} />;
+}).component;
+```
+
+For a new connection, the plugin replaces the full form body and supplies its
+own actions; host name/environment inputs, tabs and Test/Save are hidden. Keep
+login and imports inside the plugin, for example through `usePluginAccount`.
+After a successful import, await `context.onConnectionCreated()` to refresh the
+host list. This marks the session saved without closing it, allowing success or
+warning messages. Call `context.onClose()` when the user finishes. The catalogue
+and Change database navigation stay available.
+
+When `context.isEditing` is true, display the existing binding identified by
+`connectionId` and offer account reconnection as needed; do not import another
+connection. The host renders the setup in General, retains name/environment,
+Appearance and Privacy, and saves metadata with existing connection parameters
+and secrets intact. Generic SQL/network fields and Test stay hidden.
 
 ### SlotContext
 
@@ -2144,3 +2187,81 @@ The legacy path — a pull request adding an entry to `plugins/registry.json` (f
 > **Note:** `min_tabularis_version` is specified per-release inside the `releases[]` array,
 > not at the root plugin level. This allows older Tabularis installs to install an older
 > compatible release even when a newer release requires a higher app version.
+
+### Connection-bound editor workspaces
+
+Account prerequisites and interactive sign-in setup can use
+`usePluginAccount(pluginId).prepare(method, args)` (API `0.2.3`). Like account
+calls, it requires local-admin authorization. The host forwards no stored
+account/SQL credentials, only `{method,args,secrets:{},context:{plugin_id,
+scope:"account-setup"}}` to the enabled external plugin. Keep an explicit setup
+method allowlist, bound any child processes or polling, start login only after
+a user action, and return metadata rather than credentials or raw process output.
+`account_import` cannot be called through preparation. `copyText(text)` provides
+host-native clipboard access for commands and diagnostic text.
+
+Use `usePluginWorkspace(pluginId).openWorkspace({id, title, connectionId?})` from an
+`explorer.services` contribution to open a provider service as a main
+editor tab. Register its content in `editor.workspace.content` (with `api_version:
+"0.2.0"`). Reopening the same plugin/workspace/connection focuses the existing tab;
+other connections keep separate tabs. The optional connection ID must match both
+the current slot connection and the editor connection. Mismatches throw instead of
+switching connections or assigning the workspace to another connection.
+
+Only tab metadata and the plugin/workspace identifiers are saved. Do not put
+credentials in workspace IDs or titles. SQL controls and query shortcuts are
+unavailable on workspace tabs. Disabled, removed, or unloadable plugins show an
+unavailable state; their tabs can still be closed and reopened. Content unmounts
+when inactive or closed, so clean up polling, subscriptions and pending requests
+in React effect cleanup. Bind service calls with
+`usePluginRpc(pluginId, context.connectionId)` rather than a changing global selection.
+
+`PluginExplorerSection` renders a native collapsible Explorer section. Pass
+`pluginId`, `providerName`, optional `connectionId`/`icon`/`disabled`, and
+`items: [{id, label, icon?}]`. Each row opens its own main tab, titled
+`Provider · Service`, and repeated clicks focus that tab. Selection is scoped to
+the owning plugin, service and connection. Supported item icon names are
+`overview`, `database`, `users`, `storage`, `functions`, `ai`, `realtime`, `settings`,
+`documents` and `security`; unknown icons use the document icon. Scope errors
+appear inline. The provider mark stays small and uses the native section header.
+
+`PluginWorkspaceShell` supplies a compact native header and bounded scrolling
+content. Pass `title`, optional `subtitle`/`icon`/`actions`, and `children` for the
+current service. It renders full-width content with no internal navigation by
+default. Existing callers can still pass `tabs: [{id, label, icon?}]`, `activeTab`,
+`onTabChange`, and optional `brandColor` for the navigation indicator.
+`PluginConnectionAction` remains supported for existing connection actions.
+
+`PluginDataGrid` renders the actual host data grid for read-only provider results.
+Pass `columns: string[]`, `rows: unknown[][]`, optional `connectionId`, and optional
+accessible `label`. It has a bounded height and uses native copy preferences,
+selection and column resizing. It exposes no mutation callbacks or generated SQL.
+
+API `0.2.1` adds `PluginResourceList` and `PluginCodeEditor`. Declare at least
+`api_version: "0.2.1"` before using them; API `0.2.0` hosts do not expose these
+components. Older plugin bundles remain supported by the newer host.
+
+`PluginResourceList` takes `items: [{id, title, subtitle?, status?}]`, `onOpen(id)`,
+`emptyMessage`, and an optional accessible `label`. Open resource details with
+`usePluginWorkspace`, keeping connection ownership and resource IDs explicit.
+
+`PluginCodeEditor` takes controlled `value`/`onChange`, optional `language`
+(`javascript`, `json`, or `plaintext`), `readOnly`, and an accessible `label`.
+Its parent supplies the height. It shares the host's lazy Monaco instance,
+editor theme and font preferences, and does not register SQL execution actions.
+Keep provider deployment, secrets and draft persistence policies in the plugin.
+
+### Searchable provider form controls
+
+API `0.2.7` exposes a themed, searchable `PluginSelect` popup for provider forms.
+Declare `api_version: "0.2.7"` before using `placeholder`, `loading`, `loadingLabel`
+and option descriptions. Pass `value`, `onChange(value)` and
+`options: [{value, label, description?}]`. Empty-string values remain valid for a
+personal account; placeholders are separate from selectable values.
+
+Link a translated label with `id`, or pass `ariaLabel`; use `disabled` and
+`ariaDescribedBy` for prerequisites. Set `loading` and a translated `loadingLabel`
+while fetching dependent options. The host renders the spinner, announces the
+loading state and closes any stale popup. It also handles search, keyboard
+navigation, Escape layering, scrolling and theme colors instead of delegating
+the popup to the operating system.
