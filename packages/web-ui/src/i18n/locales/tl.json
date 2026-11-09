@@ -738,6 +738,9 @@
     "autocomplete_keywordCase": "Case ng keyword",
     "autocomplete_keywordCaseDesc": "Case ng mga SQL keyword na ini-insert ng autocomplete.",
     "autocomplete_keywordCaseMatch": "Sundin ang tina-type",
+    "diagnostics_title": "SQL diagnostics",
+    "diagnostics_enabled": "I-highlight ang mga hindi nareresolbang reference",
+    "diagnostics_enabledDesc": "Minamarkahan ang mga hindi kilalang table, column, at alias sa mga PostgreSQL SELECT statement gamit ang metadata na na-load na para sa koneksyon. Ang server pa rin ang masusunod at walang isinasagawa.",
     "editConfigJson": "I-edit ang config.json",
     "editConfigJsonDesc": "Direktang i-edit ang raw configuration file. Kailangan ng restart para mailapat ang mga pagbabago.",
     "configJsonModal": {
@@ -1696,6 +1699,14 @@
     "auto": "Auto"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "Hindi nahanap ang table o view na \"{{name}}\" sa na-load na metadata. Maaaring pansamantala ito o ginawa matapos ma-load ang metadata.",
+      "unresolvedColumn": "Walang column na \"{{name}}\"",
+      "unresolvedAlias": "Ang \"{{name}}\" ay hindi table o alias sa query na ito",
+      "ambiguousColumn": "Malabo ang reference sa column na \"{{name}}\"",
+      "unsupportedConstruct": "Limitado ang pagsusuri rito: hindi sinusuri ang {{name}}, kaya hindi nasusuri ang mga reference na nakadepende rito",
+      "metadataUnavailable": "Hindi available ang mga column ng \"{{name}}\", kaya hindi nasusuri ang mga reference dito"
+    },
     "noTabs": "Walang bukas na tab para sa connection na ito.",
     "newConsole": "Bagong Console",
     "noActiveSession": "Walang aktibong session. Pumili ng connection.",

@@ -738,6 +738,9 @@
     "autocomplete_keywordCase": "Kiểu chữ từ khóa",
     "autocomplete_keywordCaseDesc": "Kiểu chữ của từ khóa SQL được chèn bởi tự động hoàn thành",
     "autocomplete_keywordCaseMatch": "Theo cách gõ",
+    "diagnostics_title": "Chẩn đoán SQL",
+    "diagnostics_enabled": "Đánh dấu tham chiếu chưa xác định",
+    "diagnostics_enabledDesc": "Đánh dấu bảng, cột và bí danh không xác định trong câu lệnh SELECT của PostgreSQL bằng siêu dữ liệu đã tải cho kết nối. Máy chủ vẫn là nguồn quyết định và không có gì được thực thi.",
     "editConfigJson": "Sửa config.json",
     "editConfigJsonDesc": "Sửa trực tiếp tệp cấu hình gốc. Cần khởi động lại để áp dụng thay đổi.",
     "configJsonModal": {
@@ -1714,6 +1717,14 @@
     "auto": "Tự động"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "Không tìm thấy bảng hoặc view \"{{name}}\" trong siêu dữ liệu đã tải. Có thể đó là bảng tạm hoặc được tạo sau khi siêu dữ liệu được tải.",
+      "unresolvedColumn": "Cột \"{{name}}\" không tồn tại",
+      "unresolvedAlias": "\"{{name}}\" không phải là bảng hay bí danh trong truy vấn này",
+      "ambiguousColumn": "Tham chiếu cột \"{{name}}\" không rõ ràng",
+      "unsupportedConstruct": "Phân tích bị giới hạn ở đây: {{name}} không được phân tích nên các tham chiếu phụ thuộc vào nó không được kiểm tra",
+      "metadataUnavailable": "Không có cột của \"{{name}}\" nên các tham chiếu đến nó không được kiểm tra"
+    },
     "noTabs": "Kết nối này chưa có tab nào đang mở.",
     "newConsole": "Console mới",
     "noActiveSession": "Không có phiên nào đang hoạt động. Hãy chọn một kết nối.",

@@ -140,17 +140,17 @@ const cleanupCache = () => {
     }
 };
 
-const getTableColumns = async (
+export const getTableColumns = async (
     client: TypedCommandCaller,
     connectionId: string,
     tableName: string,
     schema?: string | null,
+    database?: string | null,
 ) => {
     if (!connectionId || !tableName) return [];
 
-    const cacheKey = schema
-        ? `${connectionId}:${schema}:${tableName}`
-        : `${connectionId}:${tableName}`;
+    const scope = database ? `${connectionId}:${database}` : connectionId;
+    const cacheKey = schema ? `${scope}:${schema}:${tableName}` : `${scope}:${tableName}`;
     const cached = columnsCache.get(cacheKey);
 
     // Return cached data if valid
@@ -163,6 +163,7 @@ const getTableColumns = async (
             connectionId,
             tableName,
             ...(schema ? {schema} : {}),
+            ...(database ? {database} : {}),
         });
 
         if (!Array.isArray(cols)) {

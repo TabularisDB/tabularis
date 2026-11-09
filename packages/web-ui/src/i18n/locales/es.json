@@ -733,6 +733,9 @@
     "autocomplete_keywordCase": "Mayúsculas en palabras clave",
     "autocomplete_keywordCaseDesc": "Mayúsculas y minúsculas de las palabras clave SQL insertadas por el autocompletado.",
     "autocomplete_keywordCaseMatch": "Igualar lo escrito",
+    "diagnostics_title": "Diagnósticos SQL",
+    "diagnostics_enabled": "Resaltar referencias sin resolver",
+    "diagnostics_enabledDesc": "Marca tablas, columnas y alias desconocidos en sentencias SELECT de PostgreSQL usando los metadatos ya cargados de la conexión. El servidor sigue siendo la autoridad y no se ejecuta nada.",
     "editConfigJson": "Editar config.json",
     "editConfigJsonDesc": "Edita directamente el archivo de configuración en bruto. Se requiere reinicio para aplicar los cambios.",
     "configJsonModal": {
@@ -1694,6 +1697,14 @@
     "unsupportedDriver": "La edición de activadores no es compatible con este controlador."
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "No se encontró la tabla o vista \"{{name}}\" en los metadatos cargados. Puede ser temporal o haberse creado después de cargar los metadatos.",
+      "unresolvedColumn": "La columna \"{{name}}\" no existe",
+      "unresolvedAlias": "\"{{name}}\" no es una tabla ni un alias en esta consulta",
+      "ambiguousColumn": "La referencia a la columna \"{{name}}\" es ambigua",
+      "unsupportedConstruct": "El análisis es limitado aquí: {{name}} no se analiza, por lo que no se comprueban las referencias que dependen de él",
+      "metadataUnavailable": "Las columnas de \"{{name}}\" no están disponibles, por lo que no se comprueban las referencias a ella"
+    },
     "quickNavigator": {
       "placeholder": "Buscar tablas, vistas, rutinas, triggers...",
       "noResults": "No se encontraron elementos coincidentes",

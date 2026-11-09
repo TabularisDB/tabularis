@@ -738,6 +738,9 @@
     "autocomplete_keywordCase": "Casse des mots-clés",
     "autocomplete_keywordCaseDesc": "Casse des mots-clés SQL insérés par l’autocomplétion.",
     "autocomplete_keywordCaseMatch": "Suivre la saisie",
+    "diagnostics_title": "Diagnostics SQL",
+    "diagnostics_enabled": "Signaler les références non résolues",
+    "diagnostics_enabledDesc": "Signale les tables, colonnes et alias inconnus dans les instructions SELECT PostgreSQL à partir des métadonnées déjà chargées pour la connexion. Le serveur reste l'autorité et rien n'est exécuté.",
     "editConfigJson": "Modifier config.json",
     "editConfigJsonDesc": "Modifiez directement le fichier de configuration brut. Un redémarrage est nécessaire pour appliquer les changements.",
     "configJsonModal": {
@@ -1705,6 +1708,14 @@
     "auto": "Auto"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "La table ou vue « {{name}} » est introuvable dans les métadonnées chargées. Elle peut être temporaire ou avoir été créée après le chargement des métadonnées.",
+      "unresolvedColumn": "La colonne « {{name}} » n'existe pas",
+      "unresolvedAlias": "« {{name}} » n'est ni une table ni un alias dans cette requête",
+      "ambiguousColumn": "La référence de colonne « {{name}} » est ambiguë",
+      "unsupportedConstruct": "L'analyse est limitée ici : {{name}} n'est pas analysé, les références qui en dépendent ne sont donc pas vérifiées",
+      "metadataUnavailable": "Les colonnes de « {{name}} » ne sont pas disponibles, les références à cet objet ne sont donc pas vérifiées"
+    },
     "noTabs": "Aucun onglet ouvert pour cette connexion.",
     "newConsole": "Nouvelle console",
     "noActiveSession": "Aucune session active. Veuillez sélectionner une connexion.",

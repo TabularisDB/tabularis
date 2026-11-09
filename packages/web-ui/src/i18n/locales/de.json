@@ -708,6 +708,9 @@
     "autocomplete_keywordCase": "Schlüsselwort-Schreibweise",
     "autocomplete_keywordCaseDesc": "Groß-/Kleinschreibung von SQL-Schlüsselwörtern, die durch die Autovervollständigung eingefügt werden.",
     "autocomplete_keywordCaseMatch": "An Eingabe anpassen",
+    "diagnostics_title": "SQL-Diagnose",
+    "diagnostics_enabled": "Nicht aufgelöste Verweise hervorheben",
+    "diagnostics_enabledDesc": "Markiert unbekannte Tabellen, Spalten und Aliase in PostgreSQL-SELECT-Anweisungen anhand der bereits geladenen Metadaten der Verbindung. Der Server bleibt maßgeblich, es wird nichts ausgeführt.",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {
@@ -1665,6 +1668,14 @@
     "auto": "Auto"
   },
   "editor": {
+    "diagnostics": {
+      "unresolvedRelation": "Tabelle oder Ansicht „{{name}}“ wurde in den geladenen Metadaten nicht gefunden. Sie könnte temporär sein oder nach dem Laden der Metadaten erstellt worden sein.",
+      "unresolvedColumn": "Spalte „{{name}}“ existiert nicht",
+      "unresolvedAlias": "„{{name}}“ ist keine Tabelle und kein Alias in dieser Abfrage",
+      "ambiguousColumn": "Spaltenverweis „{{name}}“ ist mehrdeutig",
+      "unsupportedConstruct": "Die Analyse ist hier eingeschränkt: {{name}} wird nicht analysiert, daher werden davon abhängige Verweise nicht geprüft",
+      "metadataUnavailable": "Die Spalten von „{{name}}“ sind nicht verfügbar, daher werden Verweise darauf nicht geprüft"
+    },
     "quickNavigator": {
       "placeholder": "Tabellen, Views, Routinen, Trigger suchen...",
       "noResults": "Keine passenden Elemente gefunden",
