@@ -12,6 +12,7 @@ import {EXPLAINABLE_KEYWORDS, RESULT_SET_KEYWORDS, leadingKeyword} from './class
 import type {DialectOptions, Statement} from './index';
 import type {TokenizerState} from './tokenizer';
 import {scanToken} from './tokenizer';
+import {createPsqlState, onPsqlCharacter, resetPsqlState} from './psqlBlocks';
 import {
     createScriptBlockState,
     isInsideBlock,
@@ -60,6 +61,7 @@ export function splitInto(sql: string, options: DialectOptions, batchOnly = fals
 function collectSegments(sql: string, options: DialectOptions, batchOnly: boolean): RawSegment[] {
     const state: TokenizerState = {delimiter: ';', lineLeading: true};
     const blocks = options.scriptBlocks ? createScriptBlockState() : null;
+    const psql = options.psqlBlocks ? createPsqlState() : null;
     const bodies = options.triggerBodies || options.atomicBodies ? createCompoundBodyState() : null;
     const segments: RawSegment[] = [];
     let segStart = 0;
@@ -85,6 +87,7 @@ function collectSegments(sql: string, options: DialectOptions, batchOnly: boolea
                 if (
                     token.kind === 'delimiter' &&
                     (batchOnly ||
+                        psql?.inUnit ||
                         (blocks !== null && isInsideBlock(blocks)) ||
                         (bodies !== null && isInsideBody(bodies)))
                 ) {
@@ -94,6 +97,7 @@ function collectSegments(sql: string, options: DialectOptions, batchOnly: boolea
                     break;
                 }
                 if (blocks !== null) resetScriptBlockState(blocks);
+                if (psql !== null) resetPsqlState(psql);
                 if (bodies !== null) resetCompoundBodyState(bodies);
                 pushSegment(position, token.kind);
                 position += token.length;
@@ -102,6 +106,7 @@ function collectSegments(sql: string, options: DialectOptions, batchOnly: boolea
                 state.lineLeading = false;
                 break;
             case 'setDelimiter':
+                if (psql !== null) resetPsqlState(psql);
                 if (bodies !== null) resetCompoundBodyState(bodies);
                 pushSegment(position, token.kind);
                 position += token.length;
@@ -117,6 +122,7 @@ function collectSegments(sql: string, options: DialectOptions, batchOnly: boolea
                 if (bodies !== null && token.kind === 'data') {
                     onBodyCharacter(sql, position, options, bodies);
                 }
+                if (psql !== null && token.kind === 'data') onPsqlCharacter(sql, position, psql);
                 if (blocks !== null) {
                     const wordLength =
                         token.kind === 'data' ? scanScriptWord(sql, position, options, blocks) : 0;

@@ -260,6 +260,10 @@
               "type": "boolean",
               "description": "-- needs a following whitespace to start a comment."
             },
+            "psql_blocks": {
+              "type": "boolean",
+              "description": "Firebird PSQL bodies, alternative q-quotes and standalone isql SET TERM directives."
+            },
             "script_blocks": {
               "type": "boolean",
               "description": "Procedural BEGIN … END, IF, LOOP, WHILE, REPEAT, FOR and CASE blocks stay one statement."

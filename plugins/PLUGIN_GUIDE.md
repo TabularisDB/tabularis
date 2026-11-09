@@ -216,6 +216,7 @@ Always set `sql_dialect` to the closest preset, and add `sql_syntax` when no pre
 | `nested_block_comments` | bool | preset (`postgres`, `mssql`: `true`) | `/* … */` comments nest. |
 | `line_comment_requires_space` | bool | preset (`mysql`: `true`) | `--` only starts a comment when followed by whitespace (`1--1` is arithmetic). |
 | `script_blocks` | bool | `false` | Procedural blocks stay one statement: `BEGIN … END` (not `BEGIN TRANSACTION`), `EXCEPTION WHEN ERROR THEN`, `IF … END IF`, `LOOP`, `WHILE`, `REPEAT`, `FOR … DO`, `CASE … END CASE`, labels and `CREATE PROCEDURE` bodies. |
+| `psql_blocks` | bool | `false` | Firebird PSQL: preserve declarations and nested BEGIN/CASE blocks in procedures, functions, triggers, packages and EXECUTE BLOCK. Enable alternative q-quotes and consume standalone isql SET TERM directives. Ordinary transaction statements remain separate. Requires a host and registry schema supporting this field. |
 | `dollar_quoting` | bool | preset (`postgres`: `true`) | `$tag$ … $tag$` strings. |
 | `string_escape` | string | preset (`mysql`: doubled quote plus doubled backslash; others: `"standard"`) | How the host writes string literals in filters, foreign-key filters, Copy as INSERT / IN list, clipboard import, dumps and notebook cell CTEs: `"standard"` (`'it''s'`) or `"backslash"` (`'it\'s'`, with `\\`, NUL (`\0`), `\n` and `\r` escaped too). On a `mysql` base (`extends: "mysql"`, or `sql_dialect: "mysql"` without `extends`) `"standard"` is ignored with a warning, since the engine still reads `\` as an escape character; `"backslash"` is allowed. |
 | `like_escape` | bool | `true` | Whether `LIKE … ESCAPE '!'` is supported. With `false`, literal LIKE filters escape `%`, `_` and `\` with a backslash (the engine's default LIKE escape) and omit `ESCAPE`. |
@@ -928,7 +929,7 @@ Optional settings appear only when the user set them. For example, `connect_time
 
 ### Cancel Notification (Optional)
 
-When a call exceeds the configured plugin call timeout, Tabularis stops waiting and reports the error to the user. Right after that it writes a JSON-RPC **notification** (no top-level `id`) naming the abandoned request:
+When a call exceeds the configured plugin call timeout, or its awaiting task is explicitly aborted, Tabularis stops waiting and writes a JSON-RPC **notification** (no top-level `id`) naming the abandoned request:
 
 ```json
 { "jsonrpc": "2.0", "method": "cancel", "params": { "id": 1 } }
@@ -939,7 +940,13 @@ When a call exceeds the configured plugin call timeout, Tabularis stops waiting 
 - **Do not reply.** A notification has no response; writing one would put an unexpected line on `stdout`.
 - **Ignore unknown ids** (already finished, already cancelled, or not cancellable). A late or duplicate cancel must never be treated as an error.
 - **Keep reading `stdin` while a request runs.** A plugin that processes requests strictly one at a time only sees the cancel after the long call has finished.
-- No cancel is sent when the timeout is disabled (`0`): the call simply waits.
+- Disabling the timeout (`0`) disables automatic deadline cancellation; explicit caller cancellation still sends the notification. Calls abandoned before dispatch are not sent to the plugin.
+
+### Session State Refresh (Optional)
+
+Session-aware drivers can implement `get_session_state` with params `{ "session_id": "..." }` and result `{ "in_transaction": true }` (or `false`). Report the actual retained session state after earlier requests have settled; an unknown or released session reports `false`. This RPC must not create a new transaction or execute the original query again.
+
+The host uses this read-only probe after a failed or cancelled query/batch, because the abandoned response may have carried a transaction-state change. It waits at most five seconds. Return JSON-RPC `-32601` when unsupported. Unsupported, failed or malformed probes retain the last cached state, if any; an unavailable probe does not prove that a transaction closed. Cancellation may preserve or abort a transaction depending on the driver, so the host does not infer the state solely from cancellation.
 
 ---
 
