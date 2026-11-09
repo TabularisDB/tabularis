@@ -64,6 +64,11 @@ export function supportsColumnStatsRpc(capabilities?: DriverCapabilities | null)
     return capabilities?.column_stats === true;
 }
 
+/** The driver honours query_timeout_secs (stops the statement on the server). */
+export function supportsQueryTimeout(capabilities?: DriverCapabilities | null): boolean {
+    return capabilities?.query_timeout === true;
+}
+
 export function findDriverManifest(
     driverId: string,
     drivers: PluginManifest[],
@@ -78,6 +83,17 @@ export function isReadonly(capabilities?: DriverCapabilities | null): boolean {
 export function supportsManageTables(capabilities?: DriverCapabilities | null): boolean {
     if (capabilities?.readonly === true) return false;
     return capabilities?.manage_tables !== false;
+}
+
+/** "Export table to SQL" is offered unless the driver opts out. */
+export function supportsTableExport(capabilities?: DriverCapabilities | null): boolean {
+    return capabilities?.table_export !== false;
+}
+
+/** "Import table from SQL" needs a writable driver that doesn't opt out. */
+export function supportsTableImport(capabilities?: DriverCapabilities | null): boolean {
+    if (capabilities?.readonly === true) return false;
+    return capabilities?.table_import !== false;
 }
 
 export function getCapabilitiesForDriver(

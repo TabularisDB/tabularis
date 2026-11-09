@@ -14,6 +14,7 @@ import {useDatabaseObjectNavigation} from '@/hooks/useDatabaseObjectNavigation';
 import {openEditor} from '@/utils/editorNavigation';
 import {FOLDERS_FILE_UNREADABLE} from '@/utils/savedQueryFolders';
 import {UI_STATE_KEYS, uiStateStore} from '@/utils/uiStateStore';
+import {tableTransferCommandStore} from '@/utils/tableTransferCommands';
 
 const translateMock = vi.hoisted(() => (key: string) => key);
 const toastSpy = vi.hoisted(() => vi.fn());
@@ -687,6 +688,63 @@ describe('ExplorerSidebar — database object navigation', () => {
 
         expect(screen.getByRole('button', {name: 'sidebar.viewSchema'})).toBeDisabled();
         expect(screen.getByRole('button', {name: 'sidebar.generateSQL'})).toBeDisabled();
+    });
+
+    it('offers Export table to SQL on tables and opens its dialog', () => {
+        openContextMenuOn('orders');
+
+        fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.exportMenu'}));
+
+        expect(screen.getByText('tableTransfer.exportTitle')).toBeInTheDocument();
+        expect(screen.getByText('orders', {selector: 'div[title="orders"]'})).toBeInTheDocument();
+    });
+
+    it('hides Export table to SQL for drivers that opt out', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...databaseState,
+            activeCapabilities: {...databaseState.activeCapabilities, table_export: false},
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        openContextMenuOn('orders');
+
+        expect(
+            screen.queryByRole('button', {name: 'tableTransfer.exportMenu'}),
+        ).not.toBeInTheDocument();
+    });
+
+    it('offers the selected table to the command palette and opens its dialog', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...databaseState,
+            activeTable: 'orders',
+            activeDatabaseName: 'shop',
+        } as unknown as ReturnType<typeof useDatabase>);
+        renderSidebar();
+
+        const commands = tableTransferCommandStore.get('c1');
+        expect(commands?.exportTable?.description).toBe('shop.orders');
+        expect(commands?.importTable?.description).toBe('shop');
+        act(() => commands?.exportTable?.run());
+
+        expect(screen.getByText('tableTransfer.exportTitle')).toBeInTheDocument();
+        expect(screen.getByText('orders', {selector: 'div[title="orders"]'})).toBeInTheDocument();
+    });
+
+    it('offers no palette table transfer commands for drivers that opt out', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...databaseState,
+            activeTable: 'orders',
+            activeCapabilities: {
+                ...databaseState.activeCapabilities,
+                table_export: false,
+                table_import: false,
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+        renderSidebar();
+
+        expect(tableTransferCommandStore.get('c1')).toEqual({
+            exportTable: undefined,
+            importTable: undefined,
+        });
     });
 
     it('disables trigger definition without trigger metadata', () => {

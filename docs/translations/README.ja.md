@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis は、3 つの標準搭載データベースドライバーと、DuckDB、ClickHouse、Redis、Firestore を含む 26 の公開済みプラグインを備えた、オープンソースのデスクトップ SQL ワークスペースです。組み込みの MCP サーバーにより、Claude、Cursor、Devin（旧 Windsurf）が、あなたが普段使っているアプリの中でスキーマを読み取り、クエリを実行できます。
+Tabularis は、3 つの標準搭載データベースドライバーと、DuckDB、ClickHouse、Redis、Firestore を含む 29 の公開済みプラグインを備えた、オープンソースのデスクトップ SQL ワークスペースです。組み込みの MCP サーバーにより、Claude、Cursor、Devin（旧 Windsurf）が、あなたが普段使っているアプリの中でスキーマを読み取り、クエリを実行できます。
 
 <p align="center">
   <b><a href="https://tabularis.dev">ウェブサイト</a></b> ·
@@ -92,7 +92,7 @@ sudo snap install tabularis       # Linux
 | **任意の言語**でプラグイン開発（stdio 経由の JSON-RPC）       |               ✅               |     Java/Eclipse プラグイン      | JavaScript プラグイン |              ❌               |
 | **ローカルモデル**（Ollama）対応の AI テキストから SQL 変換   |               ✅               | クラウドベースの AI アシスタント |          ❌           |              ❌               |
 | インタラクティブなプラングラフ付き Visual EXPLAIN             |               ✅               |                ✅                |          ❌           |              ❌               |
-| 標準対応データベース数                                        | 標準搭載 3 + ドライバープラグイン 26 |               100+               |          20+          |             約 10             |
+| 標準対応データベース数                                        | 標準搭載 3 + ドライバープラグイン 29 |               100+               |          20+          |             約 10             |
 
 > [!NOTE]
 > 比較は 2026 年 6 月時点のものです。他ツールの機能はその後変わっている可能性があります。数十のドライバーが必要な場合は DBeaver を使ってください。tabularis は、少数のデータベースをしっかりサポートすることに注力しています。
@@ -118,14 +118,17 @@ PostgreSQL、MySQL/MariaDB、SQLite は標準搭載されています。標準�
 | IBM Informix             | [tabularis-informix-plugin](https://github.com/danielnuld/tabularis-informix-plugin)            | HackerNews     | [tabularis-hackernews-plugin](https://github.com/TabularisDB/tabularis-hackernews-plugin)       |
 | Cassandra / ScyllaDB     | [tabularis-cassandra-plugin](https://github.com/TabularisDB/tabularis-cassandra-plugin)         | Harper         | [tabularis-harper-plugin](https://github.com/HarperFast/tabularis-harper-plugin)                |
 | PostgreSQL               | [tabularis-postgresql-plugin](https://github.com/TabularisDB/tabularis-postgresql-plugin)       | Trino          | [tabularis-trino-plugin](https://github.com/TabularisDB/tabularis-trino-plugin)                 |
+| Neon                     | [neon-plugin](https://github.com/TabularisDB/neon-plugin)                                       | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
+| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         |                |                                                                                                 |
 
 **バウンティボード掲載中**
 
 | ステータス   | データベース                                                                 |
 | ------------ | ---------------------------------------------------------------------------- |
-| 開発中          | Amazon Redshift, Etcd, Meilisearch, Snowflake, SQL Anywhere                                |
-| 計画策定済み       | TiDB                                                            |
-| 募集中          | Firebird, SurrealDB                                      |
+| 開発中            | Meilisearch                  |
+| 近日公開           | Snowflake                    |
+| 計画策定済み         | Amazon Redshift, TiDB        |
+| 募集中            | Etcd, Firebird, SQL Anywhere |
 
 > [!NOTE]
 > **提供中**のドライバーは[プラグインレジストリ](https://tabularis.dev/plugins)からインストールできます。それ以外は[バウンティボード](https://tabularis.dev/plugins/bounties)に掲載されています。担当として名乗り出るか、スポンサーになるか、[データベースをリクエスト](https://github.com/TabularisDB/tabularis/discussions)してください。

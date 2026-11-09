@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {
     Loader2,
@@ -28,6 +28,8 @@ import {formatObjectCount} from '@/utils/schema';
 import {fuzzyFilter} from '@/utils/fuzzy';
 import {resolvePins} from '@/utils/explorerPins';
 import {useExplorerPins} from '@/hooks/useExplorerPins';
+import {useExplorerExpanded} from '@/hooks/useExplorerExpanded';
+import {expansionKey} from '@/utils/explorerExpansion';
 import {onActivationKey} from '@/utils/keyboardEvents';
 
 interface SidebarSchemaItemProps {
@@ -116,7 +118,12 @@ export const SidebarSchemaItem = ({
 }: SidebarSchemaItemProps) => {
     const {t} = useTranslation();
 
-    const [isExpanded, setIsExpanded] = useState(activeSchema === schemaName);
+    // Saved across restarts; the active schema still opens on mount.
+    const {isExpanded, setExpanded, reveal} = useExplorerExpanded(
+        expansionKey(connectionId, ['schema', database, schemaName]),
+        false,
+        {revealed: activeSchema === schemaName},
+    );
     const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
     const [tablesOpen, setTablesOpen] = useState(true);
     const [viewsOpen, setViewsOpen] = useState(true);
@@ -132,7 +139,7 @@ export const SidebarSchemaItem = ({
     if (activeSchema !== prevActiveSchema) {
         setPrevActiveSchema(activeSchema);
         if (activeSchema === schemaName) {
-            setIsExpanded(true);
+            reveal();
         }
     }
 
@@ -156,9 +163,22 @@ export const SidebarSchemaItem = ({
     const groupedRoutines =
         routines.length > 0 ? groupRoutinesByType(routines) : {procedures: [], functions: []};
 
+    // A schema restored as expanded after a restart has not loaded yet: load it
+    // once. Later loads stay on the toggle, so a failing load is not retried in a loop.
+    const restoreLoadRequested = useRef(false);
+    useEffect(() => {
+        if (!isExpanded || restoreLoadRequested.current) return;
+        restoreLoadRequested.current = true;
+        if (!isLoaded && !isLoading) {
+            onLoadSchema(schemaName);
+        }
+    }, [isExpanded, isLoaded, isLoading, schemaName, onLoadSchema]);
+
     const handleToggle = () => {
         const willExpand = !isExpanded;
-        setIsExpanded(willExpand);
+        setExpanded(willExpand);
+        // The toggle loads by itself; keep the restore effect from loading again.
+        restoreLoadRequested.current = true;
         if (willExpand && !isLoaded && !isLoading) {
             onLoadSchema(schemaName);
         }
@@ -239,7 +259,7 @@ export const SidebarSchemaItem = ({
                 aria-expanded={isExpanded}
                 className="flex items-center justify-between px-2 py-1.5 group/schema cursor-pointer hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                 onClick={handleToggle}
-                onKeyDown={onActivationKey(handleToggle)}
+                onKeyDown={(event) => onActivationKey(handleToggle)(event)}
             >
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                     {isExpanded ? (

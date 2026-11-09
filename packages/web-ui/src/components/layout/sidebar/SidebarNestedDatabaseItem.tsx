@@ -1,4 +1,4 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {
     Loader2,
@@ -12,6 +12,7 @@ import {
     Settings2,
     Download,
     Upload,
+    FileUp,
     Network,
     Plus,
 } from 'lucide-react';
@@ -21,6 +22,8 @@ import type {TableColumn} from '@/types/schema';
 import type {ContextMenuData} from '@/types/sidebar';
 import {onActivationKey} from '@/utils/keyboardEvents';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
+import {useExplorerExpanded} from '@/hooks/useExplorerExpanded';
+import {expansionKey} from '@/utils/explorerExpansion';
 
 interface SidebarNestedDatabaseItemProps {
     databaseName: string;
@@ -68,6 +71,8 @@ interface SidebarNestedDatabaseItemProps {
      * within that database. */
     onDump?: (database: string, schema: string) => void;
     onImport?: (database: string, schema: string) => void;
+    /** "Import table from SQL" into this database's active schema. */
+    onImportTable?: (database: string, schema: string) => void;
     /** The nested tree has no context menu on the database/schema row itself
      * (only on a table, once one exists) to reach the flat multi-db tree's
      * "View ER Diagram" — and the connection-level header button that used
@@ -116,11 +121,15 @@ export const SidebarNestedDatabaseItem = ({
     onCreateSchema,
     onDump,
     onImport,
+    onImportTable,
     onViewERDiagram,
     showTriggers = false,
 }: SidebarNestedDatabaseItemProps) => {
     const {t} = useTranslation();
-    const [isExpanded, setIsExpanded] = useState(false);
+    const {isExpanded, setExpanded} = useExplorerExpanded(
+        expansionKey(connectionId, ['db', databaseName]),
+        false,
+    );
     const [pendingSchemaSelection, setPendingSchemaSelection] = useState<Set<string>>(new Set());
     const [isSchemaFilterOpen, setIsSchemaFilterOpen] = useState(false);
 
@@ -134,9 +143,23 @@ export const SidebarNestedDatabaseItem = ({
     const closeSchemaFilter = useCallback(() => setIsSchemaFilterOpen(false), []);
     useEscapeKey(isSchemaFilterOpen, closeSchemaFilter);
 
+    // A database restored as expanded after a restart has no schemas yet: load
+    // them once. Later loads stay on the toggle, so a failing load is not retried in a loop.
+    const restoreLoadRequested = useRef(false);
+    const schemasLoaded = nestedData?.schemasLoaded ?? false;
+    useEffect(() => {
+        if (!isExpanded || restoreLoadRequested.current) return;
+        restoreLoadRequested.current = true;
+        if (!schemasLoaded && !isLoadingSchemas) {
+            onLoadSchemas(databaseName);
+        }
+    }, [isExpanded, schemasLoaded, isLoadingSchemas, databaseName, onLoadSchemas]);
+
     const handleToggle = () => {
         const willExpand = !isExpanded;
-        setIsExpanded(willExpand);
+        setExpanded(willExpand);
+        // The toggle loads by itself; keep the restore effect from loading again.
+        restoreLoadRequested.current = true;
         if (willExpand && !nestedData?.schemasLoaded && !isLoadingSchemas) {
             onLoadSchemas(databaseName);
         }
@@ -154,7 +177,7 @@ export const SidebarNestedDatabaseItem = ({
                 aria-expanded={isExpanded}
                 className="flex items-center justify-between px-2 py-1.5 group/db cursor-pointer hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                 onClick={handleToggle}
-                onKeyDown={onActivationKey(handleToggle)}
+                onKeyDown={(event) => onActivationKey(handleToggle)(event)}
             >
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                     {isExpanded ? (
@@ -195,6 +218,19 @@ export const SidebarNestedDatabaseItem = ({
                                     aria-label={t('dump.importDatabase')}
                                 >
                                     <Upload size={12} />
+                                </button>
+                            )}
+                            {onImportTable && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onImportTable(databaseName, activeSchema ?? 'public');
+                                    }}
+                                    className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                                    title={t('tableTransfer.importMenu')}
+                                    aria-label={t('tableTransfer.importMenu')}
+                                >
+                                    <FileUp size={12} />
                                 </button>
                             )}
                             {onDump && (
