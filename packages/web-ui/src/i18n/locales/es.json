@@ -735,6 +735,8 @@
     "appearance_editorTabSize": "Tamaño de Tab",
     "appearance_editorWordWrap": "Ajuste de Línea",
     "appearance_editorWordWrapDesc": "Ajusta las líneas largas en el editor en vez de desplazarse horizontalmente.",
+    "appearance_editorMinimap": "Mostrar minimapa",
+    "appearance_editorMinimapDesc": "Muestra una vista en miniatura de los scripts SQL para navegar rápidamente.",
     "appearance_editorHighlightInvisibleCharacters": "Mostrar caracteres invisibles",
     "appearance_editorHighlightInvisibleCharactersDesc": "Marca caracteres Unicode ocultos y caracteres similares en SQL.",
     "appearance_editorShowLineNumbers": "Mostrar Números de Línea",
@@ -2497,7 +2499,10 @@
     "downloading": "Descargando...",
     "uploading": "Subiendo...",
     "openSidebar": "Abrir en el editor",
-    "imagePreview": "Vista previa de imagen"
+    "imagePreview": "Vista previa de imagen",
+    "editAs": "Editar como",
+    "text": "Texto",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",
@@ -3042,5 +3047,11 @@
     "groups": { "builtin": "Integrados · sin conexión", "installed": "Paquetes instalados", "personal": "Temas personales" }, "modes": { "light": "Claro", "dark": "Oscuro", "high-contrast": "Alto contraste" },
     "importErrors": { "unrecognized": "Tema de VS Code no reconocido.", "modeRequired": "Elija un modo y repita la vista previa.", "includeOnly": "No se pueden importar temas con solo referencias include. Proporcione los colores reales.", "noSupportedData": "No se encontraron colores o reglas SQL compatibles.", "invalidColor": "Un color compatible tiene un valor no válido.", "invalidRules": "Reglas de tokens no válidas o excesivas." },
     "diagnostics": { "unsupportedKey": "Campo no compatible", "unsupportedColor": "Color no compatible", "unsupportedScope": "Ámbito no compatible", "scopeApproximation": "Asignación SQL aproximada", "unsupportedStyle": "Estilo no compatible", "ignoredInclude": "Include no cargado", "ignoredSemanticTokens": "Tokens semánticos ignorados", "unsupportedReference": "Referencia externa no cargada", "unsupportedSetting": "Ajuste no compatible", "tokenAlphaFlattened": "Opacidad de tokens calculada sobre el fondo base", "modeApproximation": "Modo sustituido o aproximado", "diagnosticsTruncated": "Se omitieron diagnósticos adicionales" }
+  },
+  "aiInline": {
+    "title": "Completado de IA en línea",
+    "enable": "Sugerir SQL al escribir",
+    "privacy": "Desactivado por defecto. Usa el proveedor y modelo de IA elegidos abajo, incluidos los locales. Envía hasta 4.000 caracteres antes del cursor, 1.000 después y 8.000 de nombres de tablas/esquemas en caché. El SQL puede contener valores sensibles. Nunca añade filas de resultados, comentarios de tablas ni credenciales. No realiza consultas adicionales a la base de datos.",
+    "keys": "Tab acepta y Escape descarta. El autocompletado y la sangría tienen prioridad. Aceptar solo inserta texto; revísalo antes de ejecutarlo."
   }
 }

@@ -734,6 +734,8 @@
     "appearance_editorTabSize": "Độ rộng tab",
     "appearance_editorWordWrap": "Tự xuống dòng",
     "appearance_editorWordWrapDesc": "Tự xuống dòng với các dòng dài thay vì cuộn ngang.",
+    "appearance_editorMinimap": "Hiện bản đồ thu nhỏ",
+    "appearance_editorMinimapDesc": "Hiển thị tổng quan thu nhỏ của các tập lệnh SQL để điều hướng nhanh.",
     "appearance_editorHighlightInvisibleCharacters": "Hiện ký tự ẩn",
     "appearance_editorHighlightInvisibleCharactersDesc": "Đánh dấu ký tự Unicode ẩn và ký tự trông giống nhau trong SQL.",
     "appearance_editorShowLineNumbers": "Hiện số dòng",
@@ -2619,7 +2621,10 @@
     "downloading": "Đang tải về...",
     "uploading": "Đang tải lên...",
     "openSidebar": "Mở trong trình sửa",
-    "imagePreview": "Xem trước hình ảnh"
+    "imagePreview": "Xem trước hình ảnh",
+    "editAs": "Chỉnh sửa dạng",
+    "text": "Văn bản",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",
@@ -3184,5 +3189,11 @@
     "modes": { "light": "Sáng", "dark": "Tối", "high-contrast": "Tương phản cao" },
     "importErrors": { "unrecognized": "Không phải theme VS Code hợp lệ.", "modeRequired": "Hãy chọn chế độ cụ thể, rồi xem trước lại.", "includeOnly": "Không thể nhập theme chỉ gồm include. Hãy cung cấp màu thực tế.", "noSupportedData": "Không tìm thấy màu hoặc quy tắc token SQL nào được hỗ trợ.", "invalidColor": "Một màu được hỗ trợ có giá trị không hợp lệ.", "invalidRules": "Quy tắc token không hợp lệ hoặc quá nhiều." },
     "diagnostics": { "unsupportedKey": "Trường không được hỗ trợ", "unsupportedColor": "Màu không được hỗ trợ", "unsupportedScope": "Scope không được hỗ trợ", "scopeApproximation": "Ánh xạ scope SQL gần đúng", "unsupportedStyle": "Kiểu chữ không được hỗ trợ", "ignoredInclude": "Không tải include", "ignoredSemanticTokens": "Đã bỏ qua semantic token", "unsupportedReference": "Không tải tham chiếu bên ngoài", "unsupportedSetting": "Cài đặt không được hỗ trợ", "tokenAlphaFlattened": "Độ trong suốt của token đã được trộn sẵn với màu nền", "modeApproximation": "Chế độ bị ghi đè hoặc lấy gần đúng", "diagnosticsTruncated": "Đã lược bớt các chẩn đoán khác" }
+  },
+  "aiInline": {
+    "title": "Hoàn thành AI nội tuyến",
+    "enable": "Gợi ý SQL khi nhập",
+    "privacy": "Mặc định tắt. Dùng nhà cung cấp và mô hình AI đã chọn bên dưới, kể cả nhà cung cấp cục bộ. Gửi tối đa 4.000 ký tự trước con trỏ, 1.000 ký tự sau và 8.000 ký tự tên bảng/lược đồ đã lưu đệm. SQL có thể chứa giá trị nhạy cảm. Không thêm hàng kết quả, chú thích bảng hay thông tin xác thực kết nối. Không thực hiện truy vấn cơ sở dữ liệu bổ sung.",
+    "keys": "Tab chấp nhận, Escape ẩn. Tự động hoàn thành và thụt lề được ưu tiên. Chấp nhận chỉ chèn văn bản; hãy kiểm tra trước khi chạy."
   }
 }

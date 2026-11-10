@@ -9,6 +9,8 @@ import {loadMonacoTheme} from '@/themes/themeUtils';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {useSettings} from '@/hooks/useSettings';
+import {useAiInlineCompletion} from '@/hooks/useAiInlineCompletion';
+import type {AiInlineContext} from '@/utils/aiInlineCompletion';
 import {useKeybindings} from '@/hooks/useKeybindings';
 import {CommandPaletteDispatchContext} from '@/contexts/CommandPaletteContext';
 import {getFontCSS} from '@/utils/settings';
@@ -71,6 +73,8 @@ interface SqlEditorWrapperProps {
      * aliases) as editor markers. Omit to leave the editor without them.
      */
     diagnostics?: SqlDiagnosticsOptions;
+    /** Present only for the active SQL editor; absence cancels inline requests. */
+    inlineCompletion?: AiInlineContext;
 }
 
 function isLinux(): boolean {
@@ -129,6 +133,7 @@ const SqlEditorInternal = ({
     foldPreview = false,
     cursorStatus = false,
     diagnostics,
+    inlineCompletion,
 }: SqlEditorWrapperProps & {editorKey: string}) => {
     const platform = usePlatformCapabilities();
     const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,6 +145,7 @@ const SqlEditorInternal = ({
     const [editorCursorStatus, setEditorCursorStatus] = useState<EditorCursorStatus | null>(null);
     const [diagnosticsTarget, setDiagnosticsTarget] = useState<SqlDiagnosticsTarget | null>(null);
     useSqlDiagnostics(diagnosticsTarget, diagnostics);
+    useAiInlineCompletion(diagnosticsTarget, inlineCompletion);
     const cursorStatusListenersRef = useRef<Monaco.IDisposable[]>([]);
     const onRunRef = useRef(onRun);
     onRunRef.current = onRun;
@@ -812,7 +818,7 @@ const SqlEditorInternal = ({
             onMount={handleEditorMount}
             options={{
                 accessibilitySupport: 'auto',
-                minimap: {enabled: false},
+                minimap: {enabled: settings.editorMinimap ?? false},
                 fontSize: settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT,
                 fontFamily: getFontCSS(settings.editorFontFamily ?? 'JetBrains Mono'),
                 lineHeight: settings.editorLineHeight ?? 1.5,
@@ -840,6 +846,14 @@ const SqlEditorInternal = ({
                 },
                 acceptSuggestionOnEnter:
                     (settings.editorAcceptSuggestionOnEnter ?? true) ? 'smart' : 'off',
+                inlineSuggest: {
+                    enabled: Boolean(
+                        inlineCompletion &&
+                        settings.aiEnabled &&
+                        settings.aiInlineCompletionEnabled,
+                    ),
+                    suppressSuggestions: false,
+                },
                 multiCursorModifier: 'ctrlCmd',
                 automaticLayout: true,
                 ...options,

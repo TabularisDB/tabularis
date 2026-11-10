@@ -7,13 +7,36 @@ pub(super) async fn models(runtime: &RuntimeContext, cache: &CredentialCache) ->
     let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "api-route") else {
         return Vec::new();
     };
-    let cached_models = super::load_cache(runtime)
-        .and_then(|mut cached| cached.models.remove("api-route"))
-        .unwrap_or_default();
     let Ok(client) = ai_client_for("api-route") else {
-        return cached_models;
+        return super::load_cache(runtime)
+            .and_then(|mut cached| cached.models.remove("api-route"))
+            .unwrap_or_default();
     };
-    models_with_client(&client, &key, cached_models).await
+    models_with_cache(runtime, &client, &key).await
+}
+
+// Keep the shared cache age: refreshing this account must not postpone other providers.
+pub(super) async fn models_with_cache(
+    runtime: &RuntimeContext,
+    client: &Client,
+    key: &str,
+) -> Vec<String> {
+    let mut cached = super::load_cache(runtime);
+    let previous = cached
+        .as_ref()
+        .and_then(|entry| entry.models.get("api-route"))
+        .cloned()
+        .unwrap_or_default();
+    let models = models_with_client(client, key, previous).await;
+    if let Some(entry) = cached.as_mut() {
+        entry.models.insert("api-route".into(), models.clone());
+        if let Ok(content) = serde_json::to_string(entry) {
+            if let Err(error) = std::fs::write(super::get_cache_path(runtime), content) {
+                log::warn!("Failed to persist API Route model cache: {error}");
+            }
+        }
+    }
+    models
 }
 
 pub(super) async fn models_with_client(

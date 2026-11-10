@@ -685,6 +685,8 @@
     "appearance_editorTabSize": "탭 크기",
     "appearance_editorWordWrap": "자동 줄바꿈",
     "appearance_editorWordWrapDesc": "에디터에서 가로 스크롤 대신 긴 줄을 자동으로 줄바꿈합니다.",
+    "appearance_editorMinimap": "미니맵 표시",
+    "appearance_editorMinimapDesc": "빠르게 이동할 수 있도록 SQL 스크립트의 축소 보기를 표시합니다.",
     "appearance_editorHighlightInvisibleCharacters": "보이지 않는 문자 표시",
     "appearance_editorHighlightInvisibleCharactersDesc": "SQL에서 숨겨진 유니코드 문자와 비슷하게 보이는 문자를 표시합니다.",
     "appearance_editorShowLineNumbers": "줄 번호 표시",
@@ -2556,7 +2558,10 @@
     "downloading": "다운로드하는 중...",
     "uploading": "업로드하는 중...",
     "openSidebar": "에디터에서 열기",
-    "imagePreview": "이미지 미리보기"
+    "imagePreview": "이미지 미리보기",
+    "editAs": "편집 형식",
+    "text": "텍스트",
+    "hex": "16진수"
   },
   "visualExplainPage": {
     "title": "비주얼 익스플레인",
@@ -3064,5 +3069,11 @@
     "groups": { "builtin": "기본 제공 · 오프라인", "installed": "설치된 패키지", "personal": "개인 테마" }, "modes": { "light": "밝게", "dark": "어둡게", "high-contrast": "고대비" },
     "importErrors": { "unrecognized": "인식할 수 없는 VS Code 테마입니다.", "modeRequired": "모드를 선택한 뒤 다시 미리 보세요.", "includeOnly": "include만 있는 테마는 가져올 수 없습니다. 실제 색상을 제공하세요.", "noSupportedData": "지원되는 색상 또는 SQL 토큰 규칙이 없습니다.", "invalidColor": "지원되는 색상의 값이 잘못되었습니다.", "invalidRules": "토큰 규칙이 잘못되었거나 너무 많습니다." },
     "diagnostics": { "unsupportedKey": "지원되지 않는 필드", "unsupportedColor": "지원되지 않는 색상", "unsupportedScope": "지원되지 않는 범위", "scopeApproximation": "근사 SQL 범위 매핑", "unsupportedStyle": "지원되지 않는 스타일", "ignoredInclude": "include를 불러오지 않음", "ignoredSemanticTokens": "의미 토큰 무시됨", "unsupportedReference": "외부 참조를 불러오지 않음", "unsupportedSetting": "지원되지 않는 설정", "tokenAlphaFlattened": "토큰 불투명도를 기본 배경에 합성", "modeApproximation": "모드 재정의 또는 근사 변환", "diagnosticsTruncated": "추가 진단 생략됨" }
+  },
+  "aiInline": {
+    "title": "AI 인라인 완성",
+    "enable": "입력 중 SQL 제안",
+    "privacy": "기본적으로 꺼져 있습니다. 아래에서 선택한 AI 제공자와 모델을 사용하며 로컬 제공자도 지원합니다. 커서 앞 최대 4,000자, 뒤 최대 1,000자와 캐시된 테이블/스키마 이름 최대 8,000자를 전송합니다. SQL에는 민감한 값이 포함될 수 있습니다. 결과 행, 테이블 주석 및 연결 자격 증명은 추가하지 않습니다. 추가 데이터베이스 쿼리는 실행하지 않습니다.",
+    "keys": "Tab으로 수락하고 Escape로 숨깁니다. 자동 완성과 들여쓰기가 우선합니다. 수락은 텍스트만 삽입하므로 실행 전에 검토하세요."
   }
 }

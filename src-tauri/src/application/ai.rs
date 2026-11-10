@@ -38,6 +38,10 @@ pub enum AiCommand {
         force_refresh: bool,
     },
     GenerateQuery(AiGenerateRequest),
+    CompleteInline(crate::ai::inline::InlineRequest),
+    CancelInline {
+        request_id: String,
+    },
     ExplainQuery(AiExplainRequest),
     AnalyzeExplainPlan(AiExplainRequest),
     AnalyzeCrashReport(AiExplainRequest),
@@ -92,6 +96,14 @@ pub async fn execute(
         }
         AiCommand::GenerateQuery(request) => {
             json(crate::ai::generate_query(runtime, &state.credential_cache, request).await?)
+        }
+        AiCommand::CompleteInline(request) => json(
+            crate::ai::inline::complete(runtime, &state.credential_cache, web_session_id, request)
+                .await?,
+        ),
+        AiCommand::CancelInline { request_id } => {
+            crate::ai::inline::cancel(runtime, web_session_id, request_id)?;
+            Ok(Value::Null)
         }
         AiCommand::ExplainQuery(request) => {
             json(crate::ai::explain_query(runtime, &state.credential_cache, request).await?)

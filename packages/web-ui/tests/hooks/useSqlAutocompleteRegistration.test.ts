@@ -82,6 +82,7 @@ describe('useSqlAutocompleteRegistration', () => {
             capabilities,
             expect.any(Object),
             'upper',
+            'mysql',
         );
     });
 
@@ -115,6 +116,7 @@ describe('useSqlAutocompleteRegistration', () => {
             capabilities,
             expect.any(Object),
             'upper',
+            'mysql',
         );
     });
 

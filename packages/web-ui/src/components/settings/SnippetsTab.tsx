@@ -1,4 +1,13 @@
-import {useState, useCallback} from 'react';
+import {useState, useCallback, useEffect, useRef} from 'react';
+import type {BeforeMount} from '@monaco-editor/react';
+import type * as Monaco from 'monaco-editor';
+import {MonacoEditor} from '@/components/ui/LazyMonaco';
+import {Select} from '@/components/ui/Select';
+import {useEditorTheme} from '@/hooks/useEditorTheme';
+import {useDrivers} from '@/hooks/useDrivers';
+import type {PluginManifest} from '@/types/plugins';
+import {loadMonacoTheme} from '@/themes/themeUtils';
+import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {useTranslation} from 'react-i18next';
 import {
     loadSqlSnippets,
@@ -8,12 +17,69 @@ import {
     validateSnippetBody,
     type SqlSnippet,
     type SqlDialectScope,
+    normalizeDriverToDialect,
 } from '@/utils/sqlSnippets';
 import {Plus, Trash2, Edit2, Code2, AlertCircle, Check} from 'lucide-react';
 import clsx from 'clsx';
+import DOMPurify from 'dompurify';
+import {ensureMonaco} from '@/utils/monaco';
+
+function snippetLanguage(dialect: SqlDialectScope | undefined, drivers: PluginManifest[]): string {
+    if (dialect?.startsWith('driver:')) {
+        const driverId = dialect.slice(7);
+        const driver = drivers.find((item) => item.id === driverId);
+        dialect = driver ? normalizeDriverToDialect(driver) : 'all';
+    }
+    if (dialect === 'postgres') return 'pgsql';
+    if (dialect === 'mysql') return 'mysql';
+    return 'sql';
+}
+
+function SnippetPreview({snippet, drivers}: {snippet: SqlSnippet; drivers: PluginManifest[]}) {
+    const theme = useEditorTheme();
+    const [html, setHtml] = useState<string | null>(null);
+    const language = snippetLanguage(snippet.dialect, drivers);
+
+    useEffect(() => {
+        let cancelled = false;
+        ensureMonaco()
+            .then(async (monaco) => {
+                if (cancelled) return;
+                loadMonacoTheme(theme, monaco);
+                const result = await monaco.editor.colorize(snippet.body, language, {tabSize: 4});
+                if (!cancelled) setHtml(result);
+            })
+            .catch(() => {
+                if (!cancelled) setHtml(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [snippet.body, language, theme]);
+
+    const className =
+        'mt-2 p-2 rounded bg-elevated/70 border border-default/60 font-mono text-[11px] text-primary whitespace-pre-wrap overflow-x-auto max-h-24';
+    return html ? (
+        <div className={className} dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(html)}} />
+    ) : (
+        <div className={className}>{snippet.body}</div>
+    );
+}
 
 export function SnippetsTab() {
     const {t} = useTranslation();
+    const editorTheme = useEditorTheme();
+    const {drivers} = useDrivers();
+    const monacoRef = useRef<typeof Monaco | null>(null);
+
+    useEffect(() => {
+        if (monacoRef.current) loadMonacoTheme(editorTheme, monacoRef.current);
+    }, [editorTheme]);
+
+    const beforeMount: BeforeMount = (monaco) => {
+        monacoRef.current = monaco;
+        loadMonacoTheme(editorTheme, monaco);
+    };
     const [snippets, setSnippets] = useState<SqlSnippet[]>(() => loadSqlSnippets());
     const [editingSnippet, setEditingSnippet] = useState<SqlSnippet | null>(null);
     const [isCreating, setIsCreating] = useState(false);
@@ -24,6 +90,25 @@ export function SnippetsTab() {
     const [body, setBody] = useState('');
     const [description, setDescription] = useState('');
     const [dialect, setDialect] = useState<SqlDialectScope>('all');
+    const scopes: SqlDialectScope[] = [
+        'all',
+        ...drivers
+            .map((driver): SqlDialectScope =>
+                driver.is_builtin ? normalizeDriverToDialect(driver) : `driver:${driver.id}`,
+            )
+            .filter((scope) => scope !== 'all'),
+    ];
+    const labels: Record<string, string> = {
+        all: t('settings.snippets.allDialects', 'All Dialects'),
+    };
+    for (const driver of drivers) {
+        const scope = driver.is_builtin ? normalizeDriverToDialect(driver) : `driver:${driver.id}`;
+        if (scope !== 'all') labels[scope] = driver.name;
+    }
+    if (dialect && !scopes.includes(dialect)) {
+        scopes.push(dialect);
+        labels[dialect] = dialect.startsWith('driver:') ? dialect.slice(7) : dialect;
+    }
     const [formError, setFormError] = useState<string | null>(null);
 
     const refresh = useCallback(() => {
@@ -217,19 +302,15 @@ export function SnippetsTab() {
                             >
                                 {t('settings.snippets.dialectLabel', 'Dialect Scope')}
                             </label>
-                            <select
+                            <Select
                                 id="snippet-dialect-select"
+                                ariaLabel={t('settings.snippets.dialectLabel', 'Dialect Scope')}
                                 value={dialect}
-                                onChange={(e) => setDialect(e.target.value as SqlDialectScope)}
-                                className="w-full px-3 py-1.5 rounded-lg bg-base border border-default text-primary focus:outline-none focus:border-focus text-xs"
-                            >
-                                <option value="all">
-                                    {t('settings.snippets.allDialects', 'All Dialects')}
-                                </option>
-                                <option value="postgres">PostgreSQL</option>
-                                <option value="mysql">MySQL / MariaDB</option>
-                                <option value="sqlite">SQLite</option>
-                            </select>
+                                options={[...new Set(scopes)]}
+                                labels={labels}
+                                onChange={(value) => setDialect(value as SqlDialectScope)}
+                                searchable={false}
+                            />
                         </div>
 
                         <div>
@@ -255,13 +336,10 @@ export function SnippetsTab() {
 
                     <div>
                         <div className="flex items-center justify-between mb-1">
-                            <label
-                                htmlFor="snippet-body-textarea"
-                                className="text-xs font-medium text-primary"
-                            >
+                            <span className="text-xs font-medium text-primary">
                                 {t('settings.snippets.bodyLabel', 'Snippet Body')}{' '}
                                 <span className="text-accent-error">*</span>
-                            </label>
+                            </span>
                             <span className="text-[11px] text-muted">
                                 {t(
                                     'settings.snippets.tabStopHint',
@@ -269,15 +347,25 @@ export function SnippetsTab() {
                                 )}
                             </span>
                         </div>
-                        <textarea
-                            id="snippet-body-textarea"
-                            value={body}
-                            onChange={(e) => setBody(e.target.value)}
-                            placeholder="SELECT ${1:columns} FROM ${2:orders} WHERE ${3:condition};"
-                            rows={5}
-                            className="w-full px-3 py-2 rounded-lg bg-base border border-default text-primary placeholder:text-muted focus:outline-none focus:border-focus font-mono text-xs resize-y"
-                            required
-                        />
+                        <div className="overflow-hidden rounded-lg border border-default bg-base">
+                            <MonacoEditor
+                                height="150px"
+                                language={snippetLanguage(dialect, drivers)}
+                                value={body}
+                                theme={getMonacoThemeId(editorTheme.id)}
+                                beforeMount={beforeMount}
+                                onChange={(value) => setBody(value ?? '')}
+                                options={{
+                                    ariaLabel: t('settings.snippets.bodyLabel', 'Snippet Body'),
+                                    minimap: {enabled: false},
+                                    lineNumbers: 'on',
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    wordWrap: 'on',
+                                    tabSize: 4,
+                                }}
+                            />
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-default">
@@ -329,7 +417,8 @@ export function SnippetsTab() {
                                     </span>
                                     {snippet.dialect && snippet.dialect !== 'all' && (
                                         <span className="px-1.5 py-0.5 rounded uppercase font-mono text-[10px] bg-surface-secondary text-secondary border border-default">
-                                            {snippet.dialect}
+                                            {labels[snippet.dialect] ??
+                                                snippet.dialect.replace(/^driver:/, '')}
                                         </span>
                                     )}
                                 </div>
@@ -338,9 +427,7 @@ export function SnippetsTab() {
                                         {snippet.description}
                                     </p>
                                 )}
-                                <div className="mt-2 p-2 rounded bg-elevated/70 border border-default/60 font-mono text-[11px] text-primary whitespace-pre-wrap overflow-x-auto max-h-24">
-                                    {snippet.body}
-                                </div>
+                                <SnippetPreview snippet={snippet} drivers={drivers} />
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0 pt-0.5">
