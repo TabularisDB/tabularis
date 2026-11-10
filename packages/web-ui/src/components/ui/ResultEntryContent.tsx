@@ -4,15 +4,21 @@ import {CheckCircle2} from 'lucide-react';
 import {DataGrid, type DataGridCommandTarget} from './DataGrid';
 import {ErrorDisplay} from './ErrorDisplay';
 import {PaginationControls} from './PaginationControls';
+import {LazyResultChart} from './LazyResultChart';
+import {ResultViewToggle} from './ResultViewToggle';
+import {HiddenColumnsIndicator} from './HiddenColumnsIndicator';
+import {useResultChartState} from '@/hooks/useResultChartState';
+import {useHiddenColumns} from '@/hooks/useHiddenColumns';
 import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
 import {useTimingLabels} from '@/hooks/useTimingLabels';
 import {getStackedGridHeight} from '@/utils/multiResult';
 import type {QueryResultEntry} from '@/types/editor';
+import type {CopyFormat} from '@/utils/clipboard';
 
 interface ResultEntryContentProps {
     entry: QueryResultEntry;
     connectionId: string | null;
-    copyFormat: 'csv' | 'json' | 'sql-insert' | 'markdown';
+    copyFormat: CopyFormat;
     csvDelimiter: string;
     csvIncludeHeaders: boolean;
     onPageChange: (page: number) => void;
@@ -21,6 +27,8 @@ interface ResultEntryContentProps {
     commandTargetRef?: Ref<DataGridCommandTarget>;
     initialScrollTop?: number;
     onScrollTopChange?: (scrollTop: number) => void;
+    /** Offer the Grid | Chart toggle in the status bar (non-compact only). */
+    allowChart?: boolean;
 }
 
 export function ResultEntryContent({
@@ -35,9 +43,14 @@ export function ResultEntryContent({
     commandTargetRef,
     initialScrollTop,
     onScrollTopChange,
+    allowChart = false,
 }: ResultEntryContentProps) {
     const {t} = useTranslation();
     const timingLabels = useTimingLabels();
+    const chartEnabled = allowChart && !compact;
+    const chartState = useResultChartState(chartEnabled ? entry.id : null);
+    // Shared by id with the stacked view's header, which shows the indicator there.
+    const hiddenColumns = useHiddenColumns(entry.id, entry.result?.columns ?? []);
 
     if (entry.isLoading) {
         if (compact) {
@@ -146,6 +159,8 @@ export function ResultEntryContent({
                     initialScrollTop={initialScrollTop}
                     onScrollTopChange={onScrollTopChange}
                     onCopyAllRows={onCopyAllRows}
+                    hiddenColumns={hiddenColumns.hidden}
+                    onHiddenColumnsChange={hiddenColumns.setHidden}
                 />
             </div>
         );
@@ -177,12 +192,36 @@ export function ResultEntryContent({
                             </span>
                         )}
                     </span>
+                    {!(chartEnabled && chartState.view === 'chart') && (
+                        <HiddenColumnsIndicator
+                            columns={entry.result.columns}
+                            hidden={hiddenColumns.hidden}
+                            onChange={hiddenColumns.setHidden}
+                        />
+                    )}
+                    {entry.snapshot && entry.result.truncated && (
+                        <span
+                            className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0"
+                            title={t('editor.batchSnapshotTruncatedHint')}
+                        >
+                            {t('editor.batchSnapshotTruncated', {
+                                count: entry.snapshot.rows.length,
+                            })}
+                        </span>
+                    )}
                     {entry.result.pagination?.has_more && (
                         <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0">
                             {t('editor.autoPaginated')}
                         </span>
                     )}
                 </div>
+                {chartEnabled && (
+                    <ResultViewToggle
+                        className="ml-auto"
+                        view={chartState.view}
+                        onChange={chartState.setView}
+                    />
+                )}
                 {entry.result.pagination && (
                     <PaginationControls
                         pagination={entry.result.pagination}
@@ -191,28 +230,39 @@ export function ResultEntryContent({
                     />
                 )}
             </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-                <DataGrid
-                    ref={commandTargetRef}
-                    key={`${entry.id}-${entry.result.rows.length}`}
-                    columns={entry.result.columns}
-                    data={entry.result.rows}
-                    tableName={null}
-                    pkColumns={null}
-                    connectionId={connectionId}
-                    selectedRows={new Set()}
-                    onSelectionChange={() => {}}
-                    copyFormat={copyFormat}
-                    csvDelimiter={csvDelimiter}
-                    csvIncludeHeaders={csvIncludeHeaders}
-                    readonly={true}
-                    totalRows={entry.result.pagination?.total_rows}
-                    hasMore={entry.result.pagination?.has_more}
-                    initialScrollTop={initialScrollTop}
-                    onScrollTopChange={onScrollTopChange}
-                    onCopyAllRows={onCopyAllRows}
+            {chartEnabled && chartState.view === 'chart' ? (
+                <LazyResultChart
+                    result={entry.result}
+                    config={chartState.config}
+                    onConfigChange={chartState.setConfig}
+                    onShowGrid={() => chartState.setView('grid')}
                 />
-            </div>
+            ) : (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                    <DataGrid
+                        ref={commandTargetRef}
+                        key={`${entry.id}-${entry.result.rows.length}`}
+                        columns={entry.result.columns}
+                        data={entry.result.rows}
+                        tableName={null}
+                        pkColumns={null}
+                        connectionId={connectionId}
+                        selectedRows={new Set()}
+                        onSelectionChange={() => {}}
+                        copyFormat={copyFormat}
+                        csvDelimiter={csvDelimiter}
+                        csvIncludeHeaders={csvIncludeHeaders}
+                        readonly={true}
+                        totalRows={entry.result.pagination?.total_rows}
+                        hasMore={entry.result.pagination?.has_more}
+                        initialScrollTop={initialScrollTop}
+                        onScrollTopChange={onScrollTopChange}
+                        onCopyAllRows={onCopyAllRows}
+                        hiddenColumns={hiddenColumns.hidden}
+                        onHiddenColumnsChange={hiddenColumns.setHidden}
+                    />
+                </div>
+            )}
         </div>
     );
 }

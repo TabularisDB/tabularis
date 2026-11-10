@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Ang Tabularis ay isang open-source na desktop SQL workspace na may 3 built-in na database driver at 24 na inilabas na plugin, kabilang ang DuckDB, ClickHouse, Redis at Firestore. Pinapayagan ng built-in na MCP server nito ang Claude, Cursor at Devin (dating Windsurf) na basahin ang iyong schema at magpatakbo ng mga query sa parehong app na ginagamit mo na.
+Ang Tabularis ay isang open-source na desktop SQL workspace na may 3 built-in na database driver at 29 na inilabas na plugin, kabilang ang DuckDB, ClickHouse, Redis at Firestore. Pinapayagan ng built-in na MCP server nito ang Claude, Cursor at Devin (dating Windsurf) na basahin ang iyong schema at magpatakbo ng mga query sa parehong app na ginagamit mo na.
 
 <p align="center">
   <b><a href="https://tabularis.dev">Website</a></b> ·
@@ -20,8 +20,9 @@ Ang Tabularis ay isang open-source na desktop SQL workspace na may 3 built-in na
 <p align="center">
   <img src="https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat" alt="Release" />
   <img src="https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat" alt="Stars" />
-  <img src="https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat" alt="Downloads" />
+  <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTabularisDB%2Ftabularis%2Fdownload-stats%2Fdownloads.json&amp;style=flat" alt="Downloads" />
   <img src="https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg" alt="Build & Release" />
+  <a href="https://www.blacksmith.sh/?utm_source=tabularis&amp;utm_medium=referral&amp;utm_campaign=sponsor"><img src="https://img.shields.io/badge/CI_powered_by-Blacksmith-0B1015?style=flat" height="20" alt="CI powered by Blacksmith" /></a>
   <a href="https://discord.com/invite/K2hmhfHRSt"><img src="https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://gitster.dev/repo/TabularisDB/tabularis"><img src="https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e" alt="Gitster" /></a>
   <br />
@@ -70,11 +71,11 @@ sudo snap install tabularis       # Linux
 
 O kumuha ng installer nang direkta:
 
-- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_x64-setup.exe)
+- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_x64-setup.exe)
 
-- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_x64.dmg)
+- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_x64.dmg)
 
-- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis-0.29.0-1.x86_64.rpm)
+- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis-0.32.0-1.x86_64.rpm)
 
 Sinusuportahan ng UI ng app ang Ingles, Italyano, Espanyol, Tsino (Simplified), Pranses, Aleman, Hapones, Ruso, Koreano, Tagalog, at Portuges (Brazilian).
 
@@ -91,7 +92,7 @@ Sinusuportahan ng UI ng app ang Ingles, Italyano, Espanyol, Tsino (Simplified), 
 | Mga plugin sa **anumang wika** (JSON-RPC sa stdio)                 |                ✅                 |         Java/Eclipse plugins         | JavaScript plugins |              ❌              |
 | AI text-to-SQL gamit ang **lokal na modelo** (Ollama)              |                ✅                 |          Cloud AI assistant          |         ❌         |              ❌              |
 | Visual EXPLAIN na may interactive plan graphs                      |                ✅                 |                  ✅                  |         ❌         |              ❌              |
-| Mga database out of the box                                        | 3 built-in + 24 opisyal na plugin |                 100+                 |        20+         |             ~10              |
+| Mga database out of the box                                        | 3 built-in + 29 driver plugin |                 100+                 |        20+         |             ~10              |
 
 > [!NOTE]
 > Paghahambing noong Hunyo 2026; maaaring nagbago ang mga feature ng ibang tool mula noon. Kung kailangan mo ng dose-dosenang driver, gamitin ang DBeaver. Nakatuon ang Tabularis sa maayos na pagsuporta sa ilang database.
@@ -104,6 +105,7 @@ Built-in ang PostgreSQL, MySQL/MariaDB at SQLite. Deprecated na ang built-in na 
 
 | Database                 | Plugin                                                                                          | Database       | Plugin                                                                                          |
 | ------------------------ | ----------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| Google BigQuery          | [tabularis-bigquery-plugin](https://github.com/TabularisDB/tabularis-bigquery-plugin)           | CockroachDB    | [tabularis-cockroachdb-plugin](https://github.com/TabularisDB/tabularis-cockroachdb-plugin)     |
 | ClickHouse               | [tabularis-clickhouse-plugin](https://github.com/TabularisDB/tabularis-clickhouse-plugin)       | LibSQL / Turso | [tabularis-libsql-plugin](https://github.com/TabularisDB/tabularis-libsql-plugin)               |
 | Cloudflare D1            | [tabularis_cloudflare_d1_plugin](https://github.com/josejorge/tabularis_cloudflare_d1_plugin)   | MongoDB        | [tabularis-mongodb-plugin](https://github.com/danielnuld/tabularis-mongodb-plugin)              |
 | Cloudflare D1 (HTTP API) | [cloudflare-tabularis](https://github.com/GabrielMalava/cloudflare-tabularis)                   | MongoDB Atlas  | [tabularis-mongodb-plugin](https://github.com/TabularisDB/tabularis-mongodb-plugin)             |
@@ -116,15 +118,17 @@ Built-in ang PostgreSQL, MySQL/MariaDB at SQLite. Deprecated na ang built-in na 
 | IBM Informix             | [tabularis-informix-plugin](https://github.com/danielnuld/tabularis-informix-plugin)            | HackerNews     | [tabularis-hackernews-plugin](https://github.com/TabularisDB/tabularis-hackernews-plugin)       |
 | Cassandra / ScyllaDB     | [tabularis-cassandra-plugin](https://github.com/TabularisDB/tabularis-cassandra-plugin)         | Harper         | [tabularis-harper-plugin](https://github.com/HarperFast/tabularis-harper-plugin)                |
 | PostgreSQL               | [tabularis-postgresql-plugin](https://github.com/TabularisDB/tabularis-postgresql-plugin)       | Trino          | [tabularis-trino-plugin](https://github.com/TabularisDB/tabularis-trino-plugin)                 |
+| Neon                     | [neon-plugin](https://github.com/TabularisDB/neon-plugin)                                       | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
+| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         |                |                                                                                                 |
 
 **Nasa bounty board**
 
 | Status     | Mga database                                                                 |
 | ---------- | ---------------------------------------------------------------------------- |
-| Ginagawa   | Amazon Redshift, Google BigQuery, Meilisearch                                |
-| Scoped     | CockroachDB, TiDB                                                            |
-| Paparating | Snowflake                                                                    |
-| Open       | Etcd, Firebird, SQL Anywhere, SurrealDB                                      |
+| Ginagawa       | Meilisearch                  |
+| Paparating     | Snowflake                    |
+| Scoped         | Amazon Redshift, TiDB        |
+| Open           | Etcd, Firebird, SQL Anywhere |
 
 > [!NOTE]
 > Maaaring i-install ang mga driver na may status na **Released** mula sa [plugin registry](https://tabularis.dev/plugins). Ang lahat ng iba ay nasa [bounty board](https://tabularis.dev/plugins/bounties): kunin ang isa, i-sponsor, o [mag-request ng database](https://github.com/TabularisDB/tabularis/discussions).

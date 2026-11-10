@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 
 import {createBuiltInCommandItems} from '@/utils/builtInCommands';
+import {OPEN_DATA_FILE_EVENT} from '@/utils/dataFiles';
 import shortcutDefs from '@/config/shortcuts.json';
 import {formatShortcut, type ShortcutDef} from '@/utils/keybindings';
 import type {CommandScope} from '@/types/commands';
@@ -8,11 +9,14 @@ import type {CommandScope} from '@/types/commands';
 const labels = {
     openSettings: 'Open settings',
     openConnections: 'Open connection manager',
+    openDataFile: 'Open data file…',
     newConsole: 'New console',
     openTableInConsole: 'Open table in console',
     inspectTable: 'Inspect structure',
     generateSql: 'Generate SQL templates',
     countRows: 'Count rows',
+    exportTableToSql: 'Export table to SQL...',
+    importTableFromSql: 'Import table from SQL...',
     navigationCategory: 'Navigation',
     connectionCategory: 'Connection',
     editorCategory: 'Editor',
@@ -128,6 +132,54 @@ describe('createBuiltInCommandItems', () => {
         expect(paletteModals.generateSql).toHaveBeenCalledWith(scope.table);
     });
 
+    it('should offer the sidebar table transfer commands and run them', async () => {
+        const exportTable = vi.fn();
+        const importTable = vi.fn();
+        const items = createBuiltInCommandItems(
+            createScope(),
+            labels,
+            modals(),
+            getShortcut,
+            undefined,
+            {
+                exportTable: {description: 'shop.public.orders', run: exportTable},
+                importTable: {description: 'shop.public', run: importTable},
+            },
+        );
+
+        const exportCommand = findItem(items, 'table.export-to-sql');
+        const importCommand = findItem(items, 'table.import-from-sql');
+        expect(exportCommand.title).toBe('Export table to SQL...');
+        expect(exportCommand.description).toBe('shop.public.orders');
+        expect(exportCommand.group).toBe('Table');
+        expect(exportCommand.shortcut).toBeUndefined();
+        expect(importCommand.title).toBe('Import table from SQL...');
+        expect(importCommand.description).toBe('shop.public');
+        await exportCommand.primaryAction.execute();
+        await importCommand.primaryAction.execute();
+        expect(exportTable).toHaveBeenCalledTimes(1);
+        expect(importTable).toHaveBeenCalledTimes(1);
+    });
+
+    it('should omit table transfer commands the sidebar does not offer', () => {
+        const ids = (tableTransfer?: Parameters<typeof createBuiltInCommandItems>[5]) =>
+            createBuiltInCommandItems(
+                createScope(),
+                labels,
+                modals(),
+                getShortcut,
+                undefined,
+                tableTransfer,
+            ).map((item) => item.id);
+
+        expect(ids()).not.toContain('table.export-to-sql');
+        expect(ids()).not.toContain('table.import-from-sql');
+        expect(ids({importTable: {run: vi.fn()}})).toEqual(
+            expect.arrayContaining(['table.import-from-sql']),
+        );
+        expect(ids({importTable: {run: vi.fn()}})).not.toContain('table.export-to-sql');
+    });
+
     it('should omit contextual commands outside their context', () => {
         const items = createBuiltInCommandItems(
             createScope({connectionId: null, driver: null, table: null}),
@@ -136,7 +188,30 @@ describe('createBuiltInCommandItems', () => {
             getShortcut,
         );
 
-        expect(items.map((item) => item.id)).toEqual(['app.open-settings', 'app.open-connections']);
+        expect(items.map((item) => item.id)).toEqual([
+            'app.open-settings',
+            'app.open-connections',
+            'app.open-data-file',
+        ]);
+    });
+
+    it('should ask the app to open a data file from any scope', async () => {
+        const requested = vi.fn();
+        window.addEventListener(OPEN_DATA_FILE_EVENT, requested);
+        const items = createBuiltInCommandItems(
+            createScope({connectionId: null, driver: null, table: null}),
+            labels,
+            modals(),
+            getShortcut,
+        );
+
+        const command = findItem(items, 'app.open-data-file');
+        await command.primaryAction.execute();
+        window.removeEventListener(OPEN_DATA_FILE_EVENT, requested);
+
+        expect(command.title).toBe('Open data file…');
+        expect(command.keywords).toEqual(expect.arrayContaining(['csv', 'parquet']));
+        expect(requested).toHaveBeenCalledTimes(1);
     });
 
     it('should offer connection commands without a table in scope', () => {
@@ -150,6 +225,7 @@ describe('createBuiltInCommandItems', () => {
         expect(items.map((item) => item.id)).toEqual([
             'app.open-settings',
             'app.open-connections',
+            'app.open-data-file',
             'connection.new-console',
         ]);
     });
@@ -247,6 +323,29 @@ describe('createBuiltInCommandItems', () => {
         expect(runAll).toHaveBeenCalledOnce();
         expect(saveSqlFile).toHaveBeenCalledOnce();
         expect(closeTab).toHaveBeenCalledOnce();
+    });
+
+    it('should list AI editor commands and execute them', async () => {
+        const aiGenerate = vi.fn();
+        const aiExplain = vi.fn();
+        const scope = createScope({
+            getEditorCommands: () => ({
+                aiGenerate: {label: 'AI Assist: Generate SQL', execute: aiGenerate},
+                aiExplain: {label: 'AI Assist: Explain', execute: aiExplain},
+            }),
+        });
+
+        const items = createBuiltInCommandItems(scope, labels, modals(), getShortcut);
+        const generate = findItem(items, 'editor.ai-generate');
+        const explain = findItem(items, 'editor.ai-explain');
+
+        expect(generate.group).toBe('Editor');
+        expect(generate.title).toBe('AI Assist: Generate SQL');
+        expect(explain.keywords).toContain('ai');
+        await generate.primaryAction.execute();
+        await explain.primaryAction.execute();
+        expect(aiGenerate).toHaveBeenCalledOnce();
+        expect(aiExplain).toHaveBeenCalledOnce();
     });
 
     it('should expose a word wrap toggle in the editor group', () => {

@@ -40,13 +40,14 @@ import {
 } from '@/utils/multiResult';
 import {useSettings} from '@/hooks/useSettings';
 import type {QueryResultEntry} from '@/types/editor';
+import type {CopyFormat} from '@/utils/clipboard';
 
 interface MultiResultPanelProps {
     results: QueryResultEntry[];
     activeResultId: string | undefined;
     tabId: string;
     connectionId: string | null;
-    copyFormat: 'csv' | 'json' | 'sql-insert' | 'markdown';
+    copyFormat: CopyFormat;
     csvDelimiter: string;
     csvIncludeHeaders: boolean;
     onSelectResult: (entryId: string) => void;
@@ -522,6 +523,7 @@ export function MultiResultPanel({
                             initialScrollTop={getInitialScrollTop?.(activeEntry.id)}
                             onScrollTopChange={(top) => onScrollTopChange?.(activeEntry.id, top)}
                             onCopyAllRows={() => onCopyAllRows(activeEntry.id)}
+                            allowChart
                         />
                     </div>
                 </>

@@ -17,7 +17,9 @@ import {
 import {Accordion} from './Accordion';
 import {MetadataErrorIndicator} from './MetadataErrorIndicator';
 import {SidebarTableItem} from './SidebarTableItem';
+import {TableFilterInput} from './TableFilterInput';
 import {SidebarViewItem} from './SidebarViewItem';
+import {SidebarPinnedGroup} from './SidebarPinnedGroup';
 import {SidebarRoutineItem} from './SidebarRoutineItem';
 import {SidebarRoutineGroupHeader} from './SidebarRoutineGroupHeader';
 import {SidebarTriggerItem} from './SidebarTriggerItem';
@@ -28,6 +30,10 @@ import type {DriverCapabilities} from '@/types/plugins';
 import {groupRoutinesByType, routineLabel} from '@/utils/routines';
 import {formatObjectCount} from '@/utils/schema';
 import {fuzzyFilter} from '@/utils/fuzzy';
+import {resolvePins} from '@/utils/explorerPins';
+import {useExplorerPins} from '@/hooks/useExplorerPins';
+import {useExplorerExpanded} from '@/hooks/useExplorerExpanded';
+import {expansionKey} from '@/utils/explorerExpansion';
 import {onActivationKey} from '@/utils/keyboardEvents';
 
 interface SidebarDatabaseItemProps {
@@ -104,7 +110,12 @@ export const SidebarDatabaseItem = ({
 }: SidebarDatabaseItemProps) => {
     const {t} = useTranslation();
 
-    const [isExpanded, setIsExpanded] = useState(activeSchema === databaseName);
+    // Saved across restarts; the active database still opens on mount.
+    const {isExpanded, setExpanded, reveal} = useExplorerExpanded(
+        expansionKey(connectionId, ['db', databaseName]),
+        false,
+        {revealed: activeSchema === databaseName},
+    );
     const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
     const [tablesOpen, setTablesOpen] = useState(true);
     const [viewsOpen, setViewsOpen] = useState(true);
@@ -138,7 +149,7 @@ export const SidebarDatabaseItem = ({
     if (activeSchema !== prevActiveSchema) {
         setPrevActiveSchema(activeSchema);
         if (activeSchema === databaseName) {
-            setIsExpanded(true);
+            reveal();
         }
     }
 
@@ -153,12 +164,61 @@ export const SidebarDatabaseItem = ({
         routines.length > 0 ? groupRoutinesByType(routines) : {procedures: [], functions: []};
 
     const handleToggle = () => {
-        setIsExpanded((current) => !current);
+        setExpanded(!isExpanded);
     };
 
     const itemCount = isLoaded
         ? formatObjectCount(tables.length, views.length, routines.length, triggers.length)
         : '';
+
+    // Pinned objects that still exist, filtered like the table list (#1306). Items here
+    // pass `schema={databaseName}` without a database, and the pins use the same scope.
+    const {pinsFor} = useExplorerPins(connectionId);
+    const pinned = pinsFor(undefined, databaseName);
+    const byName = (object: {name: string}) => object.name;
+    const pinnedTables = resolvePins(pinned, 'table', filteredTables, byName);
+    const pinnedViews = resolvePins(
+        pinned,
+        'view',
+        fuzzyFilter(views, tableFilter, byName),
+        byName,
+    );
+
+    const renderTable = (table: (typeof tables)[number]) => (
+        <SidebarTableItem
+            key={table.name}
+            table={table}
+            activeTable={activeSchema === databaseName ? activeTable : null}
+            onTableClick={(name) => onTableClick(name, databaseName)}
+            onTableDoubleClick={(name) => onTableDoubleClick(name, databaseName)}
+            onContextMenu={onContextMenu}
+            connectionId={connectionId}
+            driver={driver}
+            canManage={supportsManageTables(capabilities)}
+            onAddColumn={onAddColumn}
+            onEditColumn={onEditColumn}
+            onAddIndex={onAddIndex}
+            onDropIndex={onDropIndex}
+            onAddForeignKey={onAddForeignKey}
+            onDropForeignKey={onDropForeignKey}
+            schemaVersion={schemaVersion}
+            schema={databaseName}
+        />
+    );
+
+    const renderView = (view: (typeof views)[number]) => (
+        <SidebarViewItem
+            key={view.name}
+            view={view}
+            activeView={null}
+            onViewClick={onViewClick}
+            onViewDoubleClick={(name) => onViewDoubleClick(name, databaseName)}
+            onContextMenu={onContextMenu}
+            connectionId={connectionId}
+            driver={driver}
+            schema={databaseName}
+        />
+    );
 
     return (
         <div className="flex flex-col">
@@ -262,6 +322,13 @@ export const SidebarDatabaseItem = ({
                         </div>
                     ) : (
                         <>
+                            {pinnedTables.length + pinnedViews.length > 0 && (
+                                <SidebarPinnedGroup>
+                                    {pinnedTables.map((table) => renderTable(table))}
+                                    {pinnedViews.map((view) => renderView(view))}
+                                </SidebarPinnedGroup>
+                            )}
+
                             {/* Tables */}
                             <Accordion
                                 title={`${t('sidebar.tables')} (${tables.length})`}
@@ -285,38 +352,15 @@ export const SidebarDatabaseItem = ({
                                 }
                             >
                                 {tables.length > 0 && (
-                                    <div className="px-2 py-1">
-                                        <div className="relative flex items-center">
-                                            <Search
-                                                size={11}
-                                                className="absolute left-2 text-muted pointer-events-none"
-                                            />
-                                            <input
-                                                autoCorrect="off"
-                                                autoCapitalize="off"
-                                                autoComplete="off"
-                                                spellCheck={false}
-                                                type="text"
-                                                data-table-filter
-                                                value={tableFilter}
-                                                onChange={(e) => setTableFilter(e.target.value)}
-                                                placeholder={t('sidebar.filterTables')}
-                                                className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-focus/50"
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                            {tableFilter && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setTableFilter('');
-                                                    }}
-                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded hover:bg-surface-secondary"
-                                                >
-                                                    <X size={11} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
+                                    <TableFilterInput
+                                        value={tableFilter}
+                                        onChange={setTableFilter}
+                                        hasMatch={filteredTables.length > 0}
+                                        onOpenFirstMatch={() =>
+                                            onTableDoubleClick(filteredTables[0].name, databaseName)
+                                        }
+                                        stopPropagation
+                                    />
                                 )}
                                 {filteredTables.length === 0 ? (
                                     <div className="text-center p-2 text-xs text-muted italic">
@@ -325,37 +369,7 @@ export const SidebarDatabaseItem = ({
                                             : t('sidebar.noTables')}
                                     </div>
                                 ) : (
-                                    <div>
-                                        {filteredTables.map((table) => (
-                                            <SidebarTableItem
-                                                key={table.name}
-                                                table={table}
-                                                activeTable={
-                                                    activeSchema === databaseName
-                                                        ? activeTable
-                                                        : null
-                                                }
-                                                onTableClick={(name) =>
-                                                    onTableClick(name, databaseName)
-                                                }
-                                                onTableDoubleClick={(name) =>
-                                                    onTableDoubleClick(name, databaseName)
-                                                }
-                                                onContextMenu={onContextMenu}
-                                                connectionId={connectionId}
-                                                driver={driver}
-                                                canManage={supportsManageTables(capabilities)}
-                                                onAddColumn={onAddColumn}
-                                                onEditColumn={onEditColumn}
-                                                onAddIndex={onAddIndex}
-                                                onDropIndex={onDropIndex}
-                                                onAddForeignKey={onAddForeignKey}
-                                                onDropForeignKey={onDropForeignKey}
-                                                schemaVersion={schemaVersion}
-                                                schema={databaseName}
-                                            />
-                                        ))}
-                                    </div>
+                                    <div>{filteredTables.map((table) => renderTable(table))}</div>
                                 )}
                             </Accordion>
 
@@ -385,23 +399,7 @@ export const SidebarDatabaseItem = ({
                                             {t('sidebar.noViews')}
                                         </div>
                                     ) : (
-                                        <div>
-                                            {views.map((view) => (
-                                                <SidebarViewItem
-                                                    key={view.name}
-                                                    view={view}
-                                                    activeView={null}
-                                                    onViewClick={onViewClick}
-                                                    onViewDoubleClick={(name) =>
-                                                        onViewDoubleClick(name, databaseName)
-                                                    }
-                                                    onContextMenu={onContextMenu}
-                                                    connectionId={connectionId}
-                                                    driver={driver}
-                                                    schema={databaseName}
-                                                />
-                                            ))}
-                                        </div>
+                                        <div>{views.map((view) => renderView(view))}</div>
                                     )}
                                 </Accordion>
                             )}

@@ -9,11 +9,30 @@ const LANGUAGE_ALIASES: Readonly<Record<string, SupportedLanguageId>> = {
     fil: 'tl',
 };
 
+// Full locale tags (or their leading subtags) served by a regional dictionary.
+// Traditional Chinese locales use zh-TW; zh, zh-CN and zh-Hans keep Simplified Chinese.
+const LOCALE_TAG_ALIASES: Readonly<Record<string, SupportedLanguageId>> = {
+    'zh-hant': 'zh-TW',
+    'zh-hk': 'zh-TW',
+    'zh-mo': 'zh-TW',
+};
+
+function findLocaleTagAlias(wanted: string): SupportedLanguageId | undefined {
+    const subtags = wanted.split('-');
+    for (let length = subtags.length; length > 1; length--) {
+        const alias = LOCALE_TAG_ALIASES[subtags.slice(0, length).join('-')];
+        if (alias) return alias;
+    }
+    return undefined;
+}
+
 function findSupportedLanguageId(locale?: string): SupportedLanguageId | undefined {
     if (!locale) return undefined;
     const wanted = locale.replace('_', '-').toLowerCase();
     const exact = SUPPORTED_LANGUAGES.find(({id}) => id.toLowerCase() === wanted);
     if (exact) return exact.id;
+    const tagAlias = findLocaleTagAlias(wanted);
+    if (tagAlias) return tagAlias;
     const base = wanted.split('-')[0];
     const alias = LANGUAGE_ALIASES[base];
     if (alias) return alias;

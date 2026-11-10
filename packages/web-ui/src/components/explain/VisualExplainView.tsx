@@ -3,8 +3,13 @@ import {useTranslation} from 'react-i18next';
 import {Download, Loader2} from 'lucide-react';
 import {MonacoEditor} from '@/components/ui/LazyMonaco';
 import type * as monaco from 'monaco-editor';
-import type {ExplainPlan} from '@tabularis/explain';
-import {computeExplainMetrics, findExplainNode, getPlanDiagnostics} from '@tabularis/explain';
+import type {ExplainPlan, ExplainTableColumnId} from '@tabularis/explain';
+import {
+    computeExplainMetrics,
+    findExplainNode,
+    getPlanDiagnostics,
+    normalizeExplainTableColumnOrder,
+} from '@tabularis/explain';
 import {
     ExplainDiagramView,
     ExplainGraph,
@@ -19,6 +24,8 @@ import {useEditorTheme} from '@/hooks/useEditorTheme';
 import {useAlert} from '@/hooks/useAlert';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {useToast} from '@/hooks/useToast';
+import {useUiState} from '@/hooks/useUiState';
+import {UI_STATE_KEYS} from '@/utils/uiStateStore';
 import {loadMonacoTheme} from '@/themes/themeUtils';
 import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {
@@ -30,6 +37,20 @@ import {
 import {saveExplainTableCsv} from '@/utils/explainTableExport';
 import {toErrorMessage} from '@/utils/errors';
 import {ExplainAiAnalysis} from '@/components/modals/visual-explain/ExplainAiAnalysis';
+import {Camera} from 'lucide-react';
+import {
+    type ExplainSnapshot,
+    comparePlanSnapshots,
+    type PlanComparisonResult,
+} from '@tabularis/explain';
+import {
+    loadExplainSnapshots,
+    saveExplainSnapshot,
+    deleteExplainSnapshot,
+    togglePinExplainSnapshot,
+} from '@/utils/explainSnapshots';
+import {ExplainComparisonBar} from './ExplainComparisonBar';
+import {ExplainSnapshotsModal} from './ExplainSnapshotsModal';
 
 export interface VisualExplainViewProps {
     plan: ExplainPlan | null;
@@ -40,6 +61,10 @@ export interface VisualExplainViewProps {
     selectedNodeId: string | null;
     onSelectNode: (id: string | null) => void;
     aiEnabled: boolean;
+    connectionId?: string;
+    connectionName?: string;
+    databaseName?: string;
+    schemaName?: string;
 }
 
 /**
@@ -55,6 +80,10 @@ export const VisualExplainView = ({
     selectedNodeId,
     onSelectNode,
     aiEnabled,
+    connectionId,
+    connectionName,
+    databaseName,
+    schemaName,
 }: VisualExplainViewProps) => {
     const {t} = useTranslation();
     const editorTheme = useEditorTheme();
@@ -77,6 +106,124 @@ export const VisualExplainView = ({
     const platform = usePlatformCapabilities();
     const {showToast} = useToast();
     const [isSaving, setIsSaving] = useState(false);
+    const [snapshots, setSnapshots] = useState<ExplainSnapshot[]>(() => loadExplainSnapshots());
+    const [isSnapshotsModalOpen, setIsSnapshotsModalOpen] = useState(false);
+    const [baselineSnapshot, setBaselineSnapshot] = useState<ExplainSnapshot | null>(null);
+
+    // Compute comparison against active baseline snapshot
+    const comparison: PlanComparisonResult | null = useMemo(() => {
+        if (!plan || !baselineSnapshot) return null;
+        const currentSnapshot: ExplainSnapshot = {
+            id: 'current',
+            name: 'Current Plan',
+            createdAt: new Date().toISOString(),
+            sql: plan.original_query || '',
+            context: {
+                engine: plan.driver,
+                connectionId,
+                connectionName,
+                databaseName,
+                schema: schemaName,
+            },
+            hasAnalyzeData: plan.has_analyze_data,
+            planningTimeMs: plan.planning_time_ms,
+            executionTimeMs: plan.execution_time_ms,
+            totalCost: plan.root.total_cost,
+            rawOutput: plan.raw_output,
+            plan,
+        };
+        const baselineMetrics = baselineSnapshot.plan
+            ? computeExplainMetrics(baselineSnapshot.plan).byId
+            : undefined;
+        return comparePlanSnapshots(
+            baselineSnapshot,
+            currentSnapshot,
+            baselineMetrics,
+            metrics?.byId,
+        );
+    }, [plan, baselineSnapshot, metrics, connectionId, connectionName, databaseName, schemaName]);
+
+    const handleSaveCurrentSnapshot = useCallback(
+        (name: string) => {
+            if (!plan) return;
+            try {
+                saveExplainSnapshot(plan, name, {
+                    engine: plan.driver,
+                    connectionId,
+                    connectionName,
+                    databaseName,
+                    schema: schemaName,
+                });
+                setSnapshots(loadExplainSnapshots());
+                showToast(
+                    t('editor.visualExplain.snapshotSaved', 'Plan snapshot saved successfully'),
+                    {
+                        kind: 'success',
+                    },
+                );
+            } catch (error) {
+                console.error('Failed to save explain snapshot:', error);
+                showToast(
+                    t(
+                        'editor.visualExplain.snapshotSaveFailed',
+                        'Failed to save plan snapshot: storage limit reached or unavailable',
+                    ),
+                    {
+                        kind: 'error',
+                    },
+                );
+            }
+        },
+        [plan, connectionId, connectionName, databaseName, schemaName, showToast, t],
+    );
+
+    const handleDeleteSnapshot = useCallback(
+        (id: string) => {
+            try {
+                const remaining = deleteExplainSnapshot(id);
+                setSnapshots(remaining);
+                setBaselineSnapshot((prev) => (prev?.id === id ? null : prev));
+            } catch (error) {
+                console.error('Failed to delete explain snapshot:', error);
+                showToast(
+                    t(
+                        'editor.visualExplain.snapshotDeleteFailed',
+                        'Failed to delete snapshot from storage',
+                    ),
+                    {
+                        kind: 'error',
+                    },
+                );
+            }
+        },
+        [showToast, t],
+    );
+
+    const handleTogglePinSnapshot = useCallback(
+        (id: string) => {
+            try {
+                const updated = togglePinExplainSnapshot(id);
+                setSnapshots(updated);
+            } catch (error) {
+                console.error('Failed to pin explain snapshot:', error);
+                showToast(
+                    t(
+                        'editor.visualExplain.snapshotPinFailed',
+                        'Failed to update snapshot pin state in storage',
+                    ),
+                    {
+                        kind: 'error',
+                    },
+                );
+            }
+        },
+        [showToast, t],
+    );
+
+    const handleSelectBaseline = useCallback((snap: ExplainSnapshot) => {
+        setBaselineSnapshot((prev) => (prev?.id === snap.id ? null : snap));
+        setIsSnapshotsModalOpen(false);
+    }, []);
 
     const rawLanguage = useMemo(
         () => (plan?.raw_output ? detectRawExplainLanguage(plan.raw_output) : 'plaintext'),
@@ -101,6 +248,20 @@ export const VisualExplainView = ({
     );
 
     const [isExportingCsv, setIsExportingCsv] = useState(false);
+
+    // Shared by every window, so a detached plan shows the same column order.
+    const [storedColumnOrder, setStoredColumnOrder] = useUiState<unknown>(
+        UI_STATE_KEYS.explainTableColumns,
+        null,
+    );
+    const columnOrder = useMemo(
+        () => normalizeExplainTableColumnOrder(storedColumnOrder),
+        [storedColumnOrder],
+    );
+    const handleColumnOrderChange = useCallback(
+        (order: readonly ExplainTableColumnId[]) => setStoredColumnOrder([...order]),
+        [setStoredColumnOrder],
+    );
 
     const handleSaveRaw = useCallback(async () => {
         // Capture the selected plan synchronously before awaiting the dialog
@@ -151,15 +312,58 @@ export const VisualExplainView = ({
 
     return (
         <div className="flex flex-col h-full min-h-0">
-            <ExplainSummaryBar
-                plan={plan}
-                viewMode={viewMode}
-                onViewModeChange={onViewModeChange}
-                aiEnabled={aiEnabled}
-            />
+            <div className="flex items-center justify-between border-b border-default bg-base/50 pr-2">
+                <div className="flex-1 min-w-0">
+                    <ExplainSummaryBar
+                        plan={plan}
+                        viewMode={viewMode}
+                        onViewModeChange={onViewModeChange}
+                        aiEnabled={aiEnabled}
+                    />
+                </div>
+                {plan && (
+                    <button
+                        type="button"
+                        onClick={() => setIsSnapshotsModalOpen(true)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded border border-default bg-surface hover:bg-surface-secondary text-primary transition-colors shrink-0 shadow-sm"
+                        title={t('editor.visualExplain.snapshots', 'Snapshots')}
+                    >
+                        <Camera size={13} className="text-secondary" />
+                        <span className="hidden @[640px]:inline">
+                            {t('editor.visualExplain.snapshots', 'Snapshots')}
+                        </span>
+                        {snapshots.length > 0 && (
+                            <span className="px-1 rounded-full bg-surface-secondary text-[10px] text-muted font-mono">
+                                {snapshots.length}
+                            </span>
+                        )}
+                    </button>
+                )}
+            </div>
+
+            {comparison && baselineSnapshot && (
+                <ExplainComparisonBar
+                    comparison={comparison}
+                    baselineName={baselineSnapshot.name}
+                    onClearBaseline={() => setBaselineSnapshot(null)}
+                />
+            )}
+
             {plan && metrics && (
                 <ExplainOverviewBar plan={plan} metrics={metrics} onSelectNode={onSelectNode} />
             )}
+
+            <ExplainSnapshotsModal
+                isOpen={isSnapshotsModalOpen}
+                onClose={() => setIsSnapshotsModalOpen(false)}
+                snapshots={snapshots}
+                currentBaselineId={baselineSnapshot?.id ?? null}
+                onSelectBaseline={handleSelectBaseline}
+                onDeleteSnapshot={handleDeleteSnapshot}
+                onTogglePinSnapshot={handleTogglePinSnapshot}
+                onSaveCurrent={handleSaveCurrentSnapshot}
+                canSaveCurrent={!!plan}
+            />
 
             <div className="flex-1 overflow-hidden min-h-0">
                 {isLoading ? (
@@ -224,6 +428,8 @@ export const VisualExplainView = ({
                             onSelect={onSelectNode}
                             onExportCsv={handleExportCsv}
                             isExportingCsv={isExportingCsv}
+                            columnOrder={columnOrder}
+                            onColumnOrderChange={handleColumnOrderChange}
                         />
                     ) : viewMode === 'diagram' ? (
                         <ExplainDiagramView

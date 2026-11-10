@@ -1,11 +1,11 @@
 use super::{
     build_paginated_query, calculate_query_timing, calculate_query_timing_from_start,
-    decode_blob_wire_format, encode_blob, encode_blob_full, i64_to_json, is_explainable_query,
-    is_explainable_query_for, is_select_query, is_select_query_for, parse_unsafe_bigint_string,
-    returns_result_set, returns_result_set_for, strip_leading_sql_comments,
-    strip_leading_sql_comments_for, strip_limit_offset, transaction_effect, u64_to_json,
-    TransactionEffect, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,
-    MAX_BLOB_PREVIEW_SIZE,
+    decode_blob_wire_format, encode_blob, encode_blob_full, full_type_if_distinct, i64_to_json,
+    is_explainable_query, is_explainable_query_for, is_select_query, is_select_query_for,
+    parse_unsafe_bigint_string, returns_result_set, returns_result_set_for,
+    strip_leading_sql_comments, strip_leading_sql_comments_for, strip_limit_offset,
+    transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER,
+    JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
 };
 
 #[test]
@@ -277,7 +277,9 @@ fn test_strip_limit_offset_table_name_contains_limit() {
 #[test]
 fn test_strip_limit_offset_table_name_contains_limit_with_real_limit() {
     assert_eq!(
-        strip_limit_offset("SELECT * FROM tapp_appointment_message_event_limit ORDER BY id LIMIT 10"),
+        strip_limit_offset(
+            "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id LIMIT 10"
+        ),
         "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id"
     );
 }
@@ -446,7 +448,10 @@ fn test_build_paginated_query_honors_user_limit_offset_before_trailing_comment()
 fn test_build_paginated_query_honors_user_limit_after_backslash_quoted_string() {
     let q = r"SELECT 'it\'s LIMIT 5' AS label FROM t LIMIT 50 -- cap";
     let result = build_paginated_query(q, 100, 1);
-    assert_eq!(result, r"SELECT 'it\'s LIMIT 5' AS label FROM t LIMIT 50 OFFSET 0");
+    assert_eq!(
+        result,
+        r"SELECT 'it\'s LIMIT 5' AS label FROM t LIMIT 50 OFFSET 0"
+    );
 }
 
 #[test]
@@ -546,10 +551,7 @@ fn test_extract_user_offset_only_offset() {
 
 #[test]
 fn test_extract_user_offset_absent() {
-    assert_eq!(
-        super::extract_user_offset("SELECT * FROM t LIMIT 50"),
-        None
-    );
+    assert_eq!(super::extract_user_offset("SELECT * FROM t LIMIT 50"), None);
 }
 
 #[test]
@@ -762,7 +764,10 @@ fn test_parse_unsafe_bigint_string_returns_outside_safe_range() {
         parse_unsafe_bigint_string("-9007199254740992"),
         Some(-JS_MAX_SAFE_INTEGER - 1)
     );
-    assert_eq!(parse_unsafe_bigint_string(&i64::MAX.to_string()), Some(i64::MAX));
+    assert_eq!(
+        parse_unsafe_bigint_string(&i64::MAX.to_string()),
+        Some(i64::MAX)
+    );
 }
 
 #[test]
@@ -866,15 +871,32 @@ fn transaction_effect_ignores_savepoint_rollback() {
 
 #[test]
 fn transaction_effect_detects_chained_and_two_phase_statements() {
-    for query in ["COMMIT AND CHAIN", "commit work and chain", "ROLLBACK AND CHAIN", "ABORT AND CHAIN"] {
-        assert_eq!(transaction_effect(query), TransactionEffect::Chains, "{query}");
+    for query in [
+        "COMMIT AND CHAIN",
+        "commit work and chain",
+        "ROLLBACK AND CHAIN",
+        "ABORT AND CHAIN",
+    ] {
+        assert_eq!(
+            transaction_effect(query),
+            TransactionEffect::Chains,
+            "{query}"
+        );
     }
     for query in ["COMMIT AND NO CHAIN", "ABORT", "PREPARE TRANSACTION 'tx1'"] {
-        assert_eq!(transaction_effect(query), TransactionEffect::Closes, "{query}");
+        assert_eq!(
+            transaction_effect(query),
+            TransactionEffect::Closes,
+            "{query}"
+        );
     }
     // Two-phase commit runs outside a transaction block and never touches the session's.
     for query in ["COMMIT PREPARED 'tx1'", "ROLLBACK PREPARED 'tx1'"] {
-        assert_eq!(transaction_effect(query), TransactionEffect::None, "{query}");
+        assert_eq!(
+            transaction_effect(query),
+            TransactionEffect::None,
+            "{query}"
+        );
     }
 }
 
@@ -897,13 +919,25 @@ fn in_transaction_after_treats_a_failed_commit_as_closing() {
 fn transaction_effect_reads_optional_noise_words_and_inner_comments() {
     for (query, effect) in [
         ("ROLLBACK WORK TO SAVEPOINT sp1", TransactionEffect::None),
-        ("ROLLBACK TRANSACTION TO SAVEPOINT sp1", TransactionEffect::None),
+        (
+            "ROLLBACK TRANSACTION TO SAVEPOINT sp1",
+            TransactionEffect::None,
+        ),
         ("COMMIT WORK", TransactionEffect::Closes),
-        ("COMMIT -- and chain later if needed", TransactionEffect::Closes),
+        (
+            "COMMIT -- and chain later if needed",
+            TransactionEffect::Closes,
+        ),
         ("COMMIT /* and chain */", TransactionEffect::Closes),
         ("START /* explicit */ TRANSACTION", TransactionEffect::Opens),
-        ("COMMIT /* outer /* nested */ still comment */ AND CHAIN", TransactionEffect::Chains),
-        ("ROLLBACK TRANSACTION AND NO CHAIN", TransactionEffect::Closes),
+        (
+            "COMMIT /* outer /* nested */ still comment */ AND CHAIN",
+            TransactionEffect::Chains,
+        ),
+        (
+            "ROLLBACK TRANSACTION AND NO CHAIN",
+            TransactionEffect::Closes,
+        ),
         ("PREPARE TRANSACTION 'and chain'", TransactionEffect::Closes),
     ] {
         assert_eq!(transaction_effect(query), effect, "{query}");
@@ -965,7 +999,10 @@ fn transaction_effect_sees_through_leading_comments() {
 fn transaction_effect_handles_empty_input() {
     assert_eq!(transaction_effect(""), TransactionEffect::None);
     assert_eq!(transaction_effect("   \n"), TransactionEffect::None);
-    assert_eq!(transaction_effect("-- only a comment"), TransactionEffect::None);
+    assert_eq!(
+        transaction_effect("-- only a comment"),
+        TransactionEffect::None
+    );
 }
 
 #[test]
@@ -976,5 +1013,46 @@ fn transaction_effect_does_not_match_plpgsql_block_bodies() {
     assert_eq!(
         transaction_effect("DO $$ BEGIN RAISE NOTICE 'hi'; END $$"),
         TransactionEffect::None
+    );
+}
+
+#[test]
+fn full_type_if_distinct_keeps_types_with_modifiers() {
+    assert_eq!(
+        full_type_if_distinct("varchar", Some("varchar(255)".into())),
+        Some("varchar(255)".into())
+    );
+    assert_eq!(
+        full_type_if_distinct("decimal", Some("decimal(10,2)".into())),
+        Some("decimal(10,2)".into())
+    );
+    assert_eq!(
+        full_type_if_distinct("int", Some("int unsigned".into())),
+        Some("int unsigned".into())
+    );
+    assert_eq!(
+        full_type_if_distinct("ARRAY", Some("integer[]".into())),
+        Some("integer[]".into())
+    );
+}
+
+#[test]
+fn full_type_if_distinct_drops_repeats_and_blanks() {
+    assert_eq!(full_type_if_distinct("text", Some("text".into())), None);
+    assert_eq!(full_type_if_distinct("TEXT", Some("text".into())), None);
+    assert_eq!(
+        full_type_if_distinct("integer", Some(" integer ".into())),
+        None
+    );
+    assert_eq!(full_type_if_distinct("int", Some(String::new())), None);
+    assert_eq!(full_type_if_distinct("int", Some("   ".into())), None);
+    assert_eq!(full_type_if_distinct("int", None), None);
+}
+
+#[test]
+fn full_type_if_distinct_trims_the_kept_value() {
+    assert_eq!(
+        full_type_if_distinct("char", Some(" char(10) ".into())),
+        Some("char(10)".into())
     );
 }

@@ -9,17 +9,22 @@ interface CreateActiveEditorCommandsOptions {
     isLoading: boolean;
     canSaveSqlFile: boolean;
     statementCount: number;
+    aiEnabled: boolean;
     labels: {
         run: string;
         runAll: string;
         saveSqlFile: string;
         closeTab: string;
+        aiGenerate: string;
+        aiExplain: string;
     };
     actions: {
         run: () => void | Promise<void>;
         runAll: () => void | Promise<void>;
         saveSqlFile: () => void | Promise<void>;
         closeTab: () => void | Promise<void>;
+        aiGenerate: () => void;
+        aiExplain: () => void;
     };
 }
 
@@ -31,6 +36,7 @@ export function createActiveEditorCommands({
     isLoading,
     canSaveSqlFile,
     statementCount,
+    aiEnabled,
     labels,
     actions,
 }: CreateActiveEditorCommandsOptions): EditorCommands {
@@ -46,6 +52,15 @@ export function createActiveEditorCommands({
                   },
               }
             : {};
+    const aiCommands: EditorCommands =
+        aiEnabled && hasConnection && tabType === 'console'
+            ? {
+                  aiGenerate: {label: labels.aiGenerate, execute: actions.aiGenerate},
+                  ...(hasRunnableQuery
+                      ? {aiExplain: {label: labels.aiExplain, execute: actions.aiExplain}}
+                      : {}),
+              }
+            : {};
 
     const canRun =
         hasConnection &&
@@ -55,11 +70,12 @@ export function createActiveEditorCommands({
         tabType !== 'notebook' &&
         tabType !== 'users';
 
-    if (!canRun) return {...closeTabCommand, ...saveSqlFileCommand};
+    if (!canRun) return {...closeTabCommand, ...saveSqlFileCommand, ...aiCommands};
 
     return {
         ...closeTabCommand,
         ...saveSqlFileCommand,
+        ...aiCommands,
         run: {label: labels.run, execute: actions.run},
         ...(tabType === 'console' && statementCount > 1
             ? {runAll: {label: labels.runAll, execute: actions.runAll}}

@@ -9,6 +9,7 @@ import {useCommandPaletteState} from './useCommandPalette';
 import {useKeybindings} from './useKeybindings';
 import {useActiveCommandPaletteScope} from './useCommandPaletteScope';
 import {SettingsContext} from '@/contexts/SettingsContext';
+import {useTableTransferCommands} from './useTableTransferCommands';
 
 export function useCommandPaletteActionItems(
     onGenerateSql: (target: TableTarget) => void,
@@ -18,6 +19,7 @@ export function useCommandPaletteActionItems(
     const {shortcuts, overrides, isMac} = useKeybindings();
     const {focusContext} = useCommandPaletteState();
     const scope = useActiveCommandPaletteScope();
+    const tableTransfer = useTableTransferCommands(scope?.connectionId ?? null);
     // Read the settings context directly so the palette also renders outside a
     // SettingsProvider (isolated hook usage); the app always provides it.
     const settingsContext = useContext(SettingsContext);
@@ -49,11 +51,14 @@ export function useCommandPaletteActionItems(
             {
                 openSettings: t('commandPalette.commands.openSettings'),
                 openConnections: t('commandPalette.commands.openConnections'),
+                openDataFile: t('dataFiles.openMenu'),
                 newConsole: t('editor.quickNavigator.actions.newConsole'),
                 openTableInConsole: t('commandPalette.commands.openTableInConsole'),
                 inspectTable: t('editor.quickNavigator.actions.inspect'),
                 generateSql: t('editor.quickNavigator.actions.generateSql'),
                 countRows: t('editor.quickNavigator.actions.countRows'),
+                exportTableToSql: t('tableTransfer.exportMenu'),
+                importTableFromSql: t('tableTransfer.importMenu'),
                 navigationCategory: t('commandPalette.categories.navigation'),
                 connectionCategory,
                 editorCategory: t('settings.shortcuts.categories.editor'),
@@ -71,6 +76,7 @@ export function useCommandPaletteActionItems(
             {generateSql: onGenerateSql, inspect: onInspect},
             getShortcut,
             {wordWrapEnabled, toggleWordWrap},
+            tableTransfer,
         );
 
         const connectionItems = scope.runtime.switchConnection
@@ -94,5 +100,6 @@ export function useCommandPaletteActionItems(
         focusContext,
         wordWrapEnabled,
         toggleWordWrap,
+        tableTransfer,
     ]);
 }

@@ -1,6 +1,6 @@
 //! Beekeeper Studio importer. Reads the local workspace from Beekeeper's
 //! `app.db` (SQLite) and decrypts password columns with the per-install key
-//! stored in `.key`. Ported from TablePro's `BeekeeperStudioImporter.swift`.
+//! stored in `.key`.
 //!
 //! Only the personal workspace (`workspaceId = -1`) is imported; cloud-synced
 //! rows have a positive id and their own source of truth.
@@ -130,7 +130,9 @@ impl ForeignAppImporter for BeekeeperImporter {
         _file: Option<&Path>,
     ) -> Result<ImportEnvelope, ForeignImportError> {
         if !self.app_db_path().is_file() {
-            return Err(ForeignImportError::FileNotFound(self.display_name().to_string()));
+            return Err(ForeignImportError::FileNotFound(
+                self.display_name().to_string(),
+            ));
         }
         let rows = self.read_rows().await?;
         let folder_map = self.read_folders().await.unwrap_or_default();
@@ -149,7 +151,7 @@ impl ForeignAppImporter for BeekeeperImporter {
         for row in &rows {
             let driver_label = match map_driver(row.connection_type.as_deref()) {
                 Some(d) => d,
-                None => continue, // unsupported driver — skip, like TablePro
+                None => continue, // unsupported driver — skip
             };
             let group_name = row
                 .connection_folder_id
@@ -236,7 +238,9 @@ impl BeekeeperImporter {
         Ok(rows)
     }
 
-    async fn read_folders(&self) -> Result<std::collections::HashMap<i64, String>, ForeignImportError> {
+    async fn read_folders(
+        &self,
+    ) -> Result<std::collections::HashMap<i64, String>, ForeignImportError> {
         let pool = self.open().await?;
         let rows = sqlx::query("SELECT id, name FROM connection_folder")
             .fetch_all(&pool)
@@ -266,7 +270,12 @@ fn build_ssh(row: &SavedConnectionRow) -> Option<ImportedSsh> {
     if row.ssh_enabled.unwrap_or(0) == 0 {
         return None;
     }
-    let auth_type = match row.ssh_mode.as_deref().map(str::to_ascii_lowercase).as_deref() {
+    let auth_type = match row
+        .ssh_mode
+        .as_deref()
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
         Some("keyfile") => "ssh_key",
         _ => "password",
     }

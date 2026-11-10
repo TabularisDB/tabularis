@@ -6,7 +6,7 @@ import {quoteSqlString, sqlBooleanLiteral, stringEscapeStyle} from './sqlLiteral
 import {escapeHtml} from './escape';
 
 /** Driver whose dialect the copied SQL literals follow. */
-type CopyDriver = string | PluginManifest | DriverCapabilities | null;
+export type CopyDriver = string | PluginManifest | DriverCapabilities | null;
 
 // RFC 4180 quoting, shared with the file export: a field with the delimiter, a quote or a line
 // break (LF or CR) is wrapped in quotes, and its quotes are doubled.
@@ -111,7 +111,32 @@ export function rowsToHtmlTable(
     return `<table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'markdown';
+export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'sql-update' | 'markdown';
+
+/** Why rows can't be copied as UPDATE statements; `null` when they can. */
+export type SqlUpdateBlocker =
+    'no-key' | 'key-not-in-result' | 'only-key-columns' | 'row-without-key-value';
+
+/**
+ * An UPDATE needs a WHERE clause on the primary key, so the result must have a known
+ * key, every key column must be in `columns`, and at least one other column must be
+ * left to SET. When `rows` is given, every row also needs a value in each key column:
+ * an unsaved insertion has no key yet, and `WHERE "id" IS NULL` would match nothing,
+ * or the wrong rows if the key column allows NULLs.
+ */
+export function sqlUpdateBlocker(
+    columns: string[],
+    pkColumns?: string[] | null,
+    rows?: unknown[][],
+): SqlUpdateBlocker | null {
+    if (!pkColumns || pkColumns.length === 0) return 'no-key';
+    if (!pkColumns.every((pk) => columns.includes(pk))) return 'key-not-in-result';
+    if (columns.every((column) => pkColumns.includes(column))) return 'only-key-columns';
+    const keyIndices = pkColumns.map((pk) => columns.indexOf(pk));
+    if (rows?.some((row) => keyIndices.some((i) => row[i] === null || row[i] === undefined)))
+        return 'row-without-key-value';
+    return null;
+}
 
 /** Format result rows for clipboard copy in the user's chosen copy format. */
 export function formatRowsForCopy(
@@ -124,6 +149,10 @@ export function formatRowsForCopy(
         csvDelimiter?: string;
         tableName?: string | null;
         driver?: CopyDriver;
+        /** How NULL is written in CSV and Markdown. JSON and SQL INSERT keep their native null. */
+        nullLabel?: string;
+        /** Primary key of the result, for SQL UPDATE's WHERE clause. */
+        pkColumns?: string[] | null;
     } = {},
 ): string {
     const {
@@ -132,15 +161,25 @@ export function formatRowsForCopy(
         csvDelimiter = ',',
         tableName,
         driver,
+        nullLabel = 'null',
+        pkColumns,
     } = options;
     if (copyFormat === 'json') return rowsToJSON(rows, columns);
-    if (copyFormat === 'sql-insert')
+    if (
+        copyFormat === 'sql-update' &&
+        pkColumns &&
+        sqlUpdateBlocker(columns, pkColumns, rows) === null
+    )
+        return rowsToSqlUpdate(rows, columns, tableName ?? 'table', pkColumns, driver);
+    // Without a usable key there is no safe WHERE clause, so SQL UPDATE falls back to
+    // INSERT; callers check sqlUpdateBlocker to tell the user.
+    if (copyFormat === 'sql-insert' || copyFormat === 'sql-update')
         return rowsToSqlInsert(rows, columns, tableName ?? 'table', driver);
     if (copyFormat === 'markdown')
-        return rowsToMarkdown(rows, columns, 'null', withHeaders && csvIncludeHeaders);
+        return rowsToMarkdown(rows, columns, nullLabel, withHeaders && csvIncludeHeaders);
     if (withHeaders && csvIncludeHeaders)
-        return rowsToCSVWithHeaders(rows, columns, 'null', csvDelimiter);
-    return rowsToCSV(rows, 'null', csvDelimiter);
+        return rowsToCSVWithHeaders(rows, columns, nullLabel, csvDelimiter);
+    return rowsToCSV(rows, nullLabel, csvDelimiter);
 }
 
 export function getSelectedRows(data: unknown[][], selectedIndices: Set<number>): unknown[][] {
@@ -167,6 +206,8 @@ interface ColumnCopyOptions {
     includeHeader?: boolean;
     tableName?: string;
     driver?: CopyDriver;
+    /** How NULL is written in CSV and Markdown. Default: "null". */
+    nullLabel?: string;
 }
 
 export function columnValuesForCopy(
@@ -180,11 +221,14 @@ export function columnValuesForCopy(
 
     const projectedRows = rows.map((row) => [row[colIndex]]);
     const projectedColumns = [column];
+    const nullLabel = options.nullLabel ?? 'null';
 
     if (options.format === 'json') {
         return rowsToJSON(projectedRows, projectedColumns);
     }
-    if (options.format === 'sql-insert') {
+    // A single column never holds both a key for WHERE and a value for SET, so
+    // SQL UPDATE copies a column's values as INSERT.
+    if (options.format === 'sql-insert' || options.format === 'sql-update') {
         return rowsToSqlInsert(
             projectedRows,
             projectedColumns,
@@ -193,12 +237,12 @@ export function columnValuesForCopy(
         );
     }
     if (options.format === 'markdown') {
-        return rowsToMarkdown(projectedRows, projectedColumns, 'null', options.includeHeader);
+        return rowsToMarkdown(projectedRows, projectedColumns, nullLabel, options.includeHeader);
     }
     if (options.includeHeader) {
-        return rowsToCSVWithHeaders(projectedRows, projectedColumns, 'null', options.delimiter);
+        return rowsToCSVWithHeaders(projectedRows, projectedColumns, nullLabel, options.delimiter);
     }
-    return rowsToCSV(projectedRows, 'null', options.delimiter);
+    return rowsToCSV(projectedRows, nullLabel, options.delimiter);
 }
 
 export function columnValuesToInClause(
@@ -241,6 +285,42 @@ export function rowsToSqlInsert(
     driver?: CopyDriver,
 ): string {
     return rows.map((row) => rowToSqlInsert(row, columns, tableName, driver)).join('\n');
+}
+
+function rowToSqlUpdate(
+    row: unknown[],
+    columns: string[],
+    tableName: string,
+    pkColumns: string[],
+    driver?: CopyDriver,
+): string {
+    // Same identifier quoting as INSERT: the driver's character, or backticks without one.
+    const quoteName = (name: string) => (driver ? quoteIdentifier(name, driver) : `\`${name}\``);
+    const assignments = columns
+        .map((column, i) => ({column, value: row[i]}))
+        .filter(({column}) => !pkColumns.includes(column))
+        .map(({column, value}) => `${quoteName(column)} = ${sqlValue(value, driver)}`);
+    // sqlUpdateBlocker keeps rows without a key value out, so every key has a value here.
+    const conditions = pkColumns.map(
+        (pk) => `${quoteName(pk)} = ${sqlValue(row[columns.indexOf(pk)], driver)}`,
+    );
+    return `UPDATE ${quoteName(tableName)} SET ${assignments.join(', ')} WHERE ${conditions.join(' AND ')};`;
+}
+
+/**
+ * One UPDATE per row: primary key columns go to the WHERE clause (joined with AND for a
+ * composite key) and every other column to SET, quoted for the driver like the INSERT
+ * format. Check {@link sqlUpdateBlocker}, with the rows, first: without a usable key
+ * there is no safe WHERE.
+ */
+export function rowsToSqlUpdate(
+    rows: unknown[][],
+    columns: string[],
+    tableName: string,
+    pkColumns: string[],
+    driver?: CopyDriver,
+): string {
+    return rows.map((row) => rowToSqlUpdate(row, columns, tableName, pkColumns, driver)).join('\n');
 }
 
 export async function copyTextToClipboard(

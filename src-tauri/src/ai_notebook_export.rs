@@ -50,7 +50,11 @@ pub fn export_session(session_id: &str, tz: Option<&str>) -> Result<NotebookExpo
     export_session_in(&get_app_config_dir(), session_id, tz)
 }
 
-fn build_notebook(session_id: &str, events: &[AiActivityEvent], tz: Option<&str>) -> NotebookExport {
+fn build_notebook(
+    session_id: &str,
+    events: &[AiActivityEvent],
+    tz: Option<&str>,
+) -> NotebookExport {
     let header = build_header_cell(session_id, events, tz);
     let mut cells: Vec<NotebookCellExport> = vec![header];
 

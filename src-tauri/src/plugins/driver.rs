@@ -243,6 +243,10 @@ impl PluginProcess {
                 )
             })?;
 
+        // `kill_on_drop` and the shutdown path only run while this process is
+        // alive. Also stop the plugin when it is killed outright (#1280).
+        crate::plugins::process_lifetime::bind_to_host(&child);
+
         let pid = child.id();
         let shutdown_plugin_id = plugin_id.clone();
 
@@ -408,12 +412,23 @@ impl PluginProcess {
     }
 
     async fn shutdown(&self) {
+        // Resolved once and handed to the manager so the drain deadline and
+        // the join bound in `stop` cannot disagree.
+        self.stop(crate::plugins::shutdown_grace::for_plugin(&self.plugin_id))
+            .await;
+    }
+
+    /// Stops the child without draining in-flight calls.
+    async fn terminate(&self) {
+        self.stop(Some(Duration::ZERO)).await;
+    }
+
+    /// Lets in-flight calls run for `grace` (`None`: until they finish), then
+    /// kills the child.
+    async fn stop(&self, grace: Option<Duration>) {
         // Unregistered drivers may still be held by existing Arc references;
         // reject their new calls immediately rather than silently enqueueing.
         self.accepting_calls.store(false, Ordering::Release);
-        // Resolved once and handed to the manager so the drain deadline and
-        // this join bound cannot disagree.
-        let grace = crate::plugins::shutdown_grace::for_plugin(&self.plugin_id);
         {
             let mut guard = self.shutdown_tx.lock().await;
             if let Some(tx) = guard.take() {
@@ -496,7 +511,9 @@ impl PluginProcess {
 
         let (tx, rx) = oneshot::channel();
         if !self.accepting_calls.load(Ordering::Acquire) {
-            return Err("Plugin is shutting down; new RPC calls are rejected".to_string().into());
+            return Err("Plugin is shutting down; new RPC calls are rejected"
+                .to_string()
+                .into());
         }
         let permit = self.sender.reserve().await.map_err(|_| {
             if self.accepting_calls.load(Ordering::Acquire) {
@@ -506,18 +523,18 @@ impl PluginProcess {
             }
         })?;
         if !self.accepting_calls.load(Ordering::Acquire) {
-            return Err("Plugin is shutting down; new RPC calls are rejected".to_string().into());
+            return Err("Plugin is shutting down; new RPC calls are rejected"
+                .to_string()
+                .into());
         }
         permit.send(PluginCommand::Call(req, tx));
 
         let Some(timeout) = timeout else {
-            return rx
-                .await
-                .unwrap_or_else(|_| {
-                    Err(dropped_plugin_response_error(
-                        !self.accepting_calls.load(Ordering::Acquire),
-                    ))
-                });
+            return rx.await.unwrap_or_else(|_| {
+                Err(dropped_plugin_response_error(
+                    !self.accepting_calls.load(Ordering::Acquire),
+                ))
+            });
         };
 
         match tokio::time::timeout(timeout, rx).await {
@@ -632,11 +649,7 @@ impl RpcDriver {
     /// `primary()` returns `db` unchanged, so this is a no-op.
     ///
     /// When there's no selection at all (empty "all databases" / an empty
-    /// `Multiple`), fall back to the engine's maintenance database — the
-    /// same convention the built-in Postgres driver already uses for
-    /// `get_databases` (`drivers/postgres/mod.rs`) — but only for engines
-    /// known to have one; other engines are left as-is so their own plugin
-    /// can apply whatever default makes sense for them.
+    /// `Multiple`), fall back to [`Self::fallback_database`].
     fn with_primary_database(&self, params: &ConnectionParams) -> ConnectionParams {
         let mut params = params.clone();
 
@@ -645,30 +658,48 @@ impl RpcDriver {
         // schema selection (route_selected_plugin_database in call()). The
         // array must survive to that point — flattening it here to a single
         // primary would destroy the selection before it can be applied.
-        if self.process.route_selected_database && matches!(params.database, DatabaseSelection::Multiple(_)) {
-            // Only resolve an empty primary to the maintenance database so
+        if self.process.route_selected_database
+            && matches!(params.database, DatabaseSelection::Multiple(_))
+        {
+            // Only resolve an empty primary to the fallback database so
             // the pool can connect; leave a non-empty Multiple intact.
             if params.database.primary().is_empty() {
-                let dbname = match self.manifest.engine.as_deref() {
-                    Some("postgres" | "postgresql") => "postgres".to_string(),
-                    _ => String::new(),
-                };
-                params.database = DatabaseSelection::Single(dbname);
+                params.database = DatabaseSelection::Single(self.fallback_database(&params));
             }
             return params;
         }
 
-        let primary = params.database.primary();
-        let dbname = if primary.is_empty() {
-            match self.manifest.engine.as_deref() {
-                Some("postgres" | "postgresql") => "postgres",
-                _ => primary,
-            }
-        } else {
-            primary
+        let dbname = match params.database.primary() {
+            "" => self.fallback_database(&params),
+            primary => primary.to_string(),
         };
-        params.database = DatabaseSelection::Single(dbname.to_string());
+        params.database = DatabaseSelection::Single(dbname);
         params
+    }
+
+    /// The database sent while a connection selects none ("all databases").
+    ///
+    /// The connection's own `default_database` comes first: a flat
+    /// multi-database plugin that declares `connection_fields.database`
+    /// asks for it on the Databases tab (SurrealDB signs in to that
+    /// `namespace/database`). Otherwise the engine's maintenance database —
+    /// the same convention the built-in Postgres driver already uses for
+    /// `get_databases` (`drivers/postgres/mod.rs`) — but only for engines
+    /// known to have one; other engines get an empty database so their own
+    /// plugin can apply whatever default makes sense for them.
+    fn fallback_database(&self, params: &ConnectionParams) -> String {
+        if let Some(database) = params
+            .default_database
+            .as_deref()
+            .map(str::trim)
+            .filter(|database| !database.is_empty())
+        {
+            return database.to_string();
+        }
+        match self.manifest.engine.as_deref() {
+            Some("postgres" | "postgresql") => "postgres".to_string(),
+            _ => String::new(),
+        }
     }
 }
 
@@ -735,6 +766,17 @@ impl DatabaseDriver for RpcDriver {
 
     async fn shutdown(&self) {
         self.process.shutdown().await;
+    }
+
+    async fn sync_plugin_settings(&self, settings: HashMap<String, Value>) -> Result<(), String> {
+        self.process
+            .call("initialize", json!({ "settings": settings }))
+            .await?;
+        Ok(())
+    }
+
+    async fn terminate(&self) {
+        self.process.terminate().await;
     }
 
     fn pid(&self) -> Option<u32> {
@@ -1541,6 +1583,34 @@ impl DatabaseDriver for RpcDriver {
         }
     }
 
+    async fn open_data_file(
+        &self,
+        params: &ConnectionParams,
+        path: &str,
+        format: &str,
+        table: &str,
+    ) -> Result<(), String> {
+        let supported = &self.manifest.capabilities.data_files;
+        if !supported.iter().any(|candidate| candidate == format) {
+            return Err(format!(
+                "The {} driver cannot open {format} data files",
+                self.manifest.name
+            ));
+        }
+        self.process
+            .call(
+                "open_data_file",
+                json!({
+                    "params": self.with_primary_database(params),
+                    "path": path,
+                    "format": format,
+                    "table": table,
+                }),
+            )
+            .await?;
+        Ok(())
+    }
+
     async fn get_table_query_template(
         &self,
         params: &ConnectionParams,
@@ -1727,6 +1797,55 @@ impl DatabaseDriver for RpcDriver {
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    /// Optional RPC method (#709): the table's approximate row count, for
+    /// the export dialog. A plugin without it (-32601) shows none.
+    async fn get_approximate_row_count(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        let params = self.connection_params.as_ref().unwrap_or(params);
+        let res = self
+            .process
+            .call_detailed(
+                "get_approximate_row_count",
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// Optional RPC method (#709): a plugin with non-standard literals
+    /// renders its own `INSERT` statements. A plugin without it (-32601)
+    /// gets the host renderer, driven by its manifest capabilities.
+    async fn render_insert_statements(
+        &self,
+        table: &str,
+        schema: Option<&str>,
+        columns: &[String],
+        rows: &[Vec<serde_json::Value>],
+    ) -> Result<Option<Vec<String>>, String> {
+        let res = self
+            .process
+            .call_detailed(
+                "render_insert_statements",
+                json!({ "table": table, "schema": schema, "columns": columns, "rows": rows }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v)
+                .map(Some)
+                .map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
     }
 
     async fn drop_index(
@@ -2141,6 +2260,19 @@ where
     }
 }
 
+/// Like [`test_driver_result`], with the plugin's own manifest: its id is
+/// the driver id connections use, and its capabilities drive the host.
+#[cfg(test)]
+pub(crate) fn test_driver_with_manifest<F>(manifest: PluginManifest, handle_request: F) -> RpcDriver
+where
+    F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
+{
+    RpcDriver {
+        manifest,
+        ..test_driver_result(handle_request)
+    }
+}
+
 /// Like [`test_driver_result`], but lets the handler return a raw
 /// [`PluginCallError`] instead of always getting wrapped into `Transport` —
 /// needed to simulate a real JSON-RPC `Remote` error (with a `code`) for
@@ -2202,6 +2334,29 @@ pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver 
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn syncing_settings_keeps_the_process_available() {
+        use super::*;
+        use crate::drivers::driver_trait::DatabaseDriver;
+        let driver = test_driver(|request| {
+            if request.method == "initialize" {
+                assert_eq!(request.params["settings"]["access_token"], "new-token");
+            }
+            serde_json::Value::Null
+        });
+        driver
+            .sync_plugin_settings(HashMap::from([(
+                "access_token".to_string(),
+                serde_json::json!("new-token"),
+            )]))
+            .await
+            .unwrap();
+        driver
+            .process
+            .call("ping", serde_json::json!({}))
+            .await
+            .unwrap();
+    }
     use super::*;
     use crate::models::DatabaseSelection;
     use crate::plugins::rpc::JsonRpcError;
@@ -2214,7 +2369,6 @@ mod tests {
             "Plugin process did not respond"
         );
     }
-
 
     #[test]
     fn selected_plugin_database_routing_only_changes_multi_database_requests() {
@@ -2274,8 +2428,7 @@ mod tests {
             // for schema-based plugins; route_selected_database is false so
             // route_selected_plugin_database does not run.
             assert_eq!(
-                req.params["params"]["database"],
-                "sales",
+                req.params["params"]["database"], "sales",
                 "a SQL schema with the same name as a database must not select it"
             );
             json!({
@@ -2289,8 +2442,7 @@ mod tests {
             .unwrap()
             .route_selected_database = false;
         let mut params = test_connection_params();
-        params.database =
-            DatabaseSelection::Multiple(vec!["sales".into(), "analytics".into()]);
+        params.database = DatabaseSelection::Multiple(vec!["sales".into(), "analytics".into()]);
         let (result, _) = driver
             .execute_query_in_session(
                 &params,
@@ -2329,9 +2481,20 @@ mod tests {
         let mut params = test_connection_params();
         params.database = DatabaseSelection::Multiple(vec!["0".to_string(), "3".to_string()]);
 
-        assert!(driver.get_tables(&params, Some("3")).await.unwrap().is_empty());
+        assert!(driver
+            .get_tables(&params, Some("3"))
+            .await
+            .unwrap()
+            .is_empty());
         let (query_result, _in_tx) = driver
-            .execute_query_in_session(&params, "GET db3-key", None, 1, Some("3"), Some("db3-session"))
+            .execute_query_in_session(
+                &params,
+                "GET db3-key",
+                None,
+                1,
+                Some("3"),
+                Some("db3-session"),
+            )
             .await
             .unwrap();
         assert_eq!(query_result.rows.len(), 1);
@@ -2400,8 +2563,12 @@ mod tests {
 
         let results = driver
             .execute_batch(
-                &params, &["GET db3-only-key".to_string()],
-                None, 1, Some("3"), None,
+                &params,
+                &["GET db3-only-key".to_string()],
+                None,
+                1,
+                Some("3"),
+                None,
             )
             .await
             .expect("batch request");
@@ -2418,7 +2585,11 @@ mod tests {
         });
         let mut params = test_connection_params();
         params.database = DatabaseSelection::Single("0".to_string());
-        assert!(driver.get_tables(&params, Some("3")).await.unwrap().is_empty());
+        assert!(driver
+            .get_tables(&params, Some("3"))
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     fn test_connection_params() -> ConnectionParams {
@@ -2431,6 +2602,7 @@ mod tests {
             connection_uri: None,
             connection_uri_in_keychain: None,
             database: DatabaseSelection::Single("db".to_string()),
+            default_database: None,
             ssl_mode: None,
             ssl_ca: None,
             ssl_cert: None,
@@ -2462,6 +2634,8 @@ mod tests {
             ssm_region: None,
             startup_script: None,
             pooler_mode: None,
+            connect_timeout_secs: None,
+            query_timeout_secs: None,
             use_iam_auth: None,
             extra: HashMap::new(),
             connection_id: Some("conn-1".to_string()),
@@ -3212,6 +3386,111 @@ mod tests {
         assert!(views.is_empty());
     }
 
+    #[tokio::test]
+    async fn rpc_driver_get_approximate_row_count_falls_back_when_method_missing() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "get_approximate_row_count");
+            Err("Method not found (-32601)".to_string())
+        });
+
+        let count = driver
+            .get_approximate_row_count(&test_connection_params(), "users", None)
+            .await
+            .expect("a missing method means no estimate");
+
+        assert_eq!(count, None);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_approximate_row_count_forwards_the_estimate() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "get_approximate_row_count");
+            assert_eq!(request.params["table"], "users");
+            assert_eq!(request.params["schema"], "dbo");
+            Ok(json!(128400))
+        });
+
+        let count = driver
+            .get_approximate_row_count(&test_connection_params(), "users", Some("dbo"))
+            .await
+            .expect("the plugin returns its estimate");
+        assert_eq!(count, Some(128400));
+
+        let none = test_driver_result(|_| Ok(json!(null)))
+            .get_approximate_row_count(&test_connection_params(), "users", None)
+            .await
+            .expect("null means no estimate");
+        assert_eq!(none, None);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_approximate_row_count_reports_other_errors() {
+        let driver = test_driver_result(|_| Err("boom".to_string()));
+
+        let result = driver
+            .get_approximate_row_count(&test_connection_params(), "users", None)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_falls_back_when_method_missing() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            Err("Method not found (-32601)".to_string())
+        });
+
+        let rendered = driver
+            .render_insert_statements("users", None, &["id".to_string()], &[vec![json!(1)]])
+            .await
+            .expect("a missing method falls back to the host renderer");
+
+        assert!(rendered.is_none());
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_forwards_the_batch() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            assert_eq!(request.params["table"], "users");
+            assert_eq!(request.params["schema"], "dbo");
+            assert_eq!(request.params["columns"], json!(["id", "name"]));
+            assert_eq!(request.params["rows"], json!([[1, "Ann"], [2, null]]));
+            Ok(json!([
+                "INSERT INTO [users] ([id], [name]) VALUES (1, N'Ann'), (2, NULL);"
+            ]))
+        });
+
+        let rendered = driver
+            .render_insert_statements(
+                "users",
+                Some("dbo"),
+                &["id".to_string(), "name".to_string()],
+                &[vec![json!(1), json!("Ann")], vec![json!(2), json!(null)]],
+            )
+            .await
+            .expect("the plugin renders the batch");
+
+        assert_eq!(
+            rendered,
+            Some(vec![
+                "INSERT INTO [users] ([id], [name]) VALUES (1, N'Ann'), (2, NULL);".to_string()
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_reports_other_errors() {
+        let driver = test_driver_result(|_| Err("boom".to_string()));
+
+        let result = driver
+            .render_insert_statements("users", None, &["id".to_string()], &[vec![json!(1)]])
+            .await;
+
+        assert!(result.is_err());
+    }
+
     /// Regression: the ER diagram against a plugin lacking `get_schema_snapshot`
     /// (the PostgreSQL plugin, as of this writing) rendered a silently blank
     /// canvas — the batch RPC failed with "method not found" and there was
@@ -3543,6 +3822,69 @@ mod tests {
         assert_eq!(coerced.database.primary(), "postgres");
     }
 
+    /// "All databases" on a plugin that asked for a database on the Databases
+    /// tab (`connection_fields.database`): the plugin gets the connection's
+    /// `default_database`, e.g. the `namespace/database` a SurrealDB user
+    /// signs in to, for an empty `Single` and an empty `Multiple` alike.
+    #[tokio::test]
+    async fn with_primary_database_sends_default_database_when_none_is_selected() {
+        let driver = test_driver(|_| json!(true)); // route_selected_database = true
+        let mut params = test_connection_params();
+        params.default_database = Some(" app/main ".to_string());
+
+        params.database = DatabaseSelection::Single(String::new());
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "app/main"
+        );
+
+        params.database = DatabaseSelection::Multiple(vec![]);
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "app/main"
+        );
+    }
+
+    /// `default_database` only stands in while no database is selected: a
+    /// selected one, or a multi-database selection still to be routed, wins.
+    #[tokio::test]
+    async fn with_primary_database_prefers_a_selected_database_over_default_database() {
+        let driver = test_driver(|_| json!(true));
+        let mut params = test_connection_params(); // database: Single("db")
+        params.default_database = Some("app".to_string());
+
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "db"
+        );
+
+        let selection = DatabaseSelection::Multiple(vec!["app/logs".into(), "app/main".into()]);
+        params.database = selection.clone();
+        assert_eq!(driver.with_primary_database(&params).database, selection);
+    }
+
+    /// It also comes before an engine's maintenance database, and a blank
+    /// one is ignored.
+    #[tokio::test]
+    async fn with_primary_database_prefers_default_database_over_the_maintenance_db() {
+        let mut driver = test_driver(|_| json!(true));
+        driver.manifest.engine = Some("postgresql".to_string());
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        params.default_database = Some("analytics".to_string());
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "analytics"
+        );
+
+        params.default_database = Some("   ".to_string());
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "postgres"
+        );
+    }
+
     /// Regression: a PostgreSQL-plugin connection saved with "Choose
     /// databases" (multi-db opt-in) persists `database` as
     /// `DatabaseSelection::Multiple(...)`,
@@ -3755,6 +4097,28 @@ mod tests {
             .expect("get_schemas must succeed once database is coerced to a string");
     }
 
+    /// Connecting in "All databases" mode first lists the databases: the
+    /// plugin must get the connection's `default_database` there, or a
+    /// SurrealDB namespace or database user cannot sign in to list them.
+    #[tokio::test]
+    async fn rpc_driver_get_databases_sends_default_database_for_all_databases_mode() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "get_databases");
+            assert_eq!(request.params["params"]["database"], "app/main");
+            json!(["app/main"])
+        });
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+        params.default_database = Some("app/main".to_string());
+
+        let databases = driver
+            .get_databases(&params)
+            .await
+            .expect("get_databases must send the connection's default_database");
+        assert_eq!(databases, vec!["app/main".to_string()]);
+    }
+
     /// Same coverage as above but for the "all databases" default mode
     /// (`Single("")`), and for `get_tables` — the other half of the
     /// drop-table repro's actual call chain (`refreshTables` calls
@@ -3797,3 +4161,7 @@ mod cancel_tests;
 #[cfg(test)]
 #[path = "ddl_context_tests.rs"]
 mod ddl_context_tests;
+
+#[cfg(all(test, unix))]
+#[path = "process_exit_tests.rs"]
+mod process_exit_tests;

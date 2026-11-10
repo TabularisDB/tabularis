@@ -9,7 +9,7 @@ import {defineConfig, globalIgnores} from 'eslint/config';
 
 const tauriBoundaryAllowlist = JSON.parse(
     fs.readFileSync(
-        new URL('./web-ui-project/scripts/web-ui-tauri-boundary-allowlist.json', import.meta.url),
+        new URL('./scripts/web/web-ui-tauri-boundary-allowlist.json', import.meta.url),
         'utf8',
     ),
 );
@@ -23,9 +23,12 @@ export default defineConfig([
         'dist',
         'packages/create-plugin/dist',
         'packages/web-ui/tests',
-        'web-ui-project/tests',
         'tests',
-        'e2e',
+        // The native macOS suite under e2e/ has its own toolchain; the browser
+        // matrix under e2e/web/ is linted with the workspace.
+        'e2e/*',
+        '!e2e/web',
+        'e2e/web/.runtime',
         'coverage',
         'src-tauri/target/**',
     ]),
@@ -57,7 +60,7 @@ export default defineConfig([
         },
     },
     {
-        files: ['web-ui-project/e2e/**/*.ts'],
+        files: ['e2e/web/**/*.ts'],
         languageOptions: {
             globals: {...globals.browser, ...globals.node},
         },

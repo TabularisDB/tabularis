@@ -11,6 +11,20 @@ export interface TableColumn {
     /** Decimal scale (digits after the decimal point) for numeric/decimal types. */
     numeric_scale?: number;
     comment?: string | null;
+    /**
+     * Full declared type with its modifiers (`varchar(255)`, `decimal(10,2)`,
+     * `int unsigned`), for display. Sent only when it says more than
+     * `data_type`; render it with `formatColumnType` (#1277).
+     */
+    full_type?: string;
+    /**
+     * Column default as SQL that can follow `DEFAULT` unchanged (`'new'`,
+     * `CURRENT_TIMESTAMP`, `(uuid())`). `default_value` may be raw text (MySQL
+     * reports `new`), so the column editor restates this one (#271).
+     */
+    default_sql?: string | null;
+    /** `ON UPDATE` expression (MySQL `CURRENT_TIMESTAMP`), kept on ALTER (#271). */
+    on_update?: string | null;
 }
 
 export interface ForeignKey {
@@ -18,6 +32,8 @@ export interface ForeignKey {
     column_name: string;
     ref_table: string;
     ref_column: string;
+    on_delete?: string | null;
+    on_update?: string | null;
     /**
      * 1-based position of this column within its (possibly composite) foreign-key
      * constraint. The backend reports one row per column of a composite FK that

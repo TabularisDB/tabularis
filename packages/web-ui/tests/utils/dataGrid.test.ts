@@ -25,8 +25,12 @@ import {
     resolveLockedColumnWidths,
     resizeLockedColumn,
     getResizedTableWidth,
+    getFrozenFirstColumnLayout,
+    getFrozenCellBackdropClass,
     isUuidColumnType,
     isOriginalCellValue,
+    navigateCell,
+    toLogicalArrowKey,
 } from '@/utils/dataGrid';
 import {rowsToCSV, rowsToCSVWithHeaders} from '@/utils/clipboard';
 
@@ -65,6 +69,23 @@ describe('createDataGridResultCommands', () => {
 
         await commands.copyColumnValuesAsSqlIn?.execute();
         expect(actions.copyColumnValuesAsSqlIn).toHaveBeenCalledWith(1);
+    });
+
+    it('counts only the visible columns of a cell range (#1299)', () => {
+        const commands = createDataGridResultCommands({
+            cellRange: {minRow: 0, maxRow: 1, minCol: 0, maxCol: 3},
+            focusedCell: {rowIndex: 0, colIndex: 0},
+            selectedRowIndices: new Set(),
+            selectedColIndices: new Set(),
+            columns: ['id', 'name', 'email', 'city'],
+            dataLength: 2,
+            totalRows: 2,
+            hasRowsBeyondLoadedPage: false,
+            hiddenColIndices: new Set([1, 2]),
+            ...callbacks(),
+        });
+
+        expect(commands.copySelectedCells?.count).toBe(4);
     });
 
     it('uses the full-fetch action only when rows exist beyond the loaded page', async () => {
@@ -1364,6 +1385,107 @@ describe('resolveLockedColumnWidths', () => {
     });
 });
 
+describe('getFrozenFirstColumnLayout', () => {
+    it('should sit after the fallback gutter width before columns are measured', () => {
+        expect(getFrozenFirstColumnLayout(null)).toEqual({
+            left: 49,
+            scrollPaddingLeft: 50,
+        });
+    });
+
+    // The collapsed border between the gutter and the column belongs to the
+    // column's box but is painted by the table where the column started, so the
+    // sticky cell is pulled 1px under the gutter to cover it.
+    it('should overlap the gutter by the shared 1px border', () => {
+        expect(getFrozenFirstColumnLayout([58, 120, 200])).toEqual({
+            left: 57,
+            scrollPaddingLeft: 178,
+        });
+    });
+});
+
+describe('getFrozenCellBackdropClass', () => {
+    const row = {
+        isSelected: false,
+        isInsertion: false,
+        isPendingDelete: false,
+        isZebra: false,
+    };
+
+    it('should paint an opaque elevated backdrop with the default row hover', () => {
+        const cls = getFrozenCellBackdropClass(row);
+        expect(cls).toContain('before:bg-elevated');
+        expect(cls).toContain(
+            'group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_50%,var(--bg-elevated))]',
+        );
+    });
+
+    it('should repaint the cell tint above the backdrop', () => {
+        expect(getFrozenCellBackdropClass(row)).toContain('after:bg-inherit');
+    });
+
+    it('should match the zebra stripe and its hover', () => {
+        const cls = getFrozenCellBackdropClass({...row, isZebra: true});
+        expect(cls).toContain(
+            'before:bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-elevated))]',
+        );
+        expect(cls).toContain(
+            'group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_90%,var(--bg-elevated))]',
+        );
+    });
+
+    it('should follow the row state precedence: selected, insertion, pending delete', () => {
+        expect(
+            getFrozenCellBackdropClass({
+                ...row,
+                isSelected: true,
+                isInsertion: true,
+                isPendingDelete: true,
+                isZebra: true,
+            }),
+        ).toContain('before:bg-[color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-elevated))]');
+        expect(getFrozenCellBackdropClass({...row, isInsertion: true, isZebra: true})).toContain(
+            'before:bg-[color-mix(in_srgb,var(--semantic-new)_8%,var(--bg-elevated))]',
+        );
+        expect(
+            getFrozenCellBackdropClass({...row, isPendingDelete: true, isZebra: true}),
+        ).toContain(
+            'before:bg-[color-mix(in_srgb,var(--semantic-deleted)_10%,var(--bg-elevated))]',
+        );
+    });
+
+    it('should paint the tone of a conditional formatting row rule (#991)', () => {
+        const cls = getFrozenCellBackdropClass({...row, isZebra: true, formatTone: 'warning'});
+        expect(cls).toContain(
+            'before:bg-[color-mix(in_srgb,var(--accent-warning)_15%,var(--bg-elevated))]',
+        );
+        expect(cls).toContain(
+            'group-hover:before:bg-[color-mix(in_srgb,var(--accent-warning)_25%,var(--bg-elevated))]',
+        );
+        expect(cls).not.toContain('var(--surface-secondary)_40%');
+    });
+
+    it('should keep the plain backdrop for a muted row rule', () => {
+        expect(getFrozenCellBackdropClass({...row, isZebra: true, formatTone: 'muted'})).toContain(
+            'before:bg-elevated',
+        );
+    });
+
+    it('should let the edit states win over a row rule', () => {
+        for (const state of [{isSelected: true}, {isInsertion: true}, {isPendingDelete: true}]) {
+            expect(
+                getFrozenCellBackdropClass({...row, ...state, formatTone: 'danger'}),
+            ).not.toContain('var(--accent-error)');
+        }
+    });
+
+    it('should not add a hover tint to selected, inserted or deleted rows', () => {
+        for (const state of [{isSelected: true}, {isInsertion: true}, {isPendingDelete: true}]) {
+            expect(getFrozenCellBackdropClass({...row, ...state})).not.toContain('group-hover:');
+        }
+    });
+});
+
 describe('isOriginalCellValue', () => {
     it('matches pasted text against the stored value by its text', () => {
         expect(isOriginalCellValue('5', 5)).toBe(true);
@@ -1431,5 +1553,67 @@ describe('getResizedTableWidth', () => {
 
     it('should be undefined when the widths belong to another layout', () => {
         expect(getResizedTableWidth({key: 'k', widths: [50], resized: true}, null)).toBeUndefined();
+    });
+});
+
+describe('toLogicalArrowKey', () => {
+    it('passes keys through in the normal layout', () => {
+        expect(toLogicalArrowKey('ArrowDown', false)).toBe('ArrowDown');
+        expect(toLogicalArrowKey('ArrowLeft', false)).toBe('ArrowLeft');
+    });
+
+    it('swaps the axes when transposed', () => {
+        expect(toLogicalArrowKey('ArrowUp', true)).toBe('ArrowLeft');
+        expect(toLogicalArrowKey('ArrowDown', true)).toBe('ArrowRight');
+        expect(toLogicalArrowKey('ArrowLeft', true)).toBe('ArrowUp');
+        expect(toLogicalArrowKey('ArrowRight', true)).toBe('ArrowDown');
+    });
+});
+
+describe('navigateCell', () => {
+    const from = {rowIndex: 5, colIndex: 2};
+    const nav = (key: string, transposed = false, pos = from) =>
+        navigateCell(key, pos, 10, 4, 3, transposed);
+
+    it('moves one cell with the arrows', () => {
+        expect(nav('ArrowDown')).toEqual({rowIndex: 6, colIndex: 2});
+        expect(nav('ArrowRight')).toEqual({rowIndex: 5, colIndex: 3});
+        expect(nav('ArrowDown', true)).toEqual({rowIndex: 5, colIndex: 3});
+        expect(nav('ArrowRight', true)).toEqual({rowIndex: 6, colIndex: 2});
+    });
+
+    it('jumps along the visual row with Home/End', () => {
+        expect(nav('Home')).toEqual({rowIndex: 5, colIndex: 0});
+        expect(nav('End')).toEqual({rowIndex: 5, colIndex: 3});
+        // Transposed, a visual row is one field across all records.
+        expect(nav('Home', true)).toEqual({rowIndex: 0, colIndex: 2});
+        expect(nav('End', true)).toEqual({rowIndex: 9, colIndex: 2});
+    });
+
+    it('pages along the visual column, clamped', () => {
+        expect(nav('PageDown')).toEqual({rowIndex: 8, colIndex: 2});
+        expect(nav('PageUp')).toEqual({rowIndex: 2, colIndex: 2});
+        expect(nav('PageDown', false, {rowIndex: 8, colIndex: 2})).toEqual({
+            rowIndex: 9,
+            colIndex: 2,
+        });
+        expect(nav('PageDown', true)).toEqual({rowIndex: 5, colIndex: 3});
+        expect(nav('PageUp', true)).toEqual({rowIndex: 5, colIndex: 0});
+    });
+
+    it('clamps at the grid edges', () => {
+        expect(nav('ArrowUp', false, {rowIndex: 0, colIndex: 0})).toEqual({
+            rowIndex: 0,
+            colIndex: 0,
+        });
+        expect(nav('ArrowRight', true, {rowIndex: 9, colIndex: 0})).toEqual({
+            rowIndex: 9,
+            colIndex: 0,
+        });
+    });
+
+    it('ignores keys that do not navigate', () => {
+        expect(nav('Enter')).toBeNull();
+        expect(nav('a', true)).toBeNull();
     });
 });

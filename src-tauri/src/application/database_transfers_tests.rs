@@ -164,6 +164,9 @@ fn column(name: &str, data_type: &str) -> TableColumn {
         comment: None,
         numeric_precision: None,
         numeric_scale: None,
+        full_type: None,
+        default_sql: None,
+        on_update: None,
     }
 }
 

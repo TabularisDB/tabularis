@@ -116,6 +116,8 @@ pub struct AppConfig {
     /// or `"both"`.
     pub cell_double_click_action: Option<String>,
     pub ai_enabled: Option<bool>,
+    /// Opt-in SQL ghost text. Missing values remain disabled.
+    pub ai_inline_completion_enabled: Option<bool>,
     pub ai_provider: Option<String>,
     pub ai_model: Option<String>,
     pub ai_custom_models: Option<HashMap<String, Vec<String>>>,
@@ -132,9 +134,14 @@ pub struct AppConfig {
     pub selected_schemas: Option<HashMap<String, Vec<String>>>,
     pub max_blob_size: Option<u64>,
     pub copy_format: Option<String>,
+    /// How NULL values are shown in the data grid: `"default"`, `"parenthesized"`,
+    /// `"emptySet"` or `"empty"`. Display only; copy and export are unchanged.
+    pub null_display: Option<String>,
     pub csv_delimiter: Option<String>,
     /// Whether copied CSV output includes a header row. Default: true.
     pub csv_include_headers: Option<bool>,
+    /// How NULL is written when rows are copied as CSV or Markdown. Default: "null".
+    pub copy_null_label: Option<String>,
     pub active_external_drivers: Option<Vec<String>>,
     /// COMPAT(registry-ga): legacy config key from before the Tabularium API
     /// cutover. Read once by `compat::migrate_legacy_config`, then cleared.
@@ -165,6 +172,7 @@ pub struct AppConfig {
     pub editor_line_height: Option<f32>,
     pub editor_tab_size: Option<u32>,
     pub editor_word_wrap: Option<bool>,
+    pub editor_minimap: Option<bool>,
     /// Highlight hidden Unicode and look-alike characters in the SQL editor.
     pub editor_highlight_invisible_characters: Option<bool>,
     pub editor_show_line_numbers: Option<bool>,
@@ -190,6 +198,8 @@ pub struct AppConfig {
     pub formatter_dense_operators: Option<bool>,
     /// Case of SQL keywords inserted by autocomplete: "match" | "upper" | "lower"
     pub autocomplete_keyword_case: Option<String>,
+    /// Mark unresolved tables, columns and aliases in PostgreSQL SELECT statements. Default: false.
+    pub sql_diagnostics_enabled: Option<bool>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
     /// Maximum number of query history entries per connection. Default: 500.
@@ -307,7 +317,7 @@ pub struct AppConfig {
     pub migration_mode_by_driver: Option<HashMap<String, MigrationMode>>,
 
     // ----- Network / Proxy -----
-    /// Global HTTP/SOCKS5 proxy and opt-in traffic scopes.
+    /// Shared custom proxy endpoint and per-scope routing modes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<crate::proxy::GlobalProxySettings>,
     /// Per AI-provider proxy overrides (`openai`, `anthropic`, …).
@@ -641,6 +651,7 @@ mod tests {
         assert!(config.safety_confirmation_delay_enabled.is_none());
         assert!(config.notify_long_queries.is_none());
         assert!(config.notify_long_queries_threshold_sec.is_none());
+        assert!(config.sql_diagnostics_enabled.is_none());
         assert!(config.editor_theme.is_none());
         assert!(config.result_font_family.is_none());
         assert!(config.editor_font_family.is_none());
@@ -669,6 +680,7 @@ mod tests {
         config.safety_confirmation_delay_enabled = Some(true);
         config.notify_long_queries = Some(true);
         config.notify_long_queries_threshold_sec = Some(20);
+        config.sql_diagnostics_enabled = Some(true);
 
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("editorFontFamily"));
@@ -684,6 +696,7 @@ mod tests {
         assert!(json.contains("safetyConfirmationDelayEnabled"));
         assert!(json.contains("notifyLongQueries"));
         assert!(json.contains("notifyLongQueriesThresholdSec"));
+        assert!(json.contains("sqlDiagnosticsEnabled"));
         // snake_case must not appear
         assert!(!json.contains("editor_font_family"));
         assert!(!json.contains("result_font_family"));
@@ -691,6 +704,7 @@ mod tests {
         assert!(!json.contains("safety_confirmation_delay_enabled"));
         assert!(!json.contains("notify_long_queries"));
         assert!(!json.contains("notify_long_queries_threshold_sec"));
+        assert!(!json.contains("sql_diagnostics_enabled"));
     }
 
     #[test]
@@ -708,7 +722,8 @@ mod tests {
             "editorAcceptSuggestionOnEnter": true,
             "safetyConfirmationDelayEnabled": true,
             "notifyLongQueries": true,
-            "notifyLongQueriesThresholdSec": 30
+            "notifyLongQueriesThresholdSec": 30,
+            "sqlDiagnosticsEnabled": true
         }"#;
 
         let config: AppConfig = serde_json::from_str(json).unwrap();
@@ -724,6 +739,7 @@ mod tests {
         assert_eq!(config.safety_confirmation_delay_enabled, Some(true));
         assert_eq!(config.notify_long_queries, Some(true));
         assert_eq!(config.notify_long_queries_threshold_sec, Some(30));
+        assert_eq!(config.sql_diagnostics_enabled, Some(true));
     }
 
     #[test]
@@ -831,6 +847,17 @@ mod tests {
         assert!(json.contains("defaultSortDirection"));
         let parsed: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.default_sort_direction.as_deref(), Some("desc"));
+    }
+
+    #[test]
+    fn copy_null_label_serializes_with_camel_case_and_keeps_empty_value() {
+        let mut config = AppConfig::default();
+        assert!(config.copy_null_label.is_none());
+        config.copy_null_label = Some(String::new());
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"copyNullLabel\":\"\""));
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.copy_null_label.as_deref(), Some(""));
     }
 
     #[test]

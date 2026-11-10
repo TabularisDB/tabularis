@@ -3,6 +3,9 @@
  * The app appends ?utm_src=tabularis-app when opening the link.
  */
 export const versionLinks: Record<string, string> = {
+    '0.32.0': 'https://tabularis.dev/blog/v0320-table-transfer-sql-snippets-plan-comparison',
+    '0.31.0':
+        'https://tabularis.dev/blog/v0310-transposed-grid-saved-query-history-connection-import',
     '0.4.0': 'https://tabularis.dev/blog/visual-query-builder',
     '0.5.0': 'https://tabularis.dev/blog/schema-management',
     '0.6.0': 'https://tabularis.dev/blog/security-and-i18n',
@@ -64,4 +67,5 @@ export const versionLinks: Record<string, string> = {
     '0.28.0': 'https://tabularis.dev/blog/v0280-structured-filters-auto-refresh-read-only-mcp',
     '0.29.0':
         'https://tabularis.dev/blog/v0290-chatgpt-sign-in-postgres-multi-database-file-import',
+    '0.30.0': 'https://tabularis.dev/blog/v0300-tabularis-web-result-charts-scheduled-backups',
 };

@@ -17,6 +17,7 @@ import {
     EyeOff,
     FolderCog,
     Network,
+    Code2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import {ConfigJsonModal} from '@/components/modals/ConfigJsonModal';
@@ -34,6 +35,7 @@ import {StorageTab} from '@/components/settings/StorageTab';
 import {NetworkTab} from '@/components/settings/NetworkTab';
 import {AiActivityPanel} from '@/components/settings/AiActivityPanel';
 import {InfoTab} from '@/components/settings/InfoTab';
+import {SnippetsTab} from '@/components/settings/SnippetsTab';
 import {PluginSettingsPage} from '@/components/settings/PluginSettingsPage';
 import {useDrivers} from '@/hooks/useDrivers';
 import {useSettings} from '@/hooks/useSettings';
@@ -49,6 +51,7 @@ type SettingsTab =
     | 'backup'
     | 'storage'
     | 'appearance'
+    | 'snippets'
     | 'localization'
     | 'ai'
     | 'ai-activity'
@@ -76,6 +79,7 @@ const TAB_ITEMS: Array<{
     {id: 'backup', icon: Archive, labelKey: 'settings.backup.title'},
     {id: 'plugins', icon: Plug, labelKey: 'settings.plugins.title'},
     {id: 'appearance', icon: Palette, labelKey: 'settings.appearance'},
+    {id: 'snippets', icon: Code2, labelKey: 'settings.snippets.title'},
     {id: 'privacy', icon: EyeOff, labelKey: 'settings.privacy'},
     {id: 'localization', icon: Languages, labelKey: 'settings.localization'},
     {id: 'ai', icon: Sparkles, labelKey: 'settings.ai.tab'},
@@ -93,6 +97,7 @@ const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
     backup: BackupTab,
     storage: StorageTab,
     appearance: AppearanceTab,
+    snippets: SnippetsTab,
     localization: LocalizationTab,
     ai: AiTab,
     'ai-activity': AiActivityPanel,

@@ -24,13 +24,18 @@ jobs:
             archive: zip
             binary-suffix: ""
             cross: true
+          # Both macOS legs run on macos-latest (Apple Silicon). darwin-x64 is
+          # cross-compiled there; this workflow never runs the binary, so it
+          # needs no Rosetta 2. macos-14 is not used: GitHub retires that image
+          # on 2026-11-02 and fails jobs on it during the brownouts before
+          # then (actions/runner-images#13518).
           - platform-label: darwin-x64
             runner: macos-latest
             target: x86_64-apple-darwin
             archive: zip
             binary-suffix: ""
           - platform-label: darwin-arm64
-            runner: macos-14
+            runner: macos-latest
             target: aarch64-apple-darwin
             archive: zip
             binary-suffix: ""

@@ -5,7 +5,10 @@ import {
     getQueryHistoryDatabaseChoices,
     isQueryHistoryDatabaseFilterAvailable,
     isQueryHistoryFilterActive,
+    parseQueryHistoryMinDuration,
     queryHistoryDatabaseFilterFor,
+    validateQueryHistoryDateRange,
+    validateQueryHistoryMinDuration,
 } from '@/utils/queryHistoryFilter';
 
 const NOW = new Date('2026-04-15T14:00:00.000Z');
@@ -91,6 +94,42 @@ describe('queryHistoryFilter', () => {
                     database: queryHistoryDatabaseFilterFor('sales'),
                 }),
             ).toBe(true);
+        });
+
+        it('is true when either side of the custom date range is set', () => {
+            expect(isQueryHistoryFilterActive({from: '2026-04-10'})).toBe(true);
+            expect(isQueryHistoryFilterActive({to: '2026-04-10'})).toBe(true);
+            expect(isQueryHistoryFilterActive({from: '  ', to: ''})).toBe(false);
+        });
+
+        it('is false when the custom range mode is picked without dates', () => {
+            expect(isQueryHistoryFilterActive({timeRange: 'custom'})).toBe(false);
+        });
+    });
+
+    describe('validateQueryHistoryDateRange', () => {
+        it('accepts an empty range', () => {
+            expect(validateQueryHistoryDateRange()).toBeNull();
+            expect(validateQueryHistoryDateRange('', '')).toBeNull();
+            expect(validateQueryHistoryDateRange('   ', undefined)).toBeNull();
+        });
+
+        it('accepts a range with one open-ended side', () => {
+            expect(validateQueryHistoryDateRange('2026-04-10', '')).toBeNull();
+            expect(validateQueryHistoryDateRange('', '2026-04-10')).toBeNull();
+        });
+
+        it('accepts a same-day range', () => {
+            expect(validateQueryHistoryDateRange('2026-04-10', '2026-04-10')).toBeNull();
+        });
+
+        it('rejects an unparseable boundary', () => {
+            expect(validateQueryHistoryDateRange('2026-04-31', '2026-04-10')).toBe('invalidFrom');
+            expect(validateQueryHistoryDateRange('2026-04-01', 'not-a-date')).toBe('invalidTo');
+        });
+
+        it('rejects an inverted range', () => {
+            expect(validateQueryHistoryDateRange('2026-04-15', '2026-04-10')).toBe('inverted');
         });
     });
 
@@ -332,6 +371,355 @@ describe('queryHistoryFilter', () => {
             expect(
                 isQueryHistoryDatabaseFilterAvailable('all', {databases: [], hasUnrecorded: false}),
             ).toBe(true);
+        });
+    });
+
+    describe('filterQueryHistoryEntries custom date range', () => {
+        it('applies no rolling window when the range is custom', () => {
+            // "custom" is a mode, not a rolling preset: with no explicit bounds it
+            // must not fall through to the 30-day window of last30Days.
+            expect(
+                filterQueryHistoryEntries(SAMPLE, {
+                    timeRange: 'custom',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }).map((e) => e.id),
+            ).toEqual([
+                'ok-recent',
+                'fail-recent',
+                'ok-yesterday',
+                'fail-week',
+                'ok-mid',
+                'ok-old',
+            ]);
+        });
+
+        it('applies the custom bounds when the range is custom', () => {
+            expect(
+                filterQueryHistoryEntries(SAMPLE, {
+                    timeRange: 'custom',
+                    from: '2026-04-10',
+                    to: '2026-04-14',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }).map((e) => e.id),
+            ).toEqual(['ok-yesterday', 'fail-week']);
+        });
+
+        it('includes both boundary days', () => {
+            const result = filterQueryHistoryEntries(SAMPLE, {
+                from: '2026-04-10',
+                to: '2026-04-14',
+                now: NOW,
+                timeZone: 'UTC',
+            });
+            expect(result.map((e) => e.id)).toEqual(['ok-yesterday', 'fail-week']);
+        });
+
+        it('shifts the boundaries with the display timezone', () => {
+            // 2026-04-14T16:00Z is already 2026-04-15 in Tokyo, still the 14th in UTC.
+            const tokyoEdge = entry({
+                id: 'tokyo-edge',
+                sql: 'SELECT 1',
+                executedAt: '2026-04-14T16:00:00.000Z',
+            });
+            const entries = [...SAMPLE, tokyoEdge];
+
+            expect(
+                filterQueryHistoryEntries(entries, {
+                    from: '2026-04-15',
+                    to: '2026-04-15',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }).map((e) => e.id),
+            ).toEqual(['ok-recent', 'fail-recent']);
+
+            expect(
+                filterQueryHistoryEntries(entries, {
+                    from: '2026-04-15',
+                    to: '2026-04-15',
+                    now: NOW,
+                    timeZone: 'Asia/Tokyo',
+                }).map((e) => e.id),
+            ).toEqual(['ok-recent', 'fail-recent', 'tokyo-edge']);
+        });
+
+        it('treats a missing boundary as open-ended', () => {
+            expect(
+                filterQueryHistoryEntries(SAMPLE, {
+                    from: '2026-04-15',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }).map((e) => e.id),
+            ).toEqual(['ok-recent', 'fail-recent']);
+
+            expect(
+                filterQueryHistoryEntries(SAMPLE, {
+                    to: '2026-04-10',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }).map((e) => e.id),
+            ).toEqual(['fail-week', 'ok-mid', 'ok-old']);
+        });
+
+        it('keeps the whole boundary day, from midnight to midnight', () => {
+            const dayEntries = [
+                entry({
+                    id: 'before-day',
+                    sql: 'SELECT 1',
+                    executedAt: '2026-04-09T23:59:59.999Z',
+                }),
+                entry({
+                    id: 'day-start',
+                    sql: 'SELECT 2',
+                    executedAt: '2026-04-10T00:00:00.000Z',
+                }),
+                entry({
+                    id: 'day-end',
+                    sql: 'SELECT 3',
+                    executedAt: '2026-04-10T23:59:59.999Z',
+                }),
+                entry({
+                    id: 'after-day',
+                    sql: 'SELECT 4',
+                    executedAt: '2026-04-11T00:00:00.000Z',
+                }),
+            ];
+
+            expect(
+                filterQueryHistoryEntries(dayEntries, {
+                    from: '2026-04-10',
+                    to: '2026-04-10',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }).map((e) => e.id),
+            ).toEqual(['day-start', 'day-end']);
+        });
+
+        it('survives a daylight-saving transition', () => {
+            // America/New_York springs forward on 2026-03-08, so that calendar day
+            // is only 23 hours long - the boundary cannot be a fixed offset.
+            const dstEntries = [
+                entry({
+                    id: 'dst-previous-day',
+                    sql: 'SELECT 1',
+                    executedAt: '2026-03-08T04:00:00.000Z', // 2026-03-07 23:00 EST
+                }),
+                entry({
+                    id: 'dst-day-start',
+                    sql: 'SELECT 2',
+                    executedAt: '2026-03-08T05:00:00.000Z', // 2026-03-08 00:00 EST
+                }),
+                entry({
+                    id: 'dst-day-end',
+                    sql: 'SELECT 3',
+                    executedAt: '2026-03-09T03:59:00.000Z', // 2026-03-08 23:59 EDT
+                }),
+                entry({
+                    id: 'dst-next-day',
+                    sql: 'SELECT 4',
+                    executedAt: '2026-03-09T04:00:00.000Z', // 2026-03-09 00:00 EDT
+                }),
+            ];
+
+            expect(
+                filterQueryHistoryEntries(dstEntries, {
+                    from: '2026-03-08',
+                    to: '2026-03-08',
+                    now: NOW,
+                    timeZone: 'America/New_York',
+                }).map((e) => e.id),
+            ).toEqual(['dst-day-start', 'dst-day-end']);
+        });
+
+        it('returns nothing for an inverted or unparseable range', () => {
+            expect(
+                filterQueryHistoryEntries(SAMPLE, {
+                    from: '2026-04-15',
+                    to: '2026-04-10',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }),
+            ).toEqual([]);
+
+            expect(
+                filterQueryHistoryEntries(SAMPLE, {
+                    from: '2026-04-31',
+                    to: '2026-04-10',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }),
+            ).toEqual([]);
+        });
+
+        it('combines the custom range with search and outcome', () => {
+            // "SELECT * FROM missing" does not contain "users", so only the DELETE
+            // entry survives the combined text + outcome + range filter.
+            expect(
+                filterQueryHistoryEntries(SAMPLE, {
+                    search: 'users',
+                    outcome: 'failed',
+                    from: '2026-04-10',
+                    to: '2026-04-15',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }).map((e) => e.id),
+            ).toEqual(['fail-week']);
+        });
+
+        it('combines the custom range with search alone', () => {
+            expect(
+                filterQueryHistoryEntries(SAMPLE, {
+                    search: 'users',
+                    from: '2026-04-10',
+                    to: '2026-04-15',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }).map((e) => e.id),
+            ).toEqual(['ok-recent', 'ok-yesterday', 'fail-week']);
+        });
+
+        it('excludes invalid executedAt from the custom range', () => {
+            const bad = entry({
+                id: 'bad-date',
+                sql: 'SELECT 1',
+                executedAt: 'not-a-date',
+            });
+            expect(
+                filterQueryHistoryEntries([bad], {
+                    from: '2026-04-10',
+                    to: '2026-04-15',
+                    now: NOW,
+                    timeZone: 'UTC',
+                }),
+            ).toEqual([]);
+        });
+    });
+});
+
+describe('queryHistoryFilter minimum duration (#1397)', () => {
+    const TIMED: QueryHistoryEntry[] = [
+        entry({id: 'zero', sql: 'SELECT 0', executionTimeMs: 0}),
+        entry({id: 'fast', sql: 'SELECT 1', executionTimeMs: 10}),
+        entry({id: 'edge', sql: 'SELECT 2', executionTimeMs: 500, status: 'error'}),
+        entry({id: 'slow', sql: 'SELECT 3', executionTimeMs: 1500, database: 'sales'}),
+        entry({id: 'unknown', sql: 'SELECT 4', executionTimeMs: null}),
+    ];
+
+    describe('validateQueryHistoryMinDuration', () => {
+        it('accepts an empty field and plain decimal numbers', () => {
+            expect(validateQueryHistoryMinDuration(undefined)).toBeNull();
+            expect(validateQueryHistoryMinDuration('')).toBeNull();
+            expect(validateQueryHistoryMinDuration('   ')).toBeNull();
+            expect(validateQueryHistoryMinDuration('0')).toBeNull();
+            expect(validateQueryHistoryMinDuration(' 500 ')).toBeNull();
+            expect(validateQueryHistoryMinDuration('2.5')).toBeNull();
+            expect(validateQueryHistoryMinDuration('.5')).toBeNull();
+        });
+
+        it('rejects anything that is not a plain decimal number', () => {
+            expect(validateQueryHistoryMinDuration('abc')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('500ms')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('1e3')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('0x10')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('Infinity')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('NaN')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('1,000')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('1'.repeat(400))).toBe('invalid');
+        });
+
+        it('reports a negative number separately', () => {
+            expect(validateQueryHistoryMinDuration('-1')).toBe('negative');
+            expect(validateQueryHistoryMinDuration('-0.5')).toBe('negative');
+            // A stray sign without digits is not a negative number.
+            expect(validateQueryHistoryMinDuration('-')).toBe('invalid');
+        });
+    });
+
+    describe('parseQueryHistoryMinDuration', () => {
+        it('returns the threshold in milliseconds, or null when empty or unusable', () => {
+            expect(parseQueryHistoryMinDuration('')).toBeNull();
+            expect(parseQueryHistoryMinDuration(undefined)).toBeNull();
+            expect(parseQueryHistoryMinDuration('0')).toBe(0);
+            expect(parseQueryHistoryMinDuration(' 500 ')).toBe(500);
+            expect(parseQueryHistoryMinDuration('2.5')).toBe(2.5);
+            expect(parseQueryHistoryMinDuration('abc')).toBeNull();
+            expect(parseQueryHistoryMinDuration('-1')).toBeNull();
+        });
+    });
+
+    describe('isQueryHistoryFilterActive', () => {
+        it('counts any typed threshold, zero included, but not whitespace', () => {
+            expect(isQueryHistoryFilterActive({minDurationMs: ''})).toBe(false);
+            expect(isQueryHistoryFilterActive({minDurationMs: '  '})).toBe(false);
+            expect(isQueryHistoryFilterActive({minDurationMs: '0'})).toBe(true);
+            expect(isQueryHistoryFilterActive({minDurationMs: '500'})).toBe(true);
+            expect(isQueryHistoryFilterActive({minDurationMs: 'abc'})).toBe(true);
+        });
+    });
+
+    describe('filterQueryHistoryEntries', () => {
+        it('returns the same array when the threshold is unset', () => {
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: ''})).toBe(TIMED);
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: '   '})).toBe(TIMED);
+        });
+
+        it('keeps entries at or above the threshold', () => {
+            const ids = filterQueryHistoryEntries(TIMED, {minDurationMs: '500'}).map((e) => e.id);
+            expect(ids).toEqual(['edge', 'slow']);
+        });
+
+        it('treats zero as a threshold and hides entries without a duration', () => {
+            const ids = filterQueryHistoryEntries(TIMED, {minDurationMs: '0'}).map((e) => e.id);
+            expect(ids).toEqual(['zero', 'fast', 'edge', 'slow']);
+        });
+
+        it('keeps a recorded zero distinct from a missing duration', () => {
+            const ids = filterQueryHistoryEntries(TIMED, {minDurationMs: '0.0'}).map((e) => e.id);
+            expect(ids).toContain('zero');
+            expect(ids).not.toContain('unknown');
+        });
+
+        it('accepts fractional thresholds and surrounding whitespace', () => {
+            expect(
+                filterQueryHistoryEntries(TIMED, {minDurationMs: ' 9.5 '}).map((e) => e.id),
+            ).toEqual(['fast', 'edge', 'slow']);
+        });
+
+        it('matches nothing for a negative, nonnumeric or nonfinite threshold', () => {
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: '-1'})).toEqual([]);
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: 'abc'})).toEqual([]);
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: 'Infinity'})).toEqual([]);
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: '1e3'})).toEqual([]);
+        });
+
+        it('combines the threshold with the other filters using AND', () => {
+            expect(
+                filterQueryHistoryEntries(TIMED, {minDurationMs: '500', outcome: 'failed'}).map(
+                    (e) => e.id,
+                ),
+            ).toEqual(['edge']);
+            expect(
+                filterQueryHistoryEntries(TIMED, {
+                    minDurationMs: '500',
+                    database: queryHistoryDatabaseFilterFor('sales'),
+                }).map((e) => e.id),
+            ).toEqual(['slow']);
+            expect(
+                filterQueryHistoryEntries(TIMED, {minDurationMs: '500', search: 'select 3'}).map(
+                    (e) => e.id,
+                ),
+            ).toEqual(['slow']);
+            expect(
+                filterQueryHistoryEntries(TIMED, {
+                    minDurationMs: '500',
+                    timeRange: 'lastHour',
+                    now: NOW,
+                }).map((e) => e.id),
+            ).toEqual(['edge', 'slow']);
+            expect(
+                filterQueryHistoryEntries(TIMED, {minDurationMs: '2000', outcome: 'any'}),
+            ).toEqual([]);
         });
     });
 });

@@ -358,7 +358,10 @@ pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
         " "
     };
 
-    format!("{}{}LIMIT {} OFFSET {}", base, separator, fetch_count, offset)
+    format!(
+        "{}{}LIMIT {} OFFSET {}",
+        base, separator, fetch_count, offset
+    )
 }
 
 fn trim_trailing_statement_terminator(query: &str) -> &str {
@@ -451,10 +454,7 @@ fn trailing_comment_start(sql: &str) -> Option<usize> {
                     State::Backtick => '`',
                     _ => unreachable!(),
                 };
-                if !matches!(state, State::Backtick)
-                    && ch == '\\'
-                    && i + 1 < chars.len()
-                {
+                if !matches!(state, State::Backtick) && ch == '\\' && i + 1 < chars.len() {
                     i += 2;
                 } else if ch == quote {
                     if i + 1 < chars.len() && chars[i + 1].1 == quote {
@@ -539,7 +539,10 @@ pub fn transaction_effect(query: &str) -> TransactionEffect {
     let mut rest: Vec<String> = words.collect();
     // `WORK` / `TRANSACTION` after a transaction-control verb is optional noise.
     if matches!(first.as_str(), "COMMIT" | "END" | "ROLLBACK" | "ABORT")
-        && matches!(rest.first().map(String::as_str), Some("WORK" | "TRANSACTION"))
+        && matches!(
+            rest.first().map(String::as_str),
+            Some("WORK" | "TRANSACTION")
+        )
     {
         rest.remove(0);
     }

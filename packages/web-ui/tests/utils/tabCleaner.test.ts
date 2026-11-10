@@ -14,6 +14,11 @@ describe('tabCleaner', () => {
         expect(restored.autoRefreshError).toBe('');
         expect(restoreTabFromStorage({}).autoRefreshIntervalMs).toBe(0);
     });
+    it('keeps the pinned state through a save and a restore (#1304)', () => {
+        const tab = {...restoreTabFromStorage({id: 'tab-1'}), pinned: true};
+        expect(cleanTabForStorage(tab).pinned).toBe(true);
+        expect(restoreTabFromStorage(cleanTabForStorage(tab)).pinned).toBe(true);
+    });
     describe('cleanTabForStorage', () => {
         it('should preserve persistent fields', () => {
             const tab: Tab = {
@@ -30,6 +35,7 @@ describe('tabCleaner', () => {
                 sortClause: 'name ASC',
                 limitClause: 100,
                 pageSize: 51,
+                transposed: true,
                 autoRefreshIntervalMs: 10000,
                 isAutoRefreshing: true,
                 autoRefreshError: 'offline',
@@ -63,6 +69,7 @@ describe('tabCleaner', () => {
             expect(cleaned.sortClause).toBe('name ASC');
             expect(cleaned.limitClause).toBe(100);
             expect(cleaned.pageSize).toBe(51);
+            expect(cleaned.transposed).toBe(true);
             expect(cleaned.autoRefreshIntervalMs).toBe(10000);
             expect(cleaned).not.toHaveProperty('isAutoRefreshing');
             expect(cleaned).not.toHaveProperty('autoRefreshError');

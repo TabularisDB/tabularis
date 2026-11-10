@@ -183,6 +183,68 @@ fn success(provider: &str) -> serde_json::Value {
 }
 
 #[tokio::test]
+async fn custom_openai_discovers_models_with_optional_authentication() {
+    let client = Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .unwrap();
+    for key in ["", "fixture-key"] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/v1/", listener.local_addr().unwrap());
+        let request = thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
+            let headers = read_headers(&mut socket);
+            let body = r#"{"data":[{"id":"local-model"}]}"#;
+            write!(socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            headers
+        });
+
+        assert_eq!(
+            fetch_custom_openai_models_with_client(&client, &url, key).await,
+            ["local-model"]
+        );
+        let headers = request.join().unwrap().to_ascii_lowercase();
+        assert!(headers.starts_with("get /v1/models "));
+        if key.is_empty() {
+            assert!(!headers.contains("authorization:"));
+        } else {
+            assert!(headers.contains("authorization: bearer fixture-key"));
+        }
+    }
+}
+
+#[tokio::test]
+async fn custom_openai_generates_without_an_authorization_header_when_no_key_is_set() {
+    let fixture = Fixture::new(false, vec![(200, success("custom-openai"))]);
+    let req = AiGenerateRequest {
+        provider: "custom-openai".into(),
+        model: "local-model".into(),
+        prompt: "Count authors".into(),
+        schema: String::new(),
+    };
+    let url = format!("http://127.0.0.1:{}/v1", fixture.port);
+    assert_eq!(
+        generate_custom_openai(&fixture.client, "", &req, "SQL instructions", &url)
+            .await
+            .unwrap(),
+        "SELECT COUNT(*) FROM authors;"
+    );
+    let requests = fixture.requests.join().unwrap();
+    assert!(requests[0]
+        .headers
+        .starts_with("POST /v1/chat/completions "));
+    assert!(!requests[0]
+        .headers
+        .to_ascii_lowercase()
+        .contains("authorization:"));
+    assert_eq!(requests[0].body["model"], "local-model");
+}
+
+#[tokio::test]
 async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() {
     for provider in [
         "openai",
@@ -239,6 +301,59 @@ async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() 
 }
 
 #[tokio::test]
+async fn anthropic_skips_thinking_blocks_before_the_text_block() {
+    let fixture = Fixture::new(
+        true,
+        vec![(
+            200,
+            json!({"content":[
+                {"type":"thinking","thinking":"","signature":"fixture-signature"},
+                {"type":"text","text":"```sql\nSELECT COUNT(*) FROM authors;\n```"}
+            ]}),
+        )],
+    );
+    assert_eq!(
+        generate("anthropic", &fixture).await.unwrap(),
+        "SELECT COUNT(*) FROM authors;"
+    );
+    fixture.requests.join().unwrap();
+}
+
+#[tokio::test]
+async fn anthropic_without_a_text_block_is_an_invalid_response() {
+    let fixture = Fixture::new(
+        true,
+        vec![(
+            200,
+            json!({"content":[{"type":"thinking","thinking":"","signature":"fixture-signature"}]}),
+        )],
+    );
+    let error = generate("anthropic", &fixture).await.unwrap_err();
+    assert_eq!(error, "Invalid response format from Anthropic");
+    fixture.requests.join().unwrap();
+}
+
+#[tokio::test]
+async fn anthropic_reports_max_tokens_when_no_text_block_was_produced() {
+    let fixture = Fixture::new(
+        true,
+        vec![(
+            200,
+            json!({
+                "stop_reason":"max_tokens",
+                "content":[{"type":"thinking","thinking":"","signature":"fixture-signature"}]
+            }),
+        )],
+    );
+    let error = generate("anthropic", &fixture).await.unwrap_err();
+    assert_eq!(
+        error,
+        "Anthropic stopped at the max_tokens limit before producing an answer"
+    );
+    fixture.requests.join().unwrap();
+}
+
+#[tokio::test]
 async fn existing_providers_propagate_http_failures() {
     for provider in [
         "openai",
@@ -258,6 +373,104 @@ async fn existing_providers_propagate_http_failures() {
 }
 
 #[tokio::test]
+async fn minimax_model_selection_reaches_the_http_boundary_unchanged() {
+    for (provider, model, expected) in [
+        ("minimax", "", "MiniMax-M3.1-Flash"),
+        ("minimax", "MiniMax-M3", "MiniMax-M3"),
+        ("minimax", "MiniMax-M2.7", "MiniMax-M2.7"),
+        (
+            "openrouter",
+            "minimax/minimax-m3.1-flash:free",
+            "minimax/minimax-m3.1-flash:free",
+        ),
+        ("requesty", "minimax-m3.1-flash", "minimax-m3.1-flash"),
+        (
+            "requesty",
+            "minimaxi/minimax-m3.1-flash",
+            "minimaxi/minimax-m3.1-flash",
+        ),
+        ("custom-openai", "my-custom-model", "my-custom-model"),
+    ] {
+        let fixture = Fixture::new(true, vec![(200, success(provider))]);
+        let req = AiGenerateRequest {
+            provider: provider.into(),
+            model: resolve_model(provider, model, &config::AppConfig::default(), 11434)
+                .await
+                .unwrap(),
+            prompt: "Count authors".into(),
+            schema: String::new(),
+        };
+        let result = match provider {
+            "minimax" => {
+                generate_minimax(&fixture.client, "fixture-key", &req, "SQL instructions").await
+            }
+            "openrouter" => {
+                generate_openrouter(&fixture.client, "fixture-key", &req, "SQL instructions").await
+            }
+            "requesty" => {
+                generate_requesty(&fixture.client, "fixture-key", &req, "SQL instructions").await
+            }
+            "custom-openai" => {
+                generate_custom_openai(
+                    &fixture.client,
+                    "fixture-key",
+                    &req,
+                    "SQL instructions",
+                    "https://fixture.invalid/v1/",
+                )
+                .await
+            }
+            _ => unreachable!(),
+        };
+        assert_eq!(result.unwrap(), "SELECT COUNT(*) FROM authors;");
+        let requests = fixture.requests.join().unwrap();
+        let request = &requests[0];
+        match provider {
+            "minimax" => assert!(matches!(
+                request.target.as_str(),
+                "CONNECT api.minimax.io:443 HTTP/1.1" | "CONNECT api.minimaxi.com:443 HTTP/1.1"
+            )),
+            "openrouter" => assert_eq!(request.target, "CONNECT openrouter.ai:443 HTTP/1.1"),
+            "requesty" => assert_eq!(request.target, "CONNECT router.requesty.ai:443 HTTP/1.1"),
+            "custom-openai" => assert_eq!(request.target, "CONNECT fixture.invalid:443 HTTP/1.1"),
+            _ => unreachable!(),
+        }
+        assert!(
+            request.headers.starts_with("POST /v1/chat/completions ")
+                || request
+                    .headers
+                    .starts_with("POST /api/v1/chat/completions ")
+        );
+        assert!(request
+            .headers
+            .to_ascii_lowercase()
+            .contains("authorization: bearer fixture-key"));
+        assert_eq!(request.body["model"], expected);
+        assert_eq!(
+            request.body["messages"],
+            json!([
+                {"role": "system", "content": "SQL instructions"},
+                {"role": "user", "content": "Count authors"}
+            ])
+        );
+        // This SQL-generation API accepts text only; it has no tool, image, or history inputs.
+        for unsupported in [
+            "tools",
+            "thinking",
+            "reasoning_effort",
+            "service_tier",
+            "reasoning_split",
+            "previous_response_id",
+        ] {
+            assert!(
+                request.body.get(unsupported).is_none(),
+                "{provider}: {unsupported}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn minimax_retries_its_other_region_after_a_failure() {
     let fixture = Fixture::new(
         true,
@@ -266,11 +479,34 @@ async fn minimax_retries_its_other_region_after_a_failure() {
             (200, success("minimax")),
         ],
     );
+    let req = AiGenerateRequest {
+        provider: "minimax".into(),
+        model: resolve_model("minimax", "", &config::AppConfig::default(), 11434)
+            .await
+            .unwrap(),
+        prompt: "Count authors".into(),
+        schema: String::new(),
+    };
     assert_eq!(
-        generate("minimax", &fixture).await.unwrap(),
+        generate_minimax(&fixture.client, "fixture-key", &req, "SQL instructions")
+            .await
+            .unwrap(),
         "SELECT COUNT(*) FROM authors;"
     );
     let requests = fixture.requests.join().unwrap();
     assert_eq!(requests.len(), 2);
-    assert_ne!(requests[0].target, requests[1].target);
+    let mut targets: Vec<&str> = requests
+        .iter()
+        .map(|request| request.target.as_str())
+        .collect();
+    targets.sort();
+    assert_eq!(
+        targets,
+        [
+            "CONNECT api.minimax.io:443 HTTP/1.1",
+            "CONNECT api.minimaxi.com:443 HTTP/1.1"
+        ]
+    );
+    assert_eq!(requests[0].body, requests[1].body);
+    assert_eq!(requests[0].body["model"], "MiniMax-M3.1-Flash");
 }

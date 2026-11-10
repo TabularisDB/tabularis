@@ -33,6 +33,7 @@ describe('registryLocale', () => {
             expect(toRegistryLocale('ko')).toBe('en');
             expect(toRegistryLocale('tl')).toBe('en');
             expect(toRegistryLocale('pt-BR')).toBe('en');
+            expect(toRegistryLocale('vi')).toBe('en');
         });
 
         it('falls back to English when the language is missing', () => {

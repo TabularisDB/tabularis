@@ -33,7 +33,7 @@ import type {
 import type {ForeignKey, Index} from '@/types/schema';
 import type {MonacoThemeDefinition, Theme} from '@/types/theme';
 import type {Settings} from '@/contexts/SettingsContext';
-import type {SavedQuery, SavedQueryFolder} from '@/contexts/SavedQueriesContext';
+import type {SavedQuery, SavedQueryFolder, SavedQueryVersion} from '@/contexts/SavedQueriesContext';
 import type {ColumnStatsRequest, PluginColumnStats} from '@/utils/columnStats';
 import type {QueryHistoryEntry, QueryHistoryResponse} from '@/types/queryHistory';
 import type {UserOverrides} from '@/utils/keybindings';
@@ -43,6 +43,7 @@ import type {
     AiEventFilter,
     AiExplainRequest,
     AiGenerateRequest,
+    AiInlineRequest,
     AiKeyStatus,
     AiNameRequest,
     AiNotebookExport,
@@ -106,6 +107,24 @@ export interface ServerSaveTarget {
 
 export interface SqlitePathRequest {
     readonly path: string;
+}
+
+export interface OpenDataFileRequest {
+    /** Desktop-only source path. */
+    filePath?: string;
+    /** Browser-only opaque upload token. */
+    uploadToken?: string;
+    /** Name for the workspace connection when this call creates it. */
+    workspaceName: string;
+}
+
+/** A data file exposed as a table of the data file workspace connection. */
+export interface OpenedDataFile {
+    connectionId: string;
+    /** Id of the driver behind the workspace connection. */
+    driver: string;
+    table: string;
+    format: string;
 }
 
 /**
@@ -278,6 +297,10 @@ export interface ExecuteQueryRequest extends MetadataRequest {
     page?: number;
 }
 
+export interface ExecutePluginReadOnlyQueryRequest extends MetadataRequest {
+    query: string;
+}
+
 export interface ExecuteQueryBatchRequest extends MetadataRequest {
     sessionId?: string;
     queries: string[];
@@ -437,6 +460,77 @@ export interface DatabaseImportRequest extends ConnectionIdRequest {
     uploadToken?: string;
 }
 
+export type TableSqlContent = 'structure_and_data' | 'structure_only';
+export type TableSqlStructureSource = 'driver' | 'generated';
+/** What "Import table from SQL" does when the table already exists. */
+export type IfTableExists = 'fail' | 'drop_and_recreate' | 'append';
+
+export interface TableExportOptions {
+    table: string;
+    content: TableSqlContent;
+    schema?: string;
+    database?: string;
+}
+
+export interface TableExportRequest extends ConnectionIdRequest {
+    options: TableExportOptions;
+    /** Desktop-only save path. Browser requests omit this and receive a download. */
+    filePath?: string;
+}
+
+export interface TableExportResult {
+    rows: number;
+    bytes: number;
+    structureSource: TableSqlStructureSource;
+    /** The browser download; `null` when the desktop app wrote `filePath`. */
+    file: GeneratedFile | null;
+}
+
+/** The metadata header of a table export file. */
+export interface TableSqlHeader {
+    formatVersion: number;
+    tabularisVersion: string;
+    driver: string;
+    driverVersion: string | null;
+    source: string;
+    table: string;
+    content: TableSqlContent;
+    structureSource: TableSqlStructureSource;
+    rows: number;
+    exported: string;
+}
+
+export interface TableImportFileRequest extends ConnectionIdRequest {
+    /** Desktop-only source path. */
+    filePath?: string;
+    /** Browser-only opaque upload token. */
+    uploadToken?: string;
+}
+
+export interface TableImportPreview {
+    header: TableSqlHeader;
+    structure: string;
+    structureTruncated: boolean;
+    /** Why this connection can't import the file, or `null` when it can. */
+    problem: string | null;
+}
+
+export interface TableImportOptions {
+    ifExists: IfTableExists;
+    schema?: string;
+    database?: string;
+}
+
+export interface TableImportRequest extends TableImportFileRequest {
+    options: TableImportOptions;
+}
+
+export interface TableImportResult {
+    table: string;
+    statements: number;
+    rows: number;
+}
+
 export interface QueryExportRequest extends ConnectionIdRequest {
     sessionId?: string;
     query: string;
@@ -520,6 +614,10 @@ export interface CommandMap {
     >;
     create_sqlite_file: CommandDefinition<SqlitePathRequest, string, 'local-admin'>;
     create_sqlite_database: CommandDefinition<SqlitePathRequest, SavedConnection, 'local-admin'>;
+    // The workspace is a file-backed database whose SQL can read host files.
+    open_data_file: CommandDefinition<OpenDataFileRequest, OpenedDataFile, 'local-admin'>;
+    /** Desktop-only: host paths the system handed to the app ("Open with", command line). */
+    consume_pending_data_files: CommandDefinition<undefined, string[], 'local-admin'>;
     get_installation_source: CommandDefinition<undefined, string | null, 'local-admin'>;
     // MCP client status and installation operate on host configuration files or
     // local client CLIs, so browsers may use them only in local-admin Web mode.
@@ -663,6 +761,7 @@ export interface CommandMap {
     get_plugin_startup_errors: CommandDefinition<undefined, PluginLoadError[], 'local-admin'>;
     kill_plugin_process: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
     restart_plugin_process: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
+    sync_plugin_settings: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
 
     test_connection: CommandDefinition<{request: TestConnectionRequest}, string, 'database'>;
     disconnect_connection: CommandDefinition<ConnectionIdRequest, void, 'database'>;
@@ -717,6 +816,14 @@ export interface CommandMap {
     cancel_dump: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
     import_database: CommandDefinition<DatabaseImportRequest, void, 'sensitive'>;
     cancel_import: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
+    export_table_to_sql: CommandDefinition<TableExportRequest, TableExportResult, 'sensitive'>;
+    read_table_sql_header: CommandDefinition<
+        TableImportFileRequest,
+        TableImportPreview,
+        'sensitive'
+    >;
+    import_table_from_sql: CommandDefinition<TableImportRequest, TableImportResult, 'sensitive'>;
+    cancel_table_import: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
 
     get_ssh_connections: CommandDefinition<undefined, SshConnection[], 'local-admin'>;
     save_ssh_connection: CommandDefinition<
@@ -782,6 +889,7 @@ export interface CommandMap {
     get_schemas: CommandDefinition<MetadataRequest, string[], 'database'>;
     get_tables: CommandDefinition<MetadataRequest, TableInfo[], 'database'>;
     get_columns: CommandDefinition<TableMetadataRequest, TableColumn[], 'database'>;
+    get_approximate_row_count: CommandDefinition<TableMetadataRequest, number | null, 'database'>;
     get_foreign_keys: CommandDefinition<TableMetadataRequest, ForeignKey[], 'database'>;
     get_indexes: CommandDefinition<TableMetadataRequest, Index[], 'database'>;
     get_views: CommandDefinition<MetadataRequest, ViewInfo[], 'database'>;
@@ -924,6 +1032,11 @@ export interface CommandMap {
     >;
 
     execute_query: CommandDefinition<ExecuteQueryRequest, QueryResult, 'database'>;
+    execute_plugin_read_only_query: CommandDefinition<
+        ExecutePluginReadOnlyQueryRequest,
+        QueryResult,
+        'database'
+    >;
     execute_query_batch: CommandDefinition<
         ExecuteQueryBatchRequest,
         BatchStatementResult[],
@@ -959,6 +1072,16 @@ export interface CommandMap {
         'database'
     >;
     delete_saved_query: CommandDefinition<ConnectionIdRequest & {id: string}, void, 'database'>;
+    get_saved_query_versions: CommandDefinition<
+        ConnectionIdRequest & {id: string},
+        SavedQueryVersion[],
+        'database'
+    >;
+    restore_saved_query_version: CommandDefinition<
+        ConnectionIdRequest & {id: string; versionId: string},
+        SavedQuery,
+        'database'
+    >;
     get_saved_query_folders: CommandDefinition<ConnectionIdRequest, SavedQueryFolder[], 'database'>;
     create_saved_query_folder: CommandDefinition<
         ConnectionIdRequest & {name: string},
@@ -1044,8 +1167,11 @@ export interface CommandMap {
         'sensitive'
     >;
     generate_ai_query: CommandDefinition<{req: AiGenerateRequest}, string, 'sensitive'>;
+    complete_ai_inline: CommandDefinition<{req: AiInlineRequest}, string, 'sensitive'>;
+    cancel_ai_inline: CommandDefinition<{requestId: string}, void, 'sensitive'>;
     explain_ai_query: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     analyze_ai_explain_plan: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
+    analyze_ai_crash_report: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     generate_cell_name: CommandDefinition<{req: AiNameRequest}, string, 'sensitive'>;
     generate_tab_rename: CommandDefinition<{req: AiNameRequest}, string, 'sensitive'>;
     suggest_table_name: CommandDefinition<{req: AiTableNameRequest}, string, 'sensitive'>;

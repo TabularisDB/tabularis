@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis は、3 つの標準搭載データベースドライバーと、DuckDB、ClickHouse、Redis、Firestore を含む 24 の公開済みプラグインを備えた、オープンソースのデスクトップ SQL ワークスペースです。組み込みの MCP サーバーにより、Claude、Cursor、Devin（旧 Windsurf）が、あなたが普段使っているアプリの中でスキーマを読み取り、クエリを実行できます。
+Tabularis は、3 つの標準搭載データベースドライバーと、DuckDB、ClickHouse、Redis、Firestore を含む 29 の公開済みプラグインを備えた、オープンソースのデスクトップ SQL ワークスペースです。組み込みの MCP サーバーにより、Claude、Cursor、Devin（旧 Windsurf）が、あなたが普段使っているアプリの中でスキーマを読み取り、クエリを実行できます。
 
 <p align="center">
   <b><a href="https://tabularis.dev">ウェブサイト</a></b> ·
@@ -20,8 +20,9 @@ Tabularis は、3 つの標準搭載データベースドライバーと、DuckD
 <p align="center">
   <img src="https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat" alt="Release" />
   <img src="https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat" alt="Stars" />
-  <img src="https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat" alt="Downloads" />
+  <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTabularisDB%2Ftabularis%2Fdownload-stats%2Fdownloads.json&amp;style=flat" alt="Downloads" />
   <img src="https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg" alt="Build & Release" />
+  <a href="https://www.blacksmith.sh/?utm_source=tabularis&amp;utm_medium=referral&amp;utm_campaign=sponsor"><img src="https://img.shields.io/badge/CI_powered_by-Blacksmith-0B1015?style=flat" height="20" alt="CI powered by Blacksmith" /></a>
   <a href="https://discord.com/invite/K2hmhfHRSt"><img src="https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://gitster.dev/repo/TabularisDB/tabularis"><img src="https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e" alt="Gitster" /></a>
   <br />
@@ -70,11 +71,11 @@ sudo snap install tabularis       # Linux
 
 または、インストーラーを直接ダウンロードしてください。
 
-- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_x64-setup.exe)
+- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_x64-setup.exe)
 
-- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_x64.dmg)
+- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_x64.dmg)
 
-- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis_0.29.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.29.0/tabularis-0.29.0-1.x86_64.rpm)
+- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis-0.32.0-1.x86_64.rpm)
 
 アプリの UI は英語、イタリア語、スペイン語、中国語（簡体字）、フランス語、ドイツ語、日本語、ロシア語、韓国語、タガログ語、ポルトガル語（ブラジル）に対応しています。
 
@@ -91,7 +92,7 @@ sudo snap install tabularis       # Linux
 | **任意の言語**でプラグイン開発（stdio 経由の JSON-RPC）       |               ✅               |     Java/Eclipse プラグイン      | JavaScript プラグイン |              ❌               |
 | **ローカルモデル**（Ollama）対応の AI テキストから SQL 変換   |               ✅               | クラウドベースの AI アシスタント |          ❌           |              ❌               |
 | インタラクティブなプラングラフ付き Visual EXPLAIN             |               ✅               |                ✅                |          ❌           |              ❌               |
-| 標準対応データベース数                                        | 標準搭載 3 + 公式プラグイン 24 |               100+               |          20+          |             約 10             |
+| 標準対応データベース数                                        | 標準搭載 3 + ドライバープラグイン 29 |               100+               |          20+          |             約 10             |
 
 > [!NOTE]
 > 比較は 2026 年 6 月時点のものです。他ツールの機能はその後変わっている可能性があります。数十のドライバーが必要な場合は DBeaver を使ってください。tabularis は、少数のデータベースをしっかりサポートすることに注力しています。
@@ -104,6 +105,7 @@ PostgreSQL、MySQL/MariaDB、SQLite は標準搭載されています。標準�
 
 | データベース             | プラグイン                                                                                      | データベース   | プラグイン                                                                                      |
 | ------------------------ | ----------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| Google BigQuery          | [tabularis-bigquery-plugin](https://github.com/TabularisDB/tabularis-bigquery-plugin)           | CockroachDB    | [tabularis-cockroachdb-plugin](https://github.com/TabularisDB/tabularis-cockroachdb-plugin)     |
 | ClickHouse               | [tabularis-clickhouse-plugin](https://github.com/TabularisDB/tabularis-clickhouse-plugin)       | LibSQL / Turso | [tabularis-libsql-plugin](https://github.com/TabularisDB/tabularis-libsql-plugin)               |
 | Cloudflare D1            | [tabularis_cloudflare_d1_plugin](https://github.com/josejorge/tabularis_cloudflare_d1_plugin)   | MongoDB        | [tabularis-mongodb-plugin](https://github.com/danielnuld/tabularis-mongodb-plugin)              |
 | Cloudflare D1 (HTTP API) | [cloudflare-tabularis](https://github.com/GabrielMalava/cloudflare-tabularis)                   | MongoDB Atlas  | [tabularis-mongodb-plugin](https://github.com/TabularisDB/tabularis-mongodb-plugin)             |
@@ -116,15 +118,17 @@ PostgreSQL、MySQL/MariaDB、SQLite は標準搭載されています。標準�
 | IBM Informix             | [tabularis-informix-plugin](https://github.com/danielnuld/tabularis-informix-plugin)            | HackerNews     | [tabularis-hackernews-plugin](https://github.com/TabularisDB/tabularis-hackernews-plugin)       |
 | Cassandra / ScyllaDB     | [tabularis-cassandra-plugin](https://github.com/TabularisDB/tabularis-cassandra-plugin)         | Harper         | [tabularis-harper-plugin](https://github.com/HarperFast/tabularis-harper-plugin)                |
 | PostgreSQL               | [tabularis-postgresql-plugin](https://github.com/TabularisDB/tabularis-postgresql-plugin)       | Trino          | [tabularis-trino-plugin](https://github.com/TabularisDB/tabularis-trino-plugin)                 |
+| Neon                     | [neon-plugin](https://github.com/TabularisDB/neon-plugin)                                       | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
+| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         |                |                                                                                                 |
 
 **バウンティボード掲載中**
 
 | ステータス   | データベース                                                                 |
 | ------------ | ---------------------------------------------------------------------------- |
-| 開発中          | Amazon Redshift, Google BigQuery, Meilisearch                                |
-| 計画策定済み       | CockroachDB, TiDB                                                            |
-| 近日対応         | Snowflake                                                                    |
-| 募集中          | Etcd, Firebird, SQL Anywhere, SurrealDB                                      |
+| 開発中            | Meilisearch                  |
+| 近日公開           | Snowflake                    |
+| 計画策定済み         | Amazon Redshift, TiDB        |
+| 募集中            | Etcd, Firebird, SQL Anywhere |
 
 > [!NOTE]
 > **提供中**のドライバーは[プラグインレジストリ](https://tabularis.dev/plugins)からインストールできます。それ以外は[バウンティボード](https://tabularis.dev/plugins/bounties)に掲載されています。担当として名乗り出るか、スポンサーになるか、[データベースをリクエスト](https://github.com/TabularisDB/tabularis/discussions)してください。

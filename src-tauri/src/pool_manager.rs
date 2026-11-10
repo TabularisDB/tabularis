@@ -1,6 +1,8 @@
 use crate::models::ConnectionParams;
 use crate::sqlite_database::expand_sqlite_filename;
-use deadpool_postgres::{Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool};
+use deadpool_postgres::{
+    Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool,
+};
 use once_cell::sync::Lazy;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{verify_server_cert_signed_by_trust_anchor, WebPkiServerVerifier};
@@ -13,7 +15,9 @@ use rustls::DigitallySignedStruct;
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
 use sha2::{Digest, Sha256};
-use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite};
+use sqlx::{
+    sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -87,6 +91,54 @@ fn mysql_numeric_setting(key: &str, default: u64) -> u64 {
                 .or_else(|| value.as_str().and_then(|item| item.parse::<u64>().ok()))
         })
         .unwrap_or(default)
+}
+
+/// The per-connection connect timeout, or None when unset or 0.
+pub(crate) fn connect_timeout(params: &ConnectionParams) -> Option<Duration> {
+    params
+        .connect_timeout_secs
+        .filter(|secs| *secs > 0)
+        .map(|secs| Duration::from_secs(secs.into()))
+}
+
+/// The per-connection query timeout, or None when unset or 0.
+pub(crate) fn query_timeout(params: &ConnectionParams) -> Option<Duration> {
+    params
+        .query_timeout_secs
+        .filter(|secs| *secs > 0)
+        .map(|secs| Duration::from_secs(secs.into()))
+}
+
+/// Runs a connection attempt, failing once the connection's connect timeout
+/// passes. Without one, the attempt runs unbounded as before.
+pub(crate) async fn with_connect_timeout<T>(
+    params: &ConnectionParams,
+    attempt: impl std::future::Future<Output = Result<T, String>>,
+) -> Result<T, String> {
+    match connect_timeout(params) {
+        Some(timeout) => tokio::time::timeout(timeout, attempt)
+            .await
+            .map_err(|_| format!("Connection timed out after {} s", timeout.as_secs()))?,
+        None => attempt.await,
+    }
+}
+
+/// The limit for one run of the PostgreSQL startup script: the connection's
+/// connect timeout, else the default 30 s.
+pub(crate) fn postgres_startup_script_timeout(params: &ConnectionParams) -> Duration {
+    connect_timeout(params)
+        .unwrap_or_else(|| Duration::from_millis(POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS))
+}
+
+/// The MySQL connect timeout: the connection's own value, else the global
+/// `connectTimeout` setting.
+pub(crate) fn mysql_connect_timeout(params: &ConnectionParams) -> Duration {
+    connect_timeout(params).unwrap_or_else(|| {
+        Duration::from_millis(mysql_numeric_setting(
+            "connectTimeout",
+            DEFAULT_MYSQL_CONNECT_TIMEOUT_MS,
+        ))
+    })
 }
 
 fn postgres_setting_value(key: &str) -> Option<serde_json::Value> {
@@ -283,11 +335,17 @@ pub(crate) fn build_connection_key(
     // the cached pool keyed only by connection_id. Hashed to keep the key
     // bounded; only present when a script is set, so script-free connections
     // keep their existing keys.
-    match startup_script(params) {
+    let key = match startup_script(params) {
         Some(script) => {
             let digest = Sha256::digest(script.as_bytes());
             format!("{key}:startup:{digest:x}")
         }
+        None => key,
+    };
+
+    // Same for the connect timeout: the pool applies it when it is built.
+    match connect_timeout(params) {
+        Some(timeout) => format!("{key}:connect_timeout:{}", timeout.as_secs()),
         None => key,
     }
 }
@@ -514,6 +572,9 @@ pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> Result
         .port(params.port.unwrap_or(5432))
         .host(params.host.as_deref().unwrap_or_default())
         .dbname(&format!("{}", params.database));
+    if let Some(timeout) = connect_timeout(params) {
+        cfg.connect_timeout(timeout);
+    }
 
     // Unset leaves tokio_postgres's default (`Prefer`). A set but unknown
     // mode is a connection error rather than that default.
@@ -857,6 +918,13 @@ fn startup_script_error(err: impl std::fmt::Display) -> String {
     format!("Startup script failed: {err}")
 }
 
+fn startup_script_timeout_error(timeout: Duration) -> String {
+    format!(
+        "Timed out running PostgreSQL startup script after {} ms",
+        timeout.as_millis()
+    )
+}
+
 /// Validate the startup script on a throwaway connection so a broken script
 /// fails fast with a clearly attributed error, **without** applying its side
 /// effects. The statements run inside a transaction that is rolled back, so a
@@ -911,8 +979,7 @@ async fn run_postgres_startup_script(
     tls: MakeRustlsConnect,
     script: &str,
 ) -> Result<(), String> {
-    let (mut client, connection) =
-        cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
+    let (mut client, connection) = cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
     // tokio_postgres needs the connection future polled on its own task.
     let driver = tokio::spawn(async move {
         let _ = connection.await;
@@ -983,10 +1050,7 @@ async fn get_mysql_pool_for_database_with_id(
     // trust store is used; a process-level rustls CryptoProvider is not
     // required here. The Postgres deadpool path still installs one in
     // build_postgres_configurations via the same helper.
-    let connect_timeout = Duration::from_millis(mysql_numeric_setting(
-        "connectTimeout",
-        DEFAULT_MYSQL_CONNECT_TIMEOUT_MS,
-    ));
+    let connect_timeout = mysql_connect_timeout(params);
     let script = startup_script(params);
 
     let pool = match build_and_connect_mysql_pool(
@@ -1076,30 +1140,40 @@ pub async fn get_postgres_pool_with_id(
     })?;
 
     if let Some(script) = startup_script(params) {
-        let timeout = Duration::from_millis(POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS);
+        let timeout = postgres_startup_script_timeout(params);
         tokio::time::timeout(
             timeout,
             run_postgres_startup_script(&cfg, tls_connector.clone(), &script),
         )
         .await
-        .map_err(|_| {
-            format!(
-                "Timed out running PostgreSQL startup script after {} ms",
-                timeout.as_millis()
-            )
-        })??;
+        .map_err(|_| startup_script_timeout_error(timeout))??;
     }
 
     let mut builder =
         PgPool::builder(PgPoolManager::new(cfg, tls_connector)).max_size(postgres_pool_max_size());
+    // The config's connect_timeout only bounds the TCP connect; this also
+    // bounds TLS and authentication. deadpool runs post_create hooks after
+    // this timeout, so the hook below bounds the startup script separately.
+    let script_timeout = connect_timeout(params);
+    if let Some(timeout) = script_timeout {
+        builder = builder
+            .runtime(deadpool_postgres::Runtime::Tokio1)
+            .create_timeout(Some(timeout));
+    }
     if let Some(script) = startup_script(params) {
         builder = builder.post_create(PgHook::async_fn(move |client, _metrics| {
             let script = script.clone();
             Box::pin(async move {
-                client
-                    .batch_execute(&script)
-                    .await
-                    .map_err(|e| PgHookError::message(startup_script_error(format_error_chain(&e))))?;
+                let run = client.batch_execute(&script);
+                let outcome = match script_timeout {
+                    Some(timeout) => tokio::time::timeout(timeout, run)
+                        .await
+                        .map_err(|_| PgHookError::message(startup_script_timeout_error(timeout)))?,
+                    None => run.await,
+                };
+                outcome.map_err(|e| {
+                    PgHookError::message(startup_script_error(format_error_chain(&e)))
+                })?;
                 Ok(())
             })
         }));

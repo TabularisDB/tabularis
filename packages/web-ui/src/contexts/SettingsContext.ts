@@ -2,10 +2,13 @@ import {createContext} from 'react';
 import type {AppLanguage} from '@/i18n/config';
 import {DEFAULT_MASKING_PATTERNS} from '@/utils/columnMasking';
 import type {AutocompleteKeywordCase} from '@/utils/autocomplete';
+import type {NullDisplay} from '@/utils/nullDisplay';
 import type {GlobalProxySettings, ProxyOverride} from '@/types/proxy';
+import type {CopyFormat} from '@/utils/clipboard';
 
-export type {AppLanguage};
-export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'markdown';
+export type {AppLanguage, CopyFormat};
+/** How NULL is written when rows are copied as CSV or Markdown ("" writes an empty field). */
+export type CopyNullLabel = 'null' | 'NULL' | '';
 export type DefaultSortDirection = 'asc' | 'desc';
 export type AiProvider =
     | 'chatgpt'
@@ -67,6 +70,7 @@ export interface Settings {
     /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
     resultFontFamily?: string;
     aiEnabled: boolean;
+    aiInlineCompletionEnabled?: boolean;
     aiProvider: AiProvider | null;
     aiModel: string | null;
     aiCustomModels?: Record<string, string[]>;
@@ -81,9 +85,13 @@ export interface Settings {
     maxLogEntries?: number;
     erDiagramDefaultLayout?: ERDiagramLayout;
     copyFormat?: CopyFormat;
+    /** How NULL values are shown in the data grid. Display only: copy and export are unchanged. Default: "default". */
+    nullDisplay?: NullDisplay;
     csvDelimiter?: string;
     /** Whether copied CSV output includes a header row. Default: true. */
     csvIncludeHeaders?: boolean;
+    /** How NULL is written when rows are copied as CSV or Markdown. Default: "null". */
+    copyNullLabel?: CopyNullLabel;
     /** Whether the row editor sidebar follows row selection. Default: true. */
     rowEditorFollowSelection?: boolean;
     groupSidebarConnectionsByFolder?: boolean;
@@ -103,6 +111,7 @@ export interface Settings {
     editorLineHeight?: number;
     editorTabSize?: number;
     editorWordWrap?: boolean;
+    editorMinimap?: boolean;
     /** Highlight invisible Unicode and look-alike characters in SQL. Default: true. */
     editorHighlightInvisibleCharacters?: boolean;
     editorShowLineNumbers?: boolean;
@@ -110,6 +119,8 @@ export interface Settings {
     runStatementUnderCursor?: boolean;
     /** Case of SQL keywords inserted by autocomplete. Default: "match". */
     autocompleteKeywordCase?: AutocompleteKeywordCase;
+    /** Mark unresolved tables, columns and aliases in PostgreSQL SELECT statements. Default: false. */
+    sqlDiagnosticsEnabled?: boolean;
     /** Delay destructive-query and production-write confirmations for five seconds. Default: false. */
     safetyConfirmationDelayEnabled?: boolean;
     /** Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true. */
@@ -191,7 +202,7 @@ export interface Settings {
     /** Per built-in driver id → migration mode. Defaults to "opt-in" when unset;
      * flipping an entry to "forced" is a separate, later decision. */
     migrationModeByDriver?: Record<string, MigrationMode>;
-    /** Global HTTP/SOCKS5 proxy and opt-in traffic scopes. */
+    /** Shared custom proxy endpoint and per-scope routing modes. */
     proxy?: GlobalProxySettings;
     /** Per AI-provider proxy overrides. */
     aiProviderProxies?: Partial<Record<AiProvider, ProxyOverride>>;
@@ -237,6 +248,7 @@ export const DEFAULT_SETTINGS: Settings = {
     defaultSortDirection: 'asc',
     resultFontFamily: 'JetBrains Mono',
     aiEnabled: false,
+    aiInlineCompletionEnabled: false,
     aiProvider: null,
     aiModel: null,
     aiCustomModels: undefined,
@@ -246,19 +258,23 @@ export const DEFAULT_SETTINGS: Settings = {
     loggingEnabled: true,
     maxLogEntries: 1000,
     copyFormat: 'csv',
+    nullDisplay: 'default',
     csvDelimiter: ',',
     csvIncludeHeaders: true,
+    copyNullLabel: 'null',
     erDiagramDefaultLayout: 'LR',
     editorFontFamily: 'JetBrains Mono',
     editorFontSize: 14,
     editorLineHeight: 1.5,
     editorTabSize: 2,
     editorWordWrap: true,
+    editorMinimap: false,
     editorHighlightInvisibleCharacters: true,
     editorShowLineNumbers: true,
     editorAcceptSuggestionOnEnter: true,
     runStatementUnderCursor: true,
     autocompleteKeywordCase: 'match',
+    sqlDiagnosticsEnabled: false,
     safetyConfirmationDelayEnabled: false,
     notifyLongQueries: true,
     notifyLongQueriesThresholdSec: 20,

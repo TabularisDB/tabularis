@@ -189,6 +189,28 @@ as edit script). Implement only what the dialect needs:
 - `drop_routine({ params, routine_name, routine_type, schema }) -> null` —
   drop the routine; resolve overloads yourself if the dialect has them.
 
+#### Optional table export methods
+
+"Export table to SQL" and "Import table from SQL" work for every SQL plugin
+without new code: the host builds `CREATE TABLE` from `get_columns` and
+`get_create_table_sql`, pages rows through `execute_query`, and renders
+`INSERT` literals from `identifier_quote`, `sql_dialect` and `sql_syntax`.
+Optional methods, answered with -32601 when missing, make the file match the
+engine exactly:
+
+- `get_table_ddl({ params, table, schema }) -> string` — the engine's own
+  `CREATE TABLE` (plus index statements) for an existing table, unqualified.
+- `render_insert_statements({ table, schema, columns, rows }) -> string[]` —
+  complete `INSERT` statements for up to 500 positional rows, values as your
+  `execute_query` returns them. Pure rendering, no database access.
+- `get_approximate_row_count({ params, table, schema }) -> number | null` —
+  the row estimate from the engine's statistics, for the export dialog. No
+  table scan.
+
+The export pages `execute_query` with `ORDER BY` the primary key, so paging
+must be deterministic and `pagination.has_more` accurate. Non-SQL plugins set
+`table_export: false` and `table_import: false`.
+
 ### 5. Add settings only when they solve a real problem
 
 Typical useful settings:

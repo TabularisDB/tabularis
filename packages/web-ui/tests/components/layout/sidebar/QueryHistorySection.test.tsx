@@ -1,13 +1,18 @@
-import {fireEvent, render, screen, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {useState, type ComponentProps} from 'react';
-import {describe, expect, it, vi} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {QueryHistorySection} from '@/components/layout/sidebar/QueryHistorySection';
 import type {QueryHistoryEntry} from '@/types/queryHistory';
+
+const {downloadFile} = vi.hoisted(() => ({downloadFile: vi.fn()}));
+vi.mock('@/hooks/usePlatformCapabilities', () => ({
+    usePlatformCapabilities: () => ({downloadFile}),
+}));
 
 vi.mock('lucide-react', async (importOriginal) => await importOriginal());
 
 vi.mock('@/hooks/useSettings', () => ({
-    useSettings: () => ({settings: {displayTimezone: 'UTC'}}),
+    useSettings: () => ({settings: {displayTimezone: 'Asia/Tokyo'}}),
 }));
 vi.mock('@/components/ui/SqlHighlight', () => ({
     SqlHighlight: ({sql}: {sql: string}) => <pre>{sql}</pre>,
@@ -216,5 +221,296 @@ describe('QueryHistorySection database filter', () => {
 
         expect(databaseSelect().value).toBe('db:hr');
         expect(visibleIds()).toEqual(['b-hr']);
+    });
+});
+
+const timeRangeSelect = () =>
+    screen.getByRole('combobox', {
+        name: 'sidebar.historyTimeRangeFilter',
+    }) as HTMLSelectElement;
+const fromInput = () => screen.queryByLabelText('sidebar.historyDateFrom');
+const toInput = () => screen.queryByLabelText('sidebar.historyDateTo');
+
+describe('QueryHistorySection custom date range (#1226)', () => {
+    it('keeps From/To hidden until custom is selected', () => {
+        render(<PausableSection />);
+
+        expect(fromInput()).toBeNull();
+        expect(toInput()).toBeNull();
+        // The mode replaces the old standalone date fields, so it has to be a
+        // visible option of the select, not a hidden extra filter.
+        expect(
+            within(timeRangeSelect())
+                .getAllByRole('option')
+                .map((option) => option.textContent),
+        ).toEqual([
+            'sidebar.historyTimeAll',
+            'sidebar.historyTimeLastHour',
+            'sidebar.historyTimeToday',
+            'sidebar.historyTimeLast7Days',
+            'sidebar.historyTimeLast30Days',
+            'sidebar.historyTimeCustom',
+        ]);
+    });
+
+    it('reveals the date inputs when custom is selected', () => {
+        render(<PausableSection />);
+
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+
+        expect(fromInput()).not.toBeNull();
+        expect(toInput()).not.toBeNull();
+    });
+
+    it('drops the dates when switching back to a preset', () => {
+        render(<PausableSection />);
+
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        fireEvent.change(fromInput()!, {target: {value: '2026-10-01'}});
+        fireEvent.change(toInput()!, {target: {value: '2026-10-17'}});
+
+        fireEvent.change(timeRangeSelect(), {target: {value: 'today'}});
+
+        // A hidden bound would keep narrowing the list with no way to see or
+        // clear it, so leaving the mode has to drop both dates.
+        expect(fromInput()).toBeNull();
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        expect((fromInput() as HTMLInputElement).value).toBe('');
+        expect((toInput() as HTMLInputElement).value).toBe('');
+    });
+
+    it('resets the mode to All when the filters are cleared', () => {
+        render(<PausableSection />);
+
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        fireEvent.change(fromInput()!, {target: {value: '2026-10-01'}});
+
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyClearFilters'}));
+
+        expect(timeRangeSelect().value).toBe('all');
+        expect(fromInput()).toBeNull();
+    });
+
+    it('leaves no hidden database filter behind either', () => {
+        renderSection(CONNECTION_A);
+
+        fireEvent.change(databaseSelect(), {target: {value: 'db:sales'}});
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        // A window in the past, so the entries (all "now") match neither bound.
+        fireEvent.change(fromInput()!, {target: {value: '2026-01-01'}});
+        fireEvent.change(toInput()!, {target: {value: '2026-01-31'}});
+        expect(visibleIds()).toEqual([]);
+
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyClearFilters'}));
+
+        expect(databaseSelect().value).toBe('all');
+        expect(timeRangeSelect().value).toBe('all');
+        expect(visibleIds()).toEqual(['a-sales', 'a-hr', 'a-legacy']);
+    });
+});
+
+describe('QueryHistorySection custom date fields', () => {
+    it('opens the native picker when a date field is clicked', () => {
+        render(<PausableSection />);
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        const from = fromInput() as HTMLInputElement;
+        const showPicker = vi.fn();
+        from.showPicker = showPicker;
+
+        fireEvent.click(from);
+
+        // The native indicator is hidden to match the selects, so the click
+        // is the way to reach the calendar.
+        expect(showPicker).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps each label inside its field', () => {
+        render(<PausableSection />);
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+
+        const fromField = (fromInput() as HTMLInputElement).closest('label');
+        const toField = (toInput() as HTMLInputElement).closest('label');
+
+        expect(fromField).toHaveTextContent('sidebar.historyDateFrom');
+        expect(toField).toHaveTextContent('sidebar.historyDateTo');
+        expect(fromField).not.toBe(toField);
+    });
+});
+
+describe('QueryHistorySection export', () => {
+    beforeEach(() => {
+        downloadFile.mockReset().mockResolvedValue(true);
+    });
+
+    it('downloads only matching entries in the order displayed by date groups', async () => {
+        const entries = [
+            {...entry, id: 'old', sql: 'SELECT old', executedAt: '2020-01-01T12:00:00Z'},
+            {...entry, id: 'other-db', sql: 'SELECT excluded', database: 'other'},
+            {...entry, id: 'new', sql: 'SELECT new', executedAt: new Date().toISOString()},
+            {...entry, id: 'not-matching', sql: 'DELETE FROM users'},
+        ];
+        renderSection(entries);
+        fireEvent.change(databaseSelect(), {target: {value: 'db:main'}});
+        fireEvent.change(screen.getByPlaceholderText('sidebar.searchHistory'), {
+            target: {value: 'SELECT'},
+        });
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+
+        expect(downloadFile).toHaveBeenCalledTimes(1);
+        const request = downloadFile.mock.calls[0][0];
+        expect(request.fileName).toBe('query-history.sql');
+        expect(request.mimeType).toBe('application/sql');
+        const contents = new TextDecoder().decode(request.contents);
+        expect(contents).toContain('-- 2020-01-01 21:00:00 · success · 12 ms');
+        expect(contents).toContain('SELECT new;');
+        expect(contents).toContain('SELECT old;');
+        expect(contents.indexOf('SELECT new;')).toBeLessThan(contents.indexOf('SELECT old;'));
+        expect(contents).not.toContain('SELECT excluded');
+        expect(contents).not.toContain('DELETE FROM users');
+    });
+
+    it('disables export when filters leave no visible entries', () => {
+        renderSection([entry]);
+        fireEvent.change(screen.getByPlaceholderText('sidebar.searchHistory'), {
+            target: {value: 'no match'},
+        });
+        expect(screen.getByRole('button', {name: 'sidebar.exportHistory'})).toBeDisabled();
+        expect(downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed download and allows retrying', async () => {
+        downloadFile.mockRejectedValueOnce(new Error('Disk full'));
+        renderSection([entry]);
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+        expect(screen.getByRole('alert')).toHaveTextContent('sidebar.exportHistoryError');
+        expect(screen.getByRole('alert')).toHaveTextContent('Disk full');
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(downloadFile).toHaveBeenCalledTimes(2);
+    });
+
+    it('blocks another export while saving and treats cancellation as normal', async () => {
+        let finish: (saved: boolean) => void = () => {};
+        downloadFile.mockReturnValueOnce(
+            new Promise<boolean>((resolve) => {
+                finish = resolve;
+            }),
+        );
+        renderSection([entry]);
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        expect(screen.getByRole('button', {name: 'sidebar.exportHistory'})).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        expect(downloadFile).toHaveBeenCalledTimes(1);
+        await act(async () => {
+            finish(false);
+        });
+        expect(screen.getByRole('button', {name: 'sidebar.exportHistory'})).toBeEnabled();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+});
+
+const minDurationInput = () =>
+    screen.getByLabelText('sidebar.historyMinDurationFilter') as HTMLInputElement;
+const clearFiltersButton = () => screen.getByRole('button', {name: 'sidebar.historyClearFilters'});
+
+function timedEntry(id: string, executionTimeMs: number | null): QueryHistoryEntry {
+    return {...makeEntry(id, 'main'), executionTimeMs};
+}
+
+const TIMED = [
+    timedEntry('zero', 0),
+    timedEntry('fast', 10),
+    timedEntry('slow', 1500),
+    timedEntry('unknown', null),
+];
+
+describe('QueryHistorySection minimum duration filter (#1397)', () => {
+    it('shows every entry and no counter until a threshold is typed', () => {
+        renderSection(TIMED);
+
+        expect(minDurationInput().value).toBe('');
+        expect(minDurationInput()).toHaveAttribute('aria-invalid', 'false');
+        expect(visibleIds()).toEqual(['zero', 'fast', 'slow', 'unknown']);
+        expect(screen.queryByText(/ \/ /)).not.toBeInTheDocument();
+    });
+
+    it('keeps entries at or above the threshold and shows the filtered counter', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '10'}});
+
+        expect(visibleIds()).toEqual(['fast', 'slow']);
+        expect(screen.getByText('2 / 4')).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('treats zero as a threshold that hides entries without a duration', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '0'}});
+
+        expect(visibleIds()).toEqual(['zero', 'fast', 'slow']);
+        expect(screen.getByText('3 / 4')).toBeInTheDocument();
+    });
+
+    it('explains a negative threshold and matches nothing', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '-5'}});
+
+        expect(screen.getByRole('alert')).toHaveTextContent('sidebar.historyMinDurationNegative');
+        expect(minDurationInput()).toHaveAttribute('aria-invalid', 'true');
+        expect(visibleIds()).toEqual([]);
+        expect(screen.getByText('0 / 4')).toBeInTheDocument();
+    });
+
+    it('explains a nonnumeric threshold and keeps what was typed', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '5 seconds'}});
+
+        // The text stays so the user can see and fix it, unlike a number input
+        // that would silently drop it.
+        expect(minDurationInput().value).toBe('5 seconds');
+        expect(screen.getByRole('alert')).toHaveTextContent('sidebar.historyMinDurationInvalid');
+        expect(visibleIds()).toEqual([]);
+
+        fireEvent.change(minDurationInput(), {target: {value: '5'}});
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(visibleIds()).toEqual(['fast', 'slow']);
+    });
+
+    it('combines with the outcome filter and clears with the other filters', () => {
+        renderSection([...TIMED, {...timedEntry('slow-failure', 3000), status: 'error'}]);
+
+        fireEvent.change(minDurationInput(), {target: {value: '1000'}});
+        fireEvent.change(screen.getByRole('combobox', {name: 'sidebar.historyOutcomeFilter'}), {
+            target: {value: 'failed'},
+        });
+        expect(visibleIds()).toEqual(['slow-failure']);
+        expect(screen.getByText('1 / 5')).toBeInTheDocument();
+
+        fireEvent.click(clearFiltersButton());
+
+        expect(minDurationInput().value).toBe('');
+        expect(visibleIds()).toEqual(['zero', 'fast', 'slow', 'unknown', 'slow-failure']);
+        expect(screen.queryByText(/ \/ /)).not.toBeInTheDocument();
+    });
+
+    it('keeps its label inside the field', () => {
+        renderSection(TIMED);
+
+        const field = minDurationInput().closest('label');
+        expect(field).toHaveTextContent('sidebar.historyMinDuration');
+        expect(field).toHaveTextContent('sidebar.historyMinDurationUnit');
     });
 });

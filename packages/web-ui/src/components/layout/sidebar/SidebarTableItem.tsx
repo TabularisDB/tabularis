@@ -20,6 +20,8 @@ import type {ContextMenuData} from '@/types/sidebar';
 import type {DriverCapabilities} from '@/types/plugins';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {onActivationKey} from '@/utils/keyboardEvents';
+import {useExplorerExpanded} from '@/hooks/useExplorerExpanded';
+import {expansionKey} from '@/utils/explorerExpansion';
 
 interface SidebarTableItemProps {
     table: {name: string; comment?: string | null};
@@ -79,7 +81,10 @@ const SidebarTableItemImpl = ({
     void onAddForeignKey;
     void onDropForeignKey;
 
-    const [isExpanded, setIsExpanded] = useState(false);
+    const {isExpanded, setExpanded} = useExplorerExpanded(
+        expansionKey(connectionId, ['table', database, schema, table.name]),
+        false,
+    );
     const [columns, setColumns] = useState<TableColumn[]>([]);
     const [foreignKeys, setForeignKeys] = useState<ForeignKey[]>([]);
     const [indexes, setIndexes] = useState<Index[]>([]);
@@ -134,13 +139,33 @@ const SidebarTableItemImpl = ({
 
     const handleExpand = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setIsExpanded((prev) => !prev);
+        setExpanded(!isExpanded);
     };
 
     const handleContextMenu = (e: React.MouseEvent, type: string, name: string) => {
         e.preventDefault();
         e.stopPropagation();
-        onContextMenu(e, type, name, name, {tableName: table.name, schema, database});
+        const target = {connectionId, tableName: table.name, schema, database, name};
+        const objectDetails =
+            type === 'index'
+                ? {
+                      ...target,
+                      kind: 'index' as const,
+                      rows: indexes.filter((row) => row.name === name),
+                  }
+                : type === 'foreign_key'
+                  ? {
+                        ...target,
+                        kind: 'foreign_key' as const,
+                        rows: foreignKeys.filter((row) => row.name === name),
+                    }
+                  : undefined;
+        onContextMenu(e, type, name, name, {
+            tableName: table.name,
+            schema,
+            database,
+            objectDetails,
+        });
     };
 
     const groupedIndexes = React.useMemo(() => groupIndexes(indexes), [indexes]);
@@ -287,17 +312,9 @@ const SidebarTableItemImpl = ({
                                                     key={k.name}
                                                     className="flex items-center gap-2 px-3 py-1 text-xs text-secondary hover:bg-surface-secondary hover:text-primary cursor-pointer group font-mono"
                                                     title={k.columns.join(', ')}
-                                                    onContextMenu={
-                                                        canManage !== false
-                                                            ? (e) => {
-                                                                  handleContextMenu(
-                                                                      e,
-                                                                      'index',
-                                                                      k.name,
-                                                                  );
-                                                              }
-                                                            : undefined
-                                                    }
+                                                    onContextMenu={(e) => {
+                                                        handleContextMenu(e, 'index', k.name);
+                                                    }}
                                                 >
                                                     <Key
                                                         size={12}
@@ -335,20 +352,15 @@ const SidebarTableItemImpl = ({
                                     </span>
                                 </div>
                                 <div className="ml-4 border-l border-default/50">
-                                    {foreignKeys.map((fk) => (
+                                    {Array.from(
+                                        new Map(foreignKeys.map((fk) => [fk.name, fk])).values(),
+                                    ).map((fk) => (
                                         <div
                                             key={fk.name}
                                             className="flex items-center gap-2 px-3 py-1 text-xs text-secondary hover:bg-surface-secondary hover:text-primary cursor-pointer group font-mono"
                                             title={`${fk.column_name} -> ${fk.ref_table}.${fk.ref_column}`}
-                                            onContextMenu={
-                                                canManage !== false
-                                                    ? (e) =>
-                                                          handleContextMenu(
-                                                              e,
-                                                              'foreign_key',
-                                                              fk.name,
-                                                          )
-                                                    : undefined
+                                            onContextMenu={(e) =>
+                                                handleContextMenu(e, 'foreign_key', fk.name)
                                             }
                                         >
                                             <LinkIcon
@@ -373,10 +385,8 @@ const SidebarTableItemImpl = ({
                                         ? (e) => handleContextMenu(e, 'folder_indexes', 'indexes')
                                         : undefined
                                 }
-                                onIndexContextMenu={
-                                    canManage !== false
-                                        ? (e, name) => handleContextMenu(e, 'index', name)
-                                        : undefined
+                                onIndexContextMenu={(e, name) =>
+                                    handleContextMenu(e, 'index', name)
                                 }
                             />
                         </>

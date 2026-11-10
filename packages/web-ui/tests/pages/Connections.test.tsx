@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     reorderConnectionsInGroup: vi.fn(),
     settings: {autoConnectLastConnection: false},
     isSettingsLoading: false,
+    locationState: null as unknown,
 }));
 
 vi.mock('lucide-react', async (importOriginal) => ({
@@ -46,7 +47,7 @@ vi.mock('lucide-react', async (importOriginal) => ({
 
 vi.mock('react-router-dom', async (importOriginal) => ({
     ...(await importOriginal<typeof import('react-router-dom')>()),
-    useLocation: () => ({state: null}),
+    useLocation: () => ({state: mocks.locationState}),
     useNavigate: () => mocks.navigate,
 }));
 
@@ -415,5 +416,31 @@ describe('Connections folder drag', () => {
                 ['ch', 2],
             ]);
         });
+    });
+});
+
+describe('Connections link errors', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.connections = [];
+        mocks.loadConnections.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+        mocks.locationState = null;
+    });
+
+    it('explains why a connection link did not open', () => {
+        mocks.locationState = {connectionLinkError: 'Connection not found'};
+
+        render(<Connections />);
+
+        expect(screen.getByText('connections.linkUnavailable')).toBeInTheDocument();
+    });
+
+    it('shows no banner on a normal visit', () => {
+        render(<Connections />);
+
+        expect(screen.queryByText('connections.linkUnavailable')).not.toBeInTheDocument();
     });
 });

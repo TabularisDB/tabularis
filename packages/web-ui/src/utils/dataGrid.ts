@@ -8,6 +8,7 @@ import {formatBlobValue, isBlobColumn, isBlobWireFormat} from './blob';
 import {isJsonColumn} from './json';
 import type {ResultCommands} from '@/types/commands';
 import {escapeRegExp} from './escape';
+import type {FormatTone} from './conditionalFormatting';
 
 /** Sentinel value indicating that the database DEFAULT value should be used */
 export const USE_DEFAULT_SENTINEL = '__USE_DEFAULT__';
@@ -20,6 +21,12 @@ export const DATA_GRID_MIN_COLUMN_WIDTH = 48;
 
 /** Widest a data column can be resized to. */
 export const DATA_GRID_MAX_COLUMN_WIDTH = 2000;
+
+/** Transposed layout (#561): fixed width of each record column. */
+export const TRANSPOSED_RECORD_WIDTH = 220;
+
+/** Transposed layout (#561): width of the sticky field-name column. */
+export const TRANSPOSED_FIELD_LABEL_WIDTH = 220;
 
 /** Whether a database column stores UUID values supported by the grid. */
 export function isUuidColumnType(dataType: string): boolean {
@@ -238,6 +245,8 @@ interface DataGridResultCommandsInput {
     copySelectedColumns: () => void | Promise<void>;
     copyColumnValuesAsSqlIn: (columnIndex: number) => void | Promise<void>;
     copyAllLoadedRows: () => void | Promise<void>;
+    /** Hidden columns (#1299): a cell range copies only its visible columns. */
+    hiddenColIndices?: ReadonlySet<number>;
 }
 
 export function createDataGridResultCommands({
@@ -256,14 +265,17 @@ export function createDataGridResultCommands({
     copySelectedColumns,
     copyColumnValuesAsSqlIn,
     copyAllLoadedRows,
+    hiddenColIndices,
 }: DataGridResultCommandsInput): ResultCommands {
     const commands: ResultCommands = {};
 
     if (cellRange) {
+        let rangeColumns = 0;
+        for (let col = cellRange.minCol; col <= cellRange.maxCol; col++) {
+            if (!hiddenColIndices?.has(col)) rangeColumns++;
+        }
         commands.copySelectedCells = {
-            count:
-                (cellRange.maxRow - cellRange.minRow + 1) *
-                (cellRange.maxCol - cellRange.minCol + 1),
+            count: (cellRange.maxRow - cellRange.minRow + 1) * rangeColumns,
             execute: copyCellRange,
         };
     } else if (focusedCell) {
@@ -383,6 +395,71 @@ export function extendCellRange(
         return null;
     }
     return {range: buildCellRange(anchor, next), cursor: next};
+}
+
+const TRANSPOSED_ARROW_KEYS: Record<RangeExtendKey, RangeExtendKey> = {
+    ArrowUp: 'ArrowLeft',
+    ArrowDown: 'ArrowRight',
+    ArrowLeft: 'ArrowUp',
+    ArrowRight: 'ArrowDown',
+};
+
+/**
+ * Maps an arrow key as seen on screen to the logical direction it moves in.
+ * In the transposed layout (#561) fields run down and records run across, so
+ * ArrowDown means the next column and ArrowRight the next row.
+ */
+export function toLogicalArrowKey(key: RangeExtendKey, transposed: boolean): RangeExtendKey {
+    return transposed ? TRANSPOSED_ARROW_KEYS[key] : key;
+}
+
+/**
+ * Where a plain navigation key moves the focused cell, following what is on
+ * screen: arrows step one cell, Home/End jump to the first/last cell of the
+ * visual row, PageUp/PageDown move `pageStep` visual rows. Positions stay
+ * logical (result row, result column) in both layouts. Returns null for keys
+ * that don't move the focus.
+ */
+export function navigateCell(
+    key: string,
+    pos: CellPosition,
+    totalRows: number,
+    totalCols: number,
+    pageStep: number,
+    transposed = false,
+): CellPosition | null {
+    switch (key) {
+        case 'ArrowUp':
+        case 'ArrowDown':
+        case 'ArrowLeft':
+        case 'ArrowRight':
+            return moveCellPosition(pos, toLogicalArrowKey(key, transposed), totalRows, totalCols);
+        case 'Home':
+        case 'End':
+            return moveCellPosition(
+                pos,
+                toLogicalArrowKey(key === 'Home' ? 'ArrowLeft' : 'ArrowRight', transposed),
+                totalRows,
+                totalCols,
+                true,
+            );
+        case 'PageUp':
+        case 'PageDown': {
+            const delta = key === 'PageUp' ? -pageStep : pageStep;
+            if (transposed) {
+                return {
+                    ...pos,
+                    colIndex: Math.min(totalCols - 1, Math.max(0, pos.colIndex + delta)),
+                };
+            }
+            return {
+                ...pos,
+                rowIndex: Math.min(totalRows - 1, Math.max(0, pos.rowIndex + delta)),
+            };
+        }
+        default:
+            return null;
+    }
 }
 
 /**
@@ -862,4 +939,119 @@ export function getResizedTableWidth(
 ): number | undefined {
     if (!locked?.resized || !widths) return undefined;
     return widths.reduce((sum, w) => sum + w, 0);
+}
+
+/** Row-number gutter width before the grid has measured its columns. */
+export const DATA_GRID_GUTTER_FALLBACK_WIDTH = 50;
+
+/**
+ * Width of the collapsed border between the gutter and the first column. The
+ * table paints it where the column started, inside the column's box, so a
+ * sticky cell at the full gutter width leaves a 1px strip of scrolled content
+ * showing at the gutter edge.
+ */
+const DATA_GRID_GUTTER_BORDER_WIDTH = 1;
+
+export interface FrozenFirstColumnLayout {
+    /**
+     * Sticky `left` offset of the frozen column: right after the gutter, pulled
+     * under its shared border so the border strip is covered too.
+     */
+    left: number;
+    /**
+     * Scroll padding that keeps `scrollIntoView` from parking the active cell
+     * under the gutter and the frozen column.
+     */
+    scrollPaddingLeft: number;
+}
+
+/**
+ * Offsets for the frozen first data column (#1152). `columnWidths` are the
+ * locked widths (gutter first); before they are measured the gutter falls back
+ * to its CSS width and the frozen column adds no scroll padding.
+ */
+export function getFrozenFirstColumnLayout(
+    columnWidths: readonly number[] | null,
+): FrozenFirstColumnLayout {
+    const gutter = columnWidths?.[0] ?? DATA_GRID_GUTTER_FALLBACK_WIDTH;
+    return {
+        left: gutter - DATA_GRID_GUTTER_BORDER_WIDTH,
+        scrollPaddingLeft: gutter + (columnWidths?.[1] ?? 0),
+    };
+}
+
+export interface FrozenCellRowState {
+    isSelected: boolean;
+    isInsertion: boolean;
+    isPendingDelete: boolean;
+    isZebra: boolean;
+    /** Tone of a conditional formatting row rule (#991), or null. */
+    formatTone?: FormatTone | null;
+}
+
+/**
+ * Opaque backdrop of a frozen cell in a row painted by a rule (#991): the
+ * row tint of `FORMAT_ROW_CLASS` pre-mixed over the grid background. A muted
+ * row has no tint, so it keeps the plain backdrop.
+ */
+const FROZEN_FORMAT_BACKDROP_CLASS: Record<FormatTone, string> = {
+    danger: 'before:bg-[color-mix(in_srgb,var(--accent-error)_15%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--accent-error)_25%,var(--bg-elevated))]',
+    warning:
+        'before:bg-[color-mix(in_srgb,var(--accent-warning)_15%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--accent-warning)_25%,var(--bg-elevated))]',
+    success:
+        'before:bg-[color-mix(in_srgb,var(--accent-success)_15%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--accent-success)_25%,var(--bg-elevated))]',
+    info: 'before:bg-[color-mix(in_srgb,var(--accent-info)_15%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--accent-info)_25%,var(--bg-elevated))]',
+    muted: 'before:bg-elevated group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_50%,var(--bg-elevated))]',
+};
+
+// Both layers sit under the cell content. `::before` is the opaque row
+// background, `::after` repaints the cell's own tint (selection, edits) on top.
+// Collapsed table borders stay where the column started, so `::before` also
+// draws the frozen column's right border.
+const FROZEN_CELL_LAYERS =
+    'before:absolute before:inset-0 before:-z-10 before:pointer-events-none before:transition-colors before:border-r before:border-default after:absolute after:inset-0 after:-z-10 after:pointer-events-none after:bg-inherit';
+
+/**
+ * Frozen header cell: the header background under its own tint, stacked below
+ * the gutter header (z-20).
+ */
+export const FROZEN_HEADER_CELL_CLASS = `sticky z-[15] ${FROZEN_CELL_LAYERS} before:bg-base`;
+
+/**
+ * Sticky field-name cell of the transposed layout (#561): the header
+ * background under its own tint, at the frozen body-cell layer so it stays
+ * below the sticky header row.
+ */
+export const TRANSPOSED_FIELD_LABEL_CLASS = `sticky left-0 z-[5] ${FROZEN_CELL_LAYERS} before:bg-base`;
+
+/**
+ * Field label of the frozen first row when transposed: above the frozen row's
+ * cells and the other labels scrolling under it, still below the header row.
+ */
+export const TRANSPOSED_FROZEN_FIELD_LABEL_CLASS = `sticky left-0 z-[6] ${FROZEN_CELL_LAYERS} before:bg-base`;
+
+/**
+ * Backdrop for a frozen (sticky) body cell. The row tints are translucent, so
+ * a sticky cell would show the cells scrolling under it; this paints the same
+ * tint pre-mixed over the grid background instead. Mirrors the row classes in
+ * DataGridRow, in the same precedence.
+ */
+export function getFrozenCellBackdropClass(row: FrozenCellRowState): string {
+    let backdrop: string;
+    if (row.isSelected) {
+        backdrop = 'before:bg-[color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-elevated))]';
+    } else if (row.isInsertion) {
+        backdrop = 'before:bg-[color-mix(in_srgb,var(--semantic-new)_8%,var(--bg-elevated))]';
+    } else if (row.isPendingDelete) {
+        backdrop = 'before:bg-[color-mix(in_srgb,var(--semantic-deleted)_10%,var(--bg-elevated))]';
+    } else if (row.formatTone) {
+        backdrop = FROZEN_FORMAT_BACKDROP_CLASS[row.formatTone];
+    } else if (row.isZebra) {
+        backdrop =
+            'before:bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_90%,var(--bg-elevated))]';
+    } else {
+        backdrop =
+            'before:bg-elevated group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_50%,var(--bg-elevated))]';
+    }
+    return `${FROZEN_CELL_LAYERS} ${backdrop}`;
 }

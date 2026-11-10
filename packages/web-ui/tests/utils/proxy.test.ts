@@ -71,8 +71,12 @@ describe('proxy types', () => {
         expect(proxyKeychainConnection('abc')).toBe('proxy:connection:abc');
     });
 
-    it('default global proxy is disabled with empty scopes', () => {
-        expect(DEFAULT_GLOBAL_PROXY.enabled).toBe(false);
-        expect(DEFAULT_GLOBAL_PROXY.scopes).toEqual({});
+    it('defaults HTTP to System and TCP to Disabled', () => {
+        expect(DEFAULT_GLOBAL_PROXY.modes).toEqual({
+            app_http: 'system',
+            ai: 'system',
+            database: 'disabled',
+            ssh_tunnel: 'disabled',
+        });
     });
 });

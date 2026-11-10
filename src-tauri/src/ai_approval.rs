@@ -165,10 +165,8 @@ pub async fn poll_decision_in(
     timeout_secs: u64,
     poll_interval_ms: u64,
 ) -> Result<Option<ApprovalDecision>, String> {
-    match poll_decision_with_liveness_in(base, approval_id, timeout_secs, poll_interval_ms, || {
-        true
-    })
-    .await?
+    match poll_decision_with_liveness_in(base, approval_id, timeout_secs, poll_interval_ms, || true)
+        .await?
     {
         PollOutcome::Decided(d) => Ok(Some(d)),
         PollOutcome::TimedOut => Ok(None),

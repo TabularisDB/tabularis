@@ -154,7 +154,6 @@ fn shutdown_hooks_run_without_a_tauri_runtime() {
     assert_eq!(calls.load(Ordering::Relaxed), 1);
 }
 
-
 #[tokio::test]
 async fn approval_heartbeat_lives_only_for_its_runtime_lifecycle() {
     let root = tempfile::tempdir().unwrap();
@@ -181,7 +180,8 @@ async fn approval_heartbeat_lives_only_for_its_runtime_lifecycle() {
     filetime::set_file_mtime(
         crate::heartbeat::heartbeat_path_in(root.path()),
         filetime::FileTime::from_system_time(expired),
-    ).unwrap();
+    )
+    .unwrap();
     assert!(!crate::heartbeat::is_alive_in(root.path()));
 }
 
