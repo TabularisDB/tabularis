@@ -615,6 +615,63 @@ async fn minimax_retries_its_other_region_after_a_failure() {
 }
 
 #[tokio::test]
+async fn api_route_overlapping_refresh_preserves_latest_cache() {
+    for (status, response, expected) in [
+        (
+            200,
+            json!({"data":[{"id":"warm-model"}]}),
+            vec!["warm-model"],
+        ),
+        (503, json!({"error":"unavailable"}), vec!["fresh-api-route"]),
+        (200, json!({"unexpected":true}), vec!["fresh-api-route"]),
+        (200, json!({"data":[]}), vec![]),
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let mut runtime = RuntimeContext::system();
+        runtime.paths = std::sync::Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            temp.path().to_path_buf(),
+            temp.path().to_path_buf(),
+        ));
+        let original = AiModelsCache {
+            last_updated: 123,
+            models: HashMap::from([
+                ("openai".into(), vec!["stale-openai".into()]),
+                ("api-route".into(), vec!["stale-api-route".into()]),
+            ]),
+        };
+        fs::write(
+            get_cache_path(&runtime),
+            serde_json::to_vec(&original).unwrap(),
+        )
+        .unwrap();
+        let fixture = Fixture::new(true, vec![(status, response)]);
+        let mut request = Box::pin(api_route::models_with_cache(
+            &runtime,
+            &fixture.client,
+            "fixture-key",
+        ));
+        // Suspend the warm refresh at network I/O, then finish a forced refresh.
+        std::future::poll_fn(|cx| {
+            assert!(std::future::Future::poll(request.as_mut(), cx).is_pending());
+            std::task::Poll::Ready(())
+        })
+        .await;
+        let fresh = HashMap::from([
+            ("openai".into(), vec!["fresh-openai".into()]),
+            ("api-route".into(), vec!["fresh-api-route".into()]),
+        ]);
+        save_cache(&runtime, &fresh);
+        let timestamp = load_cache(&runtime).unwrap().last_updated;
+        assert_eq!(request.await, expected);
+        fixture.requests.join().unwrap();
+        let persisted = load_cache(&runtime).unwrap();
+        assert_eq!(persisted.models["openai"], fresh["openai"]);
+        assert_eq!(persisted.models["api-route"], expected);
+        assert_eq!(persisted.last_updated, timestamp);
+    }
+}
+
+#[tokio::test]
 async fn api_route_warm_success_survives_failed_refresh_without_extending_cache_age() {
     let temp = tempfile::tempdir().unwrap();
     let mut runtime = RuntimeContext::system();

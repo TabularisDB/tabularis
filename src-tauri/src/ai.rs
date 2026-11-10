@@ -8,6 +8,7 @@ use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub mod inline;
@@ -151,7 +152,14 @@ fn get_cache_path(runtime: &RuntimeContext) -> std::path::PathBuf {
     runtime.paths.config_dir().join("ai_models_cache.json")
 }
 
+static MODEL_CACHE_LOCK: Mutex<()> = Mutex::new(());
+
 fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
+    let _guard = MODEL_CACHE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    load_cache_unlocked(runtime)
+}
+
+fn load_cache_unlocked(runtime: &RuntimeContext) -> Option<AiModelsCache> {
     let path = get_cache_path(runtime);
     if path.exists() {
         let content = fs::read_to_string(path).ok()?;
@@ -162,6 +170,7 @@ fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
 }
 
 fn save_cache(runtime: &RuntimeContext, models: &HashMap<String, Vec<String>>) {
+    let _guard = MODEL_CACHE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let path = get_cache_path(runtime);
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -406,6 +415,7 @@ async fn fetch_custom_openai_models_with_client(
 // --- Commands ---
 
 pub fn clear_models_cache(runtime: &RuntimeContext) -> Result<(), String> {
+    let _guard = MODEL_CACHE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let path = get_cache_path(runtime);
     if path.exists() {
         fs::remove_file(path).map_err(|e| e.to_string())?;

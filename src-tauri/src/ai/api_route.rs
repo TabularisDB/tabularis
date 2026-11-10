@@ -21,13 +21,19 @@ pub(super) async fn models_with_cache(
     client: &Client,
     key: &str,
 ) -> Vec<String> {
-    let mut cached = super::load_cache(runtime);
+    let fetched = fetch_models(client, key).await;
+    let _guard = super::MODEL_CACHE_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let mut cached = super::load_cache_unlocked(runtime);
     let previous = cached
         .as_ref()
         .and_then(|entry| entry.models.get("api-route"))
         .cloned()
         .unwrap_or_default();
-    let models = models_with_client(client, key, previous).await;
+    let Ok(models) = fetched else {
+        return previous;
+    };
     if let Some(entry) = cached.as_mut() {
         entry.models.insert("api-route".into(), models.clone());
         if let Ok(content) = serde_json::to_string(entry) {
@@ -39,27 +45,25 @@ pub(super) async fn models_with_cache(
     models
 }
 
+#[cfg(test)]
 pub(super) async fn models_with_client(
     client: &Client,
     key: &str,
     cached_models: Vec<String>,
 ) -> Vec<String> {
+    fetch_models(client, key).await.unwrap_or(cached_models)
+}
+
+async fn fetch_models(client: &Client, key: &str) -> Result<Vec<String>, reqwest::Error> {
     if key.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
-    let Ok(response) = client
+    let response = client
         .get(format!("{BASE_URL}/models"))
         .bearer_auth(key)
         .send()
-        .await
-    else {
-        return cached_models;
-    };
-    if !response.status().is_success() {
-        return cached_models;
-    }
-    match response.json::<OpenAiModelList>().await {
-        Ok(models) => models.data.into_iter().map(|model| model.id).collect(),
-        Err(_) => cached_models,
-    }
+        .await?
+        .error_for_status()?;
+    let models = response.json::<OpenAiModelList>().await?;
+    Ok(models.data.into_iter().map(|model| model.id).collect())
 }
