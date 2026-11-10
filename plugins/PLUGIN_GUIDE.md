@@ -1339,10 +1339,13 @@ Execute a SQL query and return results.
 {
   "params": ConnectionParams,
   "query": "SELECT * FROM users",
+  "limit": 100,
   "page": 1,
-  "page_size": 100
+  "schema": null
 }
 ```
+
+`limit` and `schema` are `null` when the caller did not pick them; `page` is 1-based.
 
 **Result:**
 ```json
@@ -1351,10 +1354,15 @@ Execute a SQL query and return results.
   "rows": [
     [1, "Alice", "alice@example.com"]
   ],
-  "total_count": 1,
-  "execution_time_ms": 12
+  "affected_rows": 0,
+  "truncated": false,
+  "pagination": { "page": 1, "page_size": 100, "total_rows": 1, "has_more": false },
+  "server_time_ms": 10.5,
+  "fetch_time_ms": 1.2
 }
 ```
+
+`columns`, `rows` and `affected_rows` are required. `truncated` defaults to `false`, and `pagination` and the timing fields are optional. Report `truncated: true` when the query produced more rows than you returned, so the caller sees the cut-off instead of a complete-looking result.
 
 ---
 
@@ -2261,8 +2269,8 @@ fn dispatch(method: &str, params: &Value, id: Value) -> Value {
                 "result": {
                     "columns": ["id", "name"],
                     "rows": [[1, "Alice"]],
-                    "total_count": 1,
-                    "execution_time_ms": 5
+                    "affected_rows": 0,
+                    "truncated": false
                 },
                 "id": id
             })
