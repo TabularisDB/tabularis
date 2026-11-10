@@ -22,8 +22,45 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
+use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::{config::SslMode as PgSslMode, Config as PgConfig};
 use tokio_postgres_rustls::MakeRustlsConnect;
+
+/// A `MakeTlsConnect` wrapper around `MakeRustlsConnect` that gracefully handles
+/// Unix socket connections (which have no DNS hostname). `tokio_postgres` passes
+/// `hostname.unwrap_or("")` to `make_tls_connect` before entering its SSL-disabled
+/// branch; `MakeRustlsConnect` rejects an empty string as `InvalidDnsNameError`.
+/// For empty hostnames, we supply `"localhost"` so construction succeeds. For TCP
+/// connections, the real hostname is passed through unchanged to preserve chain
+/// and hostname validation.
+#[derive(Clone)]
+pub(crate) struct PostgresTlsConnector {
+    inner: MakeRustlsConnect,
+}
+
+impl PostgresTlsConnector {
+    pub fn new(inner: MakeRustlsConnect) -> Self {
+        Self { inner }
+    }
+}
+
+impl<S> MakeTlsConnect<S> for PostgresTlsConnector
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
+    type Stream = <MakeRustlsConnect as MakeTlsConnect<S>>::Stream;
+    type TlsConnect = <MakeRustlsConnect as MakeTlsConnect<S>>::TlsConnect;
+    type Error = <MakeRustlsConnect as MakeTlsConnect<S>>::Error;
+
+    fn make_tls_connect(&mut self, hostname: &str) -> Result<Self::TlsConnect, Self::Error> {
+        let host = if hostname.is_empty() {
+            "localhost"
+        } else {
+            hostname
+        };
+        <MakeRustlsConnect as MakeTlsConnect<S>>::make_tls_connect(&mut self.inner, host)
+    }
+}
 
 /// Walks `Error::source()` to surface the real cause, which `tokio_postgres`
 /// hides behind a generic "error performing TLS handshake".
@@ -722,7 +759,7 @@ pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> Result
 /// An unrecognised `ssl_mode` is an error. Unset keeps `prefer`.
 pub(crate) fn build_postgres_tls_connector(
     params: &ConnectionParams,
-) -> Result<MakeRustlsConnect, String> {
+) -> Result<PostgresTlsConnector, String> {
     ensure_rustls_crypto_provider();
     let ssl_mode = parse_postgres_ssl_mode(
         non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("prefer"),
@@ -810,7 +847,7 @@ pub(crate) fn build_postgres_tls_connector(
         None => builder.with_no_client_auth(),
     };
 
-    Ok(MakeRustlsConnect::new(config))
+    Ok(PostgresTlsConnector::new(MakeRustlsConnect::new(config)))
 }
 
 /// Load client certificate chain and private key from PEM files for mTLS.
@@ -1089,7 +1126,7 @@ async fn run_sqlite_startup_script(
 /// so side effects are applied only by the per-connection `post_create` hook.
 async fn run_postgres_startup_script(
     cfg: &PgConfig,
-    tls: MakeRustlsConnect,
+    tls: PostgresTlsConnector,
     script: &str,
 ) -> Result<(), String> {
     let (mut client, connection) = cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
