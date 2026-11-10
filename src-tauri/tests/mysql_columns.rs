@@ -380,11 +380,7 @@ async fn rename_keeps_defaults(
             format!("{name}_renamed {rest}")
         })
         .collect();
-    assert_eq!(
-        defaults(&renamed),
-        expected_renamed,
-        "{table}: after renaming"
-    );
+    assert_eq!(defaults(&renamed), expected_renamed, "{table}: after renaming");
 }
 
 #[tokio::test]

@@ -168,7 +168,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&params).expect("serialize params");
-        let restored: ConnectionParams = serde_json::from_str(&json).expect("deserialize params");
+        let restored: ConnectionParams =
+            serde_json::from_str(&json).expect("deserialize params");
         assert_eq!(restored.default_database.as_deref(), Some("app/main"));
         assert_eq!(restored.database, DatabaseSelection::Single(String::new()));
 

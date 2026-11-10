@@ -1611,17 +1611,11 @@ async fn routes_ai_commands_through_the_shared_application_api() {
         ),
         ("get_ai_models", serde_json::json!({"forceRefresh": false})),
         ("generate_ai_query", generate),
-        (
-            "complete_ai_inline",
-            serde_json::json!({"req": {
-                "requestId": "inline-contract", "provider": "ollama", "model": "local",
-                "prefix": "SELECT ", "suffix": "", "schema": "", "dialect": "postgres"
-            }}),
-        ),
-        (
-            "cancel_ai_inline",
-            serde_json::json!({"requestId": "inline-contract"}),
-        ),
+        ("complete_ai_inline", serde_json::json!({"req": {
+            "requestId": "inline-contract", "provider": "ollama", "model": "local",
+            "prefix": "SELECT ", "suffix": "", "schema": "", "dialect": "postgres"
+        }})),
+        ("cancel_ai_inline", serde_json::json!({"requestId": "inline-contract"})),
         ("explain_ai_query", explain.clone()),
         ("analyze_ai_explain_plan", explain.clone()),
         ("analyze_ai_crash_report", explain),
