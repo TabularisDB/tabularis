@@ -132,6 +132,54 @@
     "beta": "Beta",
     "dismiss": "Fechar"
   },
+  "linkedFolders": {
+    "tab": "Arquivos SQL",
+    "chooseTitle": "Escolha uma pasta de scripts SQL",
+    "link": "Vincular pasta",
+    "refresh": "Atualizar Arquivos SQL",
+    "empty": "Vincule uma pasta para navegar pelos scripts SQL.",
+    "needsConnection": "Conecte-se a um banco de dados antes de abrir um arquivo SQL.",
+    "linkError": "Não foi possível vincular a pasta",
+    "unlinkError": "Não foi possível desvincular a pasta",
+    "unlink": "Desvincular {{name}}",
+    "rootUnavailable": "Indisponível",
+    "fileUnsaved": "{{name}} (alterações não salvas)",
+    "unavailableTitle": "Arquivos SQL não estão disponíveis aqui",
+    "unavailableMessage": "Vincular uma pasta local exige o app desktop. No navegador, use Abrir arquivo SQL para importar um arquivo.",
+    "status": {
+      "loading": "Carregando…",
+      "empty": "Nenhum arquivo SQL",
+      "truncated": "Apenas as primeiras entradas são exibidas"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "Não foi possível ler a lista salva de pastas vinculadas. Corrija ou remova linked_folders.json na pasta de configuração.",
+      "linked_folder_not_found": "Esta pasta vinculada não está mais na sua lista.",
+      "linked_folder_unavailable": "A pasta não existe ou não pode ser lida.",
+      "linked_folder_limit_reached": "Número máximo de pastas vinculadas atingido. Desvincule uma primeiro.",
+      "linked_path_outside_root": "O caminho está fora da pasta vinculada.",
+      "linked_path_not_sql_file": "Apenas arquivos .sql, .psql e .pgsql podem ser abertos aqui.",
+      "linked_directory_unreadable": "Não é possível ler esta pasta.",
+      "linked_file_unreadable": "Não é possível ler este arquivo. Ele pode estar ausente, grande demais ou não ser UTF-8.",
+      "linked_file_too_large": "Este arquivo é grande demais para salvar (limite de 50 MB).",
+      "linked_file_write_failed": "Não foi possível gravar o arquivo. Verifique as permissões e o espaço livre em disco.",
+      "linked_file_conflict_modified": "O arquivo mudou no disco.",
+      "linked_file_conflict_missing": "O arquivo não existe mais no disco."
+    },
+    "conflict": {
+      "reload": "Recarregar do disco",
+      "saveAs": "Salvar como cópia…",
+      "modified": {
+        "title": "Arquivo alterado no disco",
+        "message": "{{name}} foi modificado fora do Tabularis desde que você o abriu ou salvou pela última vez. Nada foi gravado. Sobrescreva o arquivo com sua versão, salve-a como cópia ou recarregue a versão do disco descartando suas edições.",
+        "overwrite": "Sobrescrever arquivo"
+      },
+      "missing": {
+        "title": "Arquivo ausente no disco",
+        "message": "{{name}} foi excluído ou movido fora do Tabularis. Suas edições continuam no editor. Recrie o arquivo com sua versão ou salve-o como cópia em outro lugar.",
+        "overwrite": "Recriar arquivo"
+      }
+    }
+  },
   "sidebar": {
     "connections": "Conexões",
     "settings": "Configurações",

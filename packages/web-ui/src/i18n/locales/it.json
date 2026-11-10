@@ -162,6 +162,54 @@
     "beta": "Beta",
     "dismiss": "Chiudi"
   },
+  "linkedFolders": {
+    "tab": "File SQL",
+    "chooseTitle": "Scegli una cartella di script SQL",
+    "link": "Collega cartella",
+    "refresh": "Aggiorna File SQL",
+    "empty": "Collega una cartella per sfogliare i suoi script SQL.",
+    "needsConnection": "Connettiti a un database prima di aprire un file SQL.",
+    "linkError": "Impossibile collegare la cartella",
+    "unlinkError": "Impossibile scollegare la cartella",
+    "unlink": "Scollega {{name}}",
+    "rootUnavailable": "Non disponibile",
+    "fileUnsaved": "{{name}} (modifiche non salvate)",
+    "unavailableTitle": "I File SQL non sono disponibili qui",
+    "unavailableMessage": "Collegare una cartella locale richiede l'app desktop. Nel browser usa Apri file SQL per importare un file.",
+    "status": {
+      "loading": "Caricamento…",
+      "empty": "Nessun file SQL",
+      "truncated": "Sono mostrate solo le prime voci"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "L'elenco salvato delle cartelle collegate non è leggibile. Correggi o rimuovi linked_folders.json nella cartella di configurazione.",
+      "linked_folder_not_found": "Questa cartella collegata non è più nell'elenco.",
+      "linked_folder_unavailable": "La cartella non esiste o non è leggibile.",
+      "linked_folder_limit_reached": "Raggiunto il numero massimo di cartelle collegate. Scollegane una prima.",
+      "linked_path_outside_root": "Il percorso è fuori dalla cartella collegata.",
+      "linked_path_not_sql_file": "Qui si possono aprire solo file .sql, .psql e .pgsql.",
+      "linked_directory_unreadable": "Impossibile leggere questa cartella.",
+      "linked_file_unreadable": "Impossibile leggere questo file. Potrebbe mancare, essere troppo grande o non UTF-8.",
+      "linked_file_too_large": "Questo file è troppo grande per essere salvato (limite 50 MB).",
+      "linked_file_write_failed": "Impossibile scrivere il file. Controlla i permessi e lo spazio libero su disco.",
+      "linked_file_conflict_modified": "Il file è cambiato su disco.",
+      "linked_file_conflict_missing": "Il file non esiste più su disco."
+    },
+    "conflict": {
+      "reload": "Ricarica dal disco",
+      "saveAs": "Salva come copia…",
+      "modified": {
+        "title": "File modificato su disco",
+        "message": "{{name}} è stato modificato fuori da Tabularis da quando l'hai aperto o salvato l'ultima volta. Non è stato scritto nulla. Sovrascrivi il file con la tua versione, salvala come copia o ricarica la versione su disco scartando le modifiche.",
+        "overwrite": "Sovrascrivi file"
+      },
+      "missing": {
+        "title": "File mancante su disco",
+        "message": "{{name}} è stato eliminato o spostato fuori da Tabularis. Le tue modifiche restano nell'editor. Ricrea il file con la tua versione o salvalo come copia altrove.",
+        "overwrite": "Ricrea file"
+      }
+    }
+  },
   "sidebar": {
     "connections": "Connessioni",
     "settings": "Impostazioni",
