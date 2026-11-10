@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useNavigate} from 'react-router-dom';
 import {PLUGIN_INSTALL_DEADLINE_MS} from '@/api/pluginLifecycle';
@@ -69,6 +69,18 @@ export function useOpenDataFile(): OpenDataFile {
     const {refresh: refreshDrivers} = useDrivers();
     const [stage, setStage] = useState<OpenDataFileStage>({kind: 'idle'});
     const busy = useRef(false);
+    /** A prompt or an error is on screen, waiting for the user. */
+    const prompting = useRef(false);
+    /**
+     * Files requested while another open was running or a prompt was showing.
+     * The system can hand files over at any time ("Open with" launches the app
+     * once per selected file); they open as soon as the current flow is over.
+     */
+    const waiting = useRef<DataFileInput[]>([]);
+    const openRef = useRef<(files: readonly DataFileInput[]) => Promise<void>>(async () => {});
+    const openWaiting = useCallback(() => {
+        if (waiting.current.length > 0) void openRef.current(waiting.current.splice(0));
+    }, []);
 
     const openReady = useCallback(
         async (
@@ -143,19 +155,27 @@ export function useOpenDataFile(): OpenDataFile {
         async (files: readonly DataFileInput[], step: () => Promise<OpenDataFileStage>) => {
             if (busy.current) return;
             busy.current = true;
+            let next: OpenDataFileStage;
             try {
-                setStage(await step());
+                next = await step();
             } catch (error) {
-                setStage({kind: 'error', files, message: toErrorMessage(error)});
+                next = {kind: 'error', files, message: toErrorMessage(error)};
             } finally {
                 busy.current = false;
             }
+            prompting.current = next.kind !== 'idle';
+            setStage(next);
+            if (!prompting.current) openWaiting();
         },
-        [],
+        [openWaiting],
     );
 
     const open = useCallback(
         async (requested?: readonly DataFileInput[]) => {
+            if (busy.current || prompting.current) {
+                if (requested) waiting.current.push(...requested);
+                return;
+            }
             await run(requested ?? [], async () => {
                 const drivers = await client.call('get_registered_drivers', undefined);
                 let files = requested;
@@ -227,9 +247,16 @@ export function useOpenDataFile(): OpenDataFile {
         });
     }, [client, openReady, refreshDrivers, run, stage, t, updateSetting]);
 
+    useEffect(() => {
+        openRef.current = open;
+    }, [open]);
+
     const dismiss = useCallback(() => {
-        if (!busy.current) setStage({kind: 'idle'});
-    }, []);
+        if (busy.current) return;
+        prompting.current = false;
+        setStage({kind: 'idle'});
+        openWaiting();
+    }, [openWaiting]);
 
     return {stage, open, installAndOpen, dismiss};
 }

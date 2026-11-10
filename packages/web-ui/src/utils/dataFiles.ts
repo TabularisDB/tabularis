@@ -101,6 +101,12 @@ export async function prepareDataFileSource(
     return {uploadToken: metadata.token};
 }
 
+/** A data file at a host path, as the system passes it on "Open with". */
+export function dataFileFromPath(path: string): DataFileInput {
+    const name = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+    return {name, reference: path};
+}
+
 /** Whether a drag carries files from outside the page (not an in-app drag). */
 export function isFileDrag(types: readonly string[] | undefined): boolean {
     return types?.includes('Files') === true;

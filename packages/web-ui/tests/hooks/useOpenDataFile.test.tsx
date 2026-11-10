@@ -303,6 +303,66 @@ describe('useOpenDataFile', () => {
         });
     });
 
+    it('opens files requested during another open once it has finished', async () => {
+        const releases: (() => void)[] = [];
+        mocks.call.mockImplementation((command: string) => {
+            if (command === 'get_registered_drivers') return Promise.resolve([duckdb]);
+            return new Promise((resolve) => releases.push(() => resolve(opened)));
+        });
+        const second = {name: 'second.csv', reference: '/data/second.csv'};
+        const third = {name: 'third.csv', reference: '/data/third.csv'};
+        const {result} = renderHook(() => useOpenDataFile());
+
+        let first: Promise<void> = Promise.resolve();
+        await act(async () => {
+            first = result.current.open([picked]);
+            await Promise.resolve();
+        });
+        await act(() => result.current.open([second]));
+        await act(() => result.current.open([third]));
+        const openCalls = () =>
+            mocks.call.mock.calls.filter(([command]) => command === 'open_data_file');
+        expect(openCalls()).toHaveLength(1);
+
+        await act(async () => {
+            releases[0]();
+            await first;
+        });
+        // The two waiting files open together, in the order they arrived.
+        await act(async () => {
+            releases[1]();
+            await Promise.resolve();
+        });
+        await act(async () => {
+            releases[2]();
+            await Promise.resolve();
+        });
+
+        expect(openCalls().map(([, request]) => (request as {filePath: string}).filePath)).toEqual([
+            '/data/orders.csv',
+            '/data/second.csv',
+            '/data/third.csv',
+        ]);
+        expect(result.current.stage).toEqual({kind: 'idle'});
+    });
+
+    it('keeps files that arrive during a prompt until the user answers it', async () => {
+        backend({drivers: [sqlite]});
+        const later = {name: 'later.csv', reference: '/data/later.csv'};
+        const {result} = renderHook(() => useOpenDataFile());
+        await act(() => result.current.open([picked]));
+        expect(result.current.stage.kind).toBe('plugin-required');
+
+        await act(() => result.current.open([later]));
+        expect(result.current.stage).toEqual({kind: 'plugin-required', files: [picked]});
+
+        await act(async () => {
+            result.current.dismiss();
+            await Promise.resolve();
+        });
+        expect(result.current.stage).toEqual({kind: 'plugin-required', files: [later]});
+    });
+
     it('keeps a quick open silent and reveals a slow one', async () => {
         vi.useFakeTimers();
         let finishOpen: (value: typeof opened) => void = () => undefined;
@@ -321,8 +381,8 @@ describe('useOpenDataFile', () => {
         });
         expect(result.current.stage).toEqual({kind: 'opening', files: [picked], quiet: true});
 
-        // A second request is ignored while the first one runs.
-        await act(() => result.current.open([picked]));
+        // Asking to pick another file is ignored while the first one opens.
+        await act(() => result.current.open());
         act(() => result.current.dismiss());
         expect(result.current.stage.kind).toBe('opening');
 

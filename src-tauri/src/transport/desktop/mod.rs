@@ -13,6 +13,7 @@ pub mod config;
 pub mod connection_appearance;
 pub mod connection_import_commands;
 pub mod connection_window;
+pub mod data_files;
 #[cfg(test)]
 mod connection_window_tests;
 pub mod database_backup;
@@ -92,11 +93,19 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         //
         // Order matters: must be the FIRST plugin in the chain so it can
         // intercept duplicate launches before any heavy initialisation.
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             log::info!("Duplicate launch detected — forwarded to existing instance");
             if let Some(url) = argv.iter().find(|a| a.starts_with("tabularis:")) {
                 crate::transport::desktop::plugins::deep_link::handle_url(app, url);
             }
+            // "Open with" while the app is running: the files arrive as argv.
+            data_files::queue(
+                app,
+                crate::application::data_files::launch_data_files(
+                    argv.iter().skip(1),
+                    Some(std::path::Path::new(&cwd)),
+                ),
+            );
             if let Some(win) = tauri::Manager::get_webview_window(app, "main") {
                 let _ = win.unminimize();
                 let _ = win.set_focus();
@@ -141,6 +150,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         .manage(application_state.pending_explain_file.clone())
         .manage(application_state.clone())
         .manage(window_placement::WindowPlacementCache::default())
+        .manage(data_files::PendingDataFiles::default())
         .setup(move |app| {
             #[cfg(target_os = "linux")]
             system_theme::watch(app.handle().clone());
@@ -297,6 +307,17 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
                 }
             }
 
+            // Data files passed on the command line, which is how a file
+            // manager's "Open with" starts the app. The frontend collects them
+            // once it has mounted.
+            data_files::queue(
+                app.handle(),
+                crate::application::data_files::launch_data_files(
+                    args.files.iter().map(|file| file.to_string_lossy()),
+                    std::env::current_dir().ok().as_deref(),
+                ),
+            );
+
             // If the user launched with `--explain <FILE>`, spawn the Visual
             // Explain window and hide the main app window: the CLI flag is
             // meant to be a dedicated plan viewer, not a full app launch.
@@ -347,6 +368,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             sqlite_database::create_sqlite_file,
             commands::create_sqlite_database,
             commands::open_data_file,
+            data_files::consume_pending_data_files,
             commands::delete_connection,
             commands::update_connection,
             commands::duplicate_connection,
@@ -669,6 +691,18 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |app_handle, event| {
+            // macOS delivers "Open with" and dropped-on-Dock files as an event,
+            // not as arguments, both at launch and while running.
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            if let tauri::RunEvent::Opened { urls } = &event {
+                data_files::queue(
+                    app_handle,
+                    crate::application::data_files::launch_data_files(
+                        urls.iter().map(|url| url.as_str()),
+                        None,
+                    ),
+                );
+            }
             // Cmd+Q and relaunch paths can exit without CloseRequested.
             if matches!(&event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
                 window_placement::persist_cached(app_handle);

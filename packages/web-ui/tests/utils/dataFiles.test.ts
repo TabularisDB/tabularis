@@ -7,6 +7,7 @@ import {
     classifyDataFiles,
     dataFileDialogExtensions,
     dataFileFormat,
+    dataFileFromPath,
     isFileDrag,
     OPEN_DATA_FILE_EVENT,
     prepareDataFileSource,
@@ -170,6 +171,20 @@ describe('dataFiles', () => {
                 fileName: 'events.ndjson',
                 purpose: 'data-file',
             });
+        });
+    });
+
+    describe('dataFileFromPath', () => {
+        it('names the file after the last path segment, on any platform', () => {
+            expect(dataFileFromPath('/home/me/exports/orders 2026.csv')).toEqual({
+                name: 'orders 2026.csv',
+                reference: '/home/me/exports/orders 2026.csv',
+            });
+            expect(dataFileFromPath('C:\\Users\\me\\trips.parquet')).toEqual({
+                name: 'trips.parquet',
+                reference: 'C:\\Users\\me\\trips.parquet',
+            });
+            expect(dataFileFromPath('events.ndjson').name).toBe('events.ndjson');
         });
     });
 

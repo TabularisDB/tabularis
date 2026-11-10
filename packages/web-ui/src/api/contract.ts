@@ -616,6 +616,8 @@ export interface CommandMap {
     create_sqlite_database: CommandDefinition<SqlitePathRequest, SavedConnection, 'local-admin'>;
     // The workspace is a file-backed database whose SQL can read host files.
     open_data_file: CommandDefinition<OpenDataFileRequest, OpenedDataFile, 'local-admin'>;
+    /** Desktop-only: host paths the system handed to the app ("Open with", command line). */
+    consume_pending_data_files: CommandDefinition<undefined, string[], 'local-admin'>;
     get_installation_source: CommandDefinition<undefined, string | null, 'local-admin'>;
     // MCP client status and installation operate on host configuration files or
     // local client CLIs, so browsers may use them only in local-admin Web mode.

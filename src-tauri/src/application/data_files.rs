@@ -74,6 +74,45 @@ pub fn data_file_format(file_name: &str) -> Option<&'static str> {
         .map(|(format, _)| *format)
 }
 
+/// Data files among the arguments of a launch, in order and without
+/// repeats. A file manager's "Open with" passes plain paths or `file://`
+/// URLs; flags, other URLs (`tabularis://...`) and anything that is not an
+/// existing data file are left out. Relative paths resolve against `cwd`.
+pub fn launch_data_files<I, S>(arguments: I, cwd: Option<&Path>) -> Vec<PathBuf>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut files: Vec<PathBuf> = Vec::new();
+    for argument in arguments {
+        let argument = argument.as_ref();
+        if argument.is_empty() || argument.starts_with('-') {
+            continue;
+        }
+        let path = match url::Url::parse(argument) {
+            Ok(url) if url.scheme() == "file" => match url.to_file_path() {
+                Ok(path) => path,
+                Err(()) => continue,
+            },
+            // A Windows path such as `C:\data.csv` parses as a one-letter scheme.
+            Ok(url) if url.scheme().len() > 1 => continue,
+            _ => PathBuf::from(argument),
+        };
+        let path = match cwd {
+            Some(cwd) if path.is_relative() => cwd.join(path),
+            _ => path,
+        };
+        let is_data_file = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| data_file_format(name).is_some());
+        if is_data_file && path.is_file() && !files.contains(&path) {
+            files.push(path);
+        }
+    }
+    files
+}
+
 /// Table name for a data file: its stem, reduced to letters, digits and
 /// underscores so it can be typed unquoted in the SQL editor.
 pub fn data_file_table_name(file_name: &str) -> String {

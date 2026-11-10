@@ -9,6 +9,13 @@ const mocks = vi.hoisted(() => ({
     environment: 'browser' as 'tauri' | 'browser',
     drivers: [] as {id: string; name: string}[],
     registry: [] as {id: string; name: string}[],
+    call: vi.fn(),
+    subscribe: vi.fn(),
+    unsubscribe: vi.fn(),
+    /** Fires the "files are waiting" event the desktop backend emits. */
+    notify: (() => undefined) as () => void,
+    /** Host paths waiting in the backend. */
+    pending: [] as string[],
 }));
 
 vi.mock('@/hooks/useOpenDataFile', () => ({
@@ -21,6 +28,9 @@ vi.mock('@/hooks/useOpenDataFile', () => ({
 }));
 vi.mock('@/hooks/usePlatformCapabilities', () => ({
     usePlatformCapabilities: () => ({negotiation: {environment: mocks.environment}}),
+}));
+vi.mock('@/hooks/useTabularisClient', () => ({
+    useTabularisClient: () => ({call: mocks.call, subscribe: mocks.subscribe}),
 }));
 vi.mock('@/hooks/useDrivers', () => ({
     useDrivers: () => ({allDrivers: mocks.drivers}),
@@ -68,6 +78,12 @@ describe('DataFileGate', () => {
         mocks.environment = 'browser';
         mocks.drivers = [];
         mocks.registry = [];
+        mocks.pending = [];
+        mocks.call.mockImplementation(async () => mocks.pending.splice(0));
+        mocks.subscribe.mockImplementation(async (_event: string, handler: () => void) => {
+            mocks.notify = handler;
+            return mocks.unsubscribe;
+        });
     });
 
     it('opens what the rest of the app asks for', () => {
@@ -147,6 +163,64 @@ describe('DataFileGate', () => {
 
         expect(over.defaultPrevented).toBe(false);
         expect(overlay()).toBeNull();
+    });
+
+    describe('files handed over by the system', () => {
+        const flush = () => act(async () => {});
+
+        it('opens the files a launch passed before the page mounted', async () => {
+            mocks.environment = 'tauri';
+            mocks.pending = ['/data/orders.csv', 'C:\\data\\trips.parquet'];
+            render(<DataFileGate />);
+            await flush();
+
+            expect(mocks.call).toHaveBeenCalledWith('consume_pending_data_files', undefined);
+            expect(mocks.subscribe).toHaveBeenCalledWith(
+                'tabularis://open-data-files',
+                expect.any(Function),
+            );
+            expect(mocks.open.mock.calls).toEqual([
+                [
+                    [
+                        {name: 'orders.csv', reference: '/data/orders.csv'},
+                        {name: 'trips.parquet', reference: 'C:\\data\\trips.parquet'},
+                    ],
+                ],
+            ]);
+        });
+
+        it('opens files that arrive while the app is running', async () => {
+            mocks.environment = 'tauri';
+            render(<DataFileGate />);
+            await flush();
+            expect(mocks.open).not.toHaveBeenCalled();
+
+            mocks.pending = ['/data/events.ndjson'];
+            mocks.notify();
+            await flush();
+
+            expect(mocks.open).toHaveBeenCalledWith([
+                {name: 'events.ndjson', reference: '/data/events.ndjson'},
+            ]);
+        });
+
+        it('stops listening once unmounted', async () => {
+            mocks.environment = 'tauri';
+            const {unmount} = render(<DataFileGate />);
+            await flush();
+
+            unmount();
+
+            expect(mocks.unsubscribe).toHaveBeenCalledTimes(1);
+        });
+
+        it('is not asked for in the browser, where the server has no files to hand over', async () => {
+            render(<DataFileGate />);
+            await flush();
+
+            expect(mocks.call).not.toHaveBeenCalled();
+            expect(mocks.subscribe).not.toHaveBeenCalled();
+        });
     });
 
     it('shows the dialog for every stage except a quiet open', () => {

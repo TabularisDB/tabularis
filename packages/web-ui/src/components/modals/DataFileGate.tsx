@@ -1,12 +1,14 @@
-import {useEffect, useState, type DragEvent as ReactDragEvent} from 'react';
+import {useEffect, useRef, useState, type DragEvent as ReactDragEvent} from 'react';
 import {useTranslation} from 'react-i18next';
 import {FileSpreadsheet} from 'lucide-react';
 import {useDrivers} from '@/hooks/useDrivers';
 import {useOpenDataFile} from '@/hooks/useOpenDataFile';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {usePluginRegistry} from '@/hooks/usePluginRegistry';
+import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {
     DATA_FILE_PLUGIN_ID,
+    dataFileFromPath,
     isFileDrag,
     OPEN_DATA_FILE_EVENT,
     type DataFileInput,
@@ -15,8 +17,10 @@ import {OpenDataFileModal} from './OpenDataFileModal';
 
 /**
  * Opens data files from anywhere in the app: listens for
- * `requestOpenDataFiles()` and, in the browser, for files dropped onto the
- * window. Mounted once in the main layout, so it shows over any current page.
+ * `requestOpenDataFiles()`, for files dropped onto the browser window and, on
+ * desktop, for files the system hands over ("Open with" in a file manager, a
+ * path on the command line). Mounted once in the main layout, so it shows over
+ * any current page.
  */
 export function DataFileGate() {
     const {t} = useTranslation();
@@ -24,7 +28,45 @@ export function DataFileGate() {
     const {stage, open, installAndOpen, dismiss} = useOpenDataFile();
     const {allDrivers} = useDrivers();
     const {plugins} = usePluginRegistry();
+    const client = useTabularisClient();
     const [dropActive, setDropActive] = useState(false);
+    const isDesktop = platform.negotiation.environment === 'tauri';
+    const openRef = useRef(open);
+    useEffect(() => {
+        openRef.current = open;
+    }, [open]);
+
+    useEffect(() => {
+        if (!isDesktop) return;
+        let disposed = false;
+        let unlisten: (() => void) | undefined;
+        const collect = () => {
+            client
+                .call('consume_pending_data_files', undefined)
+                .then((paths) => {
+                    if (disposed || paths.length === 0) return;
+                    void openRef.current(paths.map(dataFileFromPath));
+                })
+                .catch((error: unknown) => {
+                    console.warn('Failed to collect data files from the system:', error);
+                });
+        };
+        client
+            .subscribe('tabularis://open-data-files', collect)
+            .then((cleanup) => {
+                if (disposed) cleanup();
+                else unlisten = cleanup;
+            })
+            .catch((error: unknown) => {
+                console.warn('Failed to listen for data files from the system:', error);
+            });
+        // A launch that started the app delivered its files before this mounted.
+        collect();
+        return () => {
+            disposed = true;
+            unlisten?.();
+        };
+    }, [client, isDesktop]);
     // The desktop webview hands dropped files to the page without a path, and
     // its native handler stays off to keep in-app drags working.
     const acceptsDrops = platform.negotiation.environment === 'browser';

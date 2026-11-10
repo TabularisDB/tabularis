@@ -103,6 +103,53 @@ fn formats_come_from_the_extension_whatever_its_case() {
 }
 
 #[test]
+fn launch_arguments_keep_only_existing_data_files() {
+    let temp = tempfile::tempdir().unwrap();
+    let orders = temp.path().join("orders.csv");
+    let trips = temp.path().join("taxi trips.parquet");
+    let notes = temp.path().join("notes.txt");
+    for file in [&orders, &trips, &notes] {
+        fs::write(file, "x").unwrap();
+    }
+    let trips_url = url::Url::from_file_path(&trips).unwrap().to_string();
+    assert!(trips_url.contains("taxi%20trips"), "{trips_url}");
+    let missing = temp.path().join("missing.csv");
+
+    let files = launch_data_files(
+        [
+            "--debug",
+            orders.to_str().unwrap(),
+            trips_url.as_str(),
+            notes.to_str().unwrap(),
+            missing.to_str().unwrap(),
+            "tabularis://install/duckdb",
+            "https://example.com/data.csv",
+            "",
+            // The same file again, this time relative to the working directory.
+            "orders.csv",
+            temp.path().to_str().unwrap(),
+        ],
+        Some(temp.path()),
+    );
+
+    assert_eq!(files, [orders, trips]);
+}
+
+#[test]
+fn launch_arguments_without_a_working_directory_stay_as_given() {
+    let temp = tempfile::tempdir().unwrap();
+    let events = temp.path().join("events.ndjson");
+    fs::write(&events, "{}").unwrap();
+
+    assert_eq!(
+        launch_data_files([events.to_str().unwrap()], None),
+        [events]
+    );
+    assert!(launch_data_files(["definitely-not-here.csv"], None).is_empty());
+    assert!(launch_data_files(Vec::<String>::new(), None).is_empty());
+}
+
+#[test]
 fn table_names_can_be_typed_unquoted() {
     for (file_name, table) in [
         ("orders.csv", "orders"),
