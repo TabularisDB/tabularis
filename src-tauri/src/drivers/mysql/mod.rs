@@ -2006,6 +2006,7 @@ impl MysqlDriver {
                     file_based: false,
                     folder_based: false,
                     in_memory: false,
+                    data_files: Vec::new(),
                     connection_string: true,
                     connection_string_example: "mysql://user:pass@localhost:3306/db".into(),
                     connection_string_examples: Vec::new(),

@@ -3141,5 +3141,22 @@
     "enable": "Magmungkahi ng SQL habang nagta-type",
     "privacy": "Naka-off bilang default. Ginagamit ang AI provider at model na pinili sa ibaba, kasama ang mga lokal na provider. Nagpapadala ng hanggang 4,000 character bago ang cursor, 1,000 pagkatapos nito at 8,000 character ng naka-cache na pangalan ng table/schema. Maaaring may sensitibong halaga ang SQL. Hindi idinadagdag ang mga result row, komento ng table o credential ng koneksyon. Walang dagdag na query sa database.",
     "keys": "Tab para tanggapin, Escape para itago. Mas nauuna ang autocomplete at indentation. Teksto lang ang ipinapasok kapag tinanggap; suriin bago patakbuhin."
+  },
+  "dataFiles": {
+    "workspaceName": "Mga data file",
+    "open": "Buksan ang data file",
+    "openMenu": "Buksan ang data file…",
+    "subtitle": "I-query ang CSV, TSV, JSON, NDJSON o Parquet file bilang table",
+    "fileFilter": "Mga data file",
+    "files": "Mga file na bubuksan",
+    "pluginRequired": "Binubuksan ang mga file na ito gamit ang {{plugin}} plugin. I-install o i-update ito para ma-query ang mga ito bilang mga table.",
+    "installing": "Ini-install ang {{plugin}} plugin…",
+    "opening": "Binubuksan…",
+    "failed": "Hindi mabuksan ang file.",
+    "unsupported": "Hindi sinusuportahang data file: {{files}}",
+    "pluginCannotOpen": "Hindi mabuksan ng naka-install na plugin ang {{files}}. I-update ito sa Settings, Plugins.",
+    "installAndOpen": "I-install at buksan",
+    "dropTitle": "I-drop para buksan bilang table",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

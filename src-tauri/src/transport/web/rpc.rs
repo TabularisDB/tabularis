@@ -169,6 +169,7 @@ enum RpcCommand {
     ResolveServerSaveTarget,
     CreateSqliteFile,
     CreateSqliteDatabase,
+    OpenDataFile,
     ReadSqlFile,
     WriteSqlFile,
     Theme(ThemeRpcCommand),
@@ -520,6 +521,13 @@ struct ResolveServerSaveTargetRequest {
 #[serde(deny_unknown_fields)]
 struct SqlitePathRequest {
     path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OpenDataFileRequest {
+    upload_token: String,
+    workspace_name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1751,6 +1759,28 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::OpenDataFile => {
+                let request: OpenDataFileRequest =
+                    decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                let owner = context.session_id.ok_or_else(|| {
+                    InvocationError::InvalidPayload(
+                        "An authenticated upload session is required".to_string(),
+                    )
+                })?;
+                self.application
+                    .execute_connection_command(
+                        context,
+                        ConnectionCommand::OpenDataFile {
+                            source: crate::application::data_files::DataFileSource::SessionUpload {
+                                owner,
+                                token: request.upload_token,
+                            },
+                            workspace_name: request.workspace_name,
+                        },
+                    )
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Query(command) => {
                 let command =
                     decode_query_command(command, body).map_err(InvocationError::InvalidPayload)?;
@@ -1990,6 +2020,7 @@ impl RpcCommand {
             "resolve_server_save_target" => Some(Self::ResolveServerSaveTarget),
             "create_sqlite_file" => Some(Self::CreateSqliteFile),
             "create_sqlite_database" => Some(Self::CreateSqliteDatabase),
+            "open_data_file" => Some(Self::OpenDataFile),
             "read_sql_file" => Some(Self::ReadSqlFile),
             "write_sql_file" => Some(Self::WriteSqlFile),
             name => QueryRpcCommand::parse(name)
@@ -2045,6 +2076,13 @@ impl RpcCommand {
             Self::CreateSqliteFile | Self::CreateSqliteDatabase => CommandMetadata {
                 authorization: AuthorizationLevel::LocalAdmin,
                 application_error_code: "SQLITE_DATABASE_CREATE_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            // The workspace is a file-backed database whose SQL can read host
+            // files, like the other local-path drivers.
+            Self::OpenDataFile => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "DATA_FILE_OPEN_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Query(_) => CommandMetadata {

@@ -3075,5 +3075,22 @@
     "enable": "입력 중 SQL 제안",
     "privacy": "기본적으로 꺼져 있습니다. 아래에서 선택한 AI 제공자와 모델을 사용하며 로컬 제공자도 지원합니다. 커서 앞 최대 4,000자, 뒤 최대 1,000자와 캐시된 테이블/스키마 이름 최대 8,000자를 전송합니다. SQL에는 민감한 값이 포함될 수 있습니다. 결과 행, 테이블 주석 및 연결 자격 증명은 추가하지 않습니다. 추가 데이터베이스 쿼리는 실행하지 않습니다.",
     "keys": "Tab으로 수락하고 Escape로 숨깁니다. 자동 완성과 들여쓰기가 우선합니다. 수락은 텍스트만 삽입하므로 실행 전에 검토하세요."
+  },
+  "dataFiles": {
+    "workspaceName": "데이터 파일",
+    "open": "데이터 파일 열기",
+    "openMenu": "데이터 파일 열기…",
+    "subtitle": "CSV, TSV, JSON, NDJSON 또는 Parquet 파일을 테이블로 쿼리합니다",
+    "fileFilter": "데이터 파일",
+    "files": "열 파일",
+    "pluginRequired": "이 파일은 {{plugin}} 플러그인으로 엽니다. 테이블로 쿼리하려면 플러그인을 설치하거나 업데이트하세요.",
+    "installing": "{{plugin}} 플러그인 설치 중…",
+    "opening": "여는 중…",
+    "failed": "파일을 열 수 없습니다.",
+    "unsupported": "지원하지 않는 데이터 파일: {{files}}",
+    "pluginCannotOpen": "설치된 플러그인으로는 {{files}}을(를) 열 수 없습니다. 설정의 플러그인에서 업데이트하세요.",
+    "installAndOpen": "설치 후 열기",
+    "dropTitle": "놓아서 테이블로 열기",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

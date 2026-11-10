@@ -3176,5 +3176,22 @@
     "enable": "Sugerir SQL ao digitar",
     "privacy": "Desativada por padrão. Usa o provedor e modelo de IA selecionados abaixo, incluindo provedores locais. Envia até 4.000 caracteres antes do cursor, 1.000 depois e 8.000 caracteres de nomes de tabelas/esquemas em cache. O SQL pode conter valores sensíveis. Nunca adiciona linhas de resultados, comentários de tabelas ou credenciais. Não faz consultas adicionais ao banco.",
     "keys": "Tab aceita e Escape descarta. O preenchimento automático e a indentação têm prioridade. Aceitar apenas insere texto; revise antes de executar."
+  },
+  "dataFiles": {
+    "workspaceName": "Arquivos de dados",
+    "open": "Abrir arquivo de dados",
+    "openMenu": "Abrir arquivo de dados…",
+    "subtitle": "Consulte um arquivo CSV, TSV, JSON, NDJSON ou Parquet como uma tabela",
+    "fileFilter": "Arquivos de dados",
+    "files": "Arquivos a abrir",
+    "pluginRequired": "Estes arquivos são abertos com o plugin {{plugin}}. Instale-o ou atualize-o para consultá-los como tabelas.",
+    "installing": "Instalando o plugin {{plugin}}…",
+    "opening": "Abrindo…",
+    "failed": "Não foi possível abrir o arquivo.",
+    "unsupported": "Arquivo de dados não compatível: {{files}}",
+    "pluginCannotOpen": "O plugin instalado não consegue abrir {{files}}. Atualize-o em Configurações, Plugins.",
+    "installAndOpen": "Instalar e abrir",
+    "dropTitle": "Solte para abrir como tabela",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

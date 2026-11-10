@@ -1583,6 +1583,34 @@ impl DatabaseDriver for RpcDriver {
         }
     }
 
+    async fn open_data_file(
+        &self,
+        params: &ConnectionParams,
+        path: &str,
+        format: &str,
+        table: &str,
+    ) -> Result<(), String> {
+        let supported = &self.manifest.capabilities.data_files;
+        if !supported.iter().any(|candidate| candidate == format) {
+            return Err(format!(
+                "The {} driver cannot open {format} data files",
+                self.manifest.name
+            ));
+        }
+        self.process
+            .call(
+                "open_data_file",
+                json!({
+                    "params": self.with_primary_database(params),
+                    "path": path,
+                    "format": format,
+                    "table": table,
+                }),
+            )
+            .await?;
+        Ok(())
+    }
+
     async fn get_table_query_template(
         &self,
         params: &ConnectionParams,

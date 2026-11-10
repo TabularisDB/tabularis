@@ -3255,5 +3255,22 @@
     "enable": "Suggest SQL while typing",
     "privacy": "Off by default. Uses the AI provider and model selected below, including local providers. Sends up to 4,000 characters before the cursor, 1,000 after it and 8,000 characters of cached table/schema names. SQL may contain sensitive literals. Result rows, table comments and connection credentials are never added. No extra database queries are made.",
     "keys": "Tab accepts and Escape dismisses. Autocomplete and indentation take priority. Acceptance inserts text only; review it before running."
+  },
+  "dataFiles": {
+    "workspaceName": "Data files",
+    "open": "Open data file",
+    "openMenu": "Open data file…",
+    "subtitle": "Query a CSV, TSV, JSON, NDJSON or Parquet file as a table",
+    "fileFilter": "Data files",
+    "files": "Files to open",
+    "pluginRequired": "These files open with the {{plugin}} plugin. Install or update it to query them as tables.",
+    "installing": "Installing the {{plugin}} plugin…",
+    "opening": "Opening…",
+    "failed": "The file could not be opened.",
+    "unsupported": "Not a supported data file: {{files}}",
+    "pluginCannotOpen": "The installed plugin cannot open {{files}}. Update it in Settings, Plugins.",
+    "installAndOpen": "Install and open",
+    "dropTitle": "Drop to open as a table",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

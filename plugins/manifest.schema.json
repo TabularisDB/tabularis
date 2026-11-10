@@ -103,6 +103,13 @@
           "default": false,
           "description": "Requires file_based. true if the driver also opens the path \":memory:\" as a temporary database that lives in the plugin process (e.g. DuckDB). Adds an in-memory shortcut next to the file path input and skips the file existence check for that path."
         },
+        "data_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "default": [],
+          "description": "Requires file_based. Data file formats (csv, tsv, json, ndjson, parquet, xlsx) the driver exposes as a queryable relation through the optional open_data_file RPC. Tabularis uses the driver for Open data file and keeps one workspace database per driver."
+        },
         "folder_based": {
           "type": "boolean",
           "default": false,
