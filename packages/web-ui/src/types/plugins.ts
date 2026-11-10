@@ -144,6 +144,8 @@ export interface SqlSyntaxDescriptor {
     nested_block_comments?: boolean;
     line_comment_requires_space?: boolean;
     script_blocks?: boolean;
+    /** Firebird PSQL bodies, alternative q-quotes and isql SET TERM directives. */
+    psql_blocks?: boolean;
     dollar_quoting?: boolean;
     /** Generated string literals: `standard` (`''`) or `backslash` (`\'`). */
     string_escape?: 'standard' | 'backslash';
