@@ -1588,6 +1588,44 @@ mod postgres_tls_connector_tests {
             Ok(_) => panic!("Expected error when ssl_key is provided without ssl_cert"),
         }
     }
+
+    #[test]
+    fn postgres_tls_connector_accepts_empty_hostname_for_unix_sockets() {
+        use tokio_postgres::tls::MakeTlsConnect;
+        let params = params_with_ssl("prefer");
+        let mut connector = build_postgres_tls_connector(&params).expect("connector");
+        // A Unix socket has no DNS hostname. tokio_postgres falls back to
+        // hostname.unwrap_or("") before entering the SSL-disabled branch.
+        // The wrapper must supply a valid fallback (e.g. localhost) so
+        // MakeRustlsConnect does not fail with InvalidDnsNameError.
+        let tls_connect =
+            MakeTlsConnect::<tokio::net::TcpStream>::make_tls_connect(&mut connector, "");
+        assert!(
+            tls_connect.is_ok(),
+            "make_tls_connect(\"\") must succeed for Unix socket connections: {:?}",
+            tls_connect.err()
+        );
+    }
+
+    #[test]
+    fn postgres_tls_connector_preserves_hostname_verification_for_tcp() {
+        use tokio_postgres::tls::MakeTlsConnect;
+        let params = params_with_ssl("verify-full");
+        let mut connector = build_postgres_tls_connector(&params).expect("connector");
+        // A valid hostname passes through unchanged.
+        let tls_connect = MakeTlsConnect::<tokio::net::TcpStream>::make_tls_connect(
+            &mut connector,
+            "db.example.com",
+        );
+        assert!(tls_connect.is_ok());
+
+        // An invalid DNS name must still be rejected.
+        let invalid = MakeTlsConnect::<tokio::net::TcpStream>::make_tls_connect(
+            &mut connector,
+            "invalid name with spaces",
+        );
+        assert!(invalid.is_err());
+    }
 }
 
 #[cfg(test)]
