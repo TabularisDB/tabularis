@@ -193,10 +193,7 @@ mod tests {
 
     #[test]
     fn cell_name_does_not_use_inline_comment_after_sql() {
-        assert_eq!(
-            derive_cell_name("SELECT 1 -- not a name", 4),
-            "Query 4"
-        );
+        assert_eq!(derive_cell_name("SELECT 1 -- not a name", 4), "Query 4");
     }
 
     #[test]

@@ -2,9 +2,11 @@ import type {PlatformCapabilities} from '@/platform/capabilities';
 import type {NotebookState} from '@/types/notebook';
 import {deserializeNotebook, serializeNotebook} from './notebookFile';
 import {exportNotebookToHtml} from './notebookHtmlExport';
+import {exportNotebookToSql} from './notebookSqlExport';
 
 const NOTEBOOK_FILTER = [{name: 'Tabularis Notebook', extensions: ['tabularis-notebook']}] as const;
 const HTML_FILTER = [{name: 'HTML', extensions: ['html']}] as const;
+const SQL_FILTER = [{name: 'SQL', extensions: ['sql']}] as const;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', {fatal: true});
 
@@ -51,6 +53,25 @@ export function downloadNotebookHtml(
         mimeType: 'text/html;charset=utf-8',
         filters: HTML_FILTER,
     });
+}
+
+/** Outcome of a SQL source export: saved, cancelled in the save dialog, or nothing to export. */
+export type NotebookSqlDownload = 'downloaded' | 'cancelled' | 'empty';
+
+export async function downloadNotebookSql(
+    platform: PlatformCapabilities,
+    title: string,
+    state: NotebookState,
+): Promise<NotebookSqlDownload> {
+    const sql = exportNotebookToSql(title, state.cells);
+    if (sql === null) return 'empty';
+    const downloaded = await platform.downloadFile({
+        fileName: `${safeFileName(title)}.sql`,
+        contents: encoder.encode(sql),
+        mimeType: 'application/sql;charset=utf-8',
+        filters: SQL_FILTER,
+    });
+    return downloaded ? 'downloaded' : 'cancelled';
 }
 
 function safeFileName(title: string): string {

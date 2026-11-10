@@ -41,6 +41,7 @@ fn column(name: &str, data_type: &str) -> ColumnDefinition {
         is_auto_increment: false,
         default_value: None,
         comment: None,
+        on_update: None,
     }
 }
 
@@ -161,6 +162,8 @@ fn table_column(name: &str, data_type: &str) -> TableColumn {
         numeric_scale: None,
         comment: None,
         full_type: None,
+        default_sql: None,
+        on_update: None,
     }
 }
 

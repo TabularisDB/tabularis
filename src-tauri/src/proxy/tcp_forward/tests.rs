@@ -23,7 +23,10 @@ fn connect_authority_brackets_ipv6() {
         format_connect_authority("2001:db8::1", 22),
         "[2001:db8::1]:22"
     );
-    assert_eq!(format_connect_authority("example.com", 443), "example.com:443");
+    assert_eq!(
+        format_connect_authority("example.com", 443),
+        "example.com:443"
+    );
 }
 
 #[test]

@@ -103,6 +103,13 @@
           "default": false,
           "description": "Requires file_based. true if the driver also opens the path \":memory:\" as a temporary database that lives in the plugin process (e.g. DuckDB). Adds an in-memory shortcut next to the file path input and skips the file existence check for that path."
         },
+        "data_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "default": [],
+          "description": "Requires file_based. Data file formats (csv, tsv, json, ndjson, parquet, xlsx) the driver exposes as a queryable relation through the optional open_data_file RPC. Tabularis uses the driver for Open data file and keeps one workspace database per driver."
+        },
         "folder_based": {
           "type": "boolean",
           "default": false,
@@ -375,6 +382,11 @@
           "default": false,
           "description": "Column statistics popover through the optional get_column_stats RPC. When false, plugins with a postgres, mysql or sqlite sql_dialect keep the host's generic SQL and the others don't show the entry."
         },
+        "query_timeout": {
+          "type": "boolean",
+          "default": false,
+          "description": "true when the driver honours query_timeout_secs (stops a statement on the server once the limit passes). Shows the query-timeout field in the connection modal. Defaults to false."
+        },
         "alter_column": {
           "type": "boolean",
           "default": false,
@@ -399,6 +411,16 @@
           "type": "boolean",
           "default": false,
           "description": "When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table and column management is also hidden regardless of manage_tables. Defaults to false."
+        },
+        "table_export": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offers Export table to SQL on table nodes. Set false for non-SQL plugins."
+        },
+        "table_import": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offers Import table from SQL on database and schema nodes. Set false for non-SQL plugins; always off when readonly is true."
         },
         "supports_ssl": {
           "type": "boolean",

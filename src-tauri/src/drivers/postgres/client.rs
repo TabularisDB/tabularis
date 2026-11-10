@@ -80,7 +80,10 @@ pub(super) async fn execute(
 pub(super) async fn execute_typed(
     pool: &PgPool,
     sql: &str,
-    params: &[(&(dyn tokio_postgres::types::ToSql + Sync), tokio_postgres::types::Type)],
+    params: &[(
+        &(dyn tokio_postgres::types::ToSql + Sync),
+        tokio_postgres::types::Type,
+    )],
 ) -> Result<u64, String> {
     let client = get_client(pool).await?;
     let types: Vec<tokio_postgres::types::Type> = params.iter().map(|(_, t)| t.clone()).collect();
@@ -102,7 +105,10 @@ pub(super) async fn execute_typed(
 pub(super) async fn query_one_typed(
     pool: &PgPool,
     sql: &str,
-    params: &[(&(dyn tokio_postgres::types::ToSql + Sync), tokio_postgres::types::Type)],
+    params: &[(
+        &(dyn tokio_postgres::types::ToSql + Sync),
+        tokio_postgres::types::Type,
+    )],
 ) -> Result<PgRow, String> {
     let client = get_client(pool).await?;
     let types: Vec<tokio_postgres::types::Type> = params.iter().map(|(_, t)| t.clone()).collect();

@@ -417,3 +417,100 @@ describe('QueryHistorySection export', () => {
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 });
+
+const minDurationInput = () =>
+    screen.getByLabelText('sidebar.historyMinDurationFilter') as HTMLInputElement;
+const clearFiltersButton = () => screen.getByRole('button', {name: 'sidebar.historyClearFilters'});
+
+function timedEntry(id: string, executionTimeMs: number | null): QueryHistoryEntry {
+    return {...makeEntry(id, 'main'), executionTimeMs};
+}
+
+const TIMED = [
+    timedEntry('zero', 0),
+    timedEntry('fast', 10),
+    timedEntry('slow', 1500),
+    timedEntry('unknown', null),
+];
+
+describe('QueryHistorySection minimum duration filter (#1397)', () => {
+    it('shows every entry and no counter until a threshold is typed', () => {
+        renderSection(TIMED);
+
+        expect(minDurationInput().value).toBe('');
+        expect(minDurationInput()).toHaveAttribute('aria-invalid', 'false');
+        expect(visibleIds()).toEqual(['zero', 'fast', 'slow', 'unknown']);
+        expect(screen.queryByText(/ \/ /)).not.toBeInTheDocument();
+    });
+
+    it('keeps entries at or above the threshold and shows the filtered counter', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '10'}});
+
+        expect(visibleIds()).toEqual(['fast', 'slow']);
+        expect(screen.getByText('2 / 4')).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('treats zero as a threshold that hides entries without a duration', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '0'}});
+
+        expect(visibleIds()).toEqual(['zero', 'fast', 'slow']);
+        expect(screen.getByText('3 / 4')).toBeInTheDocument();
+    });
+
+    it('explains a negative threshold and matches nothing', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '-5'}});
+
+        expect(screen.getByRole('alert')).toHaveTextContent('sidebar.historyMinDurationNegative');
+        expect(minDurationInput()).toHaveAttribute('aria-invalid', 'true');
+        expect(visibleIds()).toEqual([]);
+        expect(screen.getByText('0 / 4')).toBeInTheDocument();
+    });
+
+    it('explains a nonnumeric threshold and keeps what was typed', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '5 seconds'}});
+
+        // The text stays so the user can see and fix it, unlike a number input
+        // that would silently drop it.
+        expect(minDurationInput().value).toBe('5 seconds');
+        expect(screen.getByRole('alert')).toHaveTextContent('sidebar.historyMinDurationInvalid');
+        expect(visibleIds()).toEqual([]);
+
+        fireEvent.change(minDurationInput(), {target: {value: '5'}});
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(visibleIds()).toEqual(['fast', 'slow']);
+    });
+
+    it('combines with the outcome filter and clears with the other filters', () => {
+        renderSection([...TIMED, {...timedEntry('slow-failure', 3000), status: 'error'}]);
+
+        fireEvent.change(minDurationInput(), {target: {value: '1000'}});
+        fireEvent.change(screen.getByRole('combobox', {name: 'sidebar.historyOutcomeFilter'}), {
+            target: {value: 'failed'},
+        });
+        expect(visibleIds()).toEqual(['slow-failure']);
+        expect(screen.getByText('1 / 5')).toBeInTheDocument();
+
+        fireEvent.click(clearFiltersButton());
+
+        expect(minDurationInput().value).toBe('');
+        expect(visibleIds()).toEqual(['zero', 'fast', 'slow', 'unknown', 'slow-failure']);
+        expect(screen.queryByText(/ \/ /)).not.toBeInTheDocument();
+    });
+
+    it('keeps its label inside the field', () => {
+        renderSection(TIMED);
+
+        const field = minDurationInput().closest('label');
+        expect(field).toHaveTextContent('sidebar.historyMinDuration');
+        expect(field).toHaveTextContent('sidebar.historyMinDurationUnit');
+    });
+});

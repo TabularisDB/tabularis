@@ -199,6 +199,16 @@ export function ResultEntryContent({
                             onChange={hiddenColumns.setHidden}
                         />
                     )}
+                    {entry.snapshot && entry.result.truncated && (
+                        <span
+                            className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0"
+                            title={t('editor.batchSnapshotTruncatedHint')}
+                        >
+                            {t('editor.batchSnapshotTruncated', {
+                                count: entry.snapshot.rows.length,
+                            })}
+                        </span>
+                    )}
                     {entry.result.pagination?.has_more && (
                         <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0">
                             {t('editor.autoPaginated')}

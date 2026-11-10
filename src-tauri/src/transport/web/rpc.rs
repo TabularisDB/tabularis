@@ -169,6 +169,7 @@ enum RpcCommand {
     ResolveServerSaveTarget,
     CreateSqliteFile,
     CreateSqliteDatabase,
+    OpenDataFile,
     ReadSqlFile,
     WriteSqlFile,
     Theme(ThemeRpcCommand),
@@ -228,6 +229,7 @@ enum PluginRpcCommand {
     GetStartupErrors,
     KillProcess,
     RestartProcess,
+    SyncSettings,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -238,6 +240,8 @@ enum AiRpcCommand {
     CheckKeyStatus,
     GetModels,
     GenerateQuery,
+    CompleteInline,
+    CancelInline,
     ExplainQuery,
     AnalyzeExplainPlan,
     AnalyzeCrashReport,
@@ -259,11 +263,15 @@ enum DatabaseTransferRpcCommand {
     CancelDump,
     Import,
     CancelImport,
+    PreviewTableImport,
+    ImportTable,
+    CancelTableImport,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum GenericExportRpcCommand {
     ExportQuery,
+    ExportTable,
     CancelExport,
     ExportAiActivityJson,
     ExportAiActivityCsv,
@@ -344,6 +352,7 @@ enum PersistenceRpcCommand {
 enum QueryRpcCommand {
     ReleaseSession,
     Execute,
+    PluginReadOnly,
     ExecuteBatch,
     Count,
     Explain,
@@ -407,6 +416,7 @@ enum MetadataRpcCommand {
     GetSchemas,
     GetTables,
     GetColumns,
+    GetApproximateRowCount,
     GetForeignKeys,
     GetIndexes,
     GetViews,
@@ -511,6 +521,13 @@ struct ResolveServerSaveTargetRequest {
 #[serde(deny_unknown_fields)]
 struct SqlitePathRequest {
     path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OpenDataFileRequest {
+    upload_token: String,
+    workspace_name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -651,6 +668,28 @@ struct ImportDatabaseRequest {
     upload_token: String,
     schema: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExportTableRequest {
+    connection_id: String,
+    options: crate::application::table_transfers::TableExportOptions,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReadTableSqlHeaderRequest {
+    connection_id: String,
+    upload_token: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ImportTableRequest {
+    connection_id: String,
+    upload_token: String,
+    options: crate::application::table_transfers::TableImportOptions,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1720,6 +1759,28 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::OpenDataFile => {
+                let request: OpenDataFileRequest =
+                    decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                let owner = context.session_id.ok_or_else(|| {
+                    InvocationError::InvalidPayload(
+                        "An authenticated upload session is required".to_string(),
+                    )
+                })?;
+                self.application
+                    .execute_connection_command(
+                        context,
+                        ConnectionCommand::OpenDataFile {
+                            source: crate::application::data_files::DataFileSource::SessionUpload {
+                                owner,
+                                token: request.upload_token,
+                            },
+                            workspace_name: request.workspace_name,
+                        },
+                    )
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Query(command) => {
                 let command =
                     decode_query_command(command, body).map_err(InvocationError::InvalidPayload)?;
@@ -1959,6 +2020,7 @@ impl RpcCommand {
             "resolve_server_save_target" => Some(Self::ResolveServerSaveTarget),
             "create_sqlite_file" => Some(Self::CreateSqliteFile),
             "create_sqlite_database" => Some(Self::CreateSqliteDatabase),
+            "open_data_file" => Some(Self::OpenDataFile),
             "read_sql_file" => Some(Self::ReadSqlFile),
             "write_sql_file" => Some(Self::WriteSqlFile),
             name => QueryRpcCommand::parse(name)
@@ -2014,6 +2076,13 @@ impl RpcCommand {
             Self::CreateSqliteFile | Self::CreateSqliteDatabase => CommandMetadata {
                 authorization: AuthorizationLevel::LocalAdmin,
                 application_error_code: "SQLITE_DATABASE_CREATE_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            // The workspace is a file-backed database whose SQL can read host
+            // files, like the other local-path drivers.
+            Self::OpenDataFile => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "DATA_FILE_OPEN_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Query(_) => CommandMetadata {
@@ -2197,6 +2266,7 @@ impl PluginRpcCommand {
             "get_plugin_startup_errors" => Self::GetStartupErrors,
             "kill_plugin_process" => Self::KillProcess,
             "restart_plugin_process" => Self::RestartProcess,
+            "sync_plugin_settings" => Self::SyncSettings,
             _ => return None,
         })
     }
@@ -2211,6 +2281,8 @@ impl AiRpcCommand {
             "check_ai_key_status" => Self::CheckKeyStatus,
             "get_ai_models" => Self::GetModels,
             "generate_ai_query" => Self::GenerateQuery,
+            "complete_ai_inline" => Self::CompleteInline,
+            "cancel_ai_inline" => Self::CancelInline,
             "explain_ai_query" => Self::ExplainQuery,
             "analyze_ai_explain_plan" => Self::AnalyzeExplainPlan,
             "analyze_ai_crash_report" => Self::AnalyzeCrashReport,
@@ -2236,6 +2308,9 @@ impl DatabaseTransferRpcCommand {
             "cancel_dump" => Self::CancelDump,
             "import_database" => Self::Import,
             "cancel_import" => Self::CancelImport,
+            "read_table_sql_header" => Self::PreviewTableImport,
+            "import_table_from_sql" => Self::ImportTable,
+            "cancel_table_import" => Self::CancelTableImport,
             _ => return None,
         })
     }
@@ -2245,6 +2320,7 @@ impl GenericExportRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
             "export_query_to_file" => Self::ExportQuery,
+            "export_table_to_sql" => Self::ExportTable,
             "cancel_export" => Self::CancelExport,
             "export_ai_activity_json" => Self::ExportAiActivityJson,
             "export_ai_activity_csv" => Self::ExportAiActivityCsv,
@@ -2257,7 +2333,8 @@ impl GenericExportRpcCommand {
     fn authorization(self) -> AuthorizationLevel {
         match self {
             Self::ExportQuery | Self::CancelExport => AuthorizationLevel::Database,
-            Self::ExportAiActivityJson
+            Self::ExportTable
+            | Self::ExportAiActivityJson
             | Self::ExportAiActivityCsv
             | Self::ExportAiSessionAsNotebook
             | Self::ExportLogs => AuthorizationLevel::Sensitive,
@@ -2290,7 +2367,10 @@ impl ConnectionFilesRpcCommand {
             Self::ListImportSources
             | Self::PreviewForeignImport
             | Self::ApplyForeignImport
-            | Self::GetBackupStatus | Self::GetDatabaseBackupStatus | Self::RunDatabaseBackup | Self::CancelDatabaseBackup => AuthorizationLevel::LocalAdmin,
+            | Self::GetBackupStatus
+            | Self::GetDatabaseBackupStatus
+            | Self::RunDatabaseBackup
+            | Self::CancelDatabaseBackup => AuthorizationLevel::LocalAdmin,
             Self::Export
             | Self::PreviewTabularisImport
             | Self::ApplyPreparedTabularisImport
@@ -2396,6 +2476,7 @@ impl QueryRpcCommand {
         Some(match name {
             "release_query_session" => Self::ReleaseSession,
             "execute_query" => Self::Execute,
+            "execute_plugin_read_only_query" => Self::PluginReadOnly,
             "execute_query_batch" => Self::ExecuteBatch,
             "count_query" => Self::Count,
             "explain_query_plan" => Self::Explain,
@@ -2484,6 +2565,7 @@ impl MetadataRpcCommand {
             "get_schemas" => Self::GetSchemas,
             "get_tables" => Self::GetTables,
             "get_columns" => Self::GetColumns,
+            "get_approximate_row_count" => Self::GetApproximateRowCount,
             "get_foreign_keys" => Self::GetForeignKeys,
             "get_indexes" => Self::GetIndexes,
             "get_views" => Self::GetViews,
@@ -2601,6 +2683,21 @@ fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, St
             let request: AiRequest<crate::ai::AiGenerateRequest> = decode_payload(body)?;
             AiCommand::GenerateQuery(request.req)
         }
+        AiRpcCommand::CompleteInline => {
+            let request: AiRequest<crate::ai::inline::InlineRequest> = decode_payload(body)?;
+            AiCommand::CompleteInline(request.req)
+        }
+        AiRpcCommand::CancelInline => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase", deny_unknown_fields)]
+            struct Cancel {
+                request_id: String,
+            }
+            let request: Cancel = decode_payload(body)?;
+            AiCommand::CancelInline {
+                request_id: request.request_id,
+            }
+        }
         AiRpcCommand::ExplainQuery => {
             let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
             AiCommand::ExplainQuery(request.req)
@@ -2704,6 +2801,27 @@ fn decode_database_transfer_command(
                 connection_id: request.connection_id,
             }
         }
+        DatabaseTransferRpcCommand::PreviewTableImport => {
+            let request: ReadTableSqlHeaderRequest = decode_payload(body)?;
+            DatabaseTransferCommand::PreviewTableImport {
+                connection_id: request.connection_id,
+                upload_token: request.upload_token,
+            }
+        }
+        DatabaseTransferRpcCommand::ImportTable => {
+            let request: ImportTableRequest = decode_payload(body)?;
+            DatabaseTransferCommand::ImportTable {
+                connection_id: request.connection_id,
+                upload_token: request.upload_token,
+                options: request.options,
+            }
+        }
+        DatabaseTransferRpcCommand::CancelTableImport => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            DatabaseTransferCommand::CancelTableImport {
+                connection_id: request.connection_id,
+            }
+        }
     })
 }
 
@@ -2721,6 +2839,13 @@ fn decode_generic_export_command(
                 csv_delimiter: request.csv_delimiter,
                 database: request.database,
                 query_session_id: request.session_id,
+            }
+        }
+        GenericExportRpcCommand::ExportTable => {
+            let request: ExportTableRequest = decode_payload(body)?;
+            GenericExportCommand::ExportTable {
+                connection_id: request.connection_id,
+                options: request.options,
             }
         }
         GenericExportRpcCommand::CancelExport => {
@@ -3036,6 +3161,12 @@ fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<Plugi
                 plugin_id: request.plugin_id,
             }
         }
+        PluginRpcCommand::SyncSettings => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::SyncSettings {
+                plugin_id: request.plugin_id,
+            }
+        }
     })
 }
 
@@ -3265,6 +3396,14 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
                 schema: request.schema,
                 query_session_id: request.session_id,
                 database: request.database,
+            }
+        }
+        QueryRpcCommand::PluginReadOnly => {
+            let request: ExecuteQueryRequest = decode_payload(body)?;
+            QueryCommand::PluginReadOnly {
+                connection_id: request.connection_id,
+                query: request.query,
+                schema: request.schema,
             }
         }
         QueryRpcCommand::ExecuteBatch => {
@@ -3746,6 +3885,15 @@ fn decode_metadata_command(
         MetadataRpcCommand::GetColumns => {
             let request: TableMetadataRequest = decode_payload(body)?;
             MetadataCommand::GetColumns {
+                connection_id: request.connection_id,
+                table_name: request.table_name,
+                schema: request.schema,
+                database: request.database,
+            }
+        }
+        MetadataRpcCommand::GetApproximateRowCount => {
+            let request: TableMetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetApproximateRowCount {
                 connection_id: request.connection_id,
                 table_name: request.table_name,
                 schema: request.schema,

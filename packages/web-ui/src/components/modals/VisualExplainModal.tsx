@@ -217,6 +217,10 @@ export const VisualExplainModal = ({
                         selectedNodeId,
                         onSelectNode: setSelectedNodeId,
                         aiEnabled: !!settings.aiEnabled,
+                        connectionId,
+                        connectionName: resolvedConnectionLabel,
+                        databaseName: database,
+                        schemaName: schema,
                     })}
                 />
 

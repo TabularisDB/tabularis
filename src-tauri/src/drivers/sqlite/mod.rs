@@ -46,6 +46,8 @@ fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> 
         is_nullable: notnull == 0,
         is_auto_increment: false,
         is_generated: hidden == 2 || hidden == 3,
+        // PRAGMA reports the default as SQL already.
+        default_sql: dflt_value.clone(),
         default_value: dflt_value,
         character_maximum_length: None,
         numeric_precision: None,
@@ -54,6 +56,7 @@ fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> 
         // `type` from PRAGMA table_xinfo is already the declared type
         // (`VARCHAR(255)`, `DECIMAL(10,2)`), so there is nothing to add.
         full_type: None,
+        on_update: None,
     })
 }
 
@@ -285,7 +288,9 @@ pub async fn get_indexes(
             .await
             .map_err(|e| e.to_string())?;
 
-        let parsed_columns = index_sql.get(&name).map(|sql| parse_sqlite_index_columns(sql));
+        let parsed_columns = index_sql
+            .get(&name)
+            .map(|sql| parse_sqlite_index_columns(sql));
 
         for info in info_rows {
             let seqno: i32 = info.try_get("seqno").unwrap_or(0);
@@ -493,11 +498,7 @@ pub async fn delete_record(
         escape_identifier(table)
     ));
     sqlite_push_pk_where(&mut qb, pk_map)?;
-    let result = qb
-        .build()
-        .execute(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let result = qb.build().execute(&pool).await.map_err(|e| e.to_string())?;
     Ok(result.rows_affected())
 }
 
@@ -641,7 +642,20 @@ pub async fn get_table_ddl(params: &ConnectionParams, table_name: &str) -> Resul
         .fetch_one(&pool)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(format!("{};", row.0))
+    // The table's own indexes; those SQLite creates for PRIMARY KEY and
+    // UNIQUE constraints have no SQL and come with the table.
+    let indexes: Vec<(String,)> = sqlx::query_as(
+        "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL ORDER BY name",
+    )
+    .bind(table_name)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let mut ddl = format!("{};", row.0);
+    for (index,) in indexes {
+        ddl.push_str(&format!("\n{index};"));
+    }
+    Ok(ddl)
 }
 
 /// Executes one statement against an already-acquired SQLite connection.
@@ -928,7 +942,10 @@ pub async fn get_view_columns(
 }
 
 pub async fn get_triggers(params: &ConnectionParams) -> Result<Vec<TriggerInfo>, String> {
-    log::debug!("SQLite: Fetching triggers for database: {}", params.database);
+    log::debug!(
+        "SQLite: Fetching triggers for database: {}",
+        params.database
+    );
     let pool = get_sqlite_pool(params).await?;
     let rows = sqlx::query(
         "SELECT name, tbl_name, sql FROM sqlite_master WHERE type='trigger' ORDER BY name ASC",
@@ -986,13 +1003,11 @@ pub async fn get_trigger_definition(
     trigger_name: &str,
 ) -> Result<String, String> {
     let pool = get_sqlite_pool(params).await?;
-    let row = sqlx::query(
-        "SELECT sql FROM sqlite_master WHERE type='trigger' AND name = ?",
-    )
-    .bind(trigger_name)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| format!("Failed to get trigger definition: {}", e))?;
+    let row = sqlx::query("SELECT sql FROM sqlite_master WHERE type='trigger' AND name = ?")
+        .bind(trigger_name)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| format!("Failed to get trigger definition: {}", e))?;
     let sql: String = row.try_get("sql").unwrap_or_default();
     Ok(sql)
 }
@@ -1006,10 +1021,7 @@ pub async fn create_trigger(params: &ConnectionParams, trigger_sql: &str) -> Res
     Ok(())
 }
 
-pub async fn drop_trigger(
-    params: &ConnectionParams,
-    trigger_name: &str,
-) -> Result<(), String> {
+pub async fn drop_trigger(params: &ConnectionParams, trigger_name: &str) -> Result<(), String> {
     let pool = get_sqlite_pool(params).await?;
     let sql = format!(
         "DROP TRIGGER IF EXISTS \"{}\"",
@@ -1026,7 +1038,9 @@ pub async fn drop_trigger(
 // Plugin wrapper
 // ============================================================
 
-use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities, PluginManifest, SqlDialect};
+use crate::drivers::driver_trait::{
+    DatabaseDriver, DriverCapabilities, PluginManifest, SqlDialect,
+};
 use async_trait::async_trait;
 use std::collections::HashMap;
 
@@ -1054,6 +1068,7 @@ impl SqliteDriver {
                     folder_based: false,
                     // sqlx pools several connections; each would get its own `:memory:` database.
                     in_memory: false,
+                    data_files: Vec::new(),
                     connection_string: false,
                     connection_string_example: String::new(),
                     connection_string_examples: Vec::new(),
@@ -1068,12 +1083,15 @@ impl SqliteDriver {
                     column_comments: false,
                     drop_table_sql: false,
                     column_stats: false,
+                    query_timeout: false,
                     alter_column: false,
                     create_foreign_keys: false,
                     no_connection_required: false,
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    table_export: None,
+                    table_import: None,
                     triggers: true,
                     supports_ssl: false,
                     user_management: false,

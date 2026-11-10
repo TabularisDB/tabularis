@@ -38,6 +38,15 @@ pub async fn restart_plugin_process(
 
 #[cfg(feature = "desktop")]
 #[tauri::command]
+pub async fn sync_plugin_settings(
+    runtime: State<'_, RuntimeContext>,
+    plugin_id: String,
+) -> Result<(), String> {
+    crate::application::plugins::sync_plugin_settings(runtime.inner(), plugin_id).await
+}
+
+#[cfg(feature = "desktop")]
+#[tauri::command]
 pub async fn open_task_manager_window(app: AppHandle) -> Result<(), String> {
     if let Some(existing) = app.get_webview_window("task-manager") {
         existing

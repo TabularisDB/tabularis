@@ -5,6 +5,7 @@ import {
     chooseNotebookImport,
     downloadNotebook,
     downloadNotebookHtml,
+    downloadNotebookSql,
 } from '@/utils/notebookTransfer';
 
 const state: NotebookState = {
@@ -113,5 +114,51 @@ describe('notebookTransfer', () => {
         expect(html).toContain('Revenue');
         expect(html).toContain('SELECT 42 AS answer');
         expect(html).toContain('Results');
+    });
+
+    it('exports SQL cell source through the platform download adapter', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+
+        await expect(
+            downloadNotebookSql(platformFixture({downloadFile}), 'Revenue / été', state),
+        ).resolves.toBe('downloaded');
+
+        const request = downloadFile.mock.calls[0][0];
+        expect(request.fileName).toBe('Revenue____t_.sql');
+        expect(request.mimeType).toBe('application/sql;charset=utf-8');
+        expect(request.filters).toEqual([{name: 'SQL', extensions: ['sql']}]);
+        const sql = new TextDecoder('utf-8', {fatal: true}).decode(request.contents);
+        expect(sql).toContain('-- Tabularis notebook: Revenue / été');
+        expect(sql).toContain('-- ---- Cell 1: Answer ----\nSELECT 42 AS answer\n');
+        expect(sql).not.toContain('# Results');
+        expect(sql).not.toContain('eu');
+    });
+
+    it('reports a cancelled SQL save dialog', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(false);
+
+        await expect(
+            downloadNotebookSql(platformFixture({downloadFile}), 'Revenue', state),
+        ).resolves.toBe('cancelled');
+        expect(downloadFile).toHaveBeenCalledOnce();
+    });
+
+    it('does not open a save dialog when there is no SQL to export', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+
+        await expect(
+            downloadNotebookSql(platformFixture({downloadFile}), 'Notes', {
+                cells: [{id: 'md', type: 'markdown', content: 'SELECT in prose'}],
+            }),
+        ).resolves.toBe('empty');
+        expect(downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('falls back to a default SQL file name for titles with no safe characters', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+
+        await downloadNotebookSql(platformFixture({downloadFile}), '', state);
+
+        expect(downloadFile.mock.calls[0][0].fileName).toBe('Notebook.sql');
     });
 });

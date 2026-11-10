@@ -200,7 +200,11 @@ pub fn get_ai_key_cached(cache: &CredentialCache, provider: &str) -> Result<Stri
                 Some(v) => CacheEntry::Present(v.clone()),
                 None => CacheEntry::Absent,
             };
-            cache.ai_keys.lock().unwrap().insert(provider.to_string(), entry);
+            cache
+                .ai_keys
+                .lock()
+                .unwrap()
+                .insert(provider.to_string(), entry);
             maybe.ok_or_else(|| "No entry".to_string())
         }
         // Transient failure (denied prompt, timeout, securityd error): do NOT

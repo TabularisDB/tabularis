@@ -126,6 +126,7 @@ import {PageIndicator} from '@/components/ui/PageIndicator';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
 import {totalPageCount} from '@/utils/pagination';
+import {batchSnapshotLimit, isSnapshotResult, snapshotPage} from '@/utils/batchSnapshot';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
 import {TransposeIcon} from '@/components/icons/TransposeIcon';
 import {HiddenColumnsIndicator} from '@/components/ui/HiddenColumnsIndicator';
@@ -191,9 +192,11 @@ import type {
     ResultsSessionSnapshot,
 } from '@/platform/secondaryWindowSessions';
 import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
+import {inlineSchema, inlineTables} from '@/utils/aiInlineCompletion';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import {UserManagementView} from '@/components/users/UserManagementView';
 import {useSqlAutocompleteRegistration} from '@/hooks/useSqlAutocompleteRegistration';
+import {useSqlDiagnosticsOptions} from '@/hooks/useSqlDiagnosticsOptions';
 import {createNotebook, renameNotebook} from '@/utils/notebookStore';
 import type {OnMount, Monaco} from '@monaco-editor/react';
 import {useAlert} from '@/hooks/useAlert';
@@ -256,6 +259,9 @@ import clsx from 'clsx';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {createRequestId} from '@/api/errors';
 import {downloadGeneratedFile, downloadTextFile} from '@/utils/fileDownloads';
+import {useUiState} from '@/hooks/useUiState';
+import {UI_STATE_KEYS} from '@/utils/uiStateStore';
+import {DEFAULT_EDITOR_PANEL_HEIGHT, resolveEditorPanelHeight} from '@/utils/editorPanelHeight';
 
 const LOADED_ROWS_EXPORT_MIME_TYPES: Record<ResultExportFormat, string> = {
     csv: 'text/csv',
@@ -313,6 +319,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         selectedDatabases,
         activeConnectionName,
         activeDatabaseName,
+        tables,
+        schemaDataMap,
+        databaseDataMap,
+        nestedDatabaseDataMap,
     } = useDatabase();
     const {allDrivers} = useDrivers();
     const {explorerConnectionId} = useConnectionLayoutContext();
@@ -516,8 +526,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [showNewRowModal, setShowNewRowModal] = useState(false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
-    const [editorHeight, setEditorHeight] = useState(300);
-    const editorHeightRef = useRef(300);
+    // Saved across restarts and shared by every editor pane (see utils/editorPanelHeight).
+    const [storedEditorHeight, setEditorHeight] = useUiState<unknown>(
+        UI_STATE_KEYS.editorPanelHeight,
+        DEFAULT_EDITOR_PANEL_HEIGHT,
+    );
+    const editorHeight = resolveEditorPanelHeight(storedEditorHeight, window.innerHeight);
+    const editorHeightRef = useRef(editorHeight);
     // Root of this editor instance: the resize logic must stay scoped to it,
     // in split view every pane mounts its own Editor
     const editorRootRef = useRef<HTMLDivElement>(null);
@@ -1798,8 +1813,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                         historyDb,
                     );
                 }
+                const snapshot = pageSize && isSnapshotResult(res) ? res : undefined;
                 patchResultEntry(targetTabId, entry.id, {
-                    result: res,
+                    result: snapshot && pageSize ? snapshotPage(snapshot, 1, pageSize) : res,
+                    snapshot,
                     executionTime: execTime,
                     isLoading: false,
                     activeTable: tableName,
@@ -1829,7 +1846,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {
                         connectionId: activeConnectionId,
                         queries: entries.map((e) => e.query),
-                        limit: pageSize,
+                        // Capture a snapshot per statement: later pages are cut from
+                        // it, since re-running a statement after the batch would see
+                        // different session state (#205).
+                        limit: batchSnapshotLimit(pageSize),
                         page: 1,
                         batchId,
                         // The tab is the session: a transaction it leaves open keeps
@@ -2006,6 +2026,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const schema = currentTab?.schema ?? activeSchema;
 
             scrollTopByEntryKeyRef.current.delete(`${targetTabId}:${entryId}`);
+
+            // Run All results page through the rows captured during the batch.
+            if (entry.snapshot && currentTab?.results) {
+                const pageResult = snapshotPage(entry.snapshot, pageNum, pageSize ?? 0);
+                updateTab(targetTabId, {
+                    results: updateResultEntry(currentTab.results, entryId, {
+                        result: pageResult,
+                        page: pageResult.pagination?.page ?? 1,
+                    }),
+                });
+                return;
+            }
 
             // Mark this entry as loading
             if (currentTab?.results) {
@@ -4597,6 +4629,56 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         enabled: !isNotebookTab && !isUsersTab,
     });
 
+    const sqlDiagnostics = useSqlDiagnosticsOptions(activeConnectionId, {
+        schema: activeTab?.schema ?? activeSchema,
+        database: activeTab?.database,
+        enabled: !isNotebookTab && !isUsersTab,
+    });
+
+    const inlineCompletion = useMemo(() => {
+        if (
+            !settings.aiEnabled ||
+            !settings.aiInlineCompletionEnabled ||
+            !activeConnectionId ||
+            !activeTab
+        )
+            return undefined;
+        const schema = activeTab.schema ?? activeSchema;
+        const database = activeTab.database ?? activeDatabaseName;
+        // Only use already-loaded metadata for this tab's exact namespace.
+        const cached = inlineTables(
+            {
+                tables,
+                schemaDataMap,
+                databaseDataMap,
+                nestedDatabaseDataMap,
+                activeCapabilities,
+                activeSchema,
+                activeDatabaseName,
+            },
+            schema,
+            database,
+        );
+        return {
+            key: JSON.stringify([activeConnectionId, activeTab.id, database, schema]),
+            schema: inlineSchema(cached),
+            dialect: activeDialect.dialect ?? 'generic',
+        };
+    }, [
+        settings.aiEnabled,
+        settings.aiInlineCompletionEnabled,
+        activeConnectionId,
+        activeTab,
+        activeSchema,
+        activeDatabaseName,
+        activeCapabilities,
+        activeDialect.dialect,
+        nestedDatabaseDataMap,
+        schemaDataMap,
+        databaseDataMap,
+        tables,
+    ]);
+
     // E2E: expose a submit-changes hook for tauri-wd tests. The WDIO
     // element.click() on the Submit button doesn't reliably trigger React's
     // onClick in WKWebView, so the test calls this directly. This mirrors
@@ -4658,6 +4740,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const startResize = () => {
         isDragging.current = true;
+        editorHeightRef.current = editorHeight;
+        // `editorHeight` is clamped to the current window: only a real drag may
+        // save, or a plain click would overwrite a height saved on a larger screen.
+        let didResize = false;
         document.body.style.cursor = 'row-resize';
         const activeEditor = activeTab ? editorsRef.current[activeTab.id] : undefined;
 
@@ -4683,6 +4769,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const newHeight = e.clientY - panelTop;
             if (newHeight > 100 && newHeight < maxHeight) {
                 editorHeightRef.current = newHeight;
+                didResize = true;
                 if (rafRef.current) cancelAnimationFrame(rafRef.current);
                 rafRef.current = requestAnimationFrame(() => {
                     panels.forEach((el) => {
@@ -4697,7 +4784,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             document.body.style.cursor = '';
             overlay.remove();
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            setEditorHeight(editorHeightRef.current);
+            if (didResize) setEditorHeight(editorHeightRef.current);
             requestAnimationFrame(() => activeEditor?.layout());
             document.removeEventListener('mousemove', handleResize);
             document.removeEventListener('mouseup', stopResize);
@@ -5726,6 +5813,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 initialValue={tab.query}
                                 dialect={activeDialect}
                                 foldPreview
+                                cursorStatus
+                                diagnostics={isActive ? sqlDiagnostics : undefined}
+                                inlineCompletion={isActive ? inlineCompletion : undefined}
                                 onChange={(val) => {
                                     // Debounced Monaco edits can arrive after this tab becomes
                                     // inactive. The callback belongs to the tab's stable id;
@@ -6543,6 +6633,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 csvDelimiter={csvDelimiter}
                                                 csvIncludeHeaders={csvIncludeHeaders}
                                                 transposed={!!activeTab.transposed}
+                                                conditionalFormatting={activeTab.type === 'table'}
                                                 sortClause={activeTab.sortClause}
                                                 onSort={
                                                     activeTab.type === 'table' &&

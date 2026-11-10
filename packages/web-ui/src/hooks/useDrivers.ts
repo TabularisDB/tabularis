@@ -42,6 +42,7 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
             alter_column: true,
             create_foreign_keys: true,
             supports_ssl: true,
+            query_timeout: true,
             sql_dialect: 'postgres',
         },
     },
