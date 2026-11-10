@@ -169,6 +169,7 @@ enum RpcCommand {
     ResolveServerSaveTarget,
     CreateSqliteFile,
     CreateSqliteDatabase,
+    OpenDataFile,
     ReadSqlFile,
     WriteSqlFile,
     Theme(ThemeRpcCommand),
@@ -228,6 +229,7 @@ enum PluginRpcCommand {
     GetStartupErrors,
     KillProcess,
     RestartProcess,
+    SyncSettings,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -238,6 +240,8 @@ enum AiRpcCommand {
     CheckKeyStatus,
     GetModels,
     GenerateQuery,
+    CompleteInline,
+    CancelInline,
     ExplainQuery,
     AnalyzeExplainPlan,
     AnalyzeCrashReport,
@@ -352,6 +356,7 @@ enum PersistenceRpcCommand {
 enum QueryRpcCommand {
     ReleaseSession,
     Execute,
+    PluginReadOnly,
     ExecuteBatch,
     Count,
     Explain,
@@ -520,6 +525,13 @@ struct ResolveServerSaveTargetRequest {
 #[serde(deny_unknown_fields)]
 struct SqlitePathRequest {
     path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OpenDataFileRequest {
+    upload_token: String,
+    workspace_name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1763,6 +1775,28 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::OpenDataFile => {
+                let request: OpenDataFileRequest =
+                    decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                let owner = context.session_id.ok_or_else(|| {
+                    InvocationError::InvalidPayload(
+                        "An authenticated upload session is required".to_string(),
+                    )
+                })?;
+                self.application
+                    .execute_connection_command(
+                        context,
+                        ConnectionCommand::OpenDataFile {
+                            source: crate::application::data_files::DataFileSource::SessionUpload {
+                                owner,
+                                token: request.upload_token,
+                            },
+                            workspace_name: request.workspace_name,
+                        },
+                    )
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Query(command) => {
                 let command =
                     decode_query_command(command, body).map_err(InvocationError::InvalidPayload)?;
@@ -2002,6 +2036,7 @@ impl RpcCommand {
             "resolve_server_save_target" => Some(Self::ResolveServerSaveTarget),
             "create_sqlite_file" => Some(Self::CreateSqliteFile),
             "create_sqlite_database" => Some(Self::CreateSqliteDatabase),
+            "open_data_file" => Some(Self::OpenDataFile),
             "read_sql_file" => Some(Self::ReadSqlFile),
             "write_sql_file" => Some(Self::WriteSqlFile),
             name => QueryRpcCommand::parse(name)
@@ -2057,6 +2092,13 @@ impl RpcCommand {
             Self::CreateSqliteFile | Self::CreateSqliteDatabase => CommandMetadata {
                 authorization: AuthorizationLevel::LocalAdmin,
                 application_error_code: "SQLITE_DATABASE_CREATE_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            // The workspace is a file-backed database whose SQL can read host
+            // files, like the other local-path drivers.
+            Self::OpenDataFile => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "DATA_FILE_OPEN_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Query(_) => CommandMetadata {
@@ -2240,6 +2282,7 @@ impl PluginRpcCommand {
             "get_plugin_startup_errors" => Self::GetStartupErrors,
             "kill_plugin_process" => Self::KillProcess,
             "restart_plugin_process" => Self::RestartProcess,
+            "sync_plugin_settings" => Self::SyncSettings,
             _ => return None,
         })
     }
@@ -2254,6 +2297,8 @@ impl AiRpcCommand {
             "check_ai_key_status" => Self::CheckKeyStatus,
             "get_ai_models" => Self::GetModels,
             "generate_ai_query" => Self::GenerateQuery,
+            "complete_ai_inline" => Self::CompleteInline,
+            "cancel_ai_inline" => Self::CancelInline,
             "explain_ai_query" => Self::ExplainQuery,
             "analyze_ai_explain_plan" => Self::AnalyzeExplainPlan,
             "analyze_ai_crash_report" => Self::AnalyzeCrashReport,
@@ -2342,7 +2387,10 @@ impl ConnectionFilesRpcCommand {
             Self::ListImportSources
             | Self::PreviewForeignImport
             | Self::ApplyForeignImport
-            | Self::GetBackupStatus | Self::GetDatabaseBackupStatus | Self::RunDatabaseBackup | Self::CancelDatabaseBackup => AuthorizationLevel::LocalAdmin,
+            | Self::GetBackupStatus
+            | Self::GetDatabaseBackupStatus
+            | Self::RunDatabaseBackup
+            | Self::CancelDatabaseBackup => AuthorizationLevel::LocalAdmin,
             Self::Export
             | Self::PreviewTabularisImport
             | Self::ApplyPreparedTabularisImport
@@ -2448,6 +2496,7 @@ impl QueryRpcCommand {
         Some(match name {
             "release_query_session" => Self::ReleaseSession,
             "execute_query" => Self::Execute,
+            "execute_plugin_read_only_query" => Self::PluginReadOnly,
             "execute_query_batch" => Self::ExecuteBatch,
             "count_query" => Self::Count,
             "explain_query_plan" => Self::Explain,
@@ -2653,6 +2702,21 @@ fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, St
         AiRpcCommand::GenerateQuery => {
             let request: AiRequest<crate::ai::AiGenerateRequest> = decode_payload(body)?;
             AiCommand::GenerateQuery(request.req)
+        }
+        AiRpcCommand::CompleteInline => {
+            let request: AiRequest<crate::ai::inline::InlineRequest> = decode_payload(body)?;
+            AiCommand::CompleteInline(request.req)
+        }
+        AiRpcCommand::CancelInline => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase", deny_unknown_fields)]
+            struct Cancel {
+                request_id: String,
+            }
+            let request: Cancel = decode_payload(body)?;
+            AiCommand::CancelInline {
+                request_id: request.request_id,
+            }
         }
         AiRpcCommand::ExplainQuery => {
             let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
@@ -3133,6 +3197,12 @@ fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<Plugi
                 plugin_id: request.plugin_id,
             }
         }
+        PluginRpcCommand::SyncSettings => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::SyncSettings {
+                plugin_id: request.plugin_id,
+            }
+        }
     })
 }
 
@@ -3362,6 +3432,14 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
                 schema: request.schema,
                 query_session_id: request.session_id,
                 database: request.database,
+            }
+        }
+        QueryRpcCommand::PluginReadOnly => {
+            let request: ExecuteQueryRequest = decode_payload(body)?;
+            QueryCommand::PluginReadOnly {
+                connection_id: request.connection_id,
+                query: request.query,
+                schema: request.schema,
             }
         }
         QueryRpcCommand::ExecuteBatch => {

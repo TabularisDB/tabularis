@@ -728,6 +728,7 @@ fn registers_plugin_lifecycle_commands_with_local_admin_authorization() {
         "get_plugin_startup_errors",
         "kill_plugin_process",
         "restart_plugin_process",
+        "sync_plugin_settings",
     ] {
         let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
         assert_eq!(
@@ -999,6 +1000,10 @@ async fn rejects_destructive_operations_without_local_admin_authorization() {
         ),
         (
             "restart_plugin_process",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
+            "sync_plugin_settings",
             serde_json::json!({"pluginId": "postgres-driver"}),
         ),
     ] {
@@ -1613,6 +1618,11 @@ async fn routes_ai_commands_through_the_shared_application_api() {
         ),
         ("get_ai_models", serde_json::json!({"forceRefresh": false})),
         ("generate_ai_query", generate),
+        ("complete_ai_inline", serde_json::json!({"req": {
+            "requestId": "inline-contract", "provider": "ollama", "model": "local",
+            "prefix": "SELECT ", "suffix": "", "schema": "", "dialect": "postgres"
+        }})),
+        ("cancel_ai_inline", serde_json::json!({"requestId": "inline-contract"})),
         ("explain_ai_query", explain.clone()),
         ("analyze_ai_explain_plan", explain.clone()),
         ("analyze_ai_crash_report", explain),
@@ -1713,6 +1723,10 @@ async fn routes_plugin_lifecycle_commands_through_the_shared_application_api() {
         ),
         ("get_plugin_startup_errors", Value::Null),
         (
+            "sync_plugin_settings",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
             "kill_plugin_process",
             serde_json::json!({"pluginId": "postgres-driver"}),
         ),
@@ -1740,7 +1754,7 @@ async fn routes_plugin_lifecycle_commands_through_the_shared_application_api() {
         .contexts
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    assert_eq!(contexts.len(), 13);
+    assert_eq!(contexts.len(), 14);
     assert!(contexts
         .iter()
         .all(|context| context.authorization == AuthorizationLevel::LocalAdmin));
@@ -3131,10 +3145,77 @@ async fn connection_policy_accepts_omitted_blank_ssl_mode_on_saved_connections()
 #[tokio::test]
 async fn database_backup_rpc_requires_local_admin_and_uses_the_shared_application() {
     let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
-    for command in ["get_database_backup_status", "run_database_backup_now", "cancel_database_backup"] {
-        for (authorization, expected) in [(AuthorizationLevel::Database, StatusCode::FORBIDDEN), (AuthorizationLevel::LocalAdmin, StatusCode::OK)] {
-            let response = dispatcher.dispatch(command, RequestId(command.to_string()), &json_headers(), Bytes::from_static(b"null"), Some(Uuid::new_v4()), authorization).await;
+    for command in [
+        "get_database_backup_status",
+        "run_database_backup_now",
+        "cancel_database_backup",
+    ] {
+        for (authorization, expected) in [
+            (AuthorizationLevel::Database, StatusCode::FORBIDDEN),
+            (AuthorizationLevel::LocalAdmin, StatusCode::OK),
+        ] {
+            let response = dispatcher
+                .dispatch(
+                    command,
+                    RequestId(command.to_string()),
+                    &json_headers(),
+                    Bytes::from_static(b"null"),
+                    Some(Uuid::new_v4()),
+                    authorization,
+                )
+                .await;
             assert_eq!(response.status(), expected, "{command}");
         }
     }
+}
+
+#[tokio::test]
+async fn opens_data_files_only_for_local_admin_upload_sessions() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let payload = Bytes::from(
+        serde_json::to_vec(&serde_json::json!({
+            "uploadToken": Uuid::new_v4().to_string(),
+            "workspaceName": "Data files",
+        }))
+        .unwrap(),
+    );
+    let headers = json_headers();
+    let dispatch = |session: Option<Uuid>, granted: AuthorizationLevel| {
+        dispatcher.dispatch(
+            "open_data_file",
+            RequestId("open-data-file".to_string()),
+            &headers,
+            payload.clone(),
+            session,
+            granted,
+        )
+    };
+
+    // The workspace database can read host files through SQL.
+    let restricted = dispatch(Some(Uuid::new_v4()), AuthorizationLevel::Sensitive).await;
+    assert_eq!(restricted.status(), StatusCode::FORBIDDEN);
+
+    let without_session = dispatch(None, AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(without_session.status(), StatusCode::BAD_REQUEST);
+
+    let allowed = dispatch(Some(Uuid::new_v4()), AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(allowed.status(), StatusCode::OK);
+
+    let desktop_only_field = dispatcher
+        .dispatch(
+            "open_data_file",
+            RequestId("open-data-file-path".to_string()),
+            &json_headers(),
+            Bytes::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "filePath": "/etc/passwd",
+                    "workspaceName": "Data files",
+                }))
+                .unwrap(),
+            ),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
+    assert_eq!(desktop_only_field.status(), StatusCode::BAD_REQUEST);
 }

@@ -287,6 +287,14 @@ export function AiTab() {
                 )}
             >
                 {/* Provider selection */}
+                <SettingSection title={t('aiInline.title')} description={t('aiInline.privacy')}>
+                    <SettingRow label={t('aiInline.enable')} description={t('aiInline.keys')}>
+                        <SettingToggle
+                            checked={settings.aiInlineCompletionEnabled ?? false}
+                            onChange={(value) => updateSetting('aiInlineCompletionEnabled', value)}
+                        />
+                    </SettingRow>
+                </SettingSection>
                 <SettingSection
                     title={t('settings.ai.defaultProvider')}
                     description={t('settings.ai.providerHelp')}

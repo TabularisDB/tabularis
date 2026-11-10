@@ -1,6 +1,7 @@
 import {scanNonCodeSpans, type DialectInput} from './sqlSplitter';
 
-export type SqlDialectScope = 'all' | 'postgres' | 'mysql' | 'sqlite';
+export type SqlDialectScope =
+    'all' | 'postgres' | 'mysql' | 'sqlite' | 'oracle' | 'mssql' | `driver:${string}`;
 
 export interface SqlSnippet {
     id: string;
@@ -137,6 +138,8 @@ export function normalizeDriverToDialect(driverOrCapabilities: unknown): SqlDial
     if (str.includes('sqlite')) {
         return 'sqlite';
     }
+    if (str === 'oracle') return 'oracle';
+    if (str === 'mssql') return 'mssql';
     return 'all';
 }
 
@@ -149,7 +152,9 @@ export function normalizeDriverToDialect(driverOrCapabilities: unknown): SqlDial
 export function isSnippetDialectCompatible(
     snippetDialect: SqlDialectScope | undefined,
     currentDialect: SqlDialectScope,
+    driverId?: string | null,
 ): boolean {
+    if (snippetDialect?.startsWith('driver:')) return snippetDialect === `driver:${driverId}`;
     if (!snippetDialect || snippetDialect === 'all') return true;
     return snippetDialect === currentDialect;
 }

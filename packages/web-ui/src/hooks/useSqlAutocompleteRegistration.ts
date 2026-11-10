@@ -123,6 +123,7 @@ export function useSqlAutocompleteRegistration(connectionId: string | null, opti
                 activeCapabilities ?? activeDriver ?? null,
                 client,
                 keywordCase,
+                activeDriver,
             );
 
             // E2E: expose the effective tables for tauri-wd tests. The bug: this

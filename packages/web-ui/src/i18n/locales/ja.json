@@ -472,6 +472,12 @@
     "import": "接続をインポート",
     "exportTitle": "接続をエクスポート",
     "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。",
+    "exportSecretsConfirmation": {
+      "title": "シークレットのエクスポートを確認",
+      "message": "保存済みのパスワード、SSH キー、接続 URI を平文でエクスポートしますか？",
+      "export": "エクスポート",
+      "cancel": "キャンセル"
+    },
     "exportModal": {
       "title": "接続をエクスポート",
       "subtitle": "接続のエクスポート方法を選択してください",
@@ -715,6 +721,8 @@
     "appearance_editorTabSize": "タブサイズ",
     "appearance_editorWordWrap": "ワードラップ",
     "appearance_editorWordWrapDesc": "エディタ内の長い行を横スクロールせず折り返します。",
+    "appearance_editorMinimap": "ミニマップを表示",
+    "appearance_editorMinimapDesc": "SQLスクリプトの縮小表示で素早く移動できます。",
     "appearance_editorHighlightInvisibleCharacters": "不可視文字を表示",
     "appearance_editorHighlightInvisibleCharactersDesc": "SQL内の不可視Unicode文字や紛らわしい文字を強調表示します。",
     "appearance_editorShowLineNumbers": "行番号を表示",
@@ -964,6 +972,8 @@
       "enabled": "有効",
       "disabled": "無効",
       "openFolder": "プラグインフォルダーを開く",
+      "legacyGoogleSheetsOAuthHint": "この Tabularis バージョンで Google ログインを再開するには、Google Sheets プラグインを更新してください。",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "インストール失敗",
         "subtitle": "プラグインのインストール中にエラーが発生しました。詳細は下記を参照してください。",
@@ -2627,7 +2637,10 @@
     "downloading": "ダウンロード中...",
     "uploading": "アップロード中...",
     "openSidebar": "エディタで開く",
-    "imagePreview": "画像プレビュー"
+    "imagePreview": "画像プレビュー",
+    "editAs": "編集形式",
+    "text": "テキスト",
+    "hex": "16進数"
   },
   "visualExplainPage": {
     "title": "ビジュアル Explain",
@@ -3192,5 +3205,28 @@
     "groups": { "builtin": "内蔵 · オフライン", "installed": "インストール済みパッケージ", "personal": "個人テーマ" }, "modes": { "light": "ライト", "dark": "ダーク", "high-contrast": "ハイコントラスト" },
     "importErrors": { "unrecognized": "VS Code テーマとして認識できません。", "modeRequired": "モードを選択して再度プレビューしてください。", "includeOnly": "include のみのテーマはインポートできません。実際の色データを指定してください。", "noSupportedData": "対応する色や SQL トークン規則がありません。", "invalidColor": "対応する色の値が無効です。", "invalidRules": "トークン規則が無効または多すぎます。" },
     "diagnostics": { "unsupportedKey": "非対応のフィールド", "unsupportedColor": "非対応の色", "unsupportedScope": "非対応のスコープ", "scopeApproximation": "近似的な SQL スコープ変換", "unsupportedStyle": "非対応のスタイル", "ignoredInclude": "include は読み込まれません", "ignoredSemanticTokens": "セマンティックトークンを無視", "unsupportedReference": "外部参照は読み込まれません", "unsupportedSetting": "非対応の設定", "tokenAlphaFlattened": "トークンの不透明度を基本背景に合成", "modeApproximation": "モードを上書きまたは近似", "diagnosticsTruncated": "追加の診断を省略" }
+  },
+  "aiInline": {
+    "title": "AIインライン補完",
+    "enable": "入力中にSQLを提案",
+    "privacy": "初期設定では無効です。以下で選択したAIプロバイダーとモデルを使用し、ローカルプロバイダーにも対応します。カーソル前の最大4,000文字、後ろの最大1,000文字、キャッシュ済みテーブル・スキーマ名の最大8,000文字を送信します。SQLには機密情報が含まれる場合があります。結果行、テーブルのコメント、接続認証情報は追加しません。データベースへの追加クエリは実行しません。",
+    "keys": "Tabで確定、Escapeで非表示にします。通常の補完とインデントが優先されます。確定はテキストの挿入のみです。実行前に確認してください。"
+  },
+  "dataFiles": {
+    "workspaceName": "データファイル",
+    "open": "データファイルを開く",
+    "openMenu": "データファイルを開く…",
+    "subtitle": "CSV、TSV、JSON、NDJSON、Parquet ファイルをテーブルとしてクエリします",
+    "fileFilter": "データファイル",
+    "files": "開くファイル",
+    "pluginRequired": "これらのファイルは {{plugin}} プラグインで開きます。テーブルとしてクエリするには、プラグインをインストールまたは更新してください。",
+    "installing": "{{plugin}} プラグインをインストールしています…",
+    "opening": "開いています…",
+    "failed": "ファイルを開けませんでした。",
+    "unsupported": "対応していないデータファイルです: {{files}}",
+    "pluginCannotOpen": "インストール済みのプラグインでは {{files}} を開けません。「設定」の「プラグイン」で更新してください。",
+    "installAndOpen": "インストールして開く",
+    "dropTitle": "ドロップしてテーブルとして開く",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

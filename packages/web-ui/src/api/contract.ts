@@ -43,6 +43,7 @@ import type {
     AiEventFilter,
     AiExplainRequest,
     AiGenerateRequest,
+    AiInlineRequest,
     AiKeyStatus,
     AiNameRequest,
     AiNotebookExport,
@@ -106,6 +107,24 @@ export interface ServerSaveTarget {
 
 export interface SqlitePathRequest {
     readonly path: string;
+}
+
+export interface OpenDataFileRequest {
+    /** Desktop-only source path. */
+    filePath?: string;
+    /** Browser-only opaque upload token. */
+    uploadToken?: string;
+    /** Name for the workspace connection when this call creates it. */
+    workspaceName: string;
+}
+
+/** A data file exposed as a table of the data file workspace connection. */
+export interface OpenedDataFile {
+    connectionId: string;
+    /** Id of the driver behind the workspace connection. */
+    driver: string;
+    table: string;
+    format: string;
 }
 
 /**
@@ -276,6 +295,10 @@ export interface ExecuteQueryRequest extends MetadataRequest {
     query: string;
     limit?: number;
     page?: number;
+}
+
+export interface ExecutePluginReadOnlyQueryRequest extends MetadataRequest {
+    query: string;
 }
 
 export interface ExecuteQueryBatchRequest extends MetadataRequest {
@@ -678,6 +701,10 @@ export interface CommandMap {
     >;
     create_sqlite_file: CommandDefinition<SqlitePathRequest, string, 'local-admin'>;
     create_sqlite_database: CommandDefinition<SqlitePathRequest, SavedConnection, 'local-admin'>;
+    // The workspace is a file-backed database whose SQL can read host files.
+    open_data_file: CommandDefinition<OpenDataFileRequest, OpenedDataFile, 'local-admin'>;
+    /** Desktop-only: host paths the system handed to the app ("Open with", command line). */
+    consume_pending_data_files: CommandDefinition<undefined, string[], 'local-admin'>;
     get_installation_source: CommandDefinition<undefined, string | null, 'local-admin'>;
     // MCP client status and installation operate on host configuration files or
     // local client CLIs, so browsers may use them only in local-admin Web mode.
@@ -821,6 +848,7 @@ export interface CommandMap {
     get_plugin_startup_errors: CommandDefinition<undefined, PluginLoadError[], 'local-admin'>;
     kill_plugin_process: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
     restart_plugin_process: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
+    sync_plugin_settings: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
 
     test_connection: CommandDefinition<{request: TestConnectionRequest}, string, 'database'>;
     disconnect_connection: CommandDefinition<ConnectionIdRequest, void, 'database'>;
@@ -1107,6 +1135,11 @@ export interface CommandMap {
     >;
 
     execute_query: CommandDefinition<ExecuteQueryRequest, QueryResult, 'database'>;
+    execute_plugin_read_only_query: CommandDefinition<
+        ExecutePluginReadOnlyQueryRequest,
+        QueryResult,
+        'database'
+    >;
     execute_query_batch: CommandDefinition<
         ExecuteQueryBatchRequest,
         BatchStatementResult[],
@@ -1237,6 +1270,8 @@ export interface CommandMap {
         'sensitive'
     >;
     generate_ai_query: CommandDefinition<{req: AiGenerateRequest}, string, 'sensitive'>;
+    complete_ai_inline: CommandDefinition<{req: AiInlineRequest}, string, 'sensitive'>;
+    cancel_ai_inline: CommandDefinition<{requestId: string}, void, 'sensitive'>;
     explain_ai_query: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     analyze_ai_explain_plan: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     analyze_ai_crash_report: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;

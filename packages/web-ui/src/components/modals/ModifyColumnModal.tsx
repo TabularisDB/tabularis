@@ -349,16 +349,17 @@ export const ModifyColumnModal = ({
                             >
                                 {t('modifyColumn.comment')}
                             </label>
-                            <input
+                            <textarea
                                 autoCorrect="off"
                                 autoCapitalize="off"
                                 autoComplete="off"
                                 spellCheck={false}
                                 id={commentInputId}
+                                rows={3}
                                 value={form.comment ?? ''}
                                 onChange={(e) => setForm({...form, comment: e.target.value})}
                                 disabled={!canAlterColumn && isEdit}
-                                className="w-full bg-base border border-strong rounded p-2 text-primary text-sm focus:border-focus outline-none disabled:opacity-50"
+                                className="w-full bg-base border border-strong rounded p-2 text-primary text-sm resize-y focus:border-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
                                 placeholder={t('modifyColumn.commentPlaceholder')}
                             />
                         </div>

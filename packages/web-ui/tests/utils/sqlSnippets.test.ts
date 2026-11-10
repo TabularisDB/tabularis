@@ -68,7 +68,9 @@ describe('sqlSnippets utils', () => {
             expect(
                 normalizeDriverToDialect({capabilities: {sql_syntax: {extends: 'sqlite'}}}),
             ).toBe('sqlite');
-            expect(normalizeDriverToDialect({capabilities: {sql_dialect: 'oracle'}})).toBe('all');
+            expect(normalizeDriverToDialect({capabilities: {sql_dialect: 'oracle'}})).toBe(
+                'oracle',
+            );
         });
     });
 

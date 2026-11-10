@@ -5,11 +5,14 @@ pub mod extract;
 
 mod binding;
 mod client;
+mod column_comments;
 mod explain;
 mod helpers;
 mod routines;
 pub mod session;
 
+#[cfg(test)]
+mod column_ddl_tests;
 #[cfg(test)]
 mod tests;
 
@@ -187,10 +190,8 @@ pub async fn get_columns(
                 .try_get::<_, Option<i32>>("numeric_precision")
                 .ok()
                 .flatten();
-            let numeric_scale: Option<i32> = r
-                .try_get::<_, Option<i32>>("numeric_scale")
-                .ok()
-                .flatten();
+            let numeric_scale: Option<i32> =
+                r.try_get::<_, Option<i32>>("numeric_scale").ok().flatten();
 
             let is_auto = is_identity == "YES" || default_val.contains("nextval");
 
@@ -1241,8 +1242,7 @@ pub async fn execute_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
-    let (result, _) =
-        execute_query_in_session(params, query, limit, page, schema, None).await?;
+    let (result, _) = execute_query_in_session(params, query, limit, page, schema, None).await?;
     Ok(result)
 }
 
@@ -1716,10 +1716,8 @@ pub async fn get_view_columns(
                 .try_get::<_, Option<i32>>("numeric_precision")
                 .ok()
                 .flatten();
-            let numeric_scale: Option<i32> = r
-                .try_get::<_, Option<i32>>("numeric_scale")
-                .ok()
-                .flatten();
+            let numeric_scale: Option<i32> =
+                r.try_get::<_, Option<i32>>("numeric_scale").ok().flatten();
 
             let is_auto = is_identity == "YES" || default_val.contains("nextval");
 
@@ -2062,7 +2060,10 @@ pub async fn get_routine_parameters(
     // 2. Get parameters
     let rows = match specific_name.as_deref() {
         Some(specific) => client
-            .query(routines::routine_parameters_sql(true), &[&schema, &specific])
+            .query(
+                routines::routine_parameters_sql(true),
+                &[&schema, &specific],
+            )
             .await
             .map_err(|e| format_pg_error(&e))?,
         None => client
@@ -2323,6 +2324,7 @@ impl PostgresDriver {
                     file_based: false,
                     folder_based: false,
                     in_memory: false,
+                    data_files: Vec::new(),
                     connection_string: true,
                     connection_string_example: "postgres://user:pass@localhost:5432/db".into(),
                     connection_string_examples: Vec::new(),
@@ -2334,7 +2336,7 @@ impl PostgresDriver {
                     serial_type: "SERIAL".into(),
                     inline_pk: false,
                     table_query_templates: false,
-                    column_comments: false,
+                    column_comments: true,
                     drop_table_sql: false,
                     column_stats: false,
                     query_timeout: true,
@@ -2811,8 +2813,16 @@ impl DatabaseDriver for PostgresDriver {
         session_id: Option<&str>,
         on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
     ) -> Result<(Vec<crate::models::BatchStatementResult>, bool), String> {
-        execute_batch_in_session(params, queries, limit, page, schema, session_id, on_progress)
-            .await
+        execute_batch_in_session(
+            params,
+            queries,
+            limit,
+            page,
+            schema,
+            session_id,
+            on_progress,
+        )
+        .await
     }
 
     async fn release_session(&self, session_id: &str) {
@@ -3000,7 +3010,15 @@ impl DatabaseDriver for PostgresDriver {
                 def.push_str(&format!(" DEFAULT {}", default));
             }
         }
-        Ok(vec![def])
+        let mut stmts = vec![def];
+        if let Some(comment) = column.comment.as_deref().filter(|value| !value.is_empty()) {
+            stmts.push(column_comments::comment_sql(
+                &tbl,
+                &column.name,
+                Some(comment),
+            ));
+        }
+        Ok(stmts)
     }
 
     async fn get_alter_column_sql(
@@ -3072,6 +3090,16 @@ impl DatabaseDriver for PostgresDriver {
                     tbl, col_ref
                 ));
             }
+        }
+
+        if old_column.comment.as_deref().unwrap_or("")
+            != new_column.comment.as_deref().unwrap_or("")
+        {
+            stmts.push(column_comments::comment_sql(
+                &tbl,
+                &new_column.name,
+                new_column.comment.as_deref(),
+            ));
         }
 
         if stmts.is_empty() {

@@ -5,6 +5,25 @@ use std::collections::HashMap;
 use tauri::{AppHandle, Manager};
 
 #[tauri::command]
+pub async fn complete_ai_inline(
+    app: AppHandle,
+    req: inline::InlineRequest,
+) -> Result<String, String> {
+    inline::complete(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        None,
+        req,
+    )
+    .await
+}
+
+#[tauri::command]
+pub fn cancel_ai_inline(app: AppHandle, request_id: String) -> Result<(), String> {
+    inline::cancel(&app.state::<RuntimeContext>(), None, request_id)
+}
+
+#[tauri::command]
 pub fn clear_ai_models_cache(app: AppHandle) -> Result<(), String> {
     clear_models_cache(&app.state::<RuntimeContext>())
 }

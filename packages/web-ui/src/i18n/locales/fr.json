@@ -472,6 +472,12 @@
     "import": "Importer les connexions",
     "exportTitle": "Exporter les connexions",
     "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr.",
+    "exportSecretsConfirmation": {
+      "title": "Confirmer l’exportation des secrets",
+      "message": "Exporter en texte brut les mots de passe enregistrés, les clés SSH et les URI de connexion ?",
+      "export": "Exporter",
+      "cancel": "Annuler"
+    },
     "exportModal": {
       "title": "Exporter les connexions",
       "subtitle": "Choisissez comment exporter vos connexions",
@@ -734,6 +740,8 @@
     "appearance_editorTabSize": "Taille de tabulation",
     "appearance_editorWordWrap": "Retour à la ligne automatique",
     "appearance_editorWordWrapDesc": "Retourne les longues lignes dans l’éditeur au lieu d’un défilement horizontal.",
+    "appearance_editorMinimap": "Afficher la minicarte",
+    "appearance_editorMinimapDesc": "Affiche un aperçu miniature des scripts SQL pour naviguer rapidement.",
     "appearance_editorHighlightInvisibleCharacters": "Afficher les caractères invisibles",
     "appearance_editorHighlightInvisibleCharactersDesc": "Signale les caractères Unicode invisibles et les caractères similaires dans le SQL.",
     "appearance_editorShowLineNumbers": "Afficher les numéros de ligne",
@@ -983,6 +991,8 @@
       "enabled": "Activé",
       "disabled": "Désactivé",
       "openFolder": "Ouvrir le dossier des plugins",
+      "legacyGoogleSheetsOAuthHint": "Mettez à jour le plugin Google Sheets pour rétablir la connexion Google dans cette version de Tabularis.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "Échec de l’installation",
         "subtitle": "Une erreur s’est produite lors de l’installation du plugin. Voir les détails ci-dessous.",
@@ -2685,7 +2695,10 @@
     "downloading": "Téléchargement...",
     "uploading": "Téléversement...",
     "openSidebar": "Ouvrir dans l’éditeur",
-    "imagePreview": "Aperçu de l’image"
+    "imagePreview": "Aperçu de l’image",
+    "editAs": "Modifier en",
+    "text": "Texte",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",
@@ -3250,5 +3263,28 @@
     "groups": { "builtin": "Intégrés · hors ligne", "installed": "Paquets installés", "personal": "Thèmes personnels" }, "modes": { "light": "Clair", "dark": "Sombre", "high-contrast": "Contraste élevé" },
     "importErrors": { "unrecognized": "Thème VS Code non reconnu.", "modeRequired": "Choisissez un mode puis relancez l’aperçu.", "includeOnly": "Les thèmes composés uniquement d’includes ne sont pas importables. Fournissez les couleurs réelles.", "noSupportedData": "Aucune couleur ou règle SQL prise en charge.", "invalidColor": "Valeur incorrecte pour une couleur prise en charge.", "invalidRules": "Règles de jetons incorrectes ou trop nombreuses." },
     "diagnostics": { "unsupportedKey": "Champ non pris en charge", "unsupportedColor": "Couleur non prise en charge", "unsupportedScope": "Portée non prise en charge", "scopeApproximation": "Correspondance SQL approximative", "unsupportedStyle": "Style non pris en charge", "ignoredInclude": "Include non chargé", "ignoredSemanticTokens": "Jetons sémantiques ignorés", "unsupportedReference": "Référence externe non chargée", "unsupportedSetting": "Réglage non pris en charge", "tokenAlphaFlattened": "Opacité des jetons calculée sur le fond de base", "modeApproximation": "Mode remplacé ou approximatif", "diagnosticsTruncated": "Diagnostics supplémentaires omis" }
+  },
+  "aiInline": {
+    "title": "Complétion IA en ligne",
+    "enable": "Suggérer du SQL pendant la saisie",
+    "privacy": "Désactivée par défaut. Utilise le fournisseur et le modèle IA choisis ci-dessous, y compris les fournisseurs locaux. Envoie au maximum 4 000 caractères avant le curseur, 1 000 après et 8 000 caractères de noms de tables/schémas en cache. Le SQL peut contenir des valeurs sensibles. Aucune ligne de résultat, aucun commentaire de table ni identifiant de connexion ne sont ajoutés. Aucune requête supplémentaire à la base.",
+    "keys": "Tab accepte et Échap masque. La saisie semi-automatique et l’indentation sont prioritaires. Accepter insère uniquement du texte ; vérifiez-le avant exécution."
+  },
+  "dataFiles": {
+    "workspaceName": "Fichiers de données",
+    "open": "Ouvrir un fichier de données",
+    "openMenu": "Ouvrir un fichier de données…",
+    "subtitle": "Interroger un fichier CSV, TSV, JSON, NDJSON ou Parquet comme une table",
+    "fileFilter": "Fichiers de données",
+    "files": "Fichiers à ouvrir",
+    "pluginRequired": "Ces fichiers s'ouvrent avec le plugin {{plugin}}. Installez-le ou mettez-le à jour pour les interroger comme des tables.",
+    "installing": "Installation du plugin {{plugin}}…",
+    "opening": "Ouverture…",
+    "failed": "Impossible d'ouvrir le fichier.",
+    "unsupported": "Fichier de données non pris en charge : {{files}}",
+    "pluginCannotOpen": "Le plugin installé ne peut pas ouvrir {{files}}. Mettez-le à jour dans Paramètres, Plugins.",
+    "installAndOpen": "Installer et ouvrir",
+    "dropTitle": "Déposez pour ouvrir comme une table",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

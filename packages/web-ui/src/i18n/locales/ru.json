@@ -475,6 +475,12 @@
     "import": "Импортировать подключения",
     "exportTitle": "Экспорт подключений",
     "exportWarning": "Экспортируемый файл будет содержать пароли к базам данных и SSH в открытом виде. Храните его в надёжном месте!",
+    "exportSecretsConfirmation": {
+      "title": "Подтвердите экспорт секретов",
+      "message": "Экспортировать сохранённые пароли, SSH-ключи и URI подключений в открытом виде?",
+      "export": "Экспортировать",
+      "cancel": "Отмена"
+    },
     "exportModal": {
       "title": "Экспорт подключений",
       "subtitle": "Выберите способ экспорта подключений",
@@ -699,6 +705,8 @@
     "appearance_editorTabSize": "Размер отступа",
     "appearance_editorWordWrap": "Перенос строк",
     "appearance_editorWordWrapDesc": "Переносить длинные строки в редакторе вместо горизонтальной прокрутки.",
+    "appearance_editorMinimap": "Показывать мини-карту",
+    "appearance_editorMinimapDesc": "Показывает уменьшенный обзор SQL-скриптов для быстрой навигации.",
     "appearance_editorHighlightInvisibleCharacters": "Показывать невидимые символы",
     "appearance_editorHighlightInvisibleCharactersDesc": "Выделять скрытые символы Unicode и похожие символы в SQL.",
     "appearance_editorShowLineNumbers": "Показывать номера строк",
@@ -945,6 +953,8 @@
       "enabled": "Включён",
       "disabled": "Отключён",
       "openFolder": "Открыть папку плагинов",
+      "legacyGoogleSheetsOAuthHint": "Обновите плагин Google Sheets, чтобы восстановить вход через Google в этой версии Tabularis.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "Ошибка установки",
         "subtitle": "Ошибка при установке плагина. Подробности ниже.",
@@ -2668,7 +2678,10 @@
     "downloading": "Скачивание...",
     "uploading": "Загрузка...",
     "openSidebar": "Открыть в редакторе",
-    "imagePreview": "Предпросмотр изображения"
+    "imagePreview": "Предпросмотр изображения",
+    "editAs": "Редактировать как",
+    "text": "Текст",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Визуальный Explain",
@@ -3212,5 +3225,28 @@
     "groups": { "builtin": "Встроенные · автономные", "installed": "Установленные пакеты", "personal": "Личные темы" }, "modes": { "light": "Светлый", "dark": "Тёмный", "high-contrast": "Высокая контрастность" },
     "importErrors": { "unrecognized": "Тема VS Code не распознана.", "modeRequired": "Выберите режим и повторите предпросмотр.", "includeOnly": "Темы только с include не импортируются. Предоставьте реальные цвета.", "noSupportedData": "Поддерживаемые цвета и правила SQL не найдены.", "invalidColor": "Неверное значение поддерживаемого цвета.", "invalidRules": "Неверные или слишком многочисленные правила токенов." },
     "diagnostics": { "unsupportedKey": "Неподдерживаемое поле", "unsupportedColor": "Неподдерживаемый цвет", "unsupportedScope": "Неподдерживаемая область", "scopeApproximation": "Приблизительное сопоставление SQL", "unsupportedStyle": "Неподдерживаемый стиль", "ignoredInclude": "Include не загружен", "ignoredSemanticTokens": "Семантические токены пропущены", "unsupportedReference": "Внешняя ссылка не загружена", "unsupportedSetting": "Неподдерживаемая настройка", "tokenAlphaFlattened": "Прозрачность токенов рассчитана относительно базового фона", "modeApproximation": "Режим заменён или приближён", "diagnosticsTruncated": "Дополнительная диагностика пропущена" }
+  },
+  "aiInline": {
+    "title": "Встроенное ИИ-дополнение",
+    "enable": "Предлагать SQL при вводе",
+    "privacy": "По умолчанию отключено. Использует выбранные ниже ИИ-провайдер и модель, включая локальные. Отправляет до 4000 символов перед курсором, 1000 после него и 8000 символов кэшированных имён таблиц/схем. SQL может содержать конфиденциальные значения. Строки результатов, комментарии таблиц и учётные данные не добавляются. Дополнительные запросы к базе не выполняются.",
+    "keys": "Tab принимает, Escape скрывает. Автодополнение и отступы имеют приоритет. Принятие только вставляет текст; проверьте его перед выполнением."
+  },
+  "dataFiles": {
+    "workspaceName": "Файлы данных",
+    "open": "Открыть файл данных",
+    "openMenu": "Открыть файл данных…",
+    "subtitle": "Запросы к файлу CSV, TSV, JSON, NDJSON или Parquet как к таблице",
+    "fileFilter": "Файлы данных",
+    "files": "Открываемые файлы",
+    "pluginRequired": "Эти файлы открываются плагином {{plugin}}. Установите или обновите его, чтобы работать с ними как с таблицами.",
+    "installing": "Установка плагина {{plugin}}…",
+    "opening": "Открытие…",
+    "failed": "Не удалось открыть файл.",
+    "unsupported": "Неподдерживаемый файл данных: {{files}}",
+    "pluginCannotOpen": "Установленный плагин не может открыть {{files}}. Обновите его в разделе «Настройки», «Плагины».",
+    "installAndOpen": "Установить и открыть",
+    "dropTitle": "Отпустите, чтобы открыть как таблицу",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

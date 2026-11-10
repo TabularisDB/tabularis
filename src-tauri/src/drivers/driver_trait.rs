@@ -74,6 +74,12 @@ pub struct DriverCapabilities {
     /// path. Defaults to `false`.
     #[serde(default, alias = "inMemory")]
     pub in_memory: bool,
+    /// Data file formats (`csv`, `tsv`, `json`, `ndjson`, `parquet`, ...) the
+    /// driver can expose as a queryable relation through the optional
+    /// `open_data_file` RPC. Requires `file_based`. Empty means the driver
+    /// does not open data files.
+    #[serde(default, alias = "dataFiles", skip_serializing_if = "Vec::is_empty")]
+    pub data_files: Vec<String>,
     /// The driver exposes a single implicit database, so there is nothing to
     /// select or name (e.g. a flat search/document store like Meilisearch).
     /// Skips the database tab and the database-name field in the connection
@@ -484,6 +490,14 @@ pub trait DatabaseDriver: Send + Sync {
     /// Built-in sqlx-based drivers hold no background process; the default is a no-op.
     async fn shutdown(&self) {}
 
+    /// Refresh a running plugin's settings without stopping its process.
+    async fn sync_plugin_settings(
+        &self,
+        _settings: HashMap<String, serde_json::Value>,
+    ) -> Result<(), String> {
+        Err("This driver does not support plugin settings synchronization".into())
+    }
+
     /// Like [`shutdown`](Self::shutdown), but stops the background process at
     /// once instead of letting in-flight calls finish. For a host that is
     /// exiting, when no caller is left to read their results.
@@ -751,7 +765,7 @@ pub trait DatabaseDriver: Send + Sync {
         routine_type: &str,
         schema: Option<&str>,
         /* Unused by the generic statement: a dialect that needs a signature to
-           name one routine overrides this, as the PostgreSQL driver does */
+        name one routine overrides this, as the PostgreSQL driver does */
         _identity_args: Option<&str>,
     ) -> Result<(), String> {
         let sql = crate::drivers::common::generic_drop_routine_sql(
@@ -974,6 +988,21 @@ pub trait DatabaseDriver: Send + Sync {
         Err("BLOB preview not supported by this driver".into())
     }
 
+    /// Optional: expose the data file at `path` as a read-only relation named
+    /// `table` in the database selected by `params`, replacing a relation of
+    /// the same name. `format` is one of the driver's
+    /// `capabilities.data_files`. Drivers without that capability keep this
+    /// default.
+    async fn open_data_file(
+        &self,
+        _params: &ConnectionParams,
+        _path: &str,
+        _format: &str,
+        _table: &str,
+    ) -> Result<(), String> {
+        Err("Data files are not supported by this driver".into())
+    }
+
     /// Optional SQL preview generation. None asks the host to use its legacy
     /// templates. Built-in and older drivers need no implementation changes.
     async fn get_table_query_template(
@@ -1022,6 +1051,30 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         Err("DDL generation not supported".into())
+    }
+
+    /// Connection-aware DDL defaults to the existing builder for drivers that
+    /// do not need server settings to render literals.
+    async fn get_add_column_sql_for_connection(
+        &self,
+        _params: &ConnectionParams,
+        table: &str,
+        column: ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        self.get_add_column_sql(table, column, schema).await
+    }
+
+    async fn get_alter_column_sql_for_connection(
+        &self,
+        _params: &ConnectionParams,
+        table: &str,
+        old_column: ColumnDefinition,
+        new_column: ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        self.get_alter_column_sql(table, old_column, new_column, schema)
+            .await
     }
 
     async fn get_create_index_sql(
