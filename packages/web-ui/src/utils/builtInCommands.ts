@@ -1,6 +1,7 @@
 import type {CommandScope} from '@/types/commands';
 import type {TableTarget} from '@/types/databaseObjects';
 import type {PaletteItem} from '@/types/palette';
+import {requestOpenDataFiles} from './dataFiles';
 import {createTableCountRequest, createTableConsoleRequest} from './databaseObjectActions';
 import {PINNED_PALETTE_RELEVANCE} from './paletteItems';
 import type {TableTransferCommands} from './tableTransferCommands';
@@ -8,6 +9,7 @@ import type {TableTransferCommands} from './tableTransferCommands';
 interface BuiltInCommandLabels {
     openSettings: string;
     openConnections: string;
+    openDataFile: string;
     newConsole: string;
     openTableInConsole: string;
     inspectTable: string;
@@ -74,6 +76,18 @@ export function createBuiltInCommandItems(
                 id: 'app.open-connections',
                 label: labels.openConnections,
                 execute: () => scope.runtime.navigate('/connections'),
+            },
+        },
+        {
+            id: 'app.open-data-file',
+            title: labels.openDataFile,
+            group: labels.navigationCategory,
+            keywords: ['csv', 'tsv', 'json', 'ndjson', 'parquet', 'file', 'import'],
+            icon: 'command',
+            primaryAction: {
+                id: 'app.open-data-file',
+                label: labels.openDataFile,
+                execute: () => requestOpenDataFiles(),
             },
         },
     ];

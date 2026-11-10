@@ -20,6 +20,59 @@ fn parses_desktop_defaults() {
 }
 
 #[test]
+fn a_launch_with_only_data_files_opens_them() {
+    let args = try_parse_from(["tabularis", "/data/orders.csv", "trips.parquet"])
+        .expect("data files should parse");
+    assert_eq!(
+        args.files,
+        [
+            PathBuf::from("/data/orders.csv"),
+            PathBuf::from("trips.parquet")
+        ]
+    );
+    assert!(args.command.is_none() && !args.mcp && args.explain.is_none());
+
+    // File managers may pass a file:// URL, and macOS adds its own argument.
+    let from_file_manager = try_parse_from([
+        "tabularis",
+        "-psn_0_12345",
+        "file:///data/web%20events.NDJSON",
+    ])
+    .unwrap();
+    assert_eq!(
+        from_file_manager.files,
+        [PathBuf::from("file:///data/web%20events.NDJSON")]
+    );
+}
+
+#[test]
+fn data_files_do_not_change_how_other_arguments_parse() {
+    assert!(try_parse_from(["tabularis"]).unwrap().files.is_empty());
+    assert!(try_parse_from(["tabularis", "tabularis://install/duckdb"])
+        .unwrap()
+        .files
+        .is_empty());
+
+    // A file that is an option's value stays that option's value.
+    let explain = try_parse_from(["tabularis", "--explain", "plan.json"]).unwrap();
+    assert_eq!(explain.explain.as_deref(), Some("plan.json"));
+    assert!(explain.files.is_empty());
+
+    // Files are not mixed with flags or other arguments: clap reports those.
+    for arguments in [
+        vec!["tabularis", "--debug", "orders.csv"],
+        vec!["tabularis", "orders.csv", "notes.txt"],
+        vec!["tabularis", "notes.txt"],
+    ] {
+        assert!(try_parse_from(arguments.clone()).is_err(), "{arguments:?}");
+    }
+    assert!(matches!(
+        try_parse_from(["tabularis", "web"]).unwrap().command,
+        Some(Command::Web(_))
+    ));
+}
+
+#[test]
 fn parses_all_web_options() {
     let args = Args::try_parse_from([
         "tabularis",

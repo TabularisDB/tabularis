@@ -181,6 +181,7 @@ vi.mock('lucide-react', () => ({
     Network: () => null,
     Code: () => null,
     FileText: () => null,
+    FileSpreadsheet: () => null,
     FileIcon: () => null,
     FileDown: () => null,
     FileUp: () => null,

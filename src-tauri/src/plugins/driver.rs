@@ -705,6 +705,27 @@ impl RpcDriver {
 
 #[async_trait]
 impl DatabaseDriver for RpcDriver {
+    async fn routine_debug(
+        &self,
+        params: &ConnectionParams,
+        version: u32,
+        command: &crate::routine_debug::DebugCommand,
+    ) -> Result<crate::routine_debug::DebugResponse, String> {
+        if self.manifest.capabilities.routine_debug != Some(crate::routine_debug::PROTOCOL_VERSION)
+        {
+            return Err("Routine debugging is not supported by this driver".into());
+        }
+        command.validate(version, self.manifest.capabilities.readonly)?;
+        // Never retry or fall back to execute_query: a lost reply may follow execution.
+        let value = self.process.call("routine_debug", json!({
+            "params": self.with_primary_database(params), "version": version, "command": command,
+        })).await?;
+        let response: crate::routine_debug::DebugResponse = serde_json::from_value(value)
+            .map_err(|error| format!("Invalid routine debugger response: {error}"))?;
+        response.validate_for(command)?;
+        Ok(response)
+    }
+
     fn has_connection_metadata(&self) -> bool {
         self.connection_metadata
     }
@@ -1581,6 +1602,34 @@ impl DatabaseDriver for RpcDriver {
             }
             Err(e) => Err(e.to_string()),
         }
+    }
+
+    async fn open_data_file(
+        &self,
+        params: &ConnectionParams,
+        path: &str,
+        format: &str,
+        table: &str,
+    ) -> Result<(), String> {
+        let supported = &self.manifest.capabilities.data_files;
+        if !supported.iter().any(|candidate| candidate == format) {
+            return Err(format!(
+                "The {} driver cannot open {format} data files",
+                self.manifest.name
+            ));
+        }
+        self.process
+            .call(
+                "open_data_file",
+                json!({
+                    "params": self.with_primary_database(params),
+                    "path": path,
+                    "format": format,
+                    "table": table,
+                }),
+            )
+            .await?;
+        Ok(())
     }
 
     async fn get_table_query_template(

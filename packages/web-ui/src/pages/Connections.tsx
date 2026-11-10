@@ -18,6 +18,7 @@ import {
     FolderPlus,
     Folder,
     Download,
+    FileSpreadsheet,
     FolderInput,
     FolderTree,
     ChevronDown,
@@ -55,6 +56,7 @@ import {useCreateSqliteDatabase} from '@/hooks/useCreateSqliteDatabase';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {saveGeneratedFile} from '@/utils/connectionFiles';
+import {requestOpenDataFiles} from '@/utils/dataFiles';
 import {buildEditorRoute, type ConnectionsRouteState} from '@/routing';
 import {
     useBuiltinPostgresMigration,
@@ -1273,6 +1275,19 @@ export const Connections = () => {
                                             {t('connections.newSqliteDatabase.menuLabel')}
                                         </span>
                                     </button>
+                                    <button
+                                        onClick={() => {
+                                            setIsImportMenuOpen(false);
+                                            requestOpenDataFiles();
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
+                                    >
+                                        <FileSpreadsheet
+                                            size={15}
+                                            className="shrink-0 text-accent"
+                                        />
+                                        <span className="flex-1">{t('dataFiles.openMenu')}</span>
+                                    </button>
                                     <div className="h-px bg-default mx-2" />
                                     <button
                                         onClick={() => {
@@ -1397,6 +1412,13 @@ export const Connections = () => {
                                     <Database size={14} />
                                 )}
                                 {t('connections.newSqliteDatabase.menuLabel')}
+                            </button>
+                            <button
+                                onClick={() => requestOpenDataFiles()}
+                                className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
+                            >
+                                <FileSpreadsheet size={14} />
+                                {t('dataFiles.openMenu')}
                             </button>
                             <button
                                 onClick={() => setIsImportAppModalOpen(true)}

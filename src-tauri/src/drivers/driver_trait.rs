@@ -74,6 +74,12 @@ pub struct DriverCapabilities {
     /// path. Defaults to `false`.
     #[serde(default, alias = "inMemory")]
     pub in_memory: bool,
+    /// Data file formats (`csv`, `tsv`, `json`, `ndjson`, `parquet`, ...) the
+    /// driver can expose as a queryable relation through the optional
+    /// `open_data_file` RPC. Requires `file_based`. Empty means the driver
+    /// does not open data files.
+    #[serde(default, alias = "dataFiles", skip_serializing_if = "Vec::is_empty")]
+    pub data_files: Vec<String>,
     /// The driver exposes a single implicit database, so there is nothing to
     /// select or name (e.g. a flat search/document store like Meilisearch).
     /// Skips the database tab and the database-name field in the connection
@@ -171,6 +177,9 @@ pub struct DriverCapabilities {
     /// plugins opt in via their manifest. Defaults to `false`.
     #[serde(default, alias = "routineManagement")]
     pub routine_management: bool,
+    /// Optional routine debugger protocol. Only version 1 is currently supported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routine_debug: Option<u32>,
     /// Supports the SSL/TLS configuration tab (mode + CA/client cert/key) in the
     /// connection modal. Built-in network drivers set this; plugins opt in via
     /// their manifest. Defaults to `false`.
@@ -431,6 +440,16 @@ pub struct PluginManifest {
 /// fall back to `"public"` when it is `None`.
 #[async_trait]
 pub trait DatabaseDriver: Send + Sync {
+    /// No SQL fallback: debugging requires a native, isolated driver session.
+    async fn routine_debug(
+        &self,
+        _params: &ConnectionParams,
+        _version: u32,
+        _command: &crate::routine_debug::DebugCommand,
+    ) -> Result<crate::routine_debug::DebugResponse, String> {
+        Err("Routine debugging is not supported by this driver".into())
+    }
+
     // --- Metadata -----------------------------------------------------------
 
     fn manifest(&self) -> &PluginManifest;
@@ -980,6 +999,21 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<String, String> {
         Err("BLOB preview not supported by this driver".into())
+    }
+
+    /// Optional: expose the data file at `path` as a read-only relation named
+    /// `table` in the database selected by `params`, replacing a relation of
+    /// the same name. `format` is one of the driver's
+    /// `capabilities.data_files`. Drivers without that capability keep this
+    /// default.
+    async fn open_data_file(
+        &self,
+        _params: &ConnectionParams,
+        _path: &str,
+        _format: &str,
+        _table: &str,
+    ) -> Result<(), String> {
+        Err("Data files are not supported by this driver".into())
     }
 
     /// Optional SQL preview generation. None asks the host to use its legacy

@@ -97,6 +97,7 @@ import {ViewEditorModal} from '@/components/modals/ViewEditorModal';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {RunRoutineModal} from '@/components/modals/RunRoutineModal';
+import {DebugRoutineModal} from '@/components/modals/DebugRoutineModal';
 import {Accordion} from './sidebar/Accordion';
 import {MetadataErrorIndicator} from './sidebar/MetadataErrorIndicator';
 import {SidebarTableItem} from './sidebar/SidebarTableItem';
@@ -339,6 +340,11 @@ export const ExplorerSidebar = ({
         schema?: string;
         database?: string;
         identityArgs?: string | null;
+    } | null>(null);
+    const [debugRoutine, setDebugRoutine] = useState<{
+        routine: RoutineInfo;
+        schema: string;
+        database: string;
     } | null>(null);
     const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
     const [createContainer, setCreateContainer] = useState<
@@ -4366,6 +4372,25 @@ export const ExplorerSidebar = ({
                                                 const canManageRoutines =
                                                     activeCapabilities?.routine_management === true;
                                                 return [
+                                                    activeCapabilities?.routine_debug === 1 &&
+                                                    !activeCapabilities.readonly &&
+                                                    routineData &&
+                                                    routineSchema &&
+                                                    (routineDatabase || activeDatabaseName)
+                                                        ? {
+                                                              label: t('routineDebug.title'),
+                                                              icon: Play,
+                                                              action: () =>
+                                                                  setDebugRoutine({
+                                                                      routine: routineData,
+                                                                      schema: routineSchema,
+                                                                      database:
+                                                                          routineDatabase ||
+                                                                          activeDatabaseName ||
+                                                                          '',
+                                                                  }),
+                                                          }
+                                                        : null,
                                                     canManageRoutines
                                                         ? {
                                                               label: t('routines.menuRun'),
@@ -5449,6 +5474,14 @@ export const ExplorerSidebar = ({
             />
 
             {/* Run routine with parameters */}
+            {debugRoutine && activeConnectionId && (
+                <DebugRoutineModal
+                    key={`${activeConnectionId}:${debugRoutine.routine.name}:${debugRoutine.routine.identity_args ?? ''}`}
+                    connectionId={activeConnectionId}
+                    {...debugRoutine}
+                    onClose={() => setDebugRoutine(null)}
+                />
+            )}
             {runRoutineModal && activeConnectionId && (
                 <RunRoutineModal
                     isOpen={true}

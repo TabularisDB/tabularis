@@ -1,4 +1,5 @@
 import type {DatabaseBackupStatus} from '@/types/databaseBackup';
+import type {DebugCommand, DebugResponse} from '@/types/routineDebug';
 import type {ChatGptModel, ChatGptSession} from '@/types/chatgpt';
 import type {TableQueryTemplateRequest} from '@/utils/tableQueryTemplates';
 import type {DataTypeRegistry} from '@/types/dataTypes';
@@ -120,6 +121,24 @@ export interface ServerSaveTarget {
 
 export interface SqlitePathRequest {
     readonly path: string;
+}
+
+export interface OpenDataFileRequest {
+    /** Desktop-only source path. */
+    filePath?: string;
+    /** Browser-only opaque upload token. */
+    uploadToken?: string;
+    /** Name for the workspace connection when this call creates it. */
+    workspaceName: string;
+}
+
+/** A data file exposed as a table of the data file workspace connection. */
+export interface OpenedDataFile {
+    connectionId: string;
+    /** Id of the driver behind the workspace connection. */
+    driver: string;
+    table: string;
+    format: string;
 }
 
 /**
@@ -609,6 +628,10 @@ export interface CommandMap {
     >;
     create_sqlite_file: CommandDefinition<SqlitePathRequest, string, 'local-admin'>;
     create_sqlite_database: CommandDefinition<SqlitePathRequest, SavedConnection, 'local-admin'>;
+    // The workspace is a file-backed database whose SQL can read host files.
+    open_data_file: CommandDefinition<OpenDataFileRequest, OpenedDataFile, 'local-admin'>;
+    /** Desktop-only: host paths the system handed to the app ("Open with", command line). */
+    consume_pending_data_files: CommandDefinition<undefined, string[], 'local-admin'>;
     get_installation_source: CommandDefinition<undefined, string | null, 'local-admin'>;
     // MCP client status and installation operate on host configuration files or
     // local client CLIs, so browsers may use them only in local-admin Web mode.
@@ -928,6 +951,11 @@ export interface CommandMap {
     >;
     get_routine_edit_script: CommandDefinition<RoutineTargetRequest, string, 'database'>;
     drop_routine: CommandDefinition<RoutineTargetRequest, void, 'database'>;
+    routine_debug: CommandDefinition<
+        {connectionId: string; version: 1; command: DebugCommand},
+        DebugResponse,
+        'database'
+    >;
 
     get_trigger_definition: CommandDefinition<TriggerTargetRequest, string, 'database'>;
     create_trigger: CommandDefinition<MetadataRequest & {triggerSql: string}, void, 'database'>;
