@@ -157,8 +157,10 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `table_query_templates` | bool | Opts the Generate SQL dialog into the optional `get_table_query_template` RPC for SELECT/UPDATE/DELETE previews. Defaults to `false`; older plugins and built-in drivers keep the existing host templates. See [Table Query Templates](#table-query-templates). |
 | `column_comments` | bool | The DDL generation RPCs honour `ColumnDefinition.comment` (for example `OPTIONS(description=...)` or a `COMMENT` clause), so the column editor shows a description field. Defaults to `false`; the field is hidden otherwise and `comment` is omitted from requests when unset. |
 | `column_stats` | bool | Opts the data grid's **Column statistics** popover into the optional `get_column_stats` RPC. Defaults to `false`: plugins whose `sql_syntax.extends` or `sql_dialect` is `postgres`, `mysql` or `sqlite` keep the host's generic SQL, and the others don't show the menu entry. See [Column Statistics](#column-statistics). |
+| `query_classification` | bool | Opts the MCP read-only mode and approval gate into the optional `classify_query` RPC, so a driver whose query language is not SQL can say whether a query only reads. Defaults to `false`: the host reads every query as SQL, which is wrong for a non-SQL language (a plain read usually comes out `unknown`: blocked in read-only mode and needing approval). A `select` verdict only counts together with `read_only_execution`. See [Query Safety for MCP](#query-safety-for-mcp). |
+| `read_only_execution` | bool | The driver implements the optional `execute_read_only_query` RPC and guarantees that it refuses any statement that could change data, schema or server state. Defaults to `false`: the host runs the query through `execute_query` and classification is the only safeguard. See [Query Safety for MCP](#query-safety-for-mcp). |
 | `drop_table_sql` | bool | Opts the explorer's **Drop table** action into the optional `get_drop_table_sql` RPC, so the plugin can return its own statement (for example `DROP SNAPSHOT TABLE`). Defaults to `false`: the RPC is never called and the host runs a generic `DROP TABLE` with your `identifier_quote`. See [`get_drop_table_sql`](#get_drop_table_sql). |
-| `sql_dialect` | string | Optional SQL dialect preset: `postgres`, `mysql`, `mssql`, `sqlite`, `oracle`, or `generic`. Drives statement splitting, the AI/MCP read-only check, generated SQL and literals. Oracle-like plugins, including DM/Dameng, should use `"oracle"`. A host loads a dialect it doesn't know as `generic` and logs a warning. For an engine no preset describes, keep the closest preset here and declare `sql_syntax`. |
+| `sql_dialect` | string | Optional SQL dialect preset: `postgres`, `mysql`, `mssql`, `sqlite`, `oracle`, or `generic`. Drives statement splitting, the AI/MCP read-only check, generated SQL and literals. A driver whose query language is not SQL declares `query_classification` instead of relying on the read-only check (see [Query Safety for MCP](#query-safety-for-mcp)). Oracle-like plugins, including DM/Dameng, should use `"oracle"`. A host loads a dialect it doesn't know as `generic` and logs a warning. For an engine no preset describes, keep the closest preset here and declare `sql_syntax`. |
 | `sql_syntax` | object | Optional declarative SQL syntax that extends a preset: quotes, comments, triple-quoted and prefixed strings, procedural blocks, string and boolean literals, `LIKE … ESCAPE`, formatter and autocomplete words. Hosts that predate it ignore it and use `sql_dialect`. See [SQL Syntax](#sql-syntax-sql_syntax). |
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
@@ -1423,6 +1425,128 @@ A plugin returning the raw shape requires a Tabularis host new enough to
 understand raw plugin output and load that bundle, so set `min_runtime_version`
 to the first compatible host release. Older parsed-plan plugins remain
 supported permanently.
+
+---
+
+### Query Safety for MCP
+
+MCP clients send queries through the `run_query` tool. Two gates stand in front
+of the database: **read-only mode**, which rejects anything that is not a read,
+and the **approval gate**, which asks the user before running anything that is
+not a read (in the default `writes_only` mode). Both ask the same question of
+every query: is it a clean read? The host enforces both gates. A driver only
+answers the question; read-only mode, approval and the check of a query the user
+edited in the approval dialog stay in the host.
+
+For a SQL driver the host answers by reading the SQL, using `sql_dialect` and
+`sql_syntax`. For any other driver it still reads the text as SQL, which cannot
+work for a query language it does not know (a document store's shell syntax, a
+key-value protocol, a search DSL). A plain `find` comes out `unknown`, so
+read-only mode blocks it and the approval gate asks for it; and text that happens
+to look like a SQL `SELECT` is trusted as one, whatever it means to the driver.
+Two optional capabilities let the driver take over:
+
+| Capability | RPC | The driver |
+|------------|-----|------------|
+| `query_classification` | `classify_query` | says what kind of statement a query is |
+| `read_only_execution` | `execute_read_only_query` | runs a query and refuses anything that is not a read |
+
+A non-SQL driver declares both. A `select` verdict from `classify_query` is only
+trusted (allowed in read-only mode, no approval needed) when the driver also
+declares `read_only_execution`, because a classifier alone is not an
+execution-time guarantee. `read_only_execution` is useful on its own too: a SQL
+driver that declares it gets the queries the host classified as reads run through
+that method, as built-in drivers do.
+
+#### `classify_query` *(optional)*
+
+Called only when `capabilities.query_classification` is `true`, with the exact
+text that is about to run: the same string the host then sends to `execute_query`
+or `execute_read_only_query`. The host does not split it into statements, strip
+comments from it or otherwise rewrite it.
+
+**Params:**
+
+```json
+{
+  "params": ConnectionParams,
+  "query": "db.users.find({ \"active\": true })"
+}
+```
+
+**Result:**
+
+```json
+{ "kind": "select" }
+```
+
+| `kind` | Meaning |
+|--------|---------|
+| `select` | Exactly one statement (or command) that only reads. It changes no data, schema, server state or file, and has no side effect: no aggregation stage that writes, no function that writes. |
+| `write` | Changes data. |
+| `ddl` | Changes structure: collections, indexes, tables. |
+| `unknown` | Anything else: text the driver cannot parse, more than one statement, an operation it does not know to be safe. |
+
+Rules for the driver:
+
+- Classify with **the parser `execute_query` uses**, on the same text. A
+  classifier that reads a query differently from the executor can be handed a
+  write that looks like a read, for example when one of them drops comment lines
+  and the other keeps them, or when they split the collection name at different
+  dots.
+- Be conservative: when in doubt, answer `unknown`. Classifying must not run the
+  query.
+- The result is an object, and fields beyond `kind` are ignored.
+
+What the host does:
+
+- Without the capability no RPC is sent and the host reads the query as SQL.
+- With it the host never reads the query as SQL. An RPC error (`-32601`
+  included), a transport error, a timeout, a result that is not an object with a
+  `kind`, and a `kind` other than the four above all count as `unknown`.
+- A `select` counts only when the driver also declares `read_only_execution`;
+  otherwise the host reports `unknown`.
+- Every text is classified on its own. A query the user edits in the approval
+  dialog is classified again before it runs, and read-only mode applies to the
+  edited text.
+
+#### `execute_read_only_query` *(optional)*
+
+Called only when `capabilities.read_only_execution` is `true`. Its **params and
+result are those of [`execute_query`](#execute_query)**.
+
+The driver **must not** change data, schema or server state through this method,
+whatever the query says. Where the engine has a read-only mode (a read-only
+transaction or session, a read-only connection), use it, so the database refuses
+a write the driver's own parser missed. Where it has none (a document store
+without read-only statements, for example), the driver must refuse every
+statement its own parser does not recognise as a read, before running anything.
+That is the parser that executes the query, not a second heuristic. To refuse a
+query, return a JSON-RPC error; the host passes it on to the caller.
+
+The host calls it instead of `execute_query` for every query on a read-only
+connection, and for every query it lets through without approval because it was
+classified as a read. Every other query (one the user approved, or any query
+while the approval mode is `off`) runs through `execute_query`.
+
+Compatibility:
+
+- Missing/false capabilities: no new RPC is sent and nothing changes, for plugins
+  and built-in drivers alike. Without `read_only_execution` the host calls
+  `execute_query`, so classification is the only safeguard, as it is for SQL
+  plugins today.
+- With `read_only_execution`, a failing call is reported as the error it is. The
+  host never retries the query through `execute_query`, `-32601` included.
+- Older hosts ignore both capabilities and never call the methods: they keep
+  reading the queries of a non-SQL driver as SQL, as before. Plugins need not
+  raise `min_runtime_version` solely for this optional feature.
+- The capabilities are static manifest opt-ins, not connection-metadata
+  overrides.
+
+Registry rollout: as for `table_query_templates`, add optional booleans
+`query_classification` and `read_only_execution` (default false) to the driver
+kind's `capabilities.properties` in Tabularium before publishing a plugin that
+sets them.
 
 ---
 

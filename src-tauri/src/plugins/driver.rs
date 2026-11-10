@@ -84,6 +84,22 @@ fn parse_query_response(value: Value) -> Result<(QueryResult, bool), String> {
     Ok((parsed, false))
 }
 
+/// Read a `classify_query` response: `{ "kind": "select" | "write" | "ddl" |
+/// "unknown" }`.
+///
+/// Anything else reads as `"unknown"`: another shape, a different spelling
+/// (`"SELECT"`) or a kind this host doesn't know. The verdict decides whether
+/// a query may skip the read-only and approval gates, so a response the host
+/// cannot understand is never read as "this is a read".
+pub(crate) fn parse_query_kind(value: &Value) -> &'static str {
+    match value.get("kind").and_then(Value::as_str) {
+        Some("select") => "select",
+        Some("write") => "write",
+        Some("ddl") => "ddl",
+        _ => "unknown",
+    }
+}
+
 /// A session-aware plugin answers a failed statement with its error and the
 /// transaction state it left (a failed `COMMIT` has ended the transaction).
 fn parse_session_error(value: &Value) -> Option<(String, bool)> {
@@ -1265,6 +1281,56 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<QueryResult, String> {
         let res = self.process.call("execute_query", json!({ "params": self.with_primary_database(params), "query": query, "limit": limit, "page": page, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    async fn execute_read_only_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<QueryResult, String> {
+        // Without the declared guarantee this is the trait default, so a
+        // plugin that never opted in sees no new RPC and no change.
+        if !self.manifest.capabilities.read_only_execution {
+            return self.execute_query(params, query, limit, page, schema).await;
+        }
+        // A driver that declared the guarantee is never retried through
+        // `execute_query`: if the RPC fails, including with -32601, the query
+        // does not run.
+        let res = self
+            .process
+            .call(
+                "execute_read_only_query",
+                json!({
+                    "params": self.with_primary_database(params),
+                    "query": query,
+                    "limit": limit,
+                    "page": page,
+                    "schema": schema
+                }),
+            )
+            .await?;
+        serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    async fn classify_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+    ) -> Result<Option<&'static str>, String> {
+        if !self.manifest.capabilities.query_classification {
+            return Ok(None);
+        }
+        let res = self
+            .process
+            .call(
+                "classify_query",
+                json!({ "params": self.with_primary_database(params), "query": query }),
+            )
+            .await?;
+        Ok(Some(parse_query_kind(&res)))
     }
 
     async fn execute_batch(
@@ -4149,6 +4215,10 @@ mod table_query_template_tests;
 #[cfg(test)]
 #[path = "column_stats_tests.rs"]
 mod column_stats_tests;
+
+#[cfg(test)]
+#[path = "query_classification_tests.rs"]
+mod query_classification_tests;
 
 #[cfg(test)]
 #[path = "startup_tests.rs"]

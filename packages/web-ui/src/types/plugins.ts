@@ -65,6 +65,16 @@ export interface DriverCapabilities {
      * Defaults to false: SQL-compatible drivers (see `speaksGenericSql`) keep the
      * host's generic SQL, the others don't show the menu entry. */
     column_stats?: boolean;
+    /** The driver classifies queries in its own query language through the
+     * optional classify_query RPC, for the MCP read-only mode and approval gate.
+     * Defaults to false: the host reads every query as SQL. A `select` verdict
+     * only counts together with `read_only_execution`. */
+    query_classification?: boolean;
+    /** The optional execute_read_only_query RPC refuses any statement that could
+     * change data, schema or server state; the host runs the MCP queries it lets
+     * pass without approval through it. Defaults to false: the host uses
+     * execute_query, so classification is the only safeguard. */
+    read_only_execution?: boolean;
     /** Honours query_timeout_secs: the driver stops a statement on the server
      * once the limit passes. Shows the query-timeout field in the connection
      * modal. Built-in PostgreSQL sets this; plugins opt in. Defaults to false. */
