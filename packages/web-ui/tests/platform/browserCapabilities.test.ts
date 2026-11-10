@@ -19,6 +19,26 @@ const request = {
 };
 
 describe('BrowserPlatformCapabilities secondary routes', () => {
+    it('prefixes secondary windows and connection icons with a nested mount path', async () => {
+        vi.stubEnv('BASE_URL', '/tools/database/');
+        const open = vi.spyOn(window, 'open').mockReturnValue(null);
+        try {
+            const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
+            await capabilities.openConnectionRoute({connectionId: 'team/db'});
+            expect(open).toHaveBeenCalledWith(
+                '/tools/database/connections?connect=team%2Fdb&standalone=connection',
+                '_blank',
+                'noopener,noreferrer',
+            );
+            await expect(capabilities.resolveAppAsset('connection-icons/icon.png')).resolves.toBe(
+                '/tools/database/api/v1/assets/connection-icons/icon.png',
+            );
+        } finally {
+            open.mockRestore();
+            vi.unstubAllEnvs();
+        }
+    });
+
     it('opens a standalone connection route in a browser tab', async () => {
         const open = vi.spyOn(window, 'open').mockReturnValue(null);
         const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
