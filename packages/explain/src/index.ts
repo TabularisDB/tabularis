@@ -9,105 +9,123 @@
  * `@tabularis/explain/flow`.
  */
 
-export type { ExplainNode, ExplainPlan } from "./types";
+export type {ExplainNode, ExplainPlan} from './types';
 
 export type {
-  BuiltinExplainEngine,
-  BuiltinExplainSourceFormat,
-  ExplainEngine,
-  ExplainSourceFormat,
-  ExplainSourceParser,
-} from "./parsers/source";
+    BuiltinExplainEngine,
+    BuiltinExplainSourceFormat,
+    ExplainEngine,
+    ExplainSourceFormat,
+    ExplainSourceParser,
+} from './parsers/source';
 export {
-  detectFormat,
-  detectFormatFor,
-  explainEngineFromDriverName,
-  parseExplain,
-  parseExplainFor,
-  withSourceLabel,
-} from "./parsers/source";
+    detectFormat,
+    detectFormatFor,
+    explainEngineFromDriverName,
+    parseExplain,
+    parseExplainFor,
+    withSourceLabel,
+} from './parsers/source';
 
-export { parsePostgresJson, parsePostgresText } from "./parsers/postgres";
-export type { MysqlTabularRow } from "./parsers/mysql";
-export {
-  parseMysqlJson,
-  parseMysqlTabularRows,
-  parseMysqlText,
-} from "./parsers/mysql";
-export type { SqliteEqpRow } from "./parsers/sqlite";
-export { buildSqliteTree, parseSqliteEqpRows } from "./parsers/sqlite";
-export { NodeIdAllocator, hasAnalyzeDataRecursive } from "./parsers/node";
+export {parsePostgresJson, parsePostgresText} from './parsers/postgres';
+export type {MysqlTabularRow} from './parsers/mysql';
+export {parseMysqlJson, parseMysqlTabularRows, parseMysqlText} from './parsers/mysql';
+export type {SqliteEqpRow} from './parsers/sqlite';
+export {buildSqliteTree, parseSqliteEqpRows} from './parsers/sqlite';
+export {NodeIdAllocator, hasAnalyzeDataRecursive} from './parsers/node';
 
 export type {
-  BuiltinRawExplainFormat,
-  ExplainQueryOutput,
-  RawExplainFormat,
-  RawExplainOutput,
-} from "./raw";
-export { parseRawExplain, resolveExplainOutput } from "./raw";
+    BuiltinRawExplainFormat,
+    ExplainQueryOutput,
+    RawExplainFormat,
+    RawExplainOutput,
+} from './raw';
+export {parseRawExplain, resolveExplainOutput} from './raw';
 
-export type { RegisteredExplainParser } from "./registry";
+export type {RegisteredExplainParser} from './registry';
 export {
-  getExplainParser,
-  listExplainParsers,
-  registerExplainParser,
-  unregisterExplainParser,
-} from "./registry";
+    getExplainParser,
+    listExplainParsers,
+    registerExplainParser,
+    unregisterExplainParser,
+} from './registry';
+
+export type {ExplainMetrics, ExplainNodeMetrics, ExplainMetricKind} from './metrics';
+export {
+    EXPLAIN_METRIC_KINDS,
+    computeExplainMetrics,
+    getNodeMetrics,
+    getMetricValue,
+    getMetricMax,
+    isMetricAvailable,
+    getAvailableMetricKinds,
+    getDefaultMetricKind,
+} from './metrics';
 
 export type {
-  ExplainMetrics,
-  ExplainNodeMetrics,
-  ExplainMetricKind,
-} from "./metrics";
+    ExplainDiagnostic,
+    ExplainDiagnosticKind,
+    ExplainDiagnosticSeverity,
+} from './diagnostics';
 export {
-  EXPLAIN_METRIC_KINDS,
-  computeExplainMetrics,
-  getNodeMetrics,
-  getMetricValue,
-  getMetricMax,
-  isMetricAvailable,
-  getAvailableMetricKinds,
-  getDefaultMetricKind,
-} from "./metrics";
+    EXPLAIN_DIAGNOSTIC_THRESHOLDS,
+    getNodeDiagnostics,
+    getPlanDiagnostics,
+    getWorstSeverity,
+    countDiagnosticsBySeverity,
+} from './diagnostics';
 
 export type {
-  ExplainDiagnostic,
-  ExplainDiagnosticKind,
-  ExplainDiagnosticSeverity,
-} from "./diagnostics";
-export {
-  EXPLAIN_DIAGNOSTIC_THRESHOLDS,
-  getNodeDiagnostics,
-  getPlanDiagnostics,
-  getWorstSeverity,
-  countDiagnosticsBySeverity,
-} from "./diagnostics";
+    ExplainPlanStats,
+    ExplainNodeTypeStat,
+    ExplainRelationStat,
+    ExplainIndexStat,
+} from './stats';
+export {getExplainPlanStats} from './stats';
 
 export type {
-  ExplainPlanStats,
-  ExplainNodeTypeStat,
-  ExplainRelationStat,
-  ExplainIndexStat,
-} from "./stats";
-export { getExplainPlanStats } from "./stats";
+    NodeCostStyle,
+    ExplainMetricNode,
+    ExplainPlanSummary,
+    ExplainTableRowData,
+} from './plan';
+export {
+    getNodeCostStyle,
+    getHeatBarClass,
+    formatCost,
+    formatTime,
+    formatRows,
+    formatRatio,
+    getMaxCost,
+    getMaxTime,
+    flattenExplainNodes,
+    findExplainNode,
+    getRowEstimateRatio,
+    getExplainPlanSummary,
+    getExplainDriverLegend,
+    getExplainTableRows,
+} from './plan';
+
+export type {ExplainTableColumnId} from './tableColumns';
+export {
+    EXPLAIN_TABLE_COLUMNS,
+    EXPLAIN_TABLE_ANALYZE_COLUMNS,
+    isDefaultExplainTableColumnOrder,
+    moveExplainTableColumn,
+    normalizeExplainTableColumnOrder,
+    shiftExplainTableColumn,
+} from './tableColumns';
 
 export type {
-  NodeCostStyle,
-  ExplainMetricNode,
-  ExplainPlanSummary,
-} from "./plan";
+    ExplainSnapshotContext,
+    ExplainSnapshot,
+    NodeMetricDelta,
+    NodeComparison,
+    PlanComparisonResult,
+} from './planComparison';
 export {
-  getNodeCostStyle,
-  getHeatBarClass,
-  formatCost,
-  formatTime,
-  formatRows,
-  formatRatio,
-  getMaxCost,
-  getMaxTime,
-  flattenExplainNodes,
-  findExplainNode,
-  getRowEstimateRatio,
-  getExplainPlanSummary,
-  getExplainDriverLegend,
-} from "./plan";
+    checkEngineCompatibility,
+    calculateMetricDelta,
+    alignPlanNodes,
+    comparePlanSnapshots,
+} from './planComparison';

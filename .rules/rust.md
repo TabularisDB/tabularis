@@ -6,3 +6,4 @@
 4. **Separate Rust tests from implementation:** When a module has non-trivial tests, place them in a sibling `tests.rs` file (or `tests/*.rs` when the module grows further) and load them with `#[cfg(test)] mod tests;`.
 5. **Test extracted helpers directly:** Every extracted pure helper or parser should have unit tests covering nominal cases, edge cases, and unsupported inputs when relevant.
 6. **Avoid behavioural refactors mixed with structural refactors:** When reorganizing Rust files, keep function signatures and runtime behaviour stable unless the task explicitly asks for behaviour changes.
+7. **Keep Tauri in the desktop transport:** Tauri commands, plugins and anything that takes an `AppHandle`, `Window` or `State` live in `src-tauri/src/transport/desktop/`, which is the only module behind the `desktop` feature. Put the logic in `application/` (or a plain module) so the web RPC and the desktop command share it; the command stays a thin wrapper.

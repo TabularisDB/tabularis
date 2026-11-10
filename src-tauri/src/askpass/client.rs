@@ -14,8 +14,9 @@ use super::protocol::{decode_response, encode_request, PromptKind};
 /// Env var carrying the server endpoint: a unix socket path on unix, a
 /// `127.0.0.1:<port>` address on Windows.
 pub const SOCKET_ENV: &str = "TABULARIS_ASKPASS_SOCKET";
-/// Windows only: shared secret proving the client was spawned by Tabularis.
-#[cfg(windows)]
+/// Shared secret proving the client was spawned by this Tabularis process.
+/// A same-user process can otherwise connect to the socket and request a
+/// stored password or passphrase without the user seeing a prompt.
 pub const TOKEN_ENV: &str = "TABULARIS_ASKPASS_TOKEN";
 
 /// If we were invoked as ssh's askpass helper, run the client and exit the
@@ -83,10 +84,21 @@ fn exchange<S: Read + Write>(
         .ok_or_else(|| "Malformed response from Tabularis".to_string())
 }
 
+fn write_auth(stream: &mut impl Write) -> Result<(), String> {
+    let token = std::env::var(TOKEN_ENV).map_err(|_| "Missing askpass token".to_string())?;
+    stream
+        .write_all(format!("AUTH {}\n", token).as_bytes())
+        .map_err(|e| format!("Failed to send auth token: {}", e))
+}
+
 #[cfg(unix)]
 fn connect(endpoint: &str) -> Result<std::os::unix::net::UnixStream, String> {
-    std::os::unix::net::UnixStream::connect(endpoint)
-        .map_err(|e| format!("connect({}): {}", endpoint, e))
+    let mut stream = std::os::unix::net::UnixStream::connect(endpoint)
+        .map_err(|e| format!("connect({}): {}", endpoint, e))?;
+    // Mode 0600 only excludes other users. Authenticate so a same-user
+    // process that finds the socket cannot read stored secrets.
+    write_auth(&mut stream)?;
+    Ok(stream)
 }
 
 #[cfg(windows)]
@@ -94,9 +106,6 @@ fn connect(endpoint: &str) -> Result<std::net::TcpStream, String> {
     let mut stream = std::net::TcpStream::connect(endpoint)
         .map_err(|e| format!("connect({}): {}", endpoint, e))?;
     // Authenticate first: anyone on the machine can reach a loopback port.
-    let token = std::env::var(TOKEN_ENV).map_err(|_| "Missing askpass token".to_string())?;
-    stream
-        .write_all(format!("AUTH {}\n", token).as_bytes())
-        .map_err(|e| format!("Failed to send auth token: {}", e))?;
+    write_auth(&mut stream)?;
     Ok(stream)
 }

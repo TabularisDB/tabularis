@@ -1,4 +1,6 @@
 use crate::config;
+use crate::credential_cache::CredentialCache;
+use crate::runtime::RuntimeContext;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -6,7 +8,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::AppHandle;
+
+pub mod inline;
 
 // --- Data Structures ---
 
@@ -88,6 +91,18 @@ struct OpenRouterModel {
     id: String,
 }
 
+#[derive(Deserialize, Debug)]
+struct RequestyModelList {
+    data: Vec<RequestyModel>,
+}
+
+#[derive(Deserialize, Debug)]
+struct RequestyModel {
+    id: String,
+    #[serde(default)]
+    api: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct AiModelsCache {
     last_updated: u64,
@@ -131,12 +146,12 @@ fn load_default_models() -> HashMap<String, Vec<String>> {
     })
 }
 
-fn get_cache_path(_app: &AppHandle) -> Option<std::path::PathBuf> {
-    Some(crate::paths::get_app_config_dir().join("ai_models_cache.json"))
+fn get_cache_path(runtime: &RuntimeContext) -> std::path::PathBuf {
+    runtime.paths.config_dir().join("ai_models_cache.json")
 }
 
-fn load_cache(app: &AppHandle) -> Option<AiModelsCache> {
-    let path = get_cache_path(app)?;
+fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
+    let path = get_cache_path(runtime);
     if path.exists() {
         let content = fs::read_to_string(path).ok()?;
         serde_json::from_str(&content).ok()
@@ -145,43 +160,42 @@ fn load_cache(app: &AppHandle) -> Option<AiModelsCache> {
     }
 }
 
-fn save_cache(app: &AppHandle, models: &HashMap<String, Vec<String>>) {
-    if let Some(path) = get_cache_path(app) {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+fn save_cache(runtime: &RuntimeContext, models: &HashMap<String, Vec<String>>) {
+    let path = get_cache_path(runtime);
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
 
-        let cache = AiModelsCache {
-            last_updated: timestamp,
-            models: models.clone(),
-        };
+    let cache = AiModelsCache {
+        last_updated: timestamp,
+        models: models.clone(),
+    };
 
-        if let Ok(content) = serde_json::to_string(&cache) {
-            let _ = fs::write(path, content);
-        }
+    if let Ok(content) = serde_json::to_string(&cache) {
+        let _ = fs::create_dir_all(runtime.paths.config_dir());
+        let _ = fs::write(path, content);
     }
 }
 
 // --- Fetchers ---
 
-fn ai_client_for(provider: &str) -> Client {
-    crate::proxy::ai_http_client(provider).unwrap_or_else(|e| {
-        log::warn!("Failed to build proxied AI client for {provider}: {e}");
-        Client::new()
+fn ai_client_for(provider: &str) -> Result<Client, String> {
+    crate::proxy::ai_http_client(provider).map_err(|e| {
+        log::warn!("Failed to build AI client for {provider}: {e}");
+        e
     })
 }
 
 /// Local Ollama is always on loopback — never send it through a remote proxy.
-fn ollama_http_client() -> Client {
-    crate::proxy::direct_http_client().unwrap_or_else(|e| {
-        log::warn!("Failed to build direct Ollama HTTP client: {e}");
-        Client::new()
-    })
+fn ollama_http_client() -> Result<Client, String> {
+    crate::proxy::direct_http_client()
 }
 
 async fn fetch_ollama_models(port: u16) -> Vec<String> {
-    let client = ollama_http_client();
+    let Ok(client) = ollama_http_client() else {
+        return Vec::new();
+    };
     let url = format!("http://localhost:{}/api/tags", port);
     match client.get(&url).send().await {
         Ok(res) => {
@@ -200,7 +214,9 @@ async fn fetch_openai_models(api_key: &str) -> Vec<String> {
     if api_key.is_empty() {
         return Vec::new();
     }
-    let client = ai_client_for("openai");
+    let Ok(client) = ai_client_for("openai") else {
+        return Vec::new();
+    };
     match client
         .get("https://api.openai.com/v1/models")
         .header("Authorization", format!("Bearer {}", api_key))
@@ -228,7 +244,9 @@ async fn fetch_anthropic_models(api_key: &str) -> Vec<String> {
     if api_key.is_empty() {
         return Vec::new();
     }
-    let client = ai_client_for("anthropic");
+    let Ok(client) = ai_client_for("anthropic") else {
+        return Vec::new();
+    };
     match client
         .get("https://api.anthropic.com/v1/models")
         .header("x-api-key", api_key)
@@ -252,7 +270,9 @@ async fn fetch_minimax_models(api_key: &str) -> Vec<String> {
     if api_key.is_empty() {
         return Vec::new();
     }
-    let client = ai_client_for("minimax");
+    let Ok(client) = ai_client_for("minimax") else {
+        return Vec::new();
+    };
     let preferred = MINIMAX_PREFERRED_ENDPOINT.load(Ordering::Relaxed);
     for index in minimax_endpoint_order(preferred) {
         let endpoint = MINIMAX_ENDPOINTS[index];
@@ -274,7 +294,9 @@ async fn fetch_minimax_models(api_key: &str) -> Vec<String> {
 }
 
 async fn fetch_openrouter_models() -> Vec<String> {
-    let client = ai_client_for("openrouter");
+    let Ok(client) = ai_client_for("openrouter") else {
+        return Vec::new();
+    };
     match client
         .get("https://openrouter.ai/api/v1/models")
         .send()
@@ -290,6 +312,36 @@ async fn fetch_openrouter_models() -> Vec<String> {
         }
         Err(_) => Vec::new(),
     }
+}
+
+/// Fetches Requesty managed policies first (curated, stable ids), then the
+/// full public catalog, keeping only chat models and dropping duplicates.
+async fn fetch_requesty_models() -> Vec<String> {
+    let Ok(client) = ai_client_for("requesty") else {
+        return Vec::new();
+    };
+    let mut seen = HashSet::new();
+    let mut models = Vec::new();
+
+    for url in [
+        "https://router.requesty.ai/v1/models/managed",
+        "https://router.requesty.ai/v1/models",
+    ] {
+        if let Ok(res) = client.get(url).send().await {
+            if res.status().is_success() {
+                if let Ok(json) = res.json::<RequestyModelList>().await {
+                    for m in json.data {
+                        let is_chat = m.api.as_deref().unwrap_or("chat") == "chat";
+                        if is_chat && seen.insert(m.id.clone()) {
+                            models.push(m.id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    models
 }
 
 /// Build an API endpoint URL from a user-provided base_url.
@@ -314,20 +366,30 @@ fn build_api_url(base_url: &str, endpoint: &str) -> String {
 }
 
 async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String> {
-    if base_url.is_empty() || api_key.is_empty() {
+    if base_url.is_empty() {
         return Vec::new();
     }
 
-    let client = ai_client_for("custom-openai");
+    let Ok(client) = ai_client_for("custom-openai") else {
+        return Vec::new();
+    };
 
+    fetch_custom_openai_models_with_client(&client, base_url, api_key).await
+}
+
+async fn fetch_custom_openai_models_with_client(
+    client: &Client,
+    base_url: &str,
+    api_key: &str,
+) -> Vec<String> {
     let url = build_api_url(base_url, "/models");
 
-    match client
-        .get(&url)
-        .header("Authorization", format!("Bearer {}", api_key))
-        .send()
-        .await
-    {
+    let mut request = client.get(&url);
+    if !api_key.is_empty() {
+        request = request.bearer_auth(api_key);
+    }
+
+    match request.send().await {
         Ok(res) => {
             if res.status().is_success() {
                 if let Ok(json) = res.json::<OpenAiModelList>().await {
@@ -342,35 +404,32 @@ async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String
 
 // --- Commands ---
 
-#[tauri::command]
-pub fn clear_ai_models_cache(app: AppHandle) -> Result<(), String> {
-    if let Some(path) = get_cache_path(&app) {
-        if path.exists() {
-            fs::remove_file(path).map_err(|e| e.to_string())?;
-        }
+pub fn clear_models_cache(runtime: &RuntimeContext) -> Result<(), String> {
+    let path = get_cache_path(runtime);
+    if path.exists() {
+        fs::remove_file(path).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
-#[tauri::command]
-pub async fn get_ai_models(
-    app: AppHandle,
+pub async fn get_models(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
     force_refresh: bool,
 ) -> Result<HashMap<String, Vec<String>>, String> {
-    // Load config to get Ollama port
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
 
     // 1. Check Cache (if not forced)
     if !force_refresh {
-        if let Some(cache) = load_cache(&app) {
+        if let Some(models_cache) = load_cache(runtime) {
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs();
             // 24 hours = 86400 seconds
-            if now - cache.last_updated < 86400 {
-                let mut cached_models = cache.models;
+            if now - models_cache.last_updated < 86400 {
+                let mut cached_models = models_cache.models;
 
                 // Always refresh Ollama as it is local and fast
                 let ollama_models = fetch_ollama_models(ollama_port).await;
@@ -382,22 +441,20 @@ pub async fn get_ai_models(
                 }
 
                 // Always refresh custom-openai as it depends on user configuration
-                if let (Some(base_url), Ok(api_key)) = (
-                    app_config.ai_custom_openai_url.clone(),
-                    config::get_ai_api_key(&app, "custom-openai"),
-                ) {
-                    if !base_url.is_empty() && !api_key.is_empty() {
-                        let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
-                        if !custom_models.is_empty() {
-                            cached_models.insert("custom-openai".to_string(), custom_models);
-                        } else {
-                            cached_models.insert("custom-openai".to_string(), vec![]);
-                        }
-                    }
-                }
+                let api_key = crate::application::ai::get_api_key(runtime, cache, "custom-openai")
+                    .unwrap_or_default();
+                let custom_models = fetch_custom_openai_models(
+                    app_config
+                        .ai_custom_openai_url
+                        .as_deref()
+                        .unwrap_or_default(),
+                    &api_key,
+                )
+                .await;
+                cached_models.insert("custom-openai".to_string(), custom_models);
 
                 // Always refresh Anthropic if API key is present
-                if let Ok(key) = config::get_ai_api_key(&app, "anthropic") {
+                if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "anthropic") {
                     let anthropic_models = fetch_anthropic_models(&key).await;
                     if !anthropic_models.is_empty() {
                         cached_models.insert("anthropic".to_string(), anthropic_models);
@@ -405,13 +462,15 @@ pub async fn get_ai_models(
                 }
 
                 // Always refresh MiniMax if API key is present
-                if let Ok(key) = config::get_ai_api_key(&app, "minimax") {
+                if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "minimax") {
                     let minimax_models = fetch_minimax_models(&key).await;
                     if !minimax_models.is_empty() {
                         cached_models.insert("minimax".to_string(), minimax_models);
                     }
                 }
 
+                // Account-specific ChatGPT models use the dedicated settings command.
+                cached_models.remove("chatgpt");
                 return Ok(cached_models);
             }
         }
@@ -426,7 +485,7 @@ pub async fn get_ai_models(
     }
 
     // 2. OpenAI (Dynamic if key exists)
-    if let Ok(key) = config::get_ai_api_key(&app, "openai") {
+    if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "openai") {
         let remote_models = fetch_openai_models(&key).await;
         if !remote_models.is_empty() {
             if let Some(static_list) = models.get_mut("openai") {
@@ -439,7 +498,7 @@ pub async fn get_ai_models(
     }
 
     // 3. Anthropic (Dynamic if key exists)
-    if let Ok(key) = config::get_ai_api_key(&app, "anthropic") {
+    if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "anthropic") {
         let remote_models = fetch_anthropic_models(&key).await;
         if !remote_models.is_empty() {
             if let Some(static_list) = models.get_mut("anthropic") {
@@ -452,7 +511,7 @@ pub async fn get_ai_models(
     }
 
     // 4. MiniMax (Dynamic if key exists)
-    if let Ok(key) = config::get_ai_api_key(&app, "minimax") {
+    if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "minimax") {
         let remote_models = fetch_minimax_models(&key).await;
         if !remote_models.is_empty() {
             if let Some(static_list) = models.get_mut("minimax") {
@@ -480,52 +539,39 @@ pub async fn get_ai_models(
         }
     }
 
-    // 6. Custom OpenAI (Dynamic if configured)
-    if let (Some(base_url), Ok(api_key)) = (
-        app_config.ai_custom_openai_url,
-        config::get_ai_api_key(&app, "custom-openai"),
-    ) {
-        if !base_url.is_empty() && !api_key.is_empty() {
-            let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
-            if !custom_models.is_empty() {
-                models.insert("custom-openai".to_string(), custom_models);
-            } else {
-                models.insert("custom-openai".to_string(), vec![]);
+    // 6. Requesty (Dynamic public)
+    let requesty_models = fetch_requesty_models().await;
+    if !requesty_models.is_empty() {
+        if let Some(static_list) = models.get_mut("requesty") {
+            let favorites: HashSet<String> = static_list.iter().cloned().collect();
+            let mut new_list = static_list.clone();
+
+            for m in requesty_models {
+                if !favorites.contains(&m) {
+                    new_list.push(m);
+                }
             }
-        } else {
-            models.insert("custom-openai".to_string(), vec![]);
+            *static_list = new_list;
         }
-    } else {
-        models.insert("custom-openai".to_string(), vec![]);
     }
 
+    // 7. Custom OpenAI (Dynamic if configured)
+    let api_key =
+        crate::application::ai::get_api_key(runtime, cache, "custom-openai").unwrap_or_default();
+    let custom_models = fetch_custom_openai_models(
+        app_config
+            .ai_custom_openai_url
+            .as_deref()
+            .unwrap_or_default(),
+        &api_key,
+    )
+    .await;
+    models.insert("custom-openai".to_string(), custom_models);
+
     // Save to Cache
-    save_cache(&app, &models);
+    save_cache(runtime, &models);
 
     Ok(models)
-}
-
-#[tauri::command]
-pub async fn generate_ai_query(app: AppHandle, req: AiGenerateRequest) -> Result<String, String> {
-    generate_query(app, req).await
-}
-
-#[tauri::command]
-pub async fn explain_ai_query(app: AppHandle, req: AiExplainRequest) -> Result<String, String> {
-    explain_query(app, req).await
-}
-
-#[tauri::command]
-pub async fn analyze_ai_explain_plan(
-    app: AppHandle,
-    req: AiExplainRequest,
-) -> Result<String, String> {
-    analyze_explain_plan(app, req).await
-}
-
-#[tauri::command]
-pub async fn generate_cell_name(app: AppHandle, req: AiCellNameRequest) -> Result<String, String> {
-    generate_cellname(app, req).await
 }
 
 // --- Shared helpers ---
@@ -540,6 +586,14 @@ async fn resolve_model(
         return Ok(model.to_string());
     }
     match provider {
+        "chatgpt" => crate::chatgpt::list_models()
+            .await?
+            .into_iter()
+            .next()
+            .map(|m| m.slug)
+            .ok_or_else(|| {
+                "No ChatGPT models available. Continue with ChatGPT in AI settings.".into()
+            }),
         "ollama" => {
             let models = fetch_ollama_models(ollama_port).await;
             models
@@ -565,27 +619,34 @@ async fn resolve_model(
 }
 
 async fn dispatch_provider(
-    app: &AppHandle,
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
     app_config: &config::AppConfig,
     gen_req: &AiGenerateRequest,
     system_prompt: &str,
     ollama_port: u16,
 ) -> Result<String, String> {
-    let api_key = if gen_req.provider != "ollama" {
-        config::get_ai_api_key(app, &gen_req.provider)?
-    } else {
-        String::new()
+    if gen_req.provider == "chatgpt" {
+        return crate::chatgpt::generate(&gen_req.model, &gen_req.prompt, system_prompt).await;
+    }
+    let api_key = match gen_req.provider.as_str() {
+        "ollama" => String::new(),
+        "custom-openai" => {
+            crate::application::ai::get_api_key(runtime, cache, "custom-openai").unwrap_or_default()
+        }
+        _ => crate::application::ai::get_api_key(runtime, cache, &gen_req.provider)?,
     };
 
     let client = if gen_req.provider == "ollama" {
-        ollama_http_client()
+        ollama_http_client()?
     } else {
-        ai_client_for(&gen_req.provider)
+        ai_client_for(&gen_req.provider)?
     };
     match gen_req.provider.as_str() {
         "openai" => generate_openai(&client, &api_key, gen_req, system_prompt).await,
         "anthropic" => generate_anthropic(&client, &api_key, gen_req, system_prompt).await,
         "openrouter" => generate_openrouter(&client, &api_key, gen_req, system_prompt).await,
+        "requesty" => generate_requesty(&client, &api_key, gen_req, system_prompt).await,
         "ollama" => generate_ollama(&client, gen_req, system_prompt, ollama_port).await,
         "custom-openai" => {
             let base_url = app_config
@@ -602,17 +663,32 @@ async fn dispatch_provider(
 
 // --- Logic Implementation ---
 
-pub async fn generate_query(app: AppHandle, mut req: AiGenerateRequest) -> Result<String, String> {
+pub async fn generate_query(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    mut req: AiGenerateRequest,
+) -> Result<String, String> {
     log::info!("Generating AI query using provider: {}", req.provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     req.model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
 
-    let raw_prompt = config::get_system_prompt(app.clone());
+    let raw_prompt = crate::application::persistence::get_prompt(
+        runtime,
+        crate::application::persistence::PromptKind::System,
+    );
     let system_prompt = raw_prompt.replace("{{SCHEMA}}", &req.schema);
 
-    let result = dispatch_provider(&app, &app_config, &req, &system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &req,
+        &system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(_) => log::info!("AI query generated successfully using {}", req.model),
@@ -622,14 +698,21 @@ pub async fn generate_query(app: AppHandle, mut req: AiGenerateRequest) -> Resul
     result
 }
 
-pub async fn explain_query(app: AppHandle, mut req: AiExplainRequest) -> Result<String, String> {
+pub async fn explain_query(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    mut req: AiExplainRequest,
+) -> Result<String, String> {
     log::info!("Explaining query using AI provider: {}", req.provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     req.model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
 
-    let raw_prompt = config::get_explain_prompt(app.clone());
+    let raw_prompt = crate::application::persistence::get_prompt(
+        runtime,
+        crate::application::persistence::PromptKind::Explain,
+    );
     let system_prompt = raw_prompt.replace("{{LANGUAGE}}", &req.language);
 
     let gen_req = AiGenerateRequest {
@@ -639,7 +722,15 @@ pub async fn explain_query(app: AppHandle, mut req: AiExplainRequest) -> Result<
         schema: String::new(),
     };
 
-    let result = dispatch_provider(&app, &app_config, &gen_req, &system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        &system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(_) => log::info!(
@@ -653,16 +744,20 @@ pub async fn explain_query(app: AppHandle, mut req: AiExplainRequest) -> Result<
 }
 
 pub async fn analyze_explain_plan(
-    app: AppHandle,
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
     mut req: AiExplainRequest,
 ) -> Result<String, String> {
     log::info!("Analyzing explain plan using AI provider: {}", req.provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     req.model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
 
-    let raw_prompt = config::get_explainplan_prompt(app.clone());
+    let raw_prompt = crate::application::persistence::get_prompt(
+        runtime,
+        crate::application::persistence::PromptKind::ExplainPlan,
+    );
     let system_prompt = raw_prompt.replace("{{LANGUAGE}}", &req.language);
 
     let gen_req = AiGenerateRequest {
@@ -672,7 +767,15 @@ pub async fn analyze_explain_plan(
         schema: String::new(),
     };
 
-    let result = dispatch_provider(&app, &app_config, &gen_req, &system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        &system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(_) => log::info!(
@@ -685,21 +788,72 @@ pub async fn analyze_explain_plan(
     result
 }
 
+const CRASH_ANALYSIS_SYSTEM_PROMPT: &str = "You help users of Tabularis, a desktop and web database client, after its SQL editor crashed. \
+The user message is a crash report with the error message, stack traces, app version, platform and mode (desktop or web). \
+Secrets in it were replaced with [redacted]. Do not ask for them. \
+Reply in {{LANGUAGE}}. Keep formatting minimal: short paragraphs, a numbered list for the steps, no headings. \
+First explain in two or three sentences what most likely went wrong. \
+Then list up to five concrete recovery steps the user can try, such as retrying, closing the tab, reloading or restarting the app, or updating Tabularis. \
+If the report points to a bug in Tabularis, say so and suggest reporting it.";
+
+fn crash_analysis_system_prompt(language: &str) -> String {
+    CRASH_ANALYSIS_SYSTEM_PROMPT.replace("{{LANGUAGE}}", language)
+}
+
+pub async fn analyze_crash_report(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    mut req: AiExplainRequest,
+) -> Result<String, String> {
+    log::info!(
+        "Analyzing editor crash report using AI provider: {}",
+        req.provider
+    );
+
+    let app_config = crate::application::persistence::load_config(runtime);
+    let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
+    req.model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
+
+    let gen_req = AiGenerateRequest {
+        provider: req.provider.clone(),
+        model: req.model.clone(),
+        prompt: req.query.clone(),
+        schema: String::new(),
+    };
+
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        &crash_analysis_system_prompt(&req.language),
+        ollama_port,
+    )
+    .await;
+
+    match &result {
+        Ok(_) => log::info!("Crash report analysis generated using {}", req.model),
+        Err(e) => log::error!("Crash report analysis failed: {}", e),
+    }
+
+    result
+}
+
 async fn generate_with_simple_prompt(
-    app: AppHandle,
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
     provider: String,
     model: String,
     query: String,
-    get_prompt: fn(AppHandle) -> String,
+    prompt_kind: crate::application::persistence::PromptKind,
     label: &str,
 ) -> Result<String, String> {
     log::info!("Generating {} using AI provider: {}", label, provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     let resolved_model = resolve_model(&provider, &model, &app_config, ollama_port).await?;
-
-    let system_prompt = get_prompt(app.clone());
+    let system_prompt = crate::application::persistence::get_prompt(runtime, prompt_kind);
 
     let gen_req = AiGenerateRequest {
         provider: provider.clone(),
@@ -708,7 +862,15 @@ async fn generate_with_simple_prompt(
         schema: String::new(),
     };
 
-    let result = dispatch_provider(&app, &app_config, &gen_req, &system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        &system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(v) => log::info!("{} generated: {}", label, v),
@@ -718,26 +880,31 @@ async fn generate_with_simple_prompt(
     result
 }
 
-pub async fn generate_cellname(app: AppHandle, req: AiCellNameRequest) -> Result<String, String> {
+pub async fn generate_cellname(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    req: AiCellNameRequest,
+) -> Result<String, String> {
     generate_with_simple_prompt(
-        app,
+        runtime,
+        cache,
         req.provider,
         req.model,
         req.query,
-        config::get_cellname_prompt,
+        crate::application::persistence::PromptKind::CellName,
         "Cell name",
     )
     .await
 }
 
-#[tauri::command]
-pub async fn suggest_table_name(
-    app: AppHandle,
+pub async fn suggest_table_name_with_runtime(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
     req: AiSuggestTableNameRequest,
 ) -> Result<String, String> {
     log::info!("Suggesting table name using AI provider: {}", req.provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     let resolved_model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
 
@@ -763,7 +930,15 @@ pub async fn suggest_table_name(
     };
 
     let system_prompt = "You are a database naming expert. Reply with only a snake_case table name, no explanation.";
-    let result = dispatch_provider(&app, &app_config, &gen_req, system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(name) => {
@@ -785,17 +960,18 @@ pub async fn suggest_table_name(
     }
 }
 
-#[tauri::command]
-pub async fn generate_tab_rename(
-    app: AppHandle,
+pub async fn generate_tab_name(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
     req: AiTabRenameRequest,
 ) -> Result<String, String> {
     generate_with_simple_prompt(
-        app,
+        runtime,
+        cache,
         req.provider,
         req.model,
         req.query,
-        config::get_tabrename_prompt,
+        crate::application::persistence::PromptKind::TabRename,
         "Tab name",
     )
     .await
@@ -858,9 +1034,12 @@ async fn generate_custom_openai(
     // Build the chat completions endpoint URL
     let url = build_api_url(base_url, "/chat/completions");
 
-    let res = client
-        .post(&url)
-        .header("Authorization", format!("Bearer {}", api_key))
+    let mut request = client.post(&url);
+    if !api_key.is_empty() {
+        request = request.bearer_auth(api_key);
+    }
+
+    let res = request
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
@@ -918,6 +1097,44 @@ async fn generate_openrouter(
     Ok(clean_response(content))
 }
 
+async fn generate_requesty(
+    client: &Client,
+    api_key: &str,
+    req: &AiGenerateRequest,
+    system_prompt: &str,
+) -> Result<String, String> {
+    let body = json!({
+        "model": req.model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": req.prompt}
+        ],
+        "temperature": 0.0
+    });
+
+    let res = client
+        .post("https://router.requesty.ai/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("HTTP-Referer", "https://github.com/TabularisDB/tabularis")
+        .header("X-Title", "Tabularis")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        let error_text = res.text().await.unwrap_or_default();
+        return Err(format!("Requesty Error: {}", error_text));
+    }
+
+    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    let content = json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("Invalid response format from Requesty")?;
+
+    Ok(clean_response(content))
+}
+
 /// Builds the Messages API body. No `temperature` is sent: newer Claude
 /// models (e.g. the 5.5 family) reject the parameter, and older ones work
 /// fine without it.
@@ -956,11 +1173,27 @@ async fn generate_anthropic(
     }
 
     let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    let content = json["content"][0]["text"]
-        .as_str()
-        .ok_or("Invalid response format from Anthropic")?;
+    // Models with extended thinking return `thinking` (or other non-text)
+    // blocks ahead of the answer, so use the first `text` block rather than
+    // assuming it is `content[0]`.
+    let content = json["content"]
+        .as_array()
+        .and_then(|blocks| {
+            blocks
+                .iter()
+                .find(|block| block["type"].as_str() == Some("text"))
+        })
+        .and_then(|block| block["text"].as_str());
 
-    Ok(clean_response(content))
+    match content {
+        Some(content) => Ok(clean_response(content)),
+        // Thinking tokens count toward `max_tokens`, so a long answer can run
+        // out of budget before any text block is produced.
+        None if json["stop_reason"].as_str() == Some("max_tokens") => {
+            Err("Anthropic stopped at the max_tokens limit before producing an answer".into())
+        }
+        None => Err("Invalid response format from Anthropic".into()),
+    }
 }
 
 async fn generate_ollama(
@@ -1032,8 +1265,7 @@ async fn generate_minimax(
             .await
         {
             Ok(res) if res.status().is_success() => {
-                let json: serde_json::Value =
-                    res.json().await.map_err(|e| e.to_string())?;
+                let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
                 let content = json["choices"][0]["message"]["content"]
                     .as_str()
                     .ok_or("Invalid response format from MiniMax")?;
@@ -1070,8 +1302,19 @@ fn clean_response(text: &str) -> String {
 }
 
 #[cfg(test)]
+#[path = "ai_provider_tests.rs"]
+mod provider_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn crash_analysis_prompt_names_the_reply_language() {
+        let prompt = crash_analysis_system_prompt("Italian");
+        assert!(prompt.contains("Reply in Italian"));
+        assert!(!prompt.contains("{{LANGUAGE}}"));
+    }
 
     #[test]
     fn test_load_default_models() {
@@ -1079,6 +1322,7 @@ mod tests {
         assert!(models.contains_key("openai"));
         assert!(models.contains_key("anthropic"));
         assert!(models.contains_key("openrouter"));
+        assert!(models.contains_key("requesty"));
         assert!(models.contains_key("minimax"));
 
         // Check for new futuristic models from yaml
@@ -1094,11 +1338,15 @@ mod tests {
 
         // Check MiniMax models
         let minimax = models.get("minimax").unwrap();
-        assert!(minimax.contains(&"MiniMax-M3".to_string()));
-        assert!(minimax.contains(&"MiniMax-M2.7".to_string()));
-        assert!(minimax.contains(&"MiniMax-M2.7-highspeed".to_string()));
-        // M3 should be listed first so it is selected as the default model
-        assert_eq!(minimax.first().map(String::as_str), Some("MiniMax-M3"));
+        assert_eq!(
+            minimax,
+            &[
+                "MiniMax-M3.1-Flash",
+                "MiniMax-M3",
+                "MiniMax-M2.7",
+                "MiniMax-M2.7-highspeed",
+            ]
+        );
 
         // Ollama is not in yaml, so it shouldn't be here yet
         assert!(!models.contains_key("ollama"));

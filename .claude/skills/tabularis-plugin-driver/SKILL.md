@@ -7,7 +7,7 @@ description: "Use when creating or updating a Tabularis database driver plugin i
 
 Use this skill when building or updating a database plugin for Tabularis.
 
-The skill is optimized for this repository. Follow `AGENTS.md`, the files in `.rules/`, and the current plugin-system behavior in `src-tauri/src/plugins/` and `src/types/plugins.ts`.
+The skill is optimized for this repository. Follow `AGENTS.md`, the files in `.rules/`, and the current plugin-system behavior in `src-tauri/src/plugins/` and `packages/web-ui/src/types/plugins.ts`.
 
 ## Goals
 
@@ -55,7 +55,7 @@ Keep `src/main.rs` thin. It should mostly parse requests, dispatch methods, and 
 
 1. Read the current plugin manifest shape in:
    - `plugins/manifest.schema.json`
-   - `src/types/plugins.ts`
+   - `packages/web-ui/src/types/plugins.ts`
    - `src-tauri/src/plugins/manager.rs`
 2. Read the JSON-RPC expectations in:
    - `plugins/PLUGIN_GUIDE.md`
@@ -64,9 +64,9 @@ Keep `src/main.rs` thin. It should mostly parse requests, dispatch methods, and 
 3. Read a built-in driver with broad coverage to understand expected behaviors:
    - `src-tauri/src/drivers/mysql/mod.rs`
 4. Read plugin-loading behavior and modern feature flags in:
-   - `src/hooks/useDrivers.ts`
-   - `src/utils/connectionStringParser.ts`
-   - `src/utils/driverCapabilities.ts`
+   - `packages/web-ui/src/hooks/useDrivers.ts`
+   - `packages/web-ui/src/utils/connectionStringParser.ts`
+   - `packages/web-ui/src/utils/driverCapabilities.ts`
 
 ## Implementation Workflow
 
@@ -188,6 +188,28 @@ as edit script). Implement only what the dialect needs:
   `CREATE OR REPLACE`).
 - `drop_routine({ params, routine_name, routine_type, schema }) -> null` —
   drop the routine; resolve overloads yourself if the dialect has them.
+
+#### Optional table export methods
+
+"Export table to SQL" and "Import table from SQL" work for every SQL plugin
+without new code: the host builds `CREATE TABLE` from `get_columns` and
+`get_create_table_sql`, pages rows through `execute_query`, and renders
+`INSERT` literals from `identifier_quote`, `sql_dialect` and `sql_syntax`.
+Optional methods, answered with -32601 when missing, make the file match the
+engine exactly:
+
+- `get_table_ddl({ params, table, schema }) -> string` — the engine's own
+  `CREATE TABLE` (plus index statements) for an existing table, unqualified.
+- `render_insert_statements({ table, schema, columns, rows }) -> string[]` —
+  complete `INSERT` statements for up to 500 positional rows, values as your
+  `execute_query` returns them. Pure rendering, no database access.
+- `get_approximate_row_count({ params, table, schema }) -> number | null` —
+  the row estimate from the engine's statistics, for the export dialog. No
+  table scan.
+
+The export pages `execute_query` with `ORDER BY` the primary key, so paging
+must be deterministic and `pagination.has_more` accurate. Non-SQL plugins set
+`table_export: false` and `table_import: false`.
 
 ### 5. Add settings only when they solve a real problem
 

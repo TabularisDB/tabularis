@@ -1,0 +1,96 @@
+import type {Theme} from '@/types/theme';
+
+export const nord: Theme = {
+    id: 'nord',
+    name: 'Nord',
+    author: 'Arctic Ice Studio',
+    isPreset: true,
+    isReadOnly: true,
+    colors: {
+        bg: {
+            base: '#2e3440',
+            elevated: '#3b4252',
+            overlay: '#434c5e',
+            input: '#2e3440',
+            tooltip: '#434c5e',
+        },
+        surface: {
+            primary: '#3b4252',
+            secondary: '#434c5e',
+            tertiary: '#4c566a',
+            hover: '#434c5e',
+            active: '#5e81ac',
+            disabled: '#3b4252',
+        },
+        text: {
+            primary: '#d8dee9',
+            secondary: '#baccdd',
+            muted: '#a6bed7',
+            disabled: '#4c566a',
+            accent: '#8fc4d3',
+            inverse: '#2e3440',
+        },
+        accent: {
+            primary: '#88c0d0',
+            secondary: '#c3a5be',
+            success: '#a3be8c',
+            warning: '#ebcb8b',
+            error: '#d89fa4',
+            info: '#96b1cc',
+        },
+        border: {
+            subtle: '#3b4252',
+            default: '#434c5e',
+            strong: '#4c566a',
+            focus: '#88c0d0',
+        },
+        semantic: {
+            string: '#d89fa4',
+            number: '#c3a5be',
+            boolean: '#c3a5be',
+            date: '#a3be8c',
+            null: '#a6aebf',
+            primaryKey: '#ebcb8b',
+            foreignKey: '#88c0d0',
+            index: '#c3a5be',
+            connectionActive: '#a3be8c',
+            connectionInactive: '#4c566a',
+            modified: '#88c0d0',
+            deleted: '#d89fa4',
+            new: '#a3be8c',
+        },
+    },
+    typography: {
+        fontFamily: {
+            base: 'Inter, system-ui, sans-serif',
+            mono: 'Fira Code, Monaco, Consolas, monospace',
+        },
+        fontSize: {
+            xs: '0.75rem',
+            sm: '0.875rem',
+            base: '1rem',
+            lg: '1.125rem',
+            xl: '1.25rem',
+        },
+    },
+    layout: {
+        borderRadius: {
+            sm: '0.25rem',
+            base: '0.5rem',
+            lg: '0.75rem',
+            xl: '1rem',
+        },
+        spacing: {
+            xs: '0.25rem',
+            sm: '0.5rem',
+            base: '1rem',
+            lg: '1.5rem',
+            xl: '2rem',
+        },
+    },
+    monacoTheme: {
+        base: 'vs-dark',
+        inherit: true,
+        themeName: 'Nord',
+    },
+};

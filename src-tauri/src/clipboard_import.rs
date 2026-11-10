@@ -1,14 +1,8 @@
-use std::sync::Arc;
-use crate::{
-    commands::{
-        expand_k8s_connection_params, expand_ssh_connection_params, find_connection_by_id,
-        resolve_connection_params_with_id,
-    },
-    drivers::{driver_trait::DatabaseDriver, registry::get_driver},
-    models::ColumnDefinition,
-};
+use crate::drivers::sql_syntax::{quote_string_literal, BooleanLiterals, LiteralStyle, SqlSyntax};
+use crate::models::TableColumn;
+use crate::{drivers::driver_trait::DatabaseDriver, models::ColumnDefinition};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Runtime};
+use std::collections::HashSet;
 
 #[derive(Deserialize, Debug)]
 pub struct ClipboardImportRequest {
@@ -39,20 +33,127 @@ pub struct ClipboardImportResult {
     pub table_created: bool,
 }
 
-fn escape_sql_string(s: &str) -> String {
+/// Quotes a string literal in the driver's declared literal style. A driver
+/// whose `sql_syntax` declares `string_escape: "backslash"` (no doubled-quote
+/// escape, no raw newlines in a literal) gets backslash escapes; every other
+/// driver, MySQL included, doubles the quote as before.
+fn escape_sql_string(s: &str, style: LiteralStyle) -> String {
+    if style == LiteralStyle::Backslash {
+        return quote_string_literal(s, style);
+    }
     format!("'{}'", s.replace('\'', "''"))
 }
 
-fn row_to_values_clause(row: &[Option<String>]) -> String {
+/// The SQL literal for a value the clipboard parser accepts as a boolean.
+fn boolean_literal(value: &str, style: BooleanLiterals) -> Option<&'static str> {
+    match value.to_ascii_lowercase().as_str() {
+        "true" | "yes" | "1" => Some(style.literal(true)),
+        "false" | "no" | "0" => Some(style.literal(false)),
+        _ => None,
+    }
+}
+
+/// Whether `col` is a BOOLEAN column this import creates, in a new table or
+/// as an added column.
+fn is_created_boolean(
+    req: &ClipboardImportRequest,
+    col: &ColumnDefinition,
+    table_created: bool,
+) -> bool {
+    col.data_type.eq_ignore_ascii_case("BOOLEAN")
+        && (table_created || req.add_columns.iter().any(|added| added.name == col.name))
+}
+
+/// MySQL creates BOOLEAN as TINYINT(1) and, in strict mode, rejects quoted words
+/// like 'true', so the BOOLEAN columns this import created get TRUE/FALSE
+/// literals, and so do existing TINYINT columns: a word like 'true' could never
+/// be stored in one as-is. Other existing columns keep quoted values, so a text
+/// column holding yes/no is left alone.
+fn boolean_literal_columns(
+    req: &ClipboardImportRequest,
+    driver_id: &str,
+    table_created: bool,
+    existing_tinyint_columns: &HashSet<String>,
+) -> Vec<bool> {
+    req.columns
+        .iter()
+        .map(|col| {
+            driver_id == "mysql"
+                && (is_created_boolean(req, col, table_created)
+                    || existing_tinyint_columns.contains(&col.name))
+        })
+        .collect()
+}
+
+/// A driver that declares `sql_syntax.boolean_literals` (GoogleSQL, which
+/// does not coerce a quoted 'true' to BOOL) gets boolean literals in the
+/// BOOLEAN columns this import created. Existing columns keep quoted values.
+fn declared_boolean_columns(req: &ClipboardImportRequest, table_created: bool) -> Vec<bool> {
+    req.columns
+        .iter()
+        .map(|col| is_created_boolean(req, col, table_created))
+        .collect()
+}
+
+/// Names of the TINYINT columns among a table's columns (MySQL reports BOOLEAN
+/// columns as plain `tinyint`).
+fn tinyint_column_names(columns: &[TableColumn]) -> HashSet<String> {
+    columns
+        .iter()
+        .filter(|col| col.data_type.eq_ignore_ascii_case("tinyint"))
+        .map(|col| col.name.clone())
+        .collect()
+}
+
+/// The target table's TINYINT columns when a MySQL import appends to a table it
+/// didn't create; empty otherwise, or when the columns can't be read.
+async fn existing_tinyint_columns(
+    drv: &dyn DatabaseDriver,
+    params: &crate::models::ConnectionParams,
+    req: &ClipboardImportRequest,
+    schema_ref: Option<&str>,
+    table_created: bool,
+) -> HashSet<String> {
+    if table_created || drv.manifest().id != "mysql" {
+        return HashSet::new();
+    }
+    match drv.get_columns(params, &req.table_name, schema_ref).await {
+        Ok(columns) => tinyint_column_names(&columns),
+        Err(e) => {
+            log::warn!(
+                "Clipboard import: could not read the columns of '{}': {e}",
+                req.table_name
+            );
+            HashSet::new()
+        }
+    }
+}
+
+fn row_to_values_clause(
+    row: &[Option<String>],
+    boolean_columns: &[bool],
+    boolean_style: BooleanLiterals,
+    literal_style: LiteralStyle,
+) -> String {
     let values: Vec<String> = row
         .iter()
-        .map(|cell| match cell {
+        .enumerate()
+        .map(|(i, cell)| match cell {
             None => "NULL".to_string(),
             Some(v) if v.is_empty() => "NULL".to_string(),
-            Some(v) => escape_sql_string(v),
+            Some(v) => match boolean_literal(v, boolean_style) {
+                Some(literal) if boolean_columns.get(i) == Some(&true) => literal.to_string(),
+                _ => escape_sql_string(v, literal_style),
+            },
         })
         .collect();
     format!("({})", values.join(", "))
+}
+
+/// The driver's declared identifier quote, for static and dynamic drivers alike
+/// (MySQL rejects double-quoted identifiers without ANSI_QUOTES).
+fn import_identifier_quote(drv: &dyn DatabaseDriver) -> &str {
+    drv.manifest().capabilities.identifier_quote.as_str()
 }
 
 fn quote_identifier(name: &str, quote: &str) -> String {
@@ -70,9 +171,9 @@ fn table_ref(table_name: &str, schema: Option<&str>, quote: &str) -> String {
     }
 }
 
-#[tauri::command]
-pub async fn execute_clipboard_import<R: Runtime>(
-    app: AppHandle<R>,
+pub async fn import_with_runtime(
+    runtime: &crate::runtime::RuntimeContext,
+    session_id: Option<uuid::Uuid>,
     req: ClipboardImportRequest,
 ) -> Result<ClipboardImportResult, String> {
     log::info!(
@@ -82,22 +183,19 @@ pub async fn execute_clipboard_import<R: Runtime>(
         req.create_table
     );
 
-    let saved_conn = find_connection_by_id(&app, &req.connection_id)?;
-    let expanded = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded = expand_k8s_connection_params(&app, &expanded).await?;
-    let params = resolve_connection_params_with_id(&expanded, &req.connection_id)?;
-    let drv: Arc<dyn DatabaseDriver> = get_driver(&saved_conn.params.driver)
-        .await
-        .ok_or_else(|| format!("Unsupported driver: {}", saved_conn.params.driver))?;
-
-    let dynamic_metadata = drv.has_connection_metadata();
-    let drv = drv.for_connection(&params).await?.unwrap_or(drv);
-    // Preserve the legacy import quoting for static drivers.
-    let quote = if dynamic_metadata {
-        drv.manifest().capabilities.identifier_quote.as_str()
-    } else {
-        "\""
-    };
+    let runtime = runtime.clone();
+    let connection_id = req.connection_id.clone();
+    let (_, params) = tokio::task::spawn_blocking(move || {
+        crate::application::connections::resolve_saved_connection_params(
+            &runtime,
+            session_id,
+            &connection_id,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    let drv = crate::drivers::registry::get_connection_driver(&params).await?;
+    let quote = import_identifier_quote(drv.as_ref());
     let schema_ref = req.schema.as_deref();
     let tbl_ref = table_ref(&req.table_name, schema_ref, quote);
     let mut table_created = false;
@@ -187,7 +285,10 @@ async fn insert_rows(
     table_created: bool,
 ) -> Result<ClipboardImportResult, String> {
     if req.rows.is_empty() {
-        return Ok(ClipboardImportResult { rows_inserted: 0, table_created });
+        return Ok(ClipboardImportResult {
+            rows_inserted: 0,
+            table_created,
+        });
     }
 
     let col_list = req
@@ -197,11 +298,24 @@ async fn insert_rows(
         .collect::<Vec<_>>()
         .join(", ");
 
+    let syntax = SqlSyntax::resolve(&drv.manifest().capabilities);
+    let boolean_columns = if syntax.boolean_literals.is_some() {
+        declared_boolean_columns(req, table_created)
+    } else {
+        let existing_tinyint =
+            existing_tinyint_columns(drv, params, req, schema_ref, table_created).await;
+        boolean_literal_columns(req, &drv.manifest().id, table_created, &existing_tinyint)
+    };
+    let boolean_style = syntax.boolean_literals.unwrap_or(BooleanLiterals::Keywords);
+    let literal_style = syntax.string_escape;
     const BATCH_SIZE: usize = 500;
     let mut rows_inserted = 0;
 
     for chunk in req.rows.chunks(BATCH_SIZE) {
-        let values_clauses: Vec<String> = chunk.iter().map(|r| row_to_values_clause(r)).collect();
+        let values_clauses: Vec<String> = chunk
+            .iter()
+            .map(|r| row_to_values_clause(r, &boolean_columns, boolean_style, literal_style))
+            .collect();
         let insert_sql = format!(
             "INSERT INTO {} ({}) VALUES {}",
             tbl_ref,
@@ -211,13 +325,25 @@ async fn insert_rows(
 
         drv.execute_query(params, &insert_sql, None, 1, schema_ref)
             .await
-            .map_err(|e| format!("Failed to insert rows (batch starting at {}): {e}", rows_inserted))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to insert rows (batch starting at {}): {e}",
+                    rows_inserted
+                )
+            })?;
 
         rows_inserted += chunk.len();
     }
 
-    log::info!("Clipboard import complete: {} rows inserted into {}", rows_inserted, tbl_ref);
-    Ok(ClipboardImportResult { rows_inserted, table_created })
+    log::info!(
+        "Clipboard import complete: {} rows inserted into {}",
+        rows_inserted,
+        tbl_ref
+    );
+    Ok(ClipboardImportResult {
+        rows_inserted,
+        table_created,
+    })
 }
 
 #[cfg(test)]

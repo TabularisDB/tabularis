@@ -1,5 +1,5 @@
 //! Minimal JDBC connection-string parser, extracting host/port/database from
-//! the URL forms DataGrip writes. Ported from TablePro's `JDBCConnectionString`.
+//! the URL forms DataGrip writes.
 
 pub struct Endpoint {
     pub host: String,
@@ -77,9 +77,18 @@ fn parse_sql_server(body: &str) -> Option<Endpoint> {
     let database = database
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())
-        .or_else(|| props.get("databasename").or_else(|| props.get("database")).cloned())
+        .or_else(|| {
+            props
+                .get("databasename")
+                .or_else(|| props.get("database"))
+                .cloned()
+        })
         .unwrap_or_default();
-    Some(Endpoint { host, port, database })
+    Some(Endpoint {
+        host,
+        port,
+        database,
+    })
 }
 
 /// jdbc:oracle:thin:@host:port:SID or @//host:port/SERVICE_NAME
@@ -120,7 +129,11 @@ fn parse_oracle(body: &str) -> Option<Endpoint> {
         .map(|s| s.to_string())
         .unwrap_or_else(|| parts.get(2).map(|s| s.to_string()).unwrap_or_default());
     descriptor.clear();
-    Some(Endpoint { host, port, database })
+    Some(Endpoint {
+        host,
+        port,
+        database,
+    })
 }
 
 /// jdbc:sqlite:/path/to/file.db

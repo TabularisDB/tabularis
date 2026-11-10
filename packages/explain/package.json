@@ -68,12 +68,24 @@
     "react-i18next": ">=15.0.0"
   },
   "peerDependenciesMeta": {
-    "@xyflow/react": { "optional": true },
-    "dagre": { "optional": true },
-    "clsx": { "optional": true },
-    "lucide-react": { "optional": true },
-    "react": { "optional": true },
-    "react-i18next": { "optional": true }
+    "@xyflow/react": {
+      "optional": true
+    },
+    "dagre": {
+      "optional": true
+    },
+    "clsx": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-i18next": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/dagre": "^0.7.54",

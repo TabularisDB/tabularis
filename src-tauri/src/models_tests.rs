@@ -102,8 +102,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&params).expect("serialize params");
-        let restored: ConnectionParams =
-            serde_json::from_str(&json).expect("deserialize params");
+        let restored: ConnectionParams = serde_json::from_str(&json).expect("deserialize params");
 
         assert_eq!(restored.connection_uri.as_deref(), Some(uri));
         assert_eq!(restored.connection_uri_in_keychain, Some(true));
@@ -156,6 +155,32 @@ mod tests {
         assert!(params.extra.is_empty());
     }
 
+    /// `default_database` (typed on the Databases tab of a flat multi-database
+    /// plugin) is kept next to an "All databases" selection, and connections
+    /// without one neither fail to load nor gain the field when written back.
+    #[test]
+    fn connection_params_round_trip_default_database() {
+        let params = ConnectionParams {
+            driver: "surrealdb".to_string(),
+            database: DatabaseSelection::Single(String::new()),
+            default_database: Some("app/main".to_string()),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&params).expect("serialize params");
+        let restored: ConnectionParams =
+            serde_json::from_str(&json).expect("deserialize params");
+        assert_eq!(restored.default_database.as_deref(), Some("app/main"));
+        assert_eq!(restored.database, DatabaseSelection::Single(String::new()));
+
+        let legacy: ConnectionParams =
+            serde_json::from_str(r#"{"driver": "mysql", "host": "localhost", "database": ""}"#)
+                .expect("legacy params without default_database");
+        assert_eq!(legacy.default_database, None);
+        let json = serde_json::to_string(&legacy).expect("serialize legacy params");
+        assert!(!json.contains("default_database"));
+    }
+
     /// `extra` entries survive a persist round-trip untouched — the host must
     /// not interpret or rewrite plugin-specific values.
     #[test]
@@ -175,9 +200,11 @@ mod tests {
         let json = serde_json::to_string(&params).expect("serialize params");
         assert!(json.contains("\"extra\""));
 
-        let restored: ConnectionParams =
-            serde_json::from_str(&json).expect("deserialize params");
-        assert_eq!(restored.extra.get("region").map(String::as_str), Some("eu-west-1"));
+        let restored: ConnectionParams = serde_json::from_str(&json).expect("deserialize params");
+        assert_eq!(
+            restored.extra.get("region").map(String::as_str),
+            Some("eu-west-1")
+        );
         assert_eq!(
             restored.extra.get("endpoint").map(String::as_str),
             Some("http://localhost:8000")
@@ -190,10 +217,9 @@ mod tests {
             serde_json::from_str(r#"{"name":"users"}"#).expect("legacy table metadata");
         assert!(legacy_table.comment.is_none());
 
-        let table: TableInfo = serde_json::from_str(
-            r#"{"name":"users","comment":"Application users"}"#,
-        )
-        .expect("commented table metadata");
+        let table: TableInfo =
+            serde_json::from_str(r#"{"name":"users","comment":"Application users"}"#)
+                .expect("commented table metadata");
         assert_eq!(table.comment.as_deref(), Some("Application users"));
 
         let legacy_column: TableColumn = serde_json::from_str(
@@ -221,5 +247,20 @@ mod tests {
 
         let json = serde_json::to_string(&params).expect("serialize params");
         assert!(!json.contains("extra"));
+    }
+
+    #[test]
+    fn saved_connection_defaults_plugin_secret_markers_for_legacy_json() {
+        let stored = r#"{
+            "id": "legacy",
+            "name": "Legacy",
+            "params": { "driver": "mysql", "database": "app" }
+        }"#;
+        let connection: crate::models::SavedConnection =
+            serde_json::from_str(stored).expect("legacy connection deserializes");
+        assert!(connection.plugin_secret_keys.is_empty());
+
+        let json = serde_json::to_string(&connection).expect("serialize connection");
+        assert!(!json.contains("plugin_secret_keys"));
     }
 }

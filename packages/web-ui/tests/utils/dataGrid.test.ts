@@ -1,0 +1,1619 @@
+import {describe, it, expect, vi} from 'vitest';
+import {
+    formatCellValue,
+    getColumnSortState,
+    calculateSelectionRange,
+    toggleSetValue,
+    isZebraStripedRow,
+    USE_DEFAULT_SENTINEL,
+    resolveInsertionCellDisplay,
+    resolveExistingCellDisplay,
+    getCellStateClass,
+    buildPkMap,
+    serializePkKey,
+    parsePasteMatrix,
+    stripHeaderRow,
+    computePasteTargets,
+    getRangeCursor,
+    buildCellRange,
+    extendCellRange,
+    moveCellPosition,
+    type ColumnDisplayInfo,
+    type CellClassParams,
+    createDataGridResultCommands,
+    getColumnLayoutKey,
+    resolveLockedColumnWidths,
+    resizeLockedColumn,
+    getResizedTableWidth,
+    getFrozenFirstColumnLayout,
+    getFrozenCellBackdropClass,
+    isUuidColumnType,
+    isOriginalCellValue,
+    navigateCell,
+    toLogicalArrowKey,
+} from '@/utils/dataGrid';
+import {rowsToCSV, rowsToCSVWithHeaders} from '@/utils/clipboard';
+
+describe('createDataGridResultCommands', () => {
+    const callbacks = () => ({
+        copyCellRange: vi.fn(),
+        copyCellValue: vi.fn(),
+        copySelectedRows: vi.fn(),
+        copySelectedColumns: vi.fn(),
+        copyColumnValuesAsSqlIn: vi.fn(),
+        copyAllLoadedRows: vi.fn(),
+    });
+
+    it('builds commands from the current range, row, and column selections', async () => {
+        const actions = callbacks();
+        const commands = createDataGridResultCommands({
+            cellRange: {minRow: 1, maxRow: 2, minCol: 0, maxCol: 1},
+            focusedCell: {rowIndex: 1, colIndex: 0},
+            selectedRowIndices: new Set([1, 2]),
+            selectedColIndices: new Set([1]),
+            columns: ['id', 'name'],
+            dataLength: 4,
+            totalRows: 4,
+            hasRowsBeyondLoadedPage: false,
+            ...actions,
+        });
+
+        expect(commands.copySelectedCells?.count).toBe(4);
+        expect(commands.copySelectedRows?.count).toBe(2);
+        expect(commands.copySelectedColumns?.count).toBe(1);
+        expect(commands.copyColumnValuesAsSqlIn).toEqual({
+            columnName: 'name',
+            execute: expect.any(Function),
+        });
+        expect(commands.copyAllRows?.count).toBe(4);
+
+        await commands.copyColumnValuesAsSqlIn?.execute();
+        expect(actions.copyColumnValuesAsSqlIn).toHaveBeenCalledWith(1);
+    });
+
+    it('counts only the visible columns of a cell range (#1299)', () => {
+        const commands = createDataGridResultCommands({
+            cellRange: {minRow: 0, maxRow: 1, minCol: 0, maxCol: 3},
+            focusedCell: {rowIndex: 0, colIndex: 0},
+            selectedRowIndices: new Set(),
+            selectedColIndices: new Set(),
+            columns: ['id', 'name', 'email', 'city'],
+            dataLength: 2,
+            totalRows: 2,
+            hasRowsBeyondLoadedPage: false,
+            hiddenColIndices: new Set([1, 2]),
+            ...callbacks(),
+        });
+
+        expect(commands.copySelectedCells?.count).toBe(4);
+    });
+
+    it('uses the full-fetch action only when rows exist beyond the loaded page', async () => {
+        const actions = callbacks();
+        const copyAllRows = vi.fn();
+        const commands = createDataGridResultCommands({
+            cellRange: null,
+            focusedCell: null,
+            selectedRowIndices: new Set(),
+            selectedColIndices: new Set(),
+            columns: ['id'],
+            dataLength: 2,
+            totalRows: null,
+            hasRowsBeyondLoadedPage: true,
+            onCopyAllRows: copyAllRows,
+            ...actions,
+        });
+
+        expect(commands.copyAllRows?.count).toBeUndefined();
+        await commands.copyAllRows?.execute();
+        expect(copyAllRows).toHaveBeenCalledOnce();
+        expect(actions.copyAllLoadedRows).not.toHaveBeenCalled();
+    });
+
+    it('counts pending rows when copying only loaded rows', async () => {
+        const actions = callbacks();
+        const commands = createDataGridResultCommands({
+            cellRange: null,
+            focusedCell: null,
+            selectedRowIndices: new Set(),
+            selectedColIndices: new Set(),
+            columns: ['id'],
+            dataLength: 2,
+            totalRows: 1,
+            hasRowsBeyondLoadedPage: false,
+            ...actions,
+        });
+
+        expect(commands.copyAllRows?.count).toBe(2);
+        await commands.copyAllRows?.execute();
+        expect(actions.copyAllLoadedRows).toHaveBeenCalledOnce();
+    });
+});
+
+describe('dataGrid utils', () => {
+    describe('isUuidColumnType', () => {
+        it.each(['uuid', 'UUID', 'uniqueidentifier', 'UniqueIdentifier'])(
+            'recognizes %s as a UUID column type',
+            (dataType) => {
+                expect(isUuidColumnType(dataType)).toBe(true);
+            },
+        );
+
+        it.each(['varchar', 'uuid[]', 'binary(16)', ''])(
+            'rejects %s as a UUID column type',
+            (dataType) => {
+                expect(isUuidColumnType(dataType)).toBe(false);
+            },
+        );
+    });
+
+    describe('formatCellValue', () => {
+        it('should return nullLabel for null values', () => {
+            expect(formatCellValue(null)).toBe('NULL');
+            expect(formatCellValue(null, 'N/A')).toBe('N/A');
+        });
+
+        it('should return nullLabel for undefined values', () => {
+            expect(formatCellValue(undefined)).toBe('NULL');
+            expect(formatCellValue(undefined, 'Empty')).toBe('Empty');
+        });
+
+        it('should format boolean true as "true"', () => {
+            expect(formatCellValue(true)).toBe('true');
+        });
+
+        it('should format boolean false as "false"', () => {
+            expect(formatCellValue(false)).toBe('false');
+        });
+
+        it('should stringify objects as JSON', () => {
+            expect(formatCellValue({name: 'John', age: 30})).toBe('{"name":"John","age":30}');
+            expect(formatCellValue([1, 2, 3])).toBe('[1,2,3]');
+        });
+
+        it('should convert numbers to strings', () => {
+            expect(formatCellValue(42)).toBe('42');
+            expect(formatCellValue(3.14)).toBe('3.14');
+            expect(formatCellValue(-100)).toBe('-100');
+            expect(formatCellValue(0)).toBe('0');
+        });
+
+        it('should return strings as-is', () => {
+            expect(formatCellValue('hello')).toBe('hello');
+            expect(formatCellValue('')).toBe('');
+            expect(formatCellValue('  spaced  ')).toBe('  spaced  ');
+        });
+
+        it('should handle special number values', () => {
+            expect(formatCellValue(Infinity)).toBe('Infinity');
+            expect(formatCellValue(-Infinity)).toBe('-Infinity');
+            expect(formatCellValue(NaN)).toBe('NaN');
+        });
+
+        it('should handle nested objects', () => {
+            const nested = {user: {name: 'John', address: {city: 'NYC'}}};
+            expect(formatCellValue(nested)).toBe(
+                '{"user":{"name":"John","address":{"city":"NYC"}}}',
+            );
+        });
+
+        it('should JSON-encode scalar strings in jsonb columns', () => {
+            expect(formatCellValue('🦊', 'NULL', 'jsonb')).toBe('"🦊"');
+            expect(formatCellValue('hello', 'NULL', 'json')).toBe('"hello"');
+        });
+
+        it('should JSON-encode scalar numbers in jsonb columns', () => {
+            expect(formatCellValue(42, 'NULL', 'jsonb')).toBe('42');
+            expect(formatCellValue(3.14, 'NULL', 'json')).toBe('3.14');
+        });
+
+        it('should JSON-encode scalar booleans in jsonb columns', () => {
+            expect(formatCellValue(true, 'NULL', 'jsonb')).toBe('true');
+            expect(formatCellValue(false, 'NULL', 'json')).toBe('false');
+        });
+
+        it('should keep null label for null values in jsonb columns', () => {
+            expect(formatCellValue(null, 'NULL', 'jsonb')).toBe('NULL');
+        });
+
+        it('should handle empty objects and arrays', () => {
+            expect(formatCellValue({})).toBe('{}');
+            expect(formatCellValue([])).toBe('[]');
+        });
+
+        describe('with columnType parameter', () => {
+            it('should format geometric WKB hex values as WKT when columnType is POINT', () => {
+                // MySQL format with SRID prefix (4 bytes) + standard WKB
+                const wkbPoint = '0x000000000101000000000000000000F03F0000000000000040';
+                const result = formatCellValue(wkbPoint, 'NULL', 'POINT');
+                expect(result).toContain('POINT');
+                expect(result).not.toContain('0x');
+            });
+
+            it('should format geometric WKT values as-is when columnType is GEOMETRY', () => {
+                const wkt = 'POINT(1 2)';
+                const result = formatCellValue(wkt, 'NULL', 'GEOMETRY');
+                expect(result).toBe(wkt);
+            });
+
+            it('should format geometric NULL as NULL', () => {
+                const result = formatCellValue(null, 'NULL', 'POINT');
+                expect(result).toBe('NULL');
+            });
+
+            it('should not affect non-geometric types', () => {
+                expect(formatCellValue('hello', 'NULL', 'VARCHAR')).toBe('hello');
+                expect(formatCellValue(42, 'NULL', 'INT')).toBe('42');
+                expect(formatCellValue(true, 'NULL', 'BOOLEAN')).toBe('true');
+            });
+
+            it('should display a BINARY(16) wire value as complete hex', () => {
+                const bytes = Array.from({length: 16}, (_, index) => index);
+                const wire = `BLOB:16:application/octet-stream:${btoa(String.fromCharCode(...bytes))}`;
+
+                expect(formatCellValue(wire, 'NULL', 'BINARY', 16)).toBe(
+                    '0x000102030405060708090a0b0c0d0e0f',
+                );
+            });
+
+            it('should retain download metadata for generic binary values over 10 KiB', () => {
+                const preview = btoa('binary preview');
+                const wire = `BLOB:10241:application/octet-stream:${preview}`;
+
+                expect(formatCellValue(wire, 'NULL', 'BLOB')).toBe(
+                    'application/octet-stream (10.00 KB)',
+                );
+            });
+
+            it('should handle case-insensitive geometric types', () => {
+                const wkt = 'LINESTRING(0 0, 1 1)';
+                expect(formatCellValue(wkt, 'NULL', 'linestring')).toBe(wkt);
+                expect(formatCellValue(wkt, 'NULL', 'LINESTRING')).toBe(wkt);
+                expect(formatCellValue(wkt, 'NULL', 'LineString')).toBe(wkt);
+            });
+
+            it('should handle all geometric types (POLYGON, MULTIPOINT, etc.)', () => {
+                const polygon = 'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))';
+                expect(formatCellValue(polygon, 'NULL', 'POLYGON')).toBe(polygon);
+
+                const multipoint = 'MULTIPOINT((1 2), (3 4))';
+                expect(formatCellValue(multipoint, 'NULL', 'MULTIPOINT')).toBe(multipoint);
+            });
+
+            it('should work without columnType parameter (backward compatibility)', () => {
+                expect(formatCellValue('hello')).toBe('hello');
+                expect(formatCellValue(null)).toBe('NULL');
+                expect(formatCellValue(42)).toBe('42');
+            });
+
+            it('should handle undefined columnType gracefully', () => {
+                expect(formatCellValue('test', 'NULL', undefined)).toBe('test');
+                expect(formatCellValue(null, 'NULL', undefined)).toBe('NULL');
+            });
+        });
+    });
+
+    describe('getColumnSortState', () => {
+        it('should return null for empty sort clause', () => {
+            expect(getColumnSortState('name', '')).toBeNull();
+            expect(getColumnSortState('name', undefined)).toBeNull();
+        });
+
+        it('should detect ASC sort', () => {
+            expect(getColumnSortState('name', 'name ASC')).toBe('asc');
+            expect(getColumnSortState('name', 'name asc')).toBe('asc');
+        });
+
+        it('should detect DESC sort', () => {
+            expect(getColumnSortState('name', 'name DESC')).toBe('desc');
+            expect(getColumnSortState('name', 'name desc')).toBe('desc');
+        });
+
+        it('should default to ASC when no direction specified', () => {
+            expect(getColumnSortState('name', 'name')).toBe('asc');
+        });
+
+        it('should be case-insensitive for column names', () => {
+            expect(getColumnSortState('NAME', 'name ASC')).toBe('asc');
+            expect(getColumnSortState('Name', 'NAME desc')).toBe('desc');
+        });
+
+        it('should handle qualified column names (table.column)', () => {
+            expect(getColumnSortState('users.name', 'users.name ASC')).toBe('asc');
+            expect(getColumnSortState('name', 'users.name DESC')).toBe('desc');
+        });
+
+        it('should handle multiple sort columns', () => {
+            expect(getColumnSortState('name', 'name ASC, id DESC')).toBe('asc');
+            expect(getColumnSortState('id', 'name ASC, id DESC')).toBe('desc');
+            expect(getColumnSortState('age', 'name ASC, id DESC')).toBeNull();
+        });
+
+        it('should return null when column not in sort clause', () => {
+            expect(getColumnSortState('email', 'name ASC')).toBeNull();
+            expect(getColumnSortState('id', 'name, email')).toBeNull();
+        });
+
+        it('should handle column names with special regex characters', () => {
+            expect(getColumnSortState('col.name', 'col.name ASC')).toBe('asc');
+            expect(getColumnSortState('col[name]', 'col[name] DESC')).toBe('desc');
+        });
+
+        it('should handle sort clause with whitespace variations', () => {
+            expect(getColumnSortState('name', 'name   ASC')).toBe('asc');
+            expect(getColumnSortState('name', 'name  desc')).toBe('desc');
+        });
+
+        it('should detect sort for quoted postgres column names', () => {
+            expect(getColumnSortState('Status', '"Status" DESC')).toBe('desc');
+            expect(getColumnSortState('Status', '"Status" ASC')).toBe('asc');
+            expect(getColumnSortState('UserName', '"Status" ASC, "UserName" DESC')).toBe('desc');
+        });
+    });
+
+    describe('calculateSelectionRange', () => {
+        it('should calculate range from lower to higher index', () => {
+            expect(calculateSelectionRange(2, 5)).toEqual([2, 3, 4, 5]);
+        });
+
+        it('should calculate range from higher to lower index', () => {
+            expect(calculateSelectionRange(5, 2)).toEqual([2, 3, 4, 5]);
+        });
+
+        it('should return single index when start equals end', () => {
+            expect(calculateSelectionRange(3, 3)).toEqual([3]);
+        });
+
+        it('should handle zero as start index', () => {
+            expect(calculateSelectionRange(0, 3)).toEqual([0, 1, 2, 3]);
+            expect(calculateSelectionRange(3, 0)).toEqual([0, 1, 2, 3]);
+        });
+
+        it('should handle negative indices', () => {
+            expect(calculateSelectionRange(-2, 2)).toEqual([-2, -1, 0, 1, 2]);
+            expect(calculateSelectionRange(2, -2)).toEqual([-2, -1, 0, 1, 2]);
+        });
+
+        it('should handle large ranges', () => {
+            const range = calculateSelectionRange(0, 99);
+            expect(range).toHaveLength(100);
+            expect(range[0]).toBe(0);
+            expect(range[99]).toBe(99);
+        });
+
+        it('should handle consecutive indices', () => {
+            expect(calculateSelectionRange(5, 6)).toEqual([5, 6]);
+            expect(calculateSelectionRange(6, 5)).toEqual([5, 6]);
+        });
+    });
+
+    describe('toggleSetValue', () => {
+        it('should add value to empty set', () => {
+            const set = new Set<number>();
+            const result = toggleSetValue(set, 1);
+            expect(result.has(1)).toBe(true);
+            expect(result.size).toBe(1);
+        });
+
+        it('should add value to existing set', () => {
+            const set = new Set([1, 2, 3]);
+            const result = toggleSetValue(set, 4);
+            expect(result.has(4)).toBe(true);
+            expect(result.size).toBe(4);
+        });
+
+        it('should remove value if already present', () => {
+            const set = new Set([1, 2, 3]);
+            const result = toggleSetValue(set, 2);
+            expect(result.has(2)).toBe(false);
+            expect(result.size).toBe(2);
+        });
+
+        it('should not modify original set', () => {
+            const set = new Set([1, 2, 3]);
+            const result = toggleSetValue(set, 4);
+            expect(set.has(4)).toBe(false);
+            expect(set.size).toBe(3);
+        });
+
+        it('should handle string values', () => {
+            const set = new Set<string>(['a', 'b']);
+            const result = toggleSetValue(set, 'c');
+            expect(result.has('c')).toBe(true);
+
+            const removed = toggleSetValue(result, 'a');
+            expect(removed.has('a')).toBe(false);
+        });
+
+        it('should handle object references', () => {
+            const obj1 = {id: 1};
+            const obj2 = {id: 2};
+            const set = new Set([obj1]);
+
+            const added = toggleSetValue(set, obj2);
+            expect(added.has(obj2)).toBe(true);
+
+            const removed = toggleSetValue(added, obj1);
+            expect(removed.has(obj1)).toBe(false);
+        });
+
+        it('should handle mixed types (with union types)', () => {
+            const set = new Set<string | number>(['a', 1]);
+            const result = toggleSetValue(set, 2);
+            expect(result.has(2)).toBe(true);
+        });
+
+        it('should toggle value back and forth', () => {
+            let set = new Set<number>([1, 2]);
+            set = toggleSetValue(set, 3);
+            expect(set.has(3)).toBe(true);
+
+            set = toggleSetValue(set, 3);
+            expect(set.has(3)).toBe(false);
+
+            set = toggleSetValue(set, 3);
+            expect(set.has(3)).toBe(true);
+        });
+
+        it('should handle empty set removal', () => {
+            const set = new Set<number>();
+            const result = toggleSetValue(set, 1);
+            const removed = toggleSetValue(result, 1);
+            expect(removed.size).toBe(0);
+        });
+    });
+
+    describe('USE_DEFAULT_SENTINEL', () => {
+        it('should be a non-empty string constant', () => {
+            expect(typeof USE_DEFAULT_SENTINEL).toBe('string');
+            expect(USE_DEFAULT_SENTINEL.length).toBeGreaterThan(0);
+        });
+
+        it('should have a recognizable sentinel pattern', () => {
+            expect(USE_DEFAULT_SENTINEL).toBe('__USE_DEFAULT__');
+        });
+    });
+
+    describe('resolveInsertionCellDisplay', () => {
+        const baseColumnInfo: ColumnDisplayInfo = {
+            colName: 'name',
+            autoIncrementColumns: [],
+            defaultValueColumns: [],
+            nullableColumns: [],
+        };
+
+        it('should return the cell value as-is for a regular column with data', () => {
+            const result = resolveInsertionCellDisplay('John', baseColumnInfo);
+            expect(result.displayValue).toBe('John');
+            expect(result.hasPendingChange).toBe(true);
+            expect(result.isModified).toBe(true);
+            expect(result.isAutoIncrementPlaceholder).toBe(false);
+            expect(result.isDefaultValuePlaceholder).toBe(false);
+        });
+
+        it('should mark isModified false when value is null', () => {
+            const result = resolveInsertionCellDisplay(null, baseColumnInfo);
+            expect(result.isModified).toBe(false);
+        });
+
+        it('should mark isModified false when value is empty string', () => {
+            const result = resolveInsertionCellDisplay('', baseColumnInfo);
+            expect(result.isModified).toBe(false);
+        });
+
+        it('should show <generated> placeholder for auto-increment column with null value', () => {
+            const columnInfo: ColumnDisplayInfo = {
+                colName: 'id',
+                autoIncrementColumns: ['id'],
+                defaultValueColumns: [],
+                nullableColumns: [],
+            };
+            const result = resolveInsertionCellDisplay(null, columnInfo);
+            expect(result.displayValue).toBe('<generated>');
+            expect(result.isAutoIncrementPlaceholder).toBe(true);
+            expect(result.isDefaultValuePlaceholder).toBe(false);
+        });
+
+        it('should show <generated> placeholder for auto-increment column with empty string', () => {
+            const columnInfo: ColumnDisplayInfo = {
+                colName: 'id',
+                autoIncrementColumns: ['id'],
+                defaultValueColumns: [],
+                nullableColumns: [],
+            };
+            const result = resolveInsertionCellDisplay('', columnInfo);
+            expect(result.displayValue).toBe('<generated>');
+            expect(result.isAutoIncrementPlaceholder).toBe(true);
+        });
+
+        it('should not show <generated> for auto-increment column with a user-provided value', () => {
+            const columnInfo: ColumnDisplayInfo = {
+                colName: 'id',
+                autoIncrementColumns: ['id'],
+                defaultValueColumns: [],
+                nullableColumns: [],
+            };
+            const result = resolveInsertionCellDisplay(42, columnInfo);
+            expect(result.displayValue).toBe(42);
+            expect(result.isAutoIncrementPlaceholder).toBe(false);
+        });
+
+        it('should show <default> placeholder for non-nullable default-value column with null', () => {
+            const columnInfo: ColumnDisplayInfo = {
+                colName: 'status',
+                autoIncrementColumns: [],
+                defaultValueColumns: ['status'],
+                nullableColumns: [],
+            };
+            const result = resolveInsertionCellDisplay(null, columnInfo);
+            expect(result.displayValue).toBe('<default>');
+            expect(result.isDefaultValuePlaceholder).toBe(true);
+            expect(result.isAutoIncrementPlaceholder).toBe(false);
+        });
+
+        it('should not show <default> for nullable default-value column with null', () => {
+            const columnInfo: ColumnDisplayInfo = {
+                colName: 'status',
+                autoIncrementColumns: [],
+                defaultValueColumns: ['status'],
+                nullableColumns: ['status'],
+            };
+            const result = resolveInsertionCellDisplay(null, columnInfo);
+            expect(result.displayValue).toBeNull();
+            expect(result.isDefaultValuePlaceholder).toBe(false);
+        });
+
+        it('should prioritize auto-increment over default-value when column is in both lists', () => {
+            const columnInfo: ColumnDisplayInfo = {
+                colName: 'id',
+                autoIncrementColumns: ['id'],
+                defaultValueColumns: ['id'],
+                nullableColumns: [],
+            };
+            const result = resolveInsertionCellDisplay(null, columnInfo);
+            expect(result.displayValue).toBe('<generated>');
+            expect(result.isAutoIncrementPlaceholder).toBe(true);
+            expect(result.isDefaultValuePlaceholder).toBe(false);
+        });
+
+        it('should always set hasPendingChange to true for insertion rows', () => {
+            const result = resolveInsertionCellDisplay(null, baseColumnInfo);
+            expect(result.hasPendingChange).toBe(true);
+        });
+    });
+
+    describe('resolveExistingCellDisplay', () => {
+        const baseColumnInfo: ColumnDisplayInfo = {
+            colName: 'name',
+            autoIncrementColumns: [],
+            defaultValueColumns: [],
+            nullableColumns: [],
+        };
+
+        it('should return the original cell value when no pending changes exist', () => {
+            const result = resolveExistingCellDisplay('John', '1', 'id', undefined, baseColumnInfo);
+            expect(result.displayValue).toBe('John');
+            expect(result.hasPendingChange).toBe(false);
+            expect(result.isModified).toBe(false);
+        });
+
+        it('should return the pending value when a change exists for the column', () => {
+            const pending = {'1': {pkOriginalValue: 1, changes: {name: 'Jane'}}};
+            const result = resolveExistingCellDisplay('John', '1', 'id', pending, baseColumnInfo);
+            expect(result.displayValue).toBe('Jane');
+            expect(result.hasPendingChange).toBe(true);
+            expect(result.isModified).toBe(true);
+        });
+
+        it('should not flag as modified when pending value equals original', () => {
+            const pending = {'1': {pkOriginalValue: 1, changes: {name: 'John'}}};
+            const result = resolveExistingCellDisplay('John', '1', 'id', pending, baseColumnInfo);
+            expect(result.hasPendingChange).toBe(true);
+            expect(result.isModified).toBe(false);
+        });
+
+        it('should resolve USE_DEFAULT_SENTINEL to <default> placeholder', () => {
+            const pending = {'1': {pkOriginalValue: 1, changes: {name: USE_DEFAULT_SENTINEL}}};
+            const result = resolveExistingCellDisplay('John', '1', 'id', pending, baseColumnInfo);
+            expect(result.displayValue).toBe('<default>');
+            expect(result.isDefaultValuePlaceholder).toBe(true);
+        });
+
+        it('should show <generated> for auto-increment column with null pending value', () => {
+            const columnInfo: ColumnDisplayInfo = {
+                colName: 'id',
+                autoIncrementColumns: ['id'],
+                defaultValueColumns: [],
+                nullableColumns: [],
+            };
+            const pending = {'1': {pkOriginalValue: 1, changes: {id: null}}};
+            const result = resolveExistingCellDisplay(1, '1', 'id', pending, columnInfo);
+            expect(result.displayValue).toBe('<generated>');
+            expect(result.isAutoIncrementPlaceholder).toBe(true);
+        });
+
+        it('should show <default> for non-nullable default-value column with empty pending value', () => {
+            const columnInfo: ColumnDisplayInfo = {
+                colName: 'status',
+                autoIncrementColumns: [],
+                defaultValueColumns: ['status'],
+                nullableColumns: [],
+            };
+            const pending = {'1': {pkOriginalValue: 1, changes: {status: ''}}};
+            const result = resolveExistingCellDisplay('active', '1', 'id', pending, columnInfo);
+            expect(result.displayValue).toBe('<default>');
+            expect(result.isDefaultValuePlaceholder).toBe(true);
+        });
+
+        it('should not show placeholder for nullable default-value column with null pending value', () => {
+            const columnInfo: ColumnDisplayInfo = {
+                colName: 'status',
+                autoIncrementColumns: [],
+                defaultValueColumns: ['status'],
+                nullableColumns: ['status'],
+            };
+            const pending = {'1': {pkOriginalValue: 1, changes: {status: null}}};
+            const result = resolveExistingCellDisplay('active', '1', 'id', pending, columnInfo);
+            expect(result.displayValue).toBeNull();
+            expect(result.isDefaultValuePlaceholder).toBe(false);
+        });
+
+        it('should return no pending change when pkColumn is null', () => {
+            const pending = {'1': {pkOriginalValue: 1, changes: {name: 'Jane'}}};
+            const result = resolveExistingCellDisplay('John', '1', null, pending, baseColumnInfo);
+            expect(result.hasPendingChange).toBe(false);
+            expect(result.displayValue).toBe('John');
+        });
+
+        it('should return no pending change when pkVal is null', () => {
+            const pending = {'1': {pkOriginalValue: 1, changes: {name: 'Jane'}}};
+            const result = resolveExistingCellDisplay('John', null, 'id', pending, baseColumnInfo);
+            expect(result.hasPendingChange).toBe(false);
+            expect(result.displayValue).toBe('John');
+        });
+
+        it('should return no pending change when row has no pending entry', () => {
+            const pending = {'2': {pkOriginalValue: 2, changes: {name: 'Jane'}}};
+            const result = resolveExistingCellDisplay('John', '1', 'id', pending, baseColumnInfo);
+            expect(result.hasPendingChange).toBe(false);
+            expect(result.displayValue).toBe('John');
+        });
+    });
+
+    describe('getCellStateClass', () => {
+        const baseParams: CellClassParams = {
+            isPendingDelete: false,
+            isSelected: false,
+            isInsertion: false,
+            isAutoIncrementPlaceholder: false,
+            isDefaultValuePlaceholder: false,
+            isModified: false,
+        };
+
+        it('should return default text class for unmodified existing row', () => {
+            expect(getCellStateClass(baseParams)).toBe('text-secondary');
+        });
+
+        it('should return delete styling for pending-delete rows', () => {
+            const result = getCellStateClass({...baseParams, isPendingDelete: true});
+            expect(result).toContain('line-through');
+            expect(result).toContain('text-semantic-deleted');
+        });
+
+        it('should prioritize pending-delete over all other states', () => {
+            const result = getCellStateClass({
+                ...baseParams,
+                isPendingDelete: true,
+                isSelected: true,
+                isInsertion: true,
+                isModified: true,
+            });
+            expect(result).toContain('line-through');
+        });
+
+        it('should return placeholder class for selected insertion with auto-increment', () => {
+            const result = getCellStateClass({
+                ...baseParams,
+                isSelected: true,
+                isInsertion: true,
+                isAutoIncrementPlaceholder: true,
+            });
+            expect(result).toContain('text-muted');
+            expect(result).toContain('italic');
+        });
+
+        it('should return placeholder class for selected insertion with default-value', () => {
+            const result = getCellStateClass({
+                ...baseParams,
+                isSelected: true,
+                isInsertion: true,
+                isDefaultValuePlaceholder: true,
+            });
+            expect(result).toContain('text-muted');
+            expect(result).toContain('italic');
+        });
+
+        it('should return modified class for selected insertion with user data', () => {
+            const result = getCellStateClass({
+                ...baseParams,
+                isSelected: true,
+                isInsertion: true,
+                isModified: true,
+            });
+            expect(result).toContain('bg-semantic-modified');
+            expect(result).toContain('italic');
+        });
+
+        it('should return unmodified insertion class for selected insertion without changes', () => {
+            const result = getCellStateClass({
+                ...baseParams,
+                isSelected: true,
+                isInsertion: true,
+            });
+            expect(result).toContain('italic');
+            expect(result).toContain('text-secondary');
+        });
+
+        it('should return placeholder class for unselected insertion with auto-increment', () => {
+            const result = getCellStateClass({
+                ...baseParams,
+                isInsertion: true,
+                isAutoIncrementPlaceholder: true,
+            });
+            expect(result).toContain('text-muted');
+            expect(result).toContain('italic');
+        });
+
+        it('should return modified insertion class for unselected insertion with user data', () => {
+            const result = getCellStateClass({
+                ...baseParams,
+                isInsertion: true,
+                isModified: true,
+            });
+            expect(result).toContain('bg-semantic-new');
+            expect(result).toContain('italic');
+        });
+
+        it('should return unmodified insertion class for unselected insertion without changes', () => {
+            const result = getCellStateClass({
+                ...baseParams,
+                isInsertion: true,
+            });
+            expect(result).toContain('bg-semantic-new');
+            expect(result).toContain('text-secondary');
+            expect(result).toContain('italic');
+        });
+
+        it('should return modified existing-row class for non-insertion modified cell', () => {
+            const result = getCellStateClass({
+                ...baseParams,
+                isModified: true,
+            });
+            expect(result).toContain('bg-semantic-modified');
+            expect(result).toContain('italic');
+            expect(result).toContain('font-medium');
+        });
+
+        // #826: a semantic color on its own tint fails WCAG AA in most themes
+        // (#17843f on the light theme's new-row green is ~3.5:1).
+        it.each([
+            {name: 'new row', isInsertion: true, isSelected: false},
+            {name: 'selected new row', isInsertion: true, isSelected: true},
+            {name: 'existing row', isInsertion: false, isSelected: false},
+        ])('renders edited values in the primary text color ($name)', (params) => {
+            const result = getCellStateClass({
+                ...baseParams,
+                ...params,
+                isModified: true,
+            });
+            expect(result).toContain('text-primary');
+            expect(result).not.toMatch(/text-semantic-/);
+        });
+    });
+
+    describe('buildPkMap', () => {
+        it('maps a single PK column to its value', () => {
+            expect(buildPkMap(['id'], [10, 'Alice'], [0])).toEqual({id: 10});
+        });
+
+        it('maps composite PK columns to their values', () => {
+            expect(buildPkMap(['org_id', 'user_id'], [1, 2, 'extra'], [0, 1])).toEqual({
+                org_id: 1,
+                user_id: 2,
+            });
+        });
+
+        it('uses pkIndices to pick non-zero positions from the row', () => {
+            expect(buildPkMap(['id'], ['name', 'email', 99], [2])).toEqual({id: 99});
+        });
+
+        it('handles null and string values', () => {
+            expect(buildPkMap(['a', 'b'], [null, 'hello'], [0, 1])).toEqual({a: null, b: 'hello'});
+        });
+    });
+
+    describe('serializePkKey', () => {
+        it('serializes a single-key map as JSON', () => {
+            expect(serializePkKey({id: 42})).toBe('{"id":42}');
+        });
+
+        it('sorts composite keys alphabetically regardless of insertion order', () => {
+            const pkMap: Record<string, unknown> = {z_col: 1, a_col: 2};
+            expect(serializePkKey(pkMap)).toBe('{"a_col":2,"z_col":1}');
+        });
+
+        it('produces the same key regardless of insertion order', () => {
+            expect(serializePkKey({a: 1, b: 2})).toBe(serializePkKey({b: 2, a: 1}));
+        });
+
+        it('handles null pk values', () => {
+            expect(serializePkKey({id: null})).toBe('{"id":null}');
+        });
+
+        it('handles string pk values', () => {
+            expect(serializePkKey({slug: 'hello-world'})).toBe('{"slug":"hello-world"}');
+        });
+    });
+
+    describe('parsePasteMatrix', () => {
+        it('parses tab-separated cells and newline-separated rows', () => {
+            expect(parsePasteMatrix('a\tb\nc\td')).toEqual([
+                ['a', 'b'],
+                ['c', 'd'],
+            ]);
+        });
+
+        it('normalizes CRLF line endings', () => {
+            expect(parsePasteMatrix('a\tb\r\nc\td')).toEqual([
+                ['a', 'b'],
+                ['c', 'd'],
+            ]);
+        });
+
+        it('ignores the single trailing newline Excel appends', () => {
+            expect(parsePasteMatrix('a\tb\n')).toEqual([['a', 'b']]);
+        });
+
+        it('keeps interior empty rows and empty cells', () => {
+            expect(parsePasteMatrix('a\t\n\nb')).toEqual([['a', ''], [''], ['b']]);
+        });
+
+        it('unquotes a tab-delimited field that the CSV copy quoted', () => {
+            // A cell `say "hi"` copied as CSV and pasted back with a tab delimiter.
+            expect(parsePasteMatrix('"say ""hi"""\tplain')).toEqual([['say "hi"', 'plain']]);
+        });
+
+        it('keeps a tab inside a quoted field', () => {
+            expect(parsePasteMatrix('"a\tb"\tc')).toEqual([['a\tb', 'c']]);
+        });
+
+        it('leaves a field that only starts with a quote as written', () => {
+            expect(parsePasteMatrix('He said "x"\tb')).toEqual([['He said "x"', 'b']]);
+        });
+
+        it('returns an empty matrix for empty or whitespace-only text', () => {
+            expect(parsePasteMatrix('')).toEqual([]);
+            expect(parsePasteMatrix('\n')).toEqual([]);
+        });
+
+        it('parses a single value as a 1x1 matrix', () => {
+            expect(parsePasteMatrix('hello')).toEqual([['hello']]);
+        });
+
+        it('keeps a single line with commas as one value', () => {
+            expect(parsePasteMatrix('hello, world')).toEqual([['hello, world']]);
+        });
+
+        it('parses multi-line comma-separated text as CSV', () => {
+            expect(parsePasteMatrix('320,12,2025-02-11\n321,13,2025-02-12')).toEqual([
+                ['320', '12', '2025-02-11'],
+                ['321', '13', '2025-02-12'],
+            ]);
+        });
+
+        it('honors double-quote escaping in CSV', () => {
+            expect(parsePasteMatrix('"a,b",c\n"say ""hi""",d')).toEqual([
+                ['a,b', 'c'],
+                ['say "hi"', 'd'],
+            ]);
+        });
+
+        it('detects semicolons when they dominate the first line', () => {
+            expect(parsePasteMatrix('a;b\nc;d')).toEqual([
+                ['a', 'b'],
+                ['c', 'd'],
+            ]);
+        });
+
+        it('prefers the delimiter hint over detection', () => {
+            expect(parsePasteMatrix('a|b,c\nd|e', '|')).toEqual([
+                ['a', 'b,c'],
+                ['d', 'e'],
+            ]);
+        });
+
+        it('keeps multi-line text without any delimiter as one column', () => {
+            expect(parsePasteMatrix('alpha\nbeta')).toEqual([['alpha'], ['beta']]);
+        });
+
+        it('unquotes a one-column copy of a single quoted value', () => {
+            expect(parsePasteMatrix('"say ""hi"""')).toEqual([['say "hi"']]);
+        });
+
+        it('unquotes a one-column copy of a single value that contains the delimiter', () => {
+            expect(parsePasteMatrix('"Rome, Italy"')).toEqual([['Rome, Italy']]);
+            expect(parsePasteMatrix('"Rome, Italy"', ',')).toEqual([['Rome, Italy']]);
+        });
+
+        it('unquotes each line of a one-column copy with no delimiter', () => {
+            expect(parsePasteMatrix('"say ""hi"""\nplain')).toEqual([['say "hi"'], ['plain']]);
+        });
+
+        it('unquotes a one-column copy that starts with a header line', () => {
+            expect(parsePasteMatrix('note\n"say ""hi"""\n"Rome, Italy"', ',')).toEqual([
+                ['note'],
+                ['say "hi"'],
+                ['Rome, Italy'],
+            ]);
+        });
+
+        it('lets tabs win over commas', () => {
+            expect(parsePasteMatrix('a,b\tc\nd\te')).toEqual([
+                ['a,b', 'c'],
+                ['d', 'e'],
+            ]);
+        });
+
+        it('unquotes a line that is just "" to an empty string', () => {
+            expect(parsePasteMatrix('""')).toEqual([['']]);
+            expect(parsePasteMatrix('""\tb')).toEqual([['', 'b']]);
+        });
+
+        describe('JSON columns', () => {
+            const json = () => true;
+
+            it('keeps the quotes of a pasted JSON string', () => {
+                expect(parsePasteMatrix('"abc"', ',', json)).toEqual([['"abc"']]);
+                expect(parsePasteMatrix('""', ',', json)).toEqual([['""']]);
+            });
+
+            it('unquotes a JSON value the grid copied as CSV', () => {
+                // `{"a":"x,y"}` and the JSON string `"abc"`, as csvField quotes them.
+                expect(parsePasteMatrix('"{""a"":""x,y""}"', ',', json)).toEqual([['{"a":"x,y"}']]);
+                expect(parsePasteMatrix('"""abc"""', ',', json)).toEqual([['"abc"']]);
+            });
+
+            it('keeps quotes around a field that is not valid JSON', () => {
+                expect(parsePasteMatrix('"say ""hi"""', ',', json)).toEqual([['"say ""hi"""']]);
+            });
+
+            it('only keeps the quotes of cells that land in a JSON column', () => {
+                const secondIsJson = (colIndex: number) => colIndex === 1;
+                expect(parsePasteMatrix('"abc"\t"abc"\n"x"\t"[1]"', ',', secondIsJson)).toEqual([
+                    ['abc', '"abc"'],
+                    ['x', '"[1]"'],
+                ]);
+            });
+
+            it('applies to each line of a one-column copy', () => {
+                expect(parsePasteMatrix('"abc"\n"{""a"":1}"', ',', json)).toEqual([
+                    ['"abc"'],
+                    ['{"a":1}'],
+                ]);
+            });
+        });
+    });
+
+    describe('parsePasteMatrix round-trip of a CSV copy', () => {
+        const rows = [
+            ['Rome, Italy', 'say "hi"', 'a;b|c', 'plain'],
+            ['', '"quoted"', 'x', 'end'],
+        ];
+        const columns = ['city', 'note', 'mixed', 'other'];
+
+        for (const delimiter of [',', ';', '|', '\t']) {
+            for (const withHeaders of [false, true]) {
+                it(`round-trips text columns with ${JSON.stringify(delimiter)}${withHeaders ? ' and the header line' : ''}`, () => {
+                    const copied = withHeaders
+                        ? rowsToCSVWithHeaders(rows, columns, 'null', delimiter)
+                        : rowsToCSV(rows, 'null', delimiter);
+                    const pasted = stripHeaderRow(
+                        parsePasteMatrix(copied, delimiter, () => false),
+                        columns,
+                        0,
+                    );
+                    expect(pasted).toEqual(rows);
+                });
+            }
+        }
+    });
+
+    describe('stripHeaderRow', () => {
+        const columns = ['service_id', 'content_id', 'publish_date'];
+
+        it('drops a first row matching the columns at the anchor, in order', () => {
+            expect(
+                stripHeaderRow(
+                    [
+                        ['service_id', 'content_id'],
+                        ['320', '12'],
+                    ],
+                    columns,
+                    0,
+                ),
+            ).toEqual([['320', '12']]);
+        });
+
+        it('matches against the columns starting at the anchor offset', () => {
+            expect(
+                stripHeaderRow(
+                    [
+                        ['content_id', 'publish_date'],
+                        ['12', '2025-02-11'],
+                    ],
+                    columns,
+                    1,
+                ),
+            ).toEqual([['12', '2025-02-11']]);
+        });
+
+        it('keeps a first row of column names in the wrong order', () => {
+            const matrix = [
+                ['content_id', 'service_id'],
+                ['12', '320'],
+            ];
+            expect(stripHeaderRow(matrix, columns, 0)).toEqual(matrix);
+        });
+
+        it('keeps a first row not aligned with the anchor', () => {
+            const matrix = [
+                ['service_id', 'content_id'],
+                ['320', '12'],
+            ];
+            expect(stripHeaderRow(matrix, columns, 1)).toEqual(matrix);
+        });
+
+        it('keeps a first row containing non-column values', () => {
+            const matrix = [
+                ['service_id', 'oops'],
+                ['320', '12'],
+            ];
+            expect(stripHeaderRow(matrix, columns, 0)).toEqual(matrix);
+        });
+
+        it('never strips a single-row matrix', () => {
+            const matrix = [['service_id', 'content_id']];
+            expect(stripHeaderRow(matrix, columns, 0)).toEqual(matrix);
+        });
+    });
+
+    describe('computePasteTargets', () => {
+        it('anchors a matrix at the given cell', () => {
+            const targets = computePasteTargets(
+                [
+                    ['a', 'b'],
+                    ['c', 'd'],
+                ],
+                {rowIndex: 1, colIndex: 2},
+                10,
+                10,
+            );
+            expect(targets).toEqual([
+                {rowIndex: 1, colIndex: 2, value: 'a'},
+                {rowIndex: 1, colIndex: 3, value: 'b'},
+                {rowIndex: 2, colIndex: 2, value: 'c'},
+                {rowIndex: 2, colIndex: 3, value: 'd'},
+            ]);
+        });
+
+        it('clips the matrix at the grid edges', () => {
+            const targets = computePasteTargets(
+                [
+                    ['a', 'b'],
+                    ['c', 'd'],
+                ],
+                {rowIndex: 1, colIndex: 1},
+                2,
+                2,
+            );
+            expect(targets).toEqual([{rowIndex: 1, colIndex: 1, value: 'a'}]);
+        });
+
+        it('fills the whole range with a single value', () => {
+            const targets = computePasteTargets([['x']], {rowIndex: 0, colIndex: 0}, 10, 10, {
+                minRow: 1,
+                maxRow: 2,
+                minCol: 3,
+                maxCol: 4,
+            });
+            expect(targets).toEqual([
+                {rowIndex: 1, colIndex: 3, value: 'x'},
+                {rowIndex: 1, colIndex: 4, value: 'x'},
+                {rowIndex: 2, colIndex: 3, value: 'x'},
+                {rowIndex: 2, colIndex: 4, value: 'x'},
+            ]);
+        });
+
+        it('anchors a multi-cell matrix at the range top-left', () => {
+            const targets = computePasteTargets([['a', 'b']], {rowIndex: 5, colIndex: 5}, 10, 10, {
+                minRow: 2,
+                maxRow: 3,
+                minCol: 1,
+                maxCol: 1,
+            });
+            expect(targets).toEqual([
+                {rowIndex: 2, colIndex: 1, value: 'a'},
+                {rowIndex: 2, colIndex: 2, value: 'b'},
+            ]);
+        });
+
+        it('returns no targets for an empty matrix', () => {
+            expect(computePasteTargets([], {rowIndex: 0, colIndex: 0}, 10, 10)).toEqual([]);
+        });
+    });
+
+    describe('getRangeCursor', () => {
+        it('should return the anchor when there is no range', () => {
+            expect(getRangeCursor({rowIndex: 2, colIndex: 3}, null)).toEqual({
+                rowIndex: 2,
+                colIndex: 3,
+            });
+        });
+
+        it('should return the corner opposite to the anchor', () => {
+            const range = {minRow: 1, maxRow: 4, minCol: 2, maxCol: 5};
+            expect(getRangeCursor({rowIndex: 1, colIndex: 2}, range)).toEqual({
+                rowIndex: 4,
+                colIndex: 5,
+            });
+            expect(getRangeCursor({rowIndex: 4, colIndex: 5}, range)).toEqual({
+                rowIndex: 1,
+                colIndex: 2,
+            });
+            expect(getRangeCursor({rowIndex: 1, colIndex: 5}, range)).toEqual({
+                rowIndex: 4,
+                colIndex: 2,
+            });
+            expect(getRangeCursor({rowIndex: 4, colIndex: 2}, range)).toEqual({
+                rowIndex: 1,
+                colIndex: 5,
+            });
+        });
+
+        it('should return the anchor for a single-cell range', () => {
+            const range = {minRow: 3, maxRow: 3, minCol: 3, maxCol: 3};
+            expect(getRangeCursor({rowIndex: 3, colIndex: 3}, range)).toEqual({
+                rowIndex: 3,
+                colIndex: 3,
+            });
+        });
+    });
+
+    describe('buildCellRange', () => {
+        it('should normalize the two corners regardless of order', () => {
+            const expected = {minRow: 1, maxRow: 5, minCol: 0, maxCol: 2};
+            expect(buildCellRange({rowIndex: 1, colIndex: 2}, {rowIndex: 5, colIndex: 0})).toEqual(
+                expected,
+            );
+            expect(buildCellRange({rowIndex: 5, colIndex: 0}, {rowIndex: 1, colIndex: 2})).toEqual(
+                expected,
+            );
+        });
+
+        it('should build a single-cell range when both corners match', () => {
+            expect(buildCellRange({rowIndex: 2, colIndex: 2}, {rowIndex: 2, colIndex: 2})).toEqual({
+                minRow: 2,
+                maxRow: 2,
+                minCol: 2,
+                maxCol: 2,
+            });
+        });
+    });
+
+    describe('extendCellRange', () => {
+        const anchor = {rowIndex: 2, colIndex: 2};
+
+        it('should start a range from the anchor when none exists', () => {
+            expect(extendCellRange(anchor, null, 'ArrowDown', 10, 10)).toEqual({
+                range: {minRow: 2, maxRow: 3, minCol: 2, maxCol: 2},
+                cursor: {rowIndex: 3, colIndex: 2},
+            });
+            expect(extendCellRange(anchor, null, 'ArrowLeft', 10, 10)).toEqual({
+                range: {minRow: 2, maxRow: 2, minCol: 1, maxCol: 2},
+                cursor: {rowIndex: 2, colIndex: 1},
+            });
+        });
+
+        it('should grow an existing range from its moving corner and keep the anchor fixed', () => {
+            const range = {minRow: 2, maxRow: 3, minCol: 2, maxCol: 2};
+            const result = extendCellRange(anchor, range, 'ArrowRight', 10, 10);
+            expect(result).toEqual({
+                range: {minRow: 2, maxRow: 3, minCol: 2, maxCol: 3},
+                cursor: {rowIndex: 3, colIndex: 3},
+            });
+        });
+
+        it('should shrink the range when moving back towards the anchor', () => {
+            const range = {minRow: 2, maxRow: 4, minCol: 2, maxCol: 2};
+            expect(extendCellRange(anchor, range, 'ArrowUp', 10, 10)).toEqual({
+                range: {minRow: 2, maxRow: 3, minCol: 2, maxCol: 2},
+                cursor: {rowIndex: 3, colIndex: 2},
+            });
+        });
+
+        it('should cross over the anchor to the other side', () => {
+            const range = {minRow: 2, maxRow: 3, minCol: 2, maxCol: 2};
+            const step1 = extendCellRange(anchor, range, 'ArrowUp', 10, 10);
+            expect(step1?.range).toEqual({minRow: 2, maxRow: 2, minCol: 2, maxCol: 2});
+            const step2 = extendCellRange(anchor, step1!.range, 'ArrowUp', 10, 10);
+            expect(step2?.range).toEqual({minRow: 1, maxRow: 2, minCol: 2, maxCol: 2});
+        });
+
+        it('should return null at the grid edges', () => {
+            expect(extendCellRange({rowIndex: 0, colIndex: 0}, null, 'ArrowUp', 10, 10)).toBeNull();
+            expect(
+                extendCellRange({rowIndex: 0, colIndex: 0}, null, 'ArrowLeft', 10, 10),
+            ).toBeNull();
+            expect(
+                extendCellRange({rowIndex: 9, colIndex: 9}, null, 'ArrowDown', 10, 10),
+            ).toBeNull();
+            expect(
+                extendCellRange({rowIndex: 9, colIndex: 9}, null, 'ArrowRight', 10, 10),
+            ).toBeNull();
+        });
+
+        it('should clamp when the cursor is at the edge but the anchor is not', () => {
+            const range = {minRow: 2, maxRow: 9, minCol: 2, maxCol: 2};
+            expect(extendCellRange(anchor, range, 'ArrowDown', 10, 10)).toBeNull();
+        });
+
+        it('should extend straight to the grid edge with toEdge', () => {
+            expect(extendCellRange(anchor, null, 'ArrowDown', 10, 10, true)).toEqual({
+                range: {minRow: 2, maxRow: 9, minCol: 2, maxCol: 2},
+                cursor: {rowIndex: 9, colIndex: 2},
+            });
+            expect(extendCellRange(anchor, null, 'ArrowLeft', 10, 10, true)).toEqual({
+                range: {minRow: 2, maxRow: 2, minCol: 0, maxCol: 2},
+                cursor: {rowIndex: 2, colIndex: 0},
+            });
+        });
+    });
+
+    describe('moveCellPosition', () => {
+        const pos = {rowIndex: 3, colIndex: 3};
+
+        it('should move one step and clamp at the edges', () => {
+            expect(moveCellPosition(pos, 'ArrowUp', 10, 10)).toEqual({rowIndex: 2, colIndex: 3});
+            expect(moveCellPosition(pos, 'ArrowRight', 10, 10)).toEqual({rowIndex: 3, colIndex: 4});
+            expect(moveCellPosition({rowIndex: 0, colIndex: 0}, 'ArrowUp', 10, 10)).toEqual({
+                rowIndex: 0,
+                colIndex: 0,
+            });
+            expect(moveCellPosition({rowIndex: 9, colIndex: 9}, 'ArrowDown', 10, 10)).toEqual({
+                rowIndex: 9,
+                colIndex: 9,
+            });
+        });
+
+        it('should jump to the edge with toEdge', () => {
+            expect(moveCellPosition(pos, 'ArrowUp', 10, 10, true)).toEqual({
+                rowIndex: 0,
+                colIndex: 3,
+            });
+            expect(moveCellPosition(pos, 'ArrowDown', 10, 10, true)).toEqual({
+                rowIndex: 9,
+                colIndex: 3,
+            });
+            expect(moveCellPosition(pos, 'ArrowLeft', 10, 10, true)).toEqual({
+                rowIndex: 3,
+                colIndex: 0,
+            });
+            expect(moveCellPosition(pos, 'ArrowRight', 10, 10, true)).toEqual({
+                rowIndex: 3,
+                colIndex: 9,
+            });
+        });
+    });
+
+    describe('isZebraStripedRow', () => {
+        it('should stripe odd row indices only', () => {
+            expect(isZebraStripedRow(0, true)).toBe(false);
+            expect(isZebraStripedRow(1, true)).toBe(true);
+            expect(isZebraStripedRow(2, true)).toBe(false);
+            expect(isZebraStripedRow(3, true)).toBe(true);
+        });
+
+        it('should never stripe when disabled', () => {
+            expect(isZebraStripedRow(1, false)).toBe(false);
+            expect(isZebraStripedRow(3, false)).toBe(false);
+        });
+    });
+});
+
+describe('getColumnLayoutKey', () => {
+    it('should be stable for the same columns', () => {
+        expect(getColumnLayoutKey(['id', 'name'], true)).toBe(
+            getColumnLayoutKey(['id', 'name'], true),
+        );
+    });
+
+    it('should change when the columns change', () => {
+        expect(getColumnLayoutKey(['id', 'name'], true)).not.toBe(
+            getColumnLayoutKey(['id', 'email'], true),
+        );
+    });
+
+    it('should change when the column order changes', () => {
+        expect(getColumnLayoutKey(['id', 'name'], true)).not.toBe(
+            getColumnLayoutKey(['name', 'id'], true),
+        );
+    });
+
+    it('should change when rows arrive in an empty result', () => {
+        expect(getColumnLayoutKey(['id'], false)).not.toBe(getColumnLayoutKey(['id'], true));
+    });
+
+    it('should not confuse column names that join to the same string', () => {
+        expect(getColumnLayoutKey(['a,b'], true)).not.toBe(getColumnLayoutKey(['a', 'b'], true));
+    });
+
+    it('should handle no columns', () => {
+        expect(getColumnLayoutKey([], false)).toBe('0:');
+    });
+});
+
+describe('resolveLockedColumnWidths', () => {
+    const key = getColumnLayoutKey(['id', 'name'], true);
+
+    it('should return null when nothing was measured yet', () => {
+        expect(resolveLockedColumnWidths(null, key, 3)).toBeNull();
+    });
+
+    it('should return the widths measured for the same layout', () => {
+        expect(resolveLockedColumnWidths({key, widths: [50, 80, 200]}, key, 3)).toEqual([
+            50, 80, 200,
+        ]);
+    });
+
+    it('should return null for a different layout', () => {
+        const other = getColumnLayoutKey(['id', 'email'], true);
+        expect(resolveLockedColumnWidths({key, widths: [50, 80, 200]}, other, 3)).toBeNull();
+    });
+
+    it('should return null when the column count does not match', () => {
+        expect(resolveLockedColumnWidths({key, widths: [50, 80]}, key, 3)).toBeNull();
+    });
+});
+
+describe('getFrozenFirstColumnLayout', () => {
+    it('should sit after the fallback gutter width before columns are measured', () => {
+        expect(getFrozenFirstColumnLayout(null)).toEqual({
+            left: 49,
+            scrollPaddingLeft: 50,
+        });
+    });
+
+    // The collapsed border between the gutter and the column belongs to the
+    // column's box but is painted by the table where the column started, so the
+    // sticky cell is pulled 1px under the gutter to cover it.
+    it('should overlap the gutter by the shared 1px border', () => {
+        expect(getFrozenFirstColumnLayout([58, 120, 200])).toEqual({
+            left: 57,
+            scrollPaddingLeft: 178,
+        });
+    });
+});
+
+describe('getFrozenCellBackdropClass', () => {
+    const row = {
+        isSelected: false,
+        isInsertion: false,
+        isPendingDelete: false,
+        isZebra: false,
+    };
+
+    it('should paint an opaque elevated backdrop with the default row hover', () => {
+        const cls = getFrozenCellBackdropClass(row);
+        expect(cls).toContain('before:bg-elevated');
+        expect(cls).toContain(
+            'group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_50%,var(--bg-elevated))]',
+        );
+    });
+
+    it('should repaint the cell tint above the backdrop', () => {
+        expect(getFrozenCellBackdropClass(row)).toContain('after:bg-inherit');
+    });
+
+    it('should match the zebra stripe and its hover', () => {
+        const cls = getFrozenCellBackdropClass({...row, isZebra: true});
+        expect(cls).toContain(
+            'before:bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-elevated))]',
+        );
+        expect(cls).toContain(
+            'group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_90%,var(--bg-elevated))]',
+        );
+    });
+
+    it('should follow the row state precedence: selected, insertion, pending delete', () => {
+        expect(
+            getFrozenCellBackdropClass({
+                ...row,
+                isSelected: true,
+                isInsertion: true,
+                isPendingDelete: true,
+                isZebra: true,
+            }),
+        ).toContain('before:bg-[color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-elevated))]');
+        expect(getFrozenCellBackdropClass({...row, isInsertion: true, isZebra: true})).toContain(
+            'before:bg-[color-mix(in_srgb,var(--semantic-new)_8%,var(--bg-elevated))]',
+        );
+        expect(
+            getFrozenCellBackdropClass({...row, isPendingDelete: true, isZebra: true}),
+        ).toContain(
+            'before:bg-[color-mix(in_srgb,var(--semantic-deleted)_10%,var(--bg-elevated))]',
+        );
+    });
+
+    it('should paint the tone of a conditional formatting row rule (#991)', () => {
+        const cls = getFrozenCellBackdropClass({...row, isZebra: true, formatTone: 'warning'});
+        expect(cls).toContain(
+            'before:bg-[color-mix(in_srgb,var(--accent-warning)_15%,var(--bg-elevated))]',
+        );
+        expect(cls).toContain(
+            'group-hover:before:bg-[color-mix(in_srgb,var(--accent-warning)_25%,var(--bg-elevated))]',
+        );
+        expect(cls).not.toContain('var(--surface-secondary)_40%');
+    });
+
+    it('should keep the plain backdrop for a muted row rule', () => {
+        expect(getFrozenCellBackdropClass({...row, isZebra: true, formatTone: 'muted'})).toContain(
+            'before:bg-elevated',
+        );
+    });
+
+    it('should let the edit states win over a row rule', () => {
+        for (const state of [{isSelected: true}, {isInsertion: true}, {isPendingDelete: true}]) {
+            expect(
+                getFrozenCellBackdropClass({...row, ...state, formatTone: 'danger'}),
+            ).not.toContain('var(--accent-error)');
+        }
+    });
+
+    it('should not add a hover tint to selected, inserted or deleted rows', () => {
+        for (const state of [{isSelected: true}, {isInsertion: true}, {isPendingDelete: true}]) {
+            expect(getFrozenCellBackdropClass({...row, ...state})).not.toContain('group-hover:');
+        }
+    });
+});
+
+describe('isOriginalCellValue', () => {
+    it('matches pasted text against the stored value by its text', () => {
+        expect(isOriginalCellValue('5', 5)).toBe(true);
+        expect(isOriginalCellValue('true', true)).toBe(true);
+        expect(isOriginalCellValue('Rome', 'Rome')).toBe(true);
+        expect(isOriginalCellValue('Rome ', 'Rome')).toBe(false);
+    });
+
+    it('matches a written NULL only with NULL', () => {
+        expect(isOriginalCellValue(null, 'null')).toBe(false);
+        expect(isOriginalCellValue(null, '')).toBe(false);
+        expect(isOriginalCellValue(null, null)).toBe(true);
+        expect(isOriginalCellValue(null, undefined)).toBe(true);
+    });
+
+    it('still matches pasted "null" text over NULL, as a copied NULL reads', () => {
+        expect(isOriginalCellValue('null', null)).toBe(true);
+    });
+
+    it('matches structured values only when they are the same value', () => {
+        const settings = {theme: 'dark'};
+        expect(isOriginalCellValue(settings, settings)).toBe(true);
+        expect(isOriginalCellValue({theme: 'light'}, settings)).toBe(false);
+        expect(isOriginalCellValue('[object Object]', settings)).toBe(false);
+    });
+});
+
+describe('resizeLockedColumn', () => {
+    const locked = {key: 'k', widths: [50, 80.4, 200]};
+
+    it('should change only the target column and mark the layout resized', () => {
+        expect(resizeLockedColumn(locked, 2, 260)).toEqual({
+            key: 'k',
+            widths: [50, 80.4, 260],
+            resized: true,
+        });
+    });
+
+    it('should round the new width to whole pixels', () => {
+        expect(resizeLockedColumn(locked, 1, 120.6).widths).toEqual([50, 121, 200]);
+    });
+
+    it('should not mutate the previous widths', () => {
+        resizeLockedColumn(locked, 0, 90);
+        expect(locked.widths).toEqual([50, 80.4, 200]);
+    });
+
+    it('should ignore an index outside the layout', () => {
+        expect(resizeLockedColumn(locked, 3, 90)).toBe(locked);
+        expect(resizeLockedColumn(locked, -1, 90)).toBe(locked);
+    });
+});
+
+describe('getResizedTableWidth', () => {
+    it('should be undefined until a column was resized', () => {
+        expect(getResizedTableWidth({key: 'k', widths: [50, 100]}, [50, 100])).toBeUndefined();
+        expect(getResizedTableWidth(null, null)).toBeUndefined();
+    });
+
+    it('should be the sum of the column widths once resized', () => {
+        expect(
+            getResizedTableWidth({key: 'k', widths: [50, 100, 75], resized: true}, [50, 100, 75]),
+        ).toBe(225);
+    });
+
+    it('should be undefined when the widths belong to another layout', () => {
+        expect(getResizedTableWidth({key: 'k', widths: [50], resized: true}, null)).toBeUndefined();
+    });
+});
+
+describe('toLogicalArrowKey', () => {
+    it('passes keys through in the normal layout', () => {
+        expect(toLogicalArrowKey('ArrowDown', false)).toBe('ArrowDown');
+        expect(toLogicalArrowKey('ArrowLeft', false)).toBe('ArrowLeft');
+    });
+
+    it('swaps the axes when transposed', () => {
+        expect(toLogicalArrowKey('ArrowUp', true)).toBe('ArrowLeft');
+        expect(toLogicalArrowKey('ArrowDown', true)).toBe('ArrowRight');
+        expect(toLogicalArrowKey('ArrowLeft', true)).toBe('ArrowUp');
+        expect(toLogicalArrowKey('ArrowRight', true)).toBe('ArrowDown');
+    });
+});
+
+describe('navigateCell', () => {
+    const from = {rowIndex: 5, colIndex: 2};
+    const nav = (key: string, transposed = false, pos = from) =>
+        navigateCell(key, pos, 10, 4, 3, transposed);
+
+    it('moves one cell with the arrows', () => {
+        expect(nav('ArrowDown')).toEqual({rowIndex: 6, colIndex: 2});
+        expect(nav('ArrowRight')).toEqual({rowIndex: 5, colIndex: 3});
+        expect(nav('ArrowDown', true)).toEqual({rowIndex: 5, colIndex: 3});
+        expect(nav('ArrowRight', true)).toEqual({rowIndex: 6, colIndex: 2});
+    });
+
+    it('jumps along the visual row with Home/End', () => {
+        expect(nav('Home')).toEqual({rowIndex: 5, colIndex: 0});
+        expect(nav('End')).toEqual({rowIndex: 5, colIndex: 3});
+        // Transposed, a visual row is one field across all records.
+        expect(nav('Home', true)).toEqual({rowIndex: 0, colIndex: 2});
+        expect(nav('End', true)).toEqual({rowIndex: 9, colIndex: 2});
+    });
+
+    it('pages along the visual column, clamped', () => {
+        expect(nav('PageDown')).toEqual({rowIndex: 8, colIndex: 2});
+        expect(nav('PageUp')).toEqual({rowIndex: 2, colIndex: 2});
+        expect(nav('PageDown', false, {rowIndex: 8, colIndex: 2})).toEqual({
+            rowIndex: 9,
+            colIndex: 2,
+        });
+        expect(nav('PageDown', true)).toEqual({rowIndex: 5, colIndex: 3});
+        expect(nav('PageUp', true)).toEqual({rowIndex: 5, colIndex: 0});
+    });
+
+    it('clamps at the grid edges', () => {
+        expect(nav('ArrowUp', false, {rowIndex: 0, colIndex: 0})).toEqual({
+            rowIndex: 0,
+            colIndex: 0,
+        });
+        expect(nav('ArrowRight', true, {rowIndex: 9, colIndex: 0})).toEqual({
+            rowIndex: 9,
+            colIndex: 0,
+        });
+    });
+
+    it('ignores keys that do not navigate', () => {
+        expect(nav('Enter')).toBeNull();
+        expect(nav('a', true)).toBeNull();
+    });
+});

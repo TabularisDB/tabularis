@@ -1,13 +1,50 @@
-use crate::keychain_utils;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
 use std::sync::RwLock;
-use tauri::AppHandle;
-use tauri::Manager;
 
 use std::collections::HashMap;
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_backup_time() -> String {
+    "02:00".to_string()
+}
+
+fn default_backup_timezone() -> String {
+    "local".to_string()
+}
+
+fn default_backup_retention() -> u32 {
+    7
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseBackupPlan {
+    pub enabled: bool,
+    pub connection_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+    #[serde(default = "default_backup_time")]
+    pub time: String,
+    #[serde(default = "default_backup_timezone")]
+    pub timezone: String,
+    #[serde(default)]
+    pub destination_directory: String,
+    #[serde(default = "default_backup_retention")]
+    pub retention: u32,
+    #[serde(default = "default_true")]
+    pub include_structure: bool,
+    #[serde(default = "default_true")]
+    pub include_data: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tables: Option<Vec<String>>,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +56,10 @@ pub struct PluginConfig {
     /// `None` inherits the global value; `0` disables the timeout.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call_timeout_seconds: Option<u32>,
+    /// Per-plugin override of `AppConfig::plugin_shutdown_grace_seconds`.
+    /// `None` inherits the global value; values below 1 are clamped at runtime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shutdown_grace_seconds: Option<u32>,
 }
 
 /// Per-connection column masking overrides (`table.column` entries).
@@ -66,12 +107,17 @@ pub struct AppConfig {
     pub sticky_column_headers: Option<bool>,
     /// Alternate the background of data grid rows. Default: false.
     pub result_zebra_stripes: Option<bool>,
+    /// Default sort direction on data grid header click: `"asc"` or `"desc"`.
+    pub default_sort_direction: Option<String>,
     /// Keep the row editor sidebar in sync with the selected grid row. Default: true.
     pub row_editor_follow_selection: Option<bool>,
+    pub group_sidebar_connections_by_folder: Option<bool>,
     /// What double-clicking a grid cell does: `"inline"` (default), `"sidebar"`
     /// or `"both"`.
     pub cell_double_click_action: Option<String>,
     pub ai_enabled: Option<bool>,
+    /// Opt-in SQL ghost text. Missing values remain disabled.
+    pub ai_inline_completion_enabled: Option<bool>,
     pub ai_provider: Option<String>,
     pub ai_model: Option<String>,
     pub ai_custom_models: Option<HashMap<String, Vec<String>>>,
@@ -88,9 +134,14 @@ pub struct AppConfig {
     pub selected_schemas: Option<HashMap<String, Vec<String>>>,
     pub max_blob_size: Option<u64>,
     pub copy_format: Option<String>,
+    /// How NULL values are shown in the data grid: `"default"`, `"parenthesized"`,
+    /// `"emptySet"` or `"empty"`. Display only; copy and export are unchanged.
+    pub null_display: Option<String>,
     pub csv_delimiter: Option<String>,
     /// Whether copied CSV output includes a header row. Default: true.
     pub csv_include_headers: Option<bool>,
+    /// How NULL is written when rows are copied as CSV or Markdown. Default: "null".
+    pub copy_null_label: Option<String>,
     pub active_external_drivers: Option<Vec<String>>,
     /// COMPAT(registry-ga): legacy config key from before the Tabularium API
     /// cutover. Read once by `compat::migrate_legacy_config`, then cleared.
@@ -110,6 +161,9 @@ pub struct AppConfig {
     /// Maximum seconds the host waits for a plugin to answer a single call.
     /// `0` disables the timeout. Default: 120. Overridable per plugin.
     pub plugin_call_timeout_seconds: Option<u32>,
+    /// Seconds in-flight plugin calls may run after shutdown is requested.
+    /// Values below 1 are clamped at runtime. Default: 2. Overridable per plugin.
+    pub plugin_shutdown_grace_seconds: Option<u32>,
     pub editor_theme: Option<String>,
     /// Font for query result cells ("inherit" follows the interface font). Default: JetBrains Mono.
     pub result_font_family: Option<String>,
@@ -118,6 +172,9 @@ pub struct AppConfig {
     pub editor_line_height: Option<f32>,
     pub editor_tab_size: Option<u32>,
     pub editor_word_wrap: Option<bool>,
+    pub editor_minimap: Option<bool>,
+    /// Highlight hidden Unicode and look-alike characters in the SQL editor.
+    pub editor_highlight_invisible_characters: Option<bool>,
     pub editor_show_line_numbers: Option<bool>,
     /// Whether the Enter key accepts the active autocomplete suggestion in the
     /// SQL editor. Maps to Monaco's `acceptSuggestionOnEnter` setting: `true`
@@ -139,6 +196,10 @@ pub struct AppConfig {
     pub formatter_function_case: Option<String>,
     pub formatter_lines_between_queries: Option<u32>,
     pub formatter_dense_operators: Option<bool>,
+    /// Case of SQL keywords inserted by autocomplete: "match" | "upper" | "lower"
+    pub autocomplete_keyword_case: Option<String>,
+    /// Mark unresolved tables, columns and aliases in PostgreSQL SELECT statements. Default: false.
+    pub sql_diagnostics_enabled: Option<bool>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
     /// Maximum number of query history entries per connection. Default: 500.
@@ -208,6 +269,7 @@ pub struct AppConfig {
     pub backup_webdav_url: Option<String>,
     /// WebDAV username; the password lives in the OS keychain.
     pub backup_webdav_username: Option<String>,
+    pub database_backup_plan: Option<DatabaseBackupPlan>,
 
     // ----- Privacy -----
     /// Mask values of sensitive columns in the results grid (display only). Default: true.
@@ -255,13 +317,12 @@ pub struct AppConfig {
     pub migration_mode_by_driver: Option<HashMap<String, MigrationMode>>,
 
     // ----- Network / Proxy -----
-    /// Global HTTP/SOCKS5 proxy and opt-in traffic scopes.
+    /// Shared custom proxy endpoint and per-scope routing modes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<crate::proxy::GlobalProxySettings>,
     /// Per AI-provider proxy overrides (`openai`, `anthropic`, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ai_provider_proxies:
-        Option<HashMap<String, crate::proxy::ProxyOverride>>,
+    pub ai_provider_proxies: Option<HashMap<String, crate::proxy::ProxyOverride>>,
 }
 
 /// One entry in the append-only driver-migration history.
@@ -294,12 +355,9 @@ pub enum MigrationMode {
 
 static CONFIG_CACHE: Lazy<RwLock<AppConfig>> = Lazy::new(|| RwLock::new(AppConfig::default()));
 
-pub fn get_config_dir<R: tauri::Runtime>(_app: &AppHandle<R>) -> Option<PathBuf> {
-    Some(crate::paths::get_app_config_dir())
-}
-
-fn cache_config(config: &AppConfig) {
+pub(crate) fn cache_config(config: &AppConfig) {
     crate::plugins::call_timeout::apply_config(config);
+    crate::plugins::shutdown_grace::apply_config(config);
     if let Ok(mut cached) = CONFIG_CACHE.write() {
         *cached = config.clone();
     }
@@ -338,6 +396,7 @@ pub fn load_config_from_disk() -> AppConfig {
     // snapshot is kept in that case.
     if trusted {
         crate::plugins::call_timeout::apply_config(&config);
+        crate::plugins::shutdown_grace::apply_config(&config);
     }
     config
 }
@@ -376,522 +435,40 @@ pub fn is_connection_readonly(config: &AppConfig, connection_id: &str) -> bool {
     }
 }
 
-// Internal load
-pub fn load_config_internal<R: tauri::Runtime>(app: &AppHandle<R>) -> AppConfig {
-    if let Some(config_dir) = get_config_dir(app) {
-        let config_path = config_dir.join("config.json");
-        if config_path.exists() {
-            if let Ok(content) = fs::read_to_string(config_path) {
-                if let Ok(mut config) = serde_json::from_str::<AppConfig>(&content) {
-                    crate::plugins::compat::migrate_legacy_config(&mut config); // COMPAT(registry-ga)
-                    cache_config(&config);
-                    return config;
-                }
-            }
-        }
-    }
-    let default_config = AppConfig::default();
-    cache_config(&default_config);
-    default_config
-}
-
-#[tauri::command]
-pub fn get_config(app: AppHandle) -> AppConfig {
-    load_config_internal(&app)
-}
-
-#[tauri::command]
-pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-
-        // Load existing config and merge with new values
-        let mut existing_config = load_config_internal(&app);
-
-        // Merge: only update fields that are Some in the new config
-        if config.theme.is_some() {
-            existing_config.theme = config.theme;
-        }
-        if config.follow_system_theme.is_some() {
-            existing_config.follow_system_theme = config.follow_system_theme;
-        }
-        if config.light_theme_id.is_some() {
-            existing_config.light_theme_id = config.light_theme_id;
-        }
-        if config.dark_theme_id.is_some() {
-            existing_config.dark_theme_id = config.dark_theme_id;
-        }
-        if config.language.is_some() {
-            existing_config.language = config.language;
-        }
-        if config.result_page_size.is_some() {
-            existing_config.result_page_size = config.result_page_size;
-        }
-        if config.font_family.is_some() {
-            existing_config.font_family = config.font_family;
-        }
-        if config.font_size.is_some() {
-            existing_config.font_size = config.font_size;
-        }
-        if config.result_color_by_type.is_some() {
-            existing_config.result_color_by_type = config.result_color_by_type;
-        }
-        if config.result_type_colors.is_some() {
-            existing_config.result_type_colors = config.result_type_colors;
-        }
-        if config.sticky_column_headers.is_some() {
-            existing_config.sticky_column_headers = config.sticky_column_headers;
-        }
-        if config.result_zebra_stripes.is_some() {
-            existing_config.result_zebra_stripes = config.result_zebra_stripes;
-        }
-        if config.row_editor_follow_selection.is_some() {
-            existing_config.row_editor_follow_selection = config.row_editor_follow_selection;
-        }
-        if config.cell_double_click_action.is_some() {
-            existing_config.cell_double_click_action = config.cell_double_click_action;
-        }
-        if config.ai_enabled.is_some() {
-            existing_config.ai_enabled = config.ai_enabled;
-        }
-        if config.ai_provider.is_some() {
-            existing_config.ai_provider = config.ai_provider;
-        }
-        if config.ai_model.is_some() {
-            existing_config.ai_model = config.ai_model;
-        }
-        if config.ai_custom_models.is_some() {
-            existing_config.ai_custom_models = config.ai_custom_models;
-        }
-        if config.ai_ollama_port.is_some() {
-            existing_config.ai_ollama_port = config.ai_ollama_port;
-        }
-        if config.ai_custom_openai_url.is_some() {
-            existing_config.ai_custom_openai_url = config.ai_custom_openai_url;
-        }
-        if config.ai_custom_openai_model.is_some() {
-            existing_config.ai_custom_openai_model = config.ai_custom_openai_model;
-        }
-        if config.check_for_updates.is_some() {
-            existing_config.check_for_updates = config.check_for_updates;
-        }
-        if config.auto_check_updates_on_startup.is_some() {
-            existing_config.auto_check_updates_on_startup = config.auto_check_updates_on_startup;
-        }
-        if config.last_dismissed_version.is_some() {
-            existing_config.last_dismissed_version = config.last_dismissed_version;
-        }
-        if config.notified_plugin_versions.is_some() {
-            existing_config.notified_plugin_versions = config.notified_plugin_versions;
-        }
-        if config.er_diagram_default_layout.is_some() {
-            existing_config.er_diagram_default_layout = config.er_diagram_default_layout;
-        }
-        if config.schema_preferences.is_some() {
-            existing_config.schema_preferences = config.schema_preferences;
-        }
-        if config.selected_schemas.is_some() {
-            existing_config.selected_schemas = config.selected_schemas;
-        }
-        if config.max_blob_size.is_some() {
-            existing_config.max_blob_size = config.max_blob_size;
-        }
-        if config.copy_format.is_some() {
-            existing_config.copy_format = config.copy_format;
-        }
-        if config.csv_delimiter.is_some() {
-            existing_config.csv_delimiter = config.csv_delimiter;
-        }
-        if config.csv_include_headers.is_some() {
-            existing_config.csv_include_headers = config.csv_include_headers;
-        }
-        if config.active_external_drivers.is_some() {
-            existing_config.active_external_drivers = config.active_external_drivers;
-        }
-        if config.tabularium_registry_url.is_some() {
-            existing_config.tabularium_registry_url = config.tabularium_registry_url;
-        }
-        if config.release_channel.is_some() {
-            existing_config.release_channel = config.release_channel;
-        }
-        if config.plugins.is_some() {
-            existing_config.plugins = config.plugins;
-        }
-        if config.plugin_call_timeout_seconds.is_some() {
-            existing_config.plugin_call_timeout_seconds = config.plugin_call_timeout_seconds;
-        }
-        if config.editor_theme.is_some() {
-            existing_config.editor_theme = config.editor_theme;
-        }
-        if config.result_font_family.is_some() {
-            existing_config.result_font_family = config.result_font_family;
-        }
-        if config.editor_font_family.is_some() {
-            existing_config.editor_font_family = config.editor_font_family;
-        }
-        if config.editor_font_size.is_some() {
-            existing_config.editor_font_size = config.editor_font_size;
-        }
-        if config.editor_line_height.is_some() {
-            existing_config.editor_line_height = config.editor_line_height;
-        }
-        if config.editor_tab_size.is_some() {
-            existing_config.editor_tab_size = config.editor_tab_size;
-        }
-        if config.editor_word_wrap.is_some() {
-            existing_config.editor_word_wrap = config.editor_word_wrap;
-        }
-        if config.editor_show_line_numbers.is_some() {
-            existing_config.editor_show_line_numbers = config.editor_show_line_numbers;
-        }
-        if config.editor_accept_suggestion_on_enter.is_some() {
-            existing_config.editor_accept_suggestion_on_enter =
-                config.editor_accept_suggestion_on_enter;
-        }
-        if config.run_statement_under_cursor.is_some() {
-            existing_config.run_statement_under_cursor = config.run_statement_under_cursor;
-        }
-        if config.safety_confirmation_delay_enabled.is_some() {
-            existing_config.safety_confirmation_delay_enabled =
-                config.safety_confirmation_delay_enabled;
-        }
-        if config.notify_long_queries.is_some() {
-            existing_config.notify_long_queries = config.notify_long_queries;
-        }
-        if config.notify_long_queries_threshold_sec.is_some() {
-            existing_config.notify_long_queries_threshold_sec =
-                config.notify_long_queries_threshold_sec;
-        }
-        if config.ping_interval.is_some() {
-            let old_interval = existing_config.ping_interval;
-            existing_config.ping_interval = config.ping_interval;
-            // Restart the ping loop if the interval changed.
-            if existing_config.ping_interval != old_interval {
-                let interval = existing_config
-                    .ping_interval
-                    .unwrap_or(crate::health_check::DEFAULT_PING_INTERVAL);
-                tauri::async_runtime::spawn(crate::health_check::restart_ping_loop(
-                    app.clone(),
-                    interval as u64,
-                ));
-            }
-        }
-        if config.query_history_max_entries.is_some() {
-            existing_config.query_history_max_entries = config.query_history_max_entries;
-        }
-        if config.show_welcome.is_some() {
-            existing_config.show_welcome = config.show_welcome;
-        }
-        if config.start_maximized.is_some() {
-            existing_config.start_maximized = config.start_maximized;
-        }
-        let window_decorations_changed = config.window_decorations.is_some()
-            && config.window_decorations != existing_config.window_decorations;
-        if config.window_decorations.is_some() {
-            existing_config.window_decorations = config.window_decorations;
-        }
-        if config.display_timezone.is_some() {
-            existing_config.display_timezone = config.display_timezone;
-        }
-        if config.ai_audit_enabled.is_some() {
-            existing_config.ai_audit_enabled = config.ai_audit_enabled;
-        }
-        if config.ai_audit_max_entries.is_some() {
-            existing_config.ai_audit_max_entries = config.ai_audit_max_entries;
-        }
-        if config.ai_session_gap_minutes.is_some() {
-            existing_config.ai_session_gap_minutes = config.ai_session_gap_minutes;
-        }
-        if config.mcp_output_format.is_some() {
-            existing_config.mcp_output_format = config.mcp_output_format;
-        }
-        if config.mcp_readonly_default.is_some() {
-            existing_config.mcp_readonly_default = config.mcp_readonly_default;
-        }
-        if config.mcp_readonly_connections.is_some() {
-            existing_config.mcp_readonly_connections = config.mcp_readonly_connections;
-        }
-        if config.mcp_approval_mode.is_some() {
-            existing_config.mcp_approval_mode = config.mcp_approval_mode;
-        }
-        if config.mcp_approval_timeout_seconds.is_some() {
-            existing_config.mcp_approval_timeout_seconds = config.mcp_approval_timeout_seconds;
-        }
-        if config.mcp_preflight_explain.is_some() {
-            existing_config.mcp_preflight_explain = config.mcp_preflight_explain;
-        }
-        if config.mcp_approval_always_on_top.is_some() {
-            existing_config.mcp_approval_always_on_top = config.mcp_approval_always_on_top;
-        }
-        if config.mcp_approval_notify_sound.is_some() {
-            existing_config.mcp_approval_notify_sound = config.mcp_approval_notify_sound;
-        }
-        if config.backup_mode.is_some() {
-            existing_config.backup_mode = config.backup_mode;
-        }
-        if config.backup_directory.is_some() {
-            existing_config.backup_directory = config.backup_directory;
-        }
-        if config.backup_interval_minutes.is_some() {
-            existing_config.backup_interval_minutes = config.backup_interval_minutes;
-        }
-        if config.backup_retention.is_some() {
-            existing_config.backup_retention = config.backup_retention;
-        }
-        if config.backup_target.is_some() {
-            existing_config.backup_target = config.backup_target;
-        }
-        if config.backup_webdav_url.is_some() {
-            existing_config.backup_webdav_url = config.backup_webdav_url;
-        }
-        if config.backup_webdav_username.is_some() {
-            existing_config.backup_webdav_username = config.backup_webdav_username;
-        }
-        if config.column_masking_enabled.is_some() {
-            existing_config.column_masking_enabled = config.column_masking_enabled;
-        }
-        if config.column_masking_patterns.is_some() {
-            existing_config.column_masking_patterns = config.column_masking_patterns;
-        }
-        if config.column_masking_overrides.is_some() {
-            existing_config.column_masking_overrides = config.column_masking_overrides;
-        }
-        if config.auto_connect_last_connection.is_some() {
-            existing_config.auto_connect_last_connection = config.auto_connect_last_connection;
-        }
-        if config.last_active_connection_id.is_some() {
-            existing_config.last_active_connection_id = config.last_active_connection_id;
-        }
-        if config.last_open_connection_ids.is_some() {
-            existing_config.last_open_connection_ids = config.last_open_connection_ids;
-        }
-        if config.postgres_plugin_migration_banner_dismissed.is_some() {
-            existing_config.postgres_plugin_migration_banner_dismissed =
-                config.postgres_plugin_migration_banner_dismissed;
-        }
-        if config
-            .postgres_plugin_migration_banner_dismissed_for
-            .is_some()
-        {
-            existing_config.postgres_plugin_migration_banner_dismissed_for =
-                config.postgres_plugin_migration_banner_dismissed_for;
-        }
-        if config.driver_migration_history.is_some() {
-            existing_config.driver_migration_history = config.driver_migration_history;
-        }
-        if config.known_capability_gaps.is_some() {
-            existing_config.known_capability_gaps = config.known_capability_gaps;
-        }
-        if config.migration_mode_by_driver.is_some() {
-            existing_config.migration_mode_by_driver = config.migration_mode_by_driver;
-        }
-        if config.proxy.is_some() {
-            existing_config.proxy = config.proxy;
-            // Drop cached TCP forwards / SSH tunnels that may have been built
-            // with the previous proxy (password rotation, protocol switch, …).
-            crate::proxy::stop_all_forwards();
-            crate::ssh_tunnel::stop_all_tunnels();
-        }
-        if config.ai_provider_proxies.is_some() {
-            existing_config.ai_provider_proxies = config.ai_provider_proxies;
-        }
-
-        let content = serde_json::to_string_pretty(&existing_config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        cache_config(&existing_config);
-        if window_decorations_changed {
-            crate::window_decorations::apply_to_all_windows(
-                &app,
-                existing_config.window_decorations.as_ref(),
-            );
-        }
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
+/// Composes the config-storage key for per-connection schema selection/
+/// preference. A non-empty `database` scopes the key to that database, so a
+/// nested multi-database driver (e.g. PostgreSQL browsing several databases
+/// on one connection) keeps each database's schema selection independent
+/// instead of every database sharing one flat per-connection entry.
+pub(crate) fn schema_storage_key(connection_id: &str, database: Option<&str>) -> String {
+    match database {
+        Some(db) if !db.is_empty() => format!("{connection_id}::{db}"),
+        _ => connection_id.to_string(),
     }
 }
 
-#[tauri::command]
-pub fn get_schema_preference(app: AppHandle, connection_id: String) -> Option<String> {
-    let config = load_config_internal(&app);
-    config
-        .schema_preferences
-        .and_then(|prefs| prefs.get(&connection_id).cloned())
-}
-
-#[tauri::command]
-pub fn set_schema_preference(
-    app: AppHandle,
-    connection_id: String,
-    schema: String,
-) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        let mut config = load_config_internal(&app);
-        let prefs = config.schema_preferences.get_or_insert_with(HashMap::new);
-        prefs.insert(connection_id, schema);
-        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
+/// Looks up a schema preference, falling back to the pre-multi-db flat
+/// per-connection entry when the database-scoped key has never been set.
+///
+/// A connection's schema preference saved before it opted into
+/// multi-database browsing lives under the flat `connection_id` key. Once
+/// opted in, every lookup passes a database and scopes to
+/// `connection_id::database` instead — without this fallback, that old
+/// preference is orphaned and silently lost the first time each database is
+/// looked up under its new per-database key.
+pub(crate) fn resolve_schema_preference(
+    prefs: &HashMap<String, String>,
+    connection_id: &str,
+    database: Option<&str>,
+) -> Option<String> {
+    let key = schema_storage_key(connection_id, database);
+    if let Some(value) = prefs.get(&key) {
+        return Some(value.clone());
     }
-}
-
-#[tauri::command]
-pub fn get_last_active_connection(app: AppHandle) -> Option<String> {
-    load_config_internal(&app).last_active_connection_id
-}
-
-#[tauri::command]
-pub fn set_last_active_connection(
-    app: AppHandle,
-    connection_id: Option<String>,
-) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        let mut config = load_config_internal(&app);
-        config.last_active_connection_id = connection_id;
-        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        cache_config(&config);
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
+    if key != connection_id {
+        return prefs.get(connection_id).cloned();
     }
-}
-
-#[tauri::command]
-pub fn get_last_open_connections(app: AppHandle) -> Vec<String> {
-    load_config_internal(&app)
-        .last_open_connection_ids
-        .unwrap_or_default()
-}
-
-#[tauri::command]
-pub fn set_last_open_connections(
-    app: AppHandle,
-    connection_ids: Vec<String>,
-) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        let mut config = load_config_internal(&app);
-        config.last_open_connection_ids = Some(connection_ids);
-        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        cache_config(&config);
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
-    }
-}
-
-#[tauri::command]
-pub fn get_selected_schemas(app: AppHandle, connection_id: String) -> Vec<String> {
-    let config = load_config_internal(&app);
-    config
-        .selected_schemas
-        .and_then(|map| map.get(&connection_id).cloned())
-        .unwrap_or_default()
-}
-
-#[tauri::command]
-pub fn set_selected_schemas(
-    app: AppHandle,
-    connection_id: String,
-    schemas: Vec<String>,
-) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        let mut config = load_config_internal(&app);
-        let map = config.selected_schemas.get_or_insert_with(HashMap::new);
-        if schemas.is_empty() {
-            map.remove(&connection_id);
-        } else {
-            map.insert(connection_id, schemas);
-        }
-        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
-    }
-}
-
-#[tauri::command]
-pub fn set_ai_key(app: AppHandle, provider: String, key: String) -> Result<(), String> {
-    keychain_utils::set_ai_key(&provider, &key)?;
-    // Write-through so subsequent reads avoid hitting the keychain (and its prompt).
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    crate::credential_cache::set_ai_key_cached(&cache, &provider, &key);
-    Ok(())
-}
-
-#[tauri::command]
-pub fn delete_ai_key(app: AppHandle, provider: String) -> Result<(), String> {
-    keychain_utils::delete_ai_key(&provider)?;
-    // Drop the cached value so the next read reflects the deletion.
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    crate::credential_cache::invalidate_ai_key(&cache, &provider);
-    Ok(())
-}
-
-/// Get the configured maximum BLOB size in bytes, or DEFAULT_MAX_BLOB_SIZE if not set
-pub fn get_max_blob_size<R: tauri::Runtime>(app: &AppHandle<R>) -> u64 {
-    let config = load_config_internal(app);
-    config
-        .max_blob_size
-        .unwrap_or(crate::drivers::common::DEFAULT_MAX_BLOB_SIZE)
-}
-
-pub fn get_ai_api_key(app: &AppHandle, provider: &str) -> Result<String, String> {
-    // 1. Try Keychain First (Override) — via the in-memory credential cache so
-    //    repeated lookups don't trigger a macOS Keychain authorization prompt
-    //    each time. The keychain is read at most once per provider per session.
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    if let Ok(key) = crate::credential_cache::get_ai_key_cached(&cache, provider) {
-        if !key.is_empty() {
-            return Ok(key);
-        }
-    }
-
-    // 2. Try Env Var
-    let env_var = match provider {
-        "openai" => "OPENAI_API_KEY",
-        "anthropic" => "ANTHROPIC_API_KEY",
-        "openrouter" => "OPENROUTER_API_KEY",
-        "custom-openai" => "CUSTOM_OPENAI_API_KEY",
-        "minimax" => "MINIMAX_API_KEY",
-        _ => "",
-    };
-
-    if !env_var.is_empty() {
-        if let Ok(key) = std::env::var(env_var) {
-            if !key.is_empty() {
-                return Ok(key);
-            }
-        }
-    }
-
-    Err(format!(
-        "API Key for {} not found in Keychain or Environment",
-        provider
-    ))
+    None
 }
 
 #[derive(Serialize)]
@@ -899,200 +476,6 @@ pub fn get_ai_api_key(app: &AppHandle, provider: &str) -> Result<String, String>
 pub struct AiKeyStatus {
     pub configured: bool,
     pub from_env: bool,
-}
-
-pub fn get_ai_api_key_status(app: &AppHandle, provider: &str) -> AiKeyStatus {
-    // 1. Check Keychain (through the cache to avoid repeated auth prompts)
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    let keychain_exists = crate::credential_cache::get_ai_key_cached(&cache, provider).is_ok();
-
-    // 2. Check Env Var
-    let env_var = match provider {
-        "openai" => "OPENAI_API_KEY",
-        "anthropic" => "ANTHROPIC_API_KEY",
-        "openrouter" => "OPENROUTER_API_KEY",
-        "custom-openai" => "CUSTOM_OPENAI_API_KEY",
-        "minimax" => "MINIMAX_API_KEY",
-        _ => "",
-    };
-
-    let env_exists = if !env_var.is_empty() {
-        std::env::var(env_var)
-            .map(|k| !k.is_empty())
-            .unwrap_or(false)
-    } else {
-        false
-    };
-
-    // Configured if either exists
-    // from_env is true ONLY if keychain is NOT present but env IS present
-    // because keychain overrides env now
-
-    if keychain_exists {
-        AiKeyStatus {
-            configured: true,
-            from_env: false, // Even if env exists, we are using keychain
-        }
-    } else if env_exists {
-        AiKeyStatus {
-            configured: true,
-            from_env: true,
-        }
-    } else {
-        AiKeyStatus {
-            configured: false,
-            from_env: false,
-        }
-    }
-}
-
-#[tauri::command]
-pub fn check_ai_key(app: AppHandle, provider: String) -> bool {
-    get_ai_api_key(&app, &provider).is_ok()
-}
-
-#[tauri::command]
-pub fn check_ai_key_status(app: AppHandle, provider: String) -> AiKeyStatus {
-    get_ai_api_key_status(&app, &provider)
-}
-
-const DEFAULT_SYSTEM_PROMPT: &str = "You are an expert SQL assistant. Your task is to generate a SQL query based on the user's request and the provided database schema.\nReturn ONLY the SQL query, without any markdown formatting, explanations, or code blocks.\n\nSchema:\n{{SCHEMA}}";
-const DEFAULT_EXPLAIN_PROMPT: &str =
-    "You are a helpful SQL assistant. Explain SQL queries in {{LANGUAGE}}.";
-const DEFAULT_EXPLAINPLAN_PROMPT: &str =
-    "You are a database performance expert. Analyze the following SQL query and its EXPLAIN plan output. Identify performance bottlenecks, suggest index improvements, and explain the execution strategy. Respond in {{LANGUAGE}}.";
-const DEFAULT_CELLNAME_PROMPT: &str = "You are an assistant that generates concise, descriptive names for notebook cells.\nGiven a SQL query or Markdown content, return ONLY a short name (3-6 words max) that describes what the cell does or what it is about.\nDo not include quotes, punctuation, or explanations. Just the name.";
-const DEFAULT_TABRENAME_PROMPT: &str = "You are an assistant that generates concise, descriptive names for SQL query result tabs.\nGiven a SQL query, return ONLY a short name (3-6 words max) that describes what the query does.\nDo not include quotes, punctuation, or explanations. Just the name.";
-
-fn get_prompt(app: &AppHandle, filename: &str, default: &str) -> String {
-    if let Some(config_dir) = get_config_dir(app) {
-        let path = config_dir.join(filename);
-        if let Ok(content) = fs::read_to_string(path) {
-            return content;
-        }
-    }
-    default.to_string()
-}
-
-fn save_prompt(app: &AppHandle, filename: &str, prompt: &str) -> Result<(), String> {
-    let config_dir = get_config_dir(app).ok_or("Could not resolve config directory")?;
-    if !config_dir.exists() {
-        fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-    }
-    fs::write(config_dir.join(filename), prompt).map_err(|e| e.to_string())
-}
-
-fn reset_prompt(app: &AppHandle, filename: &str, default: &str) -> Result<String, String> {
-    if let Some(config_dir) = get_config_dir(app) {
-        let path = config_dir.join(filename);
-        if path.exists() {
-            fs::remove_file(path).map_err(|e| e.to_string())?;
-        }
-    }
-    Ok(default.to_string())
-}
-
-#[tauri::command]
-pub fn get_system_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_query.txt", DEFAULT_SYSTEM_PROMPT)
-}
-#[tauri::command]
-pub fn save_system_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_query.txt", &prompt)
-}
-#[tauri::command]
-pub fn reset_system_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_query.txt", DEFAULT_SYSTEM_PROMPT)
-}
-
-#[tauri::command]
-pub fn get_explain_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_explain.txt", DEFAULT_EXPLAIN_PROMPT)
-}
-#[tauri::command]
-pub fn save_explain_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_explain.txt", &prompt)
-}
-#[tauri::command]
-pub fn reset_explain_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_explain.txt", DEFAULT_EXPLAIN_PROMPT)
-}
-
-#[tauri::command]
-pub fn get_explainplan_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_explainplan.txt", DEFAULT_EXPLAINPLAN_PROMPT)
-}
-#[tauri::command]
-pub fn save_explainplan_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_explainplan.txt", &prompt)
-}
-#[tauri::command]
-pub fn reset_explainplan_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_explainplan.txt", DEFAULT_EXPLAINPLAN_PROMPT)
-}
-
-#[tauri::command]
-pub fn get_cellname_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_cellname.txt", DEFAULT_CELLNAME_PROMPT)
-}
-#[tauri::command]
-pub fn save_cellname_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_cellname.txt", &prompt)
-}
-#[tauri::command]
-pub fn reset_cellname_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_cellname.txt", DEFAULT_CELLNAME_PROMPT)
-}
-
-#[tauri::command]
-pub fn get_tabrename_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_tabrename.txt", DEFAULT_TABRENAME_PROMPT)
-}
-#[tauri::command]
-pub fn save_tabrename_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_tabrename.txt", &prompt)
-}
-#[tauri::command]
-pub fn reset_tabrename_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_tabrename.txt", DEFAULT_TABRENAME_PROMPT)
-}
-
-#[tauri::command]
-pub fn get_config_json(app: AppHandle) -> Result<String, String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        let config_path = config_dir.join("config.json");
-        if config_path.exists() {
-            return fs::read_to_string(config_path).map_err(|e| e.to_string());
-        }
-    }
-    // Return empty JSON object if no config file exists yet
-    Ok("{}".to_string())
-}
-
-#[tauri::command]
-pub fn relaunch_app(app: AppHandle) {
-    app.restart();
-}
-
-#[tauri::command]
-pub fn save_config_json(app: AppHandle, json: String) -> Result<(), String> {
-    // Validate the JSON parses as a valid AppConfig
-    serde_json::from_str::<AppConfig>(&json)
-        .map_err(|e| format!("Invalid configuration JSON: {}", e))?;
-
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        // Re-serialize with pretty-printing for consistency
-        let value: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
-        let pretty = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
-        fs::write(config_path, pretty).map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
-    }
 }
 
 #[cfg(test)]
@@ -1179,6 +562,81 @@ mod tests {
     }
 
     #[test]
+    pub(crate) fn schema_storage_key_plain_connection_without_database() {
+        assert_eq!(schema_storage_key("conn-1", None), "conn-1");
+        assert_eq!(schema_storage_key("conn-1", Some("")), "conn-1");
+    }
+
+    #[test]
+    pub(crate) fn schema_storage_key_scopes_to_database_when_given() {
+        assert_eq!(
+            schema_storage_key("conn-1", Some("analytics")),
+            "conn-1::analytics"
+        );
+    }
+
+    #[test]
+    pub(crate) fn schema_storage_key_keeps_two_databases_on_the_same_connection_independent() {
+        let a = schema_storage_key("conn-1", Some("db_a"));
+        let b = schema_storage_key("conn-1", Some("db_b"));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    pub(crate) fn resolve_schema_preference_prefers_the_scoped_key_when_it_exists() {
+        let mut prefs = HashMap::new();
+        prefs.insert("conn-1".to_string(), "legacy_public".to_string());
+        prefs.insert(
+            "conn-1::analytics".to_string(),
+            "analytics_schema".to_string(),
+        );
+
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("analytics")),
+            Some("analytics_schema".to_string())
+        );
+    }
+
+    #[test]
+    pub(crate) fn resolve_schema_preference_falls_back_to_the_flat_key_after_a_multi_db_opt_in() {
+        // Regression: a connection's schema preference saved before it opted
+        // into multi-database browsing lives under the flat "conn-1" key.
+        // Once opted in, every lookup passes a database and would otherwise
+        // silently miss under the new "conn-1::analytics" key forever.
+        let mut prefs = HashMap::new();
+        prefs.insert("conn-1".to_string(), "legacy_public".to_string());
+
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("analytics")),
+            Some("legacy_public".to_string())
+        );
+    }
+
+    #[test]
+    pub(crate) fn resolve_schema_preference_returns_none_when_neither_key_exists() {
+        let prefs = HashMap::new();
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("analytics")),
+            None
+        );
+    }
+
+    #[test]
+    pub(crate) fn resolve_schema_preference_plain_connection_reads_only_the_flat_key() {
+        let mut prefs = HashMap::new();
+        prefs.insert("conn-1".to_string(), "public".to_string());
+
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", None),
+            Some("public".to_string())
+        );
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("")),
+            Some("public".to_string())
+        );
+    }
+
+    #[test]
     fn old_hidden_schemas_json_deserializes_without_error() {
         // Ensure old config files with hiddenSchemas don't break deserialization
         let json = r#"{"hiddenSchemas":{"conn-1":["secret"]}}"#;
@@ -1193,6 +651,7 @@ mod tests {
         assert!(config.safety_confirmation_delay_enabled.is_none());
         assert!(config.notify_long_queries.is_none());
         assert!(config.notify_long_queries_threshold_sec.is_none());
+        assert!(config.sql_diagnostics_enabled.is_none());
         assert!(config.editor_theme.is_none());
         assert!(config.result_font_family.is_none());
         assert!(config.editor_font_family.is_none());
@@ -1200,6 +659,7 @@ mod tests {
         assert!(config.editor_line_height.is_none());
         assert!(config.editor_tab_size.is_none());
         assert!(config.editor_word_wrap.is_none());
+        assert!(config.editor_highlight_invisible_characters.is_none());
         assert!(config.editor_show_line_numbers.is_none());
         assert!(config.editor_accept_suggestion_on_enter.is_none());
     }
@@ -1213,12 +673,14 @@ mod tests {
         config.editor_line_height = Some(1.5);
         config.editor_tab_size = Some(4);
         config.editor_word_wrap = Some(false);
+        config.editor_highlight_invisible_characters = Some(false);
         config.editor_show_line_numbers = Some(true);
         config.editor_theme = Some("tabularis-light".to_string());
         config.editor_accept_suggestion_on_enter = Some(true);
         config.safety_confirmation_delay_enabled = Some(true);
         config.notify_long_queries = Some(true);
         config.notify_long_queries_threshold_sec = Some(20);
+        config.sql_diagnostics_enabled = Some(true);
 
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("editorFontFamily"));
@@ -1227,12 +689,14 @@ mod tests {
         assert!(json.contains("editorLineHeight"));
         assert!(json.contains("editorTabSize"));
         assert!(json.contains("editorWordWrap"));
+        assert!(json.contains("editorHighlightInvisibleCharacters"));
         assert!(json.contains("editorShowLineNumbers"));
         assert!(json.contains("editorTheme"));
         assert!(json.contains("editorAcceptSuggestionOnEnter"));
         assert!(json.contains("safetyConfirmationDelayEnabled"));
         assert!(json.contains("notifyLongQueries"));
         assert!(json.contains("notifyLongQueriesThresholdSec"));
+        assert!(json.contains("sqlDiagnosticsEnabled"));
         // snake_case must not appear
         assert!(!json.contains("editor_font_family"));
         assert!(!json.contains("result_font_family"));
@@ -1240,6 +704,7 @@ mod tests {
         assert!(!json.contains("safety_confirmation_delay_enabled"));
         assert!(!json.contains("notify_long_queries"));
         assert!(!json.contains("notify_long_queries_threshold_sec"));
+        assert!(!json.contains("sql_diagnostics_enabled"));
     }
 
     #[test]
@@ -1251,12 +716,14 @@ mod tests {
             "editorLineHeight": 1.8,
             "editorTabSize": 2,
             "editorWordWrap": true,
+            "editorHighlightInvisibleCharacters": false,
             "editorShowLineNumbers": true,
             "editorTheme": "tabularis-dark",
             "editorAcceptSuggestionOnEnter": true,
             "safetyConfirmationDelayEnabled": true,
             "notifyLongQueries": true,
-            "notifyLongQueriesThresholdSec": 30
+            "notifyLongQueriesThresholdSec": 30,
+            "sqlDiagnosticsEnabled": true
         }"#;
 
         let config: AppConfig = serde_json::from_str(json).unwrap();
@@ -1265,12 +732,14 @@ mod tests {
         assert_eq!(config.editor_font_size, Some(14));
         assert_eq!(config.editor_tab_size, Some(2));
         assert_eq!(config.editor_word_wrap, Some(true));
+        assert_eq!(config.editor_highlight_invisible_characters, Some(false));
         assert_eq!(config.editor_show_line_numbers, Some(true));
         assert_eq!(config.editor_theme.as_deref(), Some("tabularis-dark"));
         assert_eq!(config.editor_accept_suggestion_on_enter, Some(true));
         assert_eq!(config.safety_confirmation_delay_enabled, Some(true));
         assert_eq!(config.notify_long_queries, Some(true));
         assert_eq!(config.notify_long_queries_threshold_sec, Some(30));
+        assert_eq!(config.sql_diagnostics_enabled, Some(true));
     }
 
     #[test]
@@ -1370,6 +839,28 @@ mod tests {
     }
 
     #[test]
+    fn default_sort_direction_serializes_with_camel_case_and_round_trips() {
+        let mut config = AppConfig::default();
+        assert!(config.default_sort_direction.is_none());
+        config.default_sort_direction = Some("desc".into());
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("defaultSortDirection"));
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.default_sort_direction.as_deref(), Some("desc"));
+    }
+
+    #[test]
+    fn copy_null_label_serializes_with_camel_case_and_keeps_empty_value() {
+        let mut config = AppConfig::default();
+        assert!(config.copy_null_label.is_none());
+        config.copy_null_label = Some(String::new());
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"copyNullLabel\":\"\""));
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.copy_null_label.as_deref(), Some(""));
+    }
+
+    #[test]
     fn is_connection_readonly_default_false_no_override_returns_false() {
         let config = AppConfig::default();
         assert!(!is_connection_readonly(&config, "c1"));
@@ -1435,6 +926,7 @@ mod tests {
         // Payload shape sent by the frontend's `save_config` call.
         let json = r#"{
             "rowEditorFollowSelection": false,
+            "groupSidebarConnectionsByFolder": true,
             "cellDoubleClickAction": "sidebar",
             "columnMaskingEnabled": false,
             "columnMaskingPatterns": ["password", "ssn"],
@@ -1450,6 +942,7 @@ mod tests {
         let reloaded = parse_config_file(Ok(saved.clone())).0;
 
         assert_eq!(reloaded.row_editor_follow_selection, Some(false));
+        assert_eq!(reloaded.group_sidebar_connections_by_folder, Some(true));
         assert_eq!(
             reloaded.cell_double_click_action.as_deref(),
             Some("sidebar")
@@ -1478,6 +971,7 @@ mod tests {
         // Keys are written in camelCase, matching `SettingsContext.ts`.
         for key in [
             "rowEditorFollowSelection",
+            "groupSidebarConnectionsByFolder",
             "cellDoubleClickAction",
             "columnMaskingEnabled",
             "columnMaskingPatterns",
@@ -1492,6 +986,7 @@ mod tests {
         let (config, trusted) = parse_config_file(Ok(r#"{"theme":"dracula"}"#.to_string()));
         assert!(trusted);
         assert!(config.row_editor_follow_selection.is_none());
+        assert!(config.group_sidebar_connections_by_folder.is_none());
         assert!(config.cell_double_click_action.is_none());
         assert!(config.column_masking_enabled.is_none());
         assert!(config.column_masking_patterns.is_none());

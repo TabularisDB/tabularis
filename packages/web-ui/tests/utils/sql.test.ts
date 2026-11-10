@@ -1,0 +1,452 @@
+import {describe, it, expect} from 'vitest';
+import {
+    splitQueries,
+    extractTableName,
+    extractEditableViewDefinition,
+    isExplainableQuery,
+    isDataModifyingQuery,
+    stripLeadingSqlComments,
+    getExplainableQueries,
+} from '@/utils/sql';
+
+describe('sql utils', () => {
+    describe('splitQueries', () => {
+        it('should split multiple queries by semicolon', () => {
+            const sql = 'SELECT * FROM users; SELECT * FROM posts;';
+            const result = splitQueries(sql);
+            expect(result).toHaveLength(2);
+            expect(result[0]).toBe('SELECT * FROM users');
+            expect(result[1]).toBe('SELECT * FROM posts');
+        });
+
+        it('should handle single query without semicolon', () => {
+            const sql = 'SELECT * FROM users';
+            const result = splitQueries(sql);
+            expect(result).toHaveLength(1);
+            expect(result[0]).toBe('SELECT * FROM users');
+        });
+
+        it('should ignore semicolons inside quotes', () => {
+            const sql = "SELECT * FROM users WHERE name = 'John; Doe'; SELECT 2";
+            const result = splitQueries(sql);
+            expect(result).toHaveLength(2);
+            expect(result[0]).toBe("SELECT * FROM users WHERE name = 'John; Doe'");
+            expect(result[1]).toBe('SELECT 2');
+        });
+
+        it('should ignore semicolons inside comments', () => {
+            const sql = 'SELECT 1; -- comment with ; \n SELECT 2';
+            const result = splitQueries(sql);
+            expect(result).toHaveLength(2);
+            expect(result[0]).toBe('SELECT 1');
+            expect(result[1]).toContain('SELECT 2');
+        });
+    });
+
+    describe('stripLeadingSqlComments', () => {
+        it('should strip line comments', () => {
+            expect(stripLeadingSqlComments('-- comment\nSELECT 1')).toBe('SELECT 1');
+            expect(stripLeadingSqlComments('-- line1\n-- line2\nSELECT 1')).toBe('SELECT 1');
+        });
+
+        it('should strip block comments', () => {
+            expect(stripLeadingSqlComments('/* block */ SELECT 1')).toBe('SELECT 1');
+            expect(stripLeadingSqlComments('/* a */ /* b */ SELECT 1')).toBe('SELECT 1');
+        });
+
+        it('should strip mixed comments', () => {
+            expect(stripLeadingSqlComments('-- line\n/* block */\nSELECT 1')).toBe('SELECT 1');
+        });
+
+        it('should handle no comments', () => {
+            expect(stripLeadingSqlComments('SELECT 1')).toBe('SELECT 1');
+            expect(stripLeadingSqlComments('  SELECT 1')).toBe('SELECT 1');
+        });
+
+        it('should handle unterminated comments', () => {
+            expect(stripLeadingSqlComments('-- only comment')).toBe('');
+            expect(stripLeadingSqlComments('/* never closed')).toBe('');
+        });
+    });
+
+    describe('isExplainableQuery', () => {
+        it('should return true for DML statements', () => {
+            expect(isExplainableQuery('SELECT * FROM users')).toBe(true);
+            expect(isExplainableQuery('INSERT INTO users VALUES (1)')).toBe(true);
+            expect(isExplainableQuery('UPDATE users SET name = "test"')).toBe(true);
+            expect(isExplainableQuery('DELETE FROM users WHERE id = 1')).toBe(true);
+            expect(isExplainableQuery('REPLACE INTO users VALUES (1, "a")')).toBe(true);
+        });
+
+        it('should return true for CTE and TABLE statements', () => {
+            expect(isExplainableQuery('WITH cte AS (SELECT 1) SELECT * FROM cte')).toBe(true);
+            expect(isExplainableQuery('TABLE users')).toBe(true);
+        });
+
+        it('should return false for DDL statements', () => {
+            expect(isExplainableQuery('CREATE INDEX idx ON t(col)')).toBe(false);
+            expect(isExplainableQuery('CREATE TABLE users (id INT)')).toBe(false);
+            expect(isExplainableQuery('DROP TABLE users')).toBe(false);
+            expect(isExplainableQuery('ALTER TABLE users ADD COLUMN name TEXT')).toBe(false);
+            expect(isExplainableQuery('TRUNCATE TABLE users')).toBe(false);
+        });
+
+        it('should return false for DCL statements', () => {
+            expect(isExplainableQuery("GRANT SELECT ON users TO 'user'")).toBe(false);
+            expect(isExplainableQuery("REVOKE SELECT ON users FROM 'user'")).toBe(false);
+        });
+
+        it('should handle leading whitespace', () => {
+            expect(isExplainableQuery('  SELECT 1')).toBe(true);
+            expect(isExplainableQuery('\n\t  CREATE INDEX idx ON t(col)')).toBe(false);
+        });
+
+        it('should be case-insensitive', () => {
+            expect(isExplainableQuery('select * from users')).toBe(true);
+            expect(isExplainableQuery('create index idx on t(col)')).toBe(false);
+        });
+
+        it('should handle queries with leading SQL comments', () => {
+            expect(isExplainableQuery('-- BEFORE index: full scan\nSELECT * FROM audit_log')).toBe(
+                true,
+            );
+            expect(isExplainableQuery('/* explain this */ SELECT * FROM users')).toBe(true);
+            expect(
+                isExplainableQuery('-- comment\n-- another\nDELETE FROM users WHERE id = 1'),
+            ).toBe(true);
+            expect(isExplainableQuery('-- setup\nCREATE INDEX idx ON t(col)')).toBe(false);
+        });
+    });
+
+    describe('getExplainableQueries', () => {
+        it('should return all queries when all are explainable', () => {
+            const sql = 'SELECT * FROM users; SELECT * FROM posts;';
+            const result = getExplainableQueries(sql);
+            expect(result).toEqual([
+                {query: 'SELECT * FROM users', index: 1},
+                {query: 'SELECT * FROM posts', index: 2},
+            ]);
+        });
+
+        it('should filter out DDL statements', () => {
+            const sql = 'SELECT * FROM users; CREATE TABLE t (id INT); DELETE FROM logs;';
+            const result = getExplainableQueries(sql);
+            expect(result).toEqual([
+                {query: 'SELECT * FROM users', index: 1},
+                {query: 'DELETE FROM logs', index: 3},
+            ]);
+        });
+
+        it('should return empty array when no queries are explainable', () => {
+            const sql = 'CREATE TABLE t (id INT); DROP TABLE t;';
+            const result = getExplainableQueries(sql);
+            expect(result).toEqual([]);
+        });
+
+        it('should handle single explainable query', () => {
+            const sql = 'UPDATE users SET name = "test" WHERE id = 1';
+            const result = getExplainableQueries(sql);
+            expect(result).toEqual([
+                {query: 'UPDATE users SET name = "test" WHERE id = 1', index: 1},
+            ]);
+        });
+
+        it('should handle empty input', () => {
+            expect(getExplainableQueries('')).toEqual([]);
+        });
+
+        it('should preserve original index across mixed statements', () => {
+            const sql =
+                'DROP TABLE t; SELECT 1; ALTER TABLE t ADD col INT; INSERT INTO t VALUES (1); TRUNCATE TABLE t;';
+            const result = getExplainableQueries(sql);
+            expect(result).toEqual([
+                {query: 'SELECT 1', index: 2},
+                {query: 'INSERT INTO t VALUES (1)', index: 4},
+            ]);
+        });
+    });
+
+    describe('extractTableName', () => {
+        it('should extract table name from simple SELECT', () => {
+            expect(extractTableName('SELECT * FROM users')).toBe('users');
+            expect(extractTableName('select * from "users"')).toBe('users');
+            expect(extractTableName('SELECT * FROM `my_table` WHERE id = 1')).toBe('my_table');
+        });
+
+        it('should extract a table qualified by the active schema', () => {
+            expect(extractTableName('SELECT * FROM Ops.Addresses', 'Ops')).toBe('Addresses');
+            expect(extractTableName('SELECT * FROM `Ops`.`Addresses`', 'Ops')).toBe('Addresses');
+            expect(extractTableName('SELECT * FROM "Ops"."Addresses"', 'Ops')).toBe('Addresses');
+            expect(extractTableName("SELECT * FROM 'Ops'.'Addresses'", 'Ops')).toBe('Addresses');
+        });
+
+        it('should reject a qualified table outside the active schema', () => {
+            expect(extractTableName('SELECT * FROM Ops.Addresses')).toBeNull();
+            expect(extractTableName('SELECT * FROM Other.Addresses', 'Ops')).toBeNull();
+        });
+
+        it('should return null for non-SELECT queries', () => {
+            expect(extractTableName('UPDATE users SET name="test"')).toBeNull();
+            expect(extractTableName('DELETE FROM users')).toBeNull();
+        });
+
+        it('should return null for aggregate queries', () => {
+            expect(extractTableName('SELECT COUNT(*) FROM users')).toBeNull();
+            expect(extractTableName('SELECT SUM(price) FROM orders')).toBeNull();
+            expect(extractTableName('SELECT * FROM users GROUP BY type')).toBeNull();
+        });
+
+        it('should return null for DISTINCT queries', () => {
+            expect(extractTableName('SELECT DISTINCT name FROM users')).toBeNull();
+            expect(extractTableName('SELECT DISTINCT * FROM orders')).toBeNull();
+        });
+
+        it('should return null for HAVING queries', () => {
+            expect(
+                extractTableName(
+                    'SELECT type, COUNT(*) FROM users GROUP BY type HAVING COUNT(*) > 1',
+                ),
+            ).toBeNull();
+        });
+
+        it('should return null for JOIN queries', () => {
+            expect(
+                extractTableName('SELECT u.* FROM users u JOIN orders o ON u.id = o.user_id'),
+            ).toBeNull();
+            expect(
+                extractTableName('SELECT * FROM users LEFT JOIN posts ON users.id = posts.user_id'),
+            ).toBeNull();
+            expect(
+                extractTableName('SELECT * FROM users INNER JOIN orders ON users.id = orders.uid'),
+            ).toBeNull();
+            expect(extractTableName('SELECT * FROM a RIGHT JOIN b ON a.id = b.a_id')).toBeNull();
+        });
+
+        it('should return null for UNION/INTERSECT/EXCEPT queries', () => {
+            expect(extractTableName('SELECT * FROM users UNION SELECT * FROM admins')).toBeNull();
+            expect(
+                extractTableName('SELECT * FROM users UNION ALL SELECT * FROM admins'),
+            ).toBeNull();
+            expect(
+                extractTableName('SELECT id FROM users INTERSECT SELECT id FROM admins'),
+            ).toBeNull();
+            expect(
+                extractTableName('SELECT id FROM users EXCEPT SELECT id FROM admins'),
+            ).toBeNull();
+        });
+
+        it('should return null for subquery in FROM clause', () => {
+            expect(
+                extractTableName('SELECT * FROM (SELECT * FROM users WHERE active = 1) sub'),
+            ).toBeNull();
+        });
+    });
+
+    describe('extractEditableViewDefinition', () => {
+        it.each([
+            {
+                name: 'extracts the SELECT from a MySQL SHOW CREATE VIEW definition',
+                sql: 'CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `active_users` AS select `users`.`id` AS `id` from `users`',
+                expected: 'select `users`.`id` AS `id` from `users`',
+            },
+            {
+                name: 'extracts multiline SQLite definitions',
+                sql: 'CREATE VIEW "active_users" AS\nSELECT id, name\nFROM users\nWHERE active = 1;',
+                expected: 'SELECT id, name\nFROM users\nWHERE active = 1;',
+            },
+            {
+                name: 'returns bare pg_get_viewdef output unchanged',
+                sql: 'SELECT id FROM users;',
+                expected: 'SELECT id FROM users;',
+            },
+            {
+                name: 'keeps SELECT aliases in bare pg_get_viewdef output',
+                sql: 'SELECT count(*) AS total FROM users',
+                expected: 'SELECT count(*) AS total FROM users',
+            },
+            {
+                name: 'ignores AS inside strings, comments, and quoted identifiers',
+                sql: `CREATE VIEW report_view AS SELECT "AS column" AS "label", 'AS literal' AS literal_value /* AS block */ FROM logs -- AS line
+      WHERE message = 'still AS';`,
+                expected: `SELECT "AS column" AS "label", 'AS literal' AS literal_value /* AS block */ FROM logs -- AS line
+      WHERE message = 'still AS';`,
+            },
+            {
+                name: 'supports SQL Server bracket identifiers',
+                sql: 'CREATE VIEW [dbo].[Order Summary] AS SELECT [Order AS Label] AS [Alias AS Name] FROM [Sales].[Order Lines];',
+                expected: 'SELECT [Order AS Label] AS [Alias AS Name] FROM [Sales].[Order Lines];',
+            },
+            {
+                name: 'ignores AS before the view body inside a column list',
+                sql: 'CREATE VIEW revenue_view ("AS_total", total_amount) AS SELECT total AS "AS_total", amount AS total_amount FROM invoices;',
+                expected: 'SELECT total AS "AS_total", amount AS total_amount FROM invoices;',
+            },
+            {
+                name: 'preserves WITH CHECK OPTION',
+                sql: 'CREATE VIEW active_users AS SELECT * FROM users WHERE active = true WITH CHECK OPTION',
+                expected: 'SELECT * FROM users WHERE active = true WITH CHECK OPTION',
+            },
+            {
+                name: 'preserves WITH READ ONLY',
+                sql: 'CREATE VIEW reporting_users AS SELECT * FROM users WITH READ ONLY',
+                expected: 'SELECT * FROM users WITH READ ONLY',
+            },
+            {
+                name: 'falls back to trimmed input when no top-level AS follows VIEW',
+                sql: 'CREATE VIEW broken_view SELECT 1',
+                expected: 'CREATE VIEW broken_view SELECT 1',
+            },
+            {
+                name: 'extracts the SELECT from a Postgres MATERIALIZED VIEW',
+                sql: 'CREATE MATERIALIZED VIEW mv AS SELECT 1 AS x FROM t',
+                expected: 'SELECT 1 AS x FROM t',
+            },
+            {
+                name: 'extracts the SELECT from CREATE OR REPLACE VIEW',
+                sql: 'CREATE OR REPLACE VIEW v AS SELECT a AS b FROM t',
+                expected: 'SELECT a AS b FROM t',
+            },
+        ])('$name', ({sql, expected}) => {
+            expect(extractEditableViewDefinition(sql)).toBe(expected);
+        });
+    });
+
+    describe('isDataModifyingQuery', () => {
+        it('detects writes behind a leading # comment (MySQL)', () => {
+            expect(isDataModifyingQuery('# purge\nDELETE FROM t')).toBe(true);
+            expect(isDataModifyingQuery('# copy\nSELECT * INTO t2 FROM t')).toBe(true);
+            expect(isDataModifyingQuery('# note\nSELECT * FROM t')).toBe(false);
+        });
+
+        it('should detect INSERT', () => {
+            expect(isDataModifyingQuery('INSERT INTO t VALUES (1)')).toBe(true);
+        });
+
+        it('should detect UPDATE', () => {
+            expect(isDataModifyingQuery('UPDATE t SET a = 1')).toBe(true);
+        });
+
+        it('should detect DELETE', () => {
+            expect(isDataModifyingQuery('DELETE FROM t WHERE id = 1')).toBe(true);
+        });
+
+        it('should detect DROP', () => {
+            expect(isDataModifyingQuery('DROP TABLE t')).toBe(true);
+        });
+
+        it('should detect ALTER', () => {
+            expect(isDataModifyingQuery('ALTER TABLE t ADD col INT')).toBe(true);
+        });
+
+        it('should detect TRUNCATE', () => {
+            expect(isDataModifyingQuery('TRUNCATE TABLE t')).toBe(true);
+        });
+
+        it('should not flag SELECT', () => {
+            expect(isDataModifyingQuery('SELECT * FROM t')).toBe(false);
+        });
+
+        it('should be case-insensitive', () => {
+            expect(isDataModifyingQuery('insert into t values (1)')).toBe(true);
+        });
+
+        it('should handle leading whitespace', () => {
+            expect(isDataModifyingQuery('  DELETE FROM t')).toBe(true);
+        });
+
+        it('should not flag read-only WITH queries', () => {
+            expect(isDataModifyingQuery('WITH cte AS (SELECT 1) SELECT * FROM cte')).toBe(false);
+        });
+
+        it.each([
+            'REPLACE INTO t (id) VALUES (1)',
+            'replace into t (id) values (1)',
+            'MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE',
+            'merge into t using s on t.id = s.id when matched then delete',
+            'UPSERT INTO t (id) VALUES (1)',
+            'CREATE TABLE t2 AS SELECT * FROM t',
+            'GRANT SELECT ON t TO app',
+            'REVOKE SELECT ON t FROM app',
+            'CALL refresh_totals()',
+            'EXEC dbo.refresh_totals',
+            'EXECUTE dbo.refresh_totals',
+        ])('should detect %s', (sql) => {
+            expect(isDataModifyingQuery(sql)).toBe(true);
+        });
+
+        it.each([
+            '-- note\nDELETE FROM t',
+            '/* note */ DELETE FROM t',
+            '-- one\n/* two */\n  update t set a = 1',
+            '-- note\nREPLACE INTO t (id) VALUES (1)',
+        ])('should detect a statement after leading comments: %j', (sql) => {
+            expect(isDataModifyingQuery(sql)).toBe(true);
+        });
+
+        it.each([
+            'WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d',
+            'with d as (delete from t returning *) select * from d',
+            'WITH i AS (INSERT INTO t (id) VALUES (1) RETURNING id) SELECT * FROM i',
+            'WITH u AS (UPDATE t SET a = 1 RETURNING *) SELECT count(*) FROM u',
+            'WITH s AS (SELECT id FROM src) MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE',
+            "WITH x AS (SELECT id FROM o) UPDATE orders SET status = 'x' FROM x WHERE orders.id = x.id",
+            'WITH x AS (SELECT 1 AS id) DELETE FROM t WHERE id IN (SELECT id FROM x)',
+            '-- note\nWITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d',
+        ])('should detect a data-modifying CTE: %j', (sql) => {
+            expect(isDataModifyingQuery(sql)).toBe(true);
+        });
+
+        it.each([
+            "WITH c AS (SELECT 'DELETE FROM t' AS q) SELECT * FROM c",
+            'WITH c AS (SELECT 1) /* UPDATE t */ SELECT * FROM c',
+            'WITH c AS (SELECT 1) -- delete later\nSELECT * FROM c',
+            'WITH c AS (SELECT "update" FROM t) SELECT * FROM c',
+            'WITH c AS (SELECT last_update, deleted_at FROM t) SELECT * FROM c',
+            'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 3) SELECT * FROM n',
+        ])('should not flag a read-only CTE: %j', (sql) => {
+            expect(isDataModifyingQuery(sql)).toBe(false);
+        });
+
+        it('should not let a MySQL-escaped quote hide a write in a CTE', () => {
+            // Under standard rules `'it\'` closes the literal early and the rest
+            // of the text would be read as one long string.
+            expect(
+                isDataModifyingQuery("WITH c AS (SELECT 'it\\'s') DELETE FROM t WHERE note = 'x'"),
+            ).toBe(true);
+        });
+
+        it.each([
+            "WITH c AS (SELECT $$it's$$ AS a) DELETE FROM t",
+            "WITH c AS (SELECT $tag$don't$tag$ AS a) UPDATE t SET a = 1",
+            "WITH c AS (SELECT E'\\'' AS a, 'C:\\' AS b) DELETE FROM t WHERE x = 'y'",
+            "WITH c AS (SELECT 1 AS [it's]) DELETE FROM t",
+        ])("should not let another dialect's literal hide a write in a CTE: %j", (sql) => {
+            // Each literal lexes only under its own dialect; under the others its
+            // apostrophe opens a string that runs to the end of the text.
+            expect(isDataModifyingQuery(sql)).toBe(true);
+        });
+
+        it.each([
+            'SELECT * INTO t2 FROM t',
+            'select id into archive from t where id < 10',
+            'SELECT * INTO #recent FROM t',
+            'WITH c AS (SELECT 1 AS id) SELECT * INTO t2 FROM c',
+            "SELECT $$it's$$ AS a INTO t2",
+        ])('should detect SELECT ... INTO: %j', (sql) => {
+            expect(isDataModifyingQuery(sql)).toBe(true);
+        });
+
+        it.each([
+            '-- note\nSELECT * FROM t',
+            '(SELECT 1) UNION ALL (SELECT 2)',
+            'TABLE t',
+            "SELECT replace(name, 'a', 'b') FROM t",
+            'SELECT * FROM updates',
+            "SELECT 'insert into t' AS note FROM t",
+            'SELECT * FROM t -- into archive later',
+            'SELECT intouch, into_date FROM t',
+        ])('should not flag a read-only statement: %j', (sql) => {
+            expect(isDataModifyingQuery(sql)).toBe(false);
+        });
+    });
+});

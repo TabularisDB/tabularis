@@ -13,9 +13,9 @@ use tokio::sync::{mpsc, oneshot, OnceCell};
 use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
 use crate::models::{
     AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
-    DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index, QueryResult,
-    RawExplainOutput, RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema,
-    TriggerInfo, ViewInfo,
+    DatabaseSelection, DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index,
+    QueryResult, RawExplainOutput, RoutineInfo, RoutineParameter, TableColumn, TableInfo,
+    TableSchema, TriggerInfo, ViewInfo,
 };
 use crate::plugins::connection_metadata::{ConnectionMetadataCache, ConnectionMetadataOverrides};
 use crate::plugins::rpc::{
@@ -27,10 +27,38 @@ use std::os::windows::process::CommandExt;
 
 /// The first operation waits for initialization of its own plugin only.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
-
 /// Flag to create the process without a console window on Windows.
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// A plugin's -32601 (method not found) is only reliably detectable on the
+/// structured `PluginCallError` — `Display` only ever writes `error.message`
+/// (see `rpc.rs`), never the JSON-RPC `code`, so a plugin whose message text
+/// doesn't happen to say "method not found" (a non-English message, or any
+/// other wording) would silently bypass every fallback below if this ran on
+/// an already-stringified error instead. `Transport` has no code at all
+/// (it's a local/IO failure, not a JSON-RPC response), so it keeps the
+/// string heuristic as a last resort.
+fn is_method_not_found(err: &PluginCallError) -> bool {
+    match err {
+        PluginCallError::Remote(remote) => remote.code == -32601,
+        PluginCallError::Transport(message) => {
+            message.to_lowercase().contains("method not found") || message.contains("-32601")
+        }
+    }
+}
+
+/// JSON type name of `value`, for log messages about unexpected RPC results.
+fn json_kind(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
 
 /// Read an `execute_query` response in either supported shape.
 ///
@@ -74,7 +102,9 @@ fn plugin_session_states() -> &'static Mutex<HashMap<String, bool>> {
 
 fn remember_session_state(session_id: Option<&str>, in_transaction: bool) {
     if let Some(id) = session_id {
-        let mut states = plugin_session_states().lock().unwrap_or_else(|e| e.into_inner());
+        let mut states = plugin_session_states()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         states.insert(id.to_string(), in_transaction);
     }
 }
@@ -103,12 +133,46 @@ fn parse_batch_response(value: Value) -> Result<(Vec<BatchStatementResult>, bool
     Ok((statements, false))
 }
 
-/// Heuristic for the JSON-RPC "method not found" error (code -32601). Only
-/// the error *message* survives the response plumbing, so optional-method
-/// fallbacks match on the standard wording (and the code, for SDKs that
-/// embed it in the message).
-fn is_method_not_found(err: &str) -> bool {
-    err.to_lowercase().contains("method not found") || err.contains("-32601")
+/// A manager task may be aborted after its outer shutdown bound. If that
+/// drops a pending response sender, tell the caller shutdown caused it rather
+/// than reporting a generic unresponsive plugin.
+fn dropped_plugin_response_error(shutting_down: bool) -> PluginCallError {
+    if shutting_down {
+        "Plugin shutdown grace period elapsed before RPC completed"
+            .to_string()
+            .into()
+    } else {
+        "Plugin process did not respond".to_string().into()
+    }
+}
+
+/// Preserve the sidebar selection at the plugin RPC boundary. A multi-DB
+/// connection serializes `database` as an array; plugins such as redis-rust
+/// select the actual connection from `params.database` instead of `schema`.
+/// Only substitute an explicitly selected member of that array. Unselected,
+/// single-DB and schema-only (e.g. PostgreSQL) requests stay unchanged.
+fn route_selected_plugin_database(request: &mut Value) {
+    let Some(selected) = request
+        .get("schema")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+    else {
+        return;
+    };
+    let Some(connection) = request.get_mut("params").and_then(Value::as_object_mut) else {
+        return;
+    };
+    let Some(databases) = connection.get("database").and_then(Value::as_array) else {
+        return;
+    };
+    if databases.len() < 2
+        || !databases
+            .iter()
+            .any(|db| db.as_str() == Some(selected.as_str()))
+    {
+        return;
+    }
+    connection.insert("database".to_string(), Value::String(selected));
 }
 
 /// Message sent to the management task that owns the plugin child process.
@@ -127,9 +191,13 @@ enum PluginCommand {
 pub struct PluginProcess {
     /// Plugin id used to resolve the configured call timeout.
     plugin_id: String,
+    /// Only schema-less plugins map sidebar database selections to params.database.
+    route_selected_database: bool,
     sender: mpsc::Sender<PluginCommand>,
     next_id: AtomicU64,
-    shutdown_tx: tokio::sync::Mutex<Option<oneshot::Sender<()>>>,
+    accepting_calls: std::sync::atomic::AtomicBool,
+    shutdown_tx: tokio::sync::Mutex<Option<oneshot::Sender<Option<Duration>>>>,
+    manager_task: tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
     pub pid: Option<u32>,
     initialization_settings: Option<HashMap<String, Value>>,
     initialized: OnceCell<()>,
@@ -142,7 +210,7 @@ impl PluginProcess {
         interpreter: Option<String>,
     ) -> Result<Self, String> {
         let (tx, rx) = mpsc::channel::<PluginCommand>(100);
-        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<Duration>>();
 
         // Spawn the child process directly in the async context so that any
         // spawn failure is immediately propagated as an error (no silent panic).
@@ -175,10 +243,15 @@ impl PluginProcess {
                 )
             })?;
 
+        // `kill_on_drop` and the shutdown path only run while this process is
+        // alive. Also stop the plugin when it is killed outright (#1280).
+        crate::plugins::process_lifetime::bind_to_host(&child);
+
         let pid = child.id();
+        let shutdown_plugin_id = plugin_id.clone();
 
         // Hand the running child off to the management task.
-        tokio::spawn(async move {
+        let manager_task = tokio::spawn(async move {
             let mut child = child;
             let mut rx = rx;
             let mut shutdown_rx = shutdown_rx;
@@ -192,15 +265,45 @@ impl PluginProcess {
                 oneshot::Sender<Result<Value, PluginCallError>>,
             > = HashMap::new();
             let mut line_buf = String::new();
+            let mut shutting_down = false;
+            let mut shutdown_deadline: Option<tokio::time::Instant> = None;
+            let mut channel_drained = false;
 
             loop {
+                if shutting_down && channel_drained && pending_requests.is_empty() {
+                    break;
+                }
                 tokio::select! {
-                    _ = &mut shutdown_rx => {
-                        log::info!("Plugin process shutdown requested, terminating child");
-                        let _ = child.kill().await;
+                    resolved = &mut shutdown_rx, if !shutting_down => {
+                        // Existing callers with a reserved queue slot may still
+                        // enqueue; receive those requests before deciding we are
+                        // fully drained. No fresh reservations are allowed.
+                        rx.close();
+                        shutting_down = true;
+                        // A dropped sender is not a configured "wait forever",
+                        // so use the global grace, which is always bounded.
+                        let grace = resolved.unwrap_or_else(|_| {
+                            Some(crate::plugins::shutdown_grace::dropped_signal_grace())
+                        });
+                        if let Some(grace) = grace {
+                            shutdown_deadline = Some(tokio::time::Instant::now() + grace);
+                            log::info!(
+                                "Plugin {shutdown_plugin_id} draining RPCs for {}s",
+                                grace.as_secs()
+                            );
+                        } else {
+                            log::info!(
+                                "Plugin {shutdown_plugin_id} draining RPCs until they finish"
+                            );
+                        }
+                    }
+                    _ = tokio::time::sleep_until(
+                        shutdown_deadline.unwrap_or_else(tokio::time::Instant::now)
+                    ), if shutdown_deadline.is_some() => {
+                        log::warn!("Plugin shutdown grace period elapsed; terminating child");
                         break;
                     }
-                    msg = rx.recv() => {
+                    msg = rx.recv(), if !channel_drained => {
                         match msg {
                             Some(PluginCommand::Call(req, resp_tx)) => {
                                 let id = req.id;
@@ -234,10 +337,12 @@ impl PluginProcess {
                                 }
                             }
                             None => {
-                                // Channel closed without explicit shutdown — kill the process anyway.
-                                log::warn!("Plugin process channel closed without shutdown signal, terminating child");
-                                let _ = child.kill().await;
-                                break;
+                                if shutting_down {
+                                    channel_drained = true;
+                                } else {
+                                    log::warn!("Plugin process channel closed without shutdown signal");
+                                    break;
+                                }
                             }
                         }
                     }
@@ -280,13 +385,26 @@ impl PluginProcess {
                     }
                 }
             }
+            // Give remaining callers a specific shutdown failure instead of
+            // an ambiguous dropped-channel/no-response error.
+            for (_, sender) in pending_requests.drain() {
+                let _ = sender.send(Err(
+                    "Plugin shutdown grace period elapsed before RPC completed"
+                        .to_string()
+                        .into(),
+                ));
+            }
+            let _ = child.kill().await;
         });
 
         Ok(Self {
             plugin_id,
+            route_selected_database: false,
             sender: tx,
             next_id: AtomicU64::new(1),
+            accepting_calls: std::sync::atomic::AtomicBool::new(true),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+            manager_task: tokio::sync::Mutex::new(Some(manager_task)),
             pid,
             initialization_settings: None,
             initialized: OnceCell::new(),
@@ -294,9 +412,43 @@ impl PluginProcess {
     }
 
     async fn shutdown(&self) {
-        let mut guard = self.shutdown_tx.lock().await;
-        if let Some(tx) = guard.take() {
-            let _ = tx.send(());
+        // Resolved once and handed to the manager so the drain deadline and
+        // the join bound in `stop` cannot disagree.
+        self.stop(crate::plugins::shutdown_grace::for_plugin(&self.plugin_id))
+            .await;
+    }
+
+    /// Stops the child without draining in-flight calls.
+    async fn terminate(&self) {
+        self.stop(Some(Duration::ZERO)).await;
+    }
+
+    /// Lets in-flight calls run for `grace` (`None`: until they finish), then
+    /// kills the child.
+    async fn stop(&self, grace: Option<Duration>) {
+        // Unregistered drivers may still be held by existing Arc references;
+        // reject their new calls immediately rather than silently enqueueing.
+        self.accepting_calls.store(false, Ordering::Release);
+        {
+            let mut guard = self.shutdown_tx.lock().await;
+            if let Some(tx) = guard.take() {
+                let _ = tx.send(grace);
+            }
+        }
+        if let Some(mut task) = self.manager_task.lock().await.take() {
+            let timed_out = match grace.map(|grace| grace + Duration::from_secs(1)) {
+                Some(bound) => tokio::time::timeout(bound, &mut task).await.is_err(),
+                None => {
+                    let _ = (&mut task).await;
+                    false
+                }
+            };
+            if timed_out {
+                // kill_on_drop on the child guarantees no orphan if stdin
+                // becomes stuck and the normal grace timer cannot run.
+                task.abort();
+                let _ = task.await;
+            }
         }
     }
 
@@ -325,7 +477,11 @@ impl PluginProcess {
                         )
                         .await
                     {
-                        log::warn!("Plugin initialization failed (pid {:?}): {}", self.pid, error);
+                        log::warn!(
+                            "Plugin initialization failed (pid {:?}): {}",
+                            self.pid,
+                            error
+                        );
                     }
                 })
                 .await;
@@ -342,6 +498,10 @@ impl PluginProcess {
         timeout: Option<Duration>,
     ) -> Result<Value, PluginCallError> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let mut params = params;
+        if self.route_selected_database {
+            route_selected_plugin_database(&mut params);
+        }
         let req = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             method: method.to_string(),
@@ -350,20 +510,38 @@ impl PluginProcess {
         };
 
         let (tx, rx) = oneshot::channel();
-        self.sender
-            .send(PluginCommand::Call(req, tx))
-            .await
-            .map_err(|_| "Plugin process channel closed".to_string())?;
+        if !self.accepting_calls.load(Ordering::Acquire) {
+            return Err("Plugin is shutting down; new RPC calls are rejected"
+                .to_string()
+                .into());
+        }
+        let permit = self.sender.reserve().await.map_err(|_| {
+            if self.accepting_calls.load(Ordering::Acquire) {
+                "Plugin process channel closed".to_string()
+            } else {
+                "Plugin is shutting down; new RPC calls are rejected".to_string()
+            }
+        })?;
+        if !self.accepting_calls.load(Ordering::Acquire) {
+            return Err("Plugin is shutting down; new RPC calls are rejected"
+                .to_string()
+                .into());
+        }
+        permit.send(PluginCommand::Call(req, tx));
 
         let Some(timeout) = timeout else {
-            return rx
-                .await
-                .unwrap_or_else(|_| Err("Plugin process did not respond".to_string().into()));
+            return rx.await.unwrap_or_else(|_| {
+                Err(dropped_plugin_response_error(
+                    !self.accepting_calls.load(Ordering::Acquire),
+                ))
+            });
         };
 
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result,
-            Ok(Err(_)) => Err("Plugin process did not respond".to_string().into()),
+            Ok(Err(_)) => Err(dropped_plugin_response_error(
+                !self.accepting_calls.load(Ordering::Acquire),
+            )),
             Err(_) => {
                 // Tell the management task to drop the now-orphaned pending
                 // entry so it does not leak one slot per timeout.
@@ -398,6 +576,8 @@ impl RpcDriver {
     ) -> Result<Self, String> {
         let mut process =
             PluginProcess::new(manifest.id.clone(), executable_path, interpreter).await?;
+        // Real SQL schemas must never be mistaken for a selected logical database.
+        process.route_selected_database = !manifest.capabilities.schemas;
         // Register manifests immediately. Initialize only when this plugin is
         // actually used, so idle plugins cannot delay the GUI or MCP startup.
         process.initialization_settings = Some(settings);
@@ -412,29 +592,140 @@ impl RpcDriver {
         })
     }
 
-    /// SQL-building methods historically had no connection parameters. Add
-    /// them only for opted-in snapshots; legacy plugin request shapes stay intact.
-    async fn call_with_connection(
+    /// SQL-building methods carry no connection parameters in their trait
+    /// signature. Inject the bound snapshot params (from `for_connection` or
+    /// `bind_connection_params`) as an additive `params` field; a driver with
+    /// nothing bound keeps the legacy request shape.
+    async fn call_with_connection(&self, method: &str, arguments: Value) -> Result<Value, String> {
+        self.call_with_connection_detailed(method, arguments)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    /// Same as `call_with_connection`, but preserves the structured
+    /// `PluginCallError` for callers that need to distinguish a -32601
+    /// (method not found) from any other failure — see `is_method_not_found`.
+    async fn call_with_connection_detailed(
         &self,
         method: &str,
         mut arguments: Value,
-    ) -> Result<Value, String> {
+    ) -> Result<Value, PluginCallError> {
         if let Some(params) = &self.connection_params {
             if let Some(object) = arguments.as_object_mut() {
                 object.entry("params").or_insert_with(|| json!(params));
             }
         }
-        self.process.call(method, arguments).await
+        self.process.call_detailed(method, arguments).await
     }
 
     pub fn with_connection_metadata(mut self, enabled: bool) -> Self {
         self.connection_metadata = enabled;
         self
     }
+
+    /// Coerce `database` to a single, non-empty primary database name before
+    /// it's sent to the plugin subprocess.
+    ///
+    /// Multi-database opt-in connections persist `database` as
+    /// `DatabaseSelection::Multiple(...)`, or as an empty `Single("")` for
+    /// "all databases" mode — both serialize to a JSON array/empty string.
+    /// Plugins only understand a single `database: Option<String>` field for
+    /// the pool they use to answer RPCs: an un-coerced array silently
+    /// deserializes to `None`, and an empty string is rejected outright by
+    /// e.g. deadpool-postgres (`ConfigError::DbnameMissing`/`DbnameEmpty`),
+    /// so either shape fails pool creation before ever reaching the server.
+    ///
+    /// Applied at every `"params"` JSON-RPC payload site in this impl, not
+    /// just `ping`/`test_connection` — a per-table/schema command that
+    /// *should* resolve a concrete database override before reaching the
+    /// driver (see `commands.rs`) can still omit it (a frontend refresh
+    /// helper calling the wrong/generic function, a command with no
+    /// per-call override at all, a future RPC nobody remembers to wire up).
+    /// Coercing here means such a gap degrades to targeting the primary/
+    /// first-selected database instead of crashing the whole connection —
+    /// it is a safety net, not a substitute for passing the right override.
+    /// For an already-resolved `Single(db)` (the normal case for both
+    /// single-database connections and per-command multi-db overrides),
+    /// `primary()` returns `db` unchanged, so this is a no-op.
+    ///
+    /// When there's no selection at all (empty "all databases" / an empty
+    /// `Multiple`), fall back to [`Self::fallback_database`].
+    fn with_primary_database(&self, params: &ConnectionParams) -> ConnectionParams {
+        let mut params = params.clone();
+
+        // Schema-less plugins (route_selected_database = true) select the
+        // actual connection from `params.database` based on the sidebar's
+        // schema selection (route_selected_plugin_database in call()). The
+        // array must survive to that point — flattening it here to a single
+        // primary would destroy the selection before it can be applied.
+        if self.process.route_selected_database
+            && matches!(params.database, DatabaseSelection::Multiple(_))
+        {
+            // Only resolve an empty primary to the fallback database so
+            // the pool can connect; leave a non-empty Multiple intact.
+            if params.database.primary().is_empty() {
+                params.database = DatabaseSelection::Single(self.fallback_database(&params));
+            }
+            return params;
+        }
+
+        let dbname = match params.database.primary() {
+            "" => self.fallback_database(&params),
+            primary => primary.to_string(),
+        };
+        params.database = DatabaseSelection::Single(dbname);
+        params
+    }
+
+    /// The database sent while a connection selects none ("all databases").
+    ///
+    /// The connection's own `default_database` comes first: a flat
+    /// multi-database plugin that declares `connection_fields.database`
+    /// asks for it on the Databases tab (SurrealDB signs in to that
+    /// `namespace/database`). Otherwise the engine's maintenance database —
+    /// the same convention the built-in Postgres driver already uses for
+    /// `get_databases` (`drivers/postgres/mod.rs`) — but only for engines
+    /// known to have one; other engines get an empty database so their own
+    /// plugin can apply whatever default makes sense for them.
+    fn fallback_database(&self, params: &ConnectionParams) -> String {
+        if let Some(database) = params
+            .default_database
+            .as_deref()
+            .map(str::trim)
+            .filter(|database| !database.is_empty())
+        {
+            return database.to_string();
+        }
+        match self.manifest.engine.as_deref() {
+            Some("postgres" | "postgresql") => "postgres".to_string(),
+            _ => String::new(),
+        }
+    }
 }
 
 #[async_trait]
 impl DatabaseDriver for RpcDriver {
+    async fn routine_debug(
+        &self,
+        params: &ConnectionParams,
+        version: u32,
+        command: &crate::routine_debug::DebugCommand,
+    ) -> Result<crate::routine_debug::DebugResponse, String> {
+        if self.manifest.capabilities.routine_debug != Some(crate::routine_debug::PROTOCOL_VERSION)
+        {
+            return Err("Routine debugging is not supported by this driver".into());
+        }
+        command.validate(version, self.manifest.capabilities.readonly)?;
+        // Never retry or fall back to execute_query: a lost reply may follow execution.
+        let value = self.process.call("routine_debug", json!({
+            "params": self.with_primary_database(params), "version": version, "command": command,
+        })).await?;
+        let response: crate::routine_debug::DebugResponse = serde_json::from_value(value)
+            .map_err(|error| format!("Invalid routine debugger response: {error}"))?;
+        response.validate_for(command)?;
+        Ok(response)
+    }
+
     fn has_connection_metadata(&self) -> bool {
         self.connection_metadata
     }
@@ -453,7 +744,7 @@ impl DatabaseDriver for RpcDriver {
         let cell = self.metadata_cache.entry(params).await?;
         let metadata = cell.get_or_try_init(|| async {
             let overrides = match self.process.call_detailed(
-                "get_connection_metadata", json!({ "params": params }),
+                "get_connection_metadata", json!({ "params": self.with_primary_database(params) }),
             ).await {
                 Ok(value) => serde_json::from_value::<ConnectionMetadataOverrides>(value)
                     .map_err(|e| format!("Invalid connection metadata: {}", e))?,
@@ -475,7 +766,7 @@ impl DatabaseDriver for RpcDriver {
             // The returned snapshot is already resolved for this operation.
             connection_metadata: false,
             metadata_cache: self.metadata_cache.clone(),
-            connection_params: Some(params.clone()),
+            connection_params: Some(self.with_primary_database(params)),
         })))
     }
 
@@ -483,8 +774,30 @@ impl DatabaseDriver for RpcDriver {
         self.metadata_cache.invalidate(connection_id).await;
     }
 
+    fn bind_connection_params(&self, params: &ConnectionParams) -> Option<Arc<dyn DatabaseDriver>> {
+        Some(Arc::new(Self {
+            manifest: self.manifest.clone(),
+            process: self.process.clone(),
+            data_types: self.data_types.clone(),
+            connection_metadata: self.connection_metadata,
+            metadata_cache: self.metadata_cache.clone(),
+            connection_params: Some(self.with_primary_database(params)),
+        }))
+    }
+
     async fn shutdown(&self) {
         self.process.shutdown().await;
+    }
+
+    async fn sync_plugin_settings(&self, settings: HashMap<String, Value>) -> Result<(), String> {
+        self.process
+            .call("initialize", json!({ "settings": settings }))
+            .await?;
+        Ok(())
+    }
+
+    async fn terminate(&self) {
+        self.process.terminate().await;
     }
 
     fn pid(&self) -> Option<u32> {
@@ -510,11 +823,16 @@ impl DatabaseDriver for RpcDriver {
     }
 
     async fn ping(&self, params: &ConnectionParams) -> Result<(), String> {
-        match self.process.call("ping", json!({ "params": params })).await {
+        let params = self.with_primary_database(params);
+        match self
+            .process
+            .call("ping", json!({ "params": &params }))
+            .await
+        {
             Ok(_) => Ok(()),
             Err(e) if e.contains("Method not found") || e.contains("not implemented") => {
                 // Fallback for plugins that haven't implemented ping yet
-                self.test_connection(params).await
+                self.test_connection(&params).await
             }
             Err(e) => Err(e),
         }
@@ -522,9 +840,10 @@ impl DatabaseDriver for RpcDriver {
 
     async fn test_connection(&self, params: &ConnectionParams) -> Result<(), String> {
         // Delegate to the plugin process via RPC instead of using sqlx
+        let params = self.with_primary_database(params);
         let res = self
             .process
-            .call("test_connection", json!({ "params": params }))
+            .call("test_connection", json!({ "params": &params }))
             .await?;
         // If the plugin returns a success response (even null/true), connection is ok
         let _ = res;
@@ -534,7 +853,10 @@ impl DatabaseDriver for RpcDriver {
     async fn get_databases(&self, params: &ConnectionParams) -> Result<Vec<String>, String> {
         let res = self
             .process
-            .call("get_databases", json!({ "params": params }))
+            .call(
+                "get_databases",
+                json!({ "params": self.with_primary_database(params) }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -542,7 +864,10 @@ impl DatabaseDriver for RpcDriver {
     async fn get_schemas(&self, params: &ConnectionParams) -> Result<Vec<String>, String> {
         let res = self
             .process
-            .call("get_schemas", json!({ "params": params }))
+            .call(
+                "get_schemas",
+                json!({ "params": self.with_primary_database(params) }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -554,7 +879,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<TableInfo>, String> {
         let res = self
             .process
-            .call("get_tables", json!({ "params": params, "schema": schema }))
+            .call(
+                "get_tables",
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -569,7 +897,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_columns",
-                json!({ "params": params, "table": table, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -585,7 +913,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_foreign_keys",
-                json!({ "params": params, "table": table, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -601,7 +929,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_indexes",
-                json!({ "params": params, "table": table, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -614,7 +942,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<ViewInfo>, String> {
         let res = self
             .process
-            .call("get_views", json!({ "params": params, "schema": schema }))
+            .call(
+                "get_views",
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -629,7 +960,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_view_definition",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -645,7 +976,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_view_columns",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -658,7 +989,7 @@ impl DatabaseDriver for RpcDriver {
         definition: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        let res = self.process.call("create_view", json!({ "params": params, "view_name": view_name, "definition": definition, "schema": schema })).await?;
+        let res = self.process.call("create_view", json!({ "params": self.with_primary_database(params), "view_name": view_name, "definition": definition, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -669,7 +1000,7 @@ impl DatabaseDriver for RpcDriver {
         definition: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        let res = self.process.call("alter_view", json!({ "params": params, "view_name": view_name, "definition": definition, "schema": schema })).await?;
+        let res = self.process.call("alter_view", json!({ "params": self.with_primary_database(params), "view_name": view_name, "definition": definition, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -683,7 +1014,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "drop_view",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -698,15 +1029,15 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<ViewInfo>, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_materialized_views",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await;
         match res {
             Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
             Err(e) if is_method_not_found(&e) => Ok(Vec::new()),
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -718,15 +1049,15 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<TableColumn>, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_materialized_view_columns",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await;
         match res {
             Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
             Err(e) if is_method_not_found(&e) => Ok(Vec::new()),
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -738,9 +1069,9 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<String, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_materialized_view_definition",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await;
         match res {
@@ -748,7 +1079,7 @@ impl DatabaseDriver for RpcDriver {
             Err(e) if is_method_not_found(&e) => {
                 Err("Materialized views are not supported by this driver".to_string())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -760,9 +1091,9 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<(), String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "refresh_materialized_view",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await;
         match res {
@@ -770,7 +1101,7 @@ impl DatabaseDriver for RpcDriver {
             Err(e) if is_method_not_found(&e) => {
                 Err("Materialized views are not supported by this driver".to_string())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -783,7 +1114,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_routines",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -794,12 +1125,13 @@ impl DatabaseDriver for RpcDriver {
         params: &ConnectionParams,
         routine_name: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<Vec<RoutineParameter>, String> {
         let res = self
             .process
             .call(
                 "get_routine_parameters",
-                json!({ "params": params, "routine_name": routine_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "schema": schema, "identity_args": identity_args }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -811,8 +1143,9 @@ impl DatabaseDriver for RpcDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String> {
-        let res = self.process.call("get_routine_definition", json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema })).await?;
+        let res = self.process.call("get_routine_definition", json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema, "identity_args": identity_args })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -833,9 +1166,9 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<String, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "build_routine_call_sql",
-                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "args": args, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "args": args, "schema": schema }),
             )
             .await;
         match res {
@@ -849,7 +1182,7 @@ impl DatabaseDriver for RpcDriver {
                     &self.manifest.capabilities.identifier_quote,
                 ))
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -859,7 +1192,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<String, String> {
         let res = self
-            .call_with_connection(
+            .call_with_connection_detailed(
                 "routine_create_template",
                 json!({ "routine_type": routine_type, "schema": schema }),
             )
@@ -876,7 +1209,7 @@ impl DatabaseDriver for RpcDriver {
                     "CREATE {keyword} my_routine()\nBEGIN\n    -- routine body\nEND"
                 ))
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -886,21 +1219,28 @@ impl DatabaseDriver for RpcDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_routine_edit_script",
-                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema, "identity_args": identity_args }),
             )
             .await;
         match res {
             Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
             Err(e) if is_method_not_found(&e) => {
-                self.get_routine_definition(params, routine_name, routine_type, schema)
-                    .await
+                self.get_routine_definition(
+                    params,
+                    routine_name,
+                    routine_type,
+                    schema,
+                    identity_args,
+                )
+                .await
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -910,12 +1250,13 @@ impl DatabaseDriver for RpcDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<(), String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "drop_routine",
-                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema, "identity_args": identity_args }),
             )
             .await;
         match res {
@@ -931,7 +1272,7 @@ impl DatabaseDriver for RpcDriver {
                     .await
                     .map(|_| ())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -943,7 +1284,7 @@ impl DatabaseDriver for RpcDriver {
         page: u32,
         schema: Option<&str>,
     ) -> Result<QueryResult, String> {
-        let res = self.process.call("execute_query", json!({ "params": params, "query": query, "limit": limit, "page": page, "schema": schema })).await?;
+        let res = self.process.call("execute_query", json!({ "params": self.with_primary_database(params), "query": query, "limit": limit, "page": page, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -958,10 +1299,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<BatchStatementResult>, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "execute_query_batch",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "queries": queries,
                     "limit": limit,
                     "page": page,
@@ -994,7 +1335,7 @@ impl DatabaseDriver for RpcDriver {
                 }
                 Ok(results)
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -1012,7 +1353,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "execute_query",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "query": query,
                     "limit": limit,
                     "page": page,
@@ -1042,10 +1383,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<(Vec<BatchStatementResult>, bool), String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "execute_query_batch",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "queries": queries,
                     "limit": limit,
                     "page": page,
@@ -1076,12 +1417,14 @@ impl DatabaseDriver for RpcDriver {
                     .await?;
                 Ok((results, false))
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
     async fn session_in_transaction(&self, session_id: &str) -> Option<bool> {
-        let states = plugin_session_states().lock().unwrap_or_else(|e| e.into_inner());
+        let states = plugin_session_states()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         states.get(session_id).copied()
     }
 
@@ -1094,7 +1437,7 @@ impl DatabaseDriver for RpcDriver {
         // failure here must not surface: the caller is closing a tab.
         if let Err(e) = self
             .process
-            .call("release_session", json!({ "session_id": session_id }))
+            .call_detailed("release_session", json!({ "session_id": session_id }))
             .await
         {
             if !is_method_not_found(&e) {
@@ -1114,7 +1457,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "explain_query",
-                json!({ "params": params, "query": query, "analyze": analyze, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "query": query, "analyze": analyze, "schema": schema }),
             )
             .await?;
         // Permanently support both historical parsed plans and raw payloads
@@ -1162,7 +1505,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
         max_blob_size: u64,
     ) -> Result<u64, String> {
-        let res = self.process.call("insert_record", json!({ "params": params, "table": table, "data": data, "schema": schema, "max_blob_size": max_blob_size })).await?;
+        let res = self.process.call("insert_record", json!({ "params": self.with_primary_database(params), "table": table, "data": data, "schema": schema, "max_blob_size": max_blob_size })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -1176,7 +1519,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
         max_blob_size: u64,
     ) -> Result<u64, String> {
-        let res = self.process.call("update_record", json!({ "params": params, "table": table, "pk_map": pk_map, "col_name": col_name, "new_val": new_val, "schema": schema, "max_blob_size": max_blob_size })).await?;
+        let res = self.process.call("update_record", json!({ "params": self.with_primary_database(params), "table": table, "pk_map": pk_map, "col_name": col_name, "new_val": new_val, "schema": schema, "max_blob_size": max_blob_size })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -1191,7 +1534,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "delete_record",
-                json!({ "params": params, "table": table, "pk_map": pk_map, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "pk_map": pk_map, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1210,10 +1553,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<(), String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "save_blob_to_file",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "table": table,
                     "col_name": col_name,
                     "pk_map": pk_map,
@@ -1227,7 +1570,7 @@ impl DatabaseDriver for RpcDriver {
             Err(e) if is_method_not_found(&e) => {
                 Err("BLOB file export not supported by this driver".into())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -1241,10 +1584,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<String, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "fetch_blob_as_data_url",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "table": table,
                     "col_name": col_name,
                     "pk_map": pk_map,
@@ -1257,8 +1600,36 @@ impl DatabaseDriver for RpcDriver {
             Err(e) if is_method_not_found(&e) => {
                 Err("BLOB preview not supported by this driver".into())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
+    }
+
+    async fn open_data_file(
+        &self,
+        params: &ConnectionParams,
+        path: &str,
+        format: &str,
+        table: &str,
+    ) -> Result<(), String> {
+        let supported = &self.manifest.capabilities.data_files;
+        if !supported.iter().any(|candidate| candidate == format) {
+            return Err(format!(
+                "The {} driver cannot open {format} data files",
+                self.manifest.name
+            ));
+        }
+        self.process
+            .call(
+                "open_data_file",
+                json!({
+                    "params": self.with_primary_database(params),
+                    "path": path,
+                    "format": format,
+                    "table": table,
+                }),
+            )
+            .await?;
+        Ok(())
     }
 
     async fn get_table_query_template(
@@ -1269,6 +1640,7 @@ impl DatabaseDriver for RpcDriver {
         if !self.manifest.capabilities.table_query_templates {
             return Ok(None);
         }
+        let params = self.with_primary_database(params);
         match self
             .process
             .call_detailed(
@@ -1280,6 +1652,32 @@ impl DatabaseDriver for RpcDriver {
             Ok(value) => serde_json::from_value::<String>(value)
                 .map(Some)
                 .map_err(|error| format!("Invalid table query template: {error}")),
+            Err(PluginCallError::Remote(error)) if error.code == -32601 => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    async fn get_column_stats(
+        &self,
+        params: &ConnectionParams,
+        request: &crate::models::ColumnStatsRequest,
+    ) -> Result<Option<crate::models::ColumnStatsResult>, String> {
+        if !self.manifest.capabilities.column_stats {
+            return Ok(None);
+        }
+        let params = self.with_primary_database(params);
+        match self
+            .process
+            .call_detailed(
+                "get_column_stats",
+                json!({ "params": params, "request": request }),
+            )
+            .await
+        {
+            Ok(value) => serde_json::from_value::<crate::models::ColumnStatsResult>(value)
+                .map_err(|error| format!("Invalid column statistics: {error}"))
+                .and_then(|result| crate::models::restrict_column_stats(result, request))
+                .map(Some),
             Err(PluginCallError::Remote(error)) if error.code == -32601 => Ok(None),
             Err(error) => Err(error.to_string()),
         }
@@ -1351,8 +1749,124 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         let params = self.connection_params.as_ref().unwrap_or(params);
-        let res = self.process.call("get_create_foreign_key_sql", json!({ "params": params, "table": table, "fk_name": fk_name, "column": column, "ref_table": ref_table, "ref_column": ref_column, "on_delete": on_delete, "on_update": on_update, "schema": schema })).await?;
+        let res = self.process.call("get_create_foreign_key_sql", json!({ "params": self.with_primary_database(params), "table": table, "fk_name": fk_name, "column": column, "ref_table": ref_table, "ref_column": ref_column, "on_delete": on_delete, "on_update": on_update, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    /// Optional RPC, only called when the manifest declares
+    /// `capabilities.drop_table_sql`. A -32601, a `null`/blank result or any
+    /// non-string result keeps the host's generic `DROP TABLE`. `database` is
+    /// the browsed database, also present in `params.database`, sent on its
+    /// own for convenience.
+    async fn get_drop_table_sql(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        if !self.manifest.capabilities.drop_table_sql {
+            return Ok(None);
+        }
+        let params = self.with_primary_database(params);
+        let database = params.database.primary().to_string();
+        let res = self
+            .process
+            .call_detailed(
+                "get_drop_table_sql",
+                json!({
+                    "params": params,
+                    "table": table,
+                    "schema": schema,
+                    "database": (!database.is_empty()).then_some(database),
+                }),
+            )
+            .await;
+        match res {
+            Ok(Value::String(sql)) => Ok(Some(sql).filter(|s| !s.trim().is_empty())),
+            Ok(Value::Null) => Ok(None),
+            Ok(other) => {
+                log::warn!(
+                    "Plugin '{}' returned a non-string get_drop_table_sql result ({}); using the generic DROP TABLE",
+                    self.manifest.id,
+                    json_kind(&other)
+                );
+                Ok(None)
+            }
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// Not yet part of the plugin RPC protocol — a plugin that hasn't added a
+    /// `get_table_ddl` handler surfaces this as a clear "method not
+    /// implemented" error from `self.process.call`, rather than the
+    /// "Unsupported driver" blanket rejection `dump_database` used to give
+    /// every plugin-based driver regardless of whether it could actually
+    /// help. See tabularis-postgresql-plugin for the tracked follow-up.
+    async fn get_table_ddl(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let params = self.connection_params.as_ref().unwrap_or(params);
+        let res = self
+            .process
+            .call(
+                "get_table_ddl",
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
+            )
+            .await?;
+        serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    /// Optional RPC method (#709): the table's approximate row count, for
+    /// the export dialog. A plugin without it (-32601) shows none.
+    async fn get_approximate_row_count(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        let params = self.connection_params.as_ref().unwrap_or(params);
+        let res = self
+            .process
+            .call_detailed(
+                "get_approximate_row_count",
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// Optional RPC method (#709): a plugin with non-standard literals
+    /// renders its own `INSERT` statements. A plugin without it (-32601)
+    /// gets the host renderer, driven by its manifest capabilities.
+    async fn render_insert_statements(
+        &self,
+        table: &str,
+        schema: Option<&str>,
+        columns: &[String],
+        rows: &[Vec<serde_json::Value>],
+    ) -> Result<Option<Vec<String>>, String> {
+        let res = self
+            .process
+            .call_detailed(
+                "render_insert_statements",
+                json!({ "table": table, "schema": schema, "columns": columns, "rows": rows }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v)
+                .map(Some)
+                .map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
     }
 
     async fn drop_index(
@@ -1362,7 +1876,7 @@ impl DatabaseDriver for RpcDriver {
         index_name: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        self.process.call("drop_index", json!({ "params": params, "table": table, "index_name": index_name, "schema": schema })).await?;
+        self.process.call("drop_index", json!({ "params": self.with_primary_database(params), "table": table, "index_name": index_name, "schema": schema })).await?;
         Ok(())
     }
 
@@ -1376,7 +1890,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "drop_foreign_key",
-                json!({ "params": params, "table": table, "fk_name": fk_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "fk_name": fk_name, "schema": schema }),
             )
             .await?;
         Ok(())
@@ -1391,7 +1905,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_triggers",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1409,7 +1923,10 @@ impl DatabaseDriver for RpcDriver {
     async fn get_db_users(&self, params: &ConnectionParams) -> Result<Vec<DbUserInfo>, String> {
         let res = self
             .process
-            .call("get_db_users", json!({ "params": params }))
+            .call(
+                "get_db_users",
+                json!({ "params": self.with_primary_database(params) }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -1424,7 +1941,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_db_user_grants",
-                json!({ "params": params, "user": user, "host": host }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1440,7 +1957,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "create_db_user",
-                json!({ "params": params, "user": user, "host": host, "password": password }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host, "password": password }),
             )
             .await?;
         Ok(())
@@ -1455,7 +1972,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "drop_db_user",
-                json!({ "params": params, "user": user, "host": host }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host }),
             )
             .await?;
         Ok(())
@@ -1471,7 +1988,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "set_db_user_password",
-                json!({ "params": params, "user": user, "host": host, "password": password }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host, "password": password }),
             )
             .await?;
         Ok(())
@@ -1487,7 +2004,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_db_user_privileges",
-                json!({ "params": params, "user": user, "host": host }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1507,7 +2024,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "apply_db_user_privileges",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "user": user,
                     "host": host,
                     "database": database,
@@ -1532,7 +2049,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "get_trigger_definition",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "trigger_name": trigger_name,
                     "table_name": table_name,
                     "schema": schema
@@ -1551,7 +2068,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "create_trigger",
-                json!({ "params": params, "trigger_sql": trigger_sql, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "trigger_sql": trigger_sql, "schema": schema }),
             )
             .await?;
         Ok(())
@@ -1568,7 +2085,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "drop_trigger",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "trigger_name": trigger_name,
                     "table_name": table_name,
                     "schema": schema
@@ -1585,12 +2102,37 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<TableSchema>, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_schema_snapshot",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
-            .await?;
-        serde_json::from_value(res).map_err(|e| e.to_string())
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                // The plugin doesn't implement this batch RPC (the
+                // PostgreSQL plugin doesn't as of this writing — followed
+                // up separately). Unlike get_materialized_views' empty-Vec
+                // fallback above, an empty schema here would be actively
+                // misleading (it reads as "this schema has no tables", not
+                // "this driver has no fast batch endpoint"), so compose the
+                // same shape from get_tables/get_columns/get_foreign_keys
+                // instead, which the plugin does implement.
+                let tables = self.get_tables(params, schema).await?;
+                let mut snapshot = Vec::with_capacity(tables.len());
+                for table in tables {
+                    let columns = self.get_columns(params, &table.name, schema).await?;
+                    let foreign_keys = self.get_foreign_keys(params, &table.name, schema).await?;
+                    snapshot.push(TableSchema {
+                        name: table.name,
+                        columns,
+                        foreign_keys,
+                    });
+                }
+                Ok(snapshot)
+            }
+            Err(e) => Err(e.to_string()),
+        }
     }
 
     async fn get_ai_schema_context(
@@ -1601,10 +2143,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<AiSchemaContext, String> {
         match self
             .process
-            .call(
+            .call_detailed(
                 "get_ai_schema_context",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "schema": schema,
                     "max_tables": max_tables,
                 }),
@@ -1615,7 +2157,7 @@ impl DatabaseDriver for RpcDriver {
             Err(error) if is_method_not_found(&error) => {
                 crate::ai_schema_context::load_from_driver(self, params, schema, max_tables).await
             }
-            Err(error) => Err(error),
+            Err(error) => Err(error.to_string()),
         }
     }
 
@@ -1628,7 +2170,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_all_columns_batch",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1643,7 +2185,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_all_foreign_keys_batch",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1676,10 +2218,15 @@ pub(crate) fn test_manifest() -> PluginManifest {
         settings: Vec::new(),
         ui_extensions: None,
         explain_parsers: None,
+        connection_fields: None,
         type_mappings: HashMap::new(),
         deprecated: None,
     }
 }
+
+#[cfg(test)]
+#[path = "driver_resilience_tests.rs"]
+mod resilience_tests;
 
 /// Builds a fake, in-memory `RpcDriver` backed by `handle_request` instead of
 /// a real subprocess, with `connection_metadata` disabled. `pub(crate)` so
@@ -1717,9 +2264,74 @@ where
         manifest: test_manifest(),
         process: Arc::new(PluginProcess {
             plugin_id: "test-plugin".to_string(),
+            route_selected_database: true,
             sender: tx,
             next_id: AtomicU64::new(1),
+            accepting_calls: std::sync::atomic::AtomicBool::new(true),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+            manager_task: tokio::sync::Mutex::new(None),
+            pid: None,
+            initialization_settings: None,
+            initialized: OnceCell::new(),
+        }),
+        data_types: Vec::new(),
+        connection_metadata: false,
+        metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+        connection_params: None,
+    }
+}
+
+/// Like [`test_driver_result`], with the plugin's own manifest: its id is
+/// the driver id connections use, and its capabilities drive the host.
+#[cfg(test)]
+pub(crate) fn test_driver_with_manifest<F>(manifest: PluginManifest, handle_request: F) -> RpcDriver
+where
+    F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
+{
+    RpcDriver {
+        manifest,
+        ..test_driver_result(handle_request)
+    }
+}
+
+/// Like [`test_driver_result`], but lets the handler return a raw
+/// [`PluginCallError`] instead of always getting wrapped into `Transport` —
+/// needed to simulate a real JSON-RPC `Remote` error (with a `code`) for
+/// tests that must distinguish it from a transport-level failure, e.g.
+/// `is_method_not_found` matching on the code rather than the message text.
+#[cfg(test)]
+pub(crate) fn test_driver_detailed<F>(mut handle_request: F) -> RpcDriver
+where
+    F: FnMut(JsonRpcRequest) -> Result<Value, PluginCallError> + Send + 'static,
+{
+    let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
+    tokio::spawn(async move {
+        while let Some(command) = rx.recv().await {
+            if let PluginCommand::Call(request, response_tx) = command {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    handle_request(request)
+                }))
+                .unwrap_or_else(|_| {
+                    Err(PluginCallError::Transport(
+                        "request assertion failed".to_string(),
+                    ))
+                });
+                let _ = response_tx.send(result);
+            }
+        }
+    });
+
+    let (shutdown_tx, _shutdown_rx) = oneshot::channel();
+    RpcDriver {
+        manifest: test_manifest(),
+        process: Arc::new(PluginProcess {
+            plugin_id: "test-plugin".to_string(),
+            sender: tx,
+            next_id: AtomicU64::new(1),
+            route_selected_database: false,
+            accepting_calls: std::sync::atomic::AtomicBool::new(true),
+            shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+            manager_task: tokio::sync::Mutex::new(None),
             pid: None,
             initialization_settings: None,
             initialized: OnceCell::new(),
@@ -1743,8 +2355,263 @@ pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver 
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn syncing_settings_keeps_the_process_available() {
+        use super::*;
+        use crate::drivers::driver_trait::DatabaseDriver;
+        let driver = test_driver(|request| {
+            if request.method == "initialize" {
+                assert_eq!(request.params["settings"]["access_token"], "new-token");
+            }
+            serde_json::Value::Null
+        });
+        driver
+            .sync_plugin_settings(HashMap::from([(
+                "access_token".to_string(),
+                serde_json::json!("new-token"),
+            )]))
+            .await
+            .unwrap();
+        driver
+            .process
+            .call("ping", serde_json::json!({}))
+            .await
+            .unwrap();
+    }
     use super::*;
     use crate::models::DatabaseSelection;
+    use crate::plugins::rpc::JsonRpcError;
+    #[test]
+    fn dropped_response_reports_shutdown_on_abort_path() {
+        let shutdown_error = dropped_plugin_response_error(true).to_string();
+        assert!(shutdown_error.contains("Plugin shutdown grace period elapsed"));
+        assert_eq!(
+            dropped_plugin_response_error(false).to_string(),
+            "Plugin process did not respond"
+        );
+    }
+
+    #[test]
+    fn selected_plugin_database_routing_only_changes_multi_database_requests() {
+        let mut multi = json!({
+            "params": { "driver": "redis-rust", "database": ["0", "3"] },
+            "schema": "3",
+            "query": "GET example"
+        });
+        route_selected_plugin_database(&mut multi);
+        assert_eq!(multi["params"]["database"], "3");
+        assert_eq!(multi["schema"], "3");
+
+        for input in [
+            json!({ "params": { "database": ["0", "3"] }, "schema": null }),
+            json!({ "params": { "database": ["0", "3"] }, "schema": "other" }),
+            json!({ "params": { "database": "0" }, "schema": "3" }),
+            json!({ "params": { "database": ["3"] }, "schema": "3" }),
+            json!({ "params": { "database": ["0", "3"] }, "schema": "public" }),
+        ] {
+            let mut routed = input.clone();
+            route_selected_plugin_database(&mut routed);
+            assert_eq!(routed, input);
+        }
+    }
+
+    #[tokio::test]
+    async fn rpc_schema_aware_plugin_preserves_multi_database_parameters() {
+        let mut driver = test_driver(|req| {
+            assert_eq!(req.params["schema"], "sales");
+            // with_primary_database flattens Multiple to the primary (first)
+            // for schema-based plugins; route_selected_database is false so
+            // route_selected_plugin_database does not run.
+            assert_eq!(req.params["params"]["database"], "sales");
+            json!([])
+        });
+        // SQL Server-style drivers declare schemas; a schema can share a
+        // database name without changing the connection's database selection.
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+        let mut params = test_connection_params();
+        params.database =
+            DatabaseSelection::Multiple(vec!["sales".to_string(), "analytics".to_string()]);
+        assert!(driver
+            .get_tables(&params, Some("sales"))
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn rpc_schema_aware_query_keeps_database_list_on_name_collision() {
+        let mut driver = test_driver(|req| {
+            assert_eq!(req.method, "execute_query");
+            assert_eq!(req.params["schema"], "sales");
+            // with_primary_database flattens Multiple to the primary (first)
+            // for schema-based plugins; route_selected_database is false so
+            // route_selected_plugin_database does not run.
+            assert_eq!(
+                req.params["params"]["database"], "sales",
+                "a SQL schema with the same name as a database must not select it"
+            );
+            json!({
+                "columns": ["id"],
+                "rows": [[1]],
+                "affected_rows": 0,
+                "pagination": null
+            })
+        });
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec!["sales".into(), "analytics".into()]);
+        let (result, _) = driver
+            .execute_query_in_session(
+                &params,
+                "SELECT id FROM sales.orders",
+                None,
+                1,
+                Some("sales"),
+                None,
+            )
+            .await
+            .expect("schema-aware SQL query");
+        assert_eq!(result.rows, vec![vec![json!(1)]]);
+    }
+
+    #[tokio::test]
+    async fn rpc_selected_database_reaches_metadata_query_and_batch_sessions() {
+        let driver = test_driver(|req| {
+            assert_eq!(
+                req.params["schema"], "3",
+                "selection must still be available"
+            );
+            assert_eq!(
+                req.params["params"]["database"], "3",
+                "selected DB must be scalar"
+            );
+            match req.method.as_str() {
+                "get_tables" => json!([]),
+                "execute_query" => json!({
+                    "columns": ["key"], "rows": [["db3-key"]],
+                    "affected_rows": 0, "pagination": null
+                }),
+                "execute_query_batch" => json!([]),
+                unexpected => panic!("unexpected RPC: {unexpected}"),
+            }
+        });
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec!["0".to_string(), "3".to_string()]);
+
+        assert!(driver
+            .get_tables(&params, Some("3"))
+            .await
+            .unwrap()
+            .is_empty());
+        let (query_result, _in_tx) = driver
+            .execute_query_in_session(
+                &params,
+                "GET db3-key",
+                None,
+                1,
+                Some("3"),
+                Some("db3-session"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(query_result.rows.len(), 1);
+        let (results, _in_tx) = driver
+            .execute_batch_in_session(
+                &params,
+                &["GET db3-key".to_string()],
+                None,
+                1,
+                Some("3"),
+                Some("db3-session"),
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(results.is_empty());
+    }
+
+    // Simulate the redis-rust selection behavior: DB 0 has no keys, DB 3
+    // contains a key. Querying through a multi-DB connection must select the
+    // requested database, not the first database in the connection list.
+    #[tokio::test]
+    async fn rpc_selected_database_query_uses_db3_instead_of_db0() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_query");
+            let selected = request.params["params"]["database"]
+                .as_str()
+                .expect("plugin must receive a scalar database");
+            let rows = if selected == "3" {
+                json!([["db3-only-key"]])
+            } else {
+                json!([])
+            };
+            json!({
+                "columns": ["key"],
+                "rows": rows,
+                "affected_rows": 0,
+                "pagination": null
+            })
+        });
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec!["0".into(), "3".into()]);
+
+        let (db0, _) = driver
+            .execute_query_in_session(&params, "KEYS *", None, 1, Some("0"), None)
+            .await
+            .expect("DB 0 query");
+        let (db3, _) = driver
+            .execute_query_in_session(&params, "KEYS *", None, 1, Some("3"), None)
+            .await
+            .expect("DB 3 query");
+        assert!(db0.rows.is_empty(), "DB 0 must be empty");
+        assert_eq!(db3.rows, vec![vec![json!("db3-only-key")]]);
+    }
+
+    #[tokio::test]
+    async fn rpc_non_session_batch_uses_selected_database() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_query_batch");
+            assert_eq!(request.params["params"]["database"], "3");
+            assert_eq!(request.params["schema"], "3");
+            json!([])
+        });
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec!["0".into(), "3".into()]);
+
+        let results = driver
+            .execute_batch(
+                &params,
+                &["GET db3-only-key".to_string()],
+                None,
+                1,
+                Some("3"),
+                None,
+            )
+            .await
+            .expect("batch request");
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn rpc_single_database_plugin_request_is_not_rewritten() {
+        let driver = test_driver(|req| {
+            assert_eq!(req.method, "get_tables");
+            assert_eq!(req.params["params"]["database"], "0");
+            assert_eq!(req.params["schema"], "3");
+            json!([])
+        });
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single("0".to_string());
+        assert!(driver
+            .get_tables(&params, Some("3"))
+            .await
+            .unwrap()
+            .is_empty());
+    }
 
     fn test_connection_params() -> ConnectionParams {
         ConnectionParams {
@@ -1756,6 +2623,7 @@ mod tests {
             connection_uri: None,
             connection_uri_in_keychain: None,
             database: DatabaseSelection::Single("db".to_string()),
+            default_database: None,
             ssl_mode: None,
             ssl_ca: None,
             ssl_cert: None,
@@ -1786,6 +2654,9 @@ mod tests {
             ssm_profile: None,
             ssm_region: None,
             startup_script: None,
+            pooler_mode: None,
+            connect_timeout_secs: None,
+            query_timeout_secs: None,
             use_iam_auth: None,
             extra: HashMap::new(),
             connection_id: Some("conn-1".to_string()),
@@ -2186,7 +3057,8 @@ mod tests {
 
     #[test]
     fn parse_session_error_reads_a_failed_statement_and_its_state() {
-        let failed = serde_json::json!({ "error": "deferred FK violated", "in_transaction": false });
+        let failed =
+            serde_json::json!({ "error": "deferred FK violated", "in_transaction": false });
         assert_eq!(
             parse_session_error(&failed),
             Some(("deferred FK violated".to_string(), false))
@@ -2447,14 +3319,7 @@ mod tests {
 
         let pk_map = HashMap::new();
         let result = driver
-            .save_blob_to_file(
-                &test_connection_params(),
-                "t",
-                "c",
-                &pk_map,
-                None,
-                "/tmp/x",
-            )
+            .save_blob_to_file(&test_connection_params(), "t", "c", &pk_map, None, "/tmp/x")
             .await;
 
         assert!(result.is_err());
@@ -2543,6 +3408,194 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rpc_driver_get_approximate_row_count_falls_back_when_method_missing() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "get_approximate_row_count");
+            Err("Method not found (-32601)".to_string())
+        });
+
+        let count = driver
+            .get_approximate_row_count(&test_connection_params(), "users", None)
+            .await
+            .expect("a missing method means no estimate");
+
+        assert_eq!(count, None);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_approximate_row_count_forwards_the_estimate() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "get_approximate_row_count");
+            assert_eq!(request.params["table"], "users");
+            assert_eq!(request.params["schema"], "dbo");
+            Ok(json!(128400))
+        });
+
+        let count = driver
+            .get_approximate_row_count(&test_connection_params(), "users", Some("dbo"))
+            .await
+            .expect("the plugin returns its estimate");
+        assert_eq!(count, Some(128400));
+
+        let none = test_driver_result(|_| Ok(json!(null)))
+            .get_approximate_row_count(&test_connection_params(), "users", None)
+            .await
+            .expect("null means no estimate");
+        assert_eq!(none, None);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_approximate_row_count_reports_other_errors() {
+        let driver = test_driver_result(|_| Err("boom".to_string()));
+
+        let result = driver
+            .get_approximate_row_count(&test_connection_params(), "users", None)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_falls_back_when_method_missing() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            Err("Method not found (-32601)".to_string())
+        });
+
+        let rendered = driver
+            .render_insert_statements("users", None, &["id".to_string()], &[vec![json!(1)]])
+            .await
+            .expect("a missing method falls back to the host renderer");
+
+        assert!(rendered.is_none());
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_forwards_the_batch() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            assert_eq!(request.params["table"], "users");
+            assert_eq!(request.params["schema"], "dbo");
+            assert_eq!(request.params["columns"], json!(["id", "name"]));
+            assert_eq!(request.params["rows"], json!([[1, "Ann"], [2, null]]));
+            Ok(json!([
+                "INSERT INTO [users] ([id], [name]) VALUES (1, N'Ann'), (2, NULL);"
+            ]))
+        });
+
+        let rendered = driver
+            .render_insert_statements(
+                "users",
+                Some("dbo"),
+                &["id".to_string(), "name".to_string()],
+                &[vec![json!(1), json!("Ann")], vec![json!(2), json!(null)]],
+            )
+            .await
+            .expect("the plugin renders the batch");
+
+        assert_eq!(
+            rendered,
+            Some(vec![
+                "INSERT INTO [users] ([id], [name]) VALUES (1, N'Ann'), (2, NULL);".to_string()
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_render_insert_statements_reports_other_errors() {
+        let driver = test_driver_result(|_| Err("boom".to_string()));
+
+        let result = driver
+            .render_insert_statements("users", None, &["id".to_string()], &[vec![json!(1)]])
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    /// Regression: the ER diagram against a plugin lacking `get_schema_snapshot`
+    /// (the PostgreSQL plugin, as of this writing) rendered a silently blank
+    /// canvas — the batch RPC failed with "method not found" and there was
+    /// no fallback, unlike get_materialized_views above. Unlike that one, an
+    /// empty-Vec fallback here would be actively misleading ("no tables"
+    /// instead of "no fast batch endpoint"), so this composes the same shape
+    /// from get_tables/get_columns/get_foreign_keys instead.
+    #[tokio::test]
+    async fn rpc_driver_get_schema_snapshot_falls_back_to_composed_metadata_when_method_missing() {
+        let driver = test_driver_result(|request| match request.method.as_str() {
+            "get_schema_snapshot" => Err("Method not found (-32601)".to_string()),
+            "get_tables" => Ok(json!([{ "name": "products" }])),
+            "get_columns" => Ok(json!([
+                { "name": "id", "data_type": "integer", "is_pk": true, "is_nullable": false, "is_auto_increment": true },
+            ])),
+            "get_foreign_keys" => Ok(json!([
+                { "name": "fk_products_category", "column_name": "category_id", "ref_table": "categories", "ref_column": "id" },
+            ])),
+            other => panic!("unexpected method: {other}"),
+        });
+
+        let snapshot = driver
+            .get_schema_snapshot(&test_connection_params(), Some("public"))
+            .await
+            .expect("fallback composes a snapshot from get_tables/get_columns/get_foreign_keys");
+
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot[0].name, "products");
+        assert_eq!(snapshot[0].columns.len(), 1);
+        assert_eq!(snapshot[0].columns[0].name, "id");
+        assert_eq!(snapshot[0].foreign_keys.len(), 1);
+        assert_eq!(snapshot[0].foreign_keys[0].ref_table, "categories");
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_schema_snapshot_falls_back_on_the_json_rpc_code_not_the_message_text() {
+        // Regression: is_method_not_found used to check only the
+        // stringified error, but PluginCallError's Display never writes the
+        // JSON-RPC code (only the message) — a plugin returning a real
+        // -32601 with any message other than the English "method not
+        // found" would silently skip this fallback, and the ER diagram
+        // would show an error instead of composing from get_tables/
+        // get_columns/get_foreign_keys.
+        let driver = test_driver_detailed(|request| match request.method.as_str() {
+            "get_schema_snapshot" => Err(PluginCallError::Remote(JsonRpcError {
+                code: -32601,
+                message: "Méthode inconnue".to_string(),
+            })),
+            "get_tables" => Ok(json!([{ "name": "products" }])),
+            "get_columns" => Ok(json!([
+                { "name": "id", "data_type": "integer", "is_pk": true, "is_nullable": false, "is_auto_increment": true },
+            ])),
+            "get_foreign_keys" => Ok(json!([])),
+            other => panic!("unexpected method: {other}"),
+        });
+
+        let snapshot = driver
+            .get_schema_snapshot(&test_connection_params(), Some("public"))
+            .await
+            .expect("fallback must trigger on the JSON-RPC code, not the message text");
+
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot[0].name, "products");
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_schema_snapshot_does_not_fall_back_on_a_different_remote_error_code() {
+        // A structured error that isn't -32601 must still propagate as a
+        // real failure, not be swallowed as "method not found".
+        let driver = test_driver_detailed(|_| {
+            Err(PluginCallError::Remote(JsonRpcError {
+                code: -32000,
+                message: "connection lost".to_string(),
+            }))
+        });
+
+        let result = driver
+            .get_schema_snapshot(&test_connection_params(), Some("public"))
+            .await;
+
+        assert_eq!(result.unwrap_err(), "connection lost");
+    }
+
+    #[tokio::test]
     async fn rpc_driver_forwards_get_materialized_view_columns() {
         let driver = test_driver(|request| {
             assert_eq!(request.method, "get_materialized_view_columns");
@@ -2552,11 +3605,7 @@ mod tests {
         });
 
         let cols = driver
-            .get_materialized_view_columns(
-                &test_connection_params(),
-                "mv_sales",
-                Some("public"),
-            )
+            .get_materialized_view_columns(&test_connection_params(), "mv_sales", Some("public"))
             .await
             .expect("get_materialized_view_columns");
 
@@ -2588,11 +3637,7 @@ mod tests {
         });
 
         let def = driver
-            .get_materialized_view_definition(
-                &test_connection_params(),
-                "mv_sales",
-                Some("public"),
-            )
+            .get_materialized_view_definition(&test_connection_params(), "mv_sales", Some("public"))
             .await
             .expect("get_materialized_view_definition");
 
@@ -2666,9 +3711,12 @@ mod tests {
             manifest,
             process: Arc::new(PluginProcess {
                 plugin_id: "test-plugin".to_string(),
+                route_selected_database: false,
                 sender: tx,
                 next_id: AtomicU64::new(1),
+                accepting_calls: std::sync::atomic::AtomicBool::new(true),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+                manager_task: tokio::sync::Mutex::new(None),
                 pid: None,
                 initialization_settings: None,
                 initialized: OnceCell::new(),
@@ -2698,9 +3746,12 @@ mod tests {
             manifest: test_manifest(), // empty type_mappings
             process: Arc::new(PluginProcess {
                 plugin_id: "test-plugin".to_string(),
+                route_selected_database: false,
                 sender: tx,
                 next_id: AtomicU64::new(1),
+                accepting_calls: std::sync::atomic::AtomicBool::new(true),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+                manager_task: tokio::sync::Mutex::new(None),
                 pid: None,
                 initialization_settings: None,
                 initialized: OnceCell::new(),
@@ -2714,11 +3765,411 @@ mod tests {
         assert_eq!(driver.map_inferred_type("DATETIME"), "DATETIME");
         assert_eq!(driver.map_inferred_type("JSON"), "JSON");
     }
+
+    #[tokio::test]
+    async fn with_primary_database_coerces_multiple_to_first_selected() {
+        let mut driver = test_driver(|_| json!(true));
+        // Schema-based plugins (route_selected_database = false) flatten
+        // Multiple to Single(primary) so the pool connects to one database.
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "tabularis_pr822_demo");
+        assert!(matches!(coerced.database, DatabaseSelection::Single(_)));
+    }
+
+    #[tokio::test]
+    async fn with_primary_database_leaves_single_database_unchanged() {
+        let driver = test_driver(|_| json!(true));
+        let params = test_connection_params(); // database: Single("db")
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "db");
+    }
+
+    /// Non-Postgres engines have no known maintenance database, so an empty
+    /// selection is left as-is — the plugin owns whatever default makes
+    /// sense for it.
+    #[tokio::test]
+    async fn with_primary_database_leaves_empty_selection_alone_for_unknown_engines() {
+        let driver = test_driver(|_| json!(true)); // test_manifest() -> engine: None
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "");
+    }
+
+    /// Regression test: "All databases" mode (the *default* radio selection
+    /// in the Databases tab) persists `database` as `Single("")`. Postgres
+    /// pool creation (deadpool-postgres) rejects both a missing AND an
+    /// empty dbname, so this must fall back to the "postgres" maintenance
+    /// database — the same convention the built-in Postgres driver already
+    /// uses for `get_databases` (`drivers/postgres/mod.rs`).
+    #[tokio::test]
+    async fn with_primary_database_falls_back_to_postgres_maintenance_db_for_postgresql_engine() {
+        let mut driver = test_driver(|_| json!(true));
+        driver.manifest.engine = Some("postgresql".to_string());
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "postgres");
+    }
+
+    /// Same fallback for an empty `Multiple` selection (belt-and-suspenders;
+    /// today's UI never persists an empty array, but `primary()` treats it
+    /// identically to `Single("")`).
+    #[tokio::test]
+    async fn with_primary_database_falls_back_to_postgres_maintenance_db_for_empty_multiple() {
+        let mut driver = test_driver(|_| json!(true));
+        driver.manifest.engine = Some("postgres".to_string());
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![]);
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "postgres");
+    }
+
+    /// "All databases" on a plugin that asked for a database on the Databases
+    /// tab (`connection_fields.database`): the plugin gets the connection's
+    /// `default_database`, e.g. the `namespace/database` a SurrealDB user
+    /// signs in to, for an empty `Single` and an empty `Multiple` alike.
+    #[tokio::test]
+    async fn with_primary_database_sends_default_database_when_none_is_selected() {
+        let driver = test_driver(|_| json!(true)); // route_selected_database = true
+        let mut params = test_connection_params();
+        params.default_database = Some(" app/main ".to_string());
+
+        params.database = DatabaseSelection::Single(String::new());
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "app/main"
+        );
+
+        params.database = DatabaseSelection::Multiple(vec![]);
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "app/main"
+        );
+    }
+
+    /// `default_database` only stands in while no database is selected: a
+    /// selected one, or a multi-database selection still to be routed, wins.
+    #[tokio::test]
+    async fn with_primary_database_prefers_a_selected_database_over_default_database() {
+        let driver = test_driver(|_| json!(true));
+        let mut params = test_connection_params(); // database: Single("db")
+        params.default_database = Some("app".to_string());
+
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "db"
+        );
+
+        let selection = DatabaseSelection::Multiple(vec!["app/logs".into(), "app/main".into()]);
+        params.database = selection.clone();
+        assert_eq!(driver.with_primary_database(&params).database, selection);
+    }
+
+    /// It also comes before an engine's maintenance database, and a blank
+    /// one is ignored.
+    #[tokio::test]
+    async fn with_primary_database_prefers_default_database_over_the_maintenance_db() {
+        let mut driver = test_driver(|_| json!(true));
+        driver.manifest.engine = Some("postgresql".to_string());
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        params.default_database = Some("analytics".to_string());
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "analytics"
+        );
+
+        params.default_database = Some("   ".to_string());
+        assert_eq!(
+            driver.with_primary_database(&params).database.primary(),
+            "postgres"
+        );
+    }
+
+    /// Regression: a PostgreSQL-plugin connection saved with "Choose
+    /// databases" (multi-db opt-in) persists `database` as
+    /// `DatabaseSelection::Multiple(...)`,
+    /// which serializes to a bare JSON array. The plugin's
+    /// `database: Option<String>` field can't represent an array, so an
+    /// un-coerced `test_connection`/`ping` call silently resolved to `None`
+    /// on the plugin side and pool creation failed with a missing-dbname
+    /// error — even though the connection itself was perfectly valid.
+    #[tokio::test]
+    async fn rpc_driver_test_connection_sends_primary_database_for_multi_db_opt_in() {
+        let mut driver = test_driver(|request| {
+            assert_eq!(request.method, "test_connection");
+            // The plugin must see a plain string, never a JSON array.
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!(true)
+        });
+        // Schema-based plugin: with_primary_database flattens Multiple to primary.
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .test_connection(&params)
+            .await
+            .expect("test_connection must succeed once database is coerced to a string");
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_ping_sends_primary_database_for_multi_db_opt_in() {
+        let mut driver = test_driver(|request| {
+            assert_eq!(request.method, "ping");
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!(true)
+        });
+        // Schema-based plugin: with_primary_database flattens Multiple to primary.
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .ping(&params)
+            .await
+            .expect("ping must succeed once database is coerced to a string");
+    }
+
+    /// Regression test: upstream's session-pinning feature (merged into this
+    /// branch) added `execute_query_in_session`'s plugin RPC call with a raw
+    /// `params` — the same un-coerced-database bug `with_primary_database`
+    /// exists to prevent everywhere else in this file. A multi-db opt-in
+    /// connection's `Multiple(...)` selection would reach the plugin as a
+    /// bare JSON array on this path too.
+    #[tokio::test]
+    async fn rpc_driver_execute_query_in_session_sends_primary_database_for_multi_db_opt_in() {
+        let mut driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_query");
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!({ "columns": [], "rows": [], "affected_rows": 0 })
+        });
+        // Schema-based plugin: with_primary_database flattens Multiple to primary.
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .execute_query_in_session(&params, "SELECT 1", None, 1, None, None)
+            .await
+            .expect("execute_query_in_session must succeed once database is coerced to a string");
+    }
+
+    /// Same regression, for `execute_batch_in_session`'s plugin RPC call.
+    #[tokio::test]
+    async fn rpc_driver_execute_batch_in_session_sends_primary_database_for_multi_db_opt_in() {
+        let mut driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_query_batch");
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!([{ "result": { "columns": [], "rows": [], "affected_rows": 0 }, "error": null }])
+        });
+        // Schema-based plugin: with_primary_database flattens Multiple to primary.
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .execute_batch_in_session(
+                &params,
+                &["SELECT 1".to_string()],
+                None,
+                1,
+                None,
+                None,
+                None,
+            )
+            .await
+            .expect("execute_batch_in_session must succeed once database is coerced to a string");
+    }
+
+    /// Regression test: `for_connection`'s metadata snapshot stored the raw
+    /// `params.clone()` as `connection_params`, which `call_with_connection`
+    /// injects verbatim into SQL-building RPCs (create-table/column/index/FK
+    /// DDL templates). A multi-db opt-in connection's `Multiple(...)`
+    /// selection would reach the plugin as a bare JSON array, exactly the
+    /// bug `with_primary_database` exists to prevent elsewhere.
+    #[tokio::test]
+    async fn for_connection_snapshot_coerces_database_for_sql_building_rpcs() {
+        let mut driver = test_driver(|request| match request.method.as_str() {
+            "get_connection_metadata" => json!({}),
+            "routine_create_template" => {
+                assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+                json!("CREATE FUNCTION my_routine() BEGIN END")
+            }
+            other => panic!("unexpected method {other}"),
+        })
+        .with_connection_metadata(true);
+        // Schema-based plugin: with_primary_database flattens Multiple to primary.
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        let snapshot = driver.for_connection(&params).await.unwrap().unwrap();
+        let sql = snapshot
+            .routine_create_template("FUNCTION", Some("public"))
+            .await
+            .expect("routine_create_template must succeed once database is coerced to a string");
+        assert_eq!(sql, "CREATE FUNCTION my_routine() BEGIN END");
+    }
+
+    /// Regression test for the more severe sibling of the same bug: "All
+    /// databases" is the *default* radio selection in the Databases tab and
+    /// persists `database` as `Single("")`. Without the maintenance-db
+    /// fallback, every plugin-backed Postgres connection saved with the
+    /// default database mode would fail to connect at all.
+    #[tokio::test]
+    async fn rpc_driver_test_connection_falls_back_to_postgres_for_all_databases_mode() {
+        let mut driver = test_driver(|request| {
+            assert_eq!(request.method, "test_connection");
+            assert_eq!(request.params["params"]["database"], "postgres");
+            json!(true)
+        });
+        driver.manifest.engine = Some("postgresql".to_string());
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        driver
+            .test_connection(&params)
+            .await
+            .expect("test_connection must fall back to the postgres maintenance db");
+    }
+
+    /// Regression test for #822's second recurrence of the same bug: dropping
+    /// a table in the nested multi-db tree triggered a schema refresh that
+    /// omitted the per-call `database` override, sending the connection's raw
+    /// `Multiple(...)` straight to the plugin and crashing the whole
+    /// connection's sidebar with "Pool creation failed". `get_schemas` (and
+    /// every other RPC in this impl — see `with_primary_database`'s doc
+    /// comment) must coerce it the same way `ping`/`test_connection` already
+    /// did, so a gap like that degrades to the primary database instead of
+    /// crashing.
+    #[tokio::test]
+    async fn rpc_driver_get_schemas_coerces_multi_db_opt_in_when_no_override_is_applied() {
+        let mut driver = test_driver(|request| {
+            assert_eq!(request.method, "get_schemas");
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!(["public"])
+        });
+        // Schema-based plugin: with_primary_database flattens Multiple to primary.
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .get_schemas(&params)
+            .await
+            .expect("get_schemas must succeed once database is coerced to a string");
+    }
+
+    /// Connecting in "All databases" mode first lists the databases: the
+    /// plugin must get the connection's `default_database` there, or a
+    /// SurrealDB namespace or database user cannot sign in to list them.
+    #[tokio::test]
+    async fn rpc_driver_get_databases_sends_default_database_for_all_databases_mode() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "get_databases");
+            assert_eq!(request.params["params"]["database"], "app/main");
+            json!(["app/main"])
+        });
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+        params.default_database = Some("app/main".to_string());
+
+        let databases = driver
+            .get_databases(&params)
+            .await
+            .expect("get_databases must send the connection's default_database");
+        assert_eq!(databases, vec!["app/main".to_string()]);
+    }
+
+    /// Same coverage as above but for the "all databases" default mode
+    /// (`Single("")`), and for `get_tables` — the other half of the
+    /// drop-table repro's actual call chain (`refreshTables` calls
+    /// `get_tables`, not `get_schemas`, without a database override).
+    #[tokio::test]
+    async fn rpc_driver_get_tables_falls_back_to_postgres_for_all_databases_mode() {
+        let mut driver = test_driver(|request| {
+            assert_eq!(request.method, "get_tables");
+            assert_eq!(request.params["params"]["database"], "postgres");
+            json!([])
+        });
+        driver.manifest.engine = Some("postgresql".to_string());
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        driver
+            .get_tables(&params, None)
+            .await
+            .expect("get_tables must fall back to the postgres maintenance db");
+    }
 }
 
 #[cfg(test)]
 #[path = "table_query_template_tests.rs"]
 mod table_query_template_tests;
+
+#[cfg(test)]
+#[path = "column_stats_tests.rs"]
+mod column_stats_tests;
 
 #[cfg(test)]
 #[path = "startup_tests.rs"]
@@ -2727,3 +4178,11 @@ mod startup_tests;
 #[cfg(test)]
 #[path = "cancel_tests.rs"]
 mod cancel_tests;
+
+#[cfg(test)]
+#[path = "ddl_context_tests.rs"]
+mod ddl_context_tests;
+
+#[cfg(all(test, unix))]
+#[path = "process_exit_tests.rs"]
+mod process_exit_tests;

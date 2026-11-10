@@ -24,6 +24,14 @@ where
 {
     if let Some(id) = session_id {
         let mut slot = super::session::lock(id).await;
+        // A pinned connection belongs to one transaction on one database. If the
+        // tab has switched databases since opening it, exporting on the pinned
+        // connection would silently stream rows from the old database. Reject
+        // before borrowing the client so the pinned session (and its open
+        // transaction) is left intact — the user can switch back or end the
+        // transaction and retry. Mirrors the guard in `execute_batch_in_session`.
+        let requested_db = params.database.primary();
+        super::session::check_pinned_database(slot.database(), requested_db, "export")?;
         if let Some(client) = slot.client() {
             // A savepoint keeps a failing export from aborting the user's transaction.
             client

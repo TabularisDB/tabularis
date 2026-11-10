@@ -5,7 +5,14 @@
 /// on this to route commented-header SELECTs through the pagination
 /// path.
 pub fn is_select_query(query: &str) -> bool {
-    strip_leading_sql_comments(query)
+    is_select_query_for(query, false)
+}
+
+/// [`is_select_query`] for a driver whose resolved syntax has `#` line
+/// comments (`hash_comments`). Must use the same flag as
+/// [`returns_result_set_for`] so `# note\nSELECT 1` is paginated too.
+pub fn is_select_query_for(query: &str, hash_comments: bool) -> bool {
+    strip_leading_sql_comments_for(query, hash_comments)
         .trim_start()
         .to_uppercase()
         .starts_with("SELECT")
@@ -13,11 +20,22 @@ pub fn is_select_query(query: &str) -> bool {
 
 /// Strip leading SQL comments (`-- …` line comments and `/* … */` block
 /// comments) and whitespace so the first statement keyword is at position 0.
+///
+/// A leading `#` is kept: it is code (or an error) outside MySQL-like
+/// syntaxes. Drivers whose resolved syntax has `#` comments use
+/// [`strip_leading_sql_comments_for`].
 pub fn strip_leading_sql_comments(query: &str) -> &str {
+    strip_leading_sql_comments_for(query, false)
+}
+
+/// [`strip_leading_sql_comments`] that also strips `# …` line comments when
+/// `hash_comments` is set (the driver's resolved `SqlSyntax::hash_comments`,
+/// e.g. MySQL / MariaDB).
+pub fn strip_leading_sql_comments_for(query: &str, hash_comments: bool) -> &str {
     let mut s = query;
     loop {
         s = s.trim_start();
-        if s.starts_with("--") {
+        if s.starts_with("--") || (hash_comments && s.starts_with('#')) {
             match s.find('\n') {
                 Some(pos) => s = &s[pos + 1..],
                 None => return "",
@@ -46,7 +64,13 @@ pub fn strip_leading_sql_comments(query: &str) -> &str {
 /// lesser evil compared to misclassifying procedures that do return
 /// rows.
 pub fn returns_result_set(query: &str) -> bool {
-    let head = strip_leading_sql_comments(query)
+    returns_result_set_for(query, false)
+}
+
+/// [`returns_result_set`] for a driver whose resolved syntax has `#` line
+/// comments (`hash_comments`), so `# note\nSELECT 1` still fetches rows.
+pub fn returns_result_set_for(query: &str, hash_comments: bool) -> bool {
+    let head = strip_leading_sql_comments_for(query, hash_comments)
         .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
         .next()
         .unwrap_or("")
@@ -75,10 +99,16 @@ pub fn returns_result_set(query: &str) -> bool {
 /// Leading SQL comments are stripped before checking.
 ///
 /// Kept in sync with the TypeScript classifier in
-/// `src/utils/sqlSplitter/classify.ts` (EXPLAINABLE_KEYWORDS) so the
+/// `packages/web-ui/src/utils/sqlSplitter/classify.ts` (EXPLAINABLE_KEYWORDS) so the
 /// editor's Explain UI cannot offer a statement the backend will refuse.
 pub fn is_explainable_query(query: &str) -> bool {
-    let upper = strip_leading_sql_comments(query).to_uppercase();
+    is_explainable_query_for(query, false)
+}
+
+/// [`is_explainable_query`] for a driver whose resolved syntax has `#` line
+/// comments (`hash_comments`), so `# note\nSELECT 1` can be explained.
+pub fn is_explainable_query_for(query: &str, hash_comments: bool) -> bool {
+    let upper = strip_leading_sql_comments_for(query, hash_comments).to_uppercase();
     upper.starts_with("SELECT")
         || upper.starts_with("INSERT")
         || upper.starts_with("UPDATE")
@@ -328,7 +358,10 @@ pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
         " "
     };
 
-    format!("{}{}LIMIT {} OFFSET {}", base, separator, fetch_count, offset)
+    format!(
+        "{}{}LIMIT {} OFFSET {}",
+        base, separator, fetch_count, offset
+    )
 }
 
 fn trim_trailing_statement_terminator(query: &str) -> &str {
@@ -421,10 +454,7 @@ fn trailing_comment_start(sql: &str) -> Option<usize> {
                     State::Backtick => '`',
                     _ => unreachable!(),
                 };
-                if !matches!(state, State::Backtick)
-                    && ch == '\\'
-                    && i + 1 < chars.len()
-                {
+                if !matches!(state, State::Backtick) && ch == '\\' && i + 1 < chars.len() {
                     i += 2;
                 } else if ch == quote {
                     if i + 1 < chars.len() && chars[i + 1].1 == quote {
@@ -509,7 +539,10 @@ pub fn transaction_effect(query: &str) -> TransactionEffect {
     let mut rest: Vec<String> = words.collect();
     // `WORK` / `TRANSACTION` after a transaction-control verb is optional noise.
     if matches!(first.as_str(), "COMMIT" | "END" | "ROLLBACK" | "ABORT")
-        && matches!(rest.first().map(String::as_str), Some("WORK" | "TRANSACTION"))
+        && matches!(
+            rest.first().map(String::as_str),
+            Some("WORK" | "TRANSACTION")
+        )
     {
         rest.remove(0);
     }
@@ -581,4 +614,29 @@ fn leading_keywords(query: &str, n: usize) -> Vec<String> {
         words.push(word);
     }
     words
+}
+
+/// Calculates `(server_time_ms, fetch_time_ms)` from the total elapsed time and
+/// the optional elapsed time until the first row was received.
+///
+/// If no rows were received (`first_row_elapsed_ms` is `None`), server execution
+/// time equals the total elapsed time, and fetch time is 0.0.
+pub fn calculate_query_timing(
+    total_elapsed_ms: f64,
+    first_row_elapsed_ms: Option<f64>,
+) -> (Option<f64>, Option<f64>) {
+    match first_row_elapsed_ms {
+        Some(s_ms) => (Some(s_ms), Some((total_elapsed_ms - s_ms).max(0.0))),
+        None => (Some(total_elapsed_ms), Some(0.0)),
+    }
+}
+
+/// Computes query timing given a `start_instant` and the optional
+/// first-row arrival time.
+pub fn calculate_query_timing_from_start(
+    start_instant: std::time::Instant,
+    first_row_elapsed_ms: Option<f64>,
+) -> (Option<f64>, Option<f64>) {
+    let total_elapsed_ms = start_instant.elapsed().as_secs_f64() * 1000.0;
+    calculate_query_timing(total_elapsed_ms, first_row_elapsed_ms)
 }

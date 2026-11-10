@@ -146,7 +146,7 @@ my-driver/ui/
 
 - Node 18.17 or newer.
 - Rust stable (for building the generated plugin).
-- `just` (optional but recommended — the generated `justfile` wraps the common tasks).
+- `just` 1.44 or newer (optional but recommended — the generated `justfile` wraps the common tasks).
 
 ## Related
 

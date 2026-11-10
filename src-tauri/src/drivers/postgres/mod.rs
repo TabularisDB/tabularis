@@ -5,11 +5,14 @@ pub mod extract;
 
 mod binding;
 mod client;
+mod column_comments;
 mod explain;
 mod helpers;
 mod routines;
 pub mod session;
 
+#[cfg(test)]
+mod column_ddl_tests;
 #[cfg(test)]
 mod tests;
 
@@ -18,12 +21,14 @@ use crate::models::{
     TableColumn, TableInfo, TriggerInfo, ViewInfo,
 };
 use crate::pool_manager::get_postgres_pool;
-use binding::{PgValueOptions, bind_pg_value, build_pk_map_predicate};
-use client::{execute, execute_typed, format_pg_error, get_client, query_all, query_one, query_one_typed};
+use binding::{bind_pg_value, build_pk_map_predicate, PgValueOptions};
+use client::{
+    execute, execute_typed, format_pg_error, get_client, query_all, query_one, query_one_typed,
+};
 pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{
-    enum_data_type, escape_identifier, extract_base_type, is_implicit_cast_compatible,
+    escape_identifier, extract_base_type, is_implicit_cast_compatible, postgres_column_types,
     quote_qualified_type,
 };
 use tokio_postgres::types::{ToSql, Type};
@@ -142,12 +147,15 @@ pub async fn get_columns(
             c.column_default::text,
             c.is_identity::text,
             c.character_maximum_length,
+            c.numeric_precision,
+            c.numeric_scale,
             d.description::text AS comment,
             (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
              FROM pg_enum e
              JOIN pg_type t ON t.oid = e.enumtypid
              JOIN pg_namespace tn ON tn.oid = t.typnamespace
              WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
+            format_type(a.atttypid, a.atttypmod) AS full_type,
             {}
         FROM information_schema.columns c
         JOIN pg_namespace n ON n.nspname = c.table_schema
@@ -173,10 +181,17 @@ pub async fn get_columns(
             let default_val: String = r.try_get("column_default").unwrap_or_default();
             let is_identity: String = r.try_get("is_identity").unwrap_or_default(); // YES/NO
             let character_maximum_length: Option<u64> = r
-                .try_get::<_, Option<i64>>("character_maximum_length")
+                .try_get::<_, Option<i32>>("character_maximum_length")
                 .ok()
                 .flatten()
                 .and_then(|v| u64::try_from(v).ok());
+
+            let numeric_precision: Option<i32> = r
+                .try_get::<_, Option<i32>>("numeric_precision")
+                .ok()
+                .flatten();
+            let numeric_scale: Option<i32> =
+                r.try_get::<_, Option<i32>>("numeric_scale").ok().flatten();
 
             let is_auto = is_identity == "YES" || default_val.contains("nextval");
 
@@ -193,20 +208,28 @@ pub async fn get_columns(
             };
 
             let enum_values: Option<String> = r.try_get("enum_values").ok().flatten();
+            let (data_type, full_type) = postgres_column_types(
+                r.try_get("data_type").unwrap_or_default(),
+                enum_values,
+                r.try_get("full_type").ok().flatten(),
+            );
 
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: enum_data_type(
-                    r.try_get("data_type").unwrap_or_default(),
-                    enum_values,
-                ),
+                data_type,
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
                 is_generated: false,
+                // PostgreSQL reports the default as SQL already.
+                default_sql: default_value.clone(),
                 default_value,
                 character_maximum_length,
+                numeric_precision,
+                numeric_scale,
                 comment: r.try_get("comment").ok(),
+                full_type,
+                on_update: None,
             }
         })
         .collect())
@@ -239,13 +262,14 @@ pub async fn get_foreign_keys(
                 WHEN 'c' THEN 'CASCADE'
                 WHEN 'n' THEN 'SET NULL'
                 WHEN 'd' THEN 'SET DEFAULT'
-            END::text AS delete_rule
+            END::text AS delete_rule,
+            cols.key_seq
         FROM pg_constraint con
         JOIN pg_class src_cl ON src_cl.oid = con.conrelid
         JOIN pg_namespace src_nsp ON src_nsp.oid = src_cl.relnamespace
         JOIN pg_class ref_cl ON ref_cl.oid = con.confrelid
         JOIN pg_namespace ref_nsp ON ref_nsp.oid = ref_cl.relnamespace
-        JOIN unnest(con.conkey, con.confkey) AS cols(src_attnum, ref_attnum) ON true
+        JOIN unnest(con.conkey, con.confkey) WITH ORDINALITY AS cols(src_attnum, ref_attnum, key_seq) ON true
         JOIN pg_attribute src_att
             ON src_att.attrelid = src_cl.oid
             AND src_att.attnum = cols.src_attnum
@@ -258,7 +282,7 @@ pub async fn get_foreign_keys(
           AND con.conparentid = 0
           AND src_nsp.nspname = $1
           AND src_cl.relname = $2
-        ORDER BY con.conname, cols.src_attnum
+        ORDER BY con.conname, cols.key_seq
     "#;
 
     let rows = query_all(&pool, &query, &[&schema, &table_name]).await?;
@@ -272,6 +296,17 @@ pub async fn get_foreign_keys(
             ref_column: r.try_get("foreign_column_name").unwrap_or_default(),
             on_update: r.try_get("update_rule").ok(),
             on_delete: r.try_get("delete_rule").ok(),
+            // WITH ORDINALITY yields the position within conkey/confkey — the
+            // true composite-key column order, independent of raw attnum (#840).
+            // The ordinal column is a Postgres bigint (i64); narrow to i32 for
+            // the struct field. A composite key's position is always small, so
+            // the cast is lossless, but try_get as i64 first to match the wire
+            // type (sqlx won't decode bigint into i32).
+            seq_in_fk: r
+                .try_get::<_, Option<i64>>("key_seq")
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok()),
         })
         .collect())
 }
@@ -299,12 +334,15 @@ pub async fn get_all_columns_batch(
             c.column_default,
             c.is_identity,
             c.character_maximum_length,
+            c.numeric_precision,
+            c.numeric_scale,
             d.description::text AS comment,
             (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
              FROM pg_enum e
              JOIN pg_type t ON t.oid = e.enumtypid
              JOIN pg_namespace tn ON tn.oid = t.typnamespace
              WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
+            format_type(a.atttypid, a.atttypmod) AS full_type,
             {}
         FROM information_schema.columns c
         JOIN pg_namespace n ON n.nspname = c.table_schema
@@ -331,10 +369,18 @@ pub async fn get_all_columns_batch(
         let default_val: String = row.try_get("column_default").unwrap_or_default();
         let is_identity: String = row.try_get("is_identity").unwrap_or_default();
         let character_maximum_length: Option<u64> = row
-            .try_get::<_, Option<i64>>("character_maximum_length")
+            .try_get::<_, Option<i32>>("character_maximum_length")
             .ok()
             .flatten()
             .and_then(|v| u64::try_from(v).ok());
+        let numeric_precision: Option<i32> = row
+            .try_get::<_, Option<i32>>("numeric_precision")
+            .ok()
+            .flatten();
+        let numeric_scale: Option<i32> = row
+            .try_get::<_, Option<i32>>("numeric_scale")
+            .ok()
+            .flatten();
 
         let is_auto = is_identity == "YES" || default_val.contains("nextval");
 
@@ -351,17 +397,28 @@ pub async fn get_all_columns_batch(
         };
 
         let enum_values: Option<String> = row.try_get("enum_values").ok().flatten();
+        let (data_type, full_type) = postgres_column_types(
+            row.try_get("data_type").unwrap_or_default(),
+            enum_values,
+            row.try_get("full_type").ok().flatten(),
+        );
 
         let column = TableColumn {
             name: row.try_get("column_name").unwrap_or_default(),
-            data_type: enum_data_type(row.try_get("data_type").unwrap_or_default(), enum_values),
+            data_type,
             is_pk,
             is_nullable: null_str == "YES",
             is_auto_increment: is_auto,
             is_generated: false,
+            // PostgreSQL reports the default as SQL already.
+            default_sql: default_value.clone(),
             default_value,
             character_maximum_length,
+            numeric_precision,
+            numeric_scale,
             comment: row.try_get("comment").ok(),
+            full_type,
+            on_update: None,
         };
 
         result
@@ -402,13 +459,14 @@ pub async fn get_all_foreign_keys_batch(
                 WHEN 'c' THEN 'CASCADE'
                 WHEN 'n' THEN 'SET NULL'
                 WHEN 'd' THEN 'SET DEFAULT'
-            END::text AS delete_rule
+            END::text AS delete_rule,
+            cols.key_seq
         FROM pg_constraint con
         JOIN pg_class src_cl ON src_cl.oid = con.conrelid
         JOIN pg_namespace src_nsp ON src_nsp.oid = src_cl.relnamespace
         JOIN pg_class ref_cl ON ref_cl.oid = con.confrelid
         JOIN pg_namespace ref_nsp ON ref_nsp.oid = ref_cl.relnamespace
-        JOIN unnest(con.conkey, con.confkey) AS cols(src_attnum, ref_attnum) ON true
+        JOIN unnest(con.conkey, con.confkey) WITH ORDINALITY AS cols(src_attnum, ref_attnum, key_seq) ON true
         JOIN pg_attribute src_att
             ON src_att.attrelid = src_cl.oid
             AND src_att.attnum = cols.src_attnum
@@ -420,7 +478,7 @@ pub async fn get_all_foreign_keys_batch(
         WHERE con.contype = 'f'
         AND con.conparentid = 0
         AND src_nsp.nspname = $1
-        ORDER BY src_cl.relname, con.conname, cols.src_attnum
+        ORDER BY src_cl.relname, con.conname, cols.key_seq
     "#;
 
     let rows = query_all(&pool, &query, &[&schema]).await?;
@@ -437,6 +495,11 @@ pub async fn get_all_foreign_keys_batch(
             ref_column: row.try_get("foreign_column_name").unwrap_or_default(),
             on_update: row.try_get("update_rule").ok(),
             on_delete: row.try_get("delete_rule").ok(),
+            seq_in_fk: row
+                .try_get::<_, Option<i64>>("key_seq")
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok()),
         };
 
         result.entry(table_name).or_insert_with(Vec::new).push(fk);
@@ -631,8 +694,16 @@ async fn get_pk_column_types(
 ) -> HashMap<String, String> {
     let mut types = HashMap::new();
     for col in pk_map.keys() {
-        if let Ok(Some(t)) = get_column_data_type(pool, schema, table, col).await {
-            types.insert(col.clone(), t);
+        match get_column_data_type(pool, schema, table, col).await {
+            Ok(Some(t)) => {
+                types.insert(col.clone(), t);
+            }
+            Ok(None) => log::warn!(
+                "No PostgreSQL column type found for {schema}.{table}.{col}; row matching may fail"
+            ),
+            Err(error) => log::warn!(
+                "Failed to load PostgreSQL column type for {schema}.{table}.{col}: {error}; row matching may fail"
+            ),
         }
     }
     types
@@ -821,8 +892,7 @@ pub async fn update_record(
     }
 
     let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
-    let (predicate, pk_params) =
-        build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
+    let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
     query.push_str(" WHERE ");
     query.push_str(&predicate);
     bound_params.extend(pk_params);
@@ -842,19 +912,21 @@ pub async fn update_record(
         .cloned()
         .unwrap_or(serde_json::Value::Null);
 
-    execute_typed(&pool, &query, &params_ref).await.map_err(|err| {
-        update_record_error_context(
-            err,
-            schema,
-            table,
-            first_pk_col,
-            &first_pk_val,
-            col_name,
-            &new_val_for_context,
-            column_data_type.as_deref(),
-            &query,
-        )
-    })
+    execute_typed(&pool, &query, &params_ref)
+        .await
+        .map_err(|err| {
+            update_record_error_context(
+                err,
+                schema,
+                table,
+                first_pk_col,
+                &first_pk_val,
+                col_name,
+                &new_val_for_context,
+                column_data_type.as_deref(),
+                &query,
+            )
+        })
 }
 
 pub async fn insert_record(
@@ -969,7 +1041,10 @@ pub async fn get_table_ddl(
     let mut pks = Vec::new();
 
     for col in cols {
-        let mut def = format!("\"{}\" {}", col.name, col.data_type);
+        // `full_type` is `format_type()`: `text[]`, `numeric(10,2)`, ...;
+        // `data_type` alone says `ARRAY` or drops the precision.
+        let data_type = col.full_type.as_deref().unwrap_or(&col.data_type);
+        let mut def = format!("\"{}\" {}", col.name, data_type);
 
         if !col.is_nullable {
             def.push_str(" NOT NULL");
@@ -985,12 +1060,42 @@ pub async fn get_table_ddl(
         defs.push(format!("PRIMARY KEY ({})", pks.join(", ")));
     }
 
-    Ok(format!(
+    let mut ddl = format!(
         "CREATE TABLE \"{}\".\"{}\" (\n  {}\n);",
         escape_identifier(schema),
         escape_identifier(table_name),
         defs.join(",\n  ")
-    ))
+    );
+    // The table's other indexes, as PostgreSQL writes them; the primary key
+    // is part of the table above. An index behind a UNIQUE or EXCLUDE
+    // constraint is written as that constraint, so it keeps being one (with
+    // `DEFERRABLE` and the exclusion operators).
+    let pool = get_postgres_pool(params).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    let indexes = client
+        .query(
+            "SELECT CASE WHEN c.oid IS NULL THEN pg_catalog.pg_get_indexdef(ix.indexrelid) \
+             ELSE 'ALTER TABLE ' || pg_catalog.quote_ident(n.nspname) || '.' \
+             || pg_catalog.quote_ident(t.relname) || ' ADD CONSTRAINT ' \
+             || pg_catalog.quote_ident(c.conname) || ' ' \
+             || pg_catalog.pg_get_constraintdef(c.oid) END \
+             FROM pg_catalog.pg_index ix \
+             JOIN pg_catalog.pg_class t ON t.oid = ix.indrelid \
+             JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid \
+             JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace \
+             LEFT JOIN pg_catalog.pg_constraint c ON c.conindid = ix.indexrelid \
+             AND c.conrelid = t.oid AND c.contype IN ('u', 'x') \
+             WHERE n.nspname = $1 AND t.relname = $2 AND NOT ix.indisprimary \
+             ORDER BY i.relname",
+            &[&schema, &table_name],
+        )
+        .await
+        .map_err(|e| format!("Failed to read the table's indexes: {}", e))?;
+    for index in indexes {
+        let definition: String = index.try_get(0).map_err(|e| e.to_string())?;
+        ddl.push_str(&format!("\n{definition};"));
+    }
+    Ok(ddl)
 }
 
 /// Acquires a single PostgreSQL client from the pool and applies the
@@ -1039,6 +1144,8 @@ async fn exec_on_pg_client(
             truncated: false,
             pagination: None,
             additional_results: None,
+            server_time_ms: None,
+            fetch_time_ms: None,
         });
     }
 
@@ -1055,13 +1162,14 @@ async fn exec_on_pg_client(
         (query.to_string(), None)
     };
 
+    let start_instant = std::time::Instant::now();
+    let mut server_time_ms: Option<f64> = None;
+
     let pg_params: Vec<i32> = vec![];
-    let mut rows_stream = std::pin::pin!(
-        client
-            .query_raw(&final_query, &pg_params)
-            .await
-            .map_err(|e| format_pg_error(&e))?
-    );
+    let mut rows_stream = std::pin::pin!(client
+        .query_raw(&final_query, &pg_params)
+        .await
+        .map_err(|e| format_pg_error(&e))?);
 
     let mut columns: Vec<String> = Vec::new();
     let mut json_rows = Vec::new();
@@ -1069,6 +1177,9 @@ async fn exec_on_pg_client(
     use futures::stream::StreamExt;
 
     while let Some(result) = rows_stream.next().await {
+        if server_time_ms.is_none() {
+            server_time_ms = Some(start_instant.elapsed().as_secs_f64() * 1000.0);
+        }
         match result {
             Ok(row) => {
                 if columns.is_empty() {
@@ -1093,6 +1204,9 @@ async fn exec_on_pg_client(
         }
     }
 
+    let (server_time, fetch_time) =
+        crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
+
     let pagination = if let Some((page_size, p)) = pagination_meta {
         let has_more = json_rows.len() > page_size as usize;
         if has_more {
@@ -1116,6 +1230,8 @@ async fn exec_on_pg_client(
         truncated,
         pagination,
         additional_results: None,
+        server_time_ms: server_time,
+        fetch_time_ms: fetch_time,
     })
 }
 
@@ -1126,9 +1242,37 @@ pub async fn execute_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
-    let (result, _) =
-        execute_query_in_session(params, query, limit, page, schema, None).await?;
+    let (result, _) = execute_query_in_session(params, query, limit, page, schema, None).await?;
     Ok(result)
+}
+
+/// Runs one statement inside `BEGIN READ ONLY` and always rolls it back, so
+/// PostgreSQL rejects any write the statement attempts (`SELECT … INTO`,
+/// `setval`, a volatile function that modifies data).
+///
+/// If the rollback fails, or the run is dropped mid-flight, the connection is
+/// closed instead of returned to the pool, so the read-only transaction never
+/// leaks into another caller.
+pub async fn execute_read_only_query(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+) -> Result<QueryResult, String> {
+    let mut in_flight = InFlight::new(acquire_pg_client(params, schema).await?, params);
+    let client = in_flight.client.as_ref().expect("set above");
+    client
+        .batch_execute("BEGIN READ ONLY")
+        .await
+        .map_err(|e| format_pg_error(&e))?;
+    let outcome = exec_within_query_timeout(client, params, query, limit, page).await?;
+    match client.batch_execute("ROLLBACK").await {
+        // Back to the pool only once the transaction is closed.
+        Ok(()) => drop(in_flight.client.take()),
+        Err(e) => log::warn!("PostgreSQL: ROLLBACK after a read-only query failed: {e}"),
+    }
+    outcome
 }
 
 /// `execute_query` with the tab's connection carried across calls.
@@ -1207,19 +1351,29 @@ pub async fn execute_batch_in_session(
         Some(id) => Some(session::lock(id).await),
         None => None,
     };
+    // A pinned connection belongs to one transaction, and a transaction is
+    // scoped to one database. If the tab has switched databases since opening
+    // the transaction, keeping running on the pinned connection would silently
+    // execute on the old database. Reject before taking the client so the
+    // pinned session (and its open transaction) is left intact.
+    let requested_db = params.database.primary();
+    if let Some(slot) = slot.as_ref() {
+        session::check_pinned_database(slot.database(), requested_db, "run")?;
+    }
     let pinned = slot.as_mut().and_then(|s| s.take());
     // A pinned connection only exists because its transaction is still open.
     let mut in_transaction = pinned.is_some();
-    let mut in_flight = InFlight(Some(match pinned {
+    let client = match pinned {
         Some(client) => client,
         None => acquire_pg_client(params, schema).await?,
-    }));
-    let client = in_flight.0.as_ref().expect("set above");
+    };
+    let mut in_flight = InFlight::new(client, params);
+    let client = in_flight.client.as_ref().expect("set above");
 
     let mut results = Vec::with_capacity(queries.len());
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
-        let outcome = exec_on_pg_client(client, q, limit, page).await;
+        let outcome = exec_within_query_timeout(client, params, q, limit, page).await?;
         in_transaction = crate::drivers::common::transaction_effect(q)
             .in_transaction_after(outcome.is_ok(), in_transaction);
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
@@ -1229,10 +1383,10 @@ pub async fn execute_batch_in_session(
         results.push(res);
     }
 
-    let client = in_flight.0.take().expect("set above");
+    let client = in_flight.client.take().expect("set above");
     match slot.as_mut() {
         Some(slot) if in_transaction => {
-            slot.pin(client);
+            slot.pin(client, requested_db.to_string());
             Ok((results, true))
         }
         _ => {
@@ -1245,14 +1399,111 @@ pub async fn execute_batch_in_session(
 }
 
 /// A connection a run is using. If the run is dropped mid-flight (a cancelled
-/// query), the connection is closed rather than returned to the pool, so the
-/// server ends any open transaction instead of the next borrower inheriting it.
-struct InFlight(Option<deadpool_postgres::Client>);
+/// query), the server is asked to cancel the running statement and the
+/// connection is closed rather than returned to the pool, so the server ends
+/// any open transaction instead of the next borrower inheriting it.
+struct InFlight<'a> {
+    client: Option<deadpool_postgres::Client>,
+    params: &'a ConnectionParams,
+}
 
-impl Drop for InFlight {
+impl<'a> InFlight<'a> {
+    fn new(client: deadpool_postgres::Client, params: &'a ConnectionParams) -> Self {
+        Self {
+            client: Some(client),
+            params,
+        }
+    }
+}
+
+impl Drop for InFlight<'_> {
     fn drop(&mut self) {
-        if let Some(client) = self.0.take() {
-            drop(deadpool_postgres::Client::take(client));
+        let Some(client) = self.client.take() else {
+            return;
+        };
+        // Closing the connection alone does not stop the statement: the
+        // server only notices the client is gone when it next writes to it.
+        match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => {
+                runtime.spawn(cancel_on_server(client.cancel_token(), self.params));
+            }
+            Err(_) => log::warn!("PostgreSQL: no runtime to send a cancel request from"),
+        }
+        drop(deadpool_postgres::Client::take(client));
+    }
+}
+
+/// How long a timed-out statement gets to stop after the cancel request
+/// before its connection is closed.
+const CANCEL_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Runs one statement under the connection's query timeout. When it runs
+/// over, the server is asked to cancel it and the statement fails with a
+/// "stopped after N s" error.
+///
+/// The outer `Err` means the statement was still running after
+/// [`CANCEL_GRACE`]: the connection is busy and must be closed, not reused.
+async fn exec_within_query_timeout(
+    client: &tokio_postgres::Client,
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+) -> Result<Result<QueryResult, String>, String> {
+    let run = exec_on_pg_client(client, query, limit, page);
+    let Some(timeout) = crate::pool_manager::query_timeout(params) else {
+        return Ok(run.await);
+    };
+    tokio::pin!(run);
+    if let Ok(outcome) = tokio::time::timeout(timeout, &mut run).await {
+        return Ok(outcome);
+    }
+    cancel_on_server(client.cancel_token(), params).await;
+    let stopped = format!(
+        "Query stopped after {} s by the connection's query timeout",
+        timeout.as_secs()
+    );
+    match tokio::time::timeout(CANCEL_GRACE, run).await {
+        // Finished between the timeout and the cancel request.
+        Ok(Ok(result)) => Ok(Ok(result)),
+        Ok(Err(e)) if is_query_canceled(&e) => Ok(Err(stopped)),
+        // Failed for its own reason before the cancel landed.
+        Ok(Err(e)) => Ok(Err(e)),
+        Err(_) => Err(format!(
+            "{stopped}. The server did not confirm the cancel, so the connection was closed."
+        )),
+    }
+}
+
+/// Whether a statement error from [`exec_on_pg_client`] is the server's
+/// `query_canceled` (SQLSTATE 57014). The error arrives as text, and
+/// `format_pg_error` appends the `DbError` debug output, which names the code
+/// as `E57014`.
+fn is_query_canceled(error: &str) -> bool {
+    error.contains("E57014")
+}
+
+/// Asks the server to cancel whatever the connection behind `token` is
+/// running. Built from `params` so it uses the same TLS settings as the
+/// connection. Failures are logged: the caller closes the connection either
+/// way.
+fn cancel_on_server(
+    token: tokio_postgres::CancelToken,
+    params: &ConnectionParams,
+) -> impl std::future::Future<Output = ()> + Send + 'static {
+    let tls = crate::pool_manager::build_postgres_tls_connector(params);
+    async move {
+        let sent = match tls {
+            // The cancel opens its own connection, which ignores the
+            // connect timeout, so bound it here.
+            Ok(tls) => match tokio::time::timeout(CANCEL_GRACE, token.cancel_query(tls)).await {
+                Ok(sent) => sent.map_err(|e| e.to_string()),
+                Err(_) => Err(format!("no answer within {} s", CANCEL_GRACE.as_secs())),
+            },
+            Err(e) => Err(e),
+        };
+        if let Err(e) = sent {
+            log::warn!("PostgreSQL: cancel request failed: {e}");
         }
     }
 }
@@ -1284,6 +1535,30 @@ pub async fn get_views(params: &ConnectionParams, schema: &str) -> Result<Vec<Vi
         params.database
     );
     Ok(views)
+}
+
+/// `pg_class.reltuples`, the planner's row estimate; `None` before the
+/// table was first vacuumed or analyzed (-1 since PostgreSQL 14).
+pub async fn get_approximate_row_count(
+    params: &ConnectionParams,
+    table_name: &str,
+    schema: &str,
+) -> Result<Option<u64>, String> {
+    let pool = get_postgres_pool(params).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    let row = client
+        .query_opt(
+            "SELECT c.reltuples::float8 FROM pg_catalog.pg_class c \
+             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace \
+             WHERE n.nspname = $1 AND c.relname = $2",
+            &[&schema, &table_name],
+        )
+        .await
+        .map_err(|e| format!("Failed to read the row estimate: {}", e))?;
+    let estimate = row.and_then(|row| row.try_get::<_, f64>(0).ok());
+    Ok(estimate
+        .filter(|rows| *rows >= 0.0)
+        .map(|rows| rows.round() as u64))
 }
 
 pub async fn get_view_definition(
@@ -1404,13 +1679,19 @@ pub async fn get_view_columns(
             c.column_default,
             c.is_identity,
             c.character_maximum_length,
+            c.numeric_precision,
+            c.numeric_scale,
             (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
              FROM pg_enum e
              JOIN pg_type t ON t.oid = e.enumtypid
              JOIN pg_namespace tn ON tn.oid = t.typnamespace
              WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
+            format_type(a.atttypid, a.atttypmod) AS full_type,
             {}
         FROM information_schema.columns c
+        JOIN pg_namespace n ON n.nspname = c.table_schema
+        JOIN pg_class pc ON pc.relnamespace = n.oid AND pc.relname = c.table_name
+        JOIN pg_attribute a ON a.attrelid = pc.oid AND a.attname = c.column_name
         WHERE c.table_schema = $1 AND c.table_name = $2
         ORDER BY c.ordinal_position
     "#,
@@ -1427,10 +1708,16 @@ pub async fn get_view_columns(
             let default_val: String = r.try_get("column_default").unwrap_or_default();
             let is_identity: String = r.try_get("is_identity").unwrap_or_default();
             let character_maximum_length: Option<u64> = r
-                .try_get::<_, Option<i64>>("character_maximum_length")
+                .try_get::<_, Option<i32>>("character_maximum_length")
                 .ok()
                 .flatten()
                 .and_then(|v| u64::try_from(v).ok());
+            let numeric_precision: Option<i32> = r
+                .try_get::<_, Option<i32>>("numeric_precision")
+                .ok()
+                .flatten();
+            let numeric_scale: Option<i32> =
+                r.try_get::<_, Option<i32>>("numeric_scale").ok().flatten();
 
             let is_auto = is_identity == "YES" || default_val.contains("nextval");
 
@@ -1447,20 +1734,28 @@ pub async fn get_view_columns(
             };
 
             let enum_values: Option<String> = r.try_get("enum_values").ok().flatten();
+            let (data_type, full_type) = postgres_column_types(
+                r.try_get("data_type").unwrap_or_default(),
+                enum_values,
+                r.try_get("full_type").ok().flatten(),
+            );
 
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: enum_data_type(
-                    r.try_get("data_type").unwrap_or_default(),
-                    enum_values,
-                ),
+                data_type,
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
                 is_generated: false,
+                // PostgreSQL reports the default as SQL already.
+                default_sql: default_value.clone(),
                 default_value,
                 character_maximum_length,
+                numeric_precision,
+                numeric_scale,
                 comment: None,
+                full_type,
+                on_update: None,
             }
         })
         .collect())
@@ -1527,7 +1822,13 @@ pub async fn get_materialized_view_columns(
             is_generated: false,
             default_value: None,
             character_maximum_length: None,
+            numeric_precision: None,
+            numeric_scale: None,
             comment: None,
+            // `data_type` is already `format_type(...)` here.
+            full_type: None,
+            default_sql: None,
+            on_update: None,
         })
         .collect())
 }
@@ -1546,10 +1847,19 @@ pub async fn get_materialized_view_definition(
 
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
+    // Resolve via pg_class/pg_namespace with a `relkind = 'm'` filter so only
+    // materialized views match — a regular view or table name returns no row
+    // (a clean "not found") instead of wrong DDL. `pg_get_viewdef` alone
+    // resolves any relation by name. Binding schema/name as separate text
+    // params also avoids the PG 16 "error serializing parameter 0" failure
+    // that a direct `regclass` bind triggers.
     let row = client
         .query_one(
-            "SELECT pg_get_viewdef($1::regclass, true) as definition",
-            &[&qualified],
+            "SELECT pg_get_viewdef(c.oid, true) AS definition \
+             FROM pg_class c \
+             JOIN pg_namespace n ON c.relnamespace = n.oid \
+             WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind = 'm'",
+            &[&schema, &view_name],
         )
         .await
         .map_err(|e| format!("Failed to get materialized view definition: {}", e))?;
@@ -1601,25 +1911,36 @@ pub async fn get_routines(
     .try_get("v")
     .unwrap_or(0);
 
+    // `pg_get_function_identity_arguments` comes along so the sidebar can tell
+    // overloads apart. Without it a name was the whole identity: four functions
+    // called `f` arrived as four identical rows, and every read that followed a
+    // click fell back to `LIMIT 1` (#893). The ORDER BY takes the signature as
+    // a second key so the order is stable rather than whatever the scan returns.
     let query = if server_version_num >= 110000 {
         r#"
-            SELECT proname, prokind
+            SELECT
+                proname,
+                prokind,
+                pg_get_function_identity_arguments(oid) AS identity_args
             FROM pg_proc
             WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)
             AND prokind IN ('f', 'p')
-            ORDER BY proname
+            ORDER BY proname, identity_args
         "#
     } else {
         // Pre-11: procedures don't exist; exclude aggregates and window
         // functions and report everything else as a plain function ('f').
         // Cast to the internal "char" type so it maps to i8 like prokind.
         r#"
-            SELECT proname, 'f'::"char" AS prokind
+            SELECT
+                proname,
+                'f'::"char" AS prokind,
+                pg_get_function_identity_arguments(oid) AS identity_args
             FROM pg_proc
             WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)
             AND NOT proisagg
             AND NOT proiswindow
-            ORDER BY proname
+            ORDER BY proname, identity_args
         "#
     };
 
@@ -1638,32 +1959,84 @@ pub async fn get_routines(
                 name: r.try_get("proname").unwrap_or_default(),
                 routine_type: routine_type.to_string(),
                 definition: None,
+                // Always Some on this driver, including the empty string a
+                // no-argument routine has: that empty signature is what tells
+                // `f()` apart from `f(a integer)`, so it is a value and not an
+                // absence. `None` would mean "this dialect does not overload".
+                identity_args: Some(r.try_get("identity_args").unwrap_or_default()),
             }
         })
         .collect())
 }
 
+/// One routine's parameters, and its return type where it is a function.
+///
+/// Both reads are keyed on `specific_name` when the caller passes a signature.
+/// Filtered on schema and name alone, as they used to be, the return type came
+/// from `LIMIT 1` over the overloads and the parameter join came back with ALL
+/// of their parameters in one list: measured on PostgreSQL 18, three overloads
+/// of `f` answered four rows, two of them at `ordinal_position` 1 with
+/// different types. So the Run dialog could offer one overload's arguments
+/// under another's name, and did (#893).
 pub async fn get_routine_parameters(
     params: &ConnectionParams,
     routine_name: &str,
     schema: &str,
+    identity_args: Option<&str>,
 ) -> Result<Vec<RoutineParameter>, String> {
     let pool = get_postgres_pool(params).await?;
-
-    // 1. Get return type for functions
-    let return_type_query = r#"
-            SELECT data_type, routine_type
-            FROM information_schema.routines
-            WHERE routine_schema = $1 AND routine_name = $2
-            LIMIT 1
-        "#;
-
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
-    let routine_info = client
-        .query_opt(return_type_query, &[&schema, &routine_name])
-        .await
-        .map_err(|e| format_pg_error(&e))?;
+    // `information_schema` cannot be reached from a signature, so the key it
+    // CAN be filtered by is derived from `pg_proc` first. A signature that
+    // names nothing leaves this None and both reads fall back to the old
+    // name-only form rather than answering about no routine at all.
+    //
+    // `nameconcatoid` is how the view itself builds that key, and it exists
+    // from PostgreSQL 12. Referencing it on an older server fails at parse
+    // time, so the expression is picked by version, exactly as the `prokind`
+    // read above is.
+    let specific_name: Option<String> = match identity_args {
+        Some(identity) => {
+            let server_version_num: i32 = client
+                .query_one(
+                    "SELECT current_setting('server_version_num')::int4 AS v",
+                    &[],
+                )
+                .await
+                .map_err(|e| format_pg_error(&e))?
+                .try_get("v")
+                .unwrap_or(0);
+
+            client
+                .query_opt(
+                    routines::routine_specific_name_sql(server_version_num >= 120000),
+                    &[&schema, &routine_name, &identity],
+                )
+                .await
+                .map_err(|e| format_pg_error(&e))?
+                .and_then(|row| row.try_get("specific_name").ok())
+        }
+        None => None,
+    };
+
+    // 1. Get return type for functions
+    let routine_info = match specific_name.as_deref() {
+        Some(specific) => client
+            .query_opt(
+                routines::routine_return_type_sql(true),
+                &[&schema, &specific],
+            )
+            .await
+            .map_err(|e| format_pg_error(&e))?,
+        None => client
+            .query_opt(
+                routines::routine_return_type_sql(false),
+                &[&schema, &routine_name],
+            )
+            .await
+            .map_err(|e| format_pg_error(&e))?,
+    };
 
     let mut parameters = Vec::new();
 
@@ -1685,18 +2058,22 @@ pub async fn get_routine_parameters(
     }
 
     // 2. Get parameters
-    let query = r#"
-            SELECT p.parameter_name, p.data_type, p.parameter_mode, p.ordinal_position
-            FROM information_schema.parameters p
-            JOIN information_schema.routines r ON p.specific_name = r.specific_name
-            WHERE r.routine_schema = $1 AND r.routine_name = $2
-            ORDER BY p.ordinal_position
-        "#;
-
-    let rows = client
-        .query(query, &[&schema, &routine_name])
-        .await
-        .map_err(|e| format_pg_error(&e))?;
+    let rows = match specific_name.as_deref() {
+        Some(specific) => client
+            .query(
+                routines::routine_parameters_sql(true),
+                &[&schema, &specific],
+            )
+            .await
+            .map_err(|e| format_pg_error(&e))?,
+        None => client
+            .query(
+                routines::routine_parameters_sql(false),
+                &[&schema, &routine_name],
+            )
+            .await
+            .map_err(|e| format_pg_error(&e))?,
+    };
 
     parameters.extend(rows.iter().map(|r| RoutineParameter {
         name: r.try_get("parameter_name").unwrap_or_default(),
@@ -1708,23 +2085,46 @@ pub async fn get_routine_parameters(
     Ok(parameters)
 }
 
+/// One routine's `CREATE OR REPLACE` statement.
+///
+/// A schema and a name do not identify a routine in PostgreSQL, they identify
+/// a set of overloads, so this used to take `LIMIT 1` out of that set and
+/// answer about whichever row the scan returned: measured on 18, four
+/// functions named `f` and View Definition showed `f()` for all of them (#893).
+///
+/// `identity_args` is the signature `get_routines` reported for the row the
+/// user clicked, and filtering on it picks exactly that routine. It is compared
+/// as a string against the catalog's own rendering of the same thing, so the
+/// two can only agree, and the empty string is the real signature of a
+/// no-argument routine rather than a missing value. `None` keeps the old
+/// lookup, for the callers that have no signature to pass.
 pub async fn get_routine_definition(
     params: &ConnectionParams,
     routine_name: &str,
     _routine_type: &str,
     schema: &str,
+    identity_args: Option<&str>,
 ) -> Result<String, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let query = r#"
-            SELECT pg_get_functiondef(p.oid) as definition
-            FROM pg_proc p
-            JOIN pg_namespace n ON p.pronamespace = n.oid
-            WHERE n.nspname = $1 AND p.proname = $2
-            LIMIT 1
-        "#;
-
-    let row = query_one(&pool, &query, &[&schema, &routine_name]).await?;
+    let row = match identity_args {
+        Some(identity) => {
+            query_one(
+                &pool,
+                routines::routine_definition_sql(true),
+                &[&schema, &routine_name, &identity],
+            )
+            .await?
+        }
+        None => {
+            query_one(
+                &pool,
+                routines::routine_definition_sql(false),
+                &[&schema, &routine_name],
+            )
+            .await?
+        }
+    };
 
     let definition: String = row.try_get("definition").unwrap_or_default();
     Ok(definition)
@@ -1738,8 +2138,31 @@ pub async fn drop_routine(
     routine_name: &str,
     routine_type: &str,
     schema: &str,
+    identity_args: Option<&str>,
 ) -> Result<(), String> {
     let pool = get_postgres_pool(params).await?;
+
+    // The signature the caller clicked, where it has one. Before #893 nothing
+    // reached here but a name, so a name with overloads had no answer but to
+    // refuse and tell the reader to go and write the DROP themselves.
+    if let Some(identity) = identity_args {
+        let exists = query_all(
+            &pool,
+            routines::routine_exists_sql(),
+            &[&schema, &routine_name, &identity],
+        )
+        .await?;
+
+        if exists.is_empty() {
+            return Err(format!(
+                "Routine '{}({})' not found in schema '{}'",
+                routine_name, identity, schema
+            ));
+        }
+
+        let sql = routines::drop_routine_sql(routine_name, routine_type, identity, Some(schema));
+        return execute(&pool, &sql, &[]).await.map(|_| ());
+    }
 
     let query = r#"
             SELECT pg_get_function_identity_arguments(p.oid) AS args
@@ -1898,8 +2321,11 @@ impl PostgresDriver {
                     materialized_views: true,
                     routines: true,
                     routine_management: true,
+                    routine_debug: None,
                     file_based: false,
                     folder_based: false,
+                    in_memory: false,
+                    data_files: Vec::new(),
                     connection_string: true,
                     connection_string_example: "postgres://user:pass@localhost:5432/db".into(),
                     connection_string_examples: Vec::new(),
@@ -1911,16 +2337,23 @@ impl PostgresDriver {
                     serial_type: "SERIAL".into(),
                     inline_pk: false,
                     table_query_templates: false,
+                    column_comments: true,
+                    drop_table_sql: false,
+                    column_stats: false,
+                    query_timeout: true,
                     alter_column: true,
                     create_foreign_keys: true,
                     no_connection_required: false,
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    table_export: None,
+                    table_import: None,
                     triggers: true,
                     supports_ssl: true,
                     user_management: false,
                     sql_dialect: Some(SqlDialect::Postgres),
+                    sql_syntax: None,
                 },
                 is_builtin: true,
                 engine: Some("postgres".to_string()),
@@ -1932,7 +2365,9 @@ impl PostgresDriver {
                     key: "poolMaxSize".to_string(),
                     label: "Pool Max Size".to_string(),
                     setting_type: "number".to_string(),
-                    default: Some(serde_json::json!(crate::pool_manager::DEFAULT_POSTGRES_POOL_MAX_SIZE)),
+                    default: Some(serde_json::json!(
+                        crate::pool_manager::DEFAULT_POSTGRES_POOL_MAX_SIZE
+                    )),
                     description: Some(
                         "Maximum number of PostgreSQL connections kept in the pool.".to_string(),
                     ),
@@ -1941,6 +2376,7 @@ impl PostgresDriver {
                 }],
                 ui_extensions: None,
                 explain_parsers: None,
+                connection_fields: None,
                 type_mappings: std::collections::HashMap::new(),
                 // The built-in postgres driver is deprecated in favour of the
                 // standalone `postgresql` plugin; the decision lives in the
@@ -2021,22 +2457,25 @@ impl DatabaseDriver for PostgresDriver {
         &self,
         params: &crate::models::ConnectionParams,
     ) -> Result<(), String> {
-        let cfg = crate::pool_manager::build_postgres_configurations(params);
+        let cfg = crate::pool_manager::build_postgres_configurations(params)?;
         let tls_connector = crate::pool_manager::build_postgres_tls_connector(params)?;
-        let (client, connection) = cfg
-            .connect(tls_connector)
-            .await
-            .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                log::debug!("Postgres test_connection connection background task ended: {e}");
-            }
-        });
-        client
-            .simple_query("SELECT 1")
-            .await
-            .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
-        Ok(())
+        crate::pool_manager::with_connect_timeout(params, async {
+            let (client, connection) = cfg
+                .connect(tls_connector)
+                .await
+                .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    log::debug!("Postgres test_connection connection background task ended: {e}");
+                }
+            });
+            client
+                .simple_query("SELECT 1")
+                .await
+                .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
+            Ok(())
+        })
+        .await
     }
 
     async fn get_databases(
@@ -2193,8 +2632,15 @@ impl DatabaseDriver for PostgresDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<Vec<crate::models::RoutineParameter>, String> {
-        get_routine_parameters(params, routine_name, self.resolve_schema(schema)).await
+        get_routine_parameters(
+            params,
+            routine_name,
+            self.resolve_schema(schema),
+            identity_args,
+        )
+        .await
     }
 
     async fn get_routine_definition(
@@ -2203,12 +2649,14 @@ impl DatabaseDriver for PostgresDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String> {
         get_routine_definition(
             params,
             routine_name,
             routine_type,
             self.resolve_schema(schema),
+            identity_args,
         )
         .await
     }
@@ -2249,8 +2697,16 @@ impl DatabaseDriver for PostgresDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<(), String> {
-        drop_routine(params, routine_name, routine_type, self.resolve_schema(schema)).await
+        drop_routine(
+            params,
+            routine_name,
+            routine_type,
+            self.resolve_schema(schema),
+            identity_args,
+        )
+        .await
     }
 
     async fn get_triggers(
@@ -2268,7 +2724,13 @@ impl DatabaseDriver for PostgresDriver {
         table_name: &str,
         schema: Option<&str>,
     ) -> Result<String, String> {
-        get_trigger_definition(params, trigger_name, table_name, self.resolve_schema(schema)).await
+        get_trigger_definition(
+            params,
+            trigger_name,
+            table_name,
+            self.resolve_schema(schema),
+        )
+        .await
     }
 
     async fn create_trigger(
@@ -2287,7 +2749,13 @@ impl DatabaseDriver for PostgresDriver {
         table_name: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        drop_trigger(params, trigger_name, table_name, self.resolve_schema(schema)).await
+        drop_trigger(
+            params,
+            trigger_name,
+            table_name,
+            self.resolve_schema(schema),
+        )
+        .await
     }
 
     async fn execute_query(
@@ -2313,6 +2781,17 @@ impl DatabaseDriver for PostgresDriver {
         execute_query_in_session(params, query, limit, page, schema, session_id).await
     }
 
+    async fn execute_read_only_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<crate::models::QueryResult, String> {
+        execute_read_only_query(params, query, limit, page, schema).await
+    }
+
     async fn execute_batch(
         &self,
         params: &crate::models::ConnectionParams,
@@ -2335,8 +2814,16 @@ impl DatabaseDriver for PostgresDriver {
         session_id: Option<&str>,
         on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
     ) -> Result<(Vec<crate::models::BatchStatementResult>, bool), String> {
-        execute_batch_in_session(params, queries, limit, page, schema, session_id, on_progress)
-            .await
+        execute_batch_in_session(
+            params,
+            queries,
+            limit,
+            page,
+            schema,
+            session_id,
+            on_progress,
+        )
+        .await
     }
 
     async fn release_session(&self, session_id: &str) {
@@ -2435,14 +2922,8 @@ impl DatabaseDriver for PostgresDriver {
         pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<String, String> {
-        fetch_blob_column_as_data_url(
-            params,
-            table,
-            col_name,
-            pk_map,
-            self.resolve_schema(schema),
-        )
-        .await
+        fetch_blob_column_as_data_url(params, table, col_name, pk_map, self.resolve_schema(schema))
+            .await
     }
 
     async fn get_create_table_sql(
@@ -2530,7 +3011,15 @@ impl DatabaseDriver for PostgresDriver {
                 def.push_str(&format!(" DEFAULT {}", default));
             }
         }
-        Ok(vec![def])
+        let mut stmts = vec![def];
+        if let Some(comment) = column.comment.as_deref().filter(|value| !value.is_empty()) {
+            stmts.push(column_comments::comment_sql(
+                &tbl,
+                &column.name,
+                Some(comment),
+            ));
+        }
+        Ok(stmts)
     }
 
     async fn get_alter_column_sql(
@@ -2604,6 +3093,16 @@ impl DatabaseDriver for PostgresDriver {
             }
         }
 
+        if old_column.comment.as_deref().unwrap_or("")
+            != new_column.comment.as_deref().unwrap_or("")
+        {
+            stmts.push(column_comments::comment_sql(
+                &tbl,
+                &new_column.name,
+                new_column.comment.as_deref(),
+            ));
+        }
+
         if stmts.is_empty() {
             return Err("No changes detected".into());
         }
@@ -2668,6 +3167,24 @@ impl DatabaseDriver for PostgresDriver {
             query.push_str(&format!(" ON UPDATE {}", action));
         }
         Ok(vec![query])
+    }
+
+    async fn get_table_ddl(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_table_ddl(params, table, &self.resolve_schema(schema)).await
+    }
+
+    async fn get_approximate_row_count(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        get_approximate_row_count(params, table, &self.resolve_schema(schema)).await
     }
 
     async fn drop_index(

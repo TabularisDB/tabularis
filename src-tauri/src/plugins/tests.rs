@@ -118,7 +118,8 @@ fn preserves_ui_extension_driver_filter_from_manifest() {
     {
       "slot": "connection-modal.connection_content",
       "module": "ui/dist/index.js",
-      "driver": "wordpress"
+      "driver": "wordpress",
+      "api_version": "0.1.1"
     },
     {
       "slot": "data-grid.toolbar.actions",
@@ -132,6 +133,7 @@ fn preserves_ui_extension_driver_filter_from_manifest() {
 
     let entries = manifest.ui_extensions.expect("ui_extensions present");
     assert_eq!(entries[0].driver.as_deref(), Some("wordpress"));
+    assert_eq!(entries[0].api_version.as_deref(), Some("0.1.1"));
     assert_eq!(entries[1].driver, None);
     assert_eq!(entries[1].order, Some(10));
 }
@@ -162,6 +164,28 @@ fn preserves_explain_parser_declarations_from_manifest() {
     assert_eq!(entries[0].format, "example-db-plan-text");
     assert_eq!(entries[0].label.as_deref(), Some("Example DB plan"));
     assert_eq!(entries[0].module, "explain/dist/index.iife.js");
+}
+
+#[test]
+fn parses_optional_connection_field_overrides() {
+    let manifest: ConfigManifest = serde_json::from_str(
+        r#"{
+  "name": "bigquery",
+  "version": "1.0.0",
+  "description": "BigQuery driver",
+  "connection_fields": {
+    "host": { "hidden": true },
+    "database": { "label": "GCP Project ID", "placeholder": "billing-project" }
+  }
+}"#,
+    )
+    .expect("parse manifest");
+
+    let fields = manifest.connection_fields.expect("connection fields");
+    assert!(fields.host.expect("host override").hidden);
+    let database = fields.database.expect("database override");
+    assert_eq!(database.label.as_deref(), Some("GCP Project ID"));
+    assert_eq!(database.placeholder.as_deref(), Some("billing-project"));
 }
 
 #[test]

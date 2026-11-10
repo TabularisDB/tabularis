@@ -1,0 +1,784 @@
+@import 'tailwindcss';
+
+@font-face {
+    font-family: 'JetBrains Mono ExtraBold';
+    src: url('/fonts/jetbrains-mono-extrabold.woff2') format('woff2');
+    font-weight: 800;
+    font-style: normal;
+    font-display: swap;
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074,
+        U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'JetBrains Mono ExtraBold';
+    src: url('/fonts/jetbrains-mono-extrabold-italic.woff2') format('woff2');
+    font-weight: 800;
+    font-style: italic;
+    font-display: swap;
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074,
+        U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'JetBrains Mono ExtraBold Italic';
+    src: url('/fonts/jetbrains-mono-extrabold-italic.woff2') format('woff2');
+    font-weight: 800;
+    font-style: normal;
+    font-display: swap;
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074,
+        U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@theme {
+    /* Expose CSS variables as Tailwind colors */
+    --color-base: var(--bg-base);
+    --color-elevated: var(--bg-elevated);
+    --color-overlay: var(--bg-overlay);
+    --color-input: var(--bg-input);
+    --color-tooltip: var(--bg-tooltip);
+
+    --color-surface-primary: var(--surface-primary);
+    --color-surface-secondary: var(--surface-secondary);
+    --color-surface-tertiary: var(--surface-tertiary);
+    --color-surface-hover: var(--surface-hover);
+    --color-surface-active: var(--surface-active);
+    --color-surface-disabled: var(--surface-disabled);
+
+    --color-primary: var(--text-primary);
+    --color-secondary: var(--text-secondary);
+    --color-muted: var(--text-muted);
+    --color-disabled: var(--text-disabled);
+    --color-accent: var(--text-accent);
+    --color-inverse: var(--text-inverse);
+
+    --color-accent-primary: var(--accent-primary);
+    --color-accent-secondary: var(--accent-secondary);
+    --color-accent-success: var(--accent-success);
+    --color-accent-warning: var(--accent-warning);
+    --color-accent-error: var(--accent-error);
+    --color-accent-info: var(--accent-info);
+
+    --color-subtle: var(--border-subtle);
+    --color-default: var(--border-default);
+    --color-strong: var(--border-strong);
+    --color-focus: var(--border-focus);
+
+    --color-semantic-pk: var(--semantic-pk);
+    --color-semantic-fk: var(--semantic-fk);
+    --color-semantic-string: var(--semantic-string);
+    --color-semantic-number: var(--semantic-number);
+    --color-semantic-boolean: var(--semantic-boolean);
+    --color-semantic-date: var(--semantic-date);
+    --color-semantic-null: var(--semantic-null);
+    --color-semantic-index: var(--semantic-index);
+    --color-semantic-modified: var(--semantic-modified);
+    --color-semantic-deleted: var(--semantic-deleted);
+    --color-semantic-new: var(--semantic-new);
+
+    /* Label color over a solid accent fill. text.inverse is only guaranteed
+     readable on accent.primary, so the other fills derive black or white
+     from their own lightness (see :root below). */
+    --color-on-accent-secondary: var(--text-on-accent-secondary);
+    --color-on-accent-success: var(--text-on-accent-success);
+    --color-on-accent-warning: var(--text-on-accent-warning);
+    --color-on-accent-error: var(--text-on-accent-error);
+    --color-on-accent-info: var(--text-on-accent-info);
+
+    /* Tailwind radius tokens follow the theme's layout.borderRadius. `rounded-sm`,
+     `rounded-lg` and `rounded-xl` already share their names with the theme
+     variables; the remaining steps are aliased here so a theme with square
+     corners (High Contrast, Spreadsheet 97...) squares every element. */
+    --radius-xs: var(--radius-sm);
+    --radius-md: var(--radius-base);
+    --radius-2xl: var(--radius-xl);
+    --radius-3xl: var(--radius-xl);
+    --radius-4xl: var(--radius-xl);
+}
+
+:root {
+    /* Typography - Define BEFORE usage */
+    --font-base: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    --font-size-base: 14px;
+    --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+    --font-result: var(--font-mono);
+
+    /* Apply immediately */
+    font-family: var(--font-base);
+    font-size: var(--font-size-base);
+    color-scheme: dark;
+
+    /* CSS Variables - Default (Tabularis Dark) */
+    --bg-base: #020617;
+    --bg-elevated: #0f172a;
+    --bg-overlay: #1e293b;
+    --bg-input: #0f172a;
+    --bg-tooltip: #1e293b;
+
+    --surface-primary: #1e293b;
+    --surface-secondary: #334155;
+    --surface-tertiary: #475569;
+    --surface-hover: #334155;
+    --surface-active: #3b82f6;
+    --surface-disabled: #1e293b;
+
+    --text-primary: #f8fafc;
+    --text-secondary: #abb7c7;
+    --text-muted: #a2acbf;
+    --text-disabled: #475569;
+    --text-accent: #7dacf9;
+    --text-inverse: #020617;
+
+    --accent-primary: #3b82f6;
+    --accent-secondary: #9063f6;
+    --accent-success: #22c55e;
+    --accent-warning: #f59e0b;
+    --accent-error: #ef4444;
+    --accent-info: #06b6d4;
+
+    /* Status colors - derived from the theme accents so every palette,
+     light or dark, tints its banners with its own colors. Never hardcode. */
+    --color-error: var(--accent-error);
+    --color-error-text: var(--accent-error);
+    --color-error-bg: color-mix(in srgb, var(--accent-error) 12%, transparent);
+    --color-error-border: color-mix(in srgb, var(--accent-error) 35%, transparent);
+
+    --color-success: var(--accent-success);
+    --color-success-text: var(--accent-success);
+    --color-success-bg: color-mix(in srgb, var(--accent-success) 12%, transparent);
+    --color-success-border: color-mix(in srgb, var(--accent-success) 35%, transparent);
+
+    --color-warning: var(--accent-warning);
+    --color-warning-text: var(--accent-warning);
+    --color-warning-bg: color-mix(in srgb, var(--accent-warning) 12%, transparent);
+    --color-warning-border: color-mix(in srgb, var(--accent-warning) 35%, transparent);
+
+    --color-info: var(--accent-info);
+    --color-info-text: var(--accent-info);
+    --color-info-bg: color-mix(in srgb, var(--accent-info) 12%, transparent);
+    --color-info-border: color-mix(in srgb, var(--accent-info) 35%, transparent);
+
+    /* Fallback when relative color syntax is unavailable: the theme's inverse text. */
+    --text-on-accent-secondary: var(--text-inverse);
+    --text-on-accent-success: var(--text-inverse);
+    --text-on-accent-warning: var(--text-inverse);
+    --text-on-accent-error: var(--text-inverse);
+    --text-on-accent-info: var(--text-inverse);
+
+    --border-subtle: #1e293b;
+    --border-default: #334155;
+    --border-strong: #5b6b82;
+    --border-focus: #3b82f6;
+
+    --semantic-string: #f87171;
+    --semantic-number: #60a5fa;
+    --semantic-boolean: #a78bfa;
+    --semantic-date: #4ade80;
+    --semantic-null: #718199;
+    --semantic-pk: #fbbf24;
+    --semantic-fk: #22d3ee;
+    --semantic-index: #c084fc;
+    --semantic-modified: #3b82f6;
+    --semantic-deleted: #ef4444;
+    --semantic-new: #22c55e;
+
+    --radius-sm: 0.25rem;
+    --radius-base: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+}
+
+/* Black or white label depending on the fill's lightness: L* above ~49 (relative
+   luminance ~0.18, the WCAG crossover) snaps to black, below to white. */
+@supports (color: lch(from red calc((49.44 - l) * infinity) 0 0)) {
+    :root {
+        --text-on-accent-secondary: lch(
+            from var(--accent-secondary) calc((49.44 - l) * infinity) 0 0
+        );
+        --text-on-accent-success: lch(from var(--accent-success) calc((49.44 - l) * infinity) 0 0);
+        --text-on-accent-warning: lch(from var(--accent-warning) calc((49.44 - l) * infinity) 0 0);
+        --text-on-accent-error: lch(from var(--accent-error) calc((49.44 - l) * infinity) 0 0);
+        --text-on-accent-info: lch(from var(--accent-info) calc((49.44 - l) * infinity) 0 0);
+    }
+}
+
+html,
+body,
+#root {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    /* Prevent text selection globally */
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+/* Re-enable text selection for inputs and editable content */
+input,
+textarea,
+select,
+.monaco-editor,
+.monaco-editor *,
+[contenteditable='true'],
+pre,
+code {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
+@layer utilities {
+    .overflow-auto {
+        overscroll-behavior: none;
+    }
+    .overflow-y-auto {
+        overscroll-behavior-y: none;
+    }
+    .overflow-x-auto {
+        overscroll-behavior-x: none;
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    /* Theme-based utility classes */
+    .bg-base {
+        background-color: var(--bg-base);
+    }
+    .bg-elevated {
+        background-color: var(--bg-elevated);
+    }
+    .bg-overlay {
+        background-color: var(--bg-overlay);
+    }
+    .bg-input {
+        background-color: var(--bg-input);
+    }
+    .bg-tooltip {
+        background-color: var(--bg-tooltip);
+    }
+
+    .bg-surface-primary {
+        background-color: var(--surface-primary);
+    }
+    .bg-surface-secondary {
+        background-color: var(--surface-secondary);
+    }
+    .bg-surface-tertiary {
+        background-color: var(--surface-tertiary);
+    }
+    .bg-surface-hover {
+        background-color: var(--surface-hover);
+    }
+    .bg-surface-active {
+        background-color: var(--surface-active);
+    }
+    .bg-surface-disabled {
+        background-color: var(--surface-disabled);
+    }
+
+    .text-primary {
+        color: var(--text-primary);
+    }
+    .text-secondary {
+        color: var(--text-secondary);
+    }
+    .text-muted {
+        color: var(--text-muted);
+    }
+    .text-disabled {
+        color: var(--text-disabled);
+    }
+    .text-accent {
+        color: var(--text-accent);
+    }
+    .text-inverse {
+        color: var(--text-inverse);
+    }
+
+    /* Accent-colored text uses .text-accent (theme text.accent), never the accent fill. */
+    .text-accent-secondary {
+        color: var(--accent-secondary);
+    }
+    .text-accent-success {
+        color: var(--accent-success);
+    }
+    .text-accent-warning {
+        color: var(--accent-warning);
+    }
+    .text-accent-error {
+        color: var(--accent-error);
+    }
+    .text-accent-info {
+        color: var(--accent-info);
+    }
+
+    .border-subtle {
+        border-color: var(--border-subtle);
+    }
+    .border-default {
+        border-color: var(--border-default);
+    }
+    .border-strong {
+        border-color: var(--border-strong);
+    }
+    .border-focus {
+        border-color: var(--border-focus);
+    }
+
+    .bg-accent-primary {
+        background-color: var(--accent-primary);
+    }
+    .bg-accent-secondary {
+        background-color: var(--accent-secondary);
+    }
+    .bg-accent-success {
+        background-color: var(--accent-success);
+    }
+    .bg-accent-warning {
+        background-color: var(--accent-warning);
+    }
+    .bg-accent-error {
+        background-color: var(--accent-error);
+    }
+    .bg-accent-info {
+        background-color: var(--accent-info);
+    }
+
+    .font-mono-theme {
+        font-family: var(--font-mono);
+    }
+    /* Query result cells: follows the "Result font" setting */
+    .font-result {
+        font-family: var(--font-result);
+    }
+
+    /* Fix for font-mono + truncate on Windows */
+    .font-mono.truncate,
+    .font-result.truncate {
+        min-width: 0;
+    }
+
+    /* Tailwind compiles the bare `rounded*` utilities to a literal 0.25rem;
+     route them through the theme so square-corner themes apply everywhere. */
+    .rounded {
+        border-radius: var(--radius-sm);
+    }
+    .rounded-t {
+        border-top-left-radius: var(--radius-sm);
+        border-top-right-radius: var(--radius-sm);
+    }
+    .rounded-b {
+        border-bottom-left-radius: var(--radius-sm);
+        border-bottom-right-radius: var(--radius-sm);
+    }
+    .rounded-l {
+        border-top-left-radius: var(--radius-sm);
+        border-bottom-left-radius: var(--radius-sm);
+    }
+    .rounded-r {
+        border-top-right-radius: var(--radius-sm);
+        border-bottom-right-radius: var(--radius-sm);
+    }
+
+    .rounded-theme-sm {
+        border-radius: var(--radius-sm);
+    }
+    .rounded-theme {
+        border-radius: var(--radius-base);
+    }
+    .rounded-theme-lg {
+        border-radius: var(--radius-lg);
+    }
+    .rounded-theme-xl {
+        border-radius: var(--radius-xl);
+    }
+
+    /* Semantic colors for data types */
+    .text-semantic-string {
+        color: var(--semantic-string);
+    }
+    .text-semantic-number {
+        color: var(--semantic-number);
+    }
+    .text-semantic-boolean {
+        color: var(--semantic-boolean);
+    }
+    .text-semantic-date {
+        color: var(--semantic-date);
+    }
+    .text-semantic-null {
+        color: var(--semantic-null);
+    }
+    .text-semantic-pk {
+        color: var(--semantic-pk);
+    }
+    .text-semantic-fk {
+        color: var(--semantic-fk);
+    }
+    .text-semantic-index {
+        color: var(--semantic-index);
+    }
+    .text-semantic-modified {
+        color: var(--semantic-modified);
+    }
+    .text-semantic-deleted {
+        color: var(--semantic-deleted);
+    }
+    .text-semantic-new {
+        color: var(--semantic-new);
+    }
+
+    /* Result cell colorization by data type. The --rcell-* variables are only set
+     when "color results by type" is enabled (see useResultTypeColors); otherwise
+     they fall back to the primary text color, so values render as before. */
+    .rcell-number {
+        color: var(--rcell-number, var(--text-primary));
+    }
+    .rcell-string {
+        color: var(--rcell-string, var(--text-primary));
+    }
+    .rcell-date {
+        color: var(--rcell-date, var(--text-primary));
+    }
+    .rcell-boolean {
+        color: var(--rcell-boolean, var(--text-primary));
+    }
+
+    /* Status state utilities */
+    .text-error {
+        color: var(--color-error);
+    }
+    .text-error-text {
+        color: var(--color-error-text);
+    }
+    .bg-error-bg {
+        background-color: var(--color-error-bg);
+    }
+    .border-error-border {
+        border-color: var(--color-error-border);
+    }
+
+    .text-success {
+        color: var(--color-success);
+    }
+    .text-success-text {
+        color: var(--color-success-text);
+    }
+    .bg-success-bg {
+        background-color: var(--color-success-bg);
+    }
+    .border-success-border {
+        border-color: var(--color-success-border);
+    }
+
+    .text-warning {
+        color: var(--color-warning);
+    }
+    .text-warning-text {
+        color: var(--color-warning-text);
+    }
+    .bg-warning-bg {
+        background-color: var(--color-warning-bg);
+    }
+    .border-warning-border {
+        border-color: var(--color-warning-border);
+    }
+
+    .text-info {
+        color: var(--color-info);
+    }
+    .text-info-text {
+        color: var(--color-info-text);
+    }
+    .bg-info-bg {
+        background-color: var(--color-info-bg);
+    }
+    .border-info-border {
+        border-color: var(--color-info-border);
+    }
+
+    /* Focus border utility */
+    .focus-border-focus:focus {
+        border-color: var(--border-focus);
+    }
+}
+
+/* Native select popups follow the theme's color-scheme (set on :root by
+   applyThemeToCSS); the option colors below keep them readable everywhere. */
+select,
+select option {
+    background-color: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    font-family: var(--font-base) !important;
+}
+
+select:focus,
+select:active {
+    background-color: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+}
+
+select option {
+    background-color: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    padding: 8px 12px !important;
+}
+
+select option:hover,
+select option:focus,
+select option:checked,
+select option:active {
+    background-color: var(--accent-primary) !important;
+    background: var(--accent-primary) !important;
+    color: var(--text-inverse) !important;
+}
+
+/* Firefox specific */
+@-moz-document url-prefix() {
+    select option {
+        background-color: var(--bg-input) !important;
+        color: var(--text-primary) !important;
+    }
+
+    select option:checked {
+        background-color: var(--accent-primary) !important;
+        color: var(--text-inverse) !important;
+    }
+}
+
+/* ReactFlow Dark Theme Customization */
+.react-flow__controls {
+    background-color: var(--surface-primary) !important;
+    border: 1px solid var(--border-default) !important;
+}
+
+.react-flow__controls-button {
+    background-color: var(--surface-primary) !important;
+    border-bottom: 1px solid var(--border-default) !important;
+    color: var(--text-secondary) !important;
+}
+
+.react-flow__controls-button:hover {
+    background-color: var(--surface-secondary) !important;
+    color: var(--text-primary) !important;
+}
+
+.react-flow__controls-button svg {
+    fill: currentColor !important;
+}
+
+.react-flow__minimap {
+    background-color: var(--surface-primary) !important;
+    border: 1px solid var(--border-default) !important;
+}
+
+.react-flow__edge-path {
+    stroke: var(--accent-primary) !important;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+    stroke: var(--text-accent) !important;
+}
+
+.react-flow__edge-text {
+    fill: var(--text-primary) !important;
+}
+
+.react-flow__edge-textbg {
+    fill: var(--surface-primary) !important;
+}
+
+/* Custom scrollbar styling */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: var(--bg-base);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--surface-secondary);
+    border-radius: var(--radius-sm);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--surface-tertiary);
+}
+
+/* Theme transition for smooth color changes */
+.theme-transition {
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        border-color 0.2s ease;
+}
+
+/* Focus ring using theme colors */
+.focus-ring:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+/* Monaco Editor integration - ensure proper theming */
+.monaco-editor {
+    background-color: var(--bg-base) !important;
+}
+
+.monaco-editor .overflow-guard {
+    background-color: var(--bg-base) !important;
+}
+
+/* Prevent black flash on tab switching */
+.monaco-editor,
+.monaco-editor-background,
+.monaco-editor .margin {
+    background-color: var(--bg-base) !important;
+    transition: none !important;
+}
+
+/* Selection styles */
+::selection {
+    background-color: var(--surface-active);
+    color: var(--text-primary);
+}
+
+::-moz-selection {
+    background-color: var(--surface-active);
+    color: var(--text-primary);
+}
+
+/* Monaco selection visibility */
+.monaco-editor .selected-text {
+    background-color: color-mix(in srgb, var(--surface-active) 32%, transparent) !important;
+}
+
+.monaco-editor .view-overlays .selected-text {
+    background-color: color-mix(in srgb, var(--surface-active) 32%, transparent) !important;
+}
+
+/* Statement-at-cursor highlight (Cmd+Enter run target) */
+.cursor-statement-highlight {
+    background-color: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+}
+
+/* Read-only preview shown when hovering a collapsed SQL query. */
+.sql-fold-preview {
+    position: fixed;
+    z-index: 10000;
+    min-width: 240px;
+    max-width: min(620px, calc(100vw - 24px));
+    overflow: hidden;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-base);
+    background: var(--bg-base);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+    pointer-events: auto;
+}
+
+.sql-fold-preview-code {
+    max-height: min(480px, calc(100vh - 48px));
+    margin: 0;
+    padding: 8px 10px;
+    overflow: auto;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre;
+}
+
+.sql-fold-preview-footer {
+    padding: 5px 10px;
+    border-top: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+/* Sidebar slide-in animation */
+@keyframes slide-in-right {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 150ms ease-in;
+}
+
+/* emoji-picker-react theme override — match Tabularis dark theme */
+.emoji-picker-wrap .EmojiPickerReact {
+    --epr-bg-color: var(--bg-base);
+    --epr-category-label-bg-color: var(--bg-base);
+    --epr-picker-border-color: transparent;
+    --epr-search-input-bg-color: var(--bg-elevated);
+    --epr-search-input-bg-color-active: var(--bg-elevated);
+    --epr-search-input-border-color: var(--border-strong);
+    --epr-search-input-placeholder-color: var(--text-muted, #94a3b8);
+    --epr-search-input-text-color: var(--text-primary, #e2e8f0);
+    --epr-hover-bg-color: var(--surface-secondary);
+    --epr-focus-bg-color: var(--surface-secondary);
+    --epr-highlight-color: var(--accent-primary, #3b82f6);
+    --epr-category-icon-active-color: var(--accent-primary, #3b82f6);
+    --epr-text-color: var(--text-secondary, #cbd5e1);
+    --epr-category-label-text-color: var(--text-muted, #94a3b8);
+    --epr-skin-tone-picker-menu-color: var(--bg-elevated);
+    border: none;
+    border-radius: var(--radius-base);
+    font-family: var(--font-base);
+}
+
+.emoji-picker-wrap .EmojiPickerReact .epr-search-container input.epr-search {
+    border-radius: var(--radius-base);
+    font-size: 0.8125rem;
+}
+
+.emoji-picker-wrap .EmojiPickerReact .epr-category-nav {
+    padding: 0.375rem 0.5rem;
+}
+
+.emoji-picker-wrap .EmojiPickerReact .epr-emoji-category-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}

@@ -18,8 +18,10 @@ struct Limits {
 }
 
 static LIMITS: Lazy<Limits> = Lazy::new(|| {
-    serde_json::from_str(include_str!("../../../src/schemas/theme-limits-v1.json"))
-        .expect("Bundled theme limits must be valid")
+    serde_json::from_str(include_str!(
+        "../../../packages/web-ui/src/schemas/theme-limits-v1.json"
+    ))
+    .expect("Bundled theme limits must be valid")
 });
 
 fn compile_schema(source: &str) -> Result<JSONSchema, String> {
@@ -32,12 +34,12 @@ fn compile_schema(source: &str) -> Result<JSONSchema, String> {
 
 static DEFINITION: Lazy<Result<JSONSchema, String>> = Lazy::new(|| {
     compile_schema(include_str!(
-        "../../../src/schemas/theme-definition-v1.json"
+        "../../../packages/web-ui/src/schemas/theme-definition-v1.json"
     ))
 });
 static MANIFEST: Lazy<Result<JSONSchema, String>> = Lazy::new(|| {
     compile_schema(include_str!(
-        "../../../src/schemas/theme-package-v1.json"
+        "../../../packages/web-ui/src/schemas/theme-package-v1.json"
     ))
 });
 

@@ -1,0 +1,1465 @@
+use super::auth::{
+    AuthenticatedSession, AuthenticationError, IssuedSession, LocalSessionSecurity,
+    LocalSessionSecurityConfig, RemoteAuthentication, RemoteSessionSecurityConfig,
+    CSRF_HEADER_NAME, PROXY_SECRET_HEADER_NAME, PROXY_USER_HEADER_NAME, SESSION_COOKIE_NAME,
+};
+use super::contract::SessionNegotiation;
+use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
+use super::login_page::{login_page_csp, render_login_page};
+use super::login_target::{login_return_target, LOGIN_TARGET_PARAM};
+use super::rpc::{RequestId, RpcAccessPolicy, RpcDispatcher};
+use crate::application::file_transfers::{
+    FileTransferStore, TransferReader, UploadError, MAX_FILE_TRANSFER_BYTES,
+};
+use crate::application::{ApplicationApi, AuthorizationLevel};
+use crate::cli::WebAuthMode;
+use axum::body::{Body, Bytes};
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{ConnectInfo, Extension, Path, Query, Request, State};
+use axum::http::header::{
+    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_SECURITY_POLICY, CONTENT_TYPE,
+    COOKIE, HOST, LOCATION, ORIGIN, REFERRER_POLICY, RETRY_AFTER, SET_COOKIE,
+    X_CONTENT_TYPE_OPTIONS,
+};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
+use axum::routing::{any, get, post};
+use axum::{Json, Router};
+use futures::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
+use std::future::Future;
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::time::{Instant, MissedTickBehavior};
+use tokio_util::io::ReaderStream;
+use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::services::{ServeDir, ServeFile};
+use url::Host;
+use uuid::Uuid;
+
+const BOOTSTRAP_PATH: &str = "/api/v1/auth/bootstrap";
+const LOGIN_PATH: &str = "/api/v1/auth/login";
+const LOGIN_PAGE_PATH: &str = "/login";
+const REQUEST_ID_HEADER_NAME: &str = "x-request-id";
+const MAX_EVENT_CONTROL_BYTES: usize = 16 * 1024;
+const FILE_NAME_HEADER_NAME: &str = "x-tabularis-file-name";
+const FILE_PURPOSE_HEADER_NAME: &str = "x-tabularis-purpose";
+const BLOB_TRANSFER_PURPOSE: &str = "blob";
+const SANDBOX_GUEST_CSP: &str = "sandbox allow-scripts; default-src 'none'; script-src 'self'; \
+  style-src 'self' 'unsafe-inline'; img-src data: blob:; font-src data:; \
+  connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'";
+static SANDBOX_GUEST_HTML: &[u8] = include_bytes!("../../../resources/guest/__guest__.html");
+static SANDBOX_GUEST_RUNTIME_JS: &[u8] = include_bytes!("../../../resources/guest/runtime.js");
+static SANDBOX_HOST_CSS: &[u8] = include_bytes!("../../../resources/guest/host.css");
+const PLUGIN_ASSET_CSP: &str = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; sandbox";
+const CROSS_ORIGIN_RESOURCE_POLICY: HeaderName =
+    HeaderName::from_static("cross-origin-resource-policy");
+
+pub struct WebServerOptions {
+    pub trusted_proxies: Vec<ipnet::IpNet>,
+    pub host: String,
+    pub port: u16,
+    pub web_root: PathBuf,
+    pub data_dir: PathBuf,
+    pub plugins_dir: PathBuf,
+    pub open_browser: bool,
+    pub auth: Option<WebAuthMode>,
+    pub public_url: Option<String>,
+    pub allowed_origins: Vec<String>,
+    pub allow_high_risk: bool,
+    pub server_file_browser_roots: Vec<PathBuf>,
+    pub application: Arc<dyn ApplicationApi>,
+    pub events: WebEventBus,
+}
+
+#[derive(Clone)]
+struct WebServerState {
+    security: LocalSessionSecurity,
+    rpc: RpcDispatcher,
+    events: WebEventBus,
+    transfers: FileTransferStore,
+    data_dir: PathBuf,
+    plugins_dir: PathBuf,
+    mcp_host_configuration: bool,
+    server_file_browser: bool,
+}
+
+#[derive(Deserialize)]
+struct BootstrapQuery {
+    token: String,
+}
+
+#[derive(Deserialize)]
+struct LoginPageQuery {
+    next: Option<String>,
+}
+
+#[derive(Serialize)]
+struct IconUploadResponse {
+    token: String,
+}
+
+#[derive(Serialize)]
+struct BlobUploadResponse {
+    value: String,
+}
+
+pub async fn run(options: WebServerOptions) -> Result<(), String> {
+    let server_file_browser_roots =
+        super::server_files::canonicalize_roots(&options.server_file_browser_roots)?;
+    let listener = TcpListener::bind((options.host.as_str(), options.port))
+        .await
+        .map_err(|error| {
+            format!(
+                "Failed to bind the Web UI server to {}:{}: {error}",
+                options.host, options.port
+            )
+        })?;
+    let address = listener
+        .local_addr()
+        .map_err(|error| format!("Failed to read the Web UI server address: {error}"))?;
+
+    let (security, launch_url, public_url) = match options.auth {
+        Some(auth_mode) => {
+            let public_url = options.public_url.clone().ok_or_else(|| {
+                "Remote Web UI mode requires --public-url with an HTTPS (or loopback HTTP) origin".to_string()
+            })?;
+            let authentication = remote_authentication(auth_mode)?;
+            let authorization = if options.allow_high_risk {
+                AuthorizationLevel::LocalAdmin
+            } else {
+                AuthorizationLevel::Database
+            };
+            let security = LocalSessionSecurity::new_remote(
+                RemoteSessionSecurityConfig {
+                    trusted_proxies: options.trusted_proxies.clone(),
+                    public_origin: public_url.clone(),
+                    allowed_origins: options.allowed_origins.clone(),
+                    session_ttl: LocalSessionSecurityConfig::default().session_ttl,
+                    max_body_bytes: LocalSessionSecurityConfig::default().max_body_bytes,
+                    authorization,
+                    rate_limit: Default::default(),
+                },
+                authentication,
+            )?;
+            let launch_url = if auth_mode == WebAuthMode::Password {
+                format!("{}{LOGIN_PAGE_PATH}", security.expected_origin())
+            } else {
+                format!("{}/", security.expected_origin())
+            };
+            (security, launch_url, public_url)
+        }
+        None => {
+            if !address.ip().is_loopback() {
+                return Err(
+                    "Non-loopback Web UI binding requires --auth, --public-url, and --allowed-origin"
+                        .to_string(),
+                );
+            }
+            let public_url = format!("http://{address}");
+            let (security, bootstrap_token) = LocalSessionSecurity::new(
+                public_url.clone(),
+                LocalSessionSecurityConfig::default(),
+            )?;
+            let launch_url = format!(
+                "{public_url}{BOOTSTRAP_PATH}?token={}",
+                bootstrap_token.expose()
+            );
+            drop(bootstrap_token);
+            (security, launch_url, public_url)
+        }
+    };
+
+    println!("Tabularis Web is available at {public_url}");
+    if options.open_browser && open::that(&launch_url).is_err() {
+        log::warn!("Failed to open the Web UI in the default browser");
+        // The user asked for a browser, so hand over the URL instead. It goes to
+        // the terminal only: `--no-open` services never print it.
+        eprintln!(
+            "Open this URL in a browser to sign in (valid once, for one minute):\n  {launch_url}"
+        );
+    }
+    drop(launch_url);
+
+    serve_with_events(
+        listener,
+        options.web_root,
+        options.data_dir,
+        options.plugins_dir,
+        security,
+        options.application,
+        options.events,
+        server_file_browser_roots,
+        shutdown_signal(),
+    )
+    .await
+    .map_err(|error| format!("Web UI server failed: {error}"))
+}
+
+fn remote_authentication(auth_mode: WebAuthMode) -> Result<RemoteAuthentication, String> {
+    match auth_mode {
+        WebAuthMode::Password => std::env::var("TABULARIS_WEB_PASSWORD")
+            .map(|password| RemoteAuthentication::password(&password))
+            .map_err(|_| "Password authentication requires TABULARIS_WEB_PASSWORD".to_string()),
+        WebAuthMode::Proxy => std::env::var("TABULARIS_WEB_PROXY_SECRET")
+            .map(|secret| RemoteAuthentication::proxy(&secret))
+            .map_err(|_| "Proxy authentication requires TABULARIS_WEB_PROXY_SECRET".to_string()),
+    }
+}
+
+#[cfg(test)]
+pub(crate) async fn serve<F>(
+    listener: TcpListener,
+    web_root: PathBuf,
+    security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
+    shutdown: F,
+) -> std::io::Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    let data_dir = web_root.clone();
+    serve_with_events(
+        listener,
+        web_root,
+        data_dir.clone(),
+        data_dir.join("plugins"),
+        security,
+        application,
+        WebEventBus::default(),
+        Arc::default(),
+        shutdown,
+    )
+    .await
+}
+
+pub(crate) async fn serve_with_events<F>(
+    listener: TcpListener,
+    web_root: PathBuf,
+    data_dir: PathBuf,
+    plugins_dir: PathBuf,
+    security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
+    events: WebEventBus,
+    server_file_browser_roots: Arc<[PathBuf]>,
+    shutdown: F,
+) -> std::io::Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    let (router, state) = router(
+        web_root,
+        data_dir,
+        plugins_dir,
+        security,
+        application,
+        events,
+        server_file_browser_roots,
+    );
+    // Keep reclamation owned by the server future, including cancellation and shutdown.
+    tokio::select! {
+        result = async {
+            axum::serve(listener, router.into_make_service_with_connect_info::<SocketAddr>())
+                .with_graceful_shutdown(shutdown)
+                .await
+        } => result,
+        _ = reclaim_expired_sessions(state) => unreachable!("session reclamation runs until the server stops"),
+    }
+}
+
+async fn reclaim_expired_sessions(state: WebServerState) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+    interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    loop {
+        interval.tick().await;
+        for session_id in state.security.take_expired_sessions() {
+            state.events.remove_session(session_id);
+            state.rpc.clear_session(session_id);
+            state.transfers.cleanup_session(session_id);
+        }
+    }
+}
+
+fn router(
+    web_root: PathBuf,
+    data_dir: PathBuf,
+    plugins_dir: PathBuf,
+    security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
+    events: WebEventBus,
+    server_file_browser_roots: Arc<[PathBuf]>,
+) -> (Router, WebServerState) {
+    let index = web_root.join("index.html");
+    let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
+    let max_body_bytes = security.max_body_bytes();
+    let mcp_host_configuration =
+        !security.is_remote() && mcp_host_configuration_enabled(security.expected_origin());
+    let server_file_browser = !server_file_browser_roots.is_empty();
+    let state = WebServerState {
+        security,
+        rpc: RpcDispatcher::with_access_policy(
+            application,
+            RpcAccessPolicy {
+                mcp_host_configuration,
+                server_file_browser_roots,
+            },
+        ),
+        events,
+        transfers: FileTransferStore::new(&data_dir),
+        data_dir,
+        plugins_dir,
+        mcp_host_configuration,
+        server_file_browser,
+    };
+
+    let standard_routes = Router::new()
+        .route("/api/v1/session", get(session))
+        .route(LOGIN_PAGE_PATH, get(login_page))
+        .route(LOGIN_PATH, post(login))
+        .route("/api/v1/logout", post(logout))
+        .route("/api/v1/events", get(event_stream))
+        .route("/api/v1/rpc/:command", post(rpc))
+        .route(
+            "/api/v1/uploads/connection-icons",
+            post(upload_connection_icon),
+        )
+        .route(
+            "/api/v1/assets/connection-icons/:filename",
+            get(connection_icon_asset),
+        )
+        .route(
+            "/api/v1/assets/plugins/:plugin_id/*asset_path",
+            get(plugin_asset),
+        )
+        .route("/api/v1/sandbox-ticket/:plugin_id", get(sandbox_ticket))
+        .route(
+            "/api/v1/sandbox/plugins/:session_id/:ticket/:plugin_id/*asset_path",
+            get(sandbox_plugin_asset),
+        )
+        .route("/api/*path", any(StatusCode::NOT_FOUND))
+        .layer(RequestBodyLimitLayer::new(max_body_bytes));
+    let file_routes = Router::new()
+        .route("/api/v1/uploads", post(upload_file))
+        .route("/api/v1/downloads/:token", get(download_blob))
+        .layer(RequestBodyLimitLayer::new(MAX_FILE_TRANSFER_BYTES as usize));
+    let blob_routes = Router::new()
+        .route("/api/v1/uploads/blobs", post(upload_blob))
+        .route("/api/v1/uploads/blobs/:token", get(uploaded_blob))
+        .layer(RequestBodyLimitLayer::new(
+            crate::application::records::MAX_WEB_BLOB_BYTES as usize,
+        ));
+
+    let router = Router::new()
+        .route("/healthz", get(health))
+        .route(BOOTSTRAP_PATH, get(bootstrap))
+        .merge(standard_routes)
+        .merge(file_routes)
+        .merge(blob_routes)
+        .fallback_service(static_files)
+        .with_state(state.clone())
+        .layer(middleware::from_fn_with_state(state.clone(), security_gate))
+        .layer(middleware::from_fn(add_request_id))
+        .layer(middleware::map_response(baseline_security_headers));
+    (router, state)
+}
+
+/// Defaults for the SPA shell and every other response; handlers with a stricter policy keep theirs.
+async fn baseline_security_headers(mut response: Response) -> Response {
+    let headers = response.headers_mut();
+    headers
+        .entry(X_CONTENT_TYPE_OPTIONS)
+        .or_insert(HeaderValue::from_static("nosniff"));
+    headers
+        .entry(REFERRER_POLICY)
+        .or_insert(HeaderValue::from_static("same-origin"));
+    // No script-src yet: Monaco workers and plugin UI extensions need a tested allowlist first.
+    headers
+        .entry(CONTENT_SECURITY_POLICY)
+        .or_insert(HeaderValue::from_static(
+            "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+        ));
+    response
+}
+
+async fn health() -> impl IntoResponse {
+    (
+        [(CACHE_CONTROL, "no-store"), (CONTENT_TYPE, "text/plain")],
+        "ok",
+    )
+}
+
+async fn bootstrap(
+    State(state): State<WebServerState>,
+    Query(query): Query<BootstrapQuery>,
+    Extension(request_id): Extension<RequestId>,
+) -> Response {
+    let Some(session) = state.security.consume_bootstrap(&query.token) else {
+        audit_event(
+            "authentication",
+            &request_id.0,
+            None,
+            "method=bootstrap outcome=denied",
+        );
+        return status_response(StatusCode::UNAUTHORIZED);
+    };
+    audit_event(
+        "authentication",
+        &request_id.0,
+        Some(session.session_id()),
+        "method=bootstrap outcome=success",
+    );
+
+    let mut response = StatusCode::SEE_OTHER.into_response();
+    response
+        .headers_mut()
+        .insert(LOCATION, HeaderValue::from_static("/"));
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+        .headers_mut()
+        .insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    response.headers_mut().insert(
+        SET_COOKIE,
+        session_cookie(&session, state.security.secure_cookie()),
+    );
+    response
+}
+
+async fn login_page(
+    State(state): State<WebServerState>,
+    Query(query): Query<LoginPageQuery>,
+) -> Response {
+    if !state.security.password_authentication() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
+    let target = query.next.as_deref().and_then(login_return_target);
+    login_page_response(StatusCode::OK, None, target)
+}
+
+async fn login(
+    State(state): State<WebServerState>,
+    Extension(request_id): Extension<RequestId>,
+    peer: Option<ConnectInfo<SocketAddr>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if !state.security.password_authentication() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
+    let requested_target = form_field(&body, LOGIN_TARGET_PARAM);
+    let target = requested_target.as_deref().and_then(login_return_target);
+    let Some(password) = form_field(&body, "password") else {
+        audit_event(
+            "authentication",
+            &request_id.0,
+            None,
+            "method=password outcome=denied",
+        );
+        return login_page_response(
+            StatusCode::UNAUTHORIZED,
+            Some("Invalid credentials"),
+            target,
+        );
+    };
+    let client = state.security.login_client(
+        peer.map(|ConnectInfo(address)| address.ip()),
+        headers
+            .get("x-forwarded-for")
+            .and_then(|value| value.to_str().ok()),
+    );
+    match state.security.authenticate_password(&password, client) {
+        Ok(session) => {
+            audit_event(
+                "authentication",
+                &request_id.0,
+                Some(session.session_id()),
+                "method=password outcome=success",
+            );
+            let mut response = StatusCode::SEE_OTHER.into_response();
+            let location = HeaderValue::from_str(target.unwrap_or("/"))
+                .expect("login return targets contain only valid header characters");
+            response.headers_mut().insert(LOCATION, location);
+            response
+                .headers_mut()
+                .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            response.headers_mut().insert(
+                SET_COOKIE,
+                session_cookie(&session, state.security.secure_cookie()),
+            );
+            response
+        }
+        Err(error) => {
+            audit_authentication_error(&request_id.0, "password", error);
+            authentication_error_response(error, true, target)
+        }
+    }
+}
+
+async fn session(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+) -> impl IntoResponse {
+    (
+        [(CACHE_CONTROL, "no-store")],
+        Json(
+            SessionNegotiation::authenticated_with_access(
+                session.csrf_token.clone(),
+                state.mcp_host_configuration,
+                session.is_remote(),
+                session.authorization(),
+            )
+            .with_server_file_browser(
+                state.server_file_browser
+                    && session.authorization() == AuthorizationLevel::LocalAdmin,
+            ),
+        ),
+    )
+}
+
+pub(crate) fn mcp_host_configuration_enabled(origin: &str) -> bool {
+    url::Url::parse(origin)
+        .ok()
+        .and_then(|url| {
+            url.host().map(|host| match host {
+                Host::Domain(host) => host.eq_ignore_ascii_case("localhost"),
+                Host::Ipv4(host) => host.is_loopback(),
+                Host::Ipv6(host) => host.is_loopback(),
+            })
+        })
+        .unwrap_or(false)
+}
+
+async fn rpc(
+    State(state): State<WebServerState>,
+    Path(command): Path<String>,
+    Extension(session): Extension<AuthenticatedSession>,
+    Extension(request_id): Extension<RequestId>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let session_id = session.event_scope();
+    let request_id_text = request_id.0.clone();
+    let response = state
+        .rpc
+        .dispatch(
+            &command,
+            request_id,
+            &headers,
+            body,
+            Some(session_id),
+            session.authorization(),
+        )
+        .await;
+    let audited_command = if response.status() == StatusCode::NOT_FOUND {
+        "unknown"
+    } else {
+        command.as_str()
+    };
+    audit_event(
+        "rpc",
+        &request_id_text,
+        Some(session_id),
+        &format!(
+            "command={audited_command} status={}",
+            response.status().as_u16()
+        ),
+    );
+    response
+}
+
+async fn upload_connection_icon(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+    body: Bytes,
+) -> Response {
+    match crate::application::connections::store_icon_upload(
+        &state.data_dir,
+        session.event_scope(),
+        &body,
+    ) {
+        Ok(token) => (
+            StatusCode::CREATED,
+            [(CACHE_CONTROL, "no-store")],
+            Json(IconUploadResponse { token }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::BAD_REQUEST,
+            [(CACHE_CONTROL, "no-store")],
+            error,
+        )
+            .into_response(),
+    }
+}
+
+async fn upload_file(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    let Some(purpose) = header_text(&headers, FILE_PURPOSE_HEADER_NAME) else {
+        return upload_error_response(UploadError::Failed(
+            "A file transfer purpose is required".to_string(),
+        ));
+    };
+    let Some(encoded_name) = header_text(&headers, FILE_NAME_HEADER_NAME) else {
+        return upload_error_response(UploadError::Failed("A file name is required".to_string()));
+    };
+    let file_name = match urlencoding::decode(encoded_name) {
+        Ok(file_name) => file_name,
+        Err(_) => {
+            return upload_error_response(UploadError::Failed(
+                "The file name is invalid".to_string(),
+            ))
+        }
+    };
+    let content_type = header_text(&headers, CONTENT_TYPE.as_str());
+    match state
+        .transfers
+        .store_upload(
+            session.event_scope(),
+            purpose,
+            &file_name,
+            content_type,
+            body.into_data_stream(),
+        )
+        .await
+    {
+        Ok(metadata) => (
+            StatusCode::CREATED,
+            [(CACHE_CONTROL, "no-store")],
+            Json(metadata),
+        )
+            .into_response(),
+        Err(error) => upload_error_response(error),
+    }
+}
+
+async fn upload_blob(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    let content_type = header_text(&headers, CONTENT_TYPE.as_str());
+    match state
+        .transfers
+        .store_upload(
+            session.event_scope(),
+            BLOB_TRANSFER_PURPOSE,
+            "blob-upload.bin",
+            content_type,
+            body.into_data_stream(),
+        )
+        .await
+    {
+        Ok(metadata) if metadata.size > 0 => {
+            let value = format!(
+                "BLOB_UPLOAD_REF:{}:{}:{}",
+                metadata.size, metadata.mime_type, metadata.token
+            );
+            (
+                StatusCode::CREATED,
+                [(CACHE_CONTROL, "no-store")],
+                Json(BlobUploadResponse { value }),
+            )
+                .into_response()
+        }
+        Ok(metadata) => {
+            let _ = state.transfers.claim_upload(
+                session.event_scope(),
+                &metadata.token,
+                BLOB_TRANSFER_PURPOSE,
+            );
+            upload_error_response(UploadError::Failed(
+                "The uploaded BLOB is empty".to_string(),
+            ))
+        }
+        Err(error) => upload_error_response(error),
+    }
+}
+
+async fn uploaded_blob(
+    State(state): State<WebServerState>,
+    Path(token): Path<String>,
+    Extension(session): Extension<AuthenticatedSession>,
+) -> Response {
+    match state
+        .transfers
+        .open_upload(session.event_scope(), &token, BLOB_TRANSFER_PURPOSE)
+        .await
+    {
+        Ok(reader) => streaming_transfer_response(reader, false, true),
+        Err(_) => status_response(StatusCode::NOT_FOUND),
+    }
+}
+
+async fn download_blob(
+    State(state): State<WebServerState>,
+    Path(token): Path<String>,
+    Extension(session): Extension<AuthenticatedSession>,
+) -> Response {
+    match state
+        .transfers
+        .consume_download(session.event_scope(), &token)
+        .await
+    {
+        Ok(reader) => streaming_transfer_response(reader, true, false),
+        Err(_) => status_response(StatusCode::NOT_FOUND),
+    }
+}
+
+fn streaming_transfer_response(
+    reader: TransferReader,
+    attachment: bool,
+    sandbox: bool,
+) -> Response {
+    let metadata = reader.metadata().clone();
+    let disposition = if attachment { "attachment" } else { "inline" };
+    let content_disposition = format!("{disposition}; filename=\"{}\"", metadata.file_name);
+    let mut response = Response::new(Body::from_stream(ReaderStream::new(reader)));
+    *response.status_mut() = StatusCode::OK;
+    let headers = response.headers_mut();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_str(&metadata.mime_type)
+            .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+    );
+    headers.insert(
+        CONTENT_LENGTH,
+        HeaderValue::from_str(&metadata.size.to_string())
+            .expect("file transfer sizes are valid header values"),
+    );
+    headers.insert(
+        CONTENT_DISPOSITION,
+        HeaderValue::from_str(&content_disposition)
+            .expect("sanitized file names are valid header values"),
+    );
+    headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    if sandbox {
+        headers.insert(
+            CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("sandbox; default-src 'none'"),
+        );
+    }
+    response
+}
+
+fn header_text<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    headers.get(name)?.to_str().ok()
+}
+
+fn upload_error_response(error: UploadError) -> Response {
+    let status = match error {
+        UploadError::TooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
+        UploadError::Failed(_) => StatusCode::BAD_REQUEST,
+    };
+    (status, [(CACHE_CONTROL, "no-store")], error.to_string()).into_response()
+}
+
+async fn plugin_asset(
+    State(state): State<WebServerState>,
+    Path((plugin_id, asset_path)): Path<(String, String)>,
+) -> Response {
+    let asset = match crate::application::plugin_assets::read_plugin_asset(
+        &state.plugins_dir,
+        &plugin_id,
+        &asset_path,
+    ) {
+        Ok(asset) => asset,
+        Err(_) => return status_response(StatusCode::NOT_FOUND),
+    };
+
+    let mut response = Response::new(Body::from(asset.bytes));
+    *response.status_mut() = StatusCode::OK;
+    let headers = response.headers_mut();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static(asset.content_type));
+    headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    headers.insert(
+        CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(PLUGIN_ASSET_CSP),
+    );
+    headers.insert(
+        CROSS_ORIGIN_RESOURCE_POLICY,
+        HeaderValue::from_static("same-origin"),
+    );
+    response
+}
+
+/// Serves the sandboxed plugin guest page, its runtime and the plugin's declared UI modules.
+///
+/// Opaque sandbox frames cannot send the session cookie on sub-resource requests.
+/// Their URLs therefore carry a session-bound, plugin-scoped read-only capability.
+async fn sandbox_ticket(
+    Extension(session): Extension<AuthenticatedSession>,
+    Path(plugin_id): Path<String>,
+) -> Response {
+    if crate::application::plugins::validate_plugin_id(&plugin_id).is_err() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
+    let base_url = format!(
+        "/api/v1/sandbox/plugins/{}/{}/{plugin_id}/",
+        session.event_scope(),
+        session.sandbox_ticket(&plugin_id)
+    );
+    let mut response = Json(serde_json::json!({"baseUrl": base_url})).into_response();
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+async fn sandbox_plugin_asset(
+    State(state): State<WebServerState>,
+    Path((session_id, ticket, plugin_id, asset_path)): Path<(Uuid, String, String, String)>,
+) -> Response {
+    if crate::application::plugins::validate_plugin_id(&plugin_id).is_err() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
+    if !state
+        .security
+        .verify_sandbox_ticket(session_id, &plugin_id, &ticket)
+    {
+        return status_response(StatusCode::UNAUTHORIZED);
+    }
+    let (bytes, content_type) = match asset_path.as_str() {
+        "__guest__.html" => (SANDBOX_GUEST_HTML.to_vec(), "text/html; charset=utf-8"),
+        "__runtime__.js" => (
+            SANDBOX_GUEST_RUNTIME_JS.to_vec(),
+            "application/javascript; charset=utf-8",
+        ),
+        "__host.css__" => (SANDBOX_HOST_CSS.to_vec(), "text/css; charset=utf-8"),
+        other => match crate::application::plugin_assets::read_plugin_asset(
+            &state.plugins_dir,
+            &plugin_id,
+            other,
+        ) {
+            Ok(asset) => (asset.bytes, asset.content_type),
+            Err(_) => return status_response(StatusCode::NOT_FOUND),
+        },
+    };
+    let mut response = Response::new(Body::from(bytes));
+    let headers = response.headers_mut();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
+    headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    headers.insert(
+        CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(SANDBOX_GUEST_CSP),
+    );
+    response
+}
+
+async fn connection_icon_asset(
+    State(state): State<WebServerState>,
+    Path(filename): Path<String>,
+) -> Response {
+    let relative_path = format!("connection-icons/{filename}");
+    let path = match crate::application::connections::resolve_icon_asset(
+        &state.data_dir,
+        &relative_path,
+    ) {
+        Ok(path) => path,
+        Err(_) => return status_response(StatusCode::NOT_FOUND),
+    };
+    let bytes = match tokio::fs::read(&path).await {
+        Ok(bytes) => bytes,
+        Err(_) => return status_response(StatusCode::NOT_FOUND),
+    };
+    let content_type = match path.extension().and_then(|extension| extension.to_str()) {
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("svg") => "image/svg+xml",
+        _ => "application/octet-stream",
+    };
+    // The SVG upload filter is a denylist; the sandbox CSP stops scripts when an icon is opened directly.
+    (
+        StatusCode::OK,
+        [
+            (CACHE_CONTROL, "private, max-age=300"),
+            (CONTENT_TYPE, content_type),
+            (X_CONTENT_TYPE_OPTIONS, "nosniff"),
+            (CONTENT_SECURITY_POLICY, PLUGIN_ASSET_CSP),
+            (CROSS_ORIGIN_RESOURCE_POLICY, "same-origin"),
+        ],
+        bytes,
+    )
+        .into_response()
+}
+
+async fn event_stream(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+    websocket: WebSocketUpgrade,
+) -> Response {
+    let connection = match state
+        .events
+        .connect(session.event_scope(), session.authorization())
+    {
+        Ok(connection) => connection,
+        Err(error) => {
+            log::warn!("Rejected WebSocket event connection: {error}");
+            return status_response(StatusCode::SERVICE_UNAVAILABLE);
+        }
+    };
+    let events = state.events.clone();
+    websocket.on_upgrade(move |socket| {
+        event_socket(
+            socket,
+            connection,
+            events,
+            Instant::from_std(session.expires_at),
+        )
+    })
+}
+
+async fn event_socket(
+    socket: WebSocket,
+    mut connection: EventConnection,
+    events: WebEventBus,
+    expires_at: Instant,
+) {
+    let (mut sender, mut receiver) = socket.split();
+    let mut heartbeat = tokio::time::interval(events.heartbeat_interval());
+    heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    heartbeat.tick().await;
+    let mut last_pong = Instant::now();
+
+    let process_messages = async {
+        loop {
+            tokio::select! {
+                event = connection.recv() => {
+                    let Some(event) = event else {
+                        let _ = sender.send(Message::Close(None)).await;
+                        break;
+                    };
+                    let message = ServerEventMessage::Event { envelope: &event };
+                    if send_event_message(&mut sender, &message).await.is_err() {
+                        break;
+                    }
+                }
+                _ = heartbeat.tick() => {
+                    if last_pong.elapsed() >= events.heartbeat_timeout() {
+                        let _ = sender.send(Message::Close(None)).await;
+                        break;
+                    }
+                    if sender.send(Message::Ping(Vec::new())).await.is_err() {
+                        break;
+                    }
+                }
+                message = receiver.next() => {
+                    let Some(Ok(message)) = message else {
+                        break;
+                    };
+                    match message {
+                        Message::Text(text) => {
+                            if text.len() > MAX_EVENT_CONTROL_BYTES {
+                                let message = ServerEventMessage::Error {
+                                    code: "CONTROL_MESSAGE_TOO_LARGE",
+                                    message: "The WebSocket control message is too large",
+                                };
+                                if send_event_message(&mut sender, &message).await.is_err() {
+                                    break;
+                                }
+                                continue;
+                            }
+                            let control = match serde_json::from_str::<ClientEventMessage>(&text) {
+                                Ok(control) => control,
+                                Err(_) => {
+                                    let message = ServerEventMessage::Error {
+                                        code: "INVALID_CONTROL_MESSAGE",
+                                        message: "The WebSocket control message is invalid",
+                                    };
+                                    if send_event_message(&mut sender, &message).await.is_err() {
+                                        break;
+                                    }
+                                    continue;
+                                }
+                            };
+                            if handle_event_control(&mut sender, &mut connection, control).await.is_err() {
+                                break;
+                            }
+                        }
+                        Message::Ping(payload) => {
+                            if sender.send(Message::Pong(payload)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Message::Pong(_) => last_pong = Instant::now(),
+                        Message::Close(_) => break,
+                        Message::Binary(_) => {
+                            let message = ServerEventMessage::Error {
+                                code: "INVALID_CONTROL_MESSAGE",
+                                message: "WebSocket control messages must be JSON text",
+                            };
+                            if send_event_message(&mut sender, &message).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    tokio::select! {
+        biased;
+        _ = tokio::time::sleep_until(expires_at) => {},
+        _ = process_messages => return,
+    }
+    // Expiry cancels in-flight sends and replay too; a stalled peer cannot retain the socket.
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        sender.send(Message::Close(None)),
+    )
+    .await;
+}
+
+async fn handle_event_control<S>(
+    sender: &mut S,
+    connection: &mut EventConnection,
+    control: ClientEventMessage,
+) -> Result<(), ()>
+where
+    S: futures::Sink<Message> + Unpin,
+{
+    match control {
+        ClientEventMessage::Subscribe { events, since } => {
+            match connection.subscribe(&events, since) {
+                Ok(replay) => {
+                    let acknowledgement = ServerEventMessage::Subscribed {
+                        events: &events,
+                        replayed: replay.len(),
+                    };
+                    send_event_message(sender, &acknowledgement).await?;
+                    for event in &replay {
+                        send_event_message(sender, &ServerEventMessage::Event { envelope: event })
+                            .await?;
+                    }
+                }
+                Err(error) => {
+                    send_event_message(
+                        sender,
+                        &ServerEventMessage::Error {
+                            code: "SUBSCRIPTION_REJECTED",
+                            message: &error,
+                        },
+                    )
+                    .await?;
+                }
+            }
+        }
+        ClientEventMessage::Unsubscribe { events } => match connection.unsubscribe(&events) {
+            Ok(()) => {
+                send_event_message(
+                    sender,
+                    &ServerEventMessage::Unsubscribed { events: &events },
+                )
+                .await?;
+            }
+            Err(error) => {
+                send_event_message(
+                    sender,
+                    &ServerEventMessage::Error {
+                        code: "SUBSCRIPTION_REJECTED",
+                        message: &error,
+                    },
+                )
+                .await?;
+            }
+        },
+    }
+    Ok(())
+}
+
+async fn send_event_message<S>(sender: &mut S, message: &ServerEventMessage<'_>) -> Result<(), ()>
+where
+    S: futures::Sink<Message> + Unpin,
+{
+    let text = serde_json::to_string(message).map_err(|_| ())?;
+    sender.send(Message::Text(text)).await.map_err(|_| ())
+}
+
+async fn logout(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+    Extension(request_id): Extension<RequestId>,
+) -> Response {
+    let session_id = session.event_scope();
+    state.events.remove_session(session_id);
+    state.rpc.clear_session(session.event_scope());
+    state.transfers.cleanup_session(session.event_scope());
+    state.security.logout(&session);
+    audit_event("logout", &request_id.0, Some(session_id), "outcome=success");
+    let mut response = StatusCode::NO_CONTENT.into_response();
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    let secure = if state.security.secure_cookie() {
+        "; Secure"
+    } else {
+        ""
+    };
+    response.headers_mut().insert(
+        SET_COOKIE,
+        HeaderValue::from_str(&format!(
+            "tabularis_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0{secure}"
+        ))
+        .expect("the session cookie attributes are valid"),
+    );
+    response
+}
+
+async fn security_gate(
+    State(state): State<WebServerState>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let request_id = request
+        .extensions()
+        .get::<RequestId>()
+        .map(|request_id| request_id.0.as_str())
+        .unwrap_or("unknown");
+    let host = request
+        .headers()
+        .get(HOST)
+        .and_then(|value| value.to_str().ok());
+    if !host.is_some_and(|host| state.security.host_allowed(host)) {
+        audit_event("request", request_id, None, "outcome=denied reason=host");
+        return status_response(StatusCode::FORBIDDEN);
+    }
+
+    let path = request.uri().path();
+    // Opaque frames may send Origin: null and cannot use the session cookie.
+    // The asset handler verifies a session-bound capability before serving bytes.
+    let sandbox_asset = path.starts_with("/api/v1/sandbox/plugins/")
+        && matches!(*request.method(), Method::GET | Method::HEAD);
+
+    let origin = request
+        .headers()
+        .get(ORIGIN)
+        .and_then(|value| value.to_str().ok());
+    if !sandbox_asset && origin.is_some_and(|value| !state.security.origin_allowed(value)) {
+        audit_event("request", request_id, None, "outcome=denied reason=origin");
+        return status_response(StatusCode::FORBIDDEN);
+    }
+
+    let local_bootstrap =
+        !state.security.is_remote() && path == BOOTSTRAP_PATH && request.method() == Method::GET;
+    let password_login = state.security.password_authentication()
+        && ((path == LOGIN_PAGE_PATH && request.method() == Method::GET)
+            || (path == LOGIN_PATH && request.method() == Method::POST));
+    if path == "/healthz" || local_bootstrap || password_login || sandbox_asset {
+        if path == LOGIN_PATH && !origin.is_some_and(|origin| state.security.origin_allowed(origin))
+        {
+            audit_event(
+                "authentication",
+                request_id,
+                None,
+                "method=password outcome=denied reason=origin",
+            );
+            return status_response(StatusCode::FORBIDDEN);
+        }
+        return next.run(request).await;
+    }
+
+    let mut issued_session = None;
+    let session = session_cookie_value(request.headers().get(COOKIE))
+        .and_then(|cookie_value| state.security.authenticate(cookie_value));
+    let session = match session {
+        Some(session) => session,
+        None if state.security.proxy_authentication() => {
+            let secret = request
+                .headers()
+                .get(PROXY_SECRET_HEADER_NAME)
+                .and_then(|value| value.to_str().ok());
+            let user = request
+                .headers()
+                .get(PROXY_USER_HEADER_NAME)
+                .and_then(|value| value.to_str().ok());
+            let (Some(secret), Some(user)) = (secret, user) else {
+                audit_event(
+                    "authentication",
+                    request_id,
+                    None,
+                    "method=proxy outcome=denied reason=missing_headers",
+                );
+                return status_response(StatusCode::UNAUTHORIZED);
+            };
+            match state.security.authenticate_proxy(secret, user) {
+                Ok(issued) => {
+                    let session = state
+                        .security
+                        .authenticate(&issued.cookie_value)
+                        .expect("a newly issued proxy session is active");
+                    audit_event(
+                        "authentication",
+                        request_id,
+                        Some(issued.session_id()),
+                        "method=proxy outcome=success",
+                    );
+                    issued_session = Some(issued);
+                    session
+                }
+                Err(error) => {
+                    audit_authentication_error(request_id, "proxy", error);
+                    return authentication_error_response(error, false, None);
+                }
+            }
+        }
+        None if path.starts_with("/api/v1/sandbox-ticket/") => {
+            return status_response(StatusCode::UNAUTHORIZED);
+        }
+        None if state.security.password_authentication() && request.method() == Method::GET => {
+            return login_redirect_response(login_return_target(path));
+        }
+        None => return status_response(StatusCode::UNAUTHORIZED),
+    };
+
+    if requires_csrf(request.method()) {
+        if !origin.is_some_and(|origin| state.security.origin_allowed(origin))
+            || request
+                .headers()
+                .get(CSRF_HEADER_NAME)
+                .and_then(|value| value.to_str().ok())
+                != Some(session.csrf_token.as_str())
+        {
+            audit_event(
+                "request",
+                request_id,
+                Some(session.event_scope()),
+                "outcome=denied reason=csrf",
+            );
+            return status_response(StatusCode::FORBIDDEN);
+        }
+    }
+
+    request.headers_mut().remove(PROXY_SECRET_HEADER_NAME);
+    request.headers_mut().remove(PROXY_USER_HEADER_NAME);
+    let expires_at = Instant::from_std(session.expires_at);
+    request.extensions_mut().insert(session);
+    // Include body extraction: a slow request must not recreate state after expiry cleanup.
+    let mut response = tokio::select! {
+        biased;
+        _ = tokio::time::sleep_until(expires_at) => return status_response(StatusCode::UNAUTHORIZED),
+        response = next.run(request) => response,
+    };
+    if let Some(issued) = issued_session {
+        response.headers_mut().insert(
+            SET_COOKIE,
+            session_cookie(&issued, state.security.secure_cookie()),
+        );
+    }
+    response
+}
+
+async fn add_request_id(mut request: Request, next: Next) -> Response {
+    let request_id = request
+        .headers()
+        .get(REQUEST_ID_HEADER_NAME)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| valid_request_id(value))
+        .map(str::to_owned)
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    request
+        .extensions_mut()
+        .insert(RequestId(request_id.clone()));
+    let mut response = next.run(request).await;
+    if let Ok(value) = HeaderValue::from_str(&request_id) {
+        response.headers_mut().insert(REQUEST_ID_HEADER_NAME, value);
+    }
+    response
+}
+
+fn requires_csrf(method: &Method) -> bool {
+    !matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS)
+}
+
+fn valid_request_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+}
+
+fn session_cookie_value(cookie_header: Option<&HeaderValue>) -> Option<&str> {
+    cookie_header?
+        .to_str()
+        .ok()?
+        .split(';')
+        .filter_map(|cookie| cookie.trim().split_once('='))
+        .find_map(|(name, value)| (name == SESSION_COOKIE_NAME).then_some(value))
+}
+
+fn session_cookie(session: &IssuedSession, secure: bool) -> HeaderValue {
+    let secure = if secure { "; Secure" } else { "" };
+    HeaderValue::from_str(&format!(
+        "{SESSION_COOKIE_NAME}={}; Path=/; HttpOnly; SameSite=Strict; Max-Age={}{secure}",
+        session.cookie_value, session.max_age_seconds
+    ))
+    .expect("generated session cookies contain only valid header characters")
+}
+
+fn form_field(body: &[u8], field: &str) -> Option<String> {
+    url::form_urlencoded::parse(body)
+        .find_map(|(name, value)| (name == field).then(|| value.into_owned()))
+}
+
+/// Sends an unauthenticated browser to `/login`, carrying the page it asked
+/// for when that page is a supported return target.
+fn login_redirect_response(target: Option<&str>) -> Response {
+    let location = match target {
+        Some(target) => format!(
+            "{LOGIN_PAGE_PATH}?{}",
+            url::form_urlencoded::Serializer::new(String::new())
+                .append_pair(LOGIN_TARGET_PARAM, target)
+                .finish()
+        ),
+        None => LOGIN_PAGE_PATH.to_string(),
+    };
+    let mut response = StatusCode::SEE_OTHER.into_response();
+    response.headers_mut().insert(
+        LOCATION,
+        HeaderValue::from_str(&location).expect("an encoded login URL is a valid header value"),
+    );
+    response
+}
+
+/// `target` must come from `login_return_target`.
+fn login_page_response(status: StatusCode, error: Option<&str>, target: Option<&str>) -> Response {
+    let body = render_login_page(LOGIN_PATH, error, target);
+    let mut response = (status, body).into_response();
+    let headers = response.headers_mut();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    // Not `no-referrer`: with it, browsers send `Origin: null` on the form
+    // POST and the login origin check rejects every sign-in.
+    headers.insert(REFERRER_POLICY, HeaderValue::from_static("same-origin"));
+    headers.insert(
+        CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(login_page_csp()),
+    );
+    response
+}
+
+pub(super) fn authentication_error_response(
+    error: AuthenticationError,
+    html: bool,
+    target: Option<&str>,
+) -> Response {
+    match error {
+        AuthenticationError::SessionLimitReached => {
+            if html {
+                login_page_response(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Some("The server has reached its session limit. Try again later."),
+                    target,
+                )
+            } else {
+                status_response(StatusCode::SERVICE_UNAVAILABLE)
+            }
+        }
+        AuthenticationError::RateLimited => {
+            let mut response = if html {
+                login_page_response(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Some("Too many attempts"),
+                    target,
+                )
+            } else {
+                status_response(StatusCode::TOO_MANY_REQUESTS)
+            };
+            response
+                .headers_mut()
+                .insert(RETRY_AFTER, HeaderValue::from_static("300"));
+            response
+        }
+        AuthenticationError::InvalidCredentials | AuthenticationError::UnsupportedMode => {
+            if html {
+                login_page_response(
+                    StatusCode::UNAUTHORIZED,
+                    Some("Invalid credentials"),
+                    target,
+                )
+            } else {
+                status_response(StatusCode::UNAUTHORIZED)
+            }
+        }
+    }
+}
+
+fn audit_authentication_error(request_id: &str, method: &str, error: AuthenticationError) {
+    let outcome = match error {
+        AuthenticationError::RateLimited => "rate_limited",
+        AuthenticationError::SessionLimitReached => "session_limit",
+        AuthenticationError::InvalidCredentials | AuthenticationError::UnsupportedMode => "denied",
+    };
+    audit_event(
+        "authentication",
+        request_id,
+        None,
+        &format!("method={method} outcome={outcome}"),
+    );
+}
+
+fn audit_event(event: &str, request_id: &str, session_id: Option<Uuid>, detail: &str) {
+    let session_id = session_id
+        .map(|session_id| session_id.to_string())
+        .unwrap_or_else(|| "none".to_string());
+    log::info!(
+        target: "tabularis::web_audit",
+        "event={event} request_id={request_id} session_id={session_id} {detail}"
+    );
+}
+
+fn status_response(status: StatusCode) -> Response {
+    let mut response = status.into_response();
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            log::error!("Failed to install the Ctrl+C shutdown handler: {error}");
+        }
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(error) => {
+                log::error!("Failed to install the terminate shutdown handler: {error}");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = terminate => {}
+    }
+
+    log::info!("Web UI shutdown signal received");
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "secondary-window-export",
+  "description": "Allow detached editors, result grids, and schema diagrams to export bytes to an existing filesystem scope or a path explicitly granted by the save dialog. Adds no filesystem scope.",
+  "windows": ["connection-window-*", "results-window-*", "er-diagram*"],
+  "permissions": ["fs:allow-write-file"]
+}

@@ -48,3 +48,10 @@ fn keeps_repeated_whitespace_definer_views_out_of_text_protocol() {
         );
     }
 }
+
+#[test]
+fn leading_hash_comments_are_skipped() {
+    assert!(is_text_protocol_stmt("# start\nSTART TRANSACTION"));
+    assert!(is_text_protocol_stmt("#a\n-- b\nCOMMIT"));
+    assert!(!is_text_protocol_stmt("# note\nSELECT 1"));
+}

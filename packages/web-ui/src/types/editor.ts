@@ -1,0 +1,216 @@
+import type {ForeignKey} from './schema';
+import type {GridHistory} from '@/utils/gridUndo';
+import type {LinkedFileRef} from './linkedFolders';
+
+export type {ForeignKey};
+
+export interface Pagination {
+    page: number;
+    page_size: number;
+    total_rows: number | null;
+    has_more: boolean;
+}
+
+export interface TableColumn {
+    name: string;
+    data_type: string;
+    is_pk: boolean;
+    is_nullable: boolean;
+    is_auto_increment: boolean;
+    is_generated?: boolean;
+    default_value?: string;
+    character_maximum_length?: number;
+    numeric_precision?: number;
+    numeric_scale?: number;
+    comment?: string | null;
+    /** Full declared type for display, see `TableColumn` in `types/schema.ts`. */
+    full_type?: string;
+}
+
+export interface TableSchema {
+    name: string;
+    columns: TableColumn[];
+    foreign_keys: ForeignKey[];
+}
+
+export interface SchemaCache {
+    data: TableSchema[];
+    version: number;
+    timestamp: number;
+}
+
+export interface QueryResult {
+    columns: string[];
+    rows: unknown[][];
+    affected_rows: number;
+    truncated?: boolean;
+    pagination?: Pagination;
+    /// Extra result sets beyond the first one from a single statement, e.g. a
+    /// MySQL `CALL` whose procedure body holds multiple `SELECT`s. Mirrors
+    /// `src-tauri/src/models.rs::QueryResult`; the first set stays in
+    /// `columns` / `rows`.
+    additional_results?: QueryResult[];
+    server_time_ms?: number;
+    fetch_time_ms?: number;
+}
+
+/// One statement's outcome inside an `execute_query_batch` invocation.
+/// Mirrors `src-tauri/src/models.rs::BatchStatementResult`. Exactly one of
+/// `result` / `error` is non-null; `execution_time_ms` is measured
+/// server-side per statement so the history UI shows accurate timings even
+/// though the whole batch shares one Tauri round-trip.
+export interface BatchStatementResult {
+    result: QueryResult | null;
+    error: string | null;
+    execution_time_ms: number | null;
+}
+
+export interface QueryResultEntry {
+    id: string;
+    queryIndex: number;
+    query: string;
+    label?: string;
+    result: QueryResult | null;
+    error: string;
+    executionTime: number | null;
+    isLoading: boolean;
+    page: number;
+    activeTable: string | null;
+    pkColumns: string[] | null;
+    /// Rows a Run All statement returned, captured while the batch's session
+    /// state was live. Set for paged batch results: page changes slice this
+    /// instead of re-running the statement (#205).
+    snapshot?: QueryResult;
+}
+
+import type {NotebookState} from './notebook';
+import type {Node, Edge} from '@xyflow/react';
+
+export interface FlowState {
+    nodes: Node[];
+    edges: Edge[];
+}
+
+export interface PendingInsertion {
+    tempId: string;
+    data: Record<string, unknown>;
+    displayIndex: number;
+}
+
+export type AutoRefreshInterval = 0 | 5000 | 10000 | 30000 | 60000;
+
+export interface Tab {
+    id: string;
+    title: string;
+    type: 'console' | 'table' | 'query_builder' | 'notebook' | 'users';
+    query: string;
+    result: QueryResult | null;
+    error: string;
+    executionTime: number | null;
+    page: number;
+    activeTable: string | null;
+    pkColumns: string[] | null;
+    autoIncrementColumns?: string[]; // Names of auto-increment columns
+    defaultValueColumns?: string[]; // Names of columns with default values
+    nullableColumns?: string[]; // Names of nullable columns
+    columnMetadata?: TableColumn[]; // Full column metadata (includes data_type for geometric types, etc.)
+    foreignKeys?: ForeignKey[]; // FK definitions for the active table (used for click-to-navigate)
+    isLoading?: boolean;
+    autoRefreshIntervalMs?: AutoRefreshInterval;
+    isAutoRefreshing?: boolean;
+    autoRefreshError?: string;
+    connectionId: string;
+    flowState?: FlowState;
+    pendingChanges?: Record<string, {pkOriginalValue: unknown; changes: Record<string, unknown>}>;
+    gridHistory?: GridHistory;
+    pendingDeletions?: Record<string, unknown>; // Map of stringified PK -> original PK value
+    pendingInsertions?: Record<string, PendingInsertion>; // Map of tempId -> pending insertion
+    selectedRows?: number[]; // Selected row indices
+    isEditorOpen?: boolean; // Whether the SQL editor is visible
+    filterClause?: string; // SQL WHERE clause (without "WHERE")
+    sortClause?: string; // SQL ORDER BY clause (without "ORDER BY")
+    limitClause?: number; // SQL LIMIT value
+    // Grid shows columns as rows and records as columns (#561)
+    transposed?: boolean;
+    pageSize?: number; // Per-tab rows-per-page override; 0 = fetch all rows (no pagination); unset = follow the global setting
+    queryParams?: Record<string, string>; // Saved values for query parameters
+    schema?: string; // Schema name (PostgreSQL) for query reconstruction
+    /** Database name for a schema-based multi-db driver browsing several
+     * databases on one connection (see isSchemaBasedMultiDb). Distinct from
+     * `schema` — unlike MySQL's flat multi-db mode, which reuses `schema` to
+     * hold the database name, this driver needs both at once. */
+    database?: string;
+    readOnly?: boolean; // Hides the Run button (e.g. for definition views)
+    materialized?: boolean; // Grid data is read-only (e.g. materialized views: only REFRESH writes)
+    results?: QueryResultEntry[];
+    activeResultId?: string;
+    notebookId?: string; // Reference to notebook file in config dir
+    notebookState?: NotebookState; // Deprecated: kept for migration of old tabs
+    sourceFilePath?: string;
+    /** Content last read from / written to `sourceFilePath`; dirty = query differs from it. */
+    sourceFileContent?: string;
+    sourceFileDirty?: boolean;
+    /** Set when the file was opened from a linked folder: saves go through the link and check `version`. */
+    sourceFileLink?: LinkedFileRef;
+    /** Pinned tabs come first in the tab bar, and bulk close actions skip them. */
+    pinned?: boolean;
+}
+
+export interface EditorPreferences {
+    tabs: Array<Partial<Tab>>;
+    active_tab_id: string | null;
+}
+
+interface EditorNavigationBase {
+    initialQuery: string;
+    schema?: string;
+    /** See `Tab.database`. */
+    database?: string;
+    targetConnectionId?: string;
+}
+
+export interface TableEditorNavigationRequest extends EditorNavigationBase {
+    kind: 'table';
+    tableName: string;
+    materialized?: boolean;
+    title?: string;
+}
+
+export interface ConsoleEditorNavigationRequest extends EditorNavigationBase {
+    kind: 'console';
+    queryName?: string;
+    preventAutoRun?: boolean;
+}
+
+export interface DefinitionEditorNavigationRequest extends EditorNavigationBase {
+    kind: 'definition';
+    queryName: string;
+    readOnly?: boolean;
+}
+
+export type EditorNavigationRequest =
+    | TableEditorNavigationRequest
+    | ConsoleEditorNavigationRequest
+    | DefinitionEditorNavigationRequest;
+
+export interface AddTabInput {
+    type: 'table' | 'console';
+    title: string;
+    query: string;
+    activeTable: string | null;
+    schema?: string;
+    /** See `Tab.database`. */
+    database?: string;
+    readOnly?: boolean;
+    materialized?: boolean;
+}
+
+export interface EditorNavigationIntent {
+    targetConnectionId?: string;
+    key: string;
+    addTabInput: AddTabInput;
+    execution: {
+        autoRun: boolean;
+        patchReadOnlyOnDuplicate: boolean;
+    };
+}

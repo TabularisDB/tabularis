@@ -1,9 +1,7 @@
-use crate::models::{ConnectionParams, DatabaseSelection, SavedConnection};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{Connection, Executor, SqliteConnection};
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Runtime};
 
 const SQLITE_EXTENSIONS: [&str; 3] = ["db", "sqlite", "sqlite3"];
 
@@ -53,7 +51,7 @@ pub(crate) fn expand_sqlite_filename_with_home(value: &str, home: Option<&Path>)
     }
 }
 
-fn connection_name(path: &Path) -> Result<String, String> {
+pub(crate) fn connection_name(path: &Path) -> Result<String, String> {
     path.file_stem()
         .and_then(|name| name.to_str())
         .filter(|name| !name.trim().is_empty())
@@ -101,7 +99,6 @@ pub(crate) async fn initialize_sqlite_file(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
 pub async fn create_sqlite_file(path: String) -> Result<String, String> {
     let path = normalize_sqlite_path(&path)?;
     initialize_sqlite_file(&path).await?;
@@ -109,31 +106,4 @@ pub async fn create_sqlite_file(path: String) -> Result<String, String> {
     path.to_str()
         .map(str::to_owned)
         .ok_or_else(|| "The selected SQLite database path is not valid UTF-8.".to_string())
-}
-
-#[tauri::command]
-pub async fn create_sqlite_database<R: Runtime>(
-    app: AppHandle<R>,
-    path: String,
-) -> Result<SavedConnection, String> {
-    let database_path = create_sqlite_file(path).await?;
-    let path = PathBuf::from(&database_path);
-    let name = connection_name(&path)?;
-    let params = ConnectionParams {
-        driver: "sqlite".to_string(),
-        database: DatabaseSelection::Single(database_path),
-        ..ConnectionParams::default()
-    };
-
-    match crate::commands::save_connection(app, name, params, None, None).await {
-        Ok(connection) => Ok(connection),
-        Err(error) => {
-            if let Err(cleanup_error) = fs::remove_file(&path) {
-                return Err(format!(
-                    "Failed to save the SQLite connection: {error}. The new database could not be removed: {cleanup_error}"
-                ));
-            }
-            Err(format!("Failed to save the SQLite connection: {error}"))
-        }
-    }
 }

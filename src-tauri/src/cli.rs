@@ -1,52 +1,204 @@
 //! Command-line argument parsing for the Tabularis binary.
 //!
 //! Keeping this in its own module means `lib.rs` does not have to know about
-//! clap, and the flag surface (`--mcp`, `--debug`, `--explain`, `--help`,
-//! `--version`) lives in one place.
+//! clap, and the command surface (`--mcp`, `web`, `--debug`, `--explain`,
+//! data files to open, `--help`, `--version`) lives in one place.
 
-use clap::Parser;
+use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
+
+#[cfg(test)]
+mod tests;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum WebAuthMode {
+    /// Authenticate remote users with a password.
+    Password,
+    /// Trust authentication performed by a configured reverse proxy.
+    Proxy,
+}
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(
+    version,
+    about,
+    long_about = None,
+    args_conflicts_with_subcommands = true,
+    after_help = "Open data files as tables by passing them on their own:\n  tabularis orders.csv trips.parquet"
+)]
 pub struct Args {
     /// Start in MCP Server mode (Model Context Protocol)
     #[arg(long)]
     pub mcp: bool,
 
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
     /// Enable debug logging (including sqlx queries)
-    #[arg(long)]
+    #[arg(long, global = true)]
     pub debug: bool,
 
     /// Open a Visual Explain window for a previously-saved EXPLAIN file
     /// (Postgres `EXPLAIN (FORMAT JSON)` output).
     #[arg(long, value_name = "FILE")]
     pub explain: Option<String>,
+
+    /// Data files to open as tables: set when the arguments are nothing but
+    /// data files, which is how a file manager's "Open with" starts the app.
+    /// Not a clap positional, which would swallow a misplaced `web`.
+    #[arg(skip)]
+    pub files: Vec<PathBuf>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    /// Start the browser-based Web UI
+    Web(WebArgs),
+}
+
+#[derive(Debug, ClapArgs)]
+pub struct WebArgs {
+    /// Address for the Web UI server to bind
+    #[arg(long, value_name = "HOST", default_value = "127.0.0.1")]
+    pub host: String,
+
+    /// Port for the Web UI server to bind
+    #[arg(long, value_name = "PORT", default_value_t = 8080)]
+    pub port: u16,
+
+    /// Do not open the Web UI in the default browser
+    #[arg(long)]
+    pub no_open: bool,
+
+    /// Override the directory containing built Web UI assets
+    #[arg(long, value_name = "PATH")]
+    pub web_root: Option<PathBuf>,
+
+    /// Authentication mode for explicitly configured remote Web UI access
+    #[arg(
+        long,
+        value_name = "MODE",
+        value_enum,
+        requires_all = ["public_url", "allowed_origins"]
+    )]
+    pub auth: Option<WebAuthMode>,
+
+    /// Public HTTPS origin used by browsers through the trusted reverse proxy
+    #[arg(long, value_name = "URL", requires = "auth")]
+    pub public_url: Option<String>,
+
+    /// Browser origin allowed to access remote Web UI sessions; repeat as needed
+    #[arg(
+        long = "allowed-origin",
+        value_name = "ORIGIN",
+        action = clap::ArgAction::Append,
+        requires = "auth"
+    )]
+    pub allowed_origins: Vec<String>,
+
+    /// Trust X-Forwarded-For only from this proxy network; repeat as needed
+    #[arg(long = "trusted-proxy", value_name = "CIDR", requires = "auth")]
+    pub trusted_proxies: Vec<ipnet::IpNet>,
+
+    /// Grant remote sessions high-risk local-administrator capabilities
+    #[arg(long, requires = "auth")]
+    pub allow_high_risk: bool,
+
+    /// Allow the Web UI to browse this server directory; repeat as needed
+    #[arg(
+        long = "server-file-browser-root",
+        value_name = "PATH",
+        action = clap::ArgAction::Append
+    )]
+    pub server_file_browser_roots: Vec<PathBuf>,
 }
 
 impl Args {
+    /// Log level for this run: `Debug` with `--debug` (which also lets sqlx's
+    /// query logging through), otherwise whatever `RUST_LOG` names, and `Info`
+    /// as the default.
+    pub fn log_level(&self) -> log::LevelFilter {
+        if self.debug {
+            log::LevelFilter::Debug
+        } else {
+            crate::logger::resolve_log_level_from_env()
+        }
+    }
+
     fn defaults() -> Self {
         Self {
             mcp: false,
+            command: None,
             debug: false,
             explain: None,
+            files: Vec::new(),
         }
     }
 }
 
 /// Parse the process arguments, with platform-friendly fallback behaviour.
 ///
-/// - `--help` / `--version` surface as `Err(DisplayHelp|DisplayVersion)` with the
-///   formatted message attached; let clap print them and exit cleanly.
-/// - Any other parse failure falls back to defaults so that GUI launches (e.g.
-///   macOS passing `-psn_*`) still reach the Tauri builder.
+/// Platform launch metadata (for example macOS `-psn_*` arguments or a
+/// registered `tabularis:` URL) falls back to desktop defaults. User-facing
+/// parse failures, including mode conflicts, are printed by clap and exit.
 pub fn parse() -> Args {
-    Args::try_parse().unwrap_or_else(|err| {
-        if matches!(
-            err.kind(),
-            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
-        ) {
-            err.exit();
-        }
-        Args::defaults()
-    })
+    try_parse_from(std::env::args_os()).unwrap_or_else(|err| err.exit())
 }
+
+fn try_parse_from<I, T>(arguments: I) -> Result<Args, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString>,
+{
+    let arguments: Vec<std::ffi::OsString> = arguments.into_iter().map(Into::into).collect();
+    if let Some(files) = data_file_launch(&arguments) {
+        return Ok(Args {
+            files,
+            ..Args::defaults()
+        });
+    }
+    match Args::try_parse_from(arguments.clone()) {
+        Err(_) if has_only_platform_launch_arguments(&arguments) => Ok(Args::defaults()),
+        result => result,
+    }
+}
+
+fn is_platform_launch_argument(argument: &std::ffi::OsStr) -> bool {
+    argument
+        .to_str()
+        .is_some_and(|value| value.starts_with("-psn_") || value.starts_with("tabularis:"))
+}
+
+/// The data files of an "Open with" launch: every argument is a data file
+/// (a path or a `file://` URL, by its extension) or a platform launch
+/// argument, and at least one is a data file. Anything else is left to clap.
+fn data_file_launch(arguments: &[std::ffi::OsString]) -> Option<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for argument in arguments.iter().skip(1) {
+        if is_platform_launch_argument(argument) {
+            continue;
+        }
+        let name = argument.to_str()?;
+        if name.starts_with('-') || crate::application::data_files::data_file_format(name).is_none()
+        {
+            return None;
+        }
+        files.push(PathBuf::from(argument));
+    }
+    (!files.is_empty()).then_some(files)
+}
+
+fn has_only_platform_launch_arguments(arguments: &[std::ffi::OsString]) -> bool {
+    let mut launch_arguments = arguments.iter().skip(1);
+    let Some(first) = launch_arguments.next() else {
+        return false;
+    };
+
+    std::iter::once(first)
+        .chain(launch_arguments)
+        .all(|argument| is_platform_launch_argument(argument))
+}
+
+#[cfg(test)]
+#[path = "cli_tests.rs"]
+mod log_level_tests;

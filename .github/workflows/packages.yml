@@ -1,8 +1,8 @@
 name: Packages
 
-# Tests, builds and checks the workspace packages under packages/*. Each
-# package owns its vitest (node environment); the root vitest (jsdom) only
-# covers the host app. Runs only when a package, or a host file a package
+# Tests, builds and checks the library packages under packages/*. Each
+# package owns its vitest (node environment); the host app (packages/web-ui)
+# is not in the matrix: its jsdom vitest runs through the root `pnpm test`. Runs only when a package, or a host file a package
 # imports, changes, and only for the packages actually affected: a `changes`
 # job maps changed paths to packages and builds the matrix from that. The
 # lockfile and this workflow count as shared and re-run every package.
@@ -16,20 +16,20 @@ on:
     branches: [main]
     paths:
       - 'packages/**'
-      - 'src/pluginApi.ts' # plugin-api check:sync
-      - 'src/schemas/theme*' # imported by create-plugin
-      - 'src/types/theme*'
-      - 'src/utils/theme*'
+      - 'packages/web-ui/src/pluginApi.ts' # plugin-api check:sync
+      - 'packages/web-ui/src/schemas/theme*' # imported by create-plugin
+      - 'packages/web-ui/src/types/theme*'
+      - 'packages/web-ui/src/utils/theme*'
       - 'pnpm-lock.yaml'
       - '.github/workflows/packages.yml'
   pull_request:
     branches: [main]
     paths:
       - 'packages/**'
-      - 'src/pluginApi.ts'
-      - 'src/schemas/theme*'
-      - 'src/types/theme*'
-      - 'src/utils/theme*'
+      - 'packages/web-ui/src/pluginApi.ts'
+      - 'packages/web-ui/src/schemas/theme*'
+      - 'packages/web-ui/src/types/theme*'
+      - 'packages/web-ui/src/utils/theme*'
       - 'pnpm-lock.yaml'
       - '.github/workflows/packages.yml'
 
@@ -39,7 +39,7 @@ permissions:
 jobs:
   changes:
     name: Detect changed packages
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       pull-requests: read
@@ -62,14 +62,14 @@ jobs:
               - '.github/workflows/packages.yml'
             plugin-api:
               - 'packages/plugin-api/**'
-              - 'src/pluginApi.ts'
+              - 'packages/web-ui/src/pluginApi.ts'
             explain:
               - 'packages/explain/**'
             create-plugin:
               - 'packages/create-plugin/**'
-              - 'src/schemas/theme*'
-              - 'src/types/theme*'
-              - 'src/utils/theme*'
+              - 'packages/web-ui/src/schemas/theme*'
+              - 'packages/web-ui/src/types/theme*'
+              - 'packages/web-ui/src/utils/theme*'
 
       - name: Build the package matrix
         id: matrix
@@ -102,7 +102,7 @@ jobs:
     name: ${{ matrix.package.name }}
     needs: changes
     if: needs.changes.outputs.any == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
@@ -115,7 +115,7 @@ jobs:
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm

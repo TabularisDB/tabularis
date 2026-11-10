@@ -1,0 +1,651 @@
+import {useState, useMemo, useRef} from 'react';
+import {useTranslation} from 'react-i18next';
+import {
+    Search,
+    Trash2,
+    Loader2,
+    Database,
+    AlertTriangle,
+    X,
+    ChevronDown,
+    Calendar,
+    Pause,
+    Download,
+} from 'lucide-react';
+import {groupByDate, formatHistoryTime} from '@/utils/dateGroups';
+import {SqlHighlight} from '@/components/ui/SqlHighlight';
+import {formatSqlPreview} from '@/utils/sqlHighlight';
+import {useSettings} from '@/hooks/useSettings';
+import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {downloadTextFile} from '@/utils/fileDownloads';
+import {formatQueryHistoryAsSql} from '@/utils/queryHistoryExport';
+import {toErrorMessage} from '@/utils/errors';
+import {openNativePicker} from '@/utils/nativePicker';
+import {
+    filterQueryHistoryEntries,
+    getQueryHistoryDatabaseChoices,
+    isQueryHistoryDatabaseFilterAvailable,
+    isQueryHistoryFilterActive,
+    queryHistoryDatabaseFilterFor,
+    validateQueryHistoryDateRange,
+    validateQueryHistoryMinDuration,
+    QUERY_HISTORY_OUTCOME_OPTIONS,
+    QUERY_HISTORY_TIME_RANGE_OPTIONS,
+    type QueryHistoryDatabaseFilter,
+    type QueryHistoryDateRangeError,
+    type QueryHistoryMinDurationError,
+    type QueryHistoryOutcomeFilter,
+    type QueryHistoryTimeRange,
+} from '@/utils/queryHistoryFilter';
+import type {QueryHistoryEntry, QueryHistoryRecoveryNotice} from '@/types/queryHistory';
+
+interface QueryHistorySectionProps {
+    entries: QueryHistoryEntry[];
+    isLoading: boolean;
+    isPaused?: boolean;
+    onTogglePaused?: () => void;
+    recoveryNotice: QueryHistoryRecoveryNotice | null;
+    onDismissRecoveryNotice: () => void;
+    onDoubleClick: (entry: QueryHistoryEntry) => void;
+    onContextMenu: (e: React.MouseEvent, entry: QueryHistoryEntry) => void;
+    onClearAll: () => void;
+}
+
+const selectClassName =
+    'w-full appearance-none bg-surface-secondary border border-default rounded px-1.5 pr-5 py-1 text-[11px] text-primary focus:outline-none focus:border-focus/50 cursor-pointer';
+
+// The date fields mirror the selects above: same box, background and text, the
+// label inside the box, and a calendar icon where the selects show a chevron.
+// The native WebKit indicator and the padding around the date parts are
+// removed so the value lines up with the select labels. WebKit sizes each date
+// part for its widest digits, so tabular figures keep "10/20" from gaining a
+// gap before the slash.
+const dateFieldClassName =
+    'relative flex-1 min-w-0 flex items-center gap-1 bg-input border border-default rounded pl-1.5 cursor-pointer focus-within:border-focus/50';
+
+const dateInputClassName =
+    'w-full min-w-0 appearance-none bg-transparent pr-5 py-1 text-[11px] text-primary tabular-nums focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-datetime-edit]:p-0 [&::-webkit-datetime-edit-fields-wrapper]:p-0 [&::-webkit-datetime-edit-month-field]:p-0 [&::-webkit-datetime-edit-day-field]:p-0 [&::-webkit-datetime-edit-year-field]:p-0';
+
+function HistoryDateField({
+    label,
+    value,
+    onChange,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    return (
+        // The label wraps the input, so a click anywhere in the box reaches it.
+        <label className={dateFieldClassName}>
+            <span className="text-[11px] text-muted shrink-0">{label}</span>
+            <input
+                type="date"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                // With the native indicator hidden, a click opens the picker.
+                onClick={(e) => openNativePicker(e.currentTarget)}
+                aria-label={label}
+                className={dateInputClassName}
+            />
+            <Calendar
+                size={10}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+            />
+        </label>
+    );
+}
+
+// The duration field shares the date fields' box so the filter rows line up;
+// it is a plain text field with a numeric keyboard hint, so an unusable value
+// stays visible and can be explained instead of being dropped by the browser.
+const durationFieldClassName =
+    'relative min-w-0 flex items-center gap-1 bg-input border border-default rounded px-1.5 focus-within:border-focus/50';
+
+const durationInputClassName =
+    'w-full min-w-0 appearance-none bg-transparent py-1 text-[11px] text-primary tabular-nums placeholder:text-muted focus:outline-none';
+
+const RANGE_ERROR_LABEL_KEYS: Record<QueryHistoryDateRangeError, string> = {
+    invalidFrom: 'sidebar.historyDateRangeInvalidFrom',
+    invalidTo: 'sidebar.historyDateRangeInvalidTo',
+    inverted: 'sidebar.historyDateRangeInverted',
+};
+
+const MIN_DURATION_ERROR_LABEL_KEYS: Record<QueryHistoryMinDurationError, string> = {
+    invalid: 'sidebar.historyMinDurationInvalid',
+    negative: 'sidebar.historyMinDurationNegative',
+};
+
+const OUTCOME_LABEL_KEYS: Record<QueryHistoryOutcomeFilter, string> = {
+    any: 'sidebar.historyOutcomeAny',
+    succeeded: 'sidebar.historyOutcomeSucceeded',
+    failed: 'sidebar.historyOutcomeFailed',
+};
+
+const TIME_RANGE_LABEL_KEYS: Record<QueryHistoryTimeRange, string> = {
+    all: 'sidebar.historyTimeAll',
+    lastHour: 'sidebar.historyTimeLastHour',
+    today: 'sidebar.historyTimeToday',
+    last7Days: 'sidebar.historyTimeLast7Days',
+    last30Days: 'sidebar.historyTimeLast30Days',
+    custom: 'sidebar.historyTimeCustom',
+};
+
+export function QueryHistorySection({
+    entries,
+    isLoading,
+    isPaused = false,
+    onTogglePaused,
+    recoveryNotice,
+    onDismissRecoveryNotice,
+    onDoubleClick,
+    onContextMenu,
+    onClearAll,
+}: QueryHistorySectionProps) {
+    const {t} = useTranslation();
+    const {settings} = useSettings();
+    const platform = usePlatformCapabilities();
+    const pauseToggleRef = useRef<HTMLButtonElement>(null);
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportError, setExportError] = useState<string | null>(null);
+
+    // Session-only: search and the new filters reset when the section unmounts
+    // (same as the existing search field; nothing is persisted).
+    const [search, setSearch] = useState('');
+    const [outcome, setOutcome] = useState<QueryHistoryOutcomeFilter>('any');
+    const [timeRange, setTimeRange] = useState<QueryHistoryTimeRange>('all');
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
+    const [database, setDatabase] = useState<QueryHistoryDatabaseFilter>('all');
+    const [minDurationMs, setMinDurationMs] = useState('');
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+
+    // "custom" is a mode of the time-range select, not a second filter: the
+    // From/To inputs only exist while it is selected.
+    const isCustomRange = timeRange === 'custom';
+
+    const rangeError = validateQueryHistoryDateRange(from, to);
+    const minDurationError = validateQueryHistoryMinDuration(minDurationMs);
+
+    const databaseChoices = useMemo(() => getQueryHistoryDatabaseChoices(entries), [entries]);
+    // A database that is no longer among the loaded entries (another connection's
+    // history, or its last entry was deleted) falls back to "All databases".
+    if (!isQueryHistoryDatabaseFilterAvailable(database, databaseChoices)) {
+        setDatabase('all');
+    }
+
+    const filterActive = isQueryHistoryFilterActive({
+        search,
+        outcome,
+        timeRange,
+        database,
+        from,
+        to,
+        minDurationMs,
+    });
+
+    const filteredEntries = useMemo(
+        () =>
+            filterQueryHistoryEntries(entries, {
+                search,
+                outcome,
+                timeRange,
+                database,
+                from,
+                to,
+                minDurationMs,
+                timeZone: settings.displayTimezone,
+            }),
+        [
+            entries,
+            search,
+            outcome,
+            timeRange,
+            database,
+            from,
+            to,
+            minDurationMs,
+            settings.displayTimezone,
+        ],
+    );
+
+    const groupedEntries = useMemo(
+        () => groupByDate(filteredEntries, (e) => e.executedAt, settings.displayTimezone),
+        [filteredEntries, settings.displayTimezone],
+    );
+
+    const exportHistory = async () => {
+        if (isExporting || filteredEntries.length === 0) return;
+        setIsExporting(true);
+        setExportError(null);
+        try {
+            await downloadTextFile(platform, {
+                fileName: 'query-history.sql',
+                contents: formatQueryHistoryAsSql(
+                    groupedEntries.flatMap(([, items]) => items),
+                    settings.displayTimezone,
+                ),
+                mimeType: 'application/sql',
+                title: t('sidebar.exportHistory'),
+                filters: [{name: 'SQL', extensions: ['sql']}],
+            });
+        } catch (error) {
+            setExportError(toErrorMessage(error));
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const formatDuration = (ms: number | null): string => {
+        if (ms === null) return '';
+        if (ms < 1000) return `${Math.round(ms)}ms`;
+        return `${(ms / 1000).toFixed(1)}s`;
+    };
+
+    // A toggle with a constant name: the pressed state, not the label, says
+    // whether capture is paused (#1212).
+    const pauseToggleButton = onTogglePaused ? (
+        <button
+            ref={pauseToggleRef}
+            type="button"
+            onClick={onTogglePaused}
+            aria-pressed={isPaused}
+            className={`p-1 rounded transition-colors shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                isPaused
+                    ? 'text-accent-warning bg-accent-warning/15 hover:bg-accent-warning/25'
+                    : 'text-muted hover:text-primary'
+            }`}
+            title={t('sidebar.pauseHistoryCapture')}
+            aria-label={t('sidebar.pauseHistoryCapture')}
+        >
+            <Pause size={13} />
+        </button>
+    ) : null;
+
+    // The banner's resume link disappears with the banner, so hand focus to the
+    // toggle, which then reads as not pressed.
+    const resumeFromBanner = () => {
+        onTogglePaused?.();
+        pauseToggleRef.current?.focus();
+    };
+
+    // The live region stays mounted and only its text changes: some screen
+    // readers skip a status region inserted together with its content.
+    const pausedBanner = (
+        <div
+            className={
+                isPaused
+                    ? 'mx-2 mb-1.5 px-2.5 py-1.5 bg-accent-warning/10 border border-accent-warning/40 rounded flex items-center justify-between gap-2 text-[11px] text-accent-warning'
+                    : 'sr-only'
+            }
+        >
+            <div className="flex items-center gap-1.5 min-w-0">
+                {isPaused && <Pause size={12} className="shrink-0 text-accent-warning" />}
+                <span role="status" className="truncate">
+                    {isPaused ? t('sidebar.historyCapturePausedNotice') : ''}
+                </span>
+            </div>
+            {isPaused && onTogglePaused && (
+                <button
+                    type="button"
+                    onClick={resumeFromBanner}
+                    className="shrink-0 font-medium underline hover:text-accent-warning/80 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                >
+                    {t('sidebar.resumeHistoryCapture')}
+                </button>
+            )}
+        </div>
+    );
+
+    const recoveryBanner = recoveryNotice ? (
+        <div className="m-2 p-2.5 bg-accent-warning/10 border border-accent-warning/40 rounded text-[11px] text-accent-warning leading-snug">
+            <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5 text-accent-warning" />
+                <div className="flex-1 min-w-0">
+                    <div className="font-semibold mb-1">{t('sidebar.historyRecoveredTitle')}</div>
+                    <div className="text-accent-warning/80">
+                        {t('sidebar.historyRecoveredBody')}
+                    </div>
+                    <div
+                        className="mt-1 font-mono text-[10px] text-accent-warning/70 break-all"
+                        title={recoveryNotice.backupPath}
+                    >
+                        {recoveryNotice.backupPath}
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={onDismissRecoveryNotice}
+                    className="shrink-0 text-accent-warning/60 hover:text-accent-warning transition-colors"
+                    title={t('sidebar.historyRecoveredDismiss')}
+                    aria-label={t('sidebar.historyRecoveredDismiss')}
+                >
+                    <X size={12} />
+                </button>
+            </div>
+        </div>
+    ) : null;
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-20 text-muted gap-2">
+                <Loader2 size={16} className="animate-spin" />
+                <span className="text-sm">{t('sidebar.loadingSchema')}</span>
+            </div>
+        );
+    }
+
+    if (entries.length === 0) {
+        return (
+            <div>
+                {recoveryBanner}
+                {onTogglePaused && (
+                    <div className="px-2 pb-1.5 flex items-center justify-end">
+                        {pauseToggleButton}
+                    </div>
+                )}
+                {pausedBanner}
+                <div className="text-center p-4 text-xs text-muted italic">
+                    {t('sidebar.noQueryHistory')}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            {recoveryBanner}
+            {/* Header with search, export, pause/resume, and clear */}
+            <div className="px-2 pb-1.5 flex items-center gap-1">
+                <div className="relative flex-1">
+                    <Search
+                        size={12}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 text-muted"
+                    />
+                    <input
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        autoComplete="off"
+                        spellCheck={false}
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder={t('sidebar.searchHistory')}
+                        className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-focus/50"
+                    />
+                </div>
+                {pauseToggleButton}
+                <button
+                    type="button"
+                    onClick={() => void exportHistory()}
+                    disabled={isExporting || filteredEntries.length === 0}
+                    className="p-1 text-muted hover:text-primary transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                    title={t('sidebar.exportHistory')}
+                    aria-label={t('sidebar.exportHistory')}
+                    aria-busy={isExporting}
+                >
+                    {isExporting ? (
+                        <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                        <Download size={13} />
+                    )}
+                </button>
+                <button
+                    type="button"
+                    onClick={onClearAll}
+                    className="p-1 text-muted hover:text-accent-error transition-colors shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                    title={t('sidebar.clearAllHistory')}
+                    aria-label={t('sidebar.clearAllHistory')}
+                >
+                    <Trash2 size={13} />
+                </button>
+            </div>
+            {exportError !== null && (
+                <div role="alert" className="px-3 pb-1 text-[11px] text-accent-error break-words">
+                    {t('sidebar.exportHistoryError')}: {exportError}
+                </div>
+            )}
+            {pausedBanner}
+
+            {/* Database filter (session-only, same as search) */}
+            <div className="px-2 pb-1.5">
+                <div className="relative min-w-0">
+                    <select
+                        value={database}
+                        onChange={(e) => setDatabase(e.target.value as QueryHistoryDatabaseFilter)}
+                        aria-label={t('sidebar.historyDatabaseFilter')}
+                        className={selectClassName}
+                    >
+                        <option value="all">{t('sidebar.historyDatabaseAll')}</option>
+                        {databaseChoices.databases.map((name) => (
+                            <option key={name} value={queryHistoryDatabaseFilterFor(name)}>
+                                {name}
+                            </option>
+                        ))}
+                        {databaseChoices.hasUnrecorded && (
+                            <option value="none">{t('sidebar.historyDatabaseNone')}</option>
+                        )}
+                    </select>
+                    <ChevronDown
+                        size={10}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                    />
+                </div>
+            </div>
+
+            {/* Outcome + time filters (session-only, same as search) */}
+            <div className="px-2 pb-1.5 flex items-center gap-1">
+                <div className="relative flex-1 min-w-0">
+                    <select
+                        value={outcome}
+                        onChange={(e) => setOutcome(e.target.value as QueryHistoryOutcomeFilter)}
+                        aria-label={t('sidebar.historyOutcomeFilter')}
+                        className={selectClassName}
+                    >
+                        {QUERY_HISTORY_OUTCOME_OPTIONS.map((value) => (
+                            <option key={value} value={value}>
+                                {t(OUTCOME_LABEL_KEYS[value])}
+                            </option>
+                        ))}
+                    </select>
+                    <ChevronDown
+                        size={10}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                    />
+                </div>
+                <div className="relative flex-1 min-w-0">
+                    <select
+                        value={timeRange}
+                        onChange={(e) => {
+                            const next = e.target.value as QueryHistoryTimeRange;
+                            setTimeRange(next);
+                            // Presets must not stack on top of dates the user can no
+                            // longer see: from/to only exist in the custom mode.
+                            if (next !== 'custom') {
+                                setFrom('');
+                                setTo('');
+                            }
+                        }}
+                        aria-label={t('sidebar.historyTimeRangeFilter')}
+                        className={selectClassName}
+                    >
+                        {QUERY_HISTORY_TIME_RANGE_OPTIONS.map((value) => (
+                            <option key={value} value={value}>
+                                {t(TIME_RANGE_LABEL_KEYS[value])}
+                            </option>
+                        ))}
+                    </select>
+                    <ChevronDown
+                        size={10}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                    />
+                </div>
+            </div>
+
+            {/* Custom date range (session-only, same as the filters above): the
+                inputs only exist while the custom mode is selected. */}
+            {isCustomRange && (
+                <div className="px-2 pb-1.5 flex items-center gap-1">
+                    <HistoryDateField
+                        label={t('sidebar.historyDateFrom')}
+                        value={from}
+                        onChange={setFrom}
+                    />
+                    <HistoryDateField
+                        label={t('sidebar.historyDateTo')}
+                        value={to}
+                        onChange={setTo}
+                    />
+                </div>
+            )}
+
+            {/* Explain a custom range that cannot be applied instead of widening it */}
+            {isCustomRange && rangeError && (
+                <div role="alert" className="px-3 pb-1 text-[10px] text-accent-warning">
+                    {t(RANGE_ERROR_LABEL_KEYS[rangeError])}
+                </div>
+            )}
+
+            {/* Minimum recorded duration (session-only, same as the filters above) */}
+            <div className="px-2 pb-1.5">
+                {/* The label wraps the input, so a click anywhere in the box reaches it. */}
+                <label className={durationFieldClassName}>
+                    <span className="text-[11px] text-muted shrink-0">
+                        {t('sidebar.historyMinDuration')}
+                    </span>
+                    <input
+                        type="text"
+                        inputMode="decimal"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        autoComplete="off"
+                        spellCheck={false}
+                        value={minDurationMs}
+                        onChange={(e) => setMinDurationMs(e.target.value)}
+                        placeholder="0"
+                        aria-label={t('sidebar.historyMinDurationFilter')}
+                        aria-invalid={minDurationError !== null}
+                        className={durationInputClassName}
+                    />
+                    <span className="text-[11px] text-muted shrink-0">
+                        {t('sidebar.historyMinDurationUnit')}
+                    </span>
+                </label>
+            </div>
+
+            {/* Explain a threshold that cannot be applied instead of ignoring it */}
+            {minDurationError && (
+                <div role="alert" className="px-3 pb-1 text-[10px] text-accent-warning">
+                    {t(MIN_DURATION_ERROR_LABEL_KEYS[minDurationError])}
+                </div>
+            )}
+
+            {/* Filtered / total counter whenever any filter is active */}
+            {filterActive && (
+                <div className="px-3 pb-1 flex items-center justify-between gap-2 text-[10px] text-muted">
+                    <span>
+                        {filteredEntries.length} / {entries.length}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSearch('');
+                            setOutcome('any');
+                            setTimeRange('all');
+                            setDatabase('all');
+                            setFrom('');
+                            setTo('');
+                            setMinDurationMs('');
+                        }}
+                        className="shrink-0 underline hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                    >
+                        {t('sidebar.historyClearFilters')}
+                    </button>
+                </div>
+            )}
+
+            {/* Grouped entries */}
+            {groupedEntries.length === 0 ? (
+                <div className="text-center p-2 text-xs text-muted italic">
+                    {t('sidebar.noHistorySearchResults')}
+                </div>
+            ) : (
+                groupedEntries.map(([groupKey, items]) => (
+                    <div key={groupKey}>
+                        <div className="px-3 py-1 text-[10px] font-semibold uppercase text-muted tracking-wider">
+                            {t(`sidebar.${groupKey}`)}
+                        </div>
+                        {items.map((entry) => (
+                            <button
+                                type="button"
+                                key={entry.id}
+                                aria-pressed={selectedId === entry.id}
+                                onClick={() => setSelectedId(entry.id)}
+                                onDoubleClick={() => onDoubleClick(entry)}
+                                onKeyDown={(e) => {
+                                    // Enter opens the entry like a double click; Space keeps selecting it.
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        setSelectedId(entry.id);
+                                        onDoubleClick(entry);
+                                    }
+                                }}
+                                onContextMenu={(e) => onContextMenu(e, entry)}
+                                className={`block w-full text-left pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                                    selectedId === entry.id
+                                        ? entry.status === 'error'
+                                            ? 'bg-accent-error/15'
+                                            : 'bg-surface-secondary'
+                                        : entry.status === 'error'
+                                          ? 'hover:bg-accent-error/10'
+                                          : 'hover:bg-surface-secondary'
+                                }`}
+                                title={
+                                    entry.database ? `[${entry.database}] ${entry.sql}` : entry.sql
+                                }
+                            >
+                                <div className="flex items-center justify-between gap-2 mb-0.5">
+                                    <div className="flex items-center gap-1 text-[10px] text-muted min-w-0">
+                                        <span>
+                                            {formatHistoryTime(
+                                                entry.executedAt,
+                                                settings.displayTimezone,
+                                            )}
+                                        </span>
+                                        {entry.executionTimeMs !== null && (
+                                            <span className="text-muted/60">
+                                                {formatDuration(entry.executionTimeMs)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {entry.database && (
+                                        <div className="flex items-center gap-0.5 text-[10px] text-muted shrink-0">
+                                            <Database size={9} className="shrink-0" />
+                                            <span className="truncate max-w-[80px]">
+                                                {entry.database}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                                {entry.status === 'error' ? (
+                                    <pre
+                                        className="text-[11px] leading-[1.4] font-mono whitespace-pre-wrap break-all text-accent-error/70 overflow-hidden"
+                                        style={{
+                                            display: '-webkit-box',
+                                            WebkitLineClamp: 3,
+                                            WebkitBoxOrient: 'vertical',
+                                        }}
+                                    >
+                                        {formatSqlPreview(entry.sql)}
+                                    </pre>
+                                ) : (
+                                    <SqlHighlight sql={entry.sql} />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                ))
+            )}
+        </div>
+    );
+}

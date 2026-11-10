@@ -4,6 +4,8 @@
 //! `SshConnection` records linked by `ssh_connection_id`; groups are matched to
 //! existing groups by name or created fresh.
 
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 use super::driver_map;
@@ -53,6 +55,7 @@ pub fn build_payload(
         ssh_connections: Vec::new(),
         k8s_connections: Vec::new(),
         tags: Vec::new(),
+        plugin_secrets: HashMap::new(),
     };
 
     // Resolve group name -> group id, reusing an existing group when the name
@@ -108,10 +111,7 @@ pub fn build_payload(
         };
 
         let conn_id = match res.action.as_str() {
-            "replace" => res
-                .replace_existing_id
-                .clone()
-                .unwrap_or_else(new_id),
+            "replace" => res.replace_existing_id.clone().unwrap_or_else(new_id),
             _ => new_id(),
         };
 
@@ -219,6 +219,7 @@ fn build_connection(
         id: conn_id.to_string(),
         name: conn.name.clone(),
         params,
+        plugin_secret_keys: Vec::new(),
         group_id,
         sort_order: None,
         detect_json_in_text_columns: None,
@@ -333,7 +334,10 @@ mod tests {
         assert_eq!(payload.ssh_connections.len(), 1);
         let ssh = &payload.ssh_connections[0];
         let conn = &payload.connections[0];
-        assert_eq!(conn.params.ssh_connection_id.as_deref(), Some(ssh.id.as_str()));
+        assert_eq!(
+            conn.params.ssh_connection_id.as_deref(),
+            Some(ssh.id.as_str())
+        );
         assert_eq!(conn.params.ssh_enabled, Some(true));
         assert_eq!(ssh.port, 2222);
         assert_eq!(ssh.save_in_keychain, Some(true));

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "secondary-windows",
+  "description": "Allow local editor and result windows to open secondary application webview windows.",
+  "windows": ["main", "connection-window-*", "results-window-*"],
+  "permissions": ["core:webview:allow-create-webview-window"]
+}

@@ -18,7 +18,7 @@ use std::net::IpAddr;
 use std::panic::AssertUnwindSafe;
 use std::time::Duration;
 use tabularis_lib::drivers::mysql;
-use tabularis_lib::models::{ConnectionParams, DatabaseSelection};
+use tabularis_lib::models::{ConnectionParams, DatabaseSelection, ForeignKey};
 use tabularis_lib::pool_manager::{close_pool, has_pool_for_database};
 
 const SQL_MODES: [Option<&str>; 4] = [
@@ -61,6 +61,17 @@ async fn execute(connection: &mut MySqlConnection, sql: &str) {
 
 type ExpectedKey<'a> = (&'a str, &'a str, &'a str, &'a str, &'a str, &'a str);
 
+fn key_tuple(key: &ForeignKey) -> (&str, &str, &str, &str, Option<&str>, Option<&str>) {
+    (
+        key.name.as_str(),
+        key.column_name.as_str(),
+        key.ref_table.as_str(),
+        key.ref_column.as_str(),
+        key.on_update.as_deref(),
+        key.on_delete.as_deref(),
+    )
+}
+
 async fn assert_keys(
     params: &ConnectionParams,
     table_name: &str,
@@ -74,19 +85,7 @@ async fn assert_keys(
     .await
     .expect("foreign-key discovery timed out")
     .expect("foreign-key discovery failed");
-    let actual: Vec<_> = keys
-        .iter()
-        .map(|key| {
-            (
-                key.name.as_str(),
-                key.column_name.as_str(),
-                key.ref_table.as_str(),
-                key.ref_column.as_str(),
-                key.on_update.as_deref(),
-                key.on_delete.as_deref(),
-            )
-        })
-        .collect();
+    let actual: Vec<_> = keys.iter().map(key_tuple).collect();
     let expected: Vec<_> = expected
         .iter()
         .map(|&(name, column, parent, parent_column, update, delete)| {
@@ -105,6 +104,65 @@ async fn assert_keys(
         "table={table_name:?}, schema={schema:?}, text_protocol={:?}",
         params.enable_cleartext_plugin
     );
+
+    // Also assert against get_all_foreign_keys_batch to verify both query paths
+    let batch = tokio::time::timeout(
+        Duration::from_secs(30),
+        mysql::get_all_foreign_keys_batch(params, schema),
+    )
+    .await
+    .expect("batch foreign-key discovery timed out")
+    .expect("batch foreign-key discovery failed");
+    let batch_keys = batch.get(table_name).map(Vec::as_slice).unwrap_or_default();
+    let actual_batch: Vec<_> = batch_keys.iter().map(key_tuple).collect();
+    assert_eq!(
+        actual_batch, expected,
+        "batch table={table_name:?}, schema={schema:?}, text_protocol={:?}",
+        params.enable_cleartext_plugin
+    );
+}
+
+/// The CAST(... AS SIGNED) reads from #939: numeric precision/scale through both
+/// column queries, and each column's position in a composite key through both
+/// foreign-key queries.
+async fn assert_numeric_columns_and_key_order(params: &ConnectionParams) {
+    let label = format!("text_protocol={:?}", params.enable_cleartext_plugin);
+    let timeout = Duration::from_secs(30);
+    let columns = tokio::time::timeout(timeout, mysql::get_columns(params, "parent", None))
+        .await
+        .expect("column discovery timed out")
+        .expect("column discovery failed");
+    let column_batch = tokio::time::timeout(timeout, mysql::get_all_columns_batch(params, None))
+        .await
+        .expect("batch column discovery timed out")
+        .expect("batch column discovery failed");
+    for columns in [&columns, &column_batch["parent"]] {
+        let amount = columns
+            .iter()
+            .find(|column| column.name == "amount")
+            .expect("parent.amount should be listed");
+        assert_eq!(
+            (amount.numeric_precision, amount.numeric_scale),
+            (Some(10), Some(2)),
+            "{label}"
+        );
+    }
+
+    let keys = tokio::time::timeout(timeout, mysql::get_foreign_keys(params, "composite", None))
+        .await
+        .expect("foreign-key discovery timed out")
+        .expect("foreign-key discovery failed");
+    let key_batch = tokio::time::timeout(timeout, mysql::get_all_foreign_keys_batch(params, None))
+        .await
+        .expect("batch foreign-key discovery timed out")
+        .expect("batch foreign-key discovery failed");
+    for keys in [&keys, &key_batch["composite"]] {
+        let order: Vec<_> = keys
+            .iter()
+            .map(|key| (key.column_name.as_str(), key.seq_in_fk))
+            .collect();
+        assert_eq!(order, [("z_col", Some(1)), ("a_col", Some(2))], "{label}");
+    }
 }
 
 async fn exercise_foreign_keys(
@@ -115,7 +173,7 @@ async fn exercise_foreign_keys(
     let [first, second] = schemas;
     for schema in schemas {
         execute(connection, &format!(
-            "CREATE TABLE {} (id INT PRIMARY KEY, z INT NOT NULL, a INT NOT NULL, UNIQUE (z, a)) ENGINE=InnoDB",
+            "CREATE TABLE {} (id INT PRIMARY KEY, z INT NOT NULL, a INT NOT NULL, amount DECIMAL(10,2), UNIQUE (z, a)) ENGINE=InnoDB",
             table(schema, "parent")
         )).await;
     }
@@ -259,6 +317,7 @@ async fn exercise_foreign_keys(
                 ],
             )
             .await;
+            assert_numeric_columns_and_key_order(&selected).await;
             assert_keys(
                 &selected,
                 "self_ref",

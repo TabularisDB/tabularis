@@ -1,0 +1,55 @@
+import {useState} from 'react';
+import {Check, ChevronDown, ChevronUp, Copy} from 'lucide-react';
+import type {TFunction} from 'i18next';
+import {useCopyFeedback} from '@/hooks/useCopyFeedback';
+
+interface ErrorDisplayProps {
+    error: string;
+    t: TFunction;
+}
+
+export function ErrorDisplay({error, t}: ErrorDisplayProps) {
+    const [showDetails, setShowDetails] = useState(false);
+    const {copied, copy} = useCopyFeedback(1500);
+
+    const separatorIndex = error.indexOf('\n\n');
+    const hasDetails = separatorIndex !== -1 && separatorIndex < error.length - 2;
+    const brief = hasDetails ? error.slice(0, separatorIndex) : error;
+    const details = hasDetails ? error.slice(separatorIndex + 2) : '';
+
+    const handleCopy = () => copy(error);
+
+    return (
+        <div className="p-4 text-accent-error font-mono text-sm bg-accent-error/5 h-full overflow-auto select-text">
+            <div className="flex items-start gap-3">
+                <div className="whitespace-pre-wrap flex-1 min-w-0">Error: {brief}</div>
+                <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="inline-flex items-center gap-1 rounded border border-accent-error/30 px-2 py-1 text-xs text-accent-error/80 hover:bg-accent-error/10 hover:text-accent-error transition-colors select-none shrink-0"
+                    title={t('sidebar.copyError')}
+                >
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                    {copied ? t('common.copied') : t('common.copy')}
+                </button>
+            </div>
+            {hasDetails && (
+                <>
+                    <button
+                        type="button"
+                        onClick={() => setShowDetails((v) => !v)}
+                        className="mt-2 flex items-center gap-1 text-xs text-accent-error/70 hover:text-accent-error transition-colors cursor-pointer"
+                    >
+                        {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        {showDetails ? t('editor.hideErrorDetails') : t('editor.showErrorDetails')}
+                    </button>
+                    {showDetails && (
+                        <div className="mt-2 whitespace-pre-wrap text-accent-error/60 border-t border-accent-error/20 pt-2">
+                            {details}
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}

@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "enables the default permissions",
-  "windows": ["main", "visual-explain", "er-diagram*", "task-manager", "json-viewer-*", "results-window-*", "connection-window-*"],
+  "windows": ["main", "visual-explain", "visual-explain-*", "er-diagram*", "task-manager", "json-viewer-*", "results-window-*", "connection-window-*"],
   "permissions": [
     "core:default",
     "core:window:allow-set-title",
@@ -22,11 +22,13 @@
     "fs:default",
     "fs:allow-write-text-file",
     "fs:allow-read-text-file",
+    "fs:allow-stat",
     "fs:scope-appdata-recursive",
     "notification:default",
     "opener:default",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-write-html",
     "deep-link:default"
   ]
 }

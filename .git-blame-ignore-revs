@@ -1,0 +1,5 @@
+# Commits listed here are skipped by `git blame` (GitHub applies this file automatically).
+# Locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# chore: format the codebase with Prettier and tidy the project structure (#1247)
+6cdc500b37e1dae3c09215f152b9548a64497cd5

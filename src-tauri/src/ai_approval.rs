@@ -25,6 +25,10 @@ pub struct PendingApproval {
     pub session_id: String,
     pub connection_id: String,
     pub connection_name: String,
+    /// Database the query targets when the MCP caller picked one other than
+    /// the connection's default, so the approver sees where a write lands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database: Option<String>,
     pub query: String,
     pub query_kind: String,
     pub client_hint: Option<String>,
@@ -161,10 +165,8 @@ pub async fn poll_decision_in(
     timeout_secs: u64,
     poll_interval_ms: u64,
 ) -> Result<Option<ApprovalDecision>, String> {
-    match poll_decision_with_liveness_in(base, approval_id, timeout_secs, poll_interval_ms, || {
-        true
-    })
-    .await?
+    match poll_decision_with_liveness_in(base, approval_id, timeout_secs, poll_interval_ms, || true)
+        .await?
     {
         PollOutcome::Decided(d) => Ok(Some(d)),
         PollOutcome::TimedOut => Ok(None),

@@ -2,11 +2,14 @@
 mod tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
     use crate::pool_manager::{
-        build_connection_key, build_mysql_options, format_error_chain,
-        is_pipes_as_concat_unsupported, postgres_pool_max_size_from_value,
-        DEFAULT_POSTGRES_POOL_MAX_SIZE,
+        build_connection_key, build_mysql_options, connect_timeout, connection_pool_prefix,
+        format_error_chain, is_pipes_as_concat_unsupported, mysql_connect_timeout,
+        postgres_pool_max_size_from_value, postgres_startup_script_timeout, query_timeout,
+        remove_pools_with_prefix, with_connect_timeout, DEFAULT_POSTGRES_POOL_MAX_SIZE,
     };
     use sqlx::mysql::MySqlSslMode;
+    use std::collections::HashMap;
+    use std::time::Duration;
 
     fn connection_params(driver: &str, ssl_mode: Option<&str>) -> ConnectionParams {
         ConnectionParams {
@@ -95,6 +98,112 @@ mod tests {
             build_connection_key(&required, Some("conn-1")),
             build_connection_key(&disabled, Some("conn-1"))
         );
+    }
+
+    #[test]
+    fn connection_pool_prefix_matches_every_database_for_a_connection() {
+        // The prefix matches both the primary pool key and per-database override
+        // keys, which embed a different database after the connection id.
+        let params = mysql_params("required");
+        let prefix = connection_pool_prefix("mysql", "conn-1");
+        let primary_key = build_connection_key(&params, Some("conn-1"));
+
+        let mut overridden = params.clone();
+        overridden.database = DatabaseSelection::Single("other_db".to_string());
+        let override_key = build_connection_key(&overridden, Some("conn-1"));
+
+        assert!(
+            primary_key.starts_with(&prefix),
+            "primary key {primary_key} should start with prefix {prefix}"
+        );
+        assert!(
+            override_key.starts_with(&prefix),
+            "override key {override_key} should start with prefix {prefix}"
+        );
+    }
+
+    #[test]
+    fn connection_pool_prefix_does_not_match_a_different_connection() {
+        // The trailing `:` prevents one connection id that is a prefix of another
+        // (`conn-1` vs `conn-10`) from matching the other's pools.
+        let prefix = connection_pool_prefix("mysql", "conn-1");
+        let other_prefix = connection_pool_prefix("mysql", "conn-10");
+
+        assert_ne!(prefix, other_prefix);
+        assert!(
+            !other_prefix.starts_with(&prefix),
+            "prefix {prefix} must not match a longer connection id"
+        );
+    }
+
+    #[test]
+    fn postgres_pool_key_with_tls_suffix_starts_with_connection_prefix() {
+        // A Postgres key appends a `:ssl:...` TLS suffix after the database.
+        // The connection prefix (which ends at the connection id) must still
+        // match it, so `close_pools_for_connection_id` closes TLS-keyed pools.
+        let params = connection_params("postgres", Some("require"));
+        let prefix = connection_pool_prefix("postgres", "conn-1");
+        let primary_key = build_connection_key(&params, Some("conn-1"));
+
+        let mut overridden = params.clone();
+        overridden.database = DatabaseSelection::Single("other_db".to_string());
+        let override_key = build_connection_key(&overridden, Some("conn-1"));
+
+        assert!(
+            primary_key.starts_with(&prefix),
+            "primary key {primary_key} should start with prefix {prefix}"
+        );
+        assert!(
+            override_key.starts_with(&prefix),
+            "override key {override_key} should start with prefix {prefix}"
+        );
+    }
+
+    #[test]
+    fn postgres_pool_key_with_startup_script_starts_with_connection_prefix() {
+        // A startup script appends a `:startup:<hash>` suffix after the TLS
+        // suffix. The connection prefix must still match it, so
+        // `close_pools_for_connection_id` closes pools whose keys carry a
+        // startup-script digest.
+        let mut params = connection_params("postgres", Some("require"));
+        params.startup_script = Some("SET app.bypass_rls = 'on';".to_string());
+        let prefix = connection_pool_prefix("postgres", "conn-1");
+        let primary_key = build_connection_key(&params, Some("conn-1"));
+
+        let mut overridden = params.clone();
+        overridden.database = DatabaseSelection::Single("other_db".to_string());
+        let override_key = build_connection_key(&overridden, Some("conn-1"));
+
+        assert!(
+            primary_key.starts_with(&prefix),
+            "primary key {primary_key} should start with prefix {prefix}"
+        );
+        assert!(
+            override_key.starts_with(&prefix),
+            "override key {override_key} should start with prefix {prefix}"
+        );
+    }
+
+    #[test]
+    fn remove_pools_with_prefix_collects_only_matching_keys() {
+        let mut pools: HashMap<String, i32> = HashMap::new();
+        pools.insert("mysql:conn:1:db_a".to_string(), 1);
+        pools.insert("mysql:conn:1:db_b".to_string(), 2);
+        pools.insert("mysql:conn:2:db_a".to_string(), 3);
+        pools.insert("postgres:conn:1:db_a".to_string(), 4);
+
+        let prefix = connection_pool_prefix("mysql", "1");
+        let removed = remove_pools_with_prefix(&mut pools, &prefix);
+
+        // Only the two mysql:conn:1:* entries are removed; the conn:2 and
+        // postgres pools are left untouched.
+        assert_eq!(removed.len(), 2);
+        let removed_keys: Vec<&str> = removed.iter().map(|(k, _)| k.as_str()).collect();
+        assert!(removed_keys.contains(&"mysql:conn:1:db_a"));
+        assert!(removed_keys.contains(&"mysql:conn:1:db_b"));
+        assert_eq!(pools.len(), 2);
+        assert!(pools.contains_key("mysql:conn:2:db_a"));
+        assert!(pools.contains_key("postgres:conn:1:db_a"));
     }
 
     #[test]
@@ -234,6 +343,123 @@ mod tests {
     }
 
     #[test]
+    fn connect_timeout_is_unset_for_none_and_zero() {
+        let mut params = connection_params("postgres", None);
+        assert_eq!(connect_timeout(&params), None);
+
+        params.connect_timeout_secs = Some(0);
+        assert_eq!(connect_timeout(&params), None);
+
+        params.connect_timeout_secs = Some(7);
+        assert_eq!(connect_timeout(&params), Some(Duration::from_secs(7)));
+    }
+
+    #[test]
+    fn query_timeout_is_unset_for_none_and_zero() {
+        let mut params = connection_params("postgres", None);
+        assert_eq!(query_timeout(&params), None);
+
+        params.query_timeout_secs = Some(0);
+        assert_eq!(query_timeout(&params), None);
+
+        params.query_timeout_secs = Some(30);
+        assert_eq!(query_timeout(&params), Some(Duration::from_secs(30)));
+    }
+
+    #[test]
+    fn query_timeout_does_not_split_the_pool() {
+        let unset = connection_params("postgres", None);
+        let mut limited = unset.clone();
+        limited.query_timeout_secs = Some(30);
+
+        // Enforced per statement on the client, so both share one pool.
+        assert_eq!(
+            build_connection_key(&unset, Some("conn-1")),
+            build_connection_key(&limited, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn mysql_connect_timeout_prefers_the_connection_value() {
+        let mut params = mysql_params("disabled");
+        let global = mysql_connect_timeout(&params);
+        assert!(global > Duration::ZERO);
+
+        params.connect_timeout_secs = Some(3);
+        assert_eq!(mysql_connect_timeout(&params), Duration::from_secs(3));
+
+        params.connect_timeout_secs = Some(0);
+        assert_eq!(mysql_connect_timeout(&params), global);
+    }
+
+    #[test]
+    fn postgres_startup_script_timeout_uses_the_connect_timeout() {
+        let mut params = connection_params("postgres", None);
+        assert_eq!(
+            postgres_startup_script_timeout(&params),
+            Duration::from_secs(30)
+        );
+
+        params.connect_timeout_secs = Some(0);
+        assert_eq!(
+            postgres_startup_script_timeout(&params),
+            Duration::from_secs(30)
+        );
+
+        params.connect_timeout_secs = Some(2);
+        assert_eq!(
+            postgres_startup_script_timeout(&params),
+            Duration::from_secs(2)
+        );
+    }
+
+    #[test]
+    fn pool_key_changes_only_when_connect_timeout_is_set() {
+        let none = connection_params("postgres", Some("require"));
+        let mut zero = none.clone();
+        zero.connect_timeout_secs = Some(0);
+        let mut five = none.clone();
+        five.connect_timeout_secs = Some(5);
+        let mut ten = none.clone();
+        ten.connect_timeout_secs = Some(10);
+
+        let key_none = build_connection_key(&none, Some("conn-1"));
+        assert_eq!(key_none, build_connection_key(&zero, Some("conn-1")));
+        assert_ne!(key_none, build_connection_key(&five, Some("conn-1")));
+        assert_ne!(
+            build_connection_key(&five, Some("conn-1")),
+            build_connection_key(&ten, Some("conn-1"))
+        );
+        assert!(build_connection_key(&five, Some("conn-1"))
+            .starts_with(&connection_pool_prefix("postgres", "conn-1")));
+    }
+
+    #[tokio::test]
+    async fn with_connect_timeout_fails_a_stalled_attempt() {
+        let mut params = connection_params("postgres", None);
+        params.connect_timeout_secs = Some(1);
+        let started = std::time::Instant::now();
+
+        let result =
+            with_connect_timeout(&params, std::future::pending::<Result<(), String>>()).await;
+
+        assert_eq!(result, Err("Connection timed out after 1 s".to_string()));
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn with_connect_timeout_passes_results_through() {
+        let mut params = connection_params("postgres", None);
+        assert_eq!(with_connect_timeout(&params, async { Ok(1) }).await, Ok(1));
+
+        params.connect_timeout_secs = Some(5);
+        assert_eq!(
+            with_connect_timeout(&params, async { Err::<(), _>("refused".to_string()) }).await,
+            Err("refused".to_string())
+        );
+    }
+
+    #[test]
     fn mysql_options_accept_snake_case_verify_ssl_modes() {
         let verify_ca = mysql_params("verify_ca");
         let verify_identity = mysql_params("verify_identity");
@@ -250,6 +476,103 @@ mod tests {
                 .get_ssl_mode(),
             MySqlSslMode::VerifyIdentity
         ));
+    }
+
+    #[test]
+    fn mysql_options_default_ssl_mode_is_required() {
+        let params = connection_params("mysql", None);
+        let opts = build_mysql_options(&params, None).expect("unset ssl_mode");
+        assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::Required));
+    }
+
+    #[test]
+    fn mysql_options_blank_ssl_mode_equals_default() {
+        let blank = mysql_params("   ");
+        let unset = connection_params("mysql", None);
+        let blank_opts = build_mysql_options(&blank, None).expect("blank ssl_mode");
+        let unset_opts = build_mysql_options(&unset, None).expect("unset ssl_mode");
+        assert!(matches!(blank_opts.get_ssl_mode(), MySqlSslMode::Required));
+        assert_eq!(
+            std::mem::discriminant(&blank_opts.get_ssl_mode()),
+            std::mem::discriminant(&unset_opts.get_ssl_mode())
+        );
+        assert_eq!(
+            build_connection_key(&blank, Some("conn-1")),
+            build_connection_key(&unset, Some("conn-1"))
+        );
+    }
+
+    fn mysql_ssl_mode_name(mode: MySqlSslMode) -> &'static str {
+        match mode {
+            MySqlSslMode::Disabled => "Disabled",
+            MySqlSslMode::Preferred => "Preferred",
+            MySqlSslMode::Required => "Required",
+            MySqlSslMode::VerifyCa => "VerifyCa",
+            MySqlSslMode::VerifyIdentity => "VerifyIdentity",
+        }
+    }
+
+    fn assert_mysql_ssl_mode(mode: &str, expected: MySqlSslMode) {
+        let opts = build_mysql_options(&mysql_params(mode), None)
+            .unwrap_or_else(|err| panic!("{mode} should be accepted, got: {err}"));
+        let actual = opts.get_ssl_mode();
+        assert!(
+            std::mem::discriminant(&actual) == std::mem::discriminant(&expected),
+            "{mode}: expected {}, got {}",
+            mysql_ssl_mode_name(expected),
+            mysql_ssl_mode_name(actual),
+        );
+    }
+
+    #[test]
+    fn mysql_options_accept_every_produced_ssl_mode() {
+        // UI values, JDBC URL import aliases, and libpq spellings stored by
+        // the connection importers (DBeaver, TablePlus, Beekeeper, Sequel Ace,
+        // DataGrip) and left in place by the #614 migration.
+        let cases = [
+            ("disabled", MySqlSslMode::Disabled),
+            ("disable", MySqlSslMode::Disabled),
+            ("preferred", MySqlSslMode::Preferred),
+            ("prefer", MySqlSslMode::Preferred),
+            ("required", MySqlSslMode::Required),
+            ("require", MySqlSslMode::Required),
+            ("verify_ca", MySqlSslMode::VerifyCa),
+            ("verify-ca", MySqlSslMode::VerifyCa),
+            ("verify_identity", MySqlSslMode::VerifyIdentity),
+            ("verify-identity", MySqlSslMode::VerifyIdentity),
+            ("verify-full", MySqlSslMode::VerifyIdentity),
+            ("VERIFY_IDENTITY", MySqlSslMode::VerifyIdentity),
+        ];
+        for (mode, expected) in cases {
+            assert_mysql_ssl_mode(mode, expected);
+        }
+    }
+
+    #[test]
+    fn mysql_options_reject_unknown_ssl_mode() {
+        let err = build_mysql_options(&mysql_params("verfy-full"), None).unwrap_err();
+        assert!(err.contains("verfy-full"), "{err}");
+        for accepted in [
+            "disabled",
+            "preferred",
+            "required",
+            "verify_ca",
+            "verify_identity",
+            "verify-ca",
+            "verify-full",
+        ] {
+            assert!(err.contains(accepted), "{err} missing {accepted}");
+        }
+    }
+
+    #[test]
+    fn mysql_pool_key_keeps_unknown_ssl_mode_distinct_from_default() {
+        let unknown = mysql_params("verfy-full");
+        let unset = connection_params("mysql", None);
+        assert_ne!(
+            build_connection_key(&unknown, Some("conn-1")),
+            build_connection_key(&unset, Some("conn-1"))
+        );
     }
 
     #[test]
@@ -275,8 +598,7 @@ mod tests {
         let options = build_mysql_options(&params, None).unwrap();
         let dbg = format!("{options:?}");
         assert!(
-            dbg.contains("pipes_as_concat: true")
-                && dbg.contains("no_engine_substitution: true"),
+            dbg.contains("pipes_as_concat: true") && dbg.contains("no_engine_substitution: true"),
             "expected forced sql_mode by default, got: {dbg}"
         );
     }
@@ -328,8 +650,7 @@ mod tests {
         let options = build_mysql_options(&params, None).unwrap();
         let dbg = format!("{options:?}");
         assert!(
-            dbg.contains("pipes_as_concat: false")
-                && dbg.contains("no_engine_substitution: false"),
+            dbg.contains("pipes_as_concat: false") && dbg.contains("no_engine_substitution: false"),
             "expected sql_mode forcing disabled, got: {dbg}"
         );
     }
@@ -417,8 +738,7 @@ mod tests {
 
         let err = build_mysql_options(&params, None).unwrap_err();
         assert!(
-            err.contains("IAM")
-                && (err.contains("TLS") || err.contains("SSL")),
+            err.contains("IAM") && (err.contains("TLS") || err.contains("SSL")),
             "expected IAM/SSL error, got: {}",
             err
         );
@@ -627,10 +947,8 @@ mod tests {
         // IAM auth + ssl_ca + required must: (a) escalate to VerifyCa, and
         // (b) still opt in to the cleartext plugin. Regression test for the
         // exact user scenario reported on 2026-06-23.
-        let mut params = mysql_params_with_ca(
-            "required",
-            "/Users/dperez/.ssh/rds-combined-ca-bundle.pem",
-        );
+        let mut params =
+            mysql_params_with_ca("required", "/Users/dperez/.ssh/rds-combined-ca-bundle.pem");
         params.use_iam_auth = Some(true);
         params.password = Some("fake-rds-auth-token".to_string());
         let opts = build_mysql_options(&params, None).expect("must build");
@@ -781,10 +1099,8 @@ mod tests {
     /// pre-signed RDS auth token.
     #[test]
     fn mysql_options_iam_escalation_preserved_under_rustls() {
-        let mut params = mysql_params_with_ca(
-            "required",
-            "/Users/dperez/.ssh/rds-combined-ca-bundle.pem",
-        );
+        let mut params =
+            mysql_params_with_ca("required", "/Users/dperez/.ssh/rds-combined-ca-bundle.pem");
         params.use_iam_auth = Some(true);
         params.password = Some("fake-rds-auth-token".to_string());
         let opts = build_mysql_options(&params, None).expect("must build");
@@ -855,14 +1171,28 @@ mod postgres_ssl_config_tests {
     #[test]
     fn test_ssl_mode_disable() {
         let params = params_with_ssl("disable");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Disable);
+    }
+
+    #[test]
+    fn connect_timeout_is_applied_only_when_set() {
+        let mut params = params_no_ssl();
+        let cfg = build_postgres_configurations(&params).expect("valid config");
+        assert_eq!(cfg.get_connect_timeout(), None);
+
+        params.connect_timeout_secs = Some(4);
+        let cfg = build_postgres_configurations(&params).expect("valid config");
+        assert_eq!(
+            cfg.get_connect_timeout(),
+            Some(&std::time::Duration::from_secs(4))
+        );
     }
 
     #[test]
     fn test_ssl_mode_allow() {
         let params = params_with_ssl("allow");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         // tokio_postgres does not have SslMode::Allow.
         // "allow" is mapped to Prefer since the client library doesn't support
         // "try non-SSL first, fallback to SSL" natively.
@@ -872,21 +1202,21 @@ mod postgres_ssl_config_tests {
     #[test]
     fn test_ssl_mode_prefer() {
         let params = params_with_ssl("prefer");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Prefer);
     }
 
     #[test]
     fn test_ssl_mode_require() {
         let params = params_with_ssl("require");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Require);
     }
 
     #[test]
     fn test_ssl_mode_verify_ca() {
         let params = params_with_ssl("verify-ca");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         // verify-ca maps to Require at the protocol level (cert validation is in TLS connector)
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Require);
     }
@@ -894,7 +1224,7 @@ mod postgres_ssl_config_tests {
     #[test]
     fn test_ssl_mode_verify_full() {
         let params = params_with_ssl("verify-full");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         // verify-full maps to Require at the protocol level
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Require);
     }
@@ -903,7 +1233,7 @@ mod postgres_ssl_config_tests {
     fn test_ssl_mode_default_is_prefer() {
         // No ssl_mode set -> tokio_postgres defaults to Prefer
         let params = params_no_ssl();
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Prefer);
     }
 
@@ -916,12 +1246,51 @@ mod postgres_ssl_config_tests {
         let allow_params = params_with_ssl("allow");
         let prefer_params = params_with_ssl("prefer");
 
-        let allow_cfg = build_postgres_configurations(&allow_params);
-        let prefer_cfg = build_postgres_configurations(&prefer_params);
+        let allow_cfg = build_postgres_configurations(&allow_params).expect("accepted ssl mode");
+        let prefer_cfg = build_postgres_configurations(&prefer_params).expect("accepted ssl mode");
 
         // Both map to Prefer in tokio_postgres
         assert_eq!(allow_cfg.get_ssl_mode(), PgSslMode::Prefer);
         assert_eq!(prefer_cfg.get_ssl_mode(), PgSslMode::Prefer);
+    }
+
+    #[test]
+    fn test_ssl_mode_unknown_is_rejected() {
+        let err = match build_postgres_configurations(&params_with_ssl("verfy-full")) {
+            Err(err) => err,
+            Ok(_) => panic!("unknown ssl mode should fail"),
+        };
+        assert!(err.contains("verfy-full"), "{err}");
+        for accepted in [
+            "disable",
+            "allow",
+            "prefer",
+            "require",
+            "verify-ca",
+            "verify-full",
+        ] {
+            assert!(err.contains(accepted), "{err} missing {accepted}");
+        }
+    }
+
+    #[test]
+    fn test_ssl_mode_blank_equals_default() {
+        let blank_cfg =
+            build_postgres_configurations(&params_with_ssl("   ")).expect("blank ssl_mode");
+        let unset_params = ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some("localhost".to_string()),
+            port: Some(5432),
+            username: Some("test".to_string()),
+            password: Some("test".to_string()),
+            database: DatabaseSelection::Single("testdb".to_string()),
+            ssl_mode: None,
+            ..Default::default()
+        };
+        let unset_cfg = build_postgres_configurations(&unset_params).expect("unset ssl_mode");
+        assert_eq!(blank_cfg.get_ssl_mode(), PgSslMode::Prefer);
+        assert_eq!(unset_cfg.get_ssl_mode(), PgSslMode::Prefer);
+        assert_eq!(blank_cfg.get_ssl_mode(), unset_cfg.get_ssl_mode());
     }
 }
 
@@ -1023,6 +1392,64 @@ mod postgres_tls_connector_tests {
         let result = build_postgres_tls_connector(&params);
         // Should succeed with platform verifier
         assert!(result.is_ok());
+    }
+
+    fn tls_connector_error(mode: &str) -> String {
+        match build_postgres_tls_connector(&params_with_ssl(mode)) {
+            Err(err) => err,
+            Ok(_) => panic!("{mode} should have failed"),
+        }
+    }
+
+    #[test]
+    fn test_tls_connector_accepts_every_produced_ssl_mode() {
+        for mode in ["disable", "allow", "prefer", "require", "verify-full"] {
+            if let Err(err) = build_postgres_tls_connector(&params_with_ssl(mode)) {
+                panic!("{mode} should be accepted, got: {err}");
+            }
+        }
+        // verify-ca is accepted, but still requires a CA file.
+        let err = tls_connector_error("verify-ca");
+        assert!(err.contains("verify-ca mode requires"), "{err}");
+        assert!(!err.contains("Unknown SSL mode"), "{err}");
+    }
+
+    #[test]
+    fn test_tls_connector_verify_ca_is_case_insensitive() {
+        let err = tls_connector_error("VERIFY-CA");
+        assert!(err.contains("verify-ca mode requires"), "{err}");
+    }
+
+    #[test]
+    fn test_tls_connector_rejects_unknown_ssl_mode() {
+        let err = tls_connector_error("verfy-full");
+        assert!(err.contains("verfy-full"), "{err}");
+        for accepted in [
+            "disable",
+            "allow",
+            "prefer",
+            "require",
+            "verify-ca",
+            "verify-full",
+        ] {
+            assert!(err.contains(accepted), "{err} missing {accepted}");
+        }
+    }
+
+    #[test]
+    fn test_tls_connector_default_ssl_mode_is_prefer() {
+        let mut params = params_with_ssl("prefer");
+        params.ssl_mode = None;
+        assert!(build_postgres_tls_connector(&params).is_ok());
+    }
+
+    #[test]
+    fn test_tls_connector_blank_ssl_mode_equals_default() {
+        let blank = params_with_ssl("  ");
+        let mut unset = params_with_ssl("prefer");
+        unset.ssl_mode = None;
+        assert!(build_postgres_tls_connector(&blank).is_ok());
+        assert!(build_postgres_tls_connector(&unset).is_ok());
     }
 
     #[test]
@@ -1239,7 +1666,10 @@ mod startup_script_tests {
             .fetch_one(&pool)
             .await
             .expect("startup_marker table should exist");
-        assert!(count >= 1, "expected at least one startup INSERT, got {count}");
+        assert!(
+            count >= 1,
+            "expected at least one startup INSERT, got {count}"
+        );
 
         close_pool_with_id(&params, Some(&conn_id)).await;
     }
@@ -1287,5 +1717,133 @@ mod startup_script_tests {
         );
 
         close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+}
+
+/// Live checks that the connect timeout bounds a slow PostgreSQL startup
+/// script, both in the preflight and in each new pooled connection's hook.
+/// Run against a local server:
+///   TABULARIS_TEST_PG=1 cargo test --lib live_pg_connect_timeout -- --ignored
+/// Override TABULARIS_TEST_PG_{HOST,PORT,USER,PASSWORD,DB} for a non-default setup.
+#[cfg(test)]
+mod live_pg_connect_timeout {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use crate::pool_manager::{close_pool_with_id, get_postgres_pool_with_id};
+    use std::time::{Duration, Instant};
+
+    fn test_params() -> Option<ConnectionParams> {
+        if std::env::var("TABULARIS_TEST_PG").is_err() {
+            return None;
+        }
+        Some(ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some(
+                std::env::var("TABULARIS_TEST_PG_HOST").unwrap_or_else(|_| "localhost".to_string()),
+            ),
+            port: std::env::var("TABULARIS_TEST_PG_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .or(Some(55432)),
+            username: Some(
+                std::env::var("TABULARIS_TEST_PG_USER").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            password: Some(
+                std::env::var("TABULARIS_TEST_PG_PASSWORD")
+                    .unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            database: DatabaseSelection::Single(
+                std::env::var("TABULARIS_TEST_PG_DB").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            ssl_mode: Some("disable".to_string()),
+            ..Default::default()
+        })
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_connect_timeout_bounds_a_slow_startup_preflight() {
+        let Some(mut params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let conn_id = format!("timeout-preflight-{}", ulid::Ulid::new());
+        params.connect_timeout_secs = Some(1);
+        params.startup_script = Some("SELECT pg_sleep(3);".to_string());
+
+        let started = Instant::now();
+        let result = get_postgres_pool_with_id(&params, Some(&conn_id)).await;
+
+        let err = result.expect_err("a 3 s startup script must fail a 1 s budget");
+        assert!(
+            err.contains("Timed out running PostgreSQL startup script after 1000 ms"),
+            "{err}"
+        );
+        assert!(
+            started.elapsed() < Duration::from_millis(2500),
+            "{:?}",
+            started.elapsed()
+        );
+        close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_connect_timeout_bounds_a_slow_startup_hook() {
+        let Some(mut params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let conn_id = format!("timeout-hook-{}", ulid::Ulid::new());
+        let sequence = format!("tabularis_startup_runs_{}", ulid::Ulid::new()).to_lowercase();
+        let setup = get_postgres_pool_with_id(&params, Some(&format!("{conn_id}-setup")))
+            .await
+            .expect("connect to test postgres");
+        setup
+            .get()
+            .await
+            .expect("setup client")
+            .batch_execute(&format!("CREATE SEQUENCE {sequence};"))
+            .await
+            .expect("create sequence");
+
+        // nextval is not rolled back, so the preflight (first run, inside a
+        // rolled-back transaction) is fast and the pooled connection's hook
+        // (second run) sleeps for 3 s.
+        params.connect_timeout_secs = Some(1);
+        params.startup_script = Some(format!(
+            "SELECT pg_sleep(CASE WHEN nextval('{sequence}') > 1 THEN 3 ELSE 0 END);"
+        ));
+        let pool = get_postgres_pool_with_id(&params, Some(&conn_id))
+            .await
+            .expect("the preflight run is fast");
+
+        let started = Instant::now();
+        let err = pool
+            .get()
+            .await
+            .expect_err("a 3 s hook must fail a 1 s budget");
+        assert!(
+            err.to_string()
+                .contains("Timed out running PostgreSQL startup script after 1000 ms"),
+            "{err}"
+        );
+        assert!(
+            started.elapsed() < Duration::from_millis(2500),
+            "{:?}",
+            started.elapsed()
+        );
+
+        close_pool_with_id(&params, Some(&conn_id)).await;
+        setup
+            .get()
+            .await
+            .expect("setup client")
+            .batch_execute(&format!("DROP SEQUENCE {sequence};"))
+            .await
+            .expect("drop sequence");
+        let mut setup_params = params.clone();
+        setup_params.connect_timeout_secs = None;
+        setup_params.startup_script = None;
+        close_pool_with_id(&setup_params, Some(&format!("{conn_id}-setup"))).await;
     }
 }

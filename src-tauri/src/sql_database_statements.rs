@@ -8,7 +8,7 @@
 //! today's behaviour anyway; a wrong detection would tell the user a database
 //! is gone when it isn't, which is worse than doing nothing.
 
-use crate::ai_activity::{has_trailing_statements, strip_strings_and_comments};
+use crate::ai_activity::has_multiple_statements;
 
 #[cfg(test)]
 mod tests;
@@ -25,11 +25,11 @@ mod tests;
 /// just executed, which in practice starts at the keyword; and a miss here only
 /// costs a stale sidebar until the next refresh.
 pub fn dropped_database(sql: &str) -> Option<String> {
-    // Only used to reject multi-statement payloads and to ignore text inside
-    // comments and string literals. The walk below reads the original string,
-    // because stripping also blanks out quoted identifiers -- which is exactly
-    // where the database name lives.
-    if has_trailing_statements(&strip_strings_and_comments(sql)) {
+    // Only used to reject multi-statement payloads, under every dialect's
+    // reading of comments and literals (the dialect is not known here). The
+    // walk below reads the original string, because stripping also blanks out
+    // quoted identifiers -- which is exactly where the database name lives.
+    if has_multiple_statements(sql, None) {
         return None;
     }
 

@@ -5,7 +5,9 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "numeric_precision": 32,
+    "numeric_scale": 0
   },
   {
     "name": "name",

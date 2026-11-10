@@ -1,4 +1,7 @@
-use crate::fs_path::{file_uri_to_path, sanitize_database_selection, sanitize_local_file_path};
+use crate::fs_path::{
+    file_uri_to_path, requires_existing_database_file, sanitize_database_selection,
+    sanitize_local_file_path,
+};
 use crate::models::DatabaseSelection;
 
 #[test]
@@ -137,4 +140,19 @@ fn sanitizes_database_selection_entries() {
         sanitize_database_selection(&multi).as_vec(),
         vec!["/tmp/a.csv".to_string(), "/tmp/b.parquet".to_string()]
     );
+}
+
+#[test]
+fn in_memory_drivers_skip_the_file_check_for_memory_path() {
+    assert!(!requires_existing_database_file(true, ":memory:"));
+    assert!(!requires_existing_database_file(true, "  \":memory:\" "));
+}
+
+#[test]
+fn file_check_still_applies_to_real_paths_and_other_drivers() {
+    assert!(requires_existing_database_file(true, "/tmp/data.duckdb"));
+    assert!(requires_existing_database_file(true, ""));
+    assert!(requires_existing_database_file(true, ":MEMORY:"));
+    assert!(requires_existing_database_file(true, "/tmp/:memory:"));
+    assert!(requires_existing_database_file(false, ":memory:"));
 }

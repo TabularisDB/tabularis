@@ -1,0 +1,45 @@
+{
+  "columns": [
+    "id",
+    "blob_value",
+    "decimal_value",
+    "date_value",
+    "nullable_value",
+    "json_value"
+  ],
+  "rows": [
+    [
+      1,
+      "BLOB:4:application/octet-stream:AAECAw==",
+      "12345678901234567890.123456789",
+      "2026-08-21T19:20:21.123Z",
+      null,
+      {
+        "nested": [true, null, { "value": "text" }]
+      }
+    ],
+    [
+      2,
+      "BLOB:0:application/octet-stream:",
+      "-0.000000000000000001",
+      "0001-01-01",
+      null,
+      ["array", 42]
+    ]
+  ],
+  "affected_rows": 0,
+  "truncated": false,
+  "pagination": {
+    "page": 1,
+    "page_size": 2,
+    "total_rows": null,
+    "has_more": false
+  },
+  "additional_results": [
+    {
+      "columns": ["nullable_decimal", "timestamp_with_offset"],
+      "rows": [[null, "2026-08-21T21:20:21+02:00"]],
+      "affected_rows": 0
+    }
+  ]
+}

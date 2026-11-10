@@ -5,6 +5,7 @@
     "ref_table": "lookup",
     "ref_column": "code",
     "on_delete": "NO ACTION",
-    "on_update": "NO ACTION"
+    "on_update": "NO ACTION",
+    "seq_in_fk": 1
   }
 ]

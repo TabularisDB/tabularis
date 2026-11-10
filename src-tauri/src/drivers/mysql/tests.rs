@@ -1,6 +1,8 @@
 use super::build_mysql_pk_where;
+use super::helpers::{
+    inline_str_placeholders, mysql_bytes_literal, mysql_column_types, mysql_string_literal,
+};
 use super::{is_text_protocol_stmt, push_mysql_update_value, MysqlDriver, TextProto};
-use super::helpers::{inline_str_placeholders, mysql_bytes_literal, mysql_string_literal};
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::{ConnectionParams, DatabaseSelection};
 
@@ -246,6 +248,305 @@ fn spaced_definer_view_with_routine_words_in_body_is_not_text_protocol() {
     }
 }
 
+mod column_default_sql_tests {
+    use super::super::helpers::{mysql_default_sql, mysql_on_update, mysql_server_flags};
+
+    fn mysql(raw: Option<&str>, extra: &str, data_type: &str) -> Option<String> {
+        mysql_default_sql(raw, extra, data_type, false, false)
+    }
+
+    #[test]
+    fn quotes_mysql_literals_like_show_create_table() {
+        assert_eq!(mysql(Some("new"), "", "varchar").as_deref(), Some("'new'"));
+        assert_eq!(mysql(Some("5"), "", "int").as_deref(), Some("'5'"));
+        assert_eq!(
+            mysql(Some("1.50"), "", "decimal").as_deref(),
+            Some("'1.50'")
+        );
+        assert_eq!(
+            mysql(Some("2020-01-02"), "", "date").as_deref(),
+            Some("'2020-01-02'")
+        );
+        assert_eq!(mysql(Some("y"), "", "enum").as_deref(), Some("'y'"));
+        assert_eq!(mysql(Some(""), "", "varchar").as_deref(), Some("''"));
+    }
+
+    #[test]
+    fn escapes_quotes_and_backslashes_for_the_sql_mode() {
+        assert_eq!(
+            mysql(Some("it's \\ x"), "", "varchar").as_deref(),
+            Some("'it\\'s \\\\ x'")
+        );
+        assert_eq!(
+            mysql_default_sql(Some("it's \\ x"), "", "varchar", false, true).as_deref(),
+            Some("'it''s \\ x'")
+        );
+    }
+
+    #[test]
+    fn a_string_that_reads_current_timestamp_stays_a_string() {
+        assert_eq!(
+            mysql(Some("CURRENT_TIMESTAMP"), "", "varchar").as_deref(),
+            Some("'CURRENT_TIMESTAMP'")
+        );
+    }
+
+    #[test]
+    fn keeps_expression_defaults_as_expressions() {
+        assert_eq!(
+            mysql(Some("CURRENT_TIMESTAMP"), "DEFAULT_GENERATED", "timestamp").as_deref(),
+            Some("CURRENT_TIMESTAMP")
+        );
+        assert_eq!(
+            mysql(
+                Some("CURRENT_TIMESTAMP(3)"),
+                "DEFAULT_GENERATED",
+                "datetime"
+            )
+            .as_deref(),
+            Some("CURRENT_TIMESTAMP(3)")
+        );
+        assert_eq!(
+            mysql(Some("uuid()"), "DEFAULT_GENERATED", "varchar").as_deref(),
+            Some("(uuid())")
+        );
+        assert_eq!(
+            mysql(Some("json_array()"), "DEFAULT_GENERATED", "json").as_deref(),
+            Some("(json_array())")
+        );
+    }
+
+    #[test]
+    fn unescapes_expression_defaults_with_string_literals() {
+        // COLUMN_DEFAULT escapes quotes and backslashes once more than
+        // SHOW CREATE TABLE prints them (bytes checked with HEX() on 8.4).
+        assert_eq!(
+            mysql(
+                Some(r"concat(_latin1\'a\',_latin1\'b\')"),
+                "DEFAULT_GENERATED",
+                "varchar"
+            )
+            .as_deref(),
+            Some("(concat(_latin1'a',_latin1'b'))")
+        );
+        assert_eq!(
+            mysql(
+                Some(r"json_object(_latin1\'a\',_latin1\'it\\\'s\')"),
+                "DEFAULT_GENERATED",
+                "json"
+            )
+            .as_deref(),
+            Some(r"(json_object(_latin1'a',_latin1'it\'s'))")
+        );
+        assert_eq!(
+            mysql(
+                Some(r"json_array(_latin1\'x\\\\y\')"),
+                "DEFAULT_GENERATED",
+                "json"
+            )
+            .as_deref(),
+            Some(r"(json_array(_latin1'x\\y'))")
+        );
+    }
+
+    #[test]
+    fn expression_literals_follow_no_backslash_escapes() {
+        let nbe =
+            |raw: &str| mysql_default_sql(Some(raw), "DEFAULT_GENERATED", "json", false, true);
+        assert_eq!(
+            nbe(r"concat(_latin1\'a\',_latin1\'b\')").as_deref(),
+            Some("(concat(_latin1'a',_latin1'b'))")
+        );
+        assert_eq!(
+            nbe(r"json_object(_latin1\'a\',_latin1\'it\\\'s\')").as_deref(),
+            Some("(json_object(_latin1'a',_latin1'it''s'))")
+        );
+        assert_eq!(
+            nbe(r"json_array(_latin1\'x\\\\y\')").as_deref(),
+            Some(r"(json_array(_latin1'x\y'))")
+        );
+        assert_eq!(
+            nbe(r"concat(_utf8mb4\'a\\nb\',`col`)").as_deref(),
+            Some("(concat(_utf8mb4'a\nb',`col`))")
+        );
+    }
+
+    #[test]
+    fn mysql_57_current_timestamp_has_no_marker_but_stays_bare() {
+        assert_eq!(
+            mysql(
+                Some("CURRENT_TIMESTAMP"),
+                "on update CURRENT_TIMESTAMP",
+                "timestamp"
+            )
+            .as_deref(),
+            Some("CURRENT_TIMESTAMP")
+        );
+    }
+
+    #[test]
+    fn keeps_bit_literals() {
+        assert_eq!(mysql(Some("b'1'"), "", "bit").as_deref(), Some("b'1'"));
+    }
+
+    #[test]
+    fn no_default_stays_none() {
+        assert_eq!(mysql(None, "", "varchar"), None);
+    }
+
+    #[test]
+    fn mariadb_defaults_are_already_sql() {
+        let maria = |raw| mysql_default_sql(Some(raw), "", "varchar", true, false);
+        assert_eq!(maria("'new'").as_deref(), Some("'new'"));
+        assert_eq!(
+            maria("current_timestamp()").as_deref(),
+            Some("current_timestamp()")
+        );
+        assert_eq!(maria("5").as_deref(), Some("5"));
+        assert_eq!(maria("NULL"), None);
+    }
+
+    #[test]
+    fn reads_on_update_from_extra() {
+        assert_eq!(
+            mysql_on_update("DEFAULT_GENERATED on update CURRENT_TIMESTAMP").as_deref(),
+            Some("CURRENT_TIMESTAMP")
+        );
+        assert_eq!(
+            mysql_on_update("on update current_timestamp(3)").as_deref(),
+            Some("current_timestamp(3)")
+        );
+        assert_eq!(mysql_on_update("auto_increment"), None);
+        assert_eq!(mysql_on_update(""), None);
+    }
+
+    #[test]
+    fn reads_server_flags() {
+        assert_eq!(
+            mysql_server_flags("8.4.6", "STRICT_TRANS_TABLES"),
+            (false, false)
+        );
+        assert_eq!(
+            mysql_server_flags(
+                "10.11.8-MariaDB-ubu2204",
+                "NO_BACKSLASH_ESCAPES,ANSI_QUOTES"
+            ),
+            (true, true)
+        );
+    }
+}
+
+mod alter_column_keeps_default_tests {
+    use super::*;
+    use crate::models::ColumnDefinition;
+
+    fn column(name: &str, default: Option<&str>, on_update: Option<&str>) -> ColumnDefinition {
+        ColumnDefinition {
+            name: name.into(),
+            data_type: "TIMESTAMP".into(),
+            is_nullable: false,
+            is_pk: false,
+            is_auto_increment: false,
+            default_value: default.map(Into::into),
+            comment: None,
+            on_update: on_update.map(Into::into),
+        }
+    }
+
+    #[tokio::test]
+    async fn rename_restates_default_and_on_update() {
+        let old = column(
+            "updated",
+            Some("CURRENT_TIMESTAMP"),
+            Some("CURRENT_TIMESTAMP"),
+        );
+        let new = column(
+            "modified_at",
+            Some("CURRENT_TIMESTAMP"),
+            Some("CURRENT_TIMESTAMP"),
+        );
+        let sql = MysqlDriver::new()
+            .get_alter_column_sql("t", old, new, None)
+            .await
+            .unwrap();
+        assert_eq!(
+            sql,
+            vec![
+                "ALTER TABLE `t` CHANGE `updated` `modified_at` TIMESTAMP NOT NULL \
+                 DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+                    .to_string()
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn no_on_update_without_one() {
+        let sql = MysqlDriver::new()
+            .get_alter_column_sql("t", column("a", None, None), column("b", None, None), None)
+            .await
+            .unwrap();
+        assert_eq!(
+            sql,
+            vec!["ALTER TABLE `t` CHANGE `a` `b` TIMESTAMP NOT NULL".to_string()]
+        );
+    }
+}
+
+mod mysql_column_types_tests {
+    use super::*;
+
+    fn types(data_type: &str, column_type: &str) -> (String, Option<String>) {
+        mysql_column_types(data_type.to_string(), column_type.to_string())
+    }
+
+    #[test]
+    fn keeps_the_base_name_and_moves_the_column_type_to_full_type() {
+        assert_eq!(
+            types("varchar", "varchar(255)"),
+            ("varchar".to_string(), Some("varchar(255)".to_string()))
+        );
+        assert_eq!(
+            types("decimal", "decimal(10,2)"),
+            ("decimal".to_string(), Some("decimal(10,2)".to_string()))
+        );
+        assert_eq!(
+            types("tinyint", "tinyint(1)"),
+            ("tinyint".to_string(), Some("tinyint(1)".to_string()))
+        );
+        assert_eq!(
+            types("int", "int unsigned"),
+            ("int".to_string(), Some("int unsigned".to_string()))
+        );
+        assert_eq!(
+            types("int", "int(11)"),
+            ("int".to_string(), Some("int(11)".to_string()))
+        );
+        assert_eq!(
+            types("datetime", "datetime(3)"),
+            ("datetime".to_string(), Some("datetime(3)".to_string()))
+        );
+    }
+
+    #[test]
+    fn omits_full_type_when_the_column_type_adds_nothing() {
+        assert_eq!(types("text", "text"), ("text".to_string(), None));
+        assert_eq!(types("json", "json"), ("json".to_string(), None));
+        assert_eq!(types("int", ""), ("int".to_string(), None));
+    }
+
+    #[test]
+    fn enum_and_set_keep_their_values_in_data_type() {
+        assert_eq!(
+            types("enum", "enum('pending','approved')"),
+            ("enum('pending','approved')".to_string(), None)
+        );
+        assert_eq!(
+            types("SET", "set('a','b')"),
+            ("set('a','b')".to_string(), None)
+        );
+    }
+}
+
 mod build_mysql_pk_where_tests {
     use super::*;
     use std::collections::HashMap;
@@ -254,7 +555,7 @@ mod build_mysql_pk_where_tests {
     fn single_column_returns_correct_pair() {
         let mut pk_map = HashMap::new();
         pk_map.insert("id".to_string(), serde_json::json!(42));
-        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        let pairs = build_mysql_pk_where(&pk_map, &Default::default()).unwrap();
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].0, "id");
         assert_eq!(pairs[0].1, serde_json::json!(42));
@@ -265,15 +566,52 @@ mod build_mysql_pk_where_tests {
         let mut pk_map = HashMap::new();
         pk_map.insert("z_col".to_string(), serde_json::json!(1));
         pk_map.insert("a_col".to_string(), serde_json::json!(2));
-        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        let pairs = build_mysql_pk_where(&pk_map, &Default::default()).unwrap();
         assert_eq!(pairs[0].0, "a_col");
         assert_eq!(pairs[1].0, "z_col");
     }
 
     #[test]
+    fn float_identities_widen_without_changing_other_column_values() {
+        let float_columns = std::collections::HashSet::from(["price".to_string()]);
+        for (shown, widened) in [
+            (89.9, 89.9000015258789),
+            (59.99, 59.9900016784668),
+            (29.5, 29.5),
+        ] {
+            let pk_map = HashMap::from([
+                ("price".to_string(), serde_json::json!(shown)),
+                ("double_price".to_string(), serde_json::json!(shown)),
+                ("id".to_string(), serde_json::json!(9007199254740993u64)),
+            ]);
+            let pairs = build_mysql_pk_where(&pk_map, &float_columns).unwrap();
+            assert_eq!(
+                pairs,
+                vec![
+                    ("double_price".to_string(), serde_json::json!(shown)),
+                    ("id".to_string(), serde_json::json!(9007199254740993u64)),
+                    ("price".to_string(), serde_json::json!(widened)),
+                ]
+            );
+        }
+        for value in [
+            serde_json::Value::Null,
+            serde_json::json!("89.9"),
+            serde_json::json!(true),
+            serde_json::json!(1e100),
+        ] {
+            let pk_map = HashMap::from([("price".to_string(), value.clone())]);
+            assert_eq!(
+                build_mysql_pk_where(&pk_map, &float_columns).unwrap()[0].1,
+                value
+            );
+        }
+    }
+
+    #[test]
     fn empty_pk_map_is_rejected() {
         let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
-        assert!(build_mysql_pk_where(&pk_map).is_err());
+        assert!(build_mysql_pk_where(&pk_map, &Default::default()).is_err());
     }
 }
 
@@ -534,10 +872,7 @@ mod routine_management {
                 arg("p_out", "OUT", None, false),
             ],
         );
-        assert_eq!(
-            sql,
-            "CALL `sp_out`(1, @p_out);\nSELECT @p_out AS `p_out`;"
-        );
+        assert_eq!(sql, "CALL `sp_out`(1, @p_out);\nSELECT @p_out AS `p_out`;");
     }
 
     #[test]
@@ -636,7 +971,9 @@ mod routine_management {
 #[cfg(test)]
 mod live_explain_tests {
     use crate::drivers::mysql::explain::explain_query;
-    use crate::models::{ConnectionParams, DatabaseSelection, ExplainQueryOutput, RawExplainOutput};
+    use crate::models::{
+        ConnectionParams, DatabaseSelection, ExplainQueryOutput, RawExplainOutput,
+    };
 
     fn unwrap_raw(output: ExplainQueryOutput) -> RawExplainOutput {
         match output {
@@ -761,5 +1098,153 @@ mod live_explain_tests {
         let result = explain_query(&params, "SELECT * FROM does_not_exist_xyz", false, None).await;
 
         assert!(result.is_err(), "unexplainable statement must error");
+    }
+}
+
+/// Live checks that the query timeout and Stop end the statement on the
+/// server, not just on the client. Each test looks for its own statement in
+/// `information_schema.PROCESSLIST`.
+///
+/// ```text
+/// TABULARIS_TEST_MYSQL=1 cargo test live_mysql_query_timeout -- --ignored
+/// ```
+#[cfg(test)]
+mod live_mysql_query_timeout {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use std::time::{Duration, Instant};
+
+    fn test_params() -> Option<ConnectionParams> {
+        if std::env::var("TABULARIS_TEST_MYSQL").is_err() {
+            return None;
+        }
+        Some(ConnectionParams {
+            driver: "mysql".to_string(),
+            host: Some(
+                std::env::var("TABULARIS_TEST_MYSQL_HOST")
+                    .unwrap_or_else(|_| "127.0.0.1".to_string()),
+            ),
+            port: Some(
+                std::env::var("TABULARIS_TEST_MYSQL_PORT")
+                    .ok()
+                    .and_then(|p| p.parse().ok())
+                    .unwrap_or(3306),
+            ),
+            username: Some(
+                std::env::var("TABULARIS_TEST_MYSQL_USER").unwrap_or_else(|_| "root".to_string()),
+            ),
+            password: Some(
+                std::env::var("TABULARIS_TEST_MYSQL_PASSWORD")
+                    .unwrap_or_else(|_| "Tabularis_Demo_2026!".to_string()),
+            ),
+            database: DatabaseSelection::Single(
+                std::env::var("TABULARIS_TEST_MYSQL_DB")
+                    .unwrap_or_else(|_| "information_schema".to_string()),
+            ),
+            ssl_mode: Some("disabled".to_string()),
+            ..Default::default()
+        })
+    }
+
+    /// Sleeps inside a `WHERE`, so both MySQL and MariaDB report error 1317
+    /// when it is stopped. A bare `SELECT SLEEP(n)` returns 1 on MySQL instead.
+    fn sleeping_query(marker: &str) -> String {
+        format!("SELECT 1 FROM DUAL WHERE SLEEP(60) /* {marker} */")
+    }
+
+    /// Whether another connection is running a statement containing `marker`.
+    async fn server_is_running(params: &ConnectionParams, marker: &str) -> bool {
+        let pool = crate::pool_manager::get_mysql_pool_with_id(params, Some(marker))
+            .await
+            .expect("connect to test mysql");
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM information_schema.PROCESSLIST \
+             WHERE ID <> CONNECTION_ID() AND COMMAND IN ('Query', 'Execute') \
+             AND INSTR(INFO, ?) > 0",
+        )
+        .bind(marker)
+        .fetch_one(&pool)
+        .await
+        .expect("read the process list");
+        count > 0
+    }
+
+    async fn wait_until(params: &ConnectionParams, marker: &str, running: bool) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            if server_is_running(params, marker).await == running {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        false
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_mysql_query_timeout_stops_the_statement_on_the_server() {
+        let Some(mut params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_MYSQL=1 to run this test");
+            return;
+        };
+        let marker = "tabularis_989_mysql_timeout";
+        // Each test gets its own pool: a pool outlives the runtime that made it.
+        params.connection_id = Some(format!("{marker}_run"));
+        params.query_timeout_secs = Some(1);
+        let queries = vec![
+            sleeping_query(marker),
+            "SELECT 1 AS still_usable".to_string(),
+        ];
+
+        let start = Instant::now();
+        let results = super::super::execute_batch(&params, &queries, None, 1, None, None)
+            .await
+            .expect("the batch completes");
+
+        let elapsed = start.elapsed();
+        assert!(elapsed < Duration::from_secs(10), "took {elapsed:?}");
+        let error = results[0].error.as_deref().unwrap_or_default();
+        assert!(
+            error.contains("stopped after 1 s"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            results[1].result.is_some(),
+            "the connection is usable after the kill: {:?}",
+            results[1].error
+        );
+        assert!(
+            wait_until(&params, marker, false).await,
+            "the server is still running the timed-out statement"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_mysql_dropped_run_stops_the_statement_on_the_server() {
+        let Some(mut params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_MYSQL=1 to run this test");
+            return;
+        };
+        let marker = "tabularis_989_mysql_stop";
+        params.connection_id = Some(format!("{marker}_run"));
+        let query = sleeping_query(marker);
+
+        // What the Stop button does: abort the task running the query.
+        let run = {
+            let params = params.clone();
+            tokio::spawn(async move {
+                super::super::execute_query(&params, &query, None, 1, None).await
+            })
+        };
+        assert!(
+            wait_until(&params, marker, true).await,
+            "the statement never started"
+        );
+        run.abort();
+
+        assert!(
+            wait_until(&params, marker, false).await,
+            "the server is still running the stopped statement"
+        );
     }
 }

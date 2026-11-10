@@ -1612,7 +1612,11 @@ impl From<PgVector> for JsonValue {
 /// Decode an IEEE 754 half-precision (`binary16`) value into `f32`.
 #[inline]
 fn f16_bits_to_f32(bits: u16) -> f32 {
-    let sign = if (bits >> 15) & 1 == 1 { -1.0f32 } else { 1.0f32 };
+    let sign = if (bits >> 15) & 1 == 1 {
+        -1.0f32
+    } else {
+        1.0f32
+    };
     let exp = (bits >> 10) & 0x1f;
     let mant = bits & 0x3ff;
     match exp {
@@ -1644,7 +1648,10 @@ impl<'a> FromSql<'a> for PgHalfVector {
         let mut values = Vec::with_capacity(dim);
         for i in 0..dim {
             let off = 4 + i * 2;
-            values.push(f16_bits_to_f32(u16::from_be_bytes([raw[off], raw[off + 1]])));
+            values.push(f16_bits_to_f32(u16::from_be_bytes([
+                raw[off],
+                raw[off + 1],
+            ])));
         }
         Ok(Self(values))
     }
@@ -1677,9 +1684,11 @@ pub struct PgSparseVector {
 impl<'a> FromSql<'a> for PgSparseVector {
     fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         if raw.len() < 12 {
-            return Err(
-                format!("expected at least 12 bytes for sparsevec, got {}", raw.len()).into(),
-            );
+            return Err(format!(
+                "expected at least 12 bytes for sparsevec, got {}",
+                raw.len()
+            )
+            .into());
         }
         let dim = i32::from_be_bytes([raw[0], raw[1], raw[2], raw[3]]);
         let nnz = i32::from_be_bytes([raw[4], raw[5], raw[6], raw[7]]) as usize;

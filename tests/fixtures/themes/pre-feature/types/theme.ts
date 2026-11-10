@@ -1,1 +1,1 @@
-export type { Theme, ThemeSettings } from "../../../../../src/types/theme";
+export type { Theme, ThemeSettings } from "../../../../../packages/web-ui/src/types/theme";

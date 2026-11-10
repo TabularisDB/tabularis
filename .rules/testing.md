@@ -5,20 +5,20 @@ This document defines the testing conventions and directory structure for the Ta
 ## Directory Structure
 
 ### Source Files
-All utility functions and testable logic must be placed in `src/utils/` with simple, descriptive names **without the "Utils" suffix**.
+All utility functions and testable logic must be placed in `packages/web-ui/src/utils/` with simple, descriptive names **without the "Utils" suffix**.
 
 **Correct:**
-- `src/utils/dataGrid.ts`
-- `src/utils/contextMenu.ts`
-- `src/utils/sqlGenerator.ts`
-- `src/utils/sql.ts`
+- `packages/web-ui/src/utils/dataGrid.ts`
+- `packages/web-ui/src/utils/contextMenu.ts`
+- `packages/web-ui/src/utils/sqlGenerator.ts`
+- `packages/web-ui/src/utils/sql.ts`
 
 **Incorrect:**
-- ~~`src/components/ui/dataGridUtils.ts`~~ (wrong location)
-- ~~`src/utils/dataGridUtils.ts`~~ (wrong naming - no Utils suffix)
+- ~~`packages/web-ui/src/components/ui/dataGridUtils.ts`~~ (wrong location)
+- ~~`packages/web-ui/src/utils/dataGridUtils.ts`~~ (wrong naming - no Utils suffix)
 
 ### Test Files
-All test files must be placed in a parallel `tests/` directory that mirrors the structure of `src/`.
+All test files must be placed in a parallel `packages/web-ui/tests/` directory that mirrors the structure of `packages/web-ui/src/`.
 
 ```
 project-root/
@@ -43,33 +43,31 @@ project-root/
 
 ## Import Conventions
 
+`@/` is an alias for `packages/web-ui/src/` (`tsconfig.app.json`, `vite.config.ts`, `packages/web-ui/vitest.config.ts`).
+
 ### In Source Files
-Use standard relative or absolute imports:
+Import from the same folder with `./`; import anything else through `@/`. Never use `../`:
 
 ```typescript
 // From a component
-import { formatCellValue } from "../../utils/dataGrid";
+import { formatCellValue } from "@/utils/dataGrid";
 
-// From another util
+// From another util in the same folder
 import { hexToRgb } from "./colorUtils";
-
-// Using path alias
-import { splitQueries } from "@/utils/sql";
 ```
 
 ### In Test Files
-Always use relative imports from `tests/` to `src/`:
+Always import the code under test through `@/`:
 
 ```typescript
-// Correct - from tests/utils/dataGrid.test.ts
-import { formatCellValue } from "../../src/utils/dataGrid";
+// Correct - from packages/web-ui/tests/utils/dataGrid.test.ts
+import { formatCellValue } from "@/utils/dataGrid";
 
-// Correct - from tests/themes/colorUtils.test.ts  
-import { hexToRgb } from "../../src/themes/colorUtils";
-
-// Incorrect - relative to same directory (would fail after move)
-~~import { formatCellValue } from "./dataGrid";~~
+// Incorrect - relative paths break when a test or a module moves
+~~import { formatCellValue } from "../../src/utils/dataGrid";~~
 ```
+
+Tests live only under `packages/web-ui/tests/`: Vitest does not collect `*.test.*` files placed in `packages/web-ui/src/`.
 
 ## Test File Naming
 
@@ -78,9 +76,9 @@ Test files must follow the pattern: `[filename].test.ts`
 - `dataGrid.ts` → `dataGrid.test.ts`
 - `sqlGenerator.ts` → `sqlGenerator.test.ts`
 
-## What Belongs in `src/utils/`
+## What Belongs in `packages/web-ui/src/utils/`
 
-Extract pure, testable logic from components into `src/utils/`:
+Extract pure, testable logic from components into `packages/web-ui/src/utils/`:
 
 1. **Data transformation functions** - formatters, parsers, converters
 2. **Calculation functions** - positioning, sorting, filtering logic
@@ -110,7 +108,7 @@ export function formatCellValue(value: unknown, nullLabel = "NULL"): string {
 }
 
 // In DataGrid.tsx
-import { formatCellValue } from "../../utils/dataGrid";
+import { formatCellValue } from "@/utils/dataGrid";
 ```
 
 ## Test Organization
@@ -157,10 +155,19 @@ pnpm test --coverage
 
 ## Configuration
 
-Tests are configured in `vitest.config.ts`:
-- Test files are discovered in `tests/` directory
+Tests are configured in `packages/web-ui/vitest.config.ts`:
+- Test files are discovered in `packages/web-ui/tests/` directory
 - Setup file: `./tests/setup.ts`
 - Environment: `jsdom` for DOM-related tests
+
+### Browser storage in the test environment
+
+`packages/web-ui/tests/setup.ts` binds `localStorage` and `sessionStorage` to the current
+Vitest jsdom window before test modules load. Keep this shared setup: Node's
+native storage globals can otherwise shadow jsdom, yielding unavailable or
+non-browser storage. Do not work around it with per-test storage shims or a
+shared `--localstorage-file`. `packages/web-ui/tests/storageEnvironment.test.ts` verifies the
+real DOM storage identity, separate stores, and restoration after global stubs.
 
 ### Browser storage in the test environment
 

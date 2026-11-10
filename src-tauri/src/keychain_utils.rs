@@ -119,12 +119,108 @@ pub fn get_connection_uri(connection_id: &str) -> Result<String, String> {
     entry.get_password().map_err(keychain_error)
 }
 
+/// Like [`get_connection_uri`], but a missing entry is `Ok(None)` instead of
+/// an error. `Err` is reserved for genuine keychain failures.
+pub fn find_connection_uri(connection_id: &str) -> Result<Option<String>, String> {
+    let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
+        .map_err(|e| e.to_string())?;
+    match entry.get_password() {
+        Ok(uri) => Ok(Some(uri)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(keychain_error(e)),
+    }
+}
+
+/// Maps a keychain read so that a missing entry (`NoEntry`) is `Ok(None)` and
+/// `Err` is left for genuine failures (keychain locked or unreachable, access
+/// denied, platform errors), like [`find_connection_uri`] and [`get_ai_key`].
+pub fn optional_secret(read: Result<String, keyring::Error>) -> Result<Option<String>, String> {
+    match read {
+        Ok(secret) => Ok(Some(secret)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(keychain_error(e)),
+    }
+}
+
+fn find_secret(account: &str) -> Result<Option<String>, String> {
+    let entry = Entry::new(SERVICE_NAME, account).map_err(|e| e.to_string())?;
+    optional_secret(entry.get_password()).map_err(|e| {
+        eprintln!("[Keychain] Error reading {}: {}", account, e);
+        e
+    })
+}
+
+/// Like [`get_db_password`], but a missing entry is `Ok(None)`.
+pub fn find_db_password(connection_id: &str) -> Result<Option<String>, String> {
+    find_secret(&format!("{}:db", connection_id))
+}
+
+/// Like [`get_ssh_password`], but a missing entry is `Ok(None)`.
+pub fn find_ssh_password(connection_id: &str) -> Result<Option<String>, String> {
+    find_secret(&format!("{}:ssh", connection_id))
+}
+
+/// Like [`get_ssh_key_passphrase`], but a missing entry is `Ok(None)`.
+pub fn find_ssh_key_passphrase(connection_id: &str) -> Result<Option<String>, String> {
+    find_secret(&format!("{}:ssh_passphrase", connection_id))
+}
+
 pub fn delete_connection_uri(connection_id: &str) -> Result<(), String> {
     let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
         .map_err(|e| e.to_string())?;
     match entry.delete_credential() {
         Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(keychain_error(e)),
+    }
+}
+
+/// Keychain account of a plugin-owned connection secret. The driver id is part
+/// of the account so switching a connection to another driver never hands one
+/// plugin's secret to another.
+fn plugin_secret_account(connection_id: &str, driver: &str, key: &str) -> String {
+    format!("{}:plugin:{}:{}", connection_id, driver, key)
+}
+
+pub fn set_plugin_secret(
+    connection_id: &str,
+    driver: &str,
+    key: &str,
+    value: &str,
+) -> Result<(), String> {
+    let entry = Entry::new(
+        SERVICE_NAME,
+        &plugin_secret_account(connection_id, driver, key),
+    )
+    .map_err(|e| e.to_string())?;
+    entry.set_password(value).map_err(keychain_error)
+}
+
+pub fn get_plugin_secret(
+    connection_id: &str,
+    driver: &str,
+    key: &str,
+) -> Result<Option<String>, String> {
+    let entry = Entry::new(
+        SERVICE_NAME,
+        &plugin_secret_account(connection_id, driver, key),
+    )
+    .map_err(|e| e.to_string())?;
+    match entry.get_password() {
+        Ok(value) => Ok(Some(value)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(keychain_error(error)),
+    }
+}
+
+pub fn delete_plugin_secret(connection_id: &str, driver: &str, key: &str) -> Result<(), String> {
+    let entry = Entry::new(
+        SERVICE_NAME,
+        &plugin_secret_account(connection_id, driver, key),
+    )
+    .map_err(|e| e.to_string())?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(error) => Err(keychain_error(error)),
     }
 }
 
@@ -289,7 +385,10 @@ pub fn get_proxy_password(slot: &str) -> Result<Option<String>, String> {
         Ok(pwd) => Ok(Some(pwd)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => {
-            eprintln!("[Keychain] Error getting proxy password for {}: {}", slot, e);
+            eprintln!(
+                "[Keychain] Error getting proxy password for {}: {}",
+                slot, e
+            );
             Err(e.to_string())
         }
     }

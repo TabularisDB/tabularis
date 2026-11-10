@@ -1,6 +1,8 @@
 use crate::models::ConnectionParams;
 use crate::sqlite_database::expand_sqlite_filename;
-use deadpool_postgres::{Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool};
+use deadpool_postgres::{
+    Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool,
+};
 use once_cell::sync::Lazy;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{verify_server_cert_signed_by_trust_anchor, WebPkiServerVerifier};
@@ -13,7 +15,9 @@ use rustls::DigitallySignedStruct;
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
 use sha2::{Digest, Sha256};
-use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite};
+use sqlx::{
+    sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -89,6 +93,54 @@ fn mysql_numeric_setting(key: &str, default: u64) -> u64 {
         .unwrap_or(default)
 }
 
+/// The per-connection connect timeout, or None when unset or 0.
+pub(crate) fn connect_timeout(params: &ConnectionParams) -> Option<Duration> {
+    params
+        .connect_timeout_secs
+        .filter(|secs| *secs > 0)
+        .map(|secs| Duration::from_secs(secs.into()))
+}
+
+/// The per-connection query timeout, or None when unset or 0.
+pub(crate) fn query_timeout(params: &ConnectionParams) -> Option<Duration> {
+    params
+        .query_timeout_secs
+        .filter(|secs| *secs > 0)
+        .map(|secs| Duration::from_secs(secs.into()))
+}
+
+/// Runs a connection attempt, failing once the connection's connect timeout
+/// passes. Without one, the attempt runs unbounded as before.
+pub(crate) async fn with_connect_timeout<T>(
+    params: &ConnectionParams,
+    attempt: impl std::future::Future<Output = Result<T, String>>,
+) -> Result<T, String> {
+    match connect_timeout(params) {
+        Some(timeout) => tokio::time::timeout(timeout, attempt)
+            .await
+            .map_err(|_| format!("Connection timed out after {} s", timeout.as_secs()))?,
+        None => attempt.await,
+    }
+}
+
+/// The limit for one run of the PostgreSQL startup script: the connection's
+/// connect timeout, else the default 30 s.
+pub(crate) fn postgres_startup_script_timeout(params: &ConnectionParams) -> Duration {
+    connect_timeout(params)
+        .unwrap_or_else(|| Duration::from_millis(POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS))
+}
+
+/// The MySQL connect timeout: the connection's own value, else the global
+/// `connectTimeout` setting.
+pub(crate) fn mysql_connect_timeout(params: &ConnectionParams) -> Duration {
+    connect_timeout(params).unwrap_or_else(|| {
+        Duration::from_millis(mysql_numeric_setting(
+            "connectTimeout",
+            DEFAULT_MYSQL_CONNECT_TIMEOUT_MS,
+        ))
+    })
+}
+
 fn postgres_setting_value(key: &str) -> Option<serde_json::Value> {
     crate::config::get_cached_config()
         .plugins
@@ -114,6 +166,92 @@ fn postgres_pool_max_size() -> usize {
     postgres_pool_max_size_from_value(postgres_setting_value("poolMaxSize").as_ref())
 }
 
+/// PostgreSQL `ssl_mode` values produced by the connection form, connection
+/// importers, and the #614 spelling migration.
+const POSTGRES_ACCEPTED_SSL_MODES: &[&str] = &[
+    "disable",
+    "allow",
+    "prefer",
+    "require",
+    "verify-ca",
+    "verify-full",
+];
+
+/// MySQL `ssl_mode` values produced by the connection form, the JDBC URL
+/// importer, and connection importers. Importers store libpq spellings
+/// (`verify-ca`, `verify-full`, `require`, `prefer`) on MySQL connections
+/// as well. The #614 migration leaves the MySQL spellings in place.
+const MYSQL_ACCEPTED_SSL_MODES: &[&str] = &[
+    "disabled",
+    "disable",
+    "preferred",
+    "prefer",
+    "required",
+    "require",
+    "verify_ca",
+    "verify-ca",
+    "verify_identity",
+    "verify-full",
+    "verify-identity",
+];
+
+fn unknown_ssl_mode_message(value: &str, accepted: &[&str]) -> String {
+    format!(
+        "Unknown SSL mode \"{value}\". Accepted values: {}.",
+        accepted.join(", ")
+    )
+}
+
+fn normalized_ssl_mode(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+/// Empty or whitespace-only `ssl_mode` from the connection form is treated as unset.
+fn non_empty_ssl_mode(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|s| !s.is_empty())
+}
+
+#[derive(Clone, Copy)]
+enum PostgresSslChoice {
+    Disable,
+    Allow,
+    Prefer,
+    Require,
+    VerifyCa,
+    VerifyFull,
+}
+
+fn parse_postgres_ssl_mode(raw: &str) -> Result<PostgresSslChoice, String> {
+    match normalized_ssl_mode(raw).as_str() {
+        "disable" => Ok(PostgresSslChoice::Disable),
+        "allow" => Ok(PostgresSslChoice::Allow),
+        "prefer" => Ok(PostgresSslChoice::Prefer),
+        "require" => Ok(PostgresSslChoice::Require),
+        "verify-ca" => Ok(PostgresSslChoice::VerifyCa),
+        "verify-full" => Ok(PostgresSslChoice::VerifyFull),
+        _ => Err(unknown_ssl_mode_message(raw, POSTGRES_ACCEPTED_SSL_MODES)),
+    }
+}
+
+fn postgres_ssl_mode_verifies_certificate(raw: &str) -> bool {
+    matches!(
+        parse_postgres_ssl_mode(raw),
+        Ok(PostgresSslChoice::VerifyCa | PostgresSslChoice::VerifyFull)
+    )
+}
+
+fn parse_mysql_ssl_mode(raw: &str) -> Result<sqlx::mysql::MySqlSslMode, String> {
+    use sqlx::mysql::MySqlSslMode;
+    match normalized_ssl_mode(raw).as_str() {
+        "disabled" | "disable" => Ok(MySqlSslMode::Disabled),
+        "preferred" | "prefer" => Ok(MySqlSslMode::Preferred),
+        "required" | "require" => Ok(MySqlSslMode::Required),
+        "verify_ca" | "verify-ca" => Ok(MySqlSslMode::VerifyCa),
+        "verify_identity" | "verify-full" | "verify-identity" => Ok(MySqlSslMode::VerifyIdentity),
+        _ => Err(unknown_ssl_mode_message(raw, MYSQL_ACCEPTED_SSL_MODES)),
+    }
+}
+
 /// Stable pool key: uses `connection_id` when present (saved connections),
 /// else `host:port:database` (ad-hoc). The TLS/iam tuple is appended so
 /// different SSL settings of the same connection get separate pools.
@@ -128,8 +266,11 @@ pub(crate) fn build_connection_key(
             // likewise separates pools that force sql_mode from those that don't.
             // `iam` likewise separates RDS-IAM-token connections (which use the
             // cleartext plugin) from regular password auth.
+            // The raw ssl_mode is kept as written. `build_mysql_options` rejects
+            // unknown values, so they must not collapse onto the unset default
+            // and share a pool with a connection that skips verification.
             "ssl:{}:{}:{}:{}:clear:{}:pipes:{}:iam:{}",
-            params.ssl_mode.as_deref().unwrap_or("default"),
+            non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("default"),
             params.ssl_ca.as_deref().unwrap_or(""),
             params.ssl_cert.as_deref().unwrap_or(""),
             params.ssl_key.as_deref().unwrap_or(""),
@@ -142,12 +283,17 @@ pub(crate) fn build_connection_key(
             }
         )),
         "postgres" => {
-            let ssl_mode = params.ssl_mode.as_deref().unwrap_or("prefer");
-            let ssl_ca = match ssl_mode {
-                "verify-ca" | "verify-full" => params.ssl_ca.as_deref().unwrap_or(""),
-                _ => "",
+            // Unset matches `build_postgres_tls_connector` (`prefer`). The raw
+            // value stays in the key so an unknown mode cannot share a pool
+            // with that default; only modes that verify the certificate fold
+            // the CA path into the key.
+            let ssl_mode = non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("prefer");
+            let ssl_ca = if postgres_ssl_mode_verifies_certificate(ssl_mode) {
+                params.ssl_ca.as_deref().unwrap_or("")
+            } else {
+                ""
             };
-            let (ssl_cert, ssl_key) = if ssl_mode == "disable" {
+            let (ssl_cert, ssl_key) = if normalized_ssl_mode(ssl_mode) == "disable" {
                 ("", "")
             } else {
                 (
@@ -189,11 +335,17 @@ pub(crate) fn build_connection_key(
     // the cached pool keyed only by connection_id. Hashed to keep the key
     // bounded; only present when a script is set, so script-free connections
     // keep their existing keys.
-    match startup_script(params) {
+    let key = match startup_script(params) {
         Some(script) => {
             let digest = Sha256::digest(script.as_bytes());
             format!("{key}:startup:{digest:x}")
         }
+        None => key,
+    };
+
+    // Same for the connect timeout: the pool applies it when it is built.
+    match connect_timeout(params) {
+        Some(timeout) => format!("{key}:connect_timeout:{}", timeout.as_secs()),
         None => key,
     }
 }
@@ -220,14 +372,11 @@ pub(crate) fn build_mysql_options(
         .ssl_ca
         .as_deref()
         .is_some_and(|s| !s.trim().is_empty());
-    let mut ssl_mode = match params.ssl_mode.as_deref().unwrap_or("required") {
-        "disabled" | "disable" => MySqlSslMode::Disabled,
-        "preferred" | "prefer" => MySqlSslMode::Preferred,
-        "required" | "require" => MySqlSslMode::Required,
-        "verify_ca" => MySqlSslMode::VerifyCa,
-        "verify_identity" => MySqlSslMode::VerifyIdentity,
-        _ => MySqlSslMode::Required,
-    };
+    // Unset keeps the historical default (`required`): encrypted, certificate
+    // not verified. An unrecognised value is an error — it must not silently
+    // fall back to that default.
+    let mut ssl_mode =
+        parse_mysql_ssl_mode(non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("required"))?;
     // Auto-escalate Required/Preferred + ssl_ca to VerifyCa only for IAM
     // connections. For IAM the chain must be validated because the
     // pre-signed RDS auth token only travels safely over a verified
@@ -416,37 +565,40 @@ pub(crate) fn is_pipes_as_concat_unsupported(err: &str) -> bool {
     err.contains("pipes_as_concat") || err.contains("no_engine_substitution")
 }
 
-pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> PgConfig {
+pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> Result<PgConfig, String> {
     let mut cfg = PgConfig::new();
     cfg.user(params.username.as_deref().unwrap_or_default())
         .password(params.password.as_deref().unwrap_or_default())
         .port(params.port.unwrap_or(5432))
         .host(params.host.as_deref().unwrap_or_default())
         .dbname(&format!("{}", params.database));
+    if let Some(timeout) = connect_timeout(params) {
+        cfg.connect_timeout(timeout);
+    }
 
-    if let Some(ssl_mode) = params.ssl_mode.as_deref() {
-        match ssl_mode {
-            "disable" => {
+    // Unset leaves tokio_postgres's default (`Prefer`). A set but unknown
+    // mode is a connection error rather than that default.
+    if let Some(ssl_mode) = non_empty_ssl_mode(params.ssl_mode.as_deref()) {
+        match parse_postgres_ssl_mode(ssl_mode)? {
+            PostgresSslChoice::Disable => {
                 cfg.ssl_mode(PgSslMode::Disable);
             }
             // tokio_postgres does not have SslMode::Allow.
             // "allow" (try non-SSL first, fallback to SSL) requires application-level
             // logic that this codebase does not implement. For now, map to Prefer
             // which at least allows both SSL and non-SSL connections.
-            "allow" => {
+            PostgresSslChoice::Allow | PostgresSslChoice::Prefer => {
                 cfg.ssl_mode(PgSslMode::Prefer);
             }
-            "prefer" => {
-                cfg.ssl_mode(PgSslMode::Prefer);
-            }
-            "require" | "verify-ca" | "verify-full" => {
+            PostgresSslChoice::Require
+            | PostgresSslChoice::VerifyCa
+            | PostgresSslChoice::VerifyFull => {
                 cfg.ssl_mode(PgSslMode::Require);
             }
-            _ => {}
-        };
+        }
     }
 
-    cfg
+    Ok(cfg)
 }
 
 /// Build the rustls connector for the PostgreSQL pool.
@@ -466,16 +618,20 @@ pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> PgConf
 ///   (prior to v0.10.3 this validated the chain; it now matches libpq).
 /// - `verify-ca`: force TLS, validate chain, skip hostname check
 /// - `verify-full`: force TLS, validate chain and hostname
+///
+/// An unrecognised `ssl_mode` is an error. Unset keeps `prefer`.
 pub(crate) fn build_postgres_tls_connector(
     params: &ConnectionParams,
 ) -> Result<MakeRustlsConnect, String> {
     ensure_rustls_crypto_provider();
-    let ssl_mode = params.ssl_mode.as_deref().unwrap_or("prefer");
+    let ssl_mode = parse_postgres_ssl_mode(
+        non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("prefer"),
+    )?;
     let user_ca = params.ssl_ca.as_deref().filter(|s| !s.trim().is_empty());
     let user_cert = params.ssl_cert.as_deref().filter(|s| !s.trim().is_empty());
     let user_key = params.ssl_key.as_deref().filter(|s| !s.trim().is_empty());
 
-    let client_auth = if ssl_mode == "disable" {
+    let client_auth = if matches!(ssl_mode, PostgresSslChoice::Disable) {
         None
     } else {
         match (user_cert, user_key) {
@@ -497,21 +653,21 @@ pub(crate) fn build_postgres_tls_connector(
     };
 
     let builder = match ssl_mode {
-        "disable" | "allow" | "prefer" => {
+        PostgresSslChoice::Disable | PostgresSslChoice::Allow | PostgresSslChoice::Prefer => {
             // No cert verification; PgSslMode below controls whether TLS is attempted.
             let verifier = Arc::new(NoCertVerifier::new());
             ClientConfig::builder()
                 .dangerous()
                 .with_custom_certificate_verifier(verifier)
         }
-        "require" => {
+        PostgresSslChoice::Require => {
             // Force TLS, skip cert validation.
             let verifier = Arc::new(NoCertVerifier::new());
             ClientConfig::builder()
                 .dangerous()
                 .with_custom_certificate_verifier(verifier)
         }
-        "verify-ca" => {
+        PostgresSslChoice::VerifyCa => {
             // Validate chain, skip hostname. Requires an explicit CA file —
             // platform roots are not used (macOS EKU check rejects them).
             let ca_path = user_ca.ok_or_else(|| {
@@ -527,7 +683,7 @@ pub(crate) fn build_postgres_tls_connector(
                 .dangerous()
                 .with_custom_certificate_verifier(verifier)
         }
-        "verify-full" => {
+        PostgresSslChoice::VerifyFull => {
             // Validate certificate chain AND hostname.
             if user_ca.is_none() {
                 // Use platform verifier for full validation.
@@ -544,13 +700,6 @@ pub(crate) fn build_postgres_tls_connector(
                     .dangerous()
                     .with_custom_certificate_verifier(verifier)
             }
-        }
-        _ => {
-            // Unknown mode, fall back to no verification.
-            let verifier = Arc::new(NoCertVerifier::new());
-            ClientConfig::builder()
-                .dangerous()
-                .with_custom_certificate_verifier(verifier)
         }
     };
 
@@ -769,6 +918,13 @@ fn startup_script_error(err: impl std::fmt::Display) -> String {
     format!("Startup script failed: {err}")
 }
 
+fn startup_script_timeout_error(timeout: Duration) -> String {
+    format!(
+        "Timed out running PostgreSQL startup script after {} ms",
+        timeout.as_millis()
+    )
+}
+
 /// Validate the startup script on a throwaway connection so a broken script
 /// fails fast with a clearly attributed error, **without** applying its side
 /// effects. The statements run inside a transaction that is rolled back, so a
@@ -823,8 +979,7 @@ async fn run_postgres_startup_script(
     tls: MakeRustlsConnect,
     script: &str,
 ) -> Result<(), String> {
-    let (mut client, connection) =
-        cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
+    let (mut client, connection) = cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
     // tokio_postgres needs the connection future polled on its own task.
     let driver = tokio::spawn(async move {
         let _ = connection.await;
@@ -895,10 +1050,7 @@ async fn get_mysql_pool_for_database_with_id(
     // trust store is used; a process-level rustls CryptoProvider is not
     // required here. The Postgres deadpool path still installs one in
     // build_postgres_configurations via the same helper.
-    let connect_timeout = Duration::from_millis(mysql_numeric_setting(
-        "connectTimeout",
-        DEFAULT_MYSQL_CONNECT_TIMEOUT_MS,
-    ));
+    let connect_timeout = mysql_connect_timeout(params);
     let script = startup_script(params);
 
     let pool = match build_and_connect_mysql_pool(
@@ -980,7 +1132,7 @@ pub async fn get_postgres_pool_with_id(
         key
     );
 
-    let cfg = build_postgres_configurations(params);
+    let cfg = build_postgres_configurations(params)?;
 
     let tls_connector = build_postgres_tls_connector(params).map_err(|e| {
         log::error!("Failed to create TLS connector for PostgreSQL pool: {}", e);
@@ -988,30 +1140,40 @@ pub async fn get_postgres_pool_with_id(
     })?;
 
     if let Some(script) = startup_script(params) {
-        let timeout = Duration::from_millis(POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS);
+        let timeout = postgres_startup_script_timeout(params);
         tokio::time::timeout(
             timeout,
             run_postgres_startup_script(&cfg, tls_connector.clone(), &script),
         )
         .await
-        .map_err(|_| {
-            format!(
-                "Timed out running PostgreSQL startup script after {} ms",
-                timeout.as_millis()
-            )
-        })??;
+        .map_err(|_| startup_script_timeout_error(timeout))??;
     }
 
     let mut builder =
         PgPool::builder(PgPoolManager::new(cfg, tls_connector)).max_size(postgres_pool_max_size());
+    // The config's connect_timeout only bounds the TCP connect; this also
+    // bounds TLS and authentication. deadpool runs post_create hooks after
+    // this timeout, so the hook below bounds the startup script separately.
+    let script_timeout = connect_timeout(params);
+    if let Some(timeout) = script_timeout {
+        builder = builder
+            .runtime(deadpool_postgres::Runtime::Tokio1)
+            .create_timeout(Some(timeout));
+    }
     if let Some(script) = startup_script(params) {
         builder = builder.post_create(PgHook::async_fn(move |client, _metrics| {
             let script = script.clone();
             Box::pin(async move {
-                client
-                    .batch_execute(&script)
-                    .await
-                    .map_err(|e| PgHookError::message(startup_script_error(format_error_chain(&e))))?;
+                let run = client.batch_execute(&script);
+                let outcome = match script_timeout {
+                    Some(timeout) => tokio::time::timeout(timeout, run)
+                        .await
+                        .map_err(|_| PgHookError::message(startup_script_timeout_error(timeout)))?,
+                    None => run.await,
+                };
+                outcome.map_err(|e| {
+                    PgHookError::message(startup_script_error(format_error_chain(&e)))
+                })?;
                 Ok(())
             })
         }));
@@ -1190,6 +1352,101 @@ pub async fn close_pool_with_id(params: &ConnectionParams, connection_id: Option
                 );
             }
         }
+        _ => {}
+    }
+}
+
+/// Pool-key prefix matching every pool created for a saved connection, across
+/// every database it has browsed. `build_connection_key` embeds the database
+/// (and TLS/startup-script suffixes) after `{driver}:conn:{id}:`, so a plain
+/// `starts_with` against this prefix selects all of a connection's pools — the
+/// primary one and any per-database overrides. The trailing `:` separates the
+/// id from the database segment, so a connection whose id is a prefix of
+/// another (`conn-1` vs `conn-10`) never matches the other's pools.
+pub(crate) fn connection_pool_prefix(driver: &str, connection_id: &str) -> String {
+    format!("{driver}:conn:{connection_id}:")
+}
+
+/// Remove and return every map entry whose key starts with `prefix`. The pools
+/// are collected under a short-lived write lock and closed by the caller after
+/// the lock is released, so closing N pools never blocks other pool access.
+pub(crate) fn remove_pools_with_prefix<P>(
+    pools: &mut HashMap<String, P>,
+    prefix: &str,
+) -> Vec<(String, P)> {
+    let keys: Vec<String> = pools
+        .keys()
+        .filter(|k| k.starts_with(prefix))
+        .cloned()
+        .collect();
+    keys.into_iter()
+        .filter_map(|k| pools.remove(&k).map(|pool| (k, pool)))
+        .collect()
+}
+
+/// Close a pool, abstracting over the async `sqlx::Pool::close` and the
+/// sync `deadpool_postgres::Pool::close` so the remove/close/log loop can be
+/// shared across drivers.
+trait PoolClose {
+    async fn close_pool(&self);
+}
+
+impl PoolClose for Pool<MySql> {
+    async fn close_pool(&self) {
+        self.close().await;
+    }
+}
+
+impl PoolClose for PgPool {
+    async fn close_pool(&self) {
+        // `deadpool_postgres::Pool::close` is synchronous; wrap it so the
+        // trait signature matches the async `sqlx` pools.
+        self.close();
+    }
+}
+
+impl PoolClose for Pool<Sqlite> {
+    async fn close_pool(&self) {
+        self.close().await;
+    }
+}
+
+/// Remove every pool keyed under `prefix` from `pools`, then close each one
+/// after releasing the write lock — so closing N pools never blocks other
+/// pool access. Each close is wrapped in a matching log/close/log pair, like
+/// [`close_pool_with_id`].
+async fn close_pools_with_prefix<P: PoolClose>(
+    pools: &Arc<RwLock<HashMap<String, P>>>,
+    prefix: &str,
+    label: &str,
+) {
+    let removed = {
+        let mut pools = pools.write().await;
+        remove_pools_with_prefix(&mut pools, prefix)
+    };
+    for (key, pool) in removed {
+        log::info!("Closing {label} connection pool (key: {key})");
+        pool.close_pool().await;
+        log::info!("{label} connection pool closed (key: {key})");
+    }
+}
+
+/// Close every pool belonging to a saved connection, including the
+/// per-database override pools created while browsing multiple databases.
+///
+/// Only saved connections (with a `connection_id`) use the `conn:` key scheme,
+/// so this does not apply to ad-hoc connections — those have a single pool
+/// keyed by `host:port:user:database`, closed by `close_pool` /
+/// `close_pool_with_id`. On a single-database connection this closes exactly
+/// one pool (the primary), so it is a safe, backward-compatible replacement for
+/// `close_pool_with_id` at disconnect time.
+pub async fn close_pools_for_connection_id(driver: &str, connection_id: &str) {
+    let prefix = connection_pool_prefix(driver, connection_id);
+
+    match driver {
+        "mysql" => close_pools_with_prefix(&MYSQL_POOLS, &prefix, "MySQL").await,
+        "postgres" => close_pools_with_prefix(&POSTGRES_POOLS, &prefix, "PostgreSQL").await,
+        "sqlite" => close_pools_with_prefix(&SQLITE_POOLS, &prefix, "SQLite").await,
         _ => {}
     }
 }

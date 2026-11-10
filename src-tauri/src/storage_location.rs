@@ -312,12 +312,10 @@ fn info() -> StorageLocationInfo {
     }
 }
 
-#[tauri::command]
 pub fn get_storage_location() -> StorageLocationInfo {
     info()
 }
 
-#[tauri::command]
 pub fn inspect_storage_location(path: String) -> Result<StorageLocationInspection, String> {
     let target = PathBuf::from(path);
     validate_target(&target, &crate::paths::get_app_config_dir())?;
@@ -326,7 +324,6 @@ pub fn inspect_storage_location(path: String) -> Result<StorageLocationInspectio
 
 /// Record `path` as the storage folder, optionally copying the current data
 /// into it. Takes effect on the next launch.
-#[tauri::command]
 pub fn set_storage_location(path: String, copy_data: bool) -> Result<StorageLocationInfo, String> {
     let target = PathBuf::from(path);
     let current = crate::paths::get_app_config_dir();
@@ -352,28 +349,15 @@ pub fn set_storage_location(path: String, copy_data: bool) -> Result<StorageLoca
 
 /// Go back to the platform default folder on the next launch. Data in the
 /// custom folder is left untouched.
-#[tauri::command]
 pub fn reset_storage_location() -> Result<StorageLocationInfo, String> {
     clear_pointer(&crate::paths::get_default_app_config_dir())?;
     log::info!("[StorageLocation] Storage folder reset to default");
     Ok(info())
 }
 
-/// Reveal the folder currently in use in the system file manager.
-#[tauri::command]
-pub fn open_storage_location(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    let dir = crate::paths::get_app_config_dir();
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    app.opener()
-        .open_path(dir.to_string_lossy().to_string(), None::<&str>)
-        .map_err(|e| format!("Failed to open storage folder: {e}"))
-}
-
 /// Absolute data directory, for the frontend to build `asset://` URLs of
 /// connection icons. Replaces `appDataDir()` from the Tauri JS API, which
 /// knows nothing about the custom location.
-#[tauri::command]
 pub fn get_app_data_dir() -> String {
     crate::paths::get_app_data_dir()
         .to_string_lossy()

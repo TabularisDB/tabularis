@@ -10,11 +10,17 @@ pub struct PluginError {
 
 impl PluginError {
     pub fn internal(msg: impl Into<String>) -> Self {
-        Self { code: -32603, message: msg.into() }
+        Self {
+            code: -32603,
+            message: msg.into(),
+        }
     }
 
     pub fn invalid_params(msg: impl Into<String>) -> Self {
-        Self { code: -32602, message: msg.into() }
+        Self {
+            code: -32602,
+            message: msg.into(),
+        }
     }
 }
 

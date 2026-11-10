@@ -1,0 +1,121 @@
+use crate::drivers::driver_trait::PluginManifest;
+use crate::plugins::installer::{self, InstalledPluginInfo};
+use crate::plugins::registry::{PluginReadme, RegistryPluginWithStatus};
+use crate::runtime::RuntimeContext;
+use tauri::{AppHandle, State};
+
+#[tauri::command]
+pub async fn fetch_plugin_registry(
+    runtime: State<'_, RuntimeContext>,
+) -> Result<Vec<RegistryPluginWithStatus>, String> {
+    crate::application::plugins::fetch_plugin_registry(runtime.inner()).await
+}
+
+#[tauri::command]
+pub async fn install_plugin(
+    runtime: State<'_, RuntimeContext>,
+    plugin_id: String,
+    version: Option<String>,
+    registry_url: Option<String>,
+) -> Result<(), String> {
+    crate::application::plugins::install_plugin(runtime.inner(), plugin_id, version, registry_url)
+        .await
+}
+
+#[tauri::command]
+pub async fn uninstall_plugin(
+    runtime: State<'_, RuntimeContext>,
+    plugin_id: String,
+) -> Result<(), String> {
+    crate::application::plugins::uninstall_plugin(runtime.inner(), plugin_id).await
+}
+
+#[tauri::command]
+pub async fn get_installed_plugins(
+    runtime: State<'_, RuntimeContext>,
+) -> Result<Vec<InstalledPluginInfo>, String> {
+    Ok(crate::application::plugins::get_installed_plugins(
+        runtime.inner(),
+    ))
+}
+
+#[tauri::command]
+pub async fn enable_plugin(
+    runtime: State<'_, RuntimeContext>,
+    plugin_id: String,
+) -> Result<(), String> {
+    crate::application::plugins::enable_plugin(runtime.inner(), plugin_id).await
+}
+
+#[tauri::command]
+pub async fn get_plugin_manifest(
+    runtime: State<'_, RuntimeContext>,
+    plugin_id: String,
+) -> Result<PluginManifest, String> {
+    crate::application::plugins::get_plugin_manifest(runtime.inner(), plugin_id)
+}
+
+/// Opens the plugins directory in the desktop file manager.
+/// Browser sessions never receive an equivalent server-path operation.
+#[tauri::command]
+pub fn open_plugins_dir(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let plugins_dir = installer::get_plugins_dir()?;
+    app.opener()
+        .open_path(plugins_dir.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|error| format!("Failed to open plugins directory: {error}"))
+}
+
+#[tauri::command]
+pub async fn fetch_tabularium_plugin_preview(
+    runtime: State<'_, RuntimeContext>,
+    slug: String,
+    registry_url: Option<String>,
+    version: Option<String>,
+) -> Result<RegistryPluginWithStatus, String> {
+    crate::application::plugins::fetch_plugin_preview(runtime.inner(), slug, registry_url, version)
+        .await
+}
+
+#[tauri::command]
+pub async fn fetch_plugin_readme(
+    runtime: State<'_, RuntimeContext>,
+    slug: String,
+    locale: Option<String>,
+    registry_url: Option<String>,
+) -> Result<PluginReadme, String> {
+    crate::application::plugins::fetch_plugin_readme(runtime.inner(), slug, locale, registry_url)
+        .await
+}
+
+/// Reads a file from an installed plugin's directory for the desktop UI loader.
+/// Browser plugin assets use the authenticated asset route implemented separately.
+#[tauri::command]
+pub fn read_plugin_file(
+    runtime: State<'_, RuntimeContext>,
+    plugin_id: String,
+    file_path: String,
+) -> Result<String, String> {
+    crate::application::plugin_assets::read_plugin_asset_text(
+        &runtime.paths.plugins_dir(),
+        &plugin_id,
+        &file_path,
+    )
+}
+
+#[tauri::command]
+pub fn cancel_plugin_install(plugin_id: String) -> bool {
+    crate::plugins::commands::cancel_plugin_install(plugin_id)
+}
+
+#[tauri::command]
+pub async fn disable_plugin(plugin_id: String) -> Result<(), String> {
+    crate::plugins::commands::disable_plugin(plugin_id).await
+}
+
+/// Returns the absolute filesystem path of an installed plugin's directory.
+/// Desktop-only: browser RPC deliberately does not expose server filesystem paths.
+#[tauri::command]
+pub fn get_plugin_dir(plugin_id: String) -> Result<String, String> {
+    crate::plugins::commands::get_plugin_dir(plugin_id)
+}

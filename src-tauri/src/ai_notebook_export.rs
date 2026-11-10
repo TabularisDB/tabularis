@@ -1,7 +1,7 @@
 //! Build a `.tabularis-notebook` document from an audit log session.
 //!
 //! Produces the same JSON shape that the frontend's notebook editor reads
-//! and writes (see `src/types/notebook.ts` `NotebookFile`). Results are not
+//! and writes (see `packages/web-ui/src/types/notebook.ts` `NotebookFile`). Results are not
 //! embedded — notebook cells re-execute on load, which matches the existing
 //! notebook UX.
 
@@ -50,7 +50,11 @@ pub fn export_session(session_id: &str, tz: Option<&str>) -> Result<NotebookExpo
     export_session_in(&get_app_config_dir(), session_id, tz)
 }
 
-fn build_notebook(session_id: &str, events: &[AiActivityEvent], tz: Option<&str>) -> NotebookExport {
+fn build_notebook(
+    session_id: &str,
+    events: &[AiActivityEvent],
+    tz: Option<&str>,
+) -> NotebookExport {
     let header = build_header_cell(session_id, events, tz);
     let mut cells: Vec<NotebookCellExport> = vec![header];
 

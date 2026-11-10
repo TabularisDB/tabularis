@@ -1,0 +1,96 @@
+import type {Theme} from '@/types/theme';
+
+export const solarizedLight: Theme = {
+    id: 'solarized-light',
+    name: 'Solarized Light',
+    author: 'Ethan Schoonover',
+    isPreset: true,
+    isReadOnly: true,
+    colors: {
+        bg: {
+            base: '#fdf6e3',
+            elevated: '#eee8d5',
+            overlay: '#e3dcc6',
+            input: '#fdf6e3',
+            tooltip: '#eee8d5',
+        },
+        surface: {
+            primary: '#eee8d5',
+            secondary: '#e3dcc6',
+            tertiary: '#d8cfb3',
+            hover: '#e3dcc6',
+            active: '#268bd2',
+            disabled: '#eee8d5',
+        },
+        text: {
+            primary: '#3a474b',
+            secondary: '#3a5058',
+            muted: '#485e65',
+            disabled: '#839496',
+            accent: '#1c6599',
+            inverse: '#fdf6e3',
+        },
+        accent: {
+            primary: '#2076b3',
+            secondary: '#5a5fbd',
+            success: '#606f00',
+            warning: '#836300',
+            error: '#ca2522',
+            info: '#1e736d',
+        },
+        border: {
+            subtle: '#eee8d5',
+            default: '#93a1a1',
+            strong: '#839496',
+            focus: '#268bd2',
+        },
+        semantic: {
+            string: '#836300',
+            number: '#1e736d',
+            boolean: '#bf2a72',
+            date: '#606f00',
+            null: '#5d6b6b',
+            primaryKey: '#b64314',
+            foreignKey: '#1e6da5',
+            index: '#bf2a72',
+            connectionActive: '#859900',
+            connectionInactive: '#93a1a1',
+            modified: '#1e6da5',
+            deleted: '#ca2522',
+            new: '#606f00',
+        },
+    },
+    typography: {
+        fontFamily: {
+            base: 'Inter, system-ui, sans-serif',
+            mono: 'Menlo, Consolas, monospace',
+        },
+        fontSize: {
+            xs: '0.75rem',
+            sm: '0.875rem',
+            base: '1rem',
+            lg: '1.125rem',
+            xl: '1.25rem',
+        },
+    },
+    layout: {
+        borderRadius: {
+            sm: '0.25rem',
+            base: '0.5rem',
+            lg: '0.75rem',
+            xl: '1rem',
+        },
+        spacing: {
+            xs: '0.25rem',
+            sm: '0.5rem',
+            base: '1rem',
+            lg: '1.5rem',
+            xl: '2rem',
+        },
+    },
+    monacoTheme: {
+        base: 'vs',
+        inherit: true,
+        themeName: 'Solarized-light',
+    },
+};

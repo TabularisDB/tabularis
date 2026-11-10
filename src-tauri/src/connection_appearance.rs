@@ -1,7 +1,6 @@
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
-use sha2::{Digest, Sha256};
-use tauri::AppHandle;
 
 pub(crate) const MAX_ICON_BYTES: u64 = 512 * 1024;
 
@@ -29,34 +28,52 @@ impl std::fmt::Display for IconError {
 }
 
 fn sanitize_id(id: &str) -> Result<String, IconError> {
-    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if id.is_empty()
+        || !id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return Err(IconError::InvalidConnectionId);
     }
     Ok(id.to_string())
 }
 
 fn sniff_ext(bytes: &[u8]) -> Option<&'static str> {
-    if bytes.starts_with(&[0x89, b'P', b'N', b'G']) { return Some("png"); }
-    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) { return Some("jpg"); }
-    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" { return Some("webp"); }
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
+        return Some("png");
+    }
+    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        return Some("jpg");
+    }
+    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        return Some("webp");
+    }
     let head = std::str::from_utf8(&bytes[..bytes.len().min(512)]).unwrap_or("");
-    if head.trim_start().starts_with("<?xml") || head.trim_start().starts_with("<svg") { return Some("svg"); }
+    if head.trim_start().starts_with("<?xml") || head.trim_start().starts_with("<svg") {
+        return Some("svg");
+    }
     None
 }
 
 fn svg_is_safe(content: &str) -> bool {
     let lower = content.to_ascii_lowercase();
-    if lower.contains("<script") { return false; }
-    if lower.contains("javascript:") { return false; }
+    if lower.contains("<script") {
+        return false;
+    }
+    if lower.contains("javascript:") {
+        return false;
+    }
     // Detect any occurrence of `on<word>=` after whitespace, `<`, quotes, or `=`.
     let bytes = lower.as_bytes();
     let mut i = 0;
     while i + 3 < bytes.len() {
-        let prev_ok = i == 0 || matches!(
-            bytes[i - 1],
-            b' ' | b'\t' | b'\n' | b'\r' | b'<' | b'"' | b'\'' | b'='
-        );
-        if prev_ok && bytes[i] == b'o' && bytes[i + 1] == b'n' && bytes[i + 2].is_ascii_alphabetic() {
+        let prev_ok = i == 0
+            || matches!(
+                bytes[i - 1],
+                b' ' | b'\t' | b'\n' | b'\r' | b'<' | b'"' | b'\'' | b'='
+            );
+        if prev_ok && bytes[i] == b'o' && bytes[i + 1] == b'n' && bytes[i + 2].is_ascii_alphabetic()
+        {
             let mut j = i + 2;
             while j < bytes.len() && bytes[j].is_ascii_alphabetic() {
                 j += 1;
@@ -75,16 +92,26 @@ fn svg_is_safe(content: &str) -> bool {
 }
 
 /// Pure helper exposed for tests — does the validation + copy given an explicit dest dir.
-pub fn save_icon_impl(dest_dir: &Path, connection_id: &str, source: &Path) -> Result<String, IconError> {
+pub fn save_icon_impl(
+    dest_dir: &Path,
+    connection_id: &str,
+    source: &Path,
+) -> Result<String, IconError> {
     let id = sanitize_id(connection_id)?;
     let meta = fs::metadata(source).map_err(|e| IconError::Io(e.to_string()))?;
-    if !meta.is_file() { return Err(IconError::NotAFile); }
-    if meta.len() > MAX_ICON_BYTES { return Err(IconError::TooLarge); }
+    if !meta.is_file() {
+        return Err(IconError::NotAFile);
+    }
+    if meta.len() > MAX_ICON_BYTES {
+        return Err(IconError::TooLarge);
+    }
     let bytes = fs::read(source).map_err(|e| IconError::Io(e.to_string()))?;
     let ext = sniff_ext(&bytes).ok_or(IconError::UnsupportedFormat)?;
     if ext == "svg" {
         let text = std::str::from_utf8(&bytes).map_err(|_| IconError::UnsupportedFormat)?;
-        if !svg_is_safe(text) { return Err(IconError::UnsafeSvg); }
+        if !svg_is_safe(text) {
+            return Err(IconError::UnsafeSvg);
+        }
     }
     let hash = Sha256::digest(&bytes);
     let hash_hex: String = hash.iter().take(4).map(|b| format!("{b:02x}")).collect();
@@ -112,7 +139,9 @@ pub fn cascade_delete_if_image(
     appearance: Option<&crate::models::ConnectionAppearance>,
 ) -> Result<(), IconError> {
     let Some(a) = appearance else { return Ok(()) };
-    let Some(crate::models::IconOverride::Image { path }) = a.icon.as_ref() else { return Ok(()) };
+    let Some(crate::models::IconOverride::Image { path }) = a.icon.as_ref() else {
+        return Ok(());
+    };
     let icons_dir = app_data_dir.join("connection-icons");
     let full = app_data_dir.join(path);
     if !full.exists() {
@@ -148,14 +177,22 @@ pub fn copy_icon_for_duplicate(
     let source = app_data_dir.join(source_relative_path);
     // Refuse to read outside the icons dir
     let icons_dir = app_data_dir.join("connection-icons");
-    let canon_icons = icons_dir.canonicalize().map_err(|e| IconError::Io(e.to_string()))?;
-    let canon_source = source.canonicalize().map_err(|e| IconError::Io(e.to_string()))?;
+    let canon_icons = icons_dir
+        .canonicalize()
+        .map_err(|e| IconError::Io(e.to_string()))?;
+    let canon_source = source
+        .canonicalize()
+        .map_err(|e| IconError::Io(e.to_string()))?;
     if !canon_source.starts_with(&canon_icons) {
         return Err(IconError::InvalidConnectionId); // path is unsafe
     }
     let meta = fs::metadata(&canon_source).map_err(|e| IconError::Io(e.to_string()))?;
-    if !meta.is_file() { return Err(IconError::NotAFile); }
-    if meta.len() > MAX_ICON_BYTES { return Err(IconError::TooLarge); }
+    if !meta.is_file() {
+        return Err(IconError::NotAFile);
+    }
+    if meta.len() > MAX_ICON_BYTES {
+        return Err(IconError::TooLarge);
+    }
     let bytes = fs::read(&canon_source).map_err(|e| IconError::Io(e.to_string()))?;
     let ext = sniff_ext(&bytes).ok_or(IconError::UnsupportedFormat)?;
     // Skip SVG safety check here — the source already passed it when first uploaded.
@@ -174,37 +211,3 @@ pub fn copy_icon_for_duplicate(
     })?;
     Ok(format!("connection-icons/{filename}"))
 }
-
-#[tauri::command]
-pub async fn save_connection_icon(
-    _app: AppHandle,
-    connection_id: String,
-    source_path: String,
-) -> Result<String, String> {
-    let data_dir = crate::paths::get_app_data_dir();
-    let dest = data_dir.join("connection-icons");
-    save_icon_impl(&dest, &connection_id, Path::new(&source_path))
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn delete_connection_icon(
-    _app: AppHandle,
-    relative_path: String,
-) -> Result<(), String> {
-    let data_dir = crate::paths::get_app_data_dir();
-    let icons_dir = data_dir.join("connection-icons");
-    let full = data_dir.join(&relative_path);
-    // If the file doesn't exist, treat as a no-op (don't canonicalize a non-existent path).
-    if !full.exists() {
-        return Ok(());
-    }
-    let canon_icons = icons_dir.canonicalize().map_err(|e| e.to_string())?;
-    let canon_full = full.canonicalize().map_err(|e| e.to_string())?;
-    if !canon_full.starts_with(&canon_icons) {
-        return Err("path outside connection-icons".into());
-    }
-    fs::remove_file(&canon_full).map_err(|e| e.to_string())?;
-    Ok(())
-}
-

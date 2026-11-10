@@ -16,7 +16,7 @@ is not an old packaged application or platform GUI test.
 Run from the repository root:
 
 ```sh
-pnpm exec vitest run tests/contexts/ThemeDowngrade.test.tsx
+pnpm exec vitest --config packages/web-ui/vitest.config.ts run packages/web-ui/tests/contexts/ThemeDowngrade.test.tsx
 ```
 
 ## Result and release implication
@@ -27,7 +27,7 @@ its offline fallback, and then its save effect writes that fallback to
 The tests deliberately assert this **hazard**. A green test is not a successful
 downgrade-compatibility claim. The known builtin `monokai` retains its identity.
 The new provider's no-write fallback/restore behavior is separately tested in
-`tests/contexts/ThemeProvider.test.tsx`.
+`packages/web-ui/tests/contexts/ThemeProvider.test.tsx`.
 
 The new standalone snapshot container also fails the old native `Theme` shape,
 rather than silently replaying different editor rules. Historical standalone

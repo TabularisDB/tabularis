@@ -19,7 +19,7 @@ on:
 
 jobs:
   test-mysql:
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     strategy:
       fail-fast: false
@@ -65,6 +65,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libsoup-3.0-dev build-essential libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
+      - name: Prepare Tauri frontend resource directory
+        run: mkdir -p packages/web-ui/dist
+
       - name: Run MySQL integration tests
         working-directory: src-tauri
         env:
@@ -74,4 +77,4 @@ jobs:
           TABULARIS_TEST_MYSQL_PORT: "33060"
           TABULARIS_TEST_MYSQL_USER: root
           TABULARIS_TEST_MYSQL_PASSWORD: password
-        run: cargo test --test mysql_foreign_keys -- --include-ignored
+        run: cargo test --test mysql_foreign_keys --test mysql_routines --test mysql_columns --test mysql_indexes --test mysql_read_only --test mysql_float_precision --test mysql_table_transfer -- --include-ignored

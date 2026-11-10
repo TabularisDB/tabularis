@@ -5,9 +5,9 @@ mod tests {
         poll_decision_with_liveness_in, read_decision_in, read_pending_in, write_decision_in,
         write_pending_in, ApprovalDecision, PendingApproval, PollOutcome,
     };
+    use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
-    use std::path::Path;
     use tempfile::TempDir;
     use tokio::time::Duration;
 
@@ -18,6 +18,7 @@ mod tests {
             session_id: "sess-1".to_string(),
             connection_id: "conn-1".to_string(),
             connection_name: "local".to_string(),
+            database: None,
             query: "UPDATE orders SET status = 'x'".to_string(),
             query_kind: "write".to_string(),
             client_hint: Some("claude-desktop".to_string()),
@@ -203,6 +204,26 @@ mod tests {
         assert_eq!(list.len(), 2);
     }
 
+    // Target database -------------------------------------------------------
+
+    #[test]
+    fn pending_without_database_omits_the_field() {
+        let json = serde_json::to_value(make_pending("a")).unwrap();
+        assert!(json.get("database").is_none());
+    }
+
+    #[test]
+    fn pending_round_trips_a_target_database() {
+        let tmp = TempDir::new().unwrap();
+        let pending = PendingApproval {
+            database: Some("analytics".to_string()),
+            ..make_pending("db")
+        };
+        write_pending_in(tmp.path(), &pending).unwrap();
+        let read = read_pending_in(tmp.path(), "db").unwrap().unwrap();
+        assert_eq!(read.database.as_deref(), Some("analytics"));
+    }
+
     // Cleanup --------------------------------------------------------------
 
     #[test]
@@ -216,7 +237,8 @@ mod tests {
         let old_time = std::time::SystemTime::now()
             .checked_sub(Duration::from_secs(3600))
             .unwrap();
-        let _ = filetime::set_file_mtime(&stale_path, filetime::FileTime::from_system_time(old_time));
+        let _ =
+            filetime::set_file_mtime(&stale_path, filetime::FileTime::from_system_time(old_time));
         let deleted = cleanup_expired_in(tmp.path(), 60).unwrap();
         assert_eq!(deleted, 1);
         assert!(!stale_path.exists());

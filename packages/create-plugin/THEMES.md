@@ -9,8 +9,9 @@ makes the generated repository self-contained and usable offline.
 
 ## 1. Try a theme locally
 
-Open **Settings → Appearance → Manage themes**. Builtin themes remain available
-offline. Installed packages are read-only; **Duplicate as personal** makes an
+Open **Settings → Appearance**. Each theme's **…** menu holds its actions, and
+**Import theme** adds new ones. Builtin themes remain available offline.
+Installed packages are read-only; **Duplicate as personal** makes an
 independent editable copy. A package operation affects all its variants.
 
 - **Preview** changes the application temporarily and displays a read-only SQL
@@ -192,7 +193,8 @@ an adapted theme as a pixel-identical conversion.
 
 ## 5. Preview and install the ZIP
 
-In Appearance choose **Local package**, select the ZIP and preview its variants.
+In **Settings → Appearance**, choose **Import theme → Local package**, select
+the ZIP and preview its variants.
 No file is installed just by opening/previewing it. Installation is bound to the
 validated archive digest: if you rebuild it, preview again before installing.
 The app revalidates all bytes before the atomic commit.
@@ -234,7 +236,9 @@ this additional check rather than silently skipping it.
 
 4. The generated workflow runs only on version tags, validates the tag/manifest
    match, packages offline and creates a **draft** release with
-   `theme-universal.zip`. Actions are SHA-pinned, checkout credentials are not
+   `theme-universal.zip` and the `.tabularium` manifest, which the registry
+   reads from the release assets (GitHub stores it as `default.tabularium`;
+   both names are accepted). Actions are SHA-pinned, checkout credentials are not
    persisted, and only the release job receives `contents: write`. It uses the
    job token, not an embedded secret or additional PAT. No untrusted-PR write job
    is generated. Review the draft and artifact before publishing it.
