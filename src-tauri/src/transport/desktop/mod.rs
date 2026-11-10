@@ -568,6 +568,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             // Routines
             commands::get_routines,
             commands::get_routine_parameters,
+            commands::routine_debug,
             commands::get_routine_definition,
             commands::build_routine_call_sql,
             commands::get_routine_create_template,

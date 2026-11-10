@@ -2321,6 +2321,7 @@ impl PostgresDriver {
                     materialized_views: true,
                     routines: true,
                     routine_management: true,
+                    routine_debug: None,
                     file_based: false,
                     folder_based: false,
                     in_memory: false,
