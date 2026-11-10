@@ -2164,7 +2164,12 @@
                 "operations": "操作",
                 "indexName": "索引",
                 "scans": "掃描次數"
-            }
+            },
+            "copied": "已複製",
+            "copyDetails": "複製詳情",
+            "detailsCopied": "節點詳情已複製到剪貼簿",
+            "copyDetailsFailed": "無法將節點詳情複製到剪貼簿",
+            "nodeDetails": "節點詳情"
         },
         "notebook": {
             "addSqlCell": "新增 SQL 儲存格",

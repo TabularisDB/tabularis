@@ -2139,7 +2139,12 @@
         "operations": "操作",
         "indexName": "インデックス",
         "scans": "スキャン数"
-      }
+      },
+      "copied": "コピーしました",
+      "copyDetails": "詳細をコピー",
+      "detailsCopied": "ノードの詳細をクリップボードにコピーしました",
+      "copyDetailsFailed": "ノードの詳細をクリップボードにコピーできませんでした",
+      "nodeDetails": "ノードの詳細"
     },
     "notebook": {
       "addSqlCell": "SQL セルを追加",

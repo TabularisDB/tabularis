@@ -117,6 +117,12 @@ export {
 } from './tableColumns';
 
 export type {
+    ExplainNodeDetailEntry,
+    ExplainNodeDetailSection,
+    FormatExplainNodeDetailsOptions,
+} from './nodeDetails';
+export {getExplainNodeDetailSections, formatExplainNodeDetails} from './nodeDetails';
+export type {
     ExplainSnapshotContext,
     ExplainSnapshot,
     NodeMetricDelta,

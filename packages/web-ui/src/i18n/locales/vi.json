@@ -2171,7 +2171,12 @@
         "operations": "Thao tác",
         "indexName": "Index",
         "scans": "Lượt quét"
-      }
+      },
+      "copied": "Đã sao chép",
+      "copyDetails": "Sao chép chi tiết",
+      "detailsCopied": "Đã sao chép chi tiết nút vào khay nhớ tạm",
+      "copyDetailsFailed": "Không thể sao chép chi tiết nút vào khay nhớ tạm",
+      "nodeDetails": "Chi tiết nút"
     },
     "notebook": {
       "addSqlCell": "Thêm ô SQL",

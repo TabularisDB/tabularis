@@ -2188,7 +2188,12 @@
         "operations": "Operazioni",
         "indexName": "Indice",
         "scans": "Scansioni"
-      }
+      },
+      "copied": "Copiato",
+      "copyDetails": "Copia dettagli",
+      "detailsCopied": "Dettagli del nodo copiati negli appunti",
+      "copyDetailsFailed": "Impossibile copiare i dettagli del nodo negli appunti",
+      "nodeDetails": "Dettagli nodo"
     },
     "notebook": {
       "addSqlCell": "Aggiungi Cella SQL",

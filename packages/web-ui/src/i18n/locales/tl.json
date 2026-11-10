@@ -2159,7 +2159,12 @@
         "operations": "Mga Operasyon",
         "indexName": "Index",
         "scans": "Mga Scan"
-      }
+      },
+      "copied": "Nakopya",
+      "copyDetails": "Kopyahin ang mga detalye",
+      "detailsCopied": "Nakopya ang mga detalye ng node sa clipboard",
+      "copyDetailsFailed": "Nabigong kopyahin ang mga detalye ng node sa clipboard",
+      "nodeDetails": "Mga Detalye ng Node"
     },
     "notebook": {
       "addSqlCell": "Magdagdag ng SQL Cell",

@@ -2096,7 +2096,12 @@
         "operations": "연산",
         "indexName": "인덱스",
         "scans": "스캔 수"
-      }
+      },
+      "copied": "복사됨",
+      "copyDetails": "세부 정보 복사",
+      "detailsCopied": "노드 세부 정보가 클립보드에 복사되었습니다",
+      "copyDetailsFailed": "노드 세부 정보를 클립보드에 복사하지 못했습니다",
+      "nodeDetails": "노드 세부 정보"
     },
     "notebook": {
       "addSqlCell": "SQL 셀 추가",

@@ -2101,7 +2101,12 @@
         "operations": "操作",
         "indexName": "索引",
         "scans": "扫描次数"
-      }
+      },
+      "copied": "已复制",
+      "copyDetails": "复制详情",
+      "detailsCopied": "节点详情已复制到剪贴板",
+      "copyDetailsFailed": "无法将节点详情复制到剪贴板",
+      "nodeDetails": "节点详情"
     },
     "notebook": {
       "addSqlCell": "添加 SQL 单元格",
