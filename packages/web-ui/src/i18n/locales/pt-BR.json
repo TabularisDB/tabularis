@@ -580,6 +580,7 @@
         "applyToAll": "Ação para todas:"
       },
       "tabularisJsonHint": "Arquivo de exportação do Tabularis (.json)",
+      "projectConfigHint": "Escanear arquivos .env ou Docker Compose",
       "menuLabel": "Importar conexões…",
       "group": {
         "label": "Grupo:",

@@ -602,6 +602,7 @@
         "applyToAll": "全部操作:"
       },
       "tabularisJsonHint": "Tabularis 导出文件 (.json)",
+      "projectConfigHint": "扫描 .env 或 Docker Compose 文件",
       "menuLabel": "导入连接…",
       "group": {
         "label": "分组：",

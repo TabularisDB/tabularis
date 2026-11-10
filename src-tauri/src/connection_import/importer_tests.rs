@@ -931,3 +931,421 @@ async fn navicat_rejects_files_without_usable_connections() {
         Err(ForeignImportError::NoConnectionsFound)
     ));
 }
+
+// ── Project Configuration Importer Tests ───────────────────────────────────
+
+use super::project_config::ProjectConfigImporter;
+
+#[tokio::test]
+async fn project_config_importer_metadata() {
+    let importer = ProjectConfigImporter::default();
+    assert_eq!(importer.id(), "project_config");
+    assert_eq!(
+        importer.display_name(),
+        "Project Configuration (.env / Compose)"
+    );
+    assert!(importer.supports_manual_path());
+    assert_eq!(
+        importer.import_file_types(),
+        Some(vec!["env", "yaml", "yml"])
+    );
+    assert!(!importer.is_available().await);
+    assert_eq!(importer.connection_count().await, 0);
+}
+
+#[tokio::test]
+async fn project_config_env_quoted_values_and_interpolation() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env_file = tmp.path().join(".env");
+    write(
+        &env_file,
+        r#"
+# Comment line
+DB_HOST=127.0.0.1 # inline comment
+DB_PORT=5432
+DB_USER=alice
+DB_PASSWORD=secret_password_123
+APP_DB="prod_${DB_USER}_db"
+SINGLE_QUOTED_DATABASE_URL='postgres://user:p$ssword@db.example.com:5433/app?sslmode=require'
+DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${APP_DB}"
+"#,
+    );
+
+    let importer = ProjectConfigImporter::default();
+    let env = importer.import(true, Some(tmp.path())).await.unwrap();
+
+    assert!(env.connections.len() >= 2);
+
+    // Verify interpolated DATABASE_URL
+    let interpolated = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("DATABASE_URL") && !c.name.contains("SINGLE_QUOTED"))
+        .expect("should find interpolated DATABASE_URL candidate");
+
+    assert_eq!(interpolated.driver_label, "PostgreSQL");
+    assert_eq!(interpolated.host, "127.0.0.1");
+    assert_eq!(interpolated.port, 5432);
+    assert_eq!(interpolated.database, "prod_alice_db");
+    assert_eq!(interpolated.username, "alice");
+
+    // Password must be in credentials_by_index and isolated
+    let idx = env
+        .connections
+        .iter()
+        .position(|c| std::ptr::eq(c, interpolated))
+        .unwrap();
+    let creds = env.credentials_by_index.get(&idx).unwrap();
+    assert_eq!(creds.password.as_deref(), Some("secret_password_123"));
+
+    // Verify single-quoted URL (no $ expansion in single quotes)
+    let single_quoted = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("SINGLE_QUOTED_DATABASE_URL"))
+        .expect("should find SINGLE_QUOTED_DATABASE_URL candidate");
+    assert_eq!(single_quoted.database, "app");
+    assert_eq!(single_quoted.port, 5433);
+    assert_eq!(
+        single_quoted.ssl.as_ref().map(|s| s.mode.as_str()),
+        Some("require")
+    );
+}
+
+#[tokio::test]
+async fn project_config_cycle_detection_and_missing_variables() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env_file = tmp.path().join(".env");
+    write(
+        &env_file,
+        r#"
+# Circular reference
+A="${B}"
+B="${A}"
+DATABASE_URL="postgres://user:pass@${HOST:-127.0.0.1}:${PORT:-5432}/${A:-default_db}"
+"#,
+    );
+
+    let importer = ProjectConfigImporter::default();
+    let env = importer.import(true, Some(tmp.path())).await.unwrap();
+
+    let conn = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("DATABASE_URL"))
+        .unwrap();
+
+    // Default variable expansion should have resolved
+    assert_eq!(conn.host, "127.0.0.1");
+    assert_eq!(conn.port, 5432);
+    assert_eq!(conn.database, "default_db");
+
+    // Warnings should record the cycle detection for A/B
+    assert!(
+        conn.warnings
+            .iter()
+            .any(|w| w.contains("cycle detected") || w.contains("Variable interpolation cycle")),
+        "Warnings must contain cycle detection notice"
+    );
+}
+
+#[tokio::test]
+async fn project_config_never_reads_os_process_env() {
+    // If OS has an env var like PATH, project config must not read it
+    let tmp = tempfile::tempdir().unwrap();
+    let env_file = tmp.path().join(".env");
+    write(
+        &env_file,
+        r#"
+DATABASE_URL="postgres://user:pass@${PATH:-safe_fallback_host}:5432/mydb"
+"#,
+    );
+
+    let importer = ProjectConfigImporter::default();
+    let env = importer.import(false, Some(tmp.path())).await.unwrap();
+    let conn = &env.connections[0];
+
+    // Must use safe_fallback_host, NOT the real OS PATH!
+    assert_eq!(conn.host, "safe_fallback_host");
+}
+
+#[tokio::test]
+async fn project_config_compose_published_vs_container_ports() {
+    let tmp = tempfile::tempdir().unwrap();
+    let compose_file = tmp.path().join("docker-compose.yml");
+    write(
+        &compose_file,
+        r#"
+services:
+  postgres_pub:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: app_published
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: secret_pub_password
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  postgres_unpub:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: app_unpublished
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: secret_unpub_password
+    ports:
+      - 5432
+"#,
+    );
+
+    let importer = ProjectConfigImporter::default();
+    let env = importer.import(true, Some(tmp.path())).await.unwrap();
+
+    assert_eq!(env.connections.len(), 2);
+
+    let published = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("postgres_pub"))
+        .unwrap();
+    assert_eq!(published.host, "127.0.0.1");
+    assert_eq!(published.port, 5433);
+    assert_eq!(published.database, "app_published");
+    assert!(
+        !published
+            .warnings
+            .iter()
+            .any(|w| w.contains("not published to host")),
+        "Published service should not warn about unpublished endpoint"
+    );
+
+    let unpublished = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("postgres_unpub"))
+        .unwrap();
+    assert_eq!(unpublished.host, "postgres_unpub");
+    assert_eq!(unpublished.port, 5432);
+    assert!(
+        unpublished
+            .warnings
+            .iter()
+            .any(|w| w.contains("not published to host")),
+        "Unpublished service must have an explicit warning"
+    );
+}
+
+#[tokio::test]
+async fn project_config_compose_multiple_published_ports() {
+    let tmp = tempfile::tempdir().unwrap();
+    let compose_file = tmp.path().join("compose.yaml");
+    write(
+        &compose_file,
+        r#"
+services:
+  mysql_multi:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: shop
+      MYSQL_USER: shop_user
+      MYSQL_PASSWORD: shop_password
+    ports:
+      - "33060:33060"
+      - "3307:3306"
+"#,
+    );
+
+    let importer = ProjectConfigImporter::default();
+    let env = importer.import(true, Some(tmp.path())).await.unwrap();
+
+    let mysql_conn = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("mysql_multi"))
+        .unwrap();
+
+    assert_eq!(mysql_conn.driver_label, "MySQL");
+    // Should prefer mapping that matches default container port 3306
+    assert_eq!(mysql_conn.port, 3307);
+    assert!(
+        mysql_conn
+            .warnings
+            .iter()
+            .any(|w| w.contains("Multiple published ports")),
+        "Multiple published ports must emit a warning"
+    );
+}
+
+#[tokio::test]
+async fn project_config_skips_excluded_dirs_and_symlinks() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Valid top-level .env
+    write(
+        &tmp.path().join(".env"),
+        "DATABASE_URL=postgres://root:pass@localhost:5432/valid_db\n",
+    );
+
+    // .env inside node_modules must be ignored
+    let node_modules_env = tmp.path().join("node_modules/pkg/.env");
+    write(
+        &node_modules_env,
+        "DATABASE_URL=postgres://root:pass@localhost:5432/ignored_node_modules\n",
+    );
+
+    // .env inside target must be ignored
+    let target_env = tmp.path().join("target/debug/.env");
+    write(
+        &target_env,
+        "DATABASE_URL=postgres://root:pass@localhost:5432/ignored_target\n",
+    );
+
+    // Symlink file must be ignored
+    #[cfg(unix)]
+    {
+        let outside = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            outside.path(),
+            "DATABASE_URL=postgres://root:pass@localhost:5432/symlinked_db\n",
+        )
+        .unwrap();
+        let link_path = tmp.path().join(".env.symlink");
+        let _ = std::os::unix::fs::symlink(outside.path(), &link_path);
+    }
+
+    let importer = ProjectConfigImporter::default();
+    let env = importer.import(false, Some(tmp.path())).await.unwrap();
+
+    // Only valid_db should be found
+    assert_eq!(env.connections.len(), 1);
+    assert_eq!(env.connections[0].database, "valid_db");
+}
+
+#[tokio::test]
+async fn project_config_single_file_upload_opaque_filename() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // 1. Opaque single file with .env content
+    let opaque_env = tmp.path().join("upload_blob_env");
+    write(
+        &opaque_env,
+        "DATABASE_URL=postgres://env_user:env_pass@127.0.0.1:5432/opaque_env_db\n",
+    );
+
+    let importer = ProjectConfigImporter::default();
+    let env_res = importer.import(true, Some(&opaque_env)).await.unwrap();
+    assert_eq!(env_res.connections.len(), 1);
+    assert_eq!(env_res.connections[0].database, "opaque_env_db");
+    assert_eq!(env_res.connections[0].driver_label, "PostgreSQL");
+
+    // 2. Opaque single file with Compose content
+    let opaque_compose = tmp.path().join("upload_blob_compose");
+    write(
+        &opaque_compose,
+        r#"
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: compose_uploaded_db
+    ports:
+      - "5432:5432"
+"#,
+    );
+
+    let compose_res = importer.import(false, Some(&opaque_compose)).await.unwrap();
+    assert_eq!(compose_res.connections.len(), 1);
+    assert_eq!(compose_res.connections[0].database, "compose_uploaded_db");
+}
+
+#[tokio::test]
+async fn project_config_exponential_expansion_bounded() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env_file = tmp.path().join(".env");
+    let mut content = String::from("V0=x\n");
+    for i in 1..=22 {
+        content.push_str(&format!("V{} = \"${{V{}}}${{V{}}}\"\n", i, i - 1, i - 1));
+    }
+    content.push_str("DATABASE_URL=\"postgres://user:pass@127.0.0.1:5432/${V22:-fallback_db}\"\n");
+    write(&env_file, &content);
+
+    let importer = ProjectConfigImporter::default();
+    let env = importer.import(false, Some(tmp.path())).await.unwrap();
+
+    let conn = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("DATABASE_URL"))
+        .expect("should discover candidate");
+
+    // The expansion must be bounded without exponential memory allocation or stall
+    assert!(
+        conn.warnings.iter().any(|w| {
+            w.contains("exceeded maximum reference depth")
+                || w.contains("exceeded total work budget")
+                || w.contains("exceeded maximum value size limit")
+        }),
+        "Candidate warnings must report that expansion limits were reached: {:?}",
+        conn.warnings
+    );
+}
+
+#[tokio::test]
+async fn project_config_escaped_dollar_in_password_and_url() {
+    let tmp = tempfile::tempdir().unwrap();
+    let env_file = tmp.path().join(".env");
+    write(
+        &env_file,
+        r#"
+DB_PASSWORD="pa\$ss"
+DATABASE_URL="postgres://alice:${DB_PASSWORD}@127.0.0.1:5432/app"
+SINGLE_URL='postgres://bob:sec\$ret@127.0.0.1:5433/shop'
+UNQUOTED_PASSWORD=raw\$pass
+UNQUOTED_URL="postgres://charlie:${UNQUOTED_PASSWORD}@127.0.0.1:5434/warehouse"
+"#,
+    );
+
+    let importer = ProjectConfigImporter::default();
+    let env = importer.import(true, Some(tmp.path())).await.unwrap();
+
+    // 1. Double-quoted password with \$
+    let db_url_conn = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("DATABASE_URL"))
+        .unwrap();
+    let db_url_idx = env
+        .connections
+        .iter()
+        .position(|c| std::ptr::eq(c, db_url_conn))
+        .unwrap();
+    let db_url_creds = env.credentials_by_index.get(&db_url_idx).unwrap();
+    assert_eq!(db_url_creds.password.as_deref(), Some("pa$ss"));
+
+    // 2. Single-quoted URL with \$
+    let single_conn = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("SINGLE_URL"))
+        .unwrap();
+    let single_idx = env
+        .connections
+        .iter()
+        .position(|c| std::ptr::eq(c, single_conn))
+        .unwrap();
+    let single_creds = env.credentials_by_index.get(&single_idx).unwrap();
+    assert_eq!(single_creds.password.as_deref(), Some("sec\\$ret"));
+
+    // 3. Unquoted password with \$
+    let unquoted_conn = env
+        .connections
+        .iter()
+        .find(|c| c.name.contains("UNQUOTED_URL"))
+        .unwrap();
+    let unquoted_idx = env
+        .connections
+        .iter()
+        .position(|c| std::ptr::eq(c, unquoted_conn))
+        .unwrap();
+    let unquoted_creds = env.credentials_by_index.get(&unquoted_idx).unwrap();
+    assert_eq!(unquoted_creds.password.as_deref(), Some("raw$pass"));
+}

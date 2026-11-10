@@ -616,6 +616,7 @@
         "applyToAll": "Aksyon para sa lahat:"
       },
       "tabularisJsonHint": "Tabularis export file (.json)",
+      "projectConfigHint": "I-scan ang mga file ng .env o Docker Compose",
       "menuLabel": "Mag-import ng mga koneksyon…",
       "group": {
         "label": "Grupo:",

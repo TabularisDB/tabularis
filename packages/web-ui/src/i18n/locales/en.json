@@ -616,6 +616,7 @@
         "applyToAll": "Action for all:"
       },
       "tabularisJsonHint": "Tabularis export file (.json)",
+      "projectConfigHint": "Scan .env or Docker Compose files",
       "menuLabel": "Import connections…",
       "group": {
         "label": "Group:",
