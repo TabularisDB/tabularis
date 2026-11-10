@@ -375,6 +375,7 @@ enum RecordRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DatabaseObjectRpcCommand {
+    RoutineDebug,
     GetTableQueryTemplate,
     GetColumnStats,
     GetDropTableSql,
@@ -2523,6 +2524,7 @@ impl RecordRpcCommand {
 impl DatabaseObjectRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "routine_debug" => Self::RoutineDebug,
             "get_table_query_template" => Self::GetTableQueryTemplate,
             "get_column_stats" => Self::GetColumnStats,
             "get_drop_table_sql" => Self::GetDropTableSql,
@@ -3549,6 +3551,21 @@ fn decode_database_object_command(
     body: &[u8],
 ) -> Result<DatabaseObjectCommand, String> {
     Ok(match command {
+        DatabaseObjectRpcCommand::RoutineDebug => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase", deny_unknown_fields)]
+            struct Request {
+                connection_id: String,
+                version: u32,
+                command: crate::routine_debug::DebugCommand,
+            }
+            let request: Request = decode_payload(body)?;
+            DatabaseObjectCommand::RoutineDebug {
+                connection_id: request.connection_id,
+                version: request.version,
+                command: request.command,
+            }
+        }
         DatabaseObjectRpcCommand::GetColumnStats => {
             let request: ColumnStatsRpcRequest = decode_payload(body)?;
             DatabaseObjectCommand::GetColumnStats {

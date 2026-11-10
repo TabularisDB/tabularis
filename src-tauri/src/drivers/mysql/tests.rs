@@ -1100,3 +1100,151 @@ mod live_explain_tests {
         assert!(result.is_err(), "unexplainable statement must error");
     }
 }
+
+/// Live checks that the query timeout and Stop end the statement on the
+/// server, not just on the client. Each test looks for its own statement in
+/// `information_schema.PROCESSLIST`.
+///
+/// ```text
+/// TABULARIS_TEST_MYSQL=1 cargo test live_mysql_query_timeout -- --ignored
+/// ```
+#[cfg(test)]
+mod live_mysql_query_timeout {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use std::time::{Duration, Instant};
+
+    fn test_params() -> Option<ConnectionParams> {
+        if std::env::var("TABULARIS_TEST_MYSQL").is_err() {
+            return None;
+        }
+        Some(ConnectionParams {
+            driver: "mysql".to_string(),
+            host: Some(
+                std::env::var("TABULARIS_TEST_MYSQL_HOST")
+                    .unwrap_or_else(|_| "127.0.0.1".to_string()),
+            ),
+            port: Some(
+                std::env::var("TABULARIS_TEST_MYSQL_PORT")
+                    .ok()
+                    .and_then(|p| p.parse().ok())
+                    .unwrap_or(3306),
+            ),
+            username: Some(
+                std::env::var("TABULARIS_TEST_MYSQL_USER").unwrap_or_else(|_| "root".to_string()),
+            ),
+            password: Some(
+                std::env::var("TABULARIS_TEST_MYSQL_PASSWORD")
+                    .unwrap_or_else(|_| "Tabularis_Demo_2026!".to_string()),
+            ),
+            database: DatabaseSelection::Single(
+                std::env::var("TABULARIS_TEST_MYSQL_DB")
+                    .unwrap_or_else(|_| "information_schema".to_string()),
+            ),
+            ssl_mode: Some("disabled".to_string()),
+            ..Default::default()
+        })
+    }
+
+    /// Sleeps inside a `WHERE`, so both MySQL and MariaDB report error 1317
+    /// when it is stopped. A bare `SELECT SLEEP(n)` returns 1 on MySQL instead.
+    fn sleeping_query(marker: &str) -> String {
+        format!("SELECT 1 FROM DUAL WHERE SLEEP(60) /* {marker} */")
+    }
+
+    /// Whether another connection is running a statement containing `marker`.
+    async fn server_is_running(params: &ConnectionParams, marker: &str) -> bool {
+        let pool = crate::pool_manager::get_mysql_pool_with_id(params, Some(marker))
+            .await
+            .expect("connect to test mysql");
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM information_schema.PROCESSLIST \
+             WHERE ID <> CONNECTION_ID() AND COMMAND IN ('Query', 'Execute') \
+             AND INSTR(INFO, ?) > 0",
+        )
+        .bind(marker)
+        .fetch_one(&pool)
+        .await
+        .expect("read the process list");
+        count > 0
+    }
+
+    async fn wait_until(params: &ConnectionParams, marker: &str, running: bool) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            if server_is_running(params, marker).await == running {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        false
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_mysql_query_timeout_stops_the_statement_on_the_server() {
+        let Some(mut params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_MYSQL=1 to run this test");
+            return;
+        };
+        let marker = "tabularis_989_mysql_timeout";
+        // Each test gets its own pool: a pool outlives the runtime that made it.
+        params.connection_id = Some(format!("{marker}_run"));
+        params.query_timeout_secs = Some(1);
+        let queries = vec![
+            sleeping_query(marker),
+            "SELECT 1 AS still_usable".to_string(),
+        ];
+
+        let start = Instant::now();
+        let results = super::super::execute_batch(&params, &queries, None, 1, None, None)
+            .await
+            .expect("the batch completes");
+
+        let elapsed = start.elapsed();
+        assert!(elapsed < Duration::from_secs(10), "took {elapsed:?}");
+        let error = results[0].error.as_deref().unwrap_or_default();
+        assert!(
+            error.contains("stopped after 1 s"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            results[1].result.is_some(),
+            "the connection is usable after the kill: {:?}",
+            results[1].error
+        );
+        assert!(
+            wait_until(&params, marker, false).await,
+            "the server is still running the timed-out statement"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_mysql_dropped_run_stops_the_statement_on_the_server() {
+        let Some(mut params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_MYSQL=1 to run this test");
+            return;
+        };
+        let marker = "tabularis_989_mysql_stop";
+        params.connection_id = Some(format!("{marker}_run"));
+        let query = sleeping_query(marker);
+
+        // What the Stop button does: abort the task running the query.
+        let run = {
+            let params = params.clone();
+            tokio::spawn(async move {
+                super::super::execute_query(&params, &query, None, 1, None).await
+            })
+        };
+        assert!(
+            wait_until(&params, marker, true).await,
+            "the statement never started"
+        );
+        run.abort();
+
+        assert!(
+            wait_until(&params, marker, false).await,
+            "the server is still running the stopped statement"
+        );
+    }
+}
