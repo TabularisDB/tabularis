@@ -54,6 +54,7 @@ fn fixture() -> (tempfile::TempDir, RuntimeContext, Arc<TestSecrets>) {
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         }],
         ..Default::default()
     };

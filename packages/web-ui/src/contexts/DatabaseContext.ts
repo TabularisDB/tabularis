@@ -90,6 +90,8 @@ export interface SavedConnection {
     tag_ids?: string[];
     /** Deployment environment; production drives warnings and visuals. */
     environment?: 'development' | 'staging' | 'production';
+    /** Set on administrator-provisioned connections; absent means false. */
+    managed?: boolean;
 }
 
 export interface ConnectionGroup {

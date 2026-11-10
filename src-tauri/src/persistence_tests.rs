@@ -53,6 +53,7 @@ mod tests {
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         }
     }
 
@@ -245,6 +246,7 @@ mod tests {
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         };
         let file = ConnectionsFile {
             connections: vec![connection],

@@ -370,6 +370,11 @@ pub struct SavedConnection {
     /// write-confirmation warning and the visual identity in the UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
+    /// Set on connections provisioned by an administrator. A missing value
+    /// reads as `false`. The Web instance policy decides what the marker
+    /// protects: managed-only mode protects every connection regardless of it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub managed: bool,
 }
 
 /// A user-defined colored label. Tags are purely organizational: a

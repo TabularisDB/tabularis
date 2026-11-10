@@ -8,6 +8,7 @@ pub mod database_transfers;
 pub mod file_transfers;
 pub mod generic_exports;
 pub mod host_settings;
+pub mod managed_policy;
 pub mod mcp_host;
 pub mod metadata;
 pub mod notebooks;
@@ -29,4 +30,8 @@ pub mod ui_state;
 pub use api::{
     ApplicationApi, ApplicationError, ApplicationRequestContext, AuthorizationLevel,
     RuntimeApplicationApi,
+};
+pub use managed_policy::{
+    ConnectionAction, ConnectionPolicyMode, ManagedConnectionPolicy, PolicyDenial,
+    MANAGED_CONNECTION_DENIED,
 };

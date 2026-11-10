@@ -4,6 +4,7 @@ Guides for running Tabularis in a browser with `tabularis web`.
 
 - [WEB_MODE_OPERATIONS.md](WEB_MODE_OPERATIONS.md): Web CLI, local and remote operation, storage, limitations, plugins, troubleshooting, and upgrades.
 - [WEB_REMOTE_SECURITY.md](WEB_REMOTE_SECURITY.md): remote threat model and reverse-proxy deployment guide.
+- [WEB_MANAGED_MODE.md](WEB_MANAGED_MODE.md): administrator-controlled connections (`--connection-mode managed-only`).
 - [WEB_MODE_CONTAINERS.md](WEB_MODE_CONTAINERS.md): Docker images, Docker Compose, Helm chart, and the encrypted container secret store.
 - [WEB_MODE_UPGRADES.md](WEB_MODE_UPGRADES.md): upgrading a Web mode deployment.
 - [WEB_PERFORMANCE_RESILIENCE.md](WEB_PERFORMANCE_RESILIENCE.md): limits, admission control, and resilience checks.

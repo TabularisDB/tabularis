@@ -339,6 +339,7 @@ mod tests {
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         }
     }
 
@@ -373,6 +374,7 @@ mod tests {
             }),
             tag_ids: None,
             environment: None,
+            managed: false,
         };
 
         // Simulate the pattern used in update_connection after the fix.
@@ -389,6 +391,7 @@ mod tests {
             appearance: original_appearance,
             tag_ids: None,
             environment: None,
+            managed: false,
         };
 
         let app = updated
@@ -1338,6 +1341,7 @@ mod tests {
             tag_ids: None,
             environment: None,
             plugin_secret_keys: Vec::new(),
+            managed: false,
         }
     }
 

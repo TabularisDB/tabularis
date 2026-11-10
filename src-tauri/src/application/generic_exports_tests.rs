@@ -87,6 +87,7 @@ async fn large_query_exports_stream_through_disk_backed_single_use_downloads() {
                 appearance: None,
                 tag_ids: None,
                 environment: None,
+                managed: false,
             }],
             ..Default::default()
         },

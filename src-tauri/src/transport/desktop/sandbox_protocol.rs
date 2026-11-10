@@ -8,7 +8,8 @@ use tauri::http::{header, Request, Response, StatusCode};
 use tauri::{AppHandle, Runtime};
 
 // WebKit does not match 'self' for custom-scheme resources in an opaque sandbox.
-const GUEST_CSP: &str = "sandbox allow-scripts; default-src 'none'; script-src 'self' tabularis-plugin:; \
+const GUEST_CSP: &str =
+    "sandbox allow-scripts; default-src 'none'; script-src 'self' tabularis-plugin:; \
   style-src 'self' tabularis-plugin: 'unsafe-inline'; img-src data: blob:; font-src data:; \
   connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'";
 

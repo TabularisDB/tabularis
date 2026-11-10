@@ -220,10 +220,13 @@ pub fn run() {
                 application.context.clone(),
                 application_state.clone(),
             );
-            let application_api = std::sync::Arc::new(application::RuntimeApplicationApi::new(
-                application.context,
-                application_state.clone(),
-            ));
+            let application_api = std::sync::Arc::new(
+                application::RuntimeApplicationApi::new(
+                    application.context,
+                    application_state.clone(),
+                )
+                .with_connection_policy(web_args.connection_policy()),
+            );
 
             let server_result =
                 transport::web::server::run(transport::web::server::WebServerOptions {

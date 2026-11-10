@@ -787,6 +787,7 @@ fn sql_builder_secrets_bind_stored_plugin_secrets_and_tolerate_missing_ones() {
         appearance: None,
         tag_ids: None,
         environment: None,
+        managed: false,
     };
 
     bind_sql_builder_secrets(&runtime, &mut connection);
