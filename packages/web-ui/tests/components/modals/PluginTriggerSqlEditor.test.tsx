@@ -1,9 +1,10 @@
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {useEffect} from 'react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
 import type {DriverCapabilities} from '@/types/plugins';
 
-const mocks = vi.hoisted(() => ({call: vi.fn()}));
+const mocks = vi.hoisted(() => ({call: vi.fn(), editorValue: undefined as string | undefined}));
 vi.mock('@/hooks/useTabularisClient', () => ({useTabularisClient: () => mocks}));
 vi.mock('@/hooks/useDatabase', () => ({useDatabase: () => ({activeSchema: undefined})}));
 vi.mock('@/hooks/useAlert', () => ({useAlert: () => ({showAlert: vi.fn()})}));
@@ -13,16 +14,23 @@ vi.mock('@/components/ui/SqlEditorWrapper', () => ({
     SqlEditorWrapper: ({
         initialValue,
         onChange,
+        onMount,
     }: {
         initialValue: string;
         onChange: (value: string) => void;
-    }) => (
-        <textarea
-            aria-label="Trigger SQL"
-            value={initialValue}
-            onChange={(event) => onChange(event.target.value)}
-        />
-    ),
+        onMount?: (editor: {getValue: () => string}) => void;
+    }) => {
+        useEffect(() => {
+            onMount?.({getValue: () => mocks.editorValue ?? initialValue});
+        }, [initialValue, onMount]);
+        return (
+            <textarea
+                aria-label="Trigger SQL"
+                value={initialValue}
+                onChange={(event) => onChange(event.target.value)}
+            />
+        );
+    },
 }));
 
 const sql =
@@ -41,6 +49,22 @@ const props = {
 describe('plugin trigger SQL editor', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mocks.editorValue = undefined;
+    });
+
+    it('saves the current editor buffer before its debounced change reaches React', async () => {
+        mocks.call.mockImplementation(async (command) =>
+            command === 'get_trigger_definition' ? sql : undefined,
+        );
+        render(<TriggerEditorModal {...props} />);
+        await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(sql));
+        mocks.editorValue = sql.replace('NEW.N=1', 'NEW.N=99');
+        fireEvent.click(screen.getByRole('button', {name: 'triggers.save'}));
+        await waitFor(() => expect(props.onClose).toHaveBeenCalledOnce());
+        expect(mocks.call).toHaveBeenLastCalledWith(
+            'create_trigger',
+            expect.objectContaining({triggerSql: mocks.editorValue}),
+        );
     });
 
     it('saves the complete native PSQL statement without splitting or dropping the trigger', async () => {

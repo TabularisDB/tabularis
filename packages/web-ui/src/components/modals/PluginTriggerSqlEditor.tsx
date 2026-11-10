@@ -1,4 +1,5 @@
-import {useEffect, useId, useState} from 'react';
+import {useEffect, useId, useRef, useState} from 'react';
+import type {editor} from 'monaco-editor';
 import {useTranslation} from 'react-i18next';
 import {Loader2} from 'lucide-react';
 import {Modal} from '@/components/ui/Modal';
@@ -22,6 +23,7 @@ export const PluginTriggerSqlEditor = ({
     const client = useTabularisClient();
     const {t} = useTranslation();
     const titleId = useId();
+    const editorRef = useRef<Pick<editor.IStandaloneCodeEditor, 'getValue'> | null>(null);
     const {activeSchema} = useDatabase();
     const resolvedSchema = schema ?? activeSchema ?? undefined;
     const [sql, setSql] = useState('');
@@ -64,14 +66,15 @@ export const PluginTriggerSqlEditor = ({
     ]);
 
     const save = async () => {
-        if (saving || loading || !sql.trim()) return;
+        const statement = editorRef.current?.getValue() ?? sql;
+        if (saving || loading || !statement.trim()) return;
         setSaving(true);
         setError(null);
         try {
             // Never drop an existing trigger before executing the driver's edit script.
             await client.call('create_trigger', {
                 connectionId,
-                triggerSql: sql,
+                triggerSql: statement,
                 ...(resolvedSchema ? {schema: resolvedSchema} : {}),
                 ...(database ? {database} : {}),
             });
@@ -115,6 +118,9 @@ export const PluginTriggerSqlEditor = ({
                         <div className="h-80 border border-default rounded overflow-hidden">
                             <SqlEditorWrapper
                                 initialValue={sql}
+                                onMount={(editor) => {
+                                    editorRef.current = editor;
+                                }}
                                 onChange={setSql}
                                 height="100%"
                                 options={{readOnly: saving}}
