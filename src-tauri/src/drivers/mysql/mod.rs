@@ -2,6 +2,7 @@ pub mod export;
 pub mod extract;
 pub mod types;
 
+mod cancel;
 mod explain;
 mod helpers;
 mod multi_result;
@@ -1427,13 +1428,13 @@ pub async fn get_routine_definition(
     Ok(definition)
 }
 
-/// Acquires a single MySQL connection from the pool, honouring the optional
-/// schema override (which routes to a per-database pool to avoid invalidating
-/// the prepared-statement cache via `USE`).
+/// Acquires a single MySQL connection from the pool for a run, honouring the
+/// optional schema override (which routes to a per-database pool to avoid
+/// invalidating the prepared-statement cache via `USE`).
 async fn acquire_mysql_conn(
     params: &ConnectionParams,
     schema: Option<&str>,
-) -> Result<sqlx::pool::PoolConnection<sqlx::MySql>, String> {
+) -> Result<cancel::InFlight, String> {
     let pool = if let Some(db) = schema {
         let mut p = params.clone();
         p.database = crate::models::DatabaseSelection::Single(db.to_string());
@@ -1441,7 +1442,8 @@ async fn acquire_mysql_conn(
     } else {
         get_mysql_pool(params).await?
     };
-    pool.acquire().await.map_err(|e| e.to_string())
+    let conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    cancel::InFlight::new(conn, &pool).await
 }
 
 /// Executes one statement on an already-acquired connection. Used by both
@@ -1638,11 +1640,15 @@ pub async fn execute_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
-    let mut conn = acquire_mysql_conn(params, schema).await?;
+    let mut run = acquire_mysql_conn(params, schema).await?;
     // `exec_on_mysql_conn` runs the user's SQL verbatim (no literal inlining),
     // so it only needs to know whether to use the text protocol.
     let text = TextProto::protocol_only(force_text_protocol(params));
-    exec_on_mysql_conn(&mut *conn, query, limit, page, text).await
+    let outcome = run
+        .exec_within_query_timeout(params, query, limit, page, text)
+        .await?;
+    run.release();
+    outcome
 }
 
 /// Runs one statement inside `START TRANSACTION READ ONLY` and always rolls
@@ -1660,17 +1666,17 @@ pub async fn execute_read_only_query(
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
     use sqlx::Executor as _;
-    let mut guard =
-        crate::drivers::common::DetachOnDrop::new(acquire_mysql_conn(params, schema).await?);
-    guard
-        .conn()
+    let mut run = acquire_mysql_conn(params, schema).await?;
+    run.conn()
         .execute(sqlx::raw_sql("START TRANSACTION READ ONLY"))
         .await
         .map_err(|e| e.to_string())?;
     let text = TextProto::protocol_only(force_text_protocol(params));
-    let outcome = exec_on_mysql_conn(guard.conn(), query, limit, page, text).await;
-    match guard.conn().execute(sqlx::raw_sql("ROLLBACK")).await {
-        Ok(_) => guard.release(),
+    let outcome = run
+        .exec_within_query_timeout(params, query, limit, page, text)
+        .await?;
+    match run.conn().execute(sqlx::raw_sql("ROLLBACK")).await {
+        Ok(_) => run.release(),
         Err(e) => log::warn!("MySQL: ROLLBACK after a read-only query failed: {e}"),
     }
     outcome
@@ -1693,20 +1699,23 @@ pub async fn execute_batch(
     schema: Option<&str>,
     on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
 ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
-    let mut conn = acquire_mysql_conn(params, schema).await?;
+    let mut run = acquire_mysql_conn(params, schema).await?;
     // See `execute_query`: statements run verbatim, so only the protocol flag
     // is needed here, not the literal-escaping mode.
     let text = TextProto::protocol_only(force_text_protocol(params));
     let mut results = Vec::with_capacity(queries.len());
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
-        let outcome = exec_on_mysql_conn(&mut *conn, q, limit, page, text).await;
+        let outcome = run
+            .exec_within_query_timeout(params, q, limit, page, text)
+            .await?;
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
         if let Some(cb) = on_progress {
             cb(idx, &res);
         }
         results.push(res);
     }
+    run.release();
     Ok(results)
 }
 
@@ -2020,7 +2029,7 @@ impl MysqlDriver {
                     column_comments: true,
                     drop_table_sql: false,
                     column_stats: false,
-                    query_timeout: false,
+                    query_timeout: true,
                     alter_column: true,
                     create_foreign_keys: true,
                     no_connection_required: false,
