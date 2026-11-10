@@ -68,9 +68,13 @@ pub async fn register_driver(driver: impl DatabaseDriver + 'static) {
     let id = driver.manifest().id.clone();
     log::info!("Registering driver: {} ({})", driver.manifest().name, id);
     let capabilities = &driver.manifest().capabilities;
-    set_local_path_driver(&id, capabilities.file_based || capabilities.folder_based);
-    set_socks5_proxy_driver(&id, capabilities.socks5_proxy);
+    let is_local = capabilities.file_based || capabilities.folder_based;
+    let uses_socks5_proxy = capabilities.socks5_proxy;
+    // Update the capability sets under the registry lock, so an overlapping
+    // `unregister_driver` cannot clear them after this driver is inserted.
     let mut reg = REGISTRY.write().await;
+    set_local_path_driver(&id, is_local);
+    set_socks5_proxy_driver(&id, uses_socks5_proxy);
     reg.insert(id, Arc::new(driver));
 }
 
@@ -107,10 +111,10 @@ pub async fn is_registered(id: &str) -> bool {
 pub async fn unregister_driver(id: &str) -> bool {
     let driver = {
         let mut reg = REGISTRY.write().await;
+        set_local_path_driver(id, false);
+        set_socks5_proxy_driver(id, false);
         reg.remove(id)
     };
-    set_local_path_driver(id, false);
-    set_socks5_proxy_driver(id, false);
     if let Some(d) = driver {
         d.shutdown().await;
         log::info!("Unregistered driver: {}", id);

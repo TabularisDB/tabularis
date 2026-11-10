@@ -170,3 +170,36 @@ fn socks5_proxy_driver_flag_tracks_set_and_clear() {
     set_socks5_proxy_driver(id, false);
     assert!(!is_socks5_proxy_driver(id));
 }
+
+/// A plugin reload unregisters the old driver while its replacement
+/// registers. Whatever order the two reach the registry lock in, the
+/// capability flags must describe the driver left in the registry.
+#[tokio::test(flavor = "current_thread")]
+async fn overlapping_unregister_and_register_keep_the_capability_flags() {
+    let _guard = REGISTRY_TEST_LOCK.lock().await;
+    let id = "__test_socks5_proxy_reregister__";
+    let driver = || {
+        let mut manifest = fake_manifest(id);
+        manifest.capabilities.socks5_proxy = true;
+        manifest.capabilities.file_based = true;
+        crate::plugins::driver::test_driver_with_manifest(manifest, |_| Ok(serde_json::Value::Null))
+    };
+    register_driver(driver()).await;
+
+    let held = REGISTRY.write().await;
+    let mut unregister = Box::pin(unregister_driver(id));
+    let mut register = Box::pin(register_driver(driver()));
+    assert!(futures::poll!(&mut unregister).is_pending());
+    assert!(futures::poll!(&mut register).is_pending());
+    drop(held);
+    assert!(unregister.await);
+    register.await;
+
+    assert!(get_driver(id).await.is_some());
+    assert!(is_socks5_proxy_driver(id));
+    assert!(is_local_path_driver(id));
+
+    assert!(unregister_driver(id).await);
+    assert!(!is_socks5_proxy_driver(id));
+    assert!(!is_local_path_driver(id));
+}
