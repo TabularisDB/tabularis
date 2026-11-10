@@ -94,11 +94,10 @@ pub const MAX_LOCAL_ARCHIVE_BYTES: usize = lifecycle::ARCHIVE_BYTES;
 pub async fn preview_local_theme_package(
     path: String,
 ) -> Result<lifecycle::LocalThemePreview, String> {
-    let bytes = crate::async_rt::spawn_blocking(move || {
-        lifecycle::read_local_archive(Path::new(&path))
-    })
-    .await
-    .map_err(|e| e.to_string())??;
+    let bytes =
+        crate::async_rt::spawn_blocking(move || lifecycle::read_local_archive(Path::new(&path)))
+            .await
+            .map_err(|e| e.to_string())??;
     preview_local_package_bytes(bytes).await
 }
 

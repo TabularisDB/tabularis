@@ -1,6 +1,6 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {parseExplain, type ExplainPlan} from '@tabularis/explain';
+import type {ExplainPlan} from '@tabularis/explain';
 import {save} from '@tauri-apps/plugin-dialog';
 import {writeFile} from '@tauri-apps/plugin-fs';
 import {VisualExplainView} from '@/components/explain/VisualExplainView';
@@ -42,10 +42,32 @@ const showAlert = vi.fn<AlertContextType['showAlert']>();
 const showToast = vi.fn<ToastContextType['showToast']>();
 
 function createTestPlan(rawOutput?: string): ExplainPlan {
-    const plan = parseExplain('[{"Plan":{"Node Type":"Seq Scan","Relation Name":"users"}}]');
     return {
-        ...plan,
-        raw_output: rawOutput,
+        root: {
+            id: 'test-root',
+            node_type: 'Seq Scan',
+            relation: 'users',
+            startup_cost: null,
+            total_cost: null,
+            plan_rows: null,
+            actual_rows: null,
+            actual_time_ms: null,
+            actual_loops: null,
+            buffers_hit: null,
+            buffers_read: null,
+            filter: null,
+            index_condition: null,
+            join_type: null,
+            hash_condition: null,
+            extra: {},
+            children: [],
+        },
+        planning_time_ms: null,
+        execution_time_ms: null,
+        original_query: 'SELECT 1',
+        driver: 'postgres',
+        has_analyze_data: false,
+        raw_output: rawOutput ?? null,
     };
 }
 

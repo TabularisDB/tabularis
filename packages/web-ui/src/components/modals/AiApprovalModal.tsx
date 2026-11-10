@@ -72,10 +72,16 @@ export function AiApprovalModal({approval, onApprove, onDeny, onClose}: AiApprov
         return () => window.removeEventListener('keydown', handler, true);
     }, [planExpanded]);
 
-    const explainPlan = useMemo<ExplainPlan | null>(
-        () => parseApprovalExplainPlan(approval.explainPlan),
-        [approval.explainPlan],
-    );
+    const [explainPlan, setExplainPlan] = useState<ExplainPlan | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        void parseApprovalExplainPlan(approval.explainPlan).then((plan) => {
+            if (!cancelled) setExplainPlan(plan);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [approval.explainPlan]);
 
     const planSummary = useMemo(
         () => (explainPlan ? getExplainPlanSummary(explainPlan) : null),

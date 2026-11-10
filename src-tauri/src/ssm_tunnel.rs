@@ -267,7 +267,10 @@ pub fn classify_failure(output: &str) -> Option<&'static str> {
             "The target is not connected to Systems Manager. Check that the SSM Agent is installed, running and has an instance profile allowing ssm:UpdateInstanceInformation.",
         );
     }
-    if out.contains("ssm:startsession") || out.contains("accessdenied") || out.contains("not authorized") {
+    if out.contains("ssm:startsession")
+        || out.contains("accessdenied")
+        || out.contains("not authorized")
+    {
         return Some(
             "Access denied. The caller needs ssm:StartSession on this target and on the port-forwarding document.",
         );

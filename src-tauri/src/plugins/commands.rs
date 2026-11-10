@@ -17,4 +17,3 @@ pub fn get_plugin_dir(plugin_id: String) -> Result<String, String> {
         .ok_or_else(|| "Plugin path contains invalid UTF-8".to_string())
         .map(str::to_string)
 }
-

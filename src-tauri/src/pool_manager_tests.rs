@@ -7,9 +7,9 @@ mod tests {
         postgres_pool_max_size_from_value, postgres_startup_script_timeout, query_timeout,
         remove_pools_with_prefix, with_connect_timeout, DEFAULT_POSTGRES_POOL_MAX_SIZE,
     };
-    use std::time::Duration;
     use sqlx::mysql::MySqlSslMode;
     use std::collections::HashMap;
+    use std::time::Duration;
 
     fn connection_params(driver: &str, ssl_mode: Option<&str>) -> ConnectionParams {
         ConnectionParams {
@@ -598,8 +598,7 @@ mod tests {
         let options = build_mysql_options(&params, None).unwrap();
         let dbg = format!("{options:?}");
         assert!(
-            dbg.contains("pipes_as_concat: true")
-                && dbg.contains("no_engine_substitution: true"),
+            dbg.contains("pipes_as_concat: true") && dbg.contains("no_engine_substitution: true"),
             "expected forced sql_mode by default, got: {dbg}"
         );
     }
@@ -651,8 +650,7 @@ mod tests {
         let options = build_mysql_options(&params, None).unwrap();
         let dbg = format!("{options:?}");
         assert!(
-            dbg.contains("pipes_as_concat: false")
-                && dbg.contains("no_engine_substitution: false"),
+            dbg.contains("pipes_as_concat: false") && dbg.contains("no_engine_substitution: false"),
             "expected sql_mode forcing disabled, got: {dbg}"
         );
     }
@@ -740,8 +738,7 @@ mod tests {
 
         let err = build_mysql_options(&params, None).unwrap_err();
         assert!(
-            err.contains("IAM")
-                && (err.contains("TLS") || err.contains("SSL")),
+            err.contains("IAM") && (err.contains("TLS") || err.contains("SSL")),
             "expected IAM/SSL error, got: {}",
             err
         );
@@ -950,10 +947,8 @@ mod tests {
         // IAM auth + ssl_ca + required must: (a) escalate to VerifyCa, and
         // (b) still opt in to the cleartext plugin. Regression test for the
         // exact user scenario reported on 2026-06-23.
-        let mut params = mysql_params_with_ca(
-            "required",
-            "/Users/dperez/.ssh/rds-combined-ca-bundle.pem",
-        );
+        let mut params =
+            mysql_params_with_ca("required", "/Users/dperez/.ssh/rds-combined-ca-bundle.pem");
         params.use_iam_auth = Some(true);
         params.password = Some("fake-rds-auth-token".to_string());
         let opts = build_mysql_options(&params, None).expect("must build");
@@ -1104,10 +1099,8 @@ mod tests {
     /// pre-signed RDS auth token.
     #[test]
     fn mysql_options_iam_escalation_preserved_under_rustls() {
-        let mut params = mysql_params_with_ca(
-            "required",
-            "/Users/dperez/.ssh/rds-combined-ca-bundle.pem",
-        );
+        let mut params =
+            mysql_params_with_ca("required", "/Users/dperez/.ssh/rds-combined-ca-bundle.pem");
         params.use_iam_auth = Some(true);
         params.password = Some("fake-rds-auth-token".to_string());
         let opts = build_mysql_options(&params, None).expect("must build");
@@ -1190,7 +1183,10 @@ mod postgres_ssl_config_tests {
 
         params.connect_timeout_secs = Some(4);
         let cfg = build_postgres_configurations(&params).expect("valid config");
-        assert_eq!(cfg.get_connect_timeout(), Some(&std::time::Duration::from_secs(4)));
+        assert_eq!(
+            cfg.get_connect_timeout(),
+            Some(&std::time::Duration::from_secs(4))
+        );
     }
 
     #[test]
@@ -1291,8 +1287,7 @@ mod postgres_ssl_config_tests {
             ssl_mode: None,
             ..Default::default()
         };
-        let unset_cfg =
-            build_postgres_configurations(&unset_params).expect("unset ssl_mode");
+        let unset_cfg = build_postgres_configurations(&unset_params).expect("unset ssl_mode");
         assert_eq!(blank_cfg.get_ssl_mode(), PgSslMode::Prefer);
         assert_eq!(unset_cfg.get_ssl_mode(), PgSslMode::Prefer);
         assert_eq!(blank_cfg.get_ssl_mode(), unset_cfg.get_ssl_mode());
@@ -1671,7 +1666,10 @@ mod startup_script_tests {
             .fetch_one(&pool)
             .await
             .expect("startup_marker table should exist");
-        assert!(count >= 1, "expected at least one startup INSERT, got {count}");
+        assert!(
+            count >= 1,
+            "expected at least one startup INSERT, got {count}"
+        );
 
         close_pool_with_id(&params, Some(&conn_id)).await;
     }

@@ -97,7 +97,10 @@ async fn announces_committed_personal_theme_changes() {
 }
 
 fn catalog_contains(runtime: &RuntimeContext, name: &str) -> bool {
-    catalog(runtime).themes.iter().any(|entry| entry.name == name)
+    catalog(runtime)
+        .themes
+        .iter()
+        .any(|entry| entry.name == name)
 }
 
 #[tokio::test]
@@ -124,9 +127,11 @@ async fn reads_uploaded_archives_without_consuming_the_token() {
         assert_eq!(bytes, b"PK-bytes");
     }
     // Another session, or another purpose, cannot use the token.
-    assert!(read_uploaded_archive(&runtime, Uuid::new_v4(), &metadata.token)
-        .await
-        .is_err());
+    assert!(
+        read_uploaded_archive(&runtime, Uuid::new_v4(), &metadata.token)
+            .await
+            .is_err()
+    );
     // Invalid archives surface the package validator's error.
     assert!(execute(
         &runtime,

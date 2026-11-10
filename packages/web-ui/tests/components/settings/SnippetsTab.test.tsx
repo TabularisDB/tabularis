@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
-import {render, screen, fireEvent} from '@testing-library/react';
+import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {SnippetsTab} from '@/components/settings/SnippetsTab';
 import {saveSqlSnippets, type SqlSnippet} from '@/utils/sqlSnippets';
 
@@ -7,6 +7,54 @@ vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key: string, defaultValue?: string) => defaultValue || key,
     }),
+}));
+
+const mocks = vi.hoisted(() => ({
+    colorize: vi.fn(async (sql: string) => `<span>${sql}</span>`),
+    theme: {id: 'test'},
+}));
+vi.mock('@/hooks/useEditorTheme', () => ({useEditorTheme: () => mocks.theme}));
+vi.mock('@/hooks/useDrivers', () => ({
+    useDrivers: () => ({
+        drivers: [
+            {
+                id: 'postgres',
+                name: 'PostgreSQL',
+                is_builtin: true,
+                capabilities: {sql_dialect: 'postgres'},
+            },
+            {id: 'mysql', name: 'MySQL', is_builtin: true, capabilities: {sql_dialect: 'mysql'}},
+            {id: 'sqlite', name: 'SQLite', is_builtin: true, capabilities: {sql_dialect: 'sqlite'}},
+            {
+                id: 'oracle',
+                name: 'Oracle',
+                is_builtin: false,
+                capabilities: {sql_dialect: 'oracle'},
+            },
+        ],
+    }),
+}));
+vi.mock('@/utils/monaco', () => ({
+    ensureMonaco: async () => ({editor: {colorize: mocks.colorize}}),
+}));
+vi.mock('@/themes/themeRuntime', () => ({getMonacoThemeId: () => 'test'}));
+vi.mock('@/themes/themeUtils', () => ({loadMonacoTheme: vi.fn()}));
+vi.mock('@/components/ui/LazyMonaco', () => ({
+    MonacoEditor: ({
+        value,
+        onChange,
+        options,
+    }: {
+        value: string;
+        onChange: (v: string) => void;
+        options: {ariaLabel: string};
+    }) => (
+        <textarea
+            aria-label={options.ariaLabel}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+        />
+    ),
 }));
 
 describe('SnippetsTab', () => {
@@ -35,7 +83,7 @@ describe('SnippetsTab', () => {
         fireEvent.change(screen.getByPlaceholderText(/e.g. selorders/i), {
             target: {value: 'invalid prefix with spaces'},
         });
-        fireEvent.change(screen.getByPlaceholderText(/SELECT \${1:columns}/i), {
+        fireEvent.change(screen.getByRole('textbox', {name: 'Snippet Body'}), {
             target: {value: 'SELECT 1;'},
         });
         fireEvent.click(screen.getByRole('button', {name: /Save/i}));
@@ -57,7 +105,7 @@ describe('SnippetsTab', () => {
         fireEvent.change(screen.getByPlaceholderText(/e.g. selorders/i), {
             target: {value: 'cntp'},
         });
-        fireEvent.change(screen.getByPlaceholderText(/SELECT \${1:columns}/i), {
+        fireEvent.change(screen.getByRole('textbox', {name: 'Snippet Body'}), {
             target: {value: 'SELECT COUNT(*) FROM orders WHERE status = ${1:pending};'},
         });
 
@@ -65,6 +113,73 @@ describe('SnippetsTab', () => {
 
         expect(screen.getByText('Count Pending')).toBeInTheDocument();
         expect(screen.getByText('cntp')).toBeInTheDocument();
+    });
+
+    it('preserves the snippet body and selected dialect when saving', () => {
+        render(<SnippetsTab />);
+        fireEvent.click(screen.getByRole('button', {name: /New Snippet/i}));
+        fireEvent.change(screen.getByPlaceholderText(/e.g. selorders/i), {
+            target: {value: 'pending'},
+        });
+        fireEvent.change(screen.getByRole('textbox', {name: 'Snippet Body'}), {
+            target: {value: 'SELECT ${1:column} FROM orders;'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'Dialect Scope'}));
+        fireEvent.click(screen.getByText('PostgreSQL'));
+        fireEvent.click(screen.getByRole('button', {name: /Save/i}));
+        expect(screen.getByText('SELECT ${1:column} FROM orders;')).toBeInTheDocument();
+        expect(screen.getByText('PostgreSQL')).toBeInTheDocument();
+    });
+
+    it('lists enabled driver scopes and saves a plugin-specific snippet', () => {
+        render(<SnippetsTab />);
+        fireEvent.click(screen.getByRole('button', {name: /New Snippet/i}));
+        fireEvent.change(screen.getByPlaceholderText(/e.g. selorders/i), {target: {value: 'ora'}});
+        fireEvent.change(screen.getByRole('textbox', {name: 'Snippet Body'}), {
+            target: {value: 'SELECT * FROM dual;'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'Dialect Scope'}));
+        fireEvent.click(screen.getByText('Oracle'));
+        fireEvent.click(screen.getByRole('button', {name: /Save/i}));
+        expect(screen.getByText('Oracle')).toBeInTheDocument();
+    });
+
+    it('highlights previews with the snippet dialect', async () => {
+        saveSqlSnippets([
+            {
+                id: 'pg',
+                name: 'Postgres sample',
+                prefix: 'pg',
+                body: 'SELECT 1;',
+                dialect: 'postgres',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'my',
+                name: 'MySQL sample',
+                prefix: 'my',
+                body: 'SELECT 2;',
+                dialect: 'mysql',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'sq',
+                name: 'SQLite sample',
+                prefix: 'sq',
+                body: 'SELECT 3;',
+                dialect: 'sqlite',
+                createdAt: '',
+                updatedAt: '',
+            },
+        ]);
+        render(<SnippetsTab />);
+        await waitFor(() => {
+            expect(mocks.colorize).toHaveBeenCalledWith('SELECT 1;', 'pgsql', {tabSize: 4});
+            expect(mocks.colorize).toHaveBeenCalledWith('SELECT 2;', 'mysql', {tabSize: 4});
+            expect(mocks.colorize).toHaveBeenCalledWith('SELECT 3;', 'sql', {tabSize: 4});
+        });
     });
 
     it('edits an existing snippet', () => {

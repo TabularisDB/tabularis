@@ -123,7 +123,10 @@ fn package_location(
     if super::locations::package_registry(&location)? != registry {
         return Err("Installed theme identity changed; refresh the catalog".into());
     }
-    let namespace = location.parent().ok_or("Missing theme parent")?.to_path_buf();
+    let namespace = location
+        .parent()
+        .ok_or("Missing theme parent")?
+        .to_path_buf();
     files::check_path(&location)?;
     if !fs::symlink_metadata(&location)
         .map_err(|e| e.to_string())?
@@ -160,7 +163,9 @@ pub fn set_package_enabled(
     package: &str,
     enabled: bool,
 ) -> Result<(), String> {
-    let storage = root.join(catalog::PACKAGES_DIR).join(super::locations::directory_name());
+    let storage = root
+        .join(catalog::PACKAGES_DIR)
+        .join(super::locations::directory_name());
     // Serialize flat-bundle mutations with installs into the canonical folder.
     package_location(root, registry, package)?;
     files::create_directory(&storage)?;
@@ -180,14 +185,18 @@ pub fn set_package_enabled(
 }
 
 pub fn remove_package(root: &Path, registry: &str, package: &str) -> Result<ThemeCommit, String> {
-    let storage = root.join(catalog::PACKAGES_DIR).join(super::locations::directory_name());
+    let storage = root
+        .join(catalog::PACKAGES_DIR)
+        .join(super::locations::directory_name());
     package_location(root, registry, package)?;
     files::create_directory(&storage)?;
     let _lock = lock_namespace(&storage)?;
     let (namespace, location) = package_location(root, registry, package)?;
     let fallback = root.join(catalog::PACKAGES_DIR).join(package);
-    if !crate::plugins::layout::is_kind_directory(package) && fallback != location
-        && super::locations::is_theme_package(&fallback).unwrap_or(false) {
+    if !crate::plugins::layout::is_kind_directory(package)
+        && fallback != location
+        && super::locations::is_theme_package(&fallback).unwrap_or(false)
+    {
         fs::remove_dir_all(&fallback).map_err(|e| e.to_string())?;
     }
     let removed = namespace.join(format!(".removed-{}", uuid::Uuid::new_v4()));

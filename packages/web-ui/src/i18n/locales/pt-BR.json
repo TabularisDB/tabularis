@@ -491,6 +491,12 @@
     "import": "Importar Conexões",
     "exportTitle": "Exportar Conexões",
     "exportWarning": "O arquivo exportado conterá suas senhas de banco de dados e SSH em texto simples. Guarde-o com segurança.",
+    "exportSecretsConfirmation": {
+      "title": "Confirmar exportação de segredos",
+      "message": "Exportar senhas salvas, chaves SSH e URIs de conexão em texto simples?",
+      "export": "Exportar",
+      "cancel": "Cancelar"
+    },
     "exportModal": {
       "title": "Exportar Conexões",
       "subtitle": "Escolha como exportar suas conexões",
@@ -759,6 +765,8 @@
     "appearance_editorTabSize": "Tamanho da Tabulação",
     "appearance_editorWordWrap": "Quebra de Linha",
     "appearance_editorWordWrapDesc": "Quebra linhas longas no editor em vez de rolar horizontalmente.",
+    "appearance_editorMinimap": "Mostrar minimapa",
+    "appearance_editorMinimapDesc": "Exibe uma visão em miniatura dos scripts SQL para navegar rapidamente.",
     "appearance_editorHighlightInvisibleCharacters": "Mostrar caracteres invisíveis",
     "appearance_editorHighlightInvisibleCharactersDesc": "Destaca caracteres Unicode ocultos e caracteres parecidos no SQL.",
     "appearance_editorShowLineNumbers": "Mostrar Números de Linha",
@@ -1011,6 +1019,8 @@
       "enabled": "Ativado",
       "disabled": "Desativado",
       "openFolder": "Abrir pasta de plugins",
+      "legacyGoogleSheetsOAuthHint": "Atualize o plugin Google Sheets para restaurar o login do Google nesta versão do Tabularis.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "Falha na Instalação",
         "subtitle": "Ocorreu um erro ao instalar o plugin. Veja os detalhes abaixo.",
@@ -2640,7 +2650,10 @@
     "downloading": "Baixando...",
     "uploading": "Enviando...",
     "openSidebar": "Abrir no editor",
-    "imagePreview": "Pré-visualização da imagem"
+    "imagePreview": "Pré-visualização da imagem",
+    "editAs": "Editar como",
+    "text": "Texto",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Explicação Visual",
@@ -3221,5 +3234,11 @@
     "diff": "Diferenças do arquivo revisado",
     "choose": "Selecione um script para revisar suas diferenças antes de incluí-lo.",
     "message": "Mensagem do commit"
+  },
+  "aiInline": {
+    "title": "Conclusão de IA em linha",
+    "enable": "Sugerir SQL ao digitar",
+    "privacy": "Desativada por padrão. Usa o provedor e modelo de IA selecionados abaixo, incluindo provedores locais. Envia até 4.000 caracteres antes do cursor, 1.000 depois e 8.000 caracteres de nomes de tabelas/esquemas em cache. O SQL pode conter valores sensíveis. Nunca adiciona linhas de resultados, comentários de tabelas ou credenciais. Não faz consultas adicionais ao banco.",
+    "keys": "Tab aceita e Escape descarta. O preenchimento automático e a indentação têm prioridade. Aceitar apenas insere texto; revise antes de executar."
   }
 }

@@ -101,10 +101,7 @@ pub fn single_db_before_multi_transition(
     if previous.is_multi() || !new.is_multi() {
         return None;
     }
-    previous
-        .as_vec()
-        .into_iter()
-        .find(|s| !s.trim().is_empty())
+    previous.as_vec().into_iter().find(|s| !s.trim().is_empty())
 }
 
 impl std::fmt::Display for DatabaseSelection {
@@ -717,8 +714,8 @@ pub struct ViewInfo {
 pub struct TriggerInfo {
     pub name: String,
     pub table_name: String,
-    pub event: String,   // e.g. "INSERT", "UPDATE", "DELETE", "INSERT OR UPDATE"
-    pub timing: String,  // "BEFORE", "AFTER", "INSTEAD OF"
+    pub event: String,  // e.g. "INSERT", "UPDATE", "DELETE", "INSERT OR UPDATE"
+    pub timing: String, // "BEFORE", "AFTER", "INSTEAD OF"
     pub definition: Option<String>,
 }
 
@@ -800,7 +797,9 @@ mod appearance_tests {
 
     #[test]
     fn icon_override_pack_roundtrip() {
-        let v = IconOverride::Pack { id: "server".into() };
+        let v = IconOverride::Pack {
+            id: "server".into(),
+        };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"pack","id":"server"}"#);
         let back: IconOverride = serde_json::from_str(&s).unwrap();
@@ -809,7 +808,9 @@ mod appearance_tests {
 
     #[test]
     fn icon_override_emoji_roundtrip() {
-        let v = IconOverride::Emoji { value: "🐘".into() };
+        let v = IconOverride::Emoji {
+            value: "🐘".into()
+        };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"emoji","value":"🐘"}"#);
         let back: IconOverride = serde_json::from_str(&s).unwrap();
@@ -818,7 +819,9 @@ mod appearance_tests {
 
     #[test]
     fn icon_override_image_roundtrip() {
-        let v = IconOverride::Image { path: "connection-icons/abc.png".into() };
+        let v = IconOverride::Image {
+            path: "connection-icons/abc.png".into(),
+        };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"image","path":"connection-icons/abc.png"}"#);
         let back: IconOverride = serde_json::from_str(&s).unwrap();
@@ -834,7 +837,10 @@ mod appearance_tests {
 
     #[test]
     fn connection_appearance_with_only_color_serializes_compactly() {
-        let a = ConnectionAppearance { icon: None, accent_color: Some("#ff0000".into()) };
+        let a = ConnectionAppearance {
+            icon: None,
+            accent_color: Some("#ff0000".into()),
+        };
         let s = serde_json::to_string(&a).unwrap();
         assert_eq!(s, r##"{"accentColor":"#ff0000"}"##);
     }

@@ -490,6 +490,12 @@
     "import": "연결 가져오기",
     "exportTitle": "연결 내보내기",
     "exportWarning": "내보낸 파일에는 데이터베이스 및 SSH 비밀번호가 평문으로 포함됩니다. 안전하게 보관하세요.",
+    "exportSecretsConfirmation": {
+      "title": "비밀 정보 내보내기 확인",
+      "message": "저장된 비밀번호, SSH 키 및 연결 URI를 일반 텍스트로 내보낼까요?",
+      "export": "내보내기",
+      "cancel": "취소"
+    },
     "importFromApp": {
       "title": "앱에서 가져오기",
       "subtitle": "설치된 다른 SQL 클라이언트에서 연결을 가져옵니다",
@@ -727,6 +733,8 @@
     "appearance_editorTabSize": "탭 크기",
     "appearance_editorWordWrap": "자동 줄바꿈",
     "appearance_editorWordWrapDesc": "에디터에서 가로 스크롤 대신 긴 줄을 자동으로 줄바꿈합니다.",
+    "appearance_editorMinimap": "미니맵 표시",
+    "appearance_editorMinimapDesc": "빠르게 이동할 수 있도록 SQL 스크립트의 축소 보기를 표시합니다.",
     "appearance_editorHighlightInvisibleCharacters": "보이지 않는 문자 표시",
     "appearance_editorHighlightInvisibleCharactersDesc": "SQL에서 숨겨진 유니코드 문자와 비슷하게 보이는 문자를 표시합니다.",
     "appearance_editorShowLineNumbers": "줄 번호 표시",
@@ -976,6 +984,8 @@
       "enabled": "활성화됨",
       "disabled": "비활성화됨",
       "openFolder": "플러그인 폴더 열기",
+      "legacyGoogleSheetsOAuthHint": "이 Tabularis 버전에서 Google 로그인을 복원하려면 Google Sheets 플러그인을 업데이트하세요.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "설치 실패",
         "subtitle": "플러그인을 설치하는 중 오류가 발생했습니다. 아래 세부 정보를 확인하세요.",
@@ -2596,7 +2606,10 @@
     "downloading": "다운로드하는 중...",
     "uploading": "업로드하는 중...",
     "openSidebar": "에디터에서 열기",
-    "imagePreview": "이미지 미리보기"
+    "imagePreview": "이미지 미리보기",
+    "editAs": "편집 형식",
+    "text": "텍스트",
+    "hex": "16진수"
   },
   "visualExplainPage": {
     "title": "비주얼 익스플레인",
@@ -3120,5 +3133,11 @@
     "diff": "검토한 파일의 차이점",
     "choose": "스크립트를 선택하고 포함하기 전에 차이점을 검토하세요.",
     "message": "커밋 메시지"
+  },
+  "aiInline": {
+    "title": "AI 인라인 완성",
+    "enable": "입력 중 SQL 제안",
+    "privacy": "기본적으로 꺼져 있습니다. 아래에서 선택한 AI 제공자와 모델을 사용하며 로컬 제공자도 지원합니다. 커서 앞 최대 4,000자, 뒤 최대 1,000자와 캐시된 테이블/스키마 이름 최대 8,000자를 전송합니다. SQL에는 민감한 값이 포함될 수 있습니다. 결과 행, 테이블 주석 및 연결 자격 증명은 추가하지 않습니다. 추가 데이터베이스 쿼리는 실행하지 않습니다.",
+    "keys": "Tab으로 수락하고 Escape로 숨깁니다. 자동 완성과 들여쓰기가 우선합니다. 수락은 텍스트만 삽입하므로 실행 전에 검토하세요."
   }
 }

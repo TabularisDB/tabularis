@@ -520,6 +520,12 @@
     "import": "Importer les connexions",
     "exportTitle": "Exporter les connexions",
     "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr.",
+    "exportSecretsConfirmation": {
+      "title": "Confirmer l’exportation des secrets",
+      "message": "Exporter en texte brut les mots de passe enregistrés, les clés SSH et les URI de connexion ?",
+      "export": "Exporter",
+      "cancel": "Annuler"
+    },
     "exportModal": {
       "title": "Exporter les connexions",
       "subtitle": "Choisissez comment exporter vos connexions",
@@ -782,6 +788,8 @@
     "appearance_editorTabSize": "Taille de tabulation",
     "appearance_editorWordWrap": "Retour à la ligne automatique",
     "appearance_editorWordWrapDesc": "Retourne les longues lignes dans l’éditeur au lieu d’un défilement horizontal.",
+    "appearance_editorMinimap": "Afficher la minicarte",
+    "appearance_editorMinimapDesc": "Affiche un aperçu miniature des scripts SQL pour naviguer rapidement.",
     "appearance_editorHighlightInvisibleCharacters": "Afficher les caractères invisibles",
     "appearance_editorHighlightInvisibleCharactersDesc": "Signale les caractères Unicode invisibles et les caractères similaires dans le SQL.",
     "appearance_editorShowLineNumbers": "Afficher les numéros de ligne",
@@ -1031,6 +1039,8 @@
       "enabled": "Activé",
       "disabled": "Désactivé",
       "openFolder": "Ouvrir le dossier des plugins",
+      "legacyGoogleSheetsOAuthHint": "Mettez à jour le plugin Google Sheets pour rétablir la connexion Google dans cette version de Tabularis.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "Échec de l’installation",
         "subtitle": "Une erreur s’est produite lors de l’installation du plugin. Voir les détails ci-dessous.",
@@ -2662,7 +2672,10 @@
     "downloading": "Téléchargement...",
     "uploading": "Téléversement...",
     "openSidebar": "Ouvrir dans l’éditeur",
-    "imagePreview": "Aperçu de l’image"
+    "imagePreview": "Aperçu de l’image",
+    "editAs": "Modifier en",
+    "text": "Texte",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",
@@ -3243,5 +3256,11 @@
     "diff": "Différences du fichier examiné",
     "choose": "Sélectionnez un script pour examiner ses différences avant de l’inclure.",
     "message": "Message du commit"
+  },
+  "aiInline": {
+    "title": "Complétion IA en ligne",
+    "enable": "Suggérer du SQL pendant la saisie",
+    "privacy": "Désactivée par défaut. Utilise le fournisseur et le modèle IA choisis ci-dessous, y compris les fournisseurs locaux. Envoie au maximum 4 000 caractères avant le curseur, 1 000 après et 8 000 caractères de noms de tables/schémas en cache. Le SQL peut contenir des valeurs sensibles. Aucune ligne de résultat, aucun commentaire de table ni identifiant de connexion ne sont ajoutés. Aucune requête supplémentaire à la base.",
+    "keys": "Tab accepte et Échap masque. La saisie semi-automatique et l’indentation sont prioritaires. Accepter insère uniquement du texte ; vérifiez-le avant exécution."
   }
 }

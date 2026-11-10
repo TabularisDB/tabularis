@@ -3,7 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {Sparkles, Ban, Eraser, FileDigit} from 'lucide-react';
 import {GeometryInput} from './GeometryInput';
 import {BlobInput} from './BlobInput';
-import {BlobHexInput} from './BlobHexInput';
+import {BlobBytesInput} from './BlobBytesInput';
 import {DateInput} from './DateInput';
 import {JsonInput} from './JsonInput';
 import {TextInput} from './TextInput';
@@ -108,10 +108,10 @@ export const FieldEditor = ({
     const inputElement = isBlob ? (
         <div className={`${className}`}>
             {editableBlobHex !== null ? (
-                <BlobHexInput
-                    key={String(value)}
+                <BlobBytesInput
                     value={value}
                     onChange={(newValue) => onChange(newValue)}
+                    placeholder={defaultPlaceholder}
                 />
             ) : (
                 <BlobInput

@@ -520,6 +520,12 @@
     "import": "I-import ang mga Koneksyon",
     "exportTitle": "I-export ang mga Koneksyon",
     "exportWarning": "Ang na-export na file ay maglalaman ng iyong database at SSH passwords sa plaintext. Pakitago ito nang ligtas.",
+    "exportSecretsConfirmation": {
+      "title": "Kumpirmahin ang pag-export ng mga lihim",
+      "message": "I-export bilang plain text ang mga naka-save na password, SSH key, at connection URI?",
+      "export": "I-export",
+      "cancel": "Kanselahin"
+    },
     "exportModal": {
       "title": "I-export ang mga Koneksyon",
       "subtitle": "Piliin kung paano i-export ang iyong mga koneksyon",
@@ -782,6 +788,8 @@
     "appearance_editorTabSize": "Tab Size",
     "appearance_editorWordWrap": "Word Wrap",
     "appearance_editorWordWrapDesc": "I-wrap ang mahahabang linya sa editor sa halip na mag-scroll nang pahiga.",
+    "appearance_editorMinimap": "Ipakita ang Minimap",
+    "appearance_editorMinimapDesc": "Magpakita ng maliit na pangkalahatang-ideya ng mga SQL script para sa mabilis na pag-navigate.",
     "appearance_editorHighlightInvisibleCharacters": "Ipakita ang mga nakatagong character",
     "appearance_editorHighlightInvisibleCharactersDesc": "Markahan ang mga nakatagong Unicode at magkahawig na character sa SQL.",
     "appearance_editorShowLineNumbers": "Ipakita ang mga Line Number",
@@ -1031,6 +1039,8 @@
       "enabled": "Naka-enable",
       "disabled": "Naka-disable",
       "openFolder": "Buksan ang folder ng mga plugin",
+      "legacyGoogleSheetsOAuthHint": "I-update ang Google Sheets plugin upang maibalik ang Google sign-in sa bersyong ito ng Tabularis.",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "Nabigo ang Pag-install",
         "subtitle": "May error habang ini-install ang plugin. Tingnan ang mga detalye sa ibaba.",
@@ -2652,7 +2662,10 @@
     "downloading": "Nagda-download...",
     "uploading": "Nag-a-upload...",
     "openSidebar": "Buksan sa editor",
-    "imagePreview": "Preview ng larawan"
+    "imagePreview": "Preview ng larawan",
+    "editAs": "I-edit bilang",
+    "text": "Teksto",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",
@@ -3186,5 +3199,11 @@
     "diff": "Mga pagkakaiba ng nasuring file",
     "choose": "Pumili ng script at suriin ang mga pagkakaiba bago ito isama.",
     "message": "Mensahe ng commit"
+  },
+  "aiInline": {
+    "title": "AI inline completion",
+    "enable": "Magmungkahi ng SQL habang nagta-type",
+    "privacy": "Naka-off bilang default. Ginagamit ang AI provider at model na pinili sa ibaba, kasama ang mga lokal na provider. Nagpapadala ng hanggang 4,000 character bago ang cursor, 1,000 pagkatapos nito at 8,000 character ng naka-cache na pangalan ng table/schema. Maaaring may sensitibong halaga ang SQL. Hindi idinadagdag ang mga result row, komento ng table o credential ng koneksyon. Walang dagdag na query sa database.",
+    "keys": "Tab para tanggapin, Escape para itago. Mas nauuna ang autocomplete at indentation. Teksto lang ang ipinapasok kapag tinanggap; suriin bago patakbuhin."
   }
 }

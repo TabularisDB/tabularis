@@ -1827,7 +1827,10 @@ mod live_pg_routine_overloads {
         };
         let schema = "tabularis_893_long";
         let long_name = "fn_with_a_really_long_name_to_hit_namedatalen_limit_abcdefgh";
-        assert!(long_name.len() > 40, "the name has to be long enough to truncate");
+        assert!(
+            long_name.len() > 40,
+            "the name has to be long enough to truncate"
+        );
 
         let pool = crate::pool_manager::get_postgres_pool(&params)
             .await
@@ -1853,9 +1856,10 @@ mod live_pg_routine_overloads {
             .and_then(|r| r.identity_args.as_deref())
             .expect("the long-named routine is listed with a signature");
 
-        let parameters = super::super::get_routine_parameters(&params, long_name, schema, Some(identity))
-            .await
-            .expect("parameters for the long-named routine");
+        let parameters =
+            super::super::get_routine_parameters(&params, long_name, schema, Some(identity))
+                .await
+                .expect("parameters for the long-named routine");
 
         let named: Vec<&str> = parameters
             .iter()
@@ -1869,7 +1873,9 @@ mod live_pg_routine_overloads {
         );
         // And the return type row, which came from the same lookup.
         assert!(
-            parameters.iter().any(|p| p.name.is_empty() && p.mode == "OUT"),
+            parameters
+                .iter()
+                .any(|p| p.name.is_empty() && p.mode == "OUT"),
             "the return type row is missing: {parameters:?}"
         );
     }

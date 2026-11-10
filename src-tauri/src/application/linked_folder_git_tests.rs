@@ -26,6 +26,15 @@ fn fixture() -> tempfile::TempDir {
     );
     git(temp.path(), &["config", "commit.gpgsign", "false"]);
     git(temp.path(), &["config", "core.hooksPath", ".git/hooks"]);
+    git(temp.path(), &["config", "gpg.format", "openpgp"]);
+    git(
+        temp.path(),
+        &["config", "gpg.program", "tabularis-missing-test-signer"],
+    );
+    git(
+        temp.path(),
+        &["config", "gpg.ssh.program", "tabularis-missing-test-signer"],
+    );
     fs::create_dir(temp.path().join("scripts")).unwrap();
     fs::write(temp.path().join("scripts/query.sql"), "SELECT 1;\n").unwrap();
     fs::write(temp.path().join("outside.txt"), "original\n").unwrap();
@@ -262,21 +271,23 @@ fn external_staging_and_head_changes_invalidate_a_review() {
 
 #[test]
 fn signing_failure_does_not_move_head_or_modify_the_index() {
-    let temp = fixture();
-    let root = temp.path().join("scripts");
-    git(temp.path(), &["config", "commit.gpgsign", "true"]);
-    git(
-        temp.path(),
-        &["config", "gpg.program", "tabularis-missing-test-signer"],
-    );
-    fs::write(root.join("query.sql"), "SELECT 2;\n").unwrap();
-    let file = selected(review(&root, "query.sql").unwrap());
-    let head = git(temp.path(), &["rev-parse", "HEAD"]);
-    let index = fs::read(temp.path().join(".git/index")).unwrap();
-    assert!(commit(&root, &[file], "sign").is_err());
-    assert_eq!(git(temp.path(), &["rev-parse", "HEAD"]), head);
-    assert_eq!(fs::read(temp.path().join(".git/index")).unwrap(), index);
-    assert!(!temp.path().join(".git/index.lock").exists());
+    for format in ["openpgp", "ssh"] {
+        let temp = fixture();
+        git(temp.path(), &["config", "gpg.format", format]);
+        let root = temp.path().join("scripts");
+        git(temp.path(), &["config", "commit.gpgsign", "true"]);
+        git(temp.path(), &["config", "user.signingkey", "fixture-key"]);
+        fs::write(root.join("query.sql"), "SELECT 2;\n").unwrap();
+        let file = selected(review(&root, "query.sql").unwrap());
+        let head = git(temp.path(), &["rev-parse", "HEAD"]);
+        let index = fs::read(temp.path().join(".git/index")).unwrap();
+        assert!(commit(&root, &[file], "sign")
+            .unwrap_err()
+            .contains("tabularis-missing-test-signer"));
+        assert_eq!(git(temp.path(), &["rev-parse", "HEAD"]), head);
+        assert_eq!(fs::read(temp.path().join(".git/index")).unwrap(), index);
+        assert!(!temp.path().join(".git/index.lock").exists());
+    }
 }
 
 #[test]

@@ -251,6 +251,55 @@ describe('SQL Snippets autocomplete integration', () => {
         expect(snippetLabels).not.toContain('spec_pg');
     });
 
+    it('offers a plugin-scoped snippet only to its own active driver', async () => {
+        saveSqlSnippets([
+            {
+                id: 'ora',
+                name: 'Oracle',
+                prefix: 'ora',
+                body: 'SELECT * FROM dual;',
+                dialect: 'driver:oracle',
+                createdAt: '',
+                updatedAt: '',
+            },
+        ]);
+        const monaco = createMockMonaco();
+        const caps = {sql_dialect: 'oracle'};
+        const model = createMockModel('ora', 'ora');
+        const provider = (
+            registerSqlAutocompleteImpl(
+                monaco as any,
+                'conn1',
+                [],
+                null,
+                caps as any,
+                dummyClient,
+                'match',
+                'oracle',
+            ) as any
+        ).provider;
+        const result = await provider.provideCompletionItems(model, {lineNumber: 1, column: 4});
+        expect(
+            result.suggestions.some((item: any) => item.label === 'ora' && item.kind === 28),
+        ).toBe(true);
+        const other = (
+            registerSqlAutocompleteImpl(
+                monaco as any,
+                'conn1',
+                [],
+                null,
+                caps as any,
+                dummyClient,
+                'match',
+                'another',
+            ) as any
+        ).provider;
+        const otherResult = await other.provideCompletionItems(model, {lineNumber: 1, column: 4});
+        expect(
+            otherResult.suggestions.some((item: any) => item.label === 'ora' && item.kind === 28),
+        ).toBe(false);
+    });
+
     it('does not offer database-specific snippets for an unknown or generic plugin dialect', async () => {
         const testSnippets: SqlSnippet[] = [
             {

@@ -506,6 +506,12 @@
     "import": "导入连接",
     "exportTitle": "导出连接",
     "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。",
+    "exportSecretsConfirmation": {
+      "title": "确认导出机密信息",
+      "message": "要以明文导出已保存的密码、SSH 密钥和连接 URI 吗？",
+      "export": "导出",
+      "cancel": "取消"
+    },
     "exportModal": {
       "title": "导出连接",
       "subtitle": "选择导出连接的方式",
@@ -748,6 +754,8 @@
     "english": "English",
     "italian": "Italiano",
     "spanish": "Español",
+    "appearance_editorMinimap": "显示缩略图",
+    "appearance_editorMinimapDesc": "显示 SQL 脚本的缩小概览，方便快速导航。",
     "appearance_editorHighlightInvisibleCharacters": "显示不可见字符",
     "appearance_editorHighlightInvisibleCharactersDesc": "突出显示 SQL 中隐藏的 Unicode 字符和形似字符。",
     "formatter_title": "SQL 格式化",
@@ -959,6 +967,8 @@
       "enabled": "已启用",
       "disabled": "已禁用",
       "openFolder": "打开插件文件夹",
+      "legacyGoogleSheetsOAuthHint": "请更新 Google Sheets 插件，以在此 Tabularis 版本中恢复 Google 登录。",
+      "closePluginOverlay": "Close plugin window",
       "installError": {
         "title": "安装失败",
         "subtitle": "安装插件时发生错误。请参阅下面的详细信息。",
@@ -2529,7 +2539,10 @@
     "downloading": "下载中...",
     "uploading": "上传中...",
     "openSidebar": "在编辑器中打开",
-    "imagePreview": "图片预览"
+    "imagePreview": "图片预览",
+    "editAs": "编辑格式",
+    "text": "文本",
+    "hex": "十六进制"
   },
   "visualExplainPage": {
     "title": "可视化执行计划",
@@ -3106,5 +3119,11 @@
     "diff": "已查看文件的差异",
     "choose": "选择脚本并查看差异后，才能将其包含在提交中。",
     "message": "提交消息"
+  },
+  "aiInline": {
+    "title": "AI 行内补全",
+    "enable": "输入时建议 SQL",
+    "privacy": "默认关闭。使用下方选择的 AI 提供商和模型，包括本地提供商。最多发送光标前 4,000 个字符、光标后 1,000 个字符，以及 8,000 个字符的缓存表名和模式名。SQL 可能含有敏感值。不会添加结果行、表注释或连接凭据，也不会执行额外的数据库查询。",
+    "keys": "Tab 接受，Escape 隐藏。自动补全和缩进优先。接受建议只会插入文本，请在执行前检查。"
   }
 }

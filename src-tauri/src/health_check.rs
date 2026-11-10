@@ -9,7 +9,8 @@ use tokio::sync::{oneshot, Mutex, RwLock};
 pub(crate) static ACTIVE_CONNECTIONS: Lazy<Arc<RwLock<HashSet<String>>>> =
     Lazy::new(|| Arc::new(RwLock::new(HashSet::new())));
 
-pub(crate) static PING_STOP_TX: Lazy<Mutex<Option<oneshot::Sender<()>>>> = Lazy::new(|| Mutex::new(None));
+pub(crate) static PING_STOP_TX: Lazy<Mutex<Option<oneshot::Sender<()>>>> =
+    Lazy::new(|| Mutex::new(None));
 
 /// Default ping interval in seconds.
 pub const DEFAULT_PING_INTERVAL: u32 = 30;
@@ -49,4 +50,3 @@ pub async fn stop_ping_loop() {
         let _ = tx.send(());
     }
 }
-

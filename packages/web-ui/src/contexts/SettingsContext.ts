@@ -70,6 +70,7 @@ export interface Settings {
     /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
     resultFontFamily?: string;
     aiEnabled: boolean;
+    aiInlineCompletionEnabled?: boolean;
     aiProvider: AiProvider | null;
     aiModel: string | null;
     aiCustomModels?: Record<string, string[]>;
@@ -110,6 +111,7 @@ export interface Settings {
     editorLineHeight?: number;
     editorTabSize?: number;
     editorWordWrap?: boolean;
+    editorMinimap?: boolean;
     /** Highlight invisible Unicode and look-alike characters in SQL. Default: true. */
     editorHighlightInvisibleCharacters?: boolean;
     editorShowLineNumbers?: boolean;
@@ -246,6 +248,7 @@ export const DEFAULT_SETTINGS: Settings = {
     defaultSortDirection: 'asc',
     resultFontFamily: 'JetBrains Mono',
     aiEnabled: false,
+    aiInlineCompletionEnabled: false,
     aiProvider: null,
     aiModel: null,
     aiCustomModels: undefined,
@@ -265,6 +268,7 @@ export const DEFAULT_SETTINGS: Settings = {
     editorLineHeight: 1.5,
     editorTabSize: 2,
     editorWordWrap: true,
+    editorMinimap: false,
     editorHighlightInvisibleCharacters: true,
     editorShowLineNumbers: true,
     editorAcceptSuggestionOnEnter: true,

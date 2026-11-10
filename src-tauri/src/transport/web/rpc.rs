@@ -228,6 +228,7 @@ enum PluginRpcCommand {
     GetStartupErrors,
     KillProcess,
     RestartProcess,
+    SyncSettings,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -238,6 +239,8 @@ enum AiRpcCommand {
     CheckKeyStatus,
     GetModels,
     GenerateQuery,
+    CompleteInline,
+    CancelInline,
     ExplainQuery,
     AnalyzeExplainPlan,
     AnalyzeCrashReport,
@@ -348,6 +351,7 @@ enum PersistenceRpcCommand {
 enum QueryRpcCommand {
     ReleaseSession,
     Execute,
+    PluginReadOnly,
     ExecuteBatch,
     Count,
     Explain,
@@ -2224,6 +2228,7 @@ impl PluginRpcCommand {
             "get_plugin_startup_errors" => Self::GetStartupErrors,
             "kill_plugin_process" => Self::KillProcess,
             "restart_plugin_process" => Self::RestartProcess,
+            "sync_plugin_settings" => Self::SyncSettings,
             _ => return None,
         })
     }
@@ -2238,6 +2243,8 @@ impl AiRpcCommand {
             "check_ai_key_status" => Self::CheckKeyStatus,
             "get_ai_models" => Self::GetModels,
             "generate_ai_query" => Self::GenerateQuery,
+            "complete_ai_inline" => Self::CompleteInline,
+            "cancel_ai_inline" => Self::CancelInline,
             "explain_ai_query" => Self::ExplainQuery,
             "analyze_ai_explain_plan" => Self::AnalyzeExplainPlan,
             "analyze_ai_crash_report" => Self::AnalyzeCrashReport,
@@ -2322,7 +2329,10 @@ impl ConnectionFilesRpcCommand {
             Self::ListImportSources
             | Self::PreviewForeignImport
             | Self::ApplyForeignImport
-            | Self::GetBackupStatus | Self::GetDatabaseBackupStatus | Self::RunDatabaseBackup | Self::CancelDatabaseBackup => AuthorizationLevel::LocalAdmin,
+            | Self::GetBackupStatus
+            | Self::GetDatabaseBackupStatus
+            | Self::RunDatabaseBackup
+            | Self::CancelDatabaseBackup => AuthorizationLevel::LocalAdmin,
             Self::Export
             | Self::PreviewTabularisImport
             | Self::ApplyPreparedTabularisImport
@@ -2428,6 +2438,7 @@ impl QueryRpcCommand {
         Some(match name {
             "release_query_session" => Self::ReleaseSession,
             "execute_query" => Self::Execute,
+            "execute_plugin_read_only_query" => Self::PluginReadOnly,
             "execute_query_batch" => Self::ExecuteBatch,
             "count_query" => Self::Count,
             "explain_query_plan" => Self::Explain,
@@ -2633,6 +2644,21 @@ fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, St
         AiRpcCommand::GenerateQuery => {
             let request: AiRequest<crate::ai::AiGenerateRequest> = decode_payload(body)?;
             AiCommand::GenerateQuery(request.req)
+        }
+        AiRpcCommand::CompleteInline => {
+            let request: AiRequest<crate::ai::inline::InlineRequest> = decode_payload(body)?;
+            AiCommand::CompleteInline(request.req)
+        }
+        AiRpcCommand::CancelInline => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase", deny_unknown_fields)]
+            struct Cancel {
+                request_id: String,
+            }
+            let request: Cancel = decode_payload(body)?;
+            AiCommand::CancelInline {
+                request_id: request.request_id,
+            }
         }
         AiRpcCommand::ExplainQuery => {
             let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
@@ -3097,6 +3123,12 @@ fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<Plugi
                 plugin_id: request.plugin_id,
             }
         }
+        PluginRpcCommand::SyncSettings => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::SyncSettings {
+                plugin_id: request.plugin_id,
+            }
+        }
     })
 }
 
@@ -3326,6 +3358,14 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
                 schema: request.schema,
                 query_session_id: request.session_id,
                 database: request.database,
+            }
+        }
+        QueryRpcCommand::PluginReadOnly => {
+            let request: ExecuteQueryRequest = decode_payload(body)?;
+            QueryCommand::PluginReadOnly {
+                connection_id: request.connection_id,
+                query: request.query,
+                schema: request.schema,
             }
         }
         QueryRpcCommand::ExecuteBatch => {
