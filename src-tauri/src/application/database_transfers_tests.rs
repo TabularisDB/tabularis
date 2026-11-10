@@ -5,6 +5,150 @@ use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 
 #[tokio::test]
+async fn database_sql_plugin_transfers_whole_files_without_metadata_or_sql_splitting() {
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let failure = Arc::new(AtomicBool::new(false));
+    let export_failure = failure.clone();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.id = format!("whole-database-{}", Uuid::new_v4());
+    manifest.is_builtin = false;
+    let params = ConnectionParams {
+        driver: manifest.id.clone(),
+        ..Default::default()
+    };
+    let drv = crate::plugins::driver::test_driver_with_manifest(manifest, move |request| {
+        assert_eq!(
+            request.params["params"]["driver"]
+                .as_str()
+                .unwrap()
+                .starts_with("whole-database-"),
+            true
+        );
+        let path = request.params["file_path"].as_str().unwrap();
+        match request.method.as_str() {
+            "export_database_sql" => {
+                assert_eq!(request.params["options"]["structure"], true);
+                fs::write(path, "CREATE PROCEDURE P AS BEGIN SUSPEND; END;\n").unwrap();
+                if export_failure.load(Ordering::SeqCst) {
+                    return Err("source snapshot failed".into());
+                }
+                Ok(json!({"rows": 12, "tables": 2}))
+            }
+            "import_database_sql" => {
+                assert_eq!(request.params["create_database"], true);
+                assert!(fs::read_to_string(path)
+                    .unwrap()
+                    .contains("BEGIN SUSPEND; END"));
+                Ok(json!({"statements": 7}))
+            }
+            method => panic!("Whole-file transfer must not call {method}"),
+        }
+    });
+    crate::drivers::registry::register_driver(drv).await;
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            directory.path().into(),
+            directory.path().into(),
+        )),
+        Arc::new(RecordingEvents::default()),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let path = directory.path().join("database.sql");
+    let options = DumpOptions {
+        structure: true,
+        data: true,
+        tables: None,
+    };
+    write_dump(
+        &runtime,
+        None,
+        "test",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options,
+    )
+    .await
+    .unwrap();
+    let previous = fs::read(&path).unwrap();
+    execute_import(
+        &runtime,
+        None,
+        &path,
+        false,
+        "test",
+        &params,
+        &params.driver,
+        None,
+        true,
+    )
+    .await
+    .unwrap();
+    failure.store(true, Ordering::SeqCst);
+    assert!(write_dump(
+        &runtime,
+        None,
+        "test",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options
+    )
+    .await
+    .unwrap_err()
+    .contains("source snapshot failed"));
+    assert_eq!(fs::read(&path).unwrap(), previous);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
+async fn database_creation_never_falls_through_to_the_generic_importer() {
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.id = format!("old-database-{}", Uuid::new_v4());
+    manifest.is_builtin = false;
+    let params = ConnectionParams {
+        driver: manifest.id.clone(),
+        ..Default::default()
+    };
+    let drv = crate::plugins::driver::test_driver_with_manifest(manifest, |request| {
+        assert_eq!(request.method, "import_database_sql");
+        Ok(serde_json::Value::Null)
+    });
+    crate::drivers::registry::register_driver(drv).await;
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            directory.path().into(),
+            directory.path().into(),
+        )),
+        Arc::new(RecordingEvents::default()),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let path = directory.path().join("ordinary.sql");
+    fs::write(&path, "DROP TABLE existing_data;").unwrap();
+    assert!(execute_import(
+        &runtime,
+        None,
+        &path,
+        false,
+        "test",
+        &params,
+        &params.driver,
+        None,
+        true
+    )
+    .await
+    .unwrap_err()
+    .contains("does not support creating"));
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
 async fn database_dump_uses_plugin_renderer_and_preserves_previous_file_on_failure() {
     use crate::drivers::sqlite::SqliteDriver;
     let directory = tempfile::tempdir().unwrap();
@@ -19,6 +163,7 @@ async fn database_dump_uses_plugin_renderer_and_preserves_previous_file_on_failu
     };
     let drv = crate::plugins::driver::test_driver_with_manifest(manifest, move |request| {
         match request.method.as_str() {
+            "export_database_sql" => Ok(serde_json::Value::Null),
             "get_tables" => Ok(json!([])),
             "execute_query" => Ok(
                 json!({"columns":["payload"],"rows":[["BLOB:2:application/octet-stream:AP8="]],"affected_rows":0,"pagination":null}),

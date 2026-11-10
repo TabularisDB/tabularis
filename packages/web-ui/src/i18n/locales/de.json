@@ -2502,6 +2502,10 @@
     "dismiss": "Verstanden"
   },
   "dump": {
+    "emptyTargetRequired": "In eine neue oder leere Datenbank wiederherstellen. Bestehende Datenbanken werden niemals überschrieben.",
+    "createDatabase": "Neue Datenbank erstellen",
+    "serverDatabasePath": "Datenbankpfad oder Alias auf dem Datenbankserver",
+    "startRestore": "Datenbank wiederherstellen",
     "title": "Datenbank sichern",
     "dumpDatabase": "Datenbank sichern",
     "importDatabase": "SQL-Datei ausführen...",

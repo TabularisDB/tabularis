@@ -1336,6 +1336,13 @@ Get the SQL body of a stored routine.
 
 Set `capabilities.triggers` to `true` when your driver implements the trigger RPCs. Tabularis uses this flag to show trigger-related UI.
 
+Drivers with a generic SQL dialect use a complete-SQL editor. The host sends the
+entire statement, including procedural bodies, to `create_trigger` once. It never
+drops the existing trigger before saving. Return an engine-native edit script
+from `get_trigger_definition` (for example, `CREATE OR ALTER TRIGGER`) when the
+engine supports one. A failed save leaves the editor open; the driver must keep
+the old trigger intact when the replacement statement fails.
+
 #### `get_triggers`
 
 List triggers in a schema/database.
@@ -2081,6 +2088,34 @@ that prefix). Answer `-32601` Method not found when you can't.
 **Result:** `"CREATE TABLE [orders] (\n  [id] int NOT NULL PRIMARY KEY\n);"`
 
 ---
+
+### Whole-database SQL transfers (optional)
+
+The host negotiates complete database transfers through runtime RPCs, without
+assuming that a table DDL dump reconstructs routines, permissions or dependencies.
+Missing methods (JSON-RPC -32601) and null results retain the existing host path;
+all other errors stop the operation. Built-in drivers default to that path.
+
+- `get_database_sql_capabilities`: `{params: ConnectionParams}` returns null or
+  `{format: string, create_database: boolean, requires_empty_target: boolean, target_label: string}`.
+  The import dialog asks for an explicit destination and start action for this protocol.
+- `export_database_sql`: `{params, file_path: string, options: {structure: boolean, data: boolean, tables: string[] | null}}`
+  returns null or `{rows: number, tables: number}`. The path is a private host-owned
+  pending file. Finish and close it before returning success. The host publishes
+  it atomically; errors preserve any previous destination. Reject unsupported
+  partial-schema selections explicitly, or return null to use the host renderer.
+- `import_database_sql`: `{params, file_path: string, create_database: boolean}`
+  returns null for an unrecognized ordinary SQL file, or `{statements: number}`.
+  Validate the complete file before modifying the destination. Own statement
+  boundaries, dependencies, transaction policy, cancellation and cleanup. A new
+  target must never overwrite an existing database. The host never falls back to
+  ordinary SQL execution when creation was requested but the RPC returns null.
+
+Connection parameters are supplied directly before metadata specialization, so
+new database creation does not first require a successful attachment to that target.
+Desktop file paths come from the native chooser; browser requests still use opaque
+session-owned upload/download tokens. ZIP imports pass the extracted SQL file
+while retaining its cleanup guard. No browser client supplies a server file path.
 
 #### `render_insert_statements` *(optional)*
 

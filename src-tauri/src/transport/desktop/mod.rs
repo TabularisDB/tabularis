@@ -13,9 +13,9 @@ pub mod config;
 pub mod connection_appearance;
 pub mod connection_import_commands;
 pub mod connection_window;
-pub mod data_files;
 #[cfg(test)]
 mod connection_window_tests;
+pub mod data_files;
 pub mod database_backup;
 pub mod dump_commands;
 #[cfg(feature = "e2e-testing")]
@@ -635,6 +635,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             theme_commands::export_theme,
             // Dump & Import
             dump_commands::dump_database,
+            dump_commands::get_database_sql_capabilities,
             dump_commands::cancel_dump,
             dump_commands::import_database,
             dump_commands::cancel_import,

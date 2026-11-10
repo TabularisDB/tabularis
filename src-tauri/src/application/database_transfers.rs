@@ -26,6 +26,9 @@ const SQL_MIME_TYPE: &str = "application/sql";
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DatabaseTransferCommand {
+    Capabilities {
+        connection_id: String,
+    },
     Dump {
         connection_id: String,
         options: DumpOptions,
@@ -40,6 +43,8 @@ pub enum DatabaseTransferCommand {
         upload_token: String,
         schema: Option<String>,
         database: Option<String>,
+        #[serde(default)]
+        create_database: bool,
     },
     CancelImport {
         connection_id: String,
@@ -58,12 +63,7 @@ pub enum DatabaseTransferCommand {
     },
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct DumpOptions {
-    pub structure: bool,
-    pub data: bool,
-    pub tables: Option<Vec<String>>,
-}
+pub use crate::drivers::driver_trait::DatabaseSqlExportOptions as DumpOptions;
 
 #[derive(Default)]
 pub struct DumpCancellationState {
@@ -105,6 +105,9 @@ pub async fn execute(
     command: DatabaseTransferCommand,
 ) -> Result<serde_json::Value, String> {
     match command {
+        DatabaseTransferCommand::Capabilities { connection_id } => {
+            json(database_sql_capabilities(runtime, session_id, &connection_id).await?)
+        }
         DatabaseTransferCommand::Dump {
             connection_id,
             options,
@@ -136,6 +139,7 @@ pub async fn execute(
             upload_token,
             schema,
             database,
+            create_database,
         } => {
             let owner = session_id.ok_or_else(|| "A browser session is required".to_string())?;
             import_database(
@@ -149,6 +153,7 @@ pub async fn execute(
                 },
                 schema,
                 database,
+                create_database,
             )
             .await?;
             Ok(serde_json::Value::Null)
@@ -381,6 +386,19 @@ async fn dump_database_job(
     }))
 }
 
+pub async fn database_sql_capabilities(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+) -> Result<Option<crate::drivers::driver_trait::DatabaseSqlCapabilities>, String> {
+    let (driver, params) =
+        super::connections::resolve_saved_connection_params(runtime, session_id, connection_id)?;
+    let drv = crate::drivers::registry::get_driver(&driver)
+        .await
+        .ok_or_else(|| format!("Driver {driver} unavailable"))?;
+    drv.get_database_sql_capabilities(&params).await
+}
+
 pub async fn import_database(
     runtime: &RuntimeContext,
     state: &DumpCancellationState,
@@ -389,6 +407,7 @@ pub async fn import_database(
     source: ImportSource,
     schema: Option<String>,
     database: Option<String>,
+    create_database: bool,
 ) -> Result<(), String> {
     crate::application::read_only::ensure_writable(runtime, &connection_id)?;
     let (driver, mut params) =
@@ -410,6 +429,7 @@ pub async fn import_database(
             &params,
             &driver,
             schema.as_deref(),
+            create_database,
         )
         .await
     });
@@ -505,6 +525,46 @@ async fn write_dump(
     }
     let file = open.open(&pending).map_err(|error| error.to_string())?;
     let _cleanup = TemporaryFile::new(pending.clone());
+    // Probe before connection specialization, which may execute database triggers.
+    drop(file);
+    let drv = crate::drivers::registry::get_driver(driver)
+        .await
+        .ok_or_else(|| format!("Driver {driver} unavailable"))?;
+    if let Some(result) = drv
+        .export_database_sql(
+            params,
+            pending.to_str().ok_or("Invalid dump path")?,
+            options,
+        )
+        .await?
+    {
+        if fs::metadata(&pending)
+            .map_err(|error| error.to_string())?
+            .len()
+            == 0
+        {
+            return Err("Plugin returned an empty database dump".into());
+        }
+        fs::rename(&pending, file_path).map_err(|error| error.to_string())?;
+        emit_progress(
+            runtime,
+            session_id,
+            "dump_progress",
+            &DumpProgress {
+                connection_id: connection_id.into(),
+                tables_processed: result.tables,
+                total_tables: result.tables,
+                percentage: 100.0,
+                current_operation: format!("Exported {} rows", result.rows),
+            },
+        );
+        return Ok(());
+    }
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&pending)
+        .map_err(|error| error.to_string())?;
     let mut writer = BufWriter::new(file);
     writeln!(writer, "-- Tabularis Dump").map_err(|error| error.to_string())?;
     let database_label = if session_id.is_some() {
@@ -955,10 +1015,34 @@ async fn execute_import(
     params: &ConnectionParams,
     driver: &str,
     schema: Option<&str>,
+    create_database: bool,
 ) -> Result<(), String> {
     let file = File::open(file_path).map_err(|error| error.to_string())?;
     let (reader, extracted_sql) = create_sql_reader(file, is_zip, runtime.paths.data_dir())?;
     let _extracted_sql = extracted_sql;
+    let sql_path = _extracted_sql
+        .as_ref()
+        .map(|file| file.path.as_path())
+        .unwrap_or(file_path);
+    let drv = crate::drivers::registry::get_driver(driver)
+        .await
+        .ok_or_else(|| format!("Driver {driver} unavailable"))?;
+    if let Some(result) = drv
+        .import_database_sql(
+            params,
+            sql_path.to_str().ok_or("Invalid import path")?,
+            create_database,
+        )
+        .await?
+    {
+        emit_import_complete(runtime, session_id, connection_id, result.statements);
+        return Ok(());
+    }
+    if create_database {
+        return Err(
+            "This file or driver does not support creating a database during import".into(),
+        );
+    }
     let mut stream = SqlStatementStream::new(reader);
     emit_progress(
         runtime,

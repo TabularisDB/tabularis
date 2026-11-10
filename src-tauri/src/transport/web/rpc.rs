@@ -259,6 +259,7 @@ enum AiRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DatabaseTransferRpcCommand {
+    Capabilities,
     Dump,
     CancelDump,
     Import,
@@ -665,6 +666,8 @@ struct DumpDatabaseRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ImportDatabaseRequest {
+    #[serde(default)]
+    create_database: bool,
     connection_id: String,
     upload_token: String,
     schema: Option<String>,
@@ -2305,6 +2308,7 @@ impl AiRpcCommand {
 impl DatabaseTransferRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "get_database_sql_capabilities" => Self::Capabilities,
             "dump_database" => Self::Dump,
             "cancel_dump" => Self::CancelDump,
             "import_database" => Self::Import,
@@ -2773,6 +2777,12 @@ fn decode_database_transfer_command(
     body: &[u8],
 ) -> Result<DatabaseTransferCommand, String> {
     Ok(match command {
+        DatabaseTransferRpcCommand::Capabilities => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            DatabaseTransferCommand::Capabilities {
+                connection_id: request.connection_id,
+            }
+        }
         DatabaseTransferRpcCommand::Dump => {
             let request: DumpDatabaseRequest = decode_payload(body)?;
             DatabaseTransferCommand::Dump {
@@ -2795,6 +2805,7 @@ fn decode_database_transfer_command(
                 upload_token: request.upload_token,
                 schema: request.schema,
                 database: request.database,
+                create_database: request.create_database,
             }
         }
         DatabaseTransferRpcCommand::CancelImport => {

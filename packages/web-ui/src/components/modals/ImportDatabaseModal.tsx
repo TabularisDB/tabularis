@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback, useRef} from 'react';
+import {useState, useEffect, useCallback, useRef, useId} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useAlert} from '@/hooks/useAlert';
 import {Loader2, Database, X, CheckCircle2, XCircle} from 'lucide-react';
@@ -13,6 +13,7 @@ import {
 } from '@/utils/databaseTransfers';
 import type {ChosenInputFile} from '@/platform/capabilities';
 import type {EventPayload} from '@/api/events';
+import type {DatabaseSqlCapabilities} from '@/types/plugins';
 
 interface ImportDatabaseModalProps {
     isOpen: boolean;
@@ -40,12 +41,16 @@ export const ImportDatabaseModal = ({
     schema: schemaProp,
 }: ImportDatabaseModalProps) => {
     const {t} = useTranslation();
+    const titleId = useId();
     const client = useTabularisClient();
     const platform = usePlatformCapabilities();
     const {activeSchema: connectionActiveSchema} = useDatabase();
     const activeSchema = schemaProp ?? connectionActiveSchema;
     const {showAlert} = useAlert();
     const [isImporting, setIsImporting] = useState(false);
+    const [sqlCapabilities, setSqlCapabilities] = useState<DatabaseSqlCapabilities | null>();
+    const [createDatabase, setCreateDatabase] = useState(true);
+    const [newDatabase, setNewDatabase] = useState('');
     const [progress, setProgress] = useState<EventPayload<'import_progress'> | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -70,6 +75,8 @@ export const ImportDatabaseModal = ({
     }, []);
 
     const startImport = useCallback(async () => {
+        if (hasStartedRef.current) return;
+        hasStartedRef.current = true;
         const operation = {dispatched: false, cancelled: false, cancelling: false};
         operationRef.current = operation;
         const isCurrent = () =>
@@ -91,7 +98,21 @@ export const ImportDatabaseModal = ({
                     connectionId,
                     ...source,
                     ...(activeSchema ? {schema: activeSchema} : {}),
-                    ...(targetDatabase ? {database: targetDatabase} : {}),
+                    ...(sqlCapabilities
+                        ? {createDatabase: sqlCapabilities.create_database && createDatabase}
+                        : {}),
+                    ...((
+                        sqlCapabilities?.create_database && createDatabase
+                            ? newDatabase.trim()
+                            : targetDatabase
+                    )
+                        ? {
+                              database:
+                                  sqlCapabilities?.create_database && createDatabase
+                                      ? newDatabase.trim()
+                                      : targetDatabase,
+                          }
+                        : {}),
                 },
                 {
                     deadlineMs: DATABASE_TRANSFER_DEADLINE_MS,
@@ -114,13 +135,25 @@ export const ImportDatabaseModal = ({
             setError(String(e));
             setIsImporting(false);
         }
-    }, [activeSchema, client, connectionId, inputFile, onSuccess, platform, targetDatabase]);
+    }, [
+        activeSchema,
+        client,
+        connectionId,
+        inputFile,
+        onSuccess,
+        platform,
+        targetDatabase,
+        sqlCapabilities,
+        createDatabase,
+        newDatabase,
+    ]);
 
     useEffect(() => {
         if (!isOpen) {
             // Reset state when modal closes
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setIsImporting(false);
+            setSqlCapabilities(undefined);
             setProgress(null);
             setError(null);
             setSuccess(false);
@@ -131,13 +164,24 @@ export const ImportDatabaseModal = ({
             return;
         }
 
-        // Start import automatically when the modal opens — but only once per opening.
-        if (hasStartedRef.current) {
-            return;
-        }
-        hasStartedRef.current = true;
-        startImport();
-    }, [isOpen, startImport]);
+        if (sqlCapabilities === null) void startImport();
+    }, [isOpen, startImport, sqlCapabilities]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        let cancelled = false;
+        void client
+            .call('get_database_sql_capabilities', {connectionId})
+            .then((capabilities) => {
+                if (!cancelled) setSqlCapabilities(capabilities);
+            })
+            .catch((reason: unknown) => {
+                if (!cancelled) setError(String(reason));
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [client, connectionId, isOpen]);
 
     // The progress listener lives in its own effect: if it shared the starter
     // effect above, any re-run (strict-mode double mount, startImport changing
@@ -207,13 +251,19 @@ export const ImportDatabaseModal = ({
             onClose={handleCancel}
             overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
         >
-            <div className="bg-base border border-default rounded-lg shadow-xl w-[600px] flex flex-col">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                className="bg-base border border-default rounded-lg shadow-xl w-[600px] flex flex-col"
+            >
                 <div className="p-4 border-b border-default flex justify-between items-center">
-                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <h2 id={titleId} className="text-lg font-semibold flex items-center gap-2">
                         <Database size={18} />
                         {t('dump.importTitle')} - {databaseName}
                     </h2>
                     <button
+                        aria-label={t('common.close')}
                         onClick={handleCancel}
                         className="text-muted hover:text-primary text-xl leading-none"
                     >
@@ -222,6 +272,50 @@ export const ImportDatabaseModal = ({
                 </div>
 
                 <div className="p-6 flex flex-col gap-4">
+                    {sqlCapabilities === undefined && !error && (
+                        <Loader2
+                            aria-label={t('common.loading')}
+                            className="animate-spin text-accent"
+                        />
+                    )}
+                    {sqlCapabilities && !isImporting && !success && !error && (
+                        <div className="space-y-3">
+                            {sqlCapabilities.requires_empty_target && (
+                                <p className="text-sm text-muted">
+                                    {t(
+                                        'dump.emptyTargetRequired',
+                                        'Restore into a new or empty database. Existing databases are never overwritten.',
+                                    )}
+                                </p>
+                            )}
+                            {sqlCapabilities.create_database && (
+                                <label className="flex items-center gap-2 text-sm">
+                                    <input
+                                        type="checkbox"
+                                        checked={createDatabase}
+                                        onChange={(event) =>
+                                            setCreateDatabase(event.target.checked)
+                                        }
+                                    />
+                                    {t('dump.createDatabase', 'Create a new database')}
+                                </label>
+                            )}
+                            {sqlCapabilities.create_database && createDatabase && (
+                                <label className="flex flex-col gap-1 text-sm">
+                                    {t(
+                                        'dump.serverDatabasePath',
+                                        'Database path or alias on the database server',
+                                    )}
+                                    <input
+                                        value={newDatabase}
+                                        onChange={(event) => setNewDatabase(event.target.value)}
+                                        autoComplete="off"
+                                        className="w-full bg-surface-secondary border border-default rounded px-3 py-2 text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                    />
+                                </label>
+                            )}
+                        </div>
+                    )}
                     {/* Status Icon */}
                     <div className="flex justify-center">
                         {isImporting && <Loader2 size={48} className="animate-spin text-accent" />}
@@ -321,6 +415,21 @@ export const ImportDatabaseModal = ({
                 </div>
 
                 <div className="p-4 border-t border-default flex justify-end gap-2">
+                    {sqlCapabilities && !isImporting && !success && !error && (
+                        <button
+                            disabled={
+                                sqlCapabilities.create_database &&
+                                createDatabase &&
+                                !newDatabase.trim()
+                            }
+                            onClick={() => {
+                                void startImport();
+                            }}
+                            className="px-4 py-2 bg-accent-primary text-inverse rounded disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        >
+                            {t('dump.startRestore', 'Restore database')}
+                        </button>
+                    )}
                     {isImporting ? (
                         <button
                             onClick={handleCancel}

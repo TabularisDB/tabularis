@@ -12,6 +12,33 @@ use crate::models::{
     RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
 
+/// Optional whole-database SQL protocol. Other drivers keep the host transfer path.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DatabaseSqlCapabilities {
+    pub format: String,
+    pub create_database: bool,
+    pub requires_empty_target: bool,
+    pub target_label: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DatabaseSqlExportOptions {
+    pub structure: bool,
+    pub data: bool,
+    pub tables: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DatabaseSqlExportResult {
+    pub rows: u64,
+    pub tables: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DatabaseSqlImportResult {
+    pub statements: usize,
+}
+
 /// Callback invoked the moment each statement in a batch finishes, with the
 /// statement's zero-based index and its outcome. Drivers call this — when one
 /// is supplied — after every statement so the UI can mark that result tab done
@@ -1156,6 +1183,32 @@ pub trait DatabaseDriver: Send + Sync {
         _table: &str,
         _schema: Option<&str>,
     ) -> Result<Option<u64>, String> {
+        Ok(None)
+    }
+
+    /// Optional whole-file transfers; missing methods retain the host implementation.
+    async fn get_database_sql_capabilities(
+        &self,
+        _params: &ConnectionParams,
+    ) -> Result<Option<DatabaseSqlCapabilities>, String> {
+        Ok(None)
+    }
+
+    async fn export_database_sql(
+        &self,
+        _params: &ConnectionParams,
+        _file_path: &str,
+        _options: &DatabaseSqlExportOptions,
+    ) -> Result<Option<DatabaseSqlExportResult>, String> {
+        Ok(None)
+    }
+
+    async fn import_database_sql(
+        &self,
+        _params: &ConnectionParams,
+        _file_path: &str,
+        _create_database: bool,
+    ) -> Result<Option<DatabaseSqlImportResult>, String> {
         Ok(None)
     }
 

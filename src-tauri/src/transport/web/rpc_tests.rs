@@ -7,6 +7,34 @@ use axum::http::HeaderValue;
 use uuid::Uuid;
 
 #[test]
+fn database_sql_import_preserves_creation_and_rejects_browser_server_paths() {
+    let command=decode_database_transfer_command(DatabaseTransferRpcCommand::Import,br#"{"connectionId":"source","uploadToken":"upload","database":"/server/new.fdb","createDatabase":true}"#).unwrap();
+    assert!(
+        matches!(command,DatabaseTransferCommand::Import{create_database:true,database:Some(database),..} if database=="/server/new.fdb")
+    );
+    let ordinary = decode_database_transfer_command(
+        DatabaseTransferRpcCommand::Import,
+        br#"{"connectionId":"source","uploadToken":"upload"}"#,
+    )
+    .unwrap();
+    assert!(matches!(
+        ordinary,
+        DatabaseTransferCommand::Import {
+            create_database: false,
+            ..
+        }
+    ));
+    assert!(decode_database_transfer_command(
+        DatabaseTransferRpcCommand::Import,
+        br#"{"connectionId":"source","uploadToken":"upload","filePath":"/etc/passwd"}"#
+    )
+    .is_err());
+    assert!(
+        matches!(decode_database_transfer_command(DatabaseTransferRpcCommand::Capabilities,br#"{"connectionId":"source"}"#).unwrap(),DatabaseTransferCommand::Capabilities{connection_id} if connection_id=="source")
+    );
+}
+
+#[test]
 fn routine_debug_web_command_preserves_native_identity_and_rejects_extra_fields() {
     let body = br#"{"connectionId":"oracle","version":1,"command":{"action":"step","session_id":"session","mode":"over"}}"#;
     let command =
@@ -1211,6 +1239,10 @@ async fn routes_database_transfer_jobs_through_the_shared_application_api() {
     let session_id = Some(Uuid::new_v4());
     let commands = [
         (
+            "get_database_sql_capabilities",
+            serde_json::json!({"connectionId":"connection-1"}),
+        ),
+        (
             "dump_database",
             serde_json::json!({
                 "connectionId": "connection-1",
@@ -1611,11 +1643,17 @@ async fn routes_ai_commands_through_the_shared_application_api() {
         ),
         ("get_ai_models", serde_json::json!({"forceRefresh": false})),
         ("generate_ai_query", generate),
-        ("complete_ai_inline", serde_json::json!({"req": {
-            "requestId": "inline-contract", "provider": "ollama", "model": "local",
-            "prefix": "SELECT ", "suffix": "", "schema": "", "dialect": "postgres"
-        }})),
-        ("cancel_ai_inline", serde_json::json!({"requestId": "inline-contract"})),
+        (
+            "complete_ai_inline",
+            serde_json::json!({"req": {
+                "requestId": "inline-contract", "provider": "ollama", "model": "local",
+                "prefix": "SELECT ", "suffix": "", "schema": "", "dialect": "postgres"
+            }}),
+        ),
+        (
+            "cancel_ai_inline",
+            serde_json::json!({"requestId": "inline-contract"}),
+        ),
         ("explain_ai_query", explain.clone()),
         ("analyze_ai_explain_plan", explain.clone()),
         ("analyze_ai_crash_report", explain),

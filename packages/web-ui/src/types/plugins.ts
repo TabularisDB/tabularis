@@ -1,5 +1,12 @@
 import type {Dialect} from '@/utils/sqlSplitter';
 
+export interface DatabaseSqlCapabilities {
+    format: string;
+    create_database: boolean;
+    requires_empty_target: boolean;
+    target_label: string;
+}
+
 export interface ConnectionStringExample {
     label: string;
     value: string;

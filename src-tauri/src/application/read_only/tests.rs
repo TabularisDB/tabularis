@@ -256,6 +256,7 @@ async fn shared_execution_blocks_writes_and_keeps_normal_connections_writable() 
         crate::application::database_transfers::ImportSource::ServerPath("missing.sql".into()),
         None,
         None,
+        false,
     )
     .await
     .unwrap_err()

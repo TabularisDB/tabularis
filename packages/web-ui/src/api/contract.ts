@@ -15,6 +15,7 @@ import type {
 } from '@/contexts/DatabaseContext';
 import type {
     InstalledPluginInfo,
+    DatabaseSqlCapabilities,
     PluginLoadError,
     PluginManifest,
     PluginReadme,
@@ -467,6 +468,7 @@ export interface DatabaseDumpRequest extends ConnectionIdRequest {
 }
 
 export interface DatabaseImportRequest extends ConnectionIdRequest {
+    createDatabase?: boolean;
     schema?: string;
     database?: string;
     /** Desktop-only source path. */
@@ -827,6 +829,11 @@ export interface CommandMap {
     >;
     run_connections_backup: CommandDefinition<undefined, BackupRunResult, 'sensitive'>;
 
+    get_database_sql_capabilities: CommandDefinition<
+        ConnectionIdRequest,
+        DatabaseSqlCapabilities | null,
+        'sensitive'
+    >;
     dump_database: CommandDefinition<DatabaseDumpRequest, GeneratedFile | null, 'sensitive'>;
     cancel_dump: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
     import_database: CommandDefinition<DatabaseImportRequest, void, 'sensitive'>;
