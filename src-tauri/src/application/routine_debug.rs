@@ -103,6 +103,9 @@ pub async fn execute(
     command: DebugCommand,
 ) -> Result<DebugResponse, String> {
     command.validate(version, false)?;
+    if command.requires_writable_connection() {
+        super::read_only::ensure_writable(runtime, connection_id)?;
+    }
     if let DebugCommand::Preview { target, .. } = &command {
         let (_, mut params) =
             super::connections::resolve_saved_connection_params(runtime, owner, connection_id)?;
