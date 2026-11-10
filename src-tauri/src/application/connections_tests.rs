@@ -259,6 +259,23 @@ async fn connection_test_failures_emit_correlated_progress() {
 }
 
 #[test]
+fn tunnel_test_log_reports_the_socks5_listener_instead_of_the_database_port() {
+    let mut resolved = connection_params("");
+    resolved.port = Some(27017);
+    assert_eq!(
+        tunnel_endpoint_detail(&resolved).as_deref(),
+        Some("127.0.0.1:27017")
+    );
+
+    resolved.socks5_proxy_host = Some("127.0.0.1".to_string());
+    resolved.socks5_proxy_port = Some(40123);
+    assert_eq!(
+        tunnel_endpoint_detail(&resolved).as_deref(),
+        Some("SOCKS5 127.0.0.1:40123")
+    );
+}
+
+#[test]
 fn test_log_host_port_keeps_url_hosts_and_named_ports() {
     assert_eq!(display_host_port("localhost", 5432), "localhost:5432");
     assert_eq!(display_host_port("192.168.1.10", 3306), "192.168.1.10:3306");

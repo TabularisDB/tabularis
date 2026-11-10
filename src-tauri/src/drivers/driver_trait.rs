@@ -106,6 +106,19 @@ pub struct DriverCapabilities {
     /// the scheme of `connection_string_example` (e.g. `["mongodb+srv"]`).
     #[serde(default, alias = "connectionUriSchemes")]
     pub connection_uri_schemes: Vec<String>,
+    /// The driver reads `ConnectionParams::socks5_proxy_*` and sends every
+    /// database connection through that SOCKS5 proxy. With SSH enabled, the
+    /// host then opens a dynamic forward (`ssh -D`) instead of a fixed one
+    /// and leaves `host`/`port`/`connection_uri` as the user entered them, so
+    /// a connection that names several endpoints (e.g. `mongodb+srv://`)
+    /// reaches all of them. Defaults to `false`: the host keeps rewriting
+    /// `host`/`port` to a fixed forward.
+    #[serde(
+        default,
+        alias = "socks5Proxy",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub socks5_proxy: bool,
     /// Character used to quote identifiers (e.g. `"` for PostgreSQL, `` ` `` for MySQL).
     #[serde(default = "default_double_quote")]
     pub identifier_quote: String,

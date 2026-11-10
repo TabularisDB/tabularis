@@ -175,6 +175,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
 | `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL and MySQL set this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
+| `socks5_proxy` | bool | `true` when the driver sends every database connection through the SOCKS5 proxy the host passes in `socks5_proxy_host` / `socks5_proxy_port` (and `socks5_proxy_username` / `socks5_proxy_password` when set). With SSH enabled, the host then opens a dynamic forward instead of rewriting `host` / `port`, so a connection that names several endpoints (an SRV seedlist, a replica set) reaches all of them. Also accepted as camelCase `socks5Proxy`. Defaults to `false`. See [SSH Tunnels through a SOCKS5 Proxy](#ssh-tunnels-through-a-socks5-proxy). |
 
 For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
 
@@ -946,6 +947,30 @@ Your plugin must run an event loop that:
 The `params.params` object is a `ConnectionParams` — the same values the user entered in the connection form. The top-level `params` may contain additional method-specific fields (e.g., `schema`, `table`, `column_name`, etc.).
 
 Optional settings appear only when the user set them. For example, `connect_timeout_secs` is the number of seconds to wait for a new connection. A plugin that supports a connect timeout should honor it and use its own default when it is absent. Likewise, `query_timeout_secs` is the number of seconds a statement may run; 0 or absent means no limit. Declare `capabilities.query_timeout: true` only when the plugin can cancel a running statement and will stop it on the server once the limit passes; the connection modal shows the field solely for that capability.
+
+### SSH Tunnels through a SOCKS5 Proxy
+
+By default, when a connection has SSH enabled, the host forwards one local port to the connection's `host` / `port` and sends the plugin `127.0.0.1` and that port instead. That cannot serve a connection that names several endpoints, such as a `mongodb+srv://` URI or a replica-set seedlist: the driver discovers the other nodes and connects to them directly.
+
+A driver that declares `capabilities.socks5_proxy: true` gets a SOCKS5 proxy through the SSH session instead. The host leaves `host`, `port` and `connection_uri` as the user entered them and adds:
+
+| Field | Type | Description |
+|---|---|---|
+| `socks5_proxy_host` | string | Always `127.0.0.1`. |
+| `socks5_proxy_port` | number | Local port of the proxy. |
+| `socks5_proxy_username` | string | Username the proxy requires (RFC 1929). Absent when the proxy does not authenticate. |
+| `socks5_proxy_password` | string | Password the proxy requires. Absent when the proxy does not authenticate. Treat it as a secret: never log it or show it in an error. |
+
+The fields are only present while SSH is enabled; the host drops any value a client sends. A plugin with this capability must:
+
+- Send every connection to the database through the proxy, passing hostnames unresolved (SOCKS5 domain-name addresses), so the SSH server resolves them.
+- Fail with a clear error when the user's connection already configures a different proxy, rather than picking one of the two silently. Otherwise the SSH tab looks active while the traffic takes another route.
+
+Limits:
+
+- **Authentication depends on the SSH backend.** When the connection uses an SSH password and no key file, the host runs the proxy itself and requires a random username and password, generated per tunnel. Otherwise (a key file, ssh-agent or default keys) the host normally runs the system `ssh -D`, whose listener cannot authenticate clients: the username and password are absent and any local process can use the proxy while the tunnel is open. Always send them when present. In every case the proxy listens on `127.0.0.1` only.
+- **DNS lookups the driver makes itself stay local.** Only the destinations the driver connects to go through the proxy. Lookups it performs before connecting, such as the SRV and TXT queries for a `mongodb+srv://` URI, use this machine's resolver. If those records exist only in the private network's DNS, the connection fails; the user can switch to a seedlist URI that names the nodes.
+- **One tunnel per bastion.** Connections that use the same SSH user, host and port share one proxy. Disconnecting one connection does not close it; it stays open until Tabularis exits or the proxy settings change, and is reopened on the next connection after its SSH session ends.
 
 ### Successful Response
 

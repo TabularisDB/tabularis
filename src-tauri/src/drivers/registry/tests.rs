@@ -157,3 +157,16 @@ fn local_path_driver_flag_tracks_set_and_clear() {
     set_local_path_driver(id, false);
     assert!(!is_local_path_driver(id));
 }
+
+#[test]
+fn socks5_proxy_driver_flag_tracks_set_and_clear() {
+    let id = "__test_socks5_proxy_driver__";
+    assert!(!is_socks5_proxy_driver(id));
+
+    set_socks5_proxy_driver(id, true);
+    assert!(is_socks5_proxy_driver(id));
+    assert!(!is_local_path_driver(id));
+
+    set_socks5_proxy_driver(id, false);
+    assert!(!is_socks5_proxy_driver(id));
+}

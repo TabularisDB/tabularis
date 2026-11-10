@@ -2727,6 +2727,10 @@ mod tests {
             extra: HashMap::new(),
             connection_id: Some("conn-1".to_string()),
             proxy: None,
+            socks5_proxy_host: None,
+            socks5_proxy_port: None,
+            socks5_proxy_username: None,
+            socks5_proxy_password: None,
         }
     }
 

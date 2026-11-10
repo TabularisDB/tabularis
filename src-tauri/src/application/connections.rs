@@ -1642,7 +1642,7 @@ async fn test_connection(
             progress_id.as_deref(),
             step,
             "ok",
-            resolved.port.map(|port| format!("127.0.0.1:{port}")),
+            tunnel_endpoint_detail(&resolved),
         );
     }
 
@@ -1714,6 +1714,15 @@ async fn test_connection(
         None,
     );
     Ok("Connection successful!".to_string())
+}
+
+/// Local endpoint the test log reports once a tunnel is up. A SOCKS5 tunnel
+/// leaves `host`/`port` on the database, so it reports the proxy listener.
+fn tunnel_endpoint_detail(resolved: &ConnectionParams) -> Option<String> {
+    match (&resolved.socks5_proxy_host, resolved.socks5_proxy_port) {
+        (Some(host), Some(port)) => Some(format!("SOCKS5 {host}:{port}")),
+        _ => resolved.port.map(|port| format!("127.0.0.1:{port}")),
+    }
 }
 
 /// `host:port` for the connection test log. A host that is a URL
