@@ -173,7 +173,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `table_import` | bool | Offers **Import table from SQL...** on database and schema nodes. Defaults to `true`; set `false` for non-SQL plugins. Always off when `readonly` is `true`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
-| `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL sets this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
+| `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL and MySQL set this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
 
 For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
 
