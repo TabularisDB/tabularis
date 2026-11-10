@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
     use crate::query_history::{
-        atomic_write, backfill_missing_database, backup_corrupt_file, QueryHistoryEntry,
+        atomic_write, backfill_missing_database, backup_corrupt_file,
+        compute_query_history_insights, normalize_sql_for_insights, QueryHistoryEntry,
+        QueryHistoryInsightsRequest,
     };
     use std::fs;
     use tempfile::tempdir;
@@ -110,5 +112,144 @@ mod tests {
             name
         );
         assert_eq!(fs::read(&backup).unwrap(), b"]not valid json[");
+    }
+
+    #[test]
+    fn normalizes_sql_with_dialect_aware_comments_literals_and_identifiers() {
+        assert_eq!(
+            normalize_sql_for_insights(
+                "SELECT /* hint */ id, \"UserName\" FROM Users WHERE id = 42 AND status = 'active'; -- tail",
+                Some("postgres")
+            ),
+            "SELECT id, \"UserName\" FROM users WHERE id = ? AND status = '?'"
+        );
+        // In MySQL, double-quoted literals are strings, while backticks quote identifiers.
+        assert_eq!(
+            normalize_sql_for_insights(
+                "SELECT `UserName` FROM users WHERE status = \"active\" # comment",
+                Some("mysql")
+            ),
+            "SELECT `UserName` FROM users WHERE status = '?'"
+        );
+        // Literal IN lists collapse without conflating subqueries or different operations.
+        assert_eq!(
+            normalize_sql_for_insights(
+                "SELECT * FROM orders WHERE id IN (1, 2, 3, 4)",
+                Some("sqlite")
+            ),
+            "SELECT * FROM orders WHERE id IN (?+)"
+        );
+        assert_ne!(
+            normalize_sql_for_insights("SELECT * FROM orders WHERE id = 1", Some("postgres")),
+            normalize_sql_for_insights("DELETE FROM orders WHERE id = 1", Some("postgres"))
+        );
+    }
+
+    #[test]
+    fn computes_insights_with_sample_thresholds_missing_durations_and_time_windows() {
+        let entries = vec![
+            // Current window (last 24h from 2026-08-22T12:00:00Z): 3 slow executions + 1 missing duration
+            QueryHistoryEntry {
+                id: "c1".into(),
+                sql: "SELECT * FROM orders WHERE user_id = 10".into(),
+                executed_at: "2026-08-22T10:00:00Z".into(),
+                execution_time_ms: Some(120.0),
+                status: "success".into(),
+                rows_affected: Some(1),
+                error: None,
+                database: Some("app".into()),
+            },
+            QueryHistoryEntry {
+                id: "c2".into(),
+                sql: "SELECT * FROM orders WHERE user_id = 20".into(),
+                executed_at: "2026-08-22T09:00:00Z".into(),
+                execution_time_ms: Some(140.0),
+                status: "success".into(),
+                rows_affected: Some(1),
+                error: None,
+                database: Some("app".into()),
+            },
+            QueryHistoryEntry {
+                id: "c3".into(),
+                sql: "SELECT * FROM orders WHERE user_id = 30".into(),
+                executed_at: "2026-08-22T08:00:00Z".into(),
+                execution_time_ms: Some(130.0),
+                status: "error".into(),
+                rows_affected: None,
+                error: Some("timeout".into()),
+                database: Some("app".into()),
+            },
+            QueryHistoryEntry {
+                id: "c4".into(),
+                sql: "SELECT * FROM orders WHERE user_id = 40".into(),
+                executed_at: "2026-08-22T07:00:00Z".into(),
+                execution_time_ms: None,
+                status: "success".into(),
+                rows_affected: None,
+                error: None,
+                database: Some("app".into()),
+            },
+            // Prior window (24h–48h ago): 3 fast executions (avg 20ms)
+            QueryHistoryEntry {
+                id: "p1".into(),
+                sql: "SELECT * FROM orders WHERE user_id = 1".into(),
+                executed_at: "2026-08-20T18:00:00Z".into(),
+                execution_time_ms: Some(20.0),
+                status: "success".into(),
+                rows_affected: Some(1),
+                error: None,
+                database: Some("app".into()),
+            },
+            QueryHistoryEntry {
+                id: "p2".into(),
+                sql: "SELECT * FROM orders WHERE user_id = 2".into(),
+                executed_at: "2026-08-20T19:00:00Z".into(),
+                execution_time_ms: Some(20.0),
+                status: "success".into(),
+                rows_affected: Some(1),
+                error: None,
+                database: Some("app".into()),
+            },
+            QueryHistoryEntry {
+                id: "p3".into(),
+                sql: "SELECT * FROM orders WHERE user_id = 3".into(),
+                executed_at: "2026-08-20T20:00:00Z".into(),
+                execution_time_ms: Some(20.0),
+                status: "success".into(),
+                rows_affected: Some(1),
+                error: None,
+                database: Some("app".into()),
+            },
+        ];
+
+        let response = compute_query_history_insights(
+            &entries,
+            7,
+            &QueryHistoryInsightsRequest {
+                connection_id: "conn-1".into(),
+                database: Some("db:app".into()),
+                window_hours: Some(24),
+                dialect: Some("postgres".into()),
+                now: Some("2026-08-22T12:00:00Z".into()),
+                max_groups: None,
+                max_executions_per_group: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(response.groups.len(), 1);
+        let group = &response.groups[0];
+        assert_eq!(group.fingerprint, "SELECT * FROM orders WHERE user_id = ?");
+        assert_eq!(group.call_count, 4);
+        assert_eq!(group.timed_sample_count, 3);
+        assert_eq!(group.missing_duration_count, 1);
+        assert_eq!(group.avg_duration_ms, Some(130.0));
+        assert_eq!(group.prior_call_count, 3);
+        assert_eq!(group.prior_timed_sample_count, 3);
+        assert_eq!(group.prior_avg_duration_ms, Some(20.0));
+        assert!(group.is_regressed);
+        assert_eq!(group.regression_status, "regressed");
+        assert_eq!(group.contributing_executions.len(), 4);
+        assert!(response.coverage.retention_cap_reached);
     }
 }
