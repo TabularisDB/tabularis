@@ -806,11 +806,12 @@ pub async fn execute_read_only_query(
         .await
         .map_err(|e| e.to_string())?;
     let outcome = exec_on_sqlite_conn(guard.conn(), query, limit, page).await;
-    match guard
-        .conn()
-        .execute(sqlx::raw_sql("ROLLBACK; PRAGMA query_only = OFF"))
-        .await
-    {
+    let cleanup = if params.read_only {
+        "ROLLBACK"
+    } else {
+        "ROLLBACK; PRAGMA query_only = OFF"
+    };
+    match guard.conn().execute(sqlx::raw_sql(cleanup)).await {
         Ok(_) => guard.release(),
         Err(e) => log::warn!("SQLite: resetting after a read-only query failed: {e}"),
     }
@@ -1064,6 +1065,7 @@ impl SqliteDriver {
                     materialized_views: false,
                     routines: false,
                     routine_management: false,
+                    routine_debug: None,
                     file_based: true,
                     folder_based: false,
                     // sqlx pools several connections; each would get its own `:memory:` database.
@@ -1084,7 +1086,6 @@ impl SqliteDriver {
                     drop_table_sql: false,
                     column_stats: false,
                     query_classification: false,
-                    read_only_execution: false,
                     query_timeout: false,
                     alter_column: false,
                     create_foreign_keys: false,
@@ -1092,6 +1093,7 @@ impl SqliteDriver {
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    read_only_queries: true,
                     table_export: None,
                     table_import: None,
                     triggers: true,

@@ -133,6 +133,40 @@ function finalCteStatementKeyword(cleaned: string): string | null {
     return null;
 }
 
+// The text inside each `AS (...)` of a WITH statement, `[NOT] MATERIALIZED`
+// included, and with or without whitespace before the parenthesis: PostgreSQL
+// also accepts `AS(`. A CTE body can itself write (`WITH d AS (DELETE FROM t
+// RETURNING *) SELECT ...`), and it runs even when the final statement is a
+// SELECT. Such bodies are only allowed at the top level, so nested ones are
+// not searched.
+function cteBodies(cleaned: string): string[] {
+    const bodies: string[] = [];
+    const bodyStart = /\bAS\s*(?:NOT\s+)?(?:MATERIALIZED\s*)?\(/gi;
+    while (bodyStart.exec(cleaned) !== null) {
+        const start = bodyStart.lastIndex;
+        let depth = 1;
+        let end = start;
+        for (; end < cleaned.length && depth > 0; end++) {
+            if (cleaned[end] === '(') depth++;
+            else if (cleaned[end] === ')') depth--;
+        }
+        bodies.push(cleaned.slice(start, depth === 0 ? end - 1 : end));
+        bodyStart.lastIndex = end;
+    }
+    return bodies;
+}
+
+const CTE_WRITE_KEYWORDS = new Set(['INSERT', 'UPDATE', 'DELETE', 'MERGE']);
+
+// The statement keyword of the first CTE body that writes, if any.
+function cteWriteKeyword(cleaned: string): string | null {
+    for (const body of cteBodies(cleaned)) {
+        const keyword = leadingKeyword(body);
+        if (CTE_WRITE_KEYWORDS.has(keyword)) return keyword;
+    }
+    return null;
+}
+
 // True if `WHERE` appears outside of any parenthesized group — a WHERE
 // nested in a subquery (e.g. an UPDATE...SET with a correlated subquery)
 // doesn't count, since it doesn't limit which rows of the target table are
@@ -156,6 +190,12 @@ function hasTopLevelWhere(cleaned: string): boolean {
     return false;
 }
 
+// A DELETE or UPDATE that touches every row of its table.
+function isUnfilteredWrite(statement: string): boolean {
+    const keyword = leadingKeyword(statement);
+    return (keyword === 'DELETE' || keyword === 'UPDATE') && !hasTopLevelWhere(statement);
+}
+
 // The distinct ways a statement can be flagged as dangerous. Each maps to its
 // own confirmation copy so the dialog can explain the specific risk.
 //   - 'no-where':  DELETE/UPDATE with no top-level WHERE (wipes a whole table)
@@ -173,6 +213,7 @@ export const classifyDangerousQuery = (sql: string): DangerousQueryKind | null =
     // MySQL comment it would be rather than letting it hide a DROP.
     let keyword = leadingKeyword(cleaned) || leadingKeyword(cleaned, {hashComments: true});
     if (keyword === 'WITH') {
+        if (cteBodies(cleaned).some(isUnfilteredWrite)) return 'no-where';
         keyword = finalCteStatementKeyword(cleaned) ?? keyword;
     }
 
@@ -219,7 +260,7 @@ function effectiveStatementKeyword(cleaned: string): string | null {
     if (!unwrapped.trim()) return 'SELECT'; // bare EXPLAIN — nothing to run
     let keyword = leadingKeyword(unwrapped);
     if (keyword === 'WITH') {
-        keyword = finalCteStatementKeyword(unwrapped) ?? keyword;
+        keyword = cteWriteKeyword(unwrapped) ?? finalCteStatementKeyword(unwrapped) ?? keyword;
     }
     return keyword;
 }

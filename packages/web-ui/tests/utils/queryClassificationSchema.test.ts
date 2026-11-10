@@ -4,17 +4,15 @@ import extensionsSchema from '../../../../plugins/tabularium-extensions.schema.j
 
 describe('query classification manifest contract', () => {
     for (const [name, schema] of Object.entries({manifestSchema, extensionsSchema})) {
-        for (const capability of ['query_classification', 'read_only_execution'] as const) {
-            it(`declares ${capability} as an optional, default-false capability in ${name}`, () => {
-                const capabilities = schema.properties.capabilities;
-                expect(capabilities.properties[capability]).toMatchObject({
-                    type: 'boolean',
-                    default: false,
-                });
-                if ('required' in capabilities) {
-                    expect(capabilities.required).not.toContain(capability);
-                }
+        it(`declares query_classification as an optional, default-false capability in ${name}`, () => {
+            const capabilities = schema.properties.capabilities;
+            expect(capabilities.properties.query_classification).toMatchObject({
+                type: 'boolean',
+                default: false,
             });
-        }
+            if ('required' in capabilities) {
+                expect(capabilities.required).not.toContain('query_classification');
+            }
+        });
     }
 });

@@ -257,5 +257,6 @@ describe('TauriPlatformCapabilities host window integration', () => {
         expect(operations.openStorageLocation).toHaveBeenCalledOnce();
         expect(capabilities.currentWindowLabel()).toBe('conn-1');
         expect(capabilities.supports('openStorageLocation')).toBe(true);
+        expect(capabilities.supports('linkLocalFolders')).toBe(true);
     });
 });

@@ -1,4 +1,42 @@
 {
+  "routineDebug": {
+    "closeUnconfirmed": "Trotz unbestätigter Ressourcenfreigabe schließen",
+    "title": "Routine debuggen",
+    "warning": "Starten und Fortsetzen führt Datenbankcode aus. Dabei können Transaktionen bestätigt oder externe Effekte ausgelöst werden. Berechtigungen werden nicht automatisch vergeben, Routinen nicht neu kompiliert und keine Hilfsobjekte installiert.",
+    "preview": "Ziel und Parameter prüfen",
+    "start": "Debugging starten",
+    "continue": "Fortsetzen",
+    "into": "Hineinspringen",
+    "over": "Überspringen",
+    "out": "Herausspringen",
+    "status": "Status aktualisieren",
+    "stop": "Stoppen und Ressourcen freigeben",
+    "source": "Quelltext",
+    "stack": "Aufrufliste",
+    "variables": "Variablen",
+    "outputs": "OUT-Parameter und Rückgabewert",
+    "watches": "Variablennamen prüfen (durch Kommas getrennt)",
+    "breakpoint": "Haltepunkt in Zeile {{line}} umschalten",
+    "execution": "Ausführung",
+    "transaction": "Transaktion",
+    "resources": "Ressourcen",
+    "available": "Verfügbar",
+    "partial": "Teilweise verfügbar",
+    "stale": "Veraltet — Aktualisierung erforderlich",
+    "unavailable": "Nicht verfügbar",
+    "running": "Läuft",
+    "paused": "Pausiert",
+    "completed": "Abgeschlossen",
+    "failed": "Fehlgeschlagen",
+    "cancelled": "Abgebrochen",
+    "unknown": "Unbekannt",
+    "open": "Offen",
+    "committed": "Bestätigt",
+    "rolled_back": "Zurückgerollt",
+    "held": "Belegt",
+    "released": "Freigegeben",
+    "uncertain": "Der letzte Vorgang konnte nicht bestätigt werden. Angezeigte Daten können veraltet sein. Routine nicht neu starten; Status aktualisieren oder stoppen, um die Freigabe zu prüfen."
+  },
   "serverFilePicker": {
     "title": "Serverdateien durchsuchen",
     "subtitle": "Datei oder Ordner auf dem Tabularis-Host auswählen",
@@ -86,6 +124,13 @@
     "warnConfirm": "Trotzdem ausführen",
     "warnSnooze": "Für diese Verbindung nicht mehr fragen (diese Sitzung)"
   },
+  "readOnly": {
+    "label": "Schreibgeschützter Modus",
+    "description": "Blockiert Schreibzugriffe auf diese Verbindung. Startskripte werden in diesem Modus übersprungen.",
+    "unsupported": "Dieser Treiber unterstützt keine geschützten schreibgeschützten Abfragen.",
+    "writeBlocked": "Diese Verbindung ist schreibgeschützt. Deaktivieren Sie diesen Modus in den Verbindungseinstellungen, um Schreibzugriffe zu erlauben.",
+    "banner": "{{name}} — schreibgeschützt"
+  },
   "textStats": {
     "characters": "Zeichen: {{count}}",
     "lines": "Zeilen: {{count}}",
@@ -116,6 +161,54 @@
     "hideDetails": "Details ausblenden",
     "beta": "Beta",
     "dismiss": "Schließen"
+  },
+  "linkedFolders": {
+    "tab": "SQL-Dateien",
+    "chooseTitle": "Ordner mit SQL-Skripten wählen",
+    "link": "Ordner verknüpfen",
+    "refresh": "SQL-Dateien aktualisieren",
+    "empty": "Verknüpfe einen Ordner, um seine SQL-Skripte zu durchsuchen.",
+    "needsConnection": "Verbinde dich mit einer Datenbank, bevor du eine SQL-Datei öffnest.",
+    "linkError": "Ordner konnte nicht verknüpft werden",
+    "unlinkError": "Verknüpfung konnte nicht aufgehoben werden",
+    "unlink": "{{name}} trennen",
+    "rootUnavailable": "Nicht verfügbar",
+    "fileUnsaved": "{{name}} (ungespeicherte Änderungen)",
+    "unavailableTitle": "SQL-Dateien sind hier nicht verfügbar",
+    "unavailableMessage": "Das Verknüpfen eines lokalen Ordners erfordert die Desktop-App. Importiere im Browser eine Datei über SQL-Datei öffnen.",
+    "status": {
+      "loading": "Wird geladen…",
+      "empty": "Keine SQL-Dateien",
+      "truncated": "Nur die ersten Einträge werden angezeigt"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "Die gespeicherte Liste verknüpfter Ordner ist nicht lesbar. Korrigiere oder entferne linked_folders.json im Konfigurationsordner.",
+      "linked_folder_not_found": "Dieser verknüpfte Ordner ist nicht mehr in deiner Liste.",
+      "linked_folder_unavailable": "Der Ordner fehlt oder ist nicht lesbar.",
+      "linked_folder_limit_reached": "Maximale Anzahl verknüpfter Ordner erreicht. Trenne zuerst einen.",
+      "linked_path_outside_root": "Der Pfad liegt außerhalb des verknüpften Ordners.",
+      "linked_path_not_sql_file": "Hier können nur .sql-, .psql- und .pgsql-Dateien geöffnet werden.",
+      "linked_directory_unreadable": "Dieser Ordner ist nicht lesbar.",
+      "linked_file_unreadable": "Diese Datei ist nicht lesbar. Sie fehlt, ist zu groß oder nicht UTF-8.",
+      "linked_file_too_large": "Diese Datei ist zu groß zum Speichern (Limit 50 MB).",
+      "linked_file_write_failed": "Die Datei konnte nicht geschrieben werden. Prüfe die Berechtigungen und den freien Speicherplatz.",
+      "linked_file_conflict_modified": "Die Datei hat sich auf dem Datenträger geändert.",
+      "linked_file_conflict_missing": "Die Datei existiert nicht mehr auf dem Datenträger."
+    },
+    "conflict": {
+      "reload": "Vom Datenträger neu laden",
+      "saveAs": "Als Kopie speichern…",
+      "modified": {
+        "title": "Datei auf dem Datenträger geändert",
+        "message": "{{name}} wurde außerhalb von Tabularis geändert, seit du die Datei geöffnet oder zuletzt gespeichert hast. Es wurde nichts geschrieben. Überschreibe die Datei mit deiner Version, speichere sie als Kopie oder lade die Version vom Datenträger und verwirf deine Änderungen.",
+        "overwrite": "Datei überschreiben"
+      },
+      "missing": {
+        "title": "Datei fehlt auf dem Datenträger",
+        "message": "{{name}} wurde außerhalb von Tabularis gelöscht oder verschoben. Deine Änderungen bleiben im Editor erhalten. Erstelle die Datei mit deiner Version neu oder speichere sie als Kopie an anderer Stelle.",
+        "overwrite": "Datei neu erstellen"
+      }
+    }
   },
   "sidebar": {
     "connections": "Verbindungen",
@@ -2340,7 +2433,14 @@
     "exportSuccess": "Diagramm exportiert",
     "exportDbml": "Als DBML exportieren",
     "exportMarkdown": "Als Markdown exportieren",
-    "export": "Exportieren"
+    "export": "Exportieren",
+    "legend": "Legende",
+    "primaryKey": "Primärschlüssel",
+    "primaryKeyDesc": "Eindeutige Spalte zur Zeilenidentifikation in der Tabelle",
+    "foreignKey": "Fremdschlüssel",
+    "foreignKeyDesc": "Verweist auf einen Primär- oder eindeutigen Schlüssel einer anderen Tabelle",
+    "relationship": "Beziehung",
+    "relationshipDesc": "Fremdschlüssel-Referenz zwischen untergeordneter und übergeordneter Tabelle"
   },
   "views": {
     "createView": "Ansicht erstellen",
@@ -3069,6 +3169,10 @@
     },
     "unknown": {
       "summary": "Verbindung fehlgeschlagen"
+    },
+    "keychain": {
+      "summary": "System-Schlüsselbund nicht verfügbar",
+      "recovery": "Tabularis konnte den Anmeldedatenspeicher des Systems nicht erreichen, um die Passwörter zu speichern. Stelle unter Linux sicher, dass ein Secret-Service-Anbieter (GNOME Keyring, KWallet, KeePassXC) läuft und entsperrt ist, oder deaktiviere \"Passwörter im Keychain speichern\" für diese Verbindung."
     }
   },
   "connectionTest": {
@@ -3113,6 +3217,22 @@
     "groups": { "builtin": "Integriert · offline", "installed": "Installierte Pakete", "personal": "Persönliche Designs" }, "modes": { "light": "Hell", "dark": "Dunkel", "high-contrast": "Hoher Kontrast" },
     "importErrors": { "unrecognized": "Kein erkanntes VS-Code-Design.", "modeRequired": "Modus auswählen und Vorschau erneut öffnen.", "includeOnly": "Reine Include-Designs sind nicht importierbar. Die tatsächlichen Farben bereitstellen.", "noSupportedData": "Keine unterstützten Farben oder SQL-Tokenregeln gefunden.", "invalidColor": "Ungültiger Wert einer unterstützten Farbe.", "invalidRules": "Ungültige oder zu viele Tokenregeln." },
     "diagnostics": { "unsupportedKey": "Nicht unterstütztes Feld", "unsupportedColor": "Nicht unterstützte Farbe", "unsupportedScope": "Nicht unterstützter Bereich", "scopeApproximation": "Angenäherte SQL-Zuordnung", "unsupportedStyle": "Nicht unterstützter Stil", "ignoredInclude": "Include nicht geladen", "ignoredSemanticTokens": "Semantische Tokens ignoriert", "unsupportedReference": "Externe Referenz nicht geladen", "unsupportedSetting": "Nicht unterstützte Einstellung", "tokenAlphaFlattened": "Token-Deckkraft gegen den Basishintergrund berechnet", "modeApproximation": "Modus überschrieben oder angenähert", "diagnosticsTruncated": "Weitere Diagnosen ausgelassen" }
+  },
+  "linkedGit": {
+    "title": "Git-Änderungen prüfen",
+    "diskOnly": "Commits verwenden gespeicherte Dateien auf der Platte. Ungespeicherte Editor-Entwürfe werden nicht einbezogen. Nur markierte, geprüfte Skripte werden committet.",
+    "desktopOnly": "Git für verknüpfte SQL-Ordner ist nur in der Desktop-App verfügbar.",
+    "refresh": "Änderungen aktualisieren",
+    "commit": "Ausgewählte Skripte committen",
+    "committed": "Commit {{commit}} erstellt.",
+    "renames": "M geändert · A hinzugefügt · D gelöscht · ? nicht versioniert. Umbenennungen erscheinen als Löschung und neue Datei; beide prüfen.",
+    "empty": "Keine geänderten SQL-Skripte.",
+    "files": "Geänderte SQL-Skripte",
+    "include": "{{path}} in Commit aufnehmen",
+    "review": "{{path}} prüfen",
+    "diff": "Geprüfter Datei-Diff",
+    "choose": "Wähle ein Skript und prüfe den Diff, bevor du es aufnimmst.",
+    "message": "Commit-Nachricht"
   },
   "aiInline": {
     "title": "KI-Inline-Vervollständigung",

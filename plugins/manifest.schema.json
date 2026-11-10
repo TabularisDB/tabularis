@@ -89,6 +89,11 @@
           "default": false,
           "description": "true to enable routine management actions (run with parameters, create from template, edit, drop). The backing RPCs (build_routine_call_sql, routine_create_template, get_routine_edit_script, drop_routine) are optional: the host falls back to dialect-neutral SQL when the plugin does not implement them."
         },
+        "routine_debug": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Native routine debugger protocol version. Omit when unsupported. Hosts currently support version 1 only. Requires routine_debug RPC; there is no SQL fallback."
+        },
         "triggers": {
           "type": "boolean",
           "default": false,
@@ -267,6 +272,10 @@
               "type": "boolean",
               "description": "-- needs a following whitespace to start a comment."
             },
+            "psql_blocks": {
+              "type": "boolean",
+              "description": "Firebird PSQL bodies, alternative q-quotes and standalone isql SET TERM directives."
+            },
             "script_blocks": {
               "type": "boolean",
               "description": "Procedural BEGIN … END, IF, LOOP, WHILE, REPEAT, FOR and CASE blocks stay one statement."
@@ -385,12 +394,7 @@
         "query_classification": {
           "type": "boolean",
           "default": false,
-          "description": "Classify queries in the driver's own query language through the optional classify_query RPC, for the MCP read-only mode and approval gate. When false the host reads every query as SQL. A select verdict only counts together with read_only_execution."
-        },
-        "read_only_execution": {
-          "type": "boolean",
-          "default": false,
-          "description": "The optional execute_read_only_query RPC refuses any statement that could change data, schema or server state. The host runs through it the MCP queries it lets pass without approval, and every query on a read-only connection. When false the host uses execute_query, so classification is the only safeguard."
+          "description": "Classify queries in the driver's own query language through the optional classify_query RPC, for the read-only policies: the MCP read-only mode, the MCP approval gate and saved read-only connections. When false the host reads every query as SQL. A select verdict only counts when the driver also declares read_only_queries (or readonly), because a classifier alone does not stop a write at execution."
         },
         "query_timeout": {
           "type": "boolean",
@@ -421,6 +425,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table and column management is also hidden regardless of manage_tables. Defaults to false."
+        },
+        "read_only_queries": {
+          "type": "boolean",
+          "default": false,
+          "description": "Implements execute_read_only_query with database-enforced write protection. Enables optional read-only mode per connection. Errors must never fall back to ordinary execution."
         },
         "table_export": {
           "type": "boolean",

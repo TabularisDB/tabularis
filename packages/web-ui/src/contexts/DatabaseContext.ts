@@ -54,6 +54,7 @@ export interface SavedConnection {
     plugin_secret_keys?: string[];
     params: {
         driver: string;
+        read_only?: boolean;
         host?: string;
         database: string | string[];
         default_database?: string;

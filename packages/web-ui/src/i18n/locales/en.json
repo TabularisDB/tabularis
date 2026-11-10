@@ -1,4 +1,42 @@
 {
+  "routineDebug": {
+    "closeUnconfirmed": "Close despite unconfirmed resource release",
+    "title": "Debug routine",
+    "warning": "Starting or continuing a routine executes database code. It may commit transactions or cause external effects. Debugging does not automatically grant privileges, recompile routines or install helper objects.",
+    "preview": "Preview target and parameters",
+    "start": "Start debugging",
+    "continue": "Continue",
+    "into": "Step into",
+    "over": "Step over",
+    "out": "Step out",
+    "status": "Refresh status",
+    "stop": "Stop and release resources",
+    "source": "Source",
+    "stack": "Call stack",
+    "variables": "Variables",
+    "outputs": "OUT parameters and return value",
+    "watches": "Variable names to inspect (comma separated)",
+    "breakpoint": "Toggle breakpoint at line {{line}}",
+    "execution": "Execution",
+    "transaction": "Transaction",
+    "resources": "Resources",
+    "available": "Available",
+    "partial": "Partial",
+    "stale": "Stale — refresh required",
+    "unavailable": "Unavailable",
+    "running": "Running",
+    "paused": "Paused",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "unknown": "Unknown",
+    "open": "Open",
+    "committed": "Committed",
+    "rolled_back": "Rolled back",
+    "held": "Held",
+    "released": "Released",
+    "uncertain": "The latest operation could not be confirmed. Displayed data may be stale. Do not restart the routine; refresh status or stop to confirm cleanup."
+  },
   "serverFilePicker": {
     "title": "Browse server files",
     "subtitle": "Select a file or folder on the Tabularis host",
@@ -86,6 +124,13 @@
     "warnConfirm": "Run anyway",
     "warnSnooze": "Don't ask again for this connection (this session)"
   },
+  "readOnly": {
+    "label": "Read-only mode",
+    "description": "Block writes on this connection. Startup scripts are skipped while enabled.",
+    "unsupported": "This driver does not support protected read-only queries.",
+    "writeBlocked": "This connection is read-only. Disable read-only mode in its settings to allow writes.",
+    "banner": "{{name}} — read-only mode"
+  },
   "textStats": {
     "characters": "Characters: {{count}}",
     "lines": "Lines: {{count}}",
@@ -116,6 +161,54 @@
     "hideDetails": "Hide details",
     "beta": "Beta",
     "dismiss": "Dismiss"
+  },
+  "linkedFolders": {
+    "tab": "SQL Files",
+    "chooseTitle": "Choose a folder of SQL scripts",
+    "link": "Link folder",
+    "refresh": "Refresh SQL Files",
+    "empty": "Link a folder to browse its SQL scripts.",
+    "needsConnection": "Connect to a database before opening a SQL file.",
+    "linkError": "Could not link the folder",
+    "unlinkError": "Could not unlink the folder",
+    "unlink": "Unlink {{name}}",
+    "rootUnavailable": "Unavailable",
+    "fileUnsaved": "{{name}} (unsaved changes)",
+    "unavailableTitle": "SQL Files are not available here",
+    "unavailableMessage": "Linking a local folder needs the desktop app. In the browser, use Open SQL file to import a file.",
+    "status": {
+      "loading": "Loading…",
+      "empty": "No SQL files",
+      "truncated": "Only the first entries are shown"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "The saved list of linked folders could not be read. Fix or remove linked_folders.json in the config folder.",
+      "linked_folder_not_found": "This linked folder no longer exists in your list.",
+      "linked_folder_unavailable": "The folder is missing or cannot be read.",
+      "linked_folder_limit_reached": "The maximum number of linked folders is reached. Unlink one first.",
+      "linked_path_outside_root": "The path is outside the linked folder.",
+      "linked_path_not_sql_file": "Only .sql, .psql and .pgsql files can be opened here.",
+      "linked_directory_unreadable": "This folder cannot be read.",
+      "linked_file_unreadable": "This file cannot be read. It may be missing, too large or not UTF-8.",
+      "linked_file_too_large": "This file is too large to save (limit 50 MB).",
+      "linked_file_write_failed": "The file could not be written. Check its permissions and free disk space.",
+      "linked_file_conflict_modified": "The file changed on disk.",
+      "linked_file_conflict_missing": "The file no longer exists on disk."
+    },
+    "conflict": {
+      "reload": "Reload from disk",
+      "saveAs": "Save as copy…",
+      "modified": {
+        "title": "File changed on disk",
+        "message": "{{name}} was modified outside Tabularis since you opened or last saved it. Nothing was written. Overwrite the file with your version, save your version as a copy, or reload the disk version and discard your edits.",
+        "overwrite": "Overwrite file"
+      },
+      "missing": {
+        "title": "File missing on disk",
+        "message": "{{name}} was deleted or moved outside Tabularis. Your edits are kept in the editor. Recreate the file with your version, or save it as a copy elsewhere.",
+        "overwrite": "Recreate file"
+      }
+    }
   },
   "sidebar": {
     "connections": "Connections",
@@ -2411,7 +2504,14 @@
     "exportSuccess": "Diagram exported",
     "exportDbml": "Export as DBML",
     "exportMarkdown": "Export as Markdown",
-    "export": "Export"
+    "export": "Export",
+    "legend": "Legend",
+    "primaryKey": "Primary Key",
+    "primaryKeyDesc": "Unique column identifying rows in the table",
+    "foreignKey": "Foreign Key",
+    "foreignKeyDesc": "References a primary or unique key in another table",
+    "relationship": "Relationship",
+    "relationshipDesc": "Foreign key reference connecting child and parent tables"
   },
   "views": {
     "createView": "Create View",
@@ -3179,6 +3279,10 @@
     },
     "unknown": {
       "summary": "Connection failed"
+    },
+    "keychain": {
+      "summary": "System keychain unavailable",
+      "recovery": "Tabularis could not reach the OS credential store to save the passwords. On Linux, make sure a Secret Service provider (GNOME Keyring, KWallet, KeePassXC) is running and unlocked, or turn off \"Save passwords in Keychain\" for this connection."
     }
   },
   "connectionTest": {
@@ -3249,6 +3353,22 @@
     "copyMetadata": "Copy metadata",
     "copied": "Copied to clipboard",
     "copyFailed": "Could not copy to the clipboard. Try again."
+  },
+  "linkedGit": {
+    "title": "Review Git changes",
+    "diskOnly": "Commits use saved files on disk. Unsaved editor drafts are not included. Only checked, reviewed scripts will be committed.",
+    "desktopOnly": "Git for linked SQL folders is available in the desktop app only.",
+    "refresh": "Refresh changes",
+    "commit": "Commit selected scripts",
+    "committed": "Created commit {{commit}}.",
+    "renames": "M modified · A added · D deleted · ? untracked. Renames appear as a deletion and an addition; review both.",
+    "empty": "No changed SQL scripts.",
+    "files": "Changed SQL scripts",
+    "include": "Include {{path}} in commit",
+    "review": "Review {{path}}",
+    "diff": "Reviewed file diff",
+    "choose": "Select a script to review its diff before including it.",
+    "message": "Commit message"
   },
   "aiInline": {
     "title": "AI inline completion",

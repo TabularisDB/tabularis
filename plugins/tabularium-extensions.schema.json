@@ -138,12 +138,7 @@
         "query_classification": {
           "type": "boolean",
           "default": false,
-          "description": "Classify queries in the driver's own query language through the optional classify_query RPC, for the MCP read-only mode and approval gate. When false the host reads every query as SQL. A select verdict only counts together with read_only_execution."
-        },
-        "read_only_execution": {
-          "type": "boolean",
-          "default": false,
-          "description": "The optional execute_read_only_query RPC refuses any statement that could change data, schema or server state. The host runs through it the MCP queries it lets pass without approval, and every query on a read-only connection. When false the host uses execute_query, so classification is the only safeguard."
+          "description": "Classify queries in the driver's own query language through the optional classify_query RPC, for the read-only policies: the MCP read-only mode, the MCP approval gate and saved read-only connections. When false the host reads every query as SQL. A select verdict only counts when the driver also declares read_only_queries (or readonly), because a classifier alone does not stop a write at execution."
         },
         "query_timeout": {
           "type": "boolean",
@@ -250,6 +245,10 @@
             "line_comment_requires_space": {
               "type": "boolean",
               "description": "-- needs a following whitespace to start a comment."
+            },
+            "psql_blocks": {
+              "type": "boolean",
+              "description": "Firebird PSQL bodies, alternative q-quotes and standalone isql SET TERM directives."
             },
             "script_blocks": {
               "type": "boolean",

@@ -1,4 +1,42 @@
 {
+  "routineDebug": {
+    "closeUnconfirmed": "Fechar sem confirmar a liberação dos recursos",
+    "title": "Depurar rotina",
+    "warning": "Iniciar ou continuar uma rotina executa código no banco de dados. Isso pode confirmar transações ou causar efeitos externos. A depuração não concede privilégios, recompila rotinas nem instala objetos auxiliares automaticamente.",
+    "preview": "Visualizar destino e parâmetros",
+    "start": "Iniciar depuração",
+    "continue": "Continuar",
+    "into": "Entrar",
+    "over": "Avançar",
+    "out": "Sair",
+    "status": "Atualizar status",
+    "stop": "Parar e liberar recursos",
+    "source": "Código-fonte",
+    "stack": "Pilha de chamadas",
+    "variables": "Variáveis",
+    "outputs": "Parâmetros OUT e valor de retorno",
+    "watches": "Variáveis para inspecionar (separadas por vírgulas)",
+    "breakpoint": "Alternar ponto de interrupção na linha {{line}}",
+    "execution": "Execução",
+    "transaction": "Transação",
+    "resources": "Recursos",
+    "available": "Disponível",
+    "partial": "Parcial",
+    "stale": "Dados desatualizados — atualização necessária",
+    "unavailable": "Indisponível",
+    "running": "Em execução",
+    "paused": "Pausada",
+    "completed": "Concluída",
+    "failed": "Falhou",
+    "cancelled": "Cancelada",
+    "unknown": "Desconhecido",
+    "open": "Aberta",
+    "committed": "Confirmada",
+    "rolled_back": "Revertida",
+    "held": "Retidos",
+    "released": "Liberados",
+    "uncertain": "Não foi possível confirmar a última operação. Os dados exibidos podem estar desatualizados. Não reinicie a rotina; atualize o status ou pare para confirmar a liberação dos recursos."
+  },
   "serverFilePicker": {
     "title": "Explorar arquivos do servidor",
     "subtitle": "Selecione um arquivo ou pasta no host do Tabularis",
@@ -93,6 +131,54 @@
     "hideDetails": "Ocultar detalhes",
     "beta": "Beta",
     "dismiss": "Fechar"
+  },
+  "linkedFolders": {
+    "tab": "Arquivos SQL",
+    "chooseTitle": "Escolha uma pasta de scripts SQL",
+    "link": "Vincular pasta",
+    "refresh": "Atualizar Arquivos SQL",
+    "empty": "Vincule uma pasta para navegar pelos scripts SQL.",
+    "needsConnection": "Conecte-se a um banco de dados antes de abrir um arquivo SQL.",
+    "linkError": "Não foi possível vincular a pasta",
+    "unlinkError": "Não foi possível desvincular a pasta",
+    "unlink": "Desvincular {{name}}",
+    "rootUnavailable": "Indisponível",
+    "fileUnsaved": "{{name}} (alterações não salvas)",
+    "unavailableTitle": "Arquivos SQL não estão disponíveis aqui",
+    "unavailableMessage": "Vincular uma pasta local exige o app desktop. No navegador, use Abrir arquivo SQL para importar um arquivo.",
+    "status": {
+      "loading": "Carregando…",
+      "empty": "Nenhum arquivo SQL",
+      "truncated": "Apenas as primeiras entradas são exibidas"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "Não foi possível ler a lista salva de pastas vinculadas. Corrija ou remova linked_folders.json na pasta de configuração.",
+      "linked_folder_not_found": "Esta pasta vinculada não está mais na sua lista.",
+      "linked_folder_unavailable": "A pasta não existe ou não pode ser lida.",
+      "linked_folder_limit_reached": "Número máximo de pastas vinculadas atingido. Desvincule uma primeiro.",
+      "linked_path_outside_root": "O caminho está fora da pasta vinculada.",
+      "linked_path_not_sql_file": "Apenas arquivos .sql, .psql e .pgsql podem ser abertos aqui.",
+      "linked_directory_unreadable": "Não é possível ler esta pasta.",
+      "linked_file_unreadable": "Não é possível ler este arquivo. Ele pode estar ausente, grande demais ou não ser UTF-8.",
+      "linked_file_too_large": "Este arquivo é grande demais para salvar (limite de 50 MB).",
+      "linked_file_write_failed": "Não foi possível gravar o arquivo. Verifique as permissões e o espaço livre em disco.",
+      "linked_file_conflict_modified": "O arquivo mudou no disco.",
+      "linked_file_conflict_missing": "O arquivo não existe mais no disco."
+    },
+    "conflict": {
+      "reload": "Recarregar do disco",
+      "saveAs": "Salvar como cópia…",
+      "modified": {
+        "title": "Arquivo alterado no disco",
+        "message": "{{name}} foi modificado fora do Tabularis desde que você o abriu ou salvou pela última vez. Nada foi gravado. Sobrescreva o arquivo com sua versão, salve-a como cópia ou recarregue a versão do disco descartando suas edições.",
+        "overwrite": "Sobrescrever arquivo"
+      },
+      "missing": {
+        "title": "Arquivo ausente no disco",
+        "message": "{{name}} foi excluído ou movido fora do Tabularis. Suas edições continuam no editor. Recrie o arquivo com sua versão ou salve-o como cópia em outro lugar.",
+        "overwrite": "Recriar arquivo"
+      }
+    }
   },
   "sidebar": {
     "connections": "Conexões",
@@ -2358,7 +2444,14 @@
     "exportSuccess": "Diagrama exportado",
     "exportDbml": "Exportar como DBML",
     "exportMarkdown": "Exportar como Markdown",
-    "export": "Exportar"
+    "export": "Exportar",
+    "legend": "Legenda",
+    "primaryKey": "Chave primária",
+    "primaryKeyDesc": "Coluna exclusiva que identifica linhas na tabela",
+    "foreignKey": "Chave estrangeira",
+    "foreignKeyDesc": "Faz referência a uma chave primária ou exclusiva em outra tabela",
+    "relationship": "Relacionamento",
+    "relationshipDesc": "Referência de chave estrangeira entre tabelas dependentes e principais"
   },
   "views": {
     "createView": "Criar View",
@@ -3126,6 +3219,10 @@
     },
     "unknown": {
       "summary": "Falha na conexão"
+    },
+    "keychain": {
+      "summary": "Chaveiro do sistema indisponível",
+      "recovery": "O Tabularis não conseguiu acessar o armazenamento de credenciais do sistema para salvar as senhas. No Linux, verifique se um provedor do Secret Service (GNOME Keyring, KWallet, KeePassXC) está em execução e desbloqueado, ou desative \"Salvar senhas no Keychain\" para esta conexão."
     }
   },
   "connectionTest": {
@@ -3171,6 +3268,22 @@
     "importErrors": { "unrecognized": "Tema do VS Code não reconhecido.", "modeRequired": "Escolha um modo e abra a prévia novamente.", "includeOnly": "Temas contendo apenas includes não podem ser importados. Forneça as cores reais.", "noSupportedData": "Nenhuma cor ou regra SQL compatível encontrada.", "invalidColor": "Uma cor compatível tem valor inválido.", "invalidRules": "Regras de tokens inválidas ou excessivas." },
     "diagnostics": { "unsupportedKey": "Campo não compatível", "unsupportedColor": "Cor não compatível", "unsupportedScope": "Escopo não compatível", "scopeApproximation": "Mapeamento SQL aproximado", "unsupportedStyle": "Estilo não compatível", "ignoredInclude": "Include não carregado", "ignoredSemanticTokens": "Tokens semânticos ignorados", "unsupportedReference": "Referência externa não carregada", "unsupportedSetting": "Configuração não compatível", "tokenAlphaFlattened": "Opacidade dos tokens calculada sobre o fundo base", "modeApproximation": "Modo substituído ou aproximado", "diagnosticsTruncated": "Diagnósticos adicionais omitidos" }
   },
+  "linkedGit": {
+    "title": "Revisar alterações do Git",
+    "diskOnly": "Os commits usam arquivos salvos em disco. Rascunhos não salvos ficam de fora. Apenas scripts marcados e revisados serão incluídos.",
+    "desktopOnly": "Git para pastas SQL vinculadas está disponível apenas no aplicativo desktop.",
+    "refresh": "Atualizar alterações",
+    "commit": "Criar commit dos scripts selecionados",
+    "committed": "Commit {{commit}} criado.",
+    "renames": "M modificado · A adicionado · D excluído · ? não rastreado. Renomeações aparecem como exclusão e adição; revise ambas.",
+    "empty": "Nenhum script SQL alterado.",
+    "files": "Scripts SQL alterados",
+    "include": "Incluir {{path}} no commit",
+    "review": "Revisar {{path}}",
+    "diff": "Diferenças do arquivo revisado",
+    "choose": "Selecione um script para revisar suas diferenças antes de incluí-lo.",
+    "message": "Mensagem do commit"
+  },
   "aiInline": {
     "title": "Conclusão de IA em linha",
     "enable": "Sugerir SQL ao digitar",
@@ -3193,5 +3306,12 @@
     "installAndOpen": "Instalar e abrir",
     "dropTitle": "Solte para abrir como tabela",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "readOnly": {
+    "label": "Modo somente leitura",
+    "description": "Bloqueia gravações nesta conexão. Os scripts de inicialização são ignorados neste modo.",
+    "unsupported": "Este driver não oferece consultas protegidas somente leitura.",
+    "writeBlocked": "Esta conexão é somente leitura. Desative este modo nas configurações para permitir gravações.",
+    "banner": "{{name}} — somente leitura"
   }
 }

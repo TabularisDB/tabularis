@@ -2,12 +2,6 @@ use super::*;
 use crate::drivers::driver_trait::DriverCapabilities;
 use crate::plugins::rpc::JsonRpcError;
 
-const QUERY_RESULT: &str = r#"{"columns":["n"],"rows":[[1]],"affected_rows":0,"pagination":null}"#;
-
-fn query_result() -> Value {
-    serde_json::from_str(QUERY_RESULT).unwrap()
-}
-
 /// The failures a plugin call can end in. `PluginCallError` is not `Clone`, so
 /// tests take constructors.
 fn failures() -> [fn() -> PluginCallError; 3] {
@@ -29,26 +23,21 @@ fn failures() -> [fn() -> PluginCallError; 3] {
 }
 
 #[test]
-fn the_capabilities_are_opt_in_and_do_not_change_legacy_serialization() {
+fn the_capability_is_opt_in_and_does_not_change_legacy_serialization() {
     let legacy = json!({
         "schemas": true, "views": true, "routines": false, "file_based": false
     });
     let capabilities: DriverCapabilities = serde_json::from_value(legacy.clone()).unwrap();
     assert!(!capabilities.query_classification);
-    assert!(!capabilities.read_only_execution);
     let serialized = serde_json::to_value(&capabilities).unwrap();
     assert!(serialized.get("query_classification").is_none());
-    assert!(serialized.get("read_only_execution").is_none());
 
     let mut enabled = legacy;
     enabled["query_classification"] = json!(true);
-    enabled["read_only_execution"] = json!(true);
     let capabilities: DriverCapabilities = serde_json::from_value(enabled).unwrap();
     assert!(capabilities.query_classification);
-    assert!(capabilities.read_only_execution);
     let serialized = serde_json::to_value(capabilities).unwrap();
     assert_eq!(serialized["query_classification"], true);
-    assert_eq!(serialized["read_only_execution"], true);
 }
 
 #[test]
@@ -149,93 +138,14 @@ async fn a_failed_classify_query_is_an_error_and_never_a_verdict() {
 }
 
 #[tokio::test]
-async fn a_plugin_without_the_guarantee_runs_read_only_queries_through_execute_query() {
-    let driver = test_driver(|rpc| {
-        assert_eq!(
-            rpc.method, "execute_query",
-            "a plugin that did not opt in sees no new RPC"
-        );
-        query_result()
-    });
-    let result = driver
-        .execute_read_only_query(&ConnectionParams::default(), "SELECT 1", Some(10), 1, None)
-        .await
-        .unwrap();
-    assert_eq!(result.rows.len(), 1);
-}
-
-#[tokio::test]
-async fn execute_read_only_query_sends_the_execute_query_request_to_its_own_method() {
-    let mut driver = test_driver(|rpc| {
-        assert_eq!(rpc.method, "execute_read_only_query");
-        assert_eq!(rpc.params["params"]["connection_id"], "target-connection");
-        assert_eq!(rpc.params["query"], "db.users.find({})");
-        assert_eq!(rpc.params["limit"], 10);
-        assert_eq!(rpc.params["page"], 2);
-        assert_eq!(rpc.params["schema"], "app");
-        query_result()
-    });
-    driver.manifest.capabilities.read_only_execution = true;
-    let params = ConnectionParams {
-        connection_id: Some("target-connection".into()),
-        ..Default::default()
-    };
-    let result = driver
-        .execute_read_only_query(&params, "db.users.find({})", Some(10), 2, Some("app"))
-        .await
-        .unwrap();
-    assert_eq!(result.rows.len(), 1);
-}
-
-#[tokio::test]
-async fn a_failed_read_only_call_never_falls_back_to_execute_query() {
-    for failure in failures() {
-        let methods = Arc::new(Mutex::new(Vec::<String>::new()));
-        let seen = methods.clone();
-        let mut driver = test_driver_detailed(move |rpc| {
-            seen.lock().unwrap().push(rpc.method);
-            Err(failure())
-        });
-        driver.manifest.capabilities.read_only_execution = true;
-        assert!(driver
-            .execute_read_only_query(
-                &ConnectionParams::default(),
-                "db.users.drop()",
-                None,
-                1,
-                None
-            )
-            .await
-            .is_err());
-        assert_eq!(
-            *methods.lock().unwrap(),
-            vec!["execute_read_only_query".to_string()],
-            "the statement must not be sent through execute_query"
-        );
-    }
-}
-
-#[tokio::test]
-async fn a_malformed_read_only_result_is_an_error() {
-    let mut driver = test_driver(|_| json!("not a query result"));
-    driver.manifest.capabilities.read_only_execution = true;
-    assert!(driver
-        .execute_read_only_query(&ConnectionParams::default(), "q", None, 1, None)
-        .await
-        .is_err());
-}
-
-#[tokio::test]
-async fn built_in_drivers_do_not_classify_and_do_not_claim_the_guarantee() {
+async fn built_in_drivers_do_not_classify() {
     let drivers: Vec<Box<dyn DatabaseDriver>> = vec![
         Box::new(crate::drivers::mysql::MysqlDriver::new()),
         Box::new(crate::drivers::postgres::PostgresDriver::new()),
         Box::new(crate::drivers::sqlite::SqliteDriver::new()),
     ];
     for driver in drivers {
-        let capabilities = &driver.manifest().capabilities;
-        assert!(!capabilities.query_classification);
-        assert!(!capabilities.read_only_execution);
+        assert!(!driver.manifest().capabilities.query_classification);
         assert_eq!(
             driver
                 .classify_query(&ConnectionParams::default(), "SELECT 1")

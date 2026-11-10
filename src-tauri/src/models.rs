@@ -182,6 +182,13 @@ pub struct SshTestParams {
 #[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq, Eq)]
 pub struct ConnectionParams {
     pub driver: String,
+    /// User-selected connection policy. Missing in older saved connections.
+    #[serde(
+        default,
+        alias = "readOnly",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub read_only: bool,
     pub host: Option<String>,
     pub port: Option<u16>,
     pub username: Option<String>,

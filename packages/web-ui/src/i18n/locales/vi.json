@@ -1,4 +1,42 @@
 {
+  "routineDebug": {
+    "closeUnconfirmed": "Đóng khi chưa xác nhận giải phóng tài nguyên",
+    "title": "Gỡ lỗi thủ tục",
+    "warning": "Khởi chạy hoặc tiếp tục thủ tục sẽ thực thi mã cơ sở dữ liệu. Thao tác này có thể xác nhận giao dịch hoặc gây tác động bên ngoài. Trình gỡ lỗi không tự động cấp quyền, biên dịch lại thủ tục hay cài đặt đối tượng hỗ trợ.",
+    "preview": "Xem trước đối tượng và tham số",
+    "start": "Bắt đầu gỡ lỗi",
+    "continue": "Tiếp tục",
+    "into": "Bước vào",
+    "over": "Bước qua",
+    "out": "Bước ra",
+    "status": "Làm mới trạng thái",
+    "stop": "Dừng và giải phóng tài nguyên",
+    "source": "Mã nguồn",
+    "stack": "Ngăn xếp lời gọi",
+    "variables": "Biến",
+    "outputs": "Tham số OUT và giá trị trả về",
+    "watches": "Tên biến cần kiểm tra (phân cách bằng dấu phẩy)",
+    "breakpoint": "Bật/tắt điểm dừng tại dòng {{line}}",
+    "execution": "Thực thi",
+    "transaction": "Giao dịch",
+    "resources": "Tài nguyên",
+    "available": "Khả dụng",
+    "partial": "Một phần",
+    "stale": "Dữ liệu cũ — cần làm mới",
+    "unavailable": "Không khả dụng",
+    "running": "Đang chạy",
+    "paused": "Tạm dừng",
+    "completed": "Hoàn tất",
+    "failed": "Thất bại",
+    "cancelled": "Đã hủy",
+    "unknown": "Không xác định",
+    "open": "Đang mở",
+    "committed": "Đã xác nhận",
+    "rolled_back": "Đã hoàn tác",
+    "held": "Đang giữ",
+    "released": "Đã giải phóng",
+    "uncertain": "Không thể xác nhận thao tác cuối cùng. Dữ liệu hiển thị có thể đã cũ. Không khởi chạy lại thủ tục; hãy làm mới trạng thái hoặc dừng để xác nhận việc giải phóng tài nguyên."
+  },
   "serverFilePicker": {
     "title": "Duyệt tệp trên máy chủ",
     "subtitle": "Chọn một tệp hoặc thư mục trên máy chủ Tabularis",
@@ -86,6 +124,13 @@
     "warnConfirm": "Vẫn chạy",
     "warnSnooze": "Không hỏi lại cho kết nối này (trong phiên hiện tại)"
   },
+  "readOnly": {
+    "label": "Chế độ chỉ đọc",
+    "description": "Chặn thao tác ghi trên kết nối này. Bỏ qua tập lệnh khởi động khi bật chế độ này.",
+    "unsupported": "Trình điều khiển này không hỗ trợ truy vấn chỉ đọc được bảo vệ.",
+    "writeBlocked": "Kết nối này ở chế độ chỉ đọc. Tắt chế độ này trong cài đặt kết nối để cho phép ghi.",
+    "banner": "{{name}} — chỉ đọc"
+  },
   "textStats": {
     "characters": "Ký tự: {{count}}",
     "lines": "Dòng: {{count}}",
@@ -116,6 +161,54 @@
     "hideDetails": "Ẩn chi tiết",
     "beta": "Beta",
     "dismiss": "Bỏ qua"
+  },
+  "linkedFolders": {
+    "tab": "Tệp SQL",
+    "chooseTitle": "Chọn thư mục chứa script SQL",
+    "link": "Liên kết thư mục",
+    "refresh": "Làm mới Tệp SQL",
+    "empty": "Liên kết một thư mục để duyệt các script SQL.",
+    "needsConnection": "Hãy kết nối cơ sở dữ liệu trước khi mở tệp SQL.",
+    "linkError": "Không thể liên kết thư mục",
+    "unlinkError": "Không thể hủy liên kết thư mục",
+    "unlink": "Hủy liên kết {{name}}",
+    "rootUnavailable": "Không khả dụng",
+    "fileUnsaved": "{{name}} (có thay đổi chưa lưu)",
+    "unavailableTitle": "Tệp SQL không khả dụng ở đây",
+    "unavailableMessage": "Liên kết thư mục cục bộ cần ứng dụng máy tính. Trên trình duyệt, hãy dùng Mở tệp SQL để nhập một tệp.",
+    "status": {
+      "loading": "Đang tải…",
+      "empty": "Không có tệp SQL",
+      "truncated": "Chỉ hiển thị các mục đầu tiên"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "Không đọc được danh sách thư mục liên kết đã lưu. Hãy sửa hoặc xóa linked_folders.json trong thư mục cấu hình.",
+      "linked_folder_not_found": "Thư mục liên kết này không còn trong danh sách.",
+      "linked_folder_unavailable": "Thư mục không tồn tại hoặc không đọc được.",
+      "linked_folder_limit_reached": "Đã đạt số thư mục liên kết tối đa. Hãy hủy liên kết một thư mục trước.",
+      "linked_path_outside_root": "Đường dẫn nằm ngoài thư mục liên kết.",
+      "linked_path_not_sql_file": "Ở đây chỉ mở được tệp .sql, .psql và .pgsql.",
+      "linked_directory_unreadable": "Không đọc được thư mục này.",
+      "linked_file_unreadable": "Không đọc được tệp này. Tệp có thể không tồn tại, quá lớn hoặc không phải UTF-8.",
+      "linked_file_too_large": "Tệp quá lớn để lưu (giới hạn 50 MB).",
+      "linked_file_write_failed": "Không ghi được tệp. Hãy kiểm tra quyền truy cập và dung lượng đĩa trống.",
+      "linked_file_conflict_modified": "Tệp đã thay đổi trên đĩa.",
+      "linked_file_conflict_missing": "Tệp không còn tồn tại trên đĩa."
+    },
+    "conflict": {
+      "reload": "Tải lại từ đĩa",
+      "saveAs": "Lưu thành bản sao…",
+      "modified": {
+        "title": "Tệp đã thay đổi trên đĩa",
+        "message": "{{name}} đã bị sửa bên ngoài Tabularis kể từ lúc bạn mở hoặc lưu lần cuối. Chưa có gì được ghi. Hãy ghi đè tệp bằng phiên bản của bạn, lưu thành bản sao, hoặc tải lại phiên bản trên đĩa và bỏ các chỉnh sửa.",
+        "overwrite": "Ghi đè tệp"
+      },
+      "missing": {
+        "title": "Không thấy tệp trên đĩa",
+        "message": "{{name}} đã bị xóa hoặc di chuyển bên ngoài Tabularis. Các chỉnh sửa của bạn vẫn còn trong trình soạn thảo. Hãy tạo lại tệp bằng phiên bản của bạn hoặc lưu thành bản sao ở nơi khác.",
+        "overwrite": "Tạo lại tệp"
+      }
+    }
   },
   "sidebar": {
     "connections": "Kết nối",
@@ -2377,7 +2470,14 @@
     "exportSuccess": "Đã xuất sơ đồ",
     "exportDbml": "Xuất ra DBML",
     "exportMarkdown": "Xuất ra Markdown",
-    "export": "Xuất"
+    "export": "Xuất",
+    "legend": "Chú giải",
+    "primaryKey": "Khóa chính",
+    "primaryKeyDesc": "Cột duy nhất xác định các hàng trong bảng",
+    "foreignKey": "Khóa ngoại",
+    "foreignKeyDesc": "Tham chiếu khóa chính hoặc khóa duy nhất trong bảng khác",
+    "relationship": "Quan hệ",
+    "relationshipDesc": "Tham chiếu khóa ngoại kết nối bảng con và bảng cha"
   },
   "views": {
     "createView": "Tạo view",
@@ -3144,6 +3244,10 @@
     },
     "unknown": {
       "summary": "Kết nối thất bại"
+    },
+    "keychain": {
+      "summary": "Không thể truy cập kho khóa hệ thống",
+      "recovery": "Tabularis không thể truy cập kho thông tin đăng nhập của hệ điều hành để lưu mật khẩu. Trên Linux, hãy bảo đảm dịch vụ Secret Service (GNOME Keyring, KWallet, KeePassXC) đang chạy và đã được mở khóa, hoặc tắt tùy chọn \"Save passwords in Keychain\" cho kết nối này."
     }
   },
   "connectionTest": {
@@ -3189,6 +3293,22 @@
     "modes": { "light": "Sáng", "dark": "Tối", "high-contrast": "Tương phản cao" },
     "importErrors": { "unrecognized": "Không phải theme VS Code hợp lệ.", "modeRequired": "Hãy chọn chế độ cụ thể, rồi xem trước lại.", "includeOnly": "Không thể nhập theme chỉ gồm include. Hãy cung cấp màu thực tế.", "noSupportedData": "Không tìm thấy màu hoặc quy tắc token SQL nào được hỗ trợ.", "invalidColor": "Một màu được hỗ trợ có giá trị không hợp lệ.", "invalidRules": "Quy tắc token không hợp lệ hoặc quá nhiều." },
     "diagnostics": { "unsupportedKey": "Trường không được hỗ trợ", "unsupportedColor": "Màu không được hỗ trợ", "unsupportedScope": "Scope không được hỗ trợ", "scopeApproximation": "Ánh xạ scope SQL gần đúng", "unsupportedStyle": "Kiểu chữ không được hỗ trợ", "ignoredInclude": "Không tải include", "ignoredSemanticTokens": "Đã bỏ qua semantic token", "unsupportedReference": "Không tải tham chiếu bên ngoài", "unsupportedSetting": "Cài đặt không được hỗ trợ", "tokenAlphaFlattened": "Độ trong suốt của token đã được trộn sẵn với màu nền", "modeApproximation": "Chế độ bị ghi đè hoặc lấy gần đúng", "diagnosticsTruncated": "Đã lược bớt các chẩn đoán khác" }
+  },
+  "linkedGit": {
+    "title": "Xem lại thay đổi Git",
+    "diskOnly": "Commit sử dụng các tệp đã lưu trên đĩa. Bản nháp chưa lưu không được bao gồm. Chỉ các tập lệnh đã đánh dấu và xem lại mới được commit.",
+    "desktopOnly": "Git cho thư mục SQL được liên kết chỉ có trên ứng dụng máy tính.",
+    "refresh": "Làm mới thay đổi",
+    "commit": "Commit các tập lệnh đã chọn",
+    "committed": "Đã tạo commit {{commit}}.",
+    "renames": "M đã sửa · A đã thêm · D đã xóa · ? chưa theo dõi. Đổi tên được hiển thị thành xóa và thêm; hãy xem lại cả hai.",
+    "empty": "Không có tập lệnh SQL thay đổi.",
+    "files": "Các tập lệnh SQL đã thay đổi",
+    "include": "Bao gồm {{path}} trong commit",
+    "review": "Xem lại {{path}}",
+    "diff": "Khác biệt của tệp đã xem lại",
+    "choose": "Chọn tập lệnh để xem lại khác biệt trước khi bao gồm.",
+    "message": "Thông điệp commit"
   },
   "aiInline": {
     "title": "Hoàn thành AI nội tuyến",

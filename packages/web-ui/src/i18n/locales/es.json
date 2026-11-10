@@ -1,4 +1,42 @@
 {
+  "routineDebug": {
+    "closeUnconfirmed": "Cerrar sin confirmar la liberación de recursos",
+    "title": "Depurar rutina",
+    "warning": "Iniciar o continuar una rutina ejecuta código de la base de datos. Puede confirmar transacciones o causar efectos externos. La depuración no concede privilegios, recompila rutinas ni instala objetos auxiliares automáticamente.",
+    "preview": "Vista previa del destino y los parámetros",
+    "start": "Iniciar depuración",
+    "continue": "Continuar",
+    "into": "Entrar",
+    "over": "Pasar por encima",
+    "out": "Salir",
+    "status": "Actualizar estado",
+    "stop": "Detener y liberar recursos",
+    "source": "Código fuente",
+    "stack": "Pila de llamadas",
+    "variables": "Variables",
+    "outputs": "Parámetros OUT y valor devuelto",
+    "watches": "Variables que inspeccionar (separadas por comas)",
+    "breakpoint": "Alternar punto de interrupción en la línea {{line}}",
+    "execution": "Ejecución",
+    "transaction": "Transacción",
+    "resources": "Recursos",
+    "available": "Disponible",
+    "partial": "Parcial",
+    "stale": "Datos obsoletos — es necesario actualizar",
+    "unavailable": "No disponible",
+    "running": "En ejecución",
+    "paused": "Pausada",
+    "completed": "Completada",
+    "failed": "Fallida",
+    "cancelled": "Cancelada",
+    "unknown": "Desconocido",
+    "open": "Abierta",
+    "committed": "Confirmada",
+    "rolled_back": "Revertida",
+    "held": "Retenidos",
+    "released": "Liberados",
+    "uncertain": "No se pudo confirmar la última operación. Los datos pueden estar obsoletos. No reinicie la rutina; actualice el estado o deténgala para confirmar la liberación de recursos."
+  },
   "serverFilePicker": {
     "title": "Explorar archivos del servidor",
     "subtitle": "Selecciona un archivo o carpeta en el host de Tabularis",
@@ -86,6 +124,13 @@
     "warnConfirm": "Ejecutar de todos modos",
     "warnSnooze": "No volver a preguntar para esta conexión (esta sesión)"
   },
+  "readOnly": {
+    "label": "Modo de solo lectura",
+    "description": "Bloquea las escrituras en esta conexión. Los scripts de inicio se omiten en este modo.",
+    "unsupported": "Este controlador no admite consultas protegidas de solo lectura.",
+    "writeBlocked": "Esta conexión es de solo lectura. Desactiva este modo en su configuración para permitir escrituras.",
+    "banner": "{{name}} — solo lectura"
+  },
   "textStats": {
     "characters": "Caracteres: {{count}}",
     "lines": "Líneas: {{count}}",
@@ -116,6 +161,54 @@
     "hideDetails": "Ocultar detalles",
     "beta": "Beta",
     "dismiss": "Cerrar"
+  },
+  "linkedFolders": {
+    "tab": "Archivos SQL",
+    "chooseTitle": "Elige una carpeta de scripts SQL",
+    "link": "Vincular carpeta",
+    "refresh": "Actualizar Archivos SQL",
+    "empty": "Vincula una carpeta para explorar sus scripts SQL.",
+    "needsConnection": "Conéctate a una base de datos antes de abrir un archivo SQL.",
+    "linkError": "No se pudo vincular la carpeta",
+    "unlinkError": "No se pudo desvincular la carpeta",
+    "unlink": "Desvincular {{name}}",
+    "rootUnavailable": "No disponible",
+    "fileUnsaved": "{{name}} (cambios sin guardar)",
+    "unavailableTitle": "Los Archivos SQL no están disponibles aquí",
+    "unavailableMessage": "Vincular una carpeta local requiere la aplicación de escritorio. En el navegador, usa Abrir archivo SQL para importar un archivo.",
+    "status": {
+      "loading": "Cargando…",
+      "empty": "Sin archivos SQL",
+      "truncated": "Solo se muestran las primeras entradas"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "No se pudo leer la lista guardada de carpetas vinculadas. Corrige o elimina linked_folders.json en la carpeta de configuración.",
+      "linked_folder_not_found": "Esta carpeta vinculada ya no está en tu lista.",
+      "linked_folder_unavailable": "La carpeta no existe o no se puede leer.",
+      "linked_folder_limit_reached": "Se alcanzó el máximo de carpetas vinculadas. Desvincula una primero.",
+      "linked_path_outside_root": "La ruta está fuera de la carpeta vinculada.",
+      "linked_path_not_sql_file": "Aquí solo se pueden abrir archivos .sql, .psql y .pgsql.",
+      "linked_directory_unreadable": "No se puede leer esta carpeta.",
+      "linked_file_unreadable": "No se puede leer este archivo. Puede faltar, ser demasiado grande o no ser UTF-8.",
+      "linked_file_too_large": "Este archivo es demasiado grande para guardarlo (límite 50 MB).",
+      "linked_file_write_failed": "No se pudo escribir el archivo. Revisa los permisos y el espacio libre en disco.",
+      "linked_file_conflict_modified": "El archivo cambió en el disco.",
+      "linked_file_conflict_missing": "El archivo ya no existe en el disco."
+    },
+    "conflict": {
+      "reload": "Recargar desde el disco",
+      "saveAs": "Guardar como copia…",
+      "modified": {
+        "title": "Archivo modificado en el disco",
+        "message": "{{name}} se modificó fuera de Tabularis desde que lo abriste o guardaste por última vez. No se escribió nada. Sobrescribe el archivo con tu versión, guárdala como copia o recarga la versión del disco y descarta tus cambios.",
+        "overwrite": "Sobrescribir archivo"
+      },
+      "missing": {
+        "title": "Archivo no encontrado en el disco",
+        "message": "{{name}} se eliminó o movió fuera de Tabularis. Tus cambios siguen en el editor. Recrea el archivo con tu versión o guárdalo como copia en otro lugar.",
+        "overwrite": "Recrear archivo"
+      }
+    }
   },
   "sidebar": {
     "connections": "Conexiones",
@@ -2311,7 +2404,14 @@
     "exportSuccess": "Diagrama exportado",
     "exportDbml": "Exportar como DBML",
     "exportMarkdown": "Exportar como Markdown",
-    "export": "Exportar"
+    "export": "Exportar",
+    "legend": "Leyenda",
+    "primaryKey": "Clave primaria",
+    "primaryKeyDesc": "Columna única que identifica filas en la tabla",
+    "foreignKey": "Clave foránea",
+    "foreignKeyDesc": "Hace referencia a una clave primaria o única en otra tabla",
+    "relationship": "Relación",
+    "relationshipDesc": "Referencia de clave foránea entre tablas secundarias y principales"
   },
   "views": {
     "createView": "Crear Vista",
@@ -3003,6 +3103,10 @@
     },
     "unknown": {
       "summary": "Error de conexión"
+    },
+    "keychain": {
+      "summary": "Llavero del sistema no disponible",
+      "recovery": "Tabularis no pudo acceder al almacén de credenciales del sistema para guardar las contraseñas. En Linux, asegúrate de que un proveedor de Secret Service (GNOME Keyring, KWallet, KeePassXC) esté en ejecución y desbloqueado, o desactiva \"Guardar contraseñas en el Llavero\" para esta conexión."
     }
   },
   "connectionTest": {
@@ -3047,6 +3151,22 @@
     "groups": { "builtin": "Integrados · sin conexión", "installed": "Paquetes instalados", "personal": "Temas personales" }, "modes": { "light": "Claro", "dark": "Oscuro", "high-contrast": "Alto contraste" },
     "importErrors": { "unrecognized": "Tema de VS Code no reconocido.", "modeRequired": "Elija un modo y repita la vista previa.", "includeOnly": "No se pueden importar temas con solo referencias include. Proporcione los colores reales.", "noSupportedData": "No se encontraron colores o reglas SQL compatibles.", "invalidColor": "Un color compatible tiene un valor no válido.", "invalidRules": "Reglas de tokens no válidas o excesivas." },
     "diagnostics": { "unsupportedKey": "Campo no compatible", "unsupportedColor": "Color no compatible", "unsupportedScope": "Ámbito no compatible", "scopeApproximation": "Asignación SQL aproximada", "unsupportedStyle": "Estilo no compatible", "ignoredInclude": "Include no cargado", "ignoredSemanticTokens": "Tokens semánticos ignorados", "unsupportedReference": "Referencia externa no cargada", "unsupportedSetting": "Ajuste no compatible", "tokenAlphaFlattened": "Opacidad de tokens calculada sobre el fondo base", "modeApproximation": "Modo sustituido o aproximado", "diagnosticsTruncated": "Se omitieron diagnósticos adicionales" }
+  },
+  "linkedGit": {
+    "title": "Revisar cambios de Git",
+    "diskOnly": "Los commits usan archivos guardados en disco. No incluyen borradores sin guardar. Solo se incluirán los scripts marcados y revisados.",
+    "desktopOnly": "Git para carpetas SQL vinculadas solo está disponible en la aplicación de escritorio.",
+    "refresh": "Actualizar cambios",
+    "commit": "Crear commit de scripts seleccionados",
+    "committed": "Commit {{commit}} creado.",
+    "renames": "M modificado · A añadido · D eliminado · ? sin seguimiento. Los renombrados aparecen como eliminación y adición; revisa ambos.",
+    "empty": "No hay scripts SQL modificados.",
+    "files": "Scripts SQL modificados",
+    "include": "Incluir {{path}} en el commit",
+    "review": "Revisar {{path}}",
+    "diff": "Diferencias del archivo revisado",
+    "choose": "Selecciona un script para revisar sus diferencias antes de incluirlo.",
+    "message": "Mensaje del commit"
   },
   "aiInline": {
     "title": "Completado de IA en línea",

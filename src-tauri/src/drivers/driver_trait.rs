@@ -143,19 +143,13 @@ pub struct DriverCapabilities {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub column_stats: bool,
     /// The driver classifies queries in its own query language through the
-    /// optional `classify_query` RPC, so the MCP read-only mode and approval
-    /// gate stop reading them as SQL. Omitted/false keeps the host's SQL
-    /// classification. A `select` verdict only counts together with
-    /// `read_only_execution`.
+    /// optional `classify_query` RPC, so the read-only policies (MCP read-only
+    /// mode, the approval gate and saved read-only connections) stop reading
+    /// them as SQL. Omitted/false keeps the host's SQL classification. A
+    /// `select` verdict only counts when the driver also has an execution
+    /// guarantee: `read_only_queries`, or `readonly`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub query_classification: bool,
-    /// The driver implements the optional `execute_read_only_query` RPC and
-    /// guarantees that it refuses any statement that could change data,
-    /// schema or server state. Omitted/false makes the host run such queries
-    /// through `execute_query`, so for that driver classification is the
-    /// only safeguard.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub read_only_execution: bool,
     /// Honours `ConnectionParams::query_timeout_secs`: the driver stops a
     /// statement on the server once the limit passes. Omitted/false hides the
     /// query-timeout field in the connection modal. Built-in PostgreSQL sets
@@ -191,6 +185,9 @@ pub struct DriverCapabilities {
     /// plugins opt in via their manifest. Defaults to `false`.
     #[serde(default, alias = "routineManagement")]
     pub routine_management: bool,
+    /// Optional routine debugger protocol. Only version 1 is currently supported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routine_debug: Option<u32>,
     /// Supports the SSL/TLS configuration tab (mode + CA/client cert/key) in the
     /// connection modal. Built-in network drivers set this; plugins opt in via
     /// their manifest. Defaults to `false`.
@@ -208,6 +205,10 @@ pub struct DriverCapabilities {
     /// Defaults to `false`.
     #[serde(default)]
     pub readonly: bool,
+    /// Implements database-enforced `execute_read_only_query`. Unlike `readonly`,
+    /// this allows users to switch a writable connection into read-only mode.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub read_only_queries: bool,
     /// Offers "Export table to SQL" on table nodes (#709). `None` (the
     /// manifest omits it) means enabled; non-SQL plugins set `false`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -451,6 +452,16 @@ pub struct PluginManifest {
 /// fall back to `"public"` when it is `None`.
 #[async_trait]
 pub trait DatabaseDriver: Send + Sync {
+    /// No SQL fallback: debugging requires a native, isolated driver session.
+    async fn routine_debug(
+        &self,
+        _params: &ConnectionParams,
+        _version: u32,
+        _command: &crate::routine_debug::DebugCommand,
+    ) -> Result<crate::routine_debug::DebugResponse, String> {
+        Err("Routine debugging is not supported by this driver".into())
+    }
+
     // --- Metadata -----------------------------------------------------------
 
     fn manifest(&self) -> &PluginManifest;
@@ -876,7 +887,7 @@ pub trait DatabaseDriver: Send + Sync {
     /// The default implementation delegates to [`Self::execute_query`], so a
     /// driver that keeps it has classification as its only safeguard. A
     /// plugin driver closes that gap by declaring
-    /// `capabilities.read_only_execution` and implementing the
+    /// `capabilities.read_only_queries` and implementing the
     /// `execute_read_only_query` RPC, which `RpcDriver` then calls instead.
     async fn execute_read_only_query(
         &self,
@@ -890,7 +901,8 @@ pub trait DatabaseDriver: Send + Sync {
     }
 
     /// Optional: classify `query` in the driver's own query language, for the
-    /// MCP read-only mode and approval gate.
+    /// read-only policies: the MCP read-only mode, the MCP approval gate and
+    /// saved read-only connections.
     ///
     /// `Ok(None)` means the driver does not classify, and the host reads the
     /// query as SQL. `Ok(Some(kind))` is one of `"select"`, `"write"`,

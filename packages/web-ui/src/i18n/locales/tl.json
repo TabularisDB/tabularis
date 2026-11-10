@@ -1,4 +1,42 @@
 {
+  "routineDebug": {
+    "closeUnconfirmed": "Isara kahit hindi pa kumpirmadong nailabas ang mga resource",
+    "title": "I-debug ang routine",
+    "warning": "Ang pagsisimula o pagpapatuloy ng routine ay nagpapatakbo ng code sa database. Maaari itong mag-commit ng mga transaksyon o magdulot ng mga panlabas na epekto. Hindi awtomatikong nagbibigay ng mga pahintulot, muling nagko-compile ng mga routine, o nag-i-install ng mga pantulong na object ang pag-debug.",
+    "preview": "Silipin ang target at mga parameter",
+    "start": "Simulan ang pag-debug",
+    "continue": "Magpatuloy",
+    "into": "Hakbang papasok",
+    "over": "Hakbang lampas",
+    "out": "Hakbang palabas",
+    "status": "I-refresh ang katayuan",
+    "stop": "Ihinto at ilabas ang mga resource",
+    "source": "Source",
+    "stack": "Call stack",
+    "variables": "Mga variable",
+    "outputs": "Mga OUT parameter at ibinalik na halaga",
+    "watches": "Mga variable na susuriin (pinaghihiwalay ng kuwit)",
+    "breakpoint": "I-toggle ang breakpoint sa linyang {{line}}",
+    "execution": "Pagpapatakbo",
+    "transaction": "Transaksyon",
+    "resources": "Mga resource",
+    "available": "Magagamit",
+    "partial": "Bahagya",
+    "stale": "Lumang datos — kailangang i-refresh",
+    "unavailable": "Hindi magagamit",
+    "running": "Tumatakbo",
+    "paused": "Naka-pause",
+    "completed": "Tapos",
+    "failed": "Nabigo",
+    "cancelled": "Kinansela",
+    "unknown": "Hindi alam",
+    "open": "Bukas",
+    "committed": "Na-commit",
+    "rolled_back": "Na-rollback",
+    "held": "Hawak",
+    "released": "Nailabas",
+    "uncertain": "Hindi makumpirma ang huling operasyon. Maaaring luma na ang ipinapakitang datos. Huwag muling simulan ang routine; i-refresh ang katayuan o ihinto ito upang makumpirma ang paglabas ng mga resource."
+  },
   "serverFilePicker": {
     "title": "Mag-browse ng mga file sa server",
     "subtitle": "Pumili ng file o folder sa Tabularis host",
@@ -86,6 +124,13 @@
     "warnConfirm": "Ituloy pa rin",
     "warnSnooze": "Huwag nang itanong para sa koneksyong ito (ngayong session)"
   },
+  "readOnly": {
+    "label": "Read-only na mode",
+    "description": "Hinaharangan ang pagsusulat sa koneksyong ito. Nilalaktawan ang mga startup script habang naka-enable.",
+    "unsupported": "Hindi sinusuportahan ng driver na ito ang mga protektadong read-only na query.",
+    "writeBlocked": "Read-only ang koneksyong ito. I-disable ang mode na ito sa mga setting nito upang payagan ang pagsusulat.",
+    "banner": "{{name}} — read-only"
+  },
   "textStats": {
     "characters": "Mga character: {{count}}",
     "lines": "Mga linya: {{count}}",
@@ -116,6 +161,54 @@
     "hideDetails": "Itago ang detalye",
     "beta": "Beta",
     "dismiss": "Isara"
+  },
+  "linkedFolders": {
+    "tab": "Mga SQL File",
+    "chooseTitle": "Pumili ng folder ng mga SQL script",
+    "link": "I-link ang folder",
+    "refresh": "I-refresh ang mga SQL File",
+    "empty": "Mag-link ng folder para i-browse ang mga SQL script nito.",
+    "needsConnection": "Kumonekta muna sa database bago magbukas ng SQL file.",
+    "linkError": "Hindi ma-link ang folder",
+    "unlinkError": "Hindi ma-unlink ang folder",
+    "unlink": "I-unlink ang {{name}}",
+    "rootUnavailable": "Hindi available",
+    "fileUnsaved": "{{name}} (may hindi pa nase-save na pagbabago)",
+    "unavailableTitle": "Hindi available dito ang mga SQL File",
+    "unavailableMessage": "Kailangan ng desktop app para mag-link ng lokal na folder. Sa browser, gamitin ang Buksan ang SQL file para mag-import ng file.",
+    "status": {
+      "loading": "Naglo-load…",
+      "empty": "Walang SQL file",
+      "truncated": "Ang unang mga entry lang ang ipinapakita"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "Hindi mabasa ang naka-save na listahan ng mga naka-link na folder. Ayusin o alisin ang linked_folders.json sa config folder.",
+      "linked_folder_not_found": "Wala na sa listahan mo ang naka-link na folder na ito.",
+      "linked_folder_unavailable": "Nawawala o hindi mabasa ang folder.",
+      "linked_folder_limit_reached": "Naabot na ang pinakamataas na bilang ng mga naka-link na folder. Mag-unlink muna ng isa.",
+      "linked_path_outside_root": "Nasa labas ng naka-link na folder ang path.",
+      "linked_path_not_sql_file": "Mga .sql, .psql at .pgsql na file lang ang mabubuksan dito.",
+      "linked_directory_unreadable": "Hindi mabasa ang folder na ito.",
+      "linked_file_unreadable": "Hindi mabasa ang file na ito. Maaaring nawawala ito, masyadong malaki o hindi UTF-8.",
+      "linked_file_too_large": "Masyadong malaki ang file para i-save (limit na 50 MB).",
+      "linked_file_write_failed": "Hindi maisulat ang file. Suriin ang mga permission at libreng espasyo sa disk.",
+      "linked_file_conflict_modified": "Nagbago ang file sa disk.",
+      "linked_file_conflict_missing": "Wala na ang file sa disk."
+    },
+    "conflict": {
+      "reload": "I-reload mula sa disk",
+      "saveAs": "I-save bilang kopya…",
+      "modified": {
+        "title": "Nagbago ang file sa disk",
+        "message": "Binago ang {{name}} sa labas ng Tabularis mula nang buksan o huling i-save mo ito. Walang naisulat. I-overwrite ang file gamit ang bersyon mo, i-save ito bilang kopya, o i-reload ang bersyon sa disk at itapon ang mga edit mo.",
+        "overwrite": "I-overwrite ang file"
+      },
+      "missing": {
+        "title": "Nawawala ang file sa disk",
+        "message": "Binura o inilipat ang {{name}} sa labas ng Tabularis. Nananatili sa editor ang mga edit mo. Muling likhain ang file gamit ang bersyon mo, o i-save ito bilang kopya sa ibang lugar.",
+        "overwrite": "Muling likhain ang file"
+      }
+    }
   },
   "sidebar": {
     "connections": "Mga Koneksyon",
@@ -2370,7 +2463,14 @@
     "exportSuccess": "Na-export ang diagram",
     "exportDbml": "I-export bilang DBML",
     "exportMarkdown": "I-export bilang Markdown",
-    "export": "I-export"
+    "export": "I-export",
+    "legend": "Gabay",
+    "primaryKey": "Primary Key",
+    "primaryKeyDesc": "Natatanging column na tumutukoy sa mga hilera sa talahanayan",
+    "foreignKey": "Foreign Key",
+    "foreignKeyDesc": "Sumasangguni sa primary o natatanging key sa ibang talahanayan",
+    "relationship": "Ugnayan",
+    "relationshipDesc": "Sanggunian ng foreign key na nag-uugnay sa mga kaugnay na talahanayan"
   },
   "views": {
     "createView": "Gumawa ng View",
@@ -3042,6 +3142,10 @@
     },
     "unknown": {
       "summary": "Nabigo ang koneksyon"
+    },
+    "keychain": {
+      "summary": "Hindi magamit ang keychain ng system",
+      "recovery": "Hindi maabot ng Tabularis ang credential store ng OS para i-save ang mga password. Sa Linux, tiyaking tumatakbo at naka-unlock ang isang Secret Service provider (GNOME Keyring, KWallet, KeePassXC), o i-off ang \"I-save ang mga password sa Keychain\" para sa koneksyong ito."
     }
   },
   "connectionTest": {
@@ -3135,6 +3239,22 @@
     "groups": { "builtin": "Kasama na · offline", "installed": "Mga naka-install na pakete", "personal": "Mga personal na tema" }, "modes": { "light": "Maliwanag", "dark": "Madilim", "high-contrast": "Mataas na contrast" },
     "importErrors": { "unrecognized": "Hindi nakilalang VS Code theme.", "modeRequired": "Pumili ng mode at silipin muli.", "includeOnly": "Hindi ma-import ang temang puro include lang. Ibigay ang aktuwal na mga kulay.", "noSupportedData": "Walang suportadong kulay o SQL token rule.", "invalidColor": "Mali ang halaga ng suportadong kulay.", "invalidRules": "Mali o sobra ang mga token rule." },
     "diagnostics": { "unsupportedKey": "Hindi suportadong field", "unsupportedColor": "Hindi suportadong kulay", "unsupportedScope": "Hindi suportadong saklaw", "scopeApproximation": "Tinatayang SQL mapping", "unsupportedStyle": "Hindi suportadong estilo", "ignoredInclude": "Hindi ni-load ang include", "ignoredSemanticTokens": "Binale-wala ang semantic token", "unsupportedReference": "Hindi ni-load ang panlabas na sanggunian", "unsupportedSetting": "Hindi suportadong setting", "tokenAlphaFlattened": "Kinalkula ang opacity ng token laban sa batayang background", "modeApproximation": "Pinalitan o tinantiya ang mode", "diagnosticsTruncated": "Hindi isinama ang dagdag na diagnostic" }
+  },
+  "linkedGit": {
+    "title": "Suriin ang mga pagbabago sa Git",
+    "diskOnly": "Ginagamit ng commit ang mga file na naka-save sa disk. Hindi kasama ang mga hindi pa naka-save na draft. Mga minarkahan at nasuring script lang ang isasama.",
+    "desktopOnly": "Available lang sa desktop app ang Git para sa mga naka-link na SQL folder.",
+    "refresh": "I-refresh ang mga pagbabago",
+    "commit": "I-commit ang mga napiling script",
+    "committed": "Nagawa ang commit {{commit}}.",
+    "renames": "M binago · A idinagdag · D tinanggal · ? hindi sinusubaybayan. Ipinapakita ang pagpapalit ng pangalan bilang pagtanggal at pagdagdag; suriin pareho.",
+    "empty": "Walang binagong SQL script.",
+    "files": "Mga binagong SQL script",
+    "include": "Isama ang {{path}} sa commit",
+    "review": "Suriin ang {{path}}",
+    "diff": "Mga pagkakaiba ng nasuring file",
+    "choose": "Pumili ng script at suriin ang mga pagkakaiba bago ito isama.",
+    "message": "Mensahe ng commit"
   },
   "aiInline": {
     "title": "AI inline completion",

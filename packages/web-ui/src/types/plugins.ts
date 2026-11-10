@@ -66,15 +66,11 @@ export interface DriverCapabilities {
      * host's generic SQL, the others don't show the menu entry. */
     column_stats?: boolean;
     /** The driver classifies queries in its own query language through the
-     * optional classify_query RPC, for the MCP read-only mode and approval gate.
-     * Defaults to false: the host reads every query as SQL. A `select` verdict
-     * only counts together with `read_only_execution`. */
+     * optional classify_query RPC, for the read-only policies: the MCP read-only
+     * mode, the MCP approval gate and saved read-only connections. Defaults to
+     * false: the host reads every query as SQL. A `select` verdict only counts
+     * when the driver also declares `read_only_queries` (or `readonly`). */
     query_classification?: boolean;
-    /** The optional execute_read_only_query RPC refuses any statement that could
-     * change data, schema or server state; the host runs the MCP queries it lets
-     * pass without approval through it. Defaults to false: the host uses
-     * execute_query, so classification is the only safeguard. */
-    read_only_execution?: boolean;
     /** Honours query_timeout_secs: the driver stops a statement on the server
      * once the limit passes. Shows the query-timeout field in the connection
      * modal. Built-in PostgreSQL sets this; plugins opt in. Defaults to false. */
@@ -88,6 +84,8 @@ export interface DriverCapabilities {
     manage_tables?: boolean;
     /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */
     readonly?: boolean;
+    /** Implements the protected execute_read_only_query RPC. Defaults to false. */
+    read_only_queries?: boolean;
     /** Offers "Export table to SQL" on table nodes. Defaults to true; non-SQL plugins set false. */
     table_export?: boolean;
     /** Offers "Import table from SQL" on database and schema nodes. Defaults to true; ignored (off) when readonly. */
@@ -100,6 +98,8 @@ export interface DriverCapabilities {
     user_management?: boolean;
     /** Supports managing stored routines (run with parameters, create from template, edit, drop). Defaults to false. */
     routine_management?: boolean;
+    /** Versioned native routine debugger protocol. Omitted means unsupported. */
+    routine_debug?: number;
     /** Supports materialized views (e.g. PostgreSQL). When false, the frontend skips fetching materialized views entirely. Defaults to false. */
     materialized_views?: boolean;
     /** Shows the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal.
@@ -152,6 +152,8 @@ export interface SqlSyntaxDescriptor {
     nested_block_comments?: boolean;
     line_comment_requires_space?: boolean;
     script_blocks?: boolean;
+    /** Firebird PSQL bodies, alternative q-quotes and isql SET TERM directives. */
+    psql_blocks?: boolean;
     dollar_quoting?: boolean;
     /** Generated string literals: `standard` (`''`) or `backslash` (`\'`). */
     string_escape?: 'standard' | 'backslash';

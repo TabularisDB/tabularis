@@ -76,6 +76,11 @@ function browserCapabilityNegotiation(serverFileBrowser: boolean): PlatformCapab
             adaptation: 'unsupported',
             reason: 'The browser cannot open folders on the Tabularis server',
         },
+        linkLocalFolders: {
+            supported: false,
+            adaptation: 'unsupported',
+            reason: 'Linking folders needs the desktop app; the web server never browses its own filesystem for this',
+        },
     });
 }
 

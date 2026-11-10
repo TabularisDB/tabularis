@@ -29,19 +29,19 @@ mod keychain;
 mod output;
 pub mod preflight;
 pub mod protocol;
-mod query_kind;
 mod termination;
 use cooldown::{DISABLE_CHECK_COOLDOWN, RELOAD_COOLDOWN};
 use database_scope::apply_database_override;
 use keychain::{read_stored_secret, StoredSecret};
 use output::{OutputFormatError, ToolOutputFormat};
 use protocol::*;
-use query_kind::classify_for_driver;
 
 #[cfg(test)]
 mod keychain_tests;
 #[cfg(test)]
 mod output_tests;
+#[cfg(test)]
+mod read_only_tests;
 #[cfg(test)]
 mod tests;
 
@@ -270,6 +270,7 @@ async fn resolve_db_params(
     conn_id: &str,
 ) -> Result<(crate::models::SavedConnection, ConnectionParams), JsonRpcError> {
     let mut conn = find_connection(conn_id)?;
+    crate::application::read_only::prepare_params(&mut conn.params);
 
     // Load DB password from keychain unless the connection uses IAM auth,
     // whose 15-min tokens must come from the `password` field on every
@@ -1190,11 +1191,25 @@ async fn tool_run_query(
 
     // Classified after the database override so a driver that classifies its
     // own language sees the same connection the query will run against. SQL
-    // drivers are read here as before; see `query_kind` for the rest.
-    let kind = classify_for_driver(driver.as_ref(), &db_params, query).await;
+    // drivers are read here as before; see `application::read_only` for the
+    // rest. The same verdict feeds the saved connection's read-only policy
+    // below, the MCP read-only mode and the approval gate.
+    let kind =
+        crate::application::read_only::classify_query(driver.as_ref(), &db_params, query).await;
     audit.query_kind = Some(kind.to_string());
 
     // Read-only enforcement (fail-closed: unknown counts as write).
+    crate::application::read_only::validate_kind(&db_params, &capabilities, kind).map_err(
+        |message| {
+            audit.status = "blocked_readonly".to_string();
+            audit.error = Some(message.clone());
+            JsonRpcError {
+                code: -32000,
+                message,
+                data: None,
+            }
+        },
+    )?;
     if config::is_connection_readonly(config, &conn.id) && kind != "select" {
         audit.status = "blocked_readonly".to_string();
         let msg = "Query blocked by Tabularis read-only mode. Enable writes for this connection in Settings → MCP → Read-only mode.".to_string();
@@ -1218,7 +1233,10 @@ async fn tool_run_query(
         _ => kind != "select",
     };
 
+    // What will run, and what it was classified as. An edit made during
+    // approval replaces both, so the two never describe different texts.
     let mut effective_query: String = query.to_string();
+    let mut effective_kind = kind;
 
     if needs_approval {
         // Fail fast if the GUI is not running — otherwise we'd queue a
@@ -1301,9 +1319,13 @@ async fn tool_run_query(
                         // payload) and slip past the gate that runs against
                         // the *original* query above.
                         effective_query = edited.to_string();
-                        let new_kind =
-                            classify_for_driver(driver.as_ref(), &db_params, &effective_query)
-                                .await;
+                        let new_kind = crate::application::read_only::classify_query(
+                            driver.as_ref(),
+                            &db_params,
+                            &effective_query,
+                        )
+                        .await;
+                        effective_kind = new_kind;
                         audit.query = Some(effective_query.clone());
                         audit.query_kind = Some(new_kind.to_string());
 
@@ -1377,7 +1399,14 @@ async fn tool_run_query(
     // here because it was classified as a read, and so is anything sent to a
     // read-only connection. Classification cannot see what a function call
     // does, so have the database refuse writes too.
-    let run_read_only = config::is_connection_readonly(config, &conn.id)
+    crate::application::read_only::validate_kind(&db_params, &capabilities, effective_kind)
+        .map_err(|message| JsonRpcError {
+            code: -32000,
+            message,
+            data: None,
+        })?;
+    let run_read_only = db_params.read_only
+        || config::is_connection_readonly(config, &conn.id)
         || (approval_mode != "off" && !needs_approval);
     let result = if run_read_only {
         driver
