@@ -134,13 +134,14 @@ function finalCteStatementKeyword(cleaned: string): string | null {
 }
 
 // The text inside each `AS (...)` of a WITH statement, `[NOT] MATERIALIZED`
-// included. A PostgreSQL CTE body can itself write (`WITH d AS (DELETE FROM t
+// included, and with or without whitespace before the parenthesis: PostgreSQL
+// also accepts `AS(`. A CTE body can itself write (`WITH d AS (DELETE FROM t
 // RETURNING *) SELECT ...`), and it runs even when the final statement is a
 // SELECT. Such bodies are only allowed at the top level, so nested ones are
 // not searched.
 function cteBodies(cleaned: string): string[] {
     const bodies: string[] = [];
-    const bodyStart = /\bAS\s+(?:NOT\s+)?(?:MATERIALIZED\s+)?\(/gi;
+    const bodyStart = /\bAS\s*(?:NOT\s+)?(?:MATERIALIZED\s*)?\(/gi;
     while (bodyStart.exec(cleaned) !== null) {
         const start = bodyStart.lastIndex;
         let depth = 1;
