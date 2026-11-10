@@ -2386,7 +2386,14 @@
     "exportSuccess": "图表已导出",
     "exportDbml": "导出为 DBML",
     "exportMarkdown": "导出为 Markdown",
-    "export": "导出"
+    "export": "导出",
+    "legend": "图例",
+    "primaryKey": "主键",
+    "primaryKeyDesc": "唯一标识表中行的列",
+    "foreignKey": "外键",
+    "foreignKeyDesc": "引用另一个表中的主键或唯一键",
+    "relationship": "关系",
+    "relationshipDesc": "连接子表与父表的外键引用"
   },
   "views": {
     "createView": "创建视图",

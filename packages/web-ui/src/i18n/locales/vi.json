@@ -2470,7 +2470,14 @@
     "exportSuccess": "Đã xuất sơ đồ",
     "exportDbml": "Xuất ra DBML",
     "exportMarkdown": "Xuất ra Markdown",
-    "export": "Xuất"
+    "export": "Xuất",
+    "legend": "Chú giải",
+    "primaryKey": "Khóa chính",
+    "primaryKeyDesc": "Cột duy nhất xác định các hàng trong bảng",
+    "foreignKey": "Khóa ngoại",
+    "foreignKeyDesc": "Tham chiếu khóa chính hoặc khóa duy nhất trong bảng khác",
+    "relationship": "Quan hệ",
+    "relationshipDesc": "Tham chiếu khóa ngoại kết nối bảng con và bảng cha"
   },
   "views": {
     "createView": "Tạo view",

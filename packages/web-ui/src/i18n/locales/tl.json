@@ -2463,7 +2463,14 @@
     "exportSuccess": "Na-export ang diagram",
     "exportDbml": "I-export bilang DBML",
     "exportMarkdown": "I-export bilang Markdown",
-    "export": "I-export"
+    "export": "I-export",
+    "legend": "Gabay",
+    "primaryKey": "Primary Key",
+    "primaryKeyDesc": "Natatanging column na tumutukoy sa mga hilera sa talahanayan",
+    "foreignKey": "Foreign Key",
+    "foreignKeyDesc": "Sumasangguni sa primary o natatanging key sa ibang talahanayan",
+    "relationship": "Ugnayan",
+    "relationshipDesc": "Sanggunian ng foreign key na nag-uugnay sa mga kaugnay na talahanayan"
   },
   "views": {
     "createView": "Gumawa ng View",

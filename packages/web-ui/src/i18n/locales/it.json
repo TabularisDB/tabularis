@@ -2493,7 +2493,14 @@
     "exportSuccess": "Diagramma esportato",
     "exportDbml": "Esporta come DBML",
     "exportMarkdown": "Esporta come Markdown",
-    "export": "Esporta"
+    "export": "Esporta",
+    "legend": "Legenda",
+    "primaryKey": "Chiave primaria",
+    "primaryKeyDesc": "Colonna univoca che identifica le righe della tabella",
+    "foreignKey": "Chiave esterna",
+    "foreignKeyDesc": "Fa riferimento a una chiave primaria o univoca in un'altra tabella",
+    "relationship": "Relazione",
+    "relationshipDesc": "Riferimento di chiave esterna tra tabella figlia e genitore"
   },
   "views": {
     "createView": "Crea Vista",

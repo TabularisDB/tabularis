@@ -2504,7 +2504,14 @@
     "exportSuccess": "Diagram exported",
     "exportDbml": "Export as DBML",
     "exportMarkdown": "Export as Markdown",
-    "export": "Export"
+    "export": "Export",
+    "legend": "Legend",
+    "primaryKey": "Primary Key",
+    "primaryKeyDesc": "Unique column identifying rows in the table",
+    "foreignKey": "Foreign Key",
+    "foreignKeyDesc": "References a primary or unique key in another table",
+    "relationship": "Relationship",
+    "relationshipDesc": "Foreign key reference connecting child and parent tables"
   },
   "views": {
     "createView": "Create View",

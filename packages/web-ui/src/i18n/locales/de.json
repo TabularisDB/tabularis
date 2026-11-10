@@ -2433,7 +2433,14 @@
     "exportSuccess": "Diagramm exportiert",
     "exportDbml": "Als DBML exportieren",
     "exportMarkdown": "Als Markdown exportieren",
-    "export": "Exportieren"
+    "export": "Exportieren",
+    "legend": "Legende",
+    "primaryKey": "Primärschlüssel",
+    "primaryKeyDesc": "Eindeutige Spalte zur Zeilenidentifikation in der Tabelle",
+    "foreignKey": "Fremdschlüssel",
+    "foreignKeyDesc": "Verweist auf einen Primär- oder eindeutigen Schlüssel einer anderen Tabelle",
+    "relationship": "Beziehung",
+    "relationshipDesc": "Fremdschlüssel-Referenz zwischen untergeordneter und übergeordneter Tabelle"
   },
   "views": {
     "createView": "Ansicht erstellen",

@@ -2444,7 +2444,14 @@
     "exportSuccess": "図をエクスポートしました",
     "exportDbml": "DBML としてエクスポート",
     "exportMarkdown": "Markdown としてエクスポート",
-    "export": "エクスポート"
+    "export": "エクスポート",
+    "legend": "凡例",
+    "primaryKey": "主キー",
+    "primaryKeyDesc": "テーブル内の行を一意に識別する列",
+    "foreignKey": "外部キー",
+    "foreignKeyDesc": "別のテーブルの主キーまたは一意キーを参照します",
+    "relationship": "リレーション",
+    "relationshipDesc": "子テーブルと親テーブルを結ぶ外部キー参照"
   },
   "views": {
     "createView": "ビューを作成",
