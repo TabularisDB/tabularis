@@ -1,12 +1,14 @@
 use crate::config;
 use crate::credential_cache::CredentialCache;
 use crate::runtime::RuntimeContext;
+mod api_route;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub mod inline;
@@ -150,7 +152,14 @@ fn get_cache_path(runtime: &RuntimeContext) -> std::path::PathBuf {
     runtime.paths.config_dir().join("ai_models_cache.json")
 }
 
+static MODEL_CACHE_LOCK: Mutex<()> = Mutex::new(());
+
 fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
+    let _guard = MODEL_CACHE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    load_cache_unlocked(runtime)
+}
+
+fn load_cache_unlocked(runtime: &RuntimeContext) -> Option<AiModelsCache> {
     let path = get_cache_path(runtime);
     if path.exists() {
         let content = fs::read_to_string(path).ok()?;
@@ -161,6 +170,7 @@ fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
 }
 
 fn save_cache(runtime: &RuntimeContext, models: &HashMap<String, Vec<String>>) {
+    let _guard = MODEL_CACHE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let path = get_cache_path(runtime);
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -405,6 +415,7 @@ async fn fetch_custom_openai_models_with_client(
 // --- Commands ---
 
 pub fn clear_models_cache(runtime: &RuntimeContext) -> Result<(), String> {
+    let _guard = MODEL_CACHE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let path = get_cache_path(runtime);
     if path.exists() {
         fs::remove_file(path).map_err(|e| e.to_string())?;
@@ -468,6 +479,8 @@ pub async fn get_models(
                         cached_models.insert("minimax".to_string(), minimax_models);
                     }
                 }
+
+                cached_models.insert("api-route".into(), api_route::models(runtime, cache).await);
 
                 // Account-specific ChatGPT models use the dedicated settings command.
                 cached_models.remove("chatgpt");
@@ -568,6 +581,8 @@ pub async fn get_models(
     .await;
     models.insert("custom-openai".to_string(), custom_models);
 
+    models.insert("api-route".into(), api_route::models(runtime, cache).await);
+
     // Save to Cache
     save_cache(runtime, &models);
 
@@ -607,6 +622,7 @@ async fn resolve_model(
             .filter(|m| !m.is_empty())
             .cloned()
             .ok_or_else(|| "No model specified for custom OpenAI provider.".to_string()),
+        "api-route" => Err("Select an API Route model in Settings > AI.".to_string()),
         _ => {
             let models = load_default_models();
             models
@@ -647,6 +663,16 @@ async fn dispatch_provider(
         "anthropic" => generate_anthropic(&client, &api_key, gen_req, system_prompt).await,
         "openrouter" => generate_openrouter(&client, &api_key, gen_req, system_prompt).await,
         "requesty" => generate_requesty(&client, &api_key, gen_req, system_prompt).await,
+        "api-route" => {
+            generate_custom_openai(
+                &client,
+                &api_key,
+                gen_req,
+                system_prompt,
+                api_route::BASE_URL,
+            )
+            .await
+        }
         "ollama" => generate_ollama(&client, gen_req, system_prompt, ollama_port).await,
         "custom-openai" => {
             let base_url = app_config
@@ -1048,7 +1074,12 @@ async fn generate_custom_openai(
 
     if !res.status().is_success() {
         let error_text = res.text().await.unwrap_or_default();
-        return Err(format!("Custom OpenAI Error: {}", error_text));
+        let provider = if req.provider == "api-route" {
+            "API Route"
+        } else {
+            "Custom OpenAI"
+        };
+        return Err(format!("{provider} Error: {error_text}"));
     }
 
     let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
