@@ -177,6 +177,9 @@ pub struct DriverCapabilities {
     /// plugins opt in via their manifest. Defaults to `false`.
     #[serde(default, alias = "routineManagement")]
     pub routine_management: bool,
+    /// Optional routine debugger protocol. Only version 1 is currently supported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routine_debug: Option<u32>,
     /// Supports the SSL/TLS configuration tab (mode + CA/client cert/key) in the
     /// connection modal. Built-in network drivers set this; plugins opt in via
     /// their manifest. Defaults to `false`.
@@ -437,6 +440,16 @@ pub struct PluginManifest {
 /// fall back to `"public"` when it is `None`.
 #[async_trait]
 pub trait DatabaseDriver: Send + Sync {
+    /// No SQL fallback: debugging requires a native, isolated driver session.
+    async fn routine_debug(
+        &self,
+        _params: &ConnectionParams,
+        _version: u32,
+        _command: &crate::routine_debug::DebugCommand,
+    ) -> Result<crate::routine_debug::DebugResponse, String> {
+        Err("Routine debugging is not supported by this driver".into())
+    }
+
     // --- Metadata -----------------------------------------------------------
 
     fn manifest(&self) -> &PluginManifest;

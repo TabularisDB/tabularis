@@ -1,4 +1,42 @@
 {
+  "routineDebug": {
+    "closeUnconfirmed": "尚未確認資源釋放仍關閉",
+    "title": "偵錯常式",
+    "warning": "啟動或繼續常式會執行資料庫程式碼，可能提交交易或造成外部影響。偵錯不會自動授予權限、重新編譯常式或安裝輔助物件。",
+    "preview": "預覽目標與參數",
+    "start": "開始偵錯",
+    "continue": "繼續",
+    "into": "逐步執行",
+    "over": "不進入函式逐步執行",
+    "out": "跳出函式",
+    "status": "重新整理狀態",
+    "stop": "停止並釋放資源",
+    "source": "原始碼",
+    "stack": "呼叫堆疊",
+    "variables": "變數",
+    "outputs": "OUT 參數與傳回值",
+    "watches": "要檢查的變數名稱（以逗號分隔）",
+    "breakpoint": "切換第 {{line}} 行的中斷點",
+    "execution": "執行",
+    "transaction": "交易",
+    "resources": "資源",
+    "available": "可用",
+    "partial": "部分可用",
+    "stale": "資料已過期 — 需要重新整理",
+    "unavailable": "無法使用",
+    "running": "執行中",
+    "paused": "已暫停",
+    "completed": "已完成",
+    "failed": "失敗",
+    "cancelled": "已取消",
+    "unknown": "未知",
+    "open": "開啟",
+    "committed": "已提交",
+    "rolled_back": "已回復",
+    "held": "保留中",
+    "released": "已釋放",
+    "uncertain": "無法確認上次操作。顯示的資料可能已過期。請勿重新啟動常式；請重新整理狀態或停止，以確認資源已釋放。"
+  },
     "serverFilePicker": {
         "title": "瀏覽伺服器檔案",
         "subtitle": "在 Tabularis 主機上選擇檔案或資料夾",
@@ -120,6 +158,54 @@
         "hideDetails": "隱藏詳情",
         "beta": "測試版",
         "dismiss": "關閉"
+    },
+    "linkedFolders": {
+        "tab": "SQL 檔案",
+        "chooseTitle": "選擇 SQL 腳本資料夾",
+        "link": "連結資料夾",
+        "refresh": "重新整理 SQL 檔案",
+        "empty": "連結資料夾以瀏覽其中的 SQL 腳本。",
+        "needsConnection": "請先連線資料庫，再開啟 SQL 檔案。",
+        "linkError": "無法連結該資料夾",
+        "unlinkError": "無法取消連結該資料夾",
+        "unlink": "取消連結 {{name}}",
+        "rootUnavailable": "無法使用",
+        "fileUnsaved": "{{name}}（有未儲存的變更）",
+        "unavailableTitle": "此處無法使用 SQL 檔案",
+        "unavailableMessage": "連結本機資料夾需要桌面版應用程式。在瀏覽器中請使用「開啟 SQL 檔案」匯入檔案。",
+        "status": {
+            "loading": "載入中…",
+            "empty": "沒有 SQL 檔案",
+            "truncated": "僅顯示前面的項目"
+        },
+        "errors": {
+            "linked_folders_file_unreadable": "無法讀取已儲存的連結資料夾清單。請修正或刪除設定資料夾中的 linked_folders.json。",
+            "linked_folder_not_found": "該連結資料夾已不在清單中。",
+            "linked_folder_unavailable": "資料夾不存在或無法讀取。",
+            "linked_folder_limit_reached": "已達連結資料夾數量上限。請先取消連結一個。",
+            "linked_path_outside_root": "路徑位於連結資料夾之外。",
+            "linked_path_not_sql_file": "此處只能開啟 .sql、.psql 和 .pgsql 檔案。",
+            "linked_directory_unreadable": "無法讀取此資料夾。",
+            "linked_file_unreadable": "無法讀取此檔案。它可能不存在、過大或不是 UTF-8 編碼。",
+            "linked_file_too_large": "此檔案過大，無法儲存（上限 50 MB）。",
+            "linked_file_write_failed": "無法寫入檔案。請檢查權限與磁碟剩餘空間。",
+            "linked_file_conflict_modified": "檔案在磁碟上已變更。",
+            "linked_file_conflict_missing": "檔案在磁碟上已不存在。"
+        },
+        "conflict": {
+            "reload": "從磁碟重新載入",
+            "saveAs": "另存為副本…",
+            "modified": {
+                "title": "檔案在磁碟上已變更",
+                "message": "自你開啟或上次儲存以來，{{name}} 已在 Tabularis 之外被修改。未寫入任何內容。你可以用自己的版本覆寫檔案、另存為副本，或重新載入磁碟版本並捨棄你的編輯。",
+                "overwrite": "覆寫檔案"
+            },
+            "missing": {
+                "title": "磁碟上找不到檔案",
+                "message": "{{name}} 已在 Tabularis 之外被刪除或移動。你的編輯仍保留在編輯器中。你可以用自己的版本重新建立檔案，或另存為副本到其他位置。",
+                "overwrite": "重新建立檔案"
+            }
+        }
     },
     "sidebar": {
         "connections": "連線",

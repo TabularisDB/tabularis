@@ -6,6 +6,26 @@ use axum::http::header::CONTENT_TYPE;
 use axum::http::HeaderValue;
 use uuid::Uuid;
 
+#[test]
+fn routine_debug_web_command_preserves_native_identity_and_rejects_extra_fields() {
+    let body = br#"{"connectionId":"oracle","version":1,"command":{"action":"step","session_id":"session","mode":"over"}}"#;
+    let command =
+        decode_database_object_command(DatabaseObjectRpcCommand::RoutineDebug, body).unwrap();
+    assert!(
+        matches!(command, DatabaseObjectCommand::RoutineDebug { version: 1, command: crate::routine_debug::DebugCommand::Step { session_id, mode: crate::routine_debug::DebugStep::Over }, .. } if session_id == "session")
+    );
+    let invalid = br#"{"connectionId":"oracle","version":1,"command":{"action":"start","preview_id":"p","session_id":"s","sql":"CALL other()"}}"#;
+    assert!(
+        decode_database_object_command(DatabaseObjectRpcCommand::RoutineDebug, invalid).is_err()
+    );
+    assert!(matches!(
+        RpcCommand::parse("routine_debug"),
+        Some(RpcCommand::DatabaseObject(
+            DatabaseObjectRpcCommand::RoutineDebug
+        ))
+    ));
+}
+
 struct FixtureApplication {
     delay: Duration,
     saved_params: HashMap<String, ConnectionParams>,
@@ -2299,7 +2319,16 @@ fn registers_merged_host_commands_with_explicit_authorization() {
         assert_eq!(command.metadata().authorization, authorization, "{name}");
     }
     // Desktop-only integrations never get a browser route.
-    for name in ["open_storage_location", "get_linux_system_theme"] {
+    for name in [
+        "open_storage_location",
+        "get_linux_system_theme",
+        "list_linked_folders",
+        "link_local_folder",
+        "unlink_local_folder",
+        "list_linked_directory",
+        "read_linked_sql_file",
+        "write_linked_sql_file",
+    ] {
         assert!(RpcCommand::parse(name).is_none(), "{name}");
     }
 }

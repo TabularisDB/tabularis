@@ -90,6 +90,7 @@ pub mod proxy;
 pub mod query_history;
 #[cfg(test)]
 pub mod query_history_tests;
+pub mod routine_debug;
 pub mod runtime;
 pub mod sandbox;
 #[cfg(test)]

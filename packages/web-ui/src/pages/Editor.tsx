@@ -212,6 +212,15 @@ import {useConnectionLayoutContext} from '@/hooks/useConnectionLayoutContext';
 import {useKeybindings} from '@/hooks/useKeybindings';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {openSqlFile, saveSqlFile} from '@/utils/sqlFileTransfer';
+import {
+    getLinkedFileConflict,
+    getLinkedFolderErrorKey,
+    readLinkedSqlFile,
+    savedLinkedFileTab,
+    writeLinkedSqlFile,
+    type LinkedFileConflictKind,
+} from '@/utils/linkedFolders';
+import {LinkedFileConflictModal} from '@/components/modals/LinkedFileConflictModal';
 import {useSecondaryWindows} from '@/hooks/useSecondaryWindows';
 import type {
     BatchStatementResult,
@@ -689,8 +698,53 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [],
     );
 
+    const [linkedConflict, setLinkedConflict] = useState<{
+        tabId: string;
+        kind: LinkedFileConflictKind;
+    } | null>(null);
+    const [isResolvingLinkedConflict, setIsResolvingLinkedConflict] = useState(false);
+
+    // Linked files are written only while the disk copy still matches what the
+    // tab last read or wrote; otherwise the conflict dialog decides.
+    const saveLinkedSqlFile = useCallback(
+        async (tab: Tab, overwrite: boolean) => {
+            const link = tab.sourceFileLink;
+            if (!link) return;
+            const savedQuery = tab.query;
+            try {
+                const saved = await writeLinkedSqlFile(client, link, savedQuery, overwrite);
+                updateTab(tab.id, (currentTab) =>
+                    savedLinkedFileTab(
+                        currentTab.sourceFileLink ?? link,
+                        saved,
+                        savedQuery,
+                        currentTab.query,
+                    ),
+                );
+                setLinkedConflict(null);
+                showToast(t('editor.sqlFileSaved'), {kind: 'success'});
+            } catch (error) {
+                const kind = getLinkedFileConflict(error);
+                if (kind) {
+                    setLinkedConflict({tabId: tab.id, kind});
+                    return;
+                }
+                const key = getLinkedFolderErrorKey(error);
+                showAlert(`${t('editor.saveSqlFileError')}: ${key ? t(key) : String(error)}`, {
+                    title: t('common.error'),
+                    kind: 'error',
+                });
+            }
+        },
+        [client, showAlert, showToast, t, updateTab],
+    );
+
     const handleSaveSqlFile = useCallback(
         async (tab: Tab, saveAs = false) => {
+            if (tab.sourceFileLink && !saveAs) {
+                await saveLinkedSqlFile(tab, false);
+                return;
+            }
             try {
                 const savedQuery = tab.query;
                 const saved = await saveSqlFile(platform, client, {
@@ -708,9 +762,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 if (!saved) return;
                 if (saved.kind === 'path') {
                     updateTab(tab.id, (currentTab) =>
-                        savedSqlFileTab(saved.path, savedQuery, currentTab.query),
+                        // Save As detaches the tab from the linked folder.
+                        ({
+                            ...savedSqlFileTab(saved.path, savedQuery, currentTab.query),
+                            sourceFileLink: undefined,
+                        }),
                     );
                 }
+                setLinkedConflict(null);
                 showToast(t('editor.sqlFileSaved'), {kind: 'success'});
             } catch (error) {
                 showAlert(`${t('editor.saveSqlFileError')}: ${String(error)}`, {
@@ -719,7 +778,44 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 });
             }
         },
-        [client, platform, showAlert, showToast, t, updateTab],
+        [client, platform, saveLinkedSqlFile, showAlert, showToast, t, updateTab],
+    );
+
+    const linkedConflictTab = linkedConflict
+        ? tabs.find((tab) => tab.id === linkedConflict.tabId)
+        : undefined;
+
+    const resolveLinkedConflict = useCallback(
+        async (action: 'overwrite' | 'reload') => {
+            const tab = linkedConflictTab;
+            const link = tab?.sourceFileLink;
+            if (!tab || !link) return;
+            setIsResolvingLinkedConflict(true);
+            try {
+                if (action === 'overwrite') {
+                    await saveLinkedSqlFile(tab, true);
+                    return;
+                }
+                const file = await readLinkedSqlFile(client, link.folderId, link.relativePath);
+                updateTab(tab.id, {
+                    query: file.content,
+                    sourceFilePath: file.path,
+                    sourceFileContent: file.content,
+                    sourceFileDirty: false,
+                    sourceFileLink: {...link, version: file.version},
+                });
+                setLinkedConflict(null);
+            } catch (error) {
+                const key = getLinkedFolderErrorKey(error);
+                showAlert(`${t('editor.openSqlFileError')}: ${key ? t(key) : String(error)}`, {
+                    title: t('common.error'),
+                    kind: 'error',
+                });
+            } finally {
+                setIsResolvingLinkedConflict(false);
+            }
+        },
+        [client, linkedConflictTab, saveLinkedSqlFile, showAlert, t, updateTab],
     );
 
     const isEditorOpen = !isTableTab && (activeTab?.isEditorOpen ?? activeTab?.type !== 'table');
@@ -6980,6 +7076,20 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 warningMessage={exportState.warningMessage}
                 onCancel={cancelExport}
                 onClose={closeExportModal}
+            />
+            <LinkedFileConflictModal
+                isOpen={linkedConflict !== null && linkedConflictTab !== undefined}
+                kind={linkedConflict?.kind ?? 'modified'}
+                fileName={linkedConflictTab?.title ?? ''}
+                busy={isResolvingLinkedConflict}
+                onClose={() => setLinkedConflict(null)}
+                onOverwrite={() => void resolveLinkedConflict('overwrite')}
+                onReload={() => void resolveLinkedConflict('reload')}
+                onSaveAs={() => {
+                    const tab = linkedConflictTab;
+                    setLinkedConflict(null);
+                    if (tab) void handleSaveSqlFile(tab, true);
+                }}
             />
             <QueryParamsModal
                 isOpen={queryParamsModal.isOpen}

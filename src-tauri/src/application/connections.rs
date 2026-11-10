@@ -1460,6 +1460,7 @@ pub async fn disconnect_connection(
     connection_id: &str,
 ) -> Result<(), String> {
     super::query_sessions::release_connection(runtime, session_id, connection_id).await;
+    super::routine_debug::release(session_id, Some(connection_id)).await;
     let still_owned = if let (Some(state), Some(session_id)) = (state, session_id) {
         let mut sessions = state
             .web_active_connections

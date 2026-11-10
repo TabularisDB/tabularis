@@ -1,4 +1,5 @@
 import type {DatabaseBackupStatus} from '@/types/databaseBackup';
+import type {DebugCommand, DebugResponse} from '@/types/routineDebug';
 import type {ChatGptModel, ChatGptSession} from '@/types/chatgpt';
 import type {TableQueryTemplateRequest} from '@/utils/tableQueryTemplates';
 import type {DataTypeRegistry} from '@/types/dataTypes';
@@ -54,6 +55,13 @@ import type {
     PendingApproval,
 } from '@/types/ai';
 import type {ImportPreview, ImportResolution, ImportSourceInfo} from '@/types/connectionImport';
+import type {
+    LinkedDirectoryListing,
+    LinkedFileContent,
+    LinkedFileSaved,
+    LinkedFolder,
+    LinkedFolderStatus,
+} from '@/types/linkedFolders';
 import type {RequestId} from './errors';
 import type {
     LogEntry,
@@ -937,6 +945,11 @@ export interface CommandMap {
     >;
     get_routine_edit_script: CommandDefinition<RoutineTargetRequest, string, 'database'>;
     drop_routine: CommandDefinition<RoutineTargetRequest, void, 'database'>;
+    routine_debug: CommandDefinition<
+        {connectionId: string; version: 1; command: DebugCommand},
+        DebugResponse,
+        'database'
+    >;
 
     get_trigger_definition: CommandDefinition<TriggerTargetRequest, string, 'database'>;
     create_trigger: CommandDefinition<MetadataRequest & {triggerSql: string}, void, 'database'>;
@@ -1335,6 +1348,32 @@ export interface CommandMap {
     /** Paths are host paths; browsers may only use server file browser roots. */
     read_sql_file: CommandDefinition<{path: string}, string, 'local-admin'>;
     write_sql_file: CommandDefinition<{path: string; content: string}, void, 'local-admin'>;
+
+    /** Desktop only: linked folders are never routed through the web server. */
+    list_linked_folders: CommandDefinition<undefined, LinkedFolderStatus[], 'local-admin'>;
+    link_local_folder: CommandDefinition<{path: string}, LinkedFolder, 'local-admin'>;
+    unlink_local_folder: CommandDefinition<{id: string}, void, 'local-admin'>;
+    list_linked_directory: CommandDefinition<
+        {id: string; relativePath: string},
+        LinkedDirectoryListing,
+        'local-admin'
+    >;
+    read_linked_sql_file: CommandDefinition<
+        {id: string; relativePath: string},
+        LinkedFileContent,
+        'local-admin'
+    >;
+    write_linked_sql_file: CommandDefinition<
+        {
+            id: string;
+            relativePath: string;
+            content: string;
+            expectedVersion: string | null;
+            overwrite: boolean;
+        },
+        LinkedFileSaved,
+        'local-admin'
+    >;
 
     get_connection_metadata: CommandDefinition<
         ConnectionIdRequest,

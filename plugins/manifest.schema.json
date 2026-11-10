@@ -89,6 +89,11 @@
           "default": false,
           "description": "true to enable routine management actions (run with parameters, create from template, edit, drop). The backing RPCs (build_routine_call_sql, routine_create_template, get_routine_edit_script, drop_routine) are optional: the host falls back to dialect-neutral SQL when the plugin does not implement them."
         },
+        "routine_debug": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Native routine debugger protocol version. Omit when unsupported. Hosts currently support version 1 only. Requires routine_debug RPC; there is no SQL fallback."
+        },
         "triggers": {
           "type": "boolean",
           "default": false,
