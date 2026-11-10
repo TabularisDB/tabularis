@@ -3198,5 +3198,12 @@
     "installAndOpen": "설치 후 열기",
     "dropTitle": "놓아서 테이블로 열기",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "readOnly": {
+    "label": "읽기 전용 모드",
+    "description": "이 연결의 쓰기를 차단합니다. 활성화된 동안 시작 스크립트를 실행하지 않습니다.",
+    "unsupported": "이 드라이버는 보호된 읽기 전용 쿼리를 지원하지 않습니다.",
+    "writeBlocked": "이 연결은 읽기 전용입니다. 쓰기를 허용하려면 연결 설정에서 이 모드를 해제하세요.",
+    "banner": "{{name}} — 읽기 전용"
   }
 }

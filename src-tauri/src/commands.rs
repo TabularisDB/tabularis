@@ -1779,6 +1779,7 @@ pub(crate) fn sql_builder_params(
     database: Option<String>,
 ) -> ConnectionParams {
     let mut params = saved.params.clone();
+    crate::application::read_only::prepare_params(&mut params);
     params.connection_id = Some(saved.id.clone());
     if crate::drivers::registry::is_local_path_driver(&params.driver) {
         params.database = crate::fs_path::sanitize_database_selection(&params.database);

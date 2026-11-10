@@ -124,6 +124,13 @@
     "warnConfirm": "Trotzdem ausführen",
     "warnSnooze": "Für diese Verbindung nicht mehr fragen (diese Sitzung)"
   },
+  "readOnly": {
+    "label": "Schreibgeschützter Modus",
+    "description": "Blockiert Schreibzugriffe auf diese Verbindung. Startskripte werden in diesem Modus übersprungen.",
+    "unsupported": "Dieser Treiber unterstützt keine geschützten schreibgeschützten Abfragen.",
+    "writeBlocked": "Diese Verbindung ist schreibgeschützt. Deaktivieren Sie diesen Modus in den Verbindungseinstellungen, um Schreibzugriffe zu erlauben.",
+    "banner": "{{name}} — schreibgeschützt"
+  },
   "textStats": {
     "characters": "Zeichen: {{count}}",
     "lines": "Zeilen: {{count}}",

@@ -390,6 +390,7 @@ pub async fn import_database(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, &connection_id)?;
     let (driver, mut params) =
         super::connections::resolve_saved_connection_params(runtime, session_id, &connection_id)?;
     if let Some(database) = database.filter(|database| !database.is_empty()) {
@@ -653,6 +654,8 @@ pub(crate) async fn stream_sql_rows<F>(
 where
     F: FnMut(&[String], Vec<SqlCell>) -> Result<(), String>,
 {
+    // Built-in pools enforce the saved read-only policy at connection setup,
+    // so both modes retain native streaming and type-aware cell extraction.
     match driver {
         "mysql" => {
             use sqlx::{Column, TypeInfo};
@@ -728,9 +731,20 @@ where
             let json_columns = json_column_names(&drv.get_columns(params, table, schema).await?);
             let mut page = 1u32;
             loop {
-                let result = drv
-                    .execute_query(params, query, Some(1000), page, schema)
-                    .await?;
+                let result = if params.read_only {
+                    super::read_only::execute_query(
+                        drv.as_ref(),
+                        params,
+                        query,
+                        Some(1000),
+                        page,
+                        schema,
+                    )
+                    .await?
+                } else {
+                    drv.execute_query(params, query, Some(1000), page, schema)
+                        .await?
+                };
                 let fetched = result.rows.len() as u32;
                 for row in result.rows {
                     let cells = plugin_row_cells(row, &result.columns, &json_columns);

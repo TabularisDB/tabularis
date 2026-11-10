@@ -1296,6 +1296,39 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    async fn execute_read_only_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<QueryResult, String> {
+        if self.manifest.capabilities.readonly {
+            return self.execute_query(params, query, limit, page, schema).await;
+        }
+        if !self.manifest.capabilities.read_only_queries {
+            // Preserve legacy MCP behaviour when no connection policy was set.
+            if !params.read_only {
+                return self.execute_query(params, query, limit, page, schema).await;
+            }
+            return Err("This plugin does not support protected read-only queries".into());
+        }
+        let result = self
+            .process
+            .call(
+                "execute_read_only_query",
+                json!({
+                    "params": self.with_primary_database(params), "query": query, "limit": limit,
+                    "page": page, "schema": schema,
+                }),
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        // No execute_query fallback: a missing RPC or protection error fails closed.
+        serde_json::from_value(result).map_err(|error| error.to_string())
+    }
+
     async fn execute_batch(
         &self,
         params: &ConnectionParams,
@@ -2648,6 +2681,7 @@ mod tests {
     fn test_connection_params() -> ConnectionParams {
         ConnectionParams {
             driver: "test-plugin".to_string(),
+            read_only: false,
             host: Some("localhost".to_string()),
             port: Some(1234),
             username: Some("user".to_string()),
@@ -4202,6 +4236,10 @@ mod table_query_template_tests;
 #[cfg(test)]
 #[path = "column_stats_tests.rs"]
 mod column_stats_tests;
+
+#[cfg(test)]
+#[path = "read_only_tests.rs"]
+mod read_only_tests;
 
 #[cfg(test)]
 #[path = "startup_tests.rs"]

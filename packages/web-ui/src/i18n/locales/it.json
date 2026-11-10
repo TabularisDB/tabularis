@@ -131,6 +131,13 @@
     "warnConfirm": "Esegui comunque",
     "warnSnooze": "Non chiedere più per questa connessione (questa sessione)"
   },
+  "readOnly": {
+    "label": "Modalità sola lettura",
+    "description": "Blocca le scritture su questa connessione. Gli script di avvio vengono ignorati in questa modalità.",
+    "unsupported": "Questo driver non supporta query protette in sola lettura.",
+    "writeBlocked": "Questa connessione è in sola lettura. Disattiva questa modalità nelle impostazioni per consentire le scritture.",
+    "banner": "{{name}} — sola lettura"
+  },
   "textStats": {
     "characters": "Caratteri: {{count}}",
     "lines": "Righe: {{count}}",

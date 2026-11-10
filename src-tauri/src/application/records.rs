@@ -189,6 +189,7 @@ pub async fn delete_record(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     log::info!(
         "Deleting a record on connection {} from table {}",
         connection_id,
@@ -220,6 +221,7 @@ pub async fn update_record(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     log::info!(
         "Updating column {} on connection {} in table {}",
         col_name,
@@ -267,6 +269,7 @@ pub async fn insert_record(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     log::info!(
         "Inserting a record on connection {} into table {}",
         connection_id,

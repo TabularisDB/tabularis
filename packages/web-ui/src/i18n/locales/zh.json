@@ -124,6 +124,13 @@
     "warnConfirm": "仍然执行",
     "warnSnooze": "此连接不再询问（本次会话）"
   },
+  "readOnly": {
+    "label": "只读模式",
+    "description": "阻止通过此连接写入。启用时跳过启动脚本。",
+    "unsupported": "此驱动程序不支持受保护的只读查询。",
+    "writeBlocked": "此连接为只读。请在连接设置中关闭此模式以允许写入。",
+    "banner": "{{name}} — 只读模式"
+  },
   "textStats": {
     "characters": "字符数:{{count}}",
     "lines": "行数:{{count}}",

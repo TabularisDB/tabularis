@@ -124,6 +124,13 @@
     "warnConfirm": "Exécuter quand même",
     "warnSnooze": "Ne plus demander pour cette connexion (cette session)"
   },
+  "readOnly": {
+    "label": "Mode lecture seule",
+    "description": "Bloque les écritures sur cette connexion. Les scripts de démarrage sont ignorés dans ce mode.",
+    "unsupported": "Ce pilote ne prend pas en charge les requêtes protégées en lecture seule.",
+    "writeBlocked": "Cette connexion est en lecture seule. Désactivez ce mode dans ses paramètres pour autoriser les écritures.",
+    "banner": "{{name}} — mode lecture seule"
+  },
   "textStats": {
     "characters": "Caractères : {{count}}",
     "lines": "Lignes : {{count}}",

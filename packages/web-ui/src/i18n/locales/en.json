@@ -124,6 +124,13 @@
     "warnConfirm": "Run anyway",
     "warnSnooze": "Don't ask again for this connection (this session)"
   },
+  "readOnly": {
+    "label": "Read-only mode",
+    "description": "Block writes on this connection. Startup scripts are skipped while enabled.",
+    "unsupported": "This driver does not support protected read-only queries.",
+    "writeBlocked": "This connection is read-only. Disable read-only mode in its settings to allow writes.",
+    "banner": "{{name}} — read-only mode"
+  },
   "textStats": {
     "characters": "Characters: {{count}}",
     "lines": "Lines: {{count}}",

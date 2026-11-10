@@ -124,6 +124,13 @@
     "warnConfirm": "Ejecutar de todos modos",
     "warnSnooze": "No volver a preguntar para esta conexión (esta sesión)"
   },
+  "readOnly": {
+    "label": "Modo de solo lectura",
+    "description": "Bloquea las escrituras en esta conexión. Los scripts de inicio se omiten en este modo.",
+    "unsupported": "Este controlador no admite consultas protegidas de solo lectura.",
+    "writeBlocked": "Esta conexión es de solo lectura. Desactiva este modo en su configuración para permitir escrituras.",
+    "banner": "{{name}} — solo lectura"
+  },
   "textStats": {
     "characters": "Caracteres: {{count}}",
     "lines": "Líneas: {{count}}",
