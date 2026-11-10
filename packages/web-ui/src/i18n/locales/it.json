@@ -3188,6 +3188,10 @@
     },
     "unknown": {
       "summary": "Connessione fallita"
+    },
+    "keychain": {
+      "summary": "Portachiavi di sistema non disponibile",
+      "recovery": "Tabularis non è riuscito a raggiungere l'archivio credenziali del sistema per salvare le password. Su Linux, verifica che un provider Secret Service (GNOME Keyring, KWallet, KeePassXC) sia attivo e sbloccato, oppure disattiva \"Salva password nel Portachiavi\" per questa connessione."
     }
   },
   "connectionTest": {

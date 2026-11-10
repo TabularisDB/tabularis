@@ -3062,6 +3062,10 @@
     },
     "unknown": {
       "summary": "연결 실패"
+    },
+    "keychain": {
+      "summary": "시스템 키체인을 사용할 수 없음",
+      "recovery": "비밀번호를 저장하기 위해 OS 자격 증명 저장소에 연결하지 못했습니다. Linux에서는 Secret Service 제공자(GNOME Keyring, KWallet, KeePassXC)가 실행 중이고 잠금 해제되어 있는지 확인하거나, 이 연결의 \"키체인에 비밀번호 저장\"을 끄세요."
     }
   },
   "connectionTest": {

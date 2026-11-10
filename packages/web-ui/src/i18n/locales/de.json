@@ -3155,6 +3155,10 @@
     },
     "unknown": {
       "summary": "Verbindung fehlgeschlagen"
+    },
+    "keychain": {
+      "summary": "System-Schlüsselbund nicht verfügbar",
+      "recovery": "Tabularis konnte den Anmeldedatenspeicher des Systems nicht erreichen, um die Passwörter zu speichern. Stelle unter Linux sicher, dass ein Secret-Service-Anbieter (GNOME Keyring, KWallet, KeePassXC) läuft und entsperrt ist, oder deaktiviere \"Passwörter im Keychain speichern\" für diese Verbindung."
     }
   },
   "connectionTest": {

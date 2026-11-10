@@ -3176,6 +3176,10 @@
     },
     "unknown": {
       "summary": "接続に失敗しました"
+    },
+    "keychain": {
+      "summary": "システムのキーチェーンを利用できません",
+      "recovery": "パスワードを保存するための OS の資格情報ストアに接続できませんでした。Linux では Secret Service プロバイダー（GNOME Keyring、KWallet、KeePassXC）が起動してロック解除されていることを確認するか、この接続の「パスワードをキーチェーンに保存」をオフにしてください。"
     }
   },
   "connectionTest": {

@@ -3230,6 +3230,10 @@
     },
     "unknown": {
       "summary": "Kết nối thất bại"
+    },
+    "keychain": {
+      "summary": "Không thể truy cập kho khóa hệ thống",
+      "recovery": "Tabularis không thể truy cập kho thông tin đăng nhập của hệ điều hành để lưu mật khẩu. Trên Linux, hãy bảo đảm dịch vụ Secret Service (GNOME Keyring, KWallet, KeePassXC) đang chạy và đã được mở khóa, hoặc tắt tùy chọn \"Save passwords in Keychain\" cho kết nối này."
     }
   },
   "connectionTest": {

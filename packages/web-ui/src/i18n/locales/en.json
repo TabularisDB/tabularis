@@ -3265,6 +3265,10 @@
     },
     "unknown": {
       "summary": "Connection failed"
+    },
+    "keychain": {
+      "summary": "System keychain unavailable",
+      "recovery": "Tabularis could not reach the OS credential store to save the passwords. On Linux, make sure a Secret Service provider (GNOME Keyring, KWallet, KeePassXC) is running and unlocked, or turn off \"Save passwords in Keychain\" for this connection."
     }
   },
   "connectionTest": {

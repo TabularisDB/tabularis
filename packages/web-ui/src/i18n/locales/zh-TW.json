@@ -3184,6 +3184,10 @@
         },
         "unknown": {
             "summary": "連線失敗"
+        },
+        "keychain": {
+          "summary": "無法使用系統鑰匙圈",
+          "recovery": "Tabularis 無法存取作業系統的認證儲存空間來儲存密碼。在 Linux 上，請確認 Secret Service 提供程式（GNOME Keyring、KWallet、KeePassXC）正在執行且已解鎖，或關閉此連線的「Save passwords in Keychain」選項。"
         }
     },
     "connectionTest": {

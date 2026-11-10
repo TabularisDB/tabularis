@@ -3212,6 +3212,10 @@
     },
     "unknown": {
       "summary": "Falha na conexão"
+    },
+    "keychain": {
+      "summary": "Chaveiro do sistema indisponível",
+      "recovery": "O Tabularis não conseguiu acessar o armazenamento de credenciais do sistema para salvar as senhas. No Linux, verifique se um provedor do Secret Service (GNOME Keyring, KWallet, KeePassXC) está em execução e desbloqueado, ou desative \"Salvar senhas no Keychain\" para esta conexão."
     }
   },
   "connectionTest": {

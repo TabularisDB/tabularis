@@ -3089,6 +3089,10 @@
     },
     "unknown": {
       "summary": "Error de conexión"
+    },
+    "keychain": {
+      "summary": "Llavero del sistema no disponible",
+      "recovery": "Tabularis no pudo acceder al almacén de credenciales del sistema para guardar las contraseñas. En Linux, asegúrate de que un proveedor de Secret Service (GNOME Keyring, KWallet, KeePassXC) esté en ejecución y desbloqueado, o desactiva \"Guardar contraseñas en el Llavero\" para esta conexión."
     }
   },
   "connectionTest": {

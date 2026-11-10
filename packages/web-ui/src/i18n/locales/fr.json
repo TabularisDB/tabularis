@@ -3234,6 +3234,10 @@
     },
     "unknown": {
       "summary": "Échec de la connexion"
+    },
+    "keychain": {
+      "summary": "Trousseau système indisponible",
+      "recovery": "Tabularis n'a pas pu joindre le magasin d'identifiants du système pour enregistrer les mots de passe. Sous Linux, vérifiez qu'un fournisseur Secret Service (GNOME Keyring, KWallet, KeePassXC) est lancé et déverrouillé, ou désactivez « Enregistrer les mots de passe dans le trousseau » pour cette connexion."
     }
   },
   "connectionTest": {
