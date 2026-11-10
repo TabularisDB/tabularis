@@ -1,13 +1,16 @@
-import React, {useRef, useCallback, useContext, useEffect} from 'react';
+import React, {useRef, useCallback, useContext, useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import type {OnMount, BeforeMount} from '@monaco-editor/react';
 import {MonacoEditor} from './LazyMonaco';
+import {SqlEditorCursorStatus} from './SqlEditorCursorStatus';
 import type * as Monaco from 'monaco-editor';
 import {useEditorTheme} from '@/hooks/useEditorTheme';
 import {loadMonacoTheme} from '@/themes/themeUtils';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {useSettings} from '@/hooks/useSettings';
+import {useAiInlineCompletion} from '@/hooks/useAiInlineCompletion';
+import type {AiInlineContext} from '@/utils/aiInlineCompletion';
 import {useKeybindings} from '@/hooks/useKeybindings';
 import {CommandPaletteDispatchContext} from '@/contexts/CommandPaletteContext';
 import {getFontCSS} from '@/utils/settings';
@@ -25,6 +28,16 @@ import {isTextCompositionKeyEvent} from '@/utils/keyboardEvents';
 import type {RunContext} from '@/utils/runTarget';
 import {registerSqlFoldingProvider, setSqlFoldingDialect} from '@/utils/sqlFolding';
 import {installSqlFoldPreview} from '@/utils/sqlFoldPreview';
+import {
+    useSqlDiagnostics,
+    type SqlDiagnosticsOptions,
+    type SqlDiagnosticsTarget,
+} from '@/hooks/useSqlDiagnostics';
+import {
+    getEditorCursorStatus,
+    isSameEditorCursorStatus,
+    type EditorCursorStatus,
+} from '@/utils/editorCursorStatus';
 
 interface SqlEditorWrapperProps {
     initialValue: string;
@@ -49,6 +62,19 @@ interface SqlEditorWrapperProps {
     onRunContextChange?: (context: RunContext) => void;
     /** Shows the complete query when hovering a collapsed fold. */
     foldPreview?: boolean;
+    /**
+     * Shows the primary cursor's line and column, and the selection size, in
+     * the editor's bottom-left corner. Off by default so embedded editors
+     * (notebook cells, modals) keep their layout.
+     */
+    cursorStatus?: boolean;
+    /**
+     * Publishes metadata-aware diagnostics (unresolved tables, columns and
+     * aliases) as editor markers. Omit to leave the editor without them.
+     */
+    diagnostics?: SqlDiagnosticsOptions;
+    /** Present only for the active SQL editor; absence cancels inline requests. */
+    inlineCompletion?: AiInlineContext;
 }
 
 function isLinux(): boolean {
@@ -105,6 +131,9 @@ const SqlEditorInternal = ({
     onRunAll,
     onRunContextChange,
     foldPreview = false,
+    cursorStatus = false,
+    diagnostics,
+    inlineCompletion,
 }: SqlEditorWrapperProps & {editorKey: string}) => {
     const platform = usePlatformCapabilities();
     const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,6 +141,12 @@ const SqlEditorInternal = ({
     const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
     const monacoRef = useRef<typeof Monaco | null>(null);
     const foldPreviewRef = useRef<Monaco.IDisposable | null>(null);
+    // The status is per editor instance: two mounted editors never share it.
+    const [editorCursorStatus, setEditorCursorStatus] = useState<EditorCursorStatus | null>(null);
+    const [diagnosticsTarget, setDiagnosticsTarget] = useState<SqlDiagnosticsTarget | null>(null);
+    useSqlDiagnostics(diagnosticsTarget, diagnostics);
+    useAiInlineCompletion(diagnosticsTarget, inlineCompletion);
+    const cursorStatusListenersRef = useRef<Monaco.IDisposable[]>([]);
     const onRunRef = useRef(onRun);
     onRunRef.current = onRun;
     const onRunAllRef = useRef(onRunAll);
@@ -154,6 +189,8 @@ const SqlEditorInternal = ({
             }
             foldPreviewRef.current?.dispose();
             foldPreviewRef.current = null;
+            for (const listener of cursorStatusListenersRef.current) listener.dispose();
+            cursorStatusListenersRef.current = [];
             editorRef.current?.dispose();
             editorRef.current = null;
             monacoRef.current = null;
@@ -334,6 +371,7 @@ const SqlEditorInternal = ({
     const handleEditorMount: OnMount = (editor, monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
+        setDiagnosticsTarget({editor, monaco});
         setSqlFoldingDialect(editor.getModel(), dialectRef.current);
         if (foldPreview) {
             foldPreviewRef.current = installSqlFoldPreview(
@@ -735,6 +773,30 @@ const SqlEditorInternal = ({
             updateCursorStatementHighlight();
         }
 
+        // Cursor position and selection size for the status indicator. The
+        // listeners belong to the editor, not to a model, so they survive a
+        // model replacement (`onDidChangeModel` recomputes against the new one)
+        // and are disposed together on unmount. Every event fires the update,
+        // but the state only changes when the indicator would read differently.
+        if (cursorStatus) {
+            const updateCursorStatus = () => {
+                const next = getEditorCursorStatus(
+                    editor.getModel(),
+                    editor.getSelections(),
+                    editor.getPosition(),
+                );
+                setEditorCursorStatus((previous) =>
+                    isSameEditorCursorStatus(previous, next) ? previous : next,
+                );
+            };
+            cursorStatusListenersRef.current = [
+                editor.onDidChangeCursorSelection(updateCursorStatus),
+                editor.onDidChangeModelContent(updateCursorStatus),
+                editor.onDidChangeModel(updateCursorStatus),
+            ];
+            updateCursorStatus();
+        }
+
         // E2E: expose the Monaco editor instance for tauri-wd tests (setValue,
         // getValue). Harmless in production — sets a global nobody reads.
         const w = window as unknown as Record<string, unknown>;
@@ -744,9 +806,10 @@ const SqlEditorInternal = ({
         if (onMount) onMount(editor, monaco);
     };
 
-    return (
+    const monacoElement = (
         <MonacoEditor
-            height={height}
+            // With the indicator, the wrapper below takes the height instead.
+            height={cursorStatus ? '100%' : height}
             defaultLanguage="sql"
             theme={getMonacoThemeId(editorTheme.id)}
             defaultValue={initialValue}
@@ -755,7 +818,7 @@ const SqlEditorInternal = ({
             onMount={handleEditorMount}
             options={{
                 accessibilitySupport: 'auto',
-                minimap: {enabled: false},
+                minimap: {enabled: settings.editorMinimap ?? false},
                 fontSize: settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT,
                 fontFamily: getFontCSS(settings.editorFontFamily ?? 'JetBrains Mono'),
                 lineHeight: settings.editorLineHeight ?? 1.5,
@@ -783,11 +846,30 @@ const SqlEditorInternal = ({
                 },
                 acceptSuggestionOnEnter:
                     (settings.editorAcceptSuggestionOnEnter ?? true) ? 'smart' : 'off',
+                inlineSuggest: {
+                    enabled: Boolean(
+                        inlineCompletion &&
+                        settings.aiEnabled &&
+                        settings.aiInlineCompletionEnabled,
+                    ),
+                    suppressSuggestions: false,
+                },
                 multiCursorModifier: 'ctrlCmd',
                 automaticLayout: true,
                 ...options,
             }}
         />
+    );
+
+    // Consumers without the indicator get the editor element exactly as
+    // before, so their own overlays and sizing are unaffected.
+    if (!cursorStatus) return monacoElement;
+
+    return (
+        <div className="relative" style={{height}}>
+            {monacoElement}
+            {editorCursorStatus && <SqlEditorCursorStatus status={editorCursorStatus} />}
+        </div>
     );
 };
 

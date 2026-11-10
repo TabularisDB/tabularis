@@ -74,6 +74,12 @@ pub struct DriverCapabilities {
     /// path. Defaults to `false`.
     #[serde(default, alias = "inMemory")]
     pub in_memory: bool,
+    /// Data file formats (`csv`, `tsv`, `json`, `ndjson`, `parquet`, ...) the
+    /// driver can expose as a queryable relation through the optional
+    /// `open_data_file` RPC. Requires `file_based`. Empty means the driver
+    /// does not open data files.
+    #[serde(default, alias = "dataFiles", skip_serializing_if = "Vec::is_empty")]
+    pub data_files: Vec<String>,
     /// The driver exposes a single implicit database, so there is nothing to
     /// select or name (e.g. a flat search/document store like Meilisearch).
     /// Skips the database tab and the database-name field in the connection
@@ -136,6 +142,12 @@ pub struct DriverCapabilities {
     /// SQL-compatible drivers and hides the entry for the others.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub column_stats: bool,
+    /// Honours `ConnectionParams::query_timeout_secs`: the driver stops a
+    /// statement on the server once the limit passes. Omitted/false hides the
+    /// query-timeout field in the connection modal. Built-in PostgreSQL sets
+    /// this; plugins opt in via their manifest. Defaults to `false`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub query_timeout: bool,
     // DDL capabilities
     /// Supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables.
     #[serde(default)]
@@ -165,6 +177,9 @@ pub struct DriverCapabilities {
     /// plugins opt in via their manifest. Defaults to `false`.
     #[serde(default, alias = "routineManagement")]
     pub routine_management: bool,
+    /// Optional routine debugger protocol. Only version 1 is currently supported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routine_debug: Option<u32>,
     /// Supports the SSL/TLS configuration tab (mode + CA/client cert/key) in the
     /// connection modal. Built-in network drivers set this; plugins opt in via
     /// their manifest. Defaults to `false`.
@@ -182,6 +197,19 @@ pub struct DriverCapabilities {
     /// Defaults to `false`.
     #[serde(default)]
     pub readonly: bool,
+    /// Implements database-enforced `execute_read_only_query`. Unlike `readonly`,
+    /// this allows users to switch a writable connection into read-only mode.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub read_only_queries: bool,
+    /// Offers "Export table to SQL" on table nodes (#709). `None` (the
+    /// manifest omits it) means enabled; non-SQL plugins set `false`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table_export: Option<bool>,
+    /// Offers "Import table from SQL" on database and schema nodes (#709).
+    /// `None` means enabled; a `readonly` driver never imports, whatever
+    /// this says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table_import: Option<bool>,
     /// SQL dialect for the statement splitter / classifier, and for any
     /// other check that needs to distinguish "postgres-compatible" from
     /// "not." `None` when the manifest omits the field — deliberately NOT
@@ -416,6 +444,16 @@ pub struct PluginManifest {
 /// fall back to `"public"` when it is `None`.
 #[async_trait]
 pub trait DatabaseDriver: Send + Sync {
+    /// No SQL fallback: debugging requires a native, isolated driver session.
+    async fn routine_debug(
+        &self,
+        _params: &ConnectionParams,
+        _version: u32,
+        _command: &crate::routine_debug::DebugCommand,
+    ) -> Result<crate::routine_debug::DebugResponse, String> {
+        Err("Routine debugging is not supported by this driver".into())
+    }
+
     // --- Metadata -----------------------------------------------------------
 
     fn manifest(&self) -> &PluginManifest;
@@ -468,6 +506,14 @@ pub trait DatabaseDriver: Send + Sync {
     /// Shuts down any background resources held by this driver (e.g. a plugin subprocess).
     /// Built-in sqlx-based drivers hold no background process; the default is a no-op.
     async fn shutdown(&self) {}
+
+    /// Refresh a running plugin's settings without stopping its process.
+    async fn sync_plugin_settings(
+        &self,
+        _settings: HashMap<String, serde_json::Value>,
+    ) -> Result<(), String> {
+        Err("This driver does not support plugin settings synchronization".into())
+    }
 
     /// Like [`shutdown`](Self::shutdown), but stops the background process at
     /// once instead of letting in-flight calls finish. For a host that is
@@ -736,7 +782,7 @@ pub trait DatabaseDriver: Send + Sync {
         routine_type: &str,
         schema: Option<&str>,
         /* Unused by the generic statement: a dialect that needs a signature to
-           name one routine overrides this, as the PostgreSQL driver does */
+        name one routine overrides this, as the PostgreSQL driver does */
         _identity_args: Option<&str>,
     ) -> Result<(), String> {
         let sql = crate::drivers::common::generic_drop_routine_sql(
@@ -959,6 +1005,21 @@ pub trait DatabaseDriver: Send + Sync {
         Err("BLOB preview not supported by this driver".into())
     }
 
+    /// Optional: expose the data file at `path` as a read-only relation named
+    /// `table` in the database selected by `params`, replacing a relation of
+    /// the same name. `format` is one of the driver's
+    /// `capabilities.data_files`. Drivers without that capability keep this
+    /// default.
+    async fn open_data_file(
+        &self,
+        _params: &ConnectionParams,
+        _path: &str,
+        _format: &str,
+        _table: &str,
+    ) -> Result<(), String> {
+        Err("Data files are not supported by this driver".into())
+    }
+
     /// Optional SQL preview generation. None asks the host to use its legacy
     /// templates. Built-in and older drivers need no implementation changes.
     async fn get_table_query_template(
@@ -1007,6 +1068,30 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         Err("DDL generation not supported".into())
+    }
+
+    /// Connection-aware DDL defaults to the existing builder for drivers that
+    /// do not need server settings to render literals.
+    async fn get_add_column_sql_for_connection(
+        &self,
+        _params: &ConnectionParams,
+        table: &str,
+        column: ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        self.get_add_column_sql(table, column, schema).await
+    }
+
+    async fn get_alter_column_sql_for_connection(
+        &self,
+        _params: &ConnectionParams,
+        table: &str,
+        old_column: ColumnDefinition,
+        new_column: ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        self.get_alter_column_sql(table, old_column, new_column, schema)
+            .await
     }
 
     async fn get_create_index_sql(
@@ -1060,6 +1145,34 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<String, String> {
         Err("Fetching existing table DDL is not supported by this driver".into())
+    }
+
+    /// The table's approximate row count from the engine's own statistics,
+    /// shown when exporting a table (#709). Cheap: no table scan. `Ok(None)`
+    /// when the driver has no such estimate.
+    async fn get_approximate_row_count(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _schema: Option<&str>,
+    ) -> Result<Option<u64>, String> {
+        Ok(None)
+    }
+
+    /// Renders complete `INSERT` statements for one batch of rows in the
+    /// driver's own dialect, for "Export table to SQL" (#709). `rows` are
+    /// positional and match `columns`, with values as the driver's own
+    /// `execute_query` returns them. `Ok(None)` asks the host to render the
+    /// batch itself from the driver's capabilities, which is what built-in
+    /// drivers and plugins without the RPC method get.
+    async fn render_insert_statements(
+        &self,
+        _table: &str,
+        _schema: Option<&str>,
+        _columns: &[String],
+        _rows: &[Vec<serde_json::Value>],
+    ) -> Result<Option<Vec<String>>, String> {
+        Ok(None)
     }
 
     async fn drop_index(

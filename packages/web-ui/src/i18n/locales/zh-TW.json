@@ -1,4 +1,42 @@
 {
+  "routineDebug": {
+    "closeUnconfirmed": "尚未確認資源釋放仍關閉",
+    "title": "偵錯常式",
+    "warning": "啟動或繼續常式會執行資料庫程式碼，可能提交交易或造成外部影響。偵錯不會自動授予權限、重新編譯常式或安裝輔助物件。",
+    "preview": "預覽目標與參數",
+    "start": "開始偵錯",
+    "continue": "繼續",
+    "into": "逐步執行",
+    "over": "不進入函式逐步執行",
+    "out": "跳出函式",
+    "status": "重新整理狀態",
+    "stop": "停止並釋放資源",
+    "source": "原始碼",
+    "stack": "呼叫堆疊",
+    "variables": "變數",
+    "outputs": "OUT 參數與傳回值",
+    "watches": "要檢查的變數名稱（以逗號分隔）",
+    "breakpoint": "切換第 {{line}} 行的中斷點",
+    "execution": "執行",
+    "transaction": "交易",
+    "resources": "資源",
+    "available": "可用",
+    "partial": "部分可用",
+    "stale": "資料已過期 — 需要重新整理",
+    "unavailable": "無法使用",
+    "running": "執行中",
+    "paused": "已暫停",
+    "completed": "已完成",
+    "failed": "失敗",
+    "cancelled": "已取消",
+    "unknown": "未知",
+    "open": "開啟",
+    "committed": "已提交",
+    "rolled_back": "已回復",
+    "held": "保留中",
+    "released": "已釋放",
+    "uncertain": "無法確認上次操作。顯示的資料可能已過期。請勿重新啟動常式；請重新整理狀態或停止，以確認資源已釋放。"
+  },
     "serverFilePicker": {
         "title": "瀏覽伺服器檔案",
         "subtitle": "在 Tabularis 主機上選擇檔案或資料夾",
@@ -90,6 +128,19 @@
         "warnConfirm": "仍然執行",
         "warnSnooze": "此連線不再詢問（本次工作階段）"
     },
+    "readOnly": {
+      "label": "唯讀模式",
+      "description": "阻止透過此連線寫入。啟用時略過啟動指令碼。",
+      "unsupported": "此驅動程式不支援受保護的唯讀查詢。",
+      "writeBlocked": "此連線為唯讀。請在連線設定中停用此模式以允許寫入。",
+      "banner": "{{name}} — 唯讀模式"
+    },
+    "textStats": {
+      "characters": "字元數:{{count}}",
+      "lines": "行數:{{count}}",
+      "bytes": "UTF-8 位元組數:{{count}}",
+      "charactersHint": "依 Unicode 碼位計數,而非字素簇"
+    },
     "common": {
         "save": "儲存",
         "close": "關閉",
@@ -114,6 +165,54 @@
         "hideDetails": "隱藏詳情",
         "beta": "測試版",
         "dismiss": "關閉"
+    },
+    "linkedFolders": {
+        "tab": "SQL 檔案",
+        "chooseTitle": "選擇 SQL 腳本資料夾",
+        "link": "連結資料夾",
+        "refresh": "重新整理 SQL 檔案",
+        "empty": "連結資料夾以瀏覽其中的 SQL 腳本。",
+        "needsConnection": "請先連線資料庫，再開啟 SQL 檔案。",
+        "linkError": "無法連結該資料夾",
+        "unlinkError": "無法取消連結該資料夾",
+        "unlink": "取消連結 {{name}}",
+        "rootUnavailable": "無法使用",
+        "fileUnsaved": "{{name}}（有未儲存的變更）",
+        "unavailableTitle": "此處無法使用 SQL 檔案",
+        "unavailableMessage": "連結本機資料夾需要桌面版應用程式。在瀏覽器中請使用「開啟 SQL 檔案」匯入檔案。",
+        "status": {
+            "loading": "載入中…",
+            "empty": "沒有 SQL 檔案",
+            "truncated": "僅顯示前面的項目"
+        },
+        "errors": {
+            "linked_folders_file_unreadable": "無法讀取已儲存的連結資料夾清單。請修正或刪除設定資料夾中的 linked_folders.json。",
+            "linked_folder_not_found": "該連結資料夾已不在清單中。",
+            "linked_folder_unavailable": "資料夾不存在或無法讀取。",
+            "linked_folder_limit_reached": "已達連結資料夾數量上限。請先取消連結一個。",
+            "linked_path_outside_root": "路徑位於連結資料夾之外。",
+            "linked_path_not_sql_file": "此處只能開啟 .sql、.psql 和 .pgsql 檔案。",
+            "linked_directory_unreadable": "無法讀取此資料夾。",
+            "linked_file_unreadable": "無法讀取此檔案。它可能不存在、過大或不是 UTF-8 編碼。",
+            "linked_file_too_large": "此檔案過大，無法儲存（上限 50 MB）。",
+            "linked_file_write_failed": "無法寫入檔案。請檢查權限與磁碟剩餘空間。",
+            "linked_file_conflict_modified": "檔案在磁碟上已變更。",
+            "linked_file_conflict_missing": "檔案在磁碟上已不存在。"
+        },
+        "conflict": {
+            "reload": "從磁碟重新載入",
+            "saveAs": "另存為副本…",
+            "modified": {
+                "title": "檔案在磁碟上已變更",
+                "message": "自你開啟或上次儲存以來，{{name}} 已在 Tabularis 之外被修改。未寫入任何內容。你可以用自己的版本覆寫檔案、另存為副本，或重新載入磁碟版本並捨棄你的編輯。",
+                "overwrite": "覆寫檔案"
+            },
+            "missing": {
+                "title": "磁碟上找不到檔案",
+                "message": "{{name}} 已在 Tabularis 之外被刪除或移動。你的編輯仍保留在編輯器中。你可以用自己的版本重新建立檔案，或另存為副本到其他位置。",
+                "overwrite": "重新建立檔案"
+            }
+        }
     },
     "sidebar": {
         "connections": "連線",
@@ -249,6 +348,8 @@
         "onTable": "於 {{table}}",
         "objectSummary": "物件",
         "databases": "資料庫",
+        "newDatabase": "新增資料庫",
+        "newSchema": "新增結構描述",
         "failGetRoutineDefinition": "取得預存程序定義失敗：",
         "schemas": "結構描述",
         "noSchemas": "找不到結構描述",
@@ -307,6 +408,11 @@
         "historyDateRangeInvalidFrom": "請輸入有效的起始日期。",
         "historyDateRangeInvalidTo": "請輸入有效的結束日期。",
         "historyDateRangeInverted": "起始日期必須早於或等於結束日期。",
+        "historyMinDuration": "最短時間",
+        "historyMinDurationUnit": "ms",
+        "historyMinDurationFilter": "依最短執行時間（毫秒）篩選",
+        "historyMinDurationInvalid": "請以毫秒數字輸入最短時間。",
+        "historyMinDurationNegative": "最短時間不能為負數。",
         "historyClearFilters": "清除篩選",
         "clearAllHistory": "清除所有歷史",
         "pinned": "已固定",
@@ -554,6 +660,27 @@
     "settings": {
         "title": "設定",
         "general": "通用",
+        "snippets": {
+            "title": "SQL 代碼片段",
+            "subtitle": "定義可重複使用的 SQL 範本，具有觸發前綴和定位點佔位符，適用於 Monaco 自動完成。",
+            "add": "新增代碼片段",
+            "createTitle": "建立代碼片段",
+            "editTitle": "編輯代碼片段",
+            "nameLabel": "代碼片段名稱",
+            "prefixLabel": "觸發前綴",
+            "dialectLabel": "方言語法範圍",
+            "allDialects": "所有方言語法",
+            "descriptionLabel": "描述",
+            "bodyLabel": "代碼片段主體",
+            "tabStopHint": "使用 ${1:placeholder} 設定可編輯的定位點",
+            "noSnippets": "尚未設定任何 SQL 代碼片段。",
+            "invalidPrefix": "前綴只能包含字母、數字、底線和連字符",
+            "invalidBody": "代碼片段主體不能為空",
+            "namePlaceholder": "例如 Select Active Orders",
+            "prefixPlaceholder": "例如 selorders",
+            "descPlaceholder": "例如 查詢處於待處理狀態的訂單",
+            "duplicatePrefix": "此方言語法範圍中已存在具有該前綴的代碼片段"
+        },
         "privacy": "隱私",
         "network": {
             "tab": "網路",
@@ -710,6 +837,8 @@
         "appearance_editorTabSize": "Tab 寬度",
         "appearance_editorWordWrap": "自動換行",
         "appearance_editorWordWrapDesc": "在編輯器中將過長的行自動換行，而不是水平捲動。",
+        "appearance_editorMinimap": "顯示縮圖",
+        "appearance_editorMinimapDesc": "顯示 SQL 指令碼的縮小概覽，方便快速導覽。",
         "appearance_editorHighlightInvisibleCharacters": "顯示不可見字元",
         "appearance_editorHighlightInvisibleCharactersDesc": "突出顯示 SQL 中隱藏的 Unicode 字元和形似字元。",
         "appearance_editorShowLineNumbers": "顯示行號",
@@ -743,6 +872,9 @@
         "autocomplete_keywordCase": "關鍵字大小寫",
         "autocomplete_keywordCaseDesc": "自動補全插入的 SQL 關鍵字的大小寫。",
         "autocomplete_keywordCaseMatch": "跟隨輸入",
+        "diagnostics_title": "SQL 診斷",
+        "diagnostics_enabled": "標示未解析的參照",
+        "diagnostics_enabledDesc": "使用連線已載入的中繼資料，標示 PostgreSQL SELECT 陳述式中未知的資料表、欄位與別名。最終仍以伺服器為準，且不會執行任何 SQL。",
         "editConfigJson": "編輯 config.json",
         "editConfigJsonDesc": "直接編輯原始設定檔。需要重新啟動才能套用變更。",
         "configJsonModal": {
@@ -1410,11 +1542,15 @@
         "selectTypeFirst": "請先選擇上下文/名稱空間/類型",
         "useK8s": "使用 Kubernetes 連接埠轉發",
         "useK8sConnection": "已儲存的連線",
+        "queryTimeout": "查詢逾時（秒）",
+        "queryTimeoutHint": "查詢執行超過此時間時在伺服器上停止。留空則不限制。",
         "startupScript": "啟動指令碼",
         "startupScriptDescription": "每次新建到此資料來源的連線時執行的 SQL。可用於工作階段設定，例如 SET / set_config（如繞過 RLS）。多條語句請用分號分隔。",
         "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
         "poolerMode": "連線池模式",
         "poolerModeTransactionHint": "在交易模式下使用 PgBouncer 且涉及自訂類型（列舉、複合類型、擴充套件類型）時，請在 pgbouncer.ini 中設定 max_prepared_statements > 0。這會啟用伺服器端預備語句快取，使具名語句在連線重新分配後仍然有效。",
+        "connectTimeout": "連線逾時（秒）",
+        "connectTimeoutHint": "等待伺服器回應的時間，逾時即放棄。留空則使用預設值。",
         "poolerModes": {
             "none": "無（直連）",
             "transaction": "PgBouncer 交易",
@@ -1433,6 +1569,7 @@
         "allDatabases": "所有資料庫",
         "chooseDatabases": "選擇資料庫",
         "allDatabasesHint": "連線時自動載入伺服器上的所有資料庫。在伺服器上建立或刪除的資料庫會自動出現,無需編輯此連線。",
+        "databasesTabDatabaseHint": "用於載入資料庫清單，並在選擇“所有資料庫”時用於連線。",
         "defaultDatabase": "預設資料庫",
         "defaultDatabaseHint": "新查詢標籤頁使用此資料庫。如果將其從選擇中移除，下一個已選資料庫將成為預設資料庫。",
         "selectDatabasesHint": "選擇要包含在此連線中的資料庫。",
@@ -1635,7 +1772,43 @@
         "maskCell": "遮罩儲存格",
         "revealColumn": "顯示欄",
         "maskColumn": "遮罩欄",
-        "resizeColumn": "調整欄 {{col}} 的寬度"
+        "resizeColumn": "調整欄 {{col}} 的寬度",
+        "conditionalFormatting": {
+            "menu": "條件式格式…",
+            "title": "條件式格式",
+            "subtitle": "{{table}} 的規則",
+            "description": "依據值為此資料表的列或儲存格著色。規則會由上而下套用在已載入的列上：第一條符合的規則生效。",
+            "matchingHint": "= 和 IN 精確比對文字，區分大小寫。contains、starts with、ends with 和 LIKE 不區分大小寫；在 LIKE 中，\\ 會讓其後的 % 或 _ 依字面比對。",
+            "empty": "尚無規則。",
+            "addRule": "新增規則",
+            "maxRules": "每個資料表最多 {{count}} 條規則。",
+            "ruleLabel": "規則 {{index}}",
+            "name": "規則名稱",
+            "namePlaceholder": "規則名稱，例如：失敗的訂單",
+            "enabled": "啟用",
+            "column": "欄",
+            "operator": "條件",
+            "value": "值",
+            "valueTo": "上限",
+            "tone": "顏色",
+            "target": "套用至",
+            "targetRow": "整列",
+            "targetCell": "僅此欄的儲存格",
+            "moveUp": "上移",
+            "moveDown": "下移",
+            "remove": "刪除規則",
+            "incomplete": "請填寫值，或停用此規則。",
+            "saveFailed": "無法儲存規則：{{error}}",
+            "preview": "預覽",
+            "matchedRules": "格式：{{names}}",
+            "tones": {
+                "danger": "危險",
+                "warning": "警告",
+                "success": "成功",
+                "info": "資訊",
+                "muted": "淡化"
+            }
+        }
     },
     "editRow": {
         "title": "編輯列",
@@ -1665,6 +1838,14 @@
         "auto": "自動"
     },
     "editor": {
+        "diagnostics": {
+            "unresolvedRelation": "在已載入的中繼資料中找不到資料表或檢視表「{{name}}」。它可能是暫存資料表，或是在中繼資料載入後才建立。",
+            "unresolvedColumn": "欄位「{{name}}」不存在",
+            "unresolvedAlias": "「{{name}}」不是此查詢中的資料表或別名",
+            "ambiguousColumn": "欄位參照「{{name}}」有歧義",
+            "unsupportedConstruct": "此處的分析受限：不會分析 {{name}}，因此不會檢查依賴它的參照",
+            "metadataUnavailable": "無法取得「{{name}}」的欄位，因此不會檢查對它的參照"
+        },
         "noTabs": "此連線無開啟的標籤。",
         "newConsole": "新建控制台",
         "noActiveSession": "無活動工作階段。請選擇一個連線。",
@@ -1690,6 +1871,8 @@
         "queryExecuted": "查詢執行成功",
         "rowsAffected": "{{count}} 列受影響",
         "autoPaginated": "自動分頁",
+        "batchSnapshotTruncated": "前 {{count}} 列",
+        "batchSnapshotTruncatedHint": "全部執行會保留腳本執行時擷取的列。單獨執行此陳述式即可分頁瀏覽所有列。",
         "pageOf": "第 {{current}} 頁，共 {{total}} 頁",
         "page": "第 {{current}} 頁",
         "loadRowCount": "載入列數",
@@ -1740,6 +1923,10 @@
             "showDetails": "顯示技術細節",
             "copyReport": "複製報告",
             "reportCopied": "已複製報告",
+            "analyzeWithAi": "使用 AI 分析",
+            "aiAnalyzing": "正在分析…",
+            "aiAnalysisTitle": "AI 分析",
+            "aiAnalysisFailed": "AI 分析失敗。請改為複製報告或建立 Issue。",
             "copyFailed": "無法將報告複製到剪貼簿。",
             "createIssue": "建立 Issue"
         },
@@ -1796,6 +1983,11 @@
         "transformToUppercase": "轉換為大寫",
         "transformToLowercase": "轉換為小寫",
         "removeInvisibleCharacters": "清理貼上的字元",
+        "cursorPosition": "行 {{line}}，欄 {{column}}",
+        "cursorSelection": "已選取 {{length}}",
+        "cursorSelections": "{{selections}} 個選取範圍，已選取 {{length}}",
+        "cursorStatusLabel": "游標位置與選取範圍",
+        "cursorSelectionHint": "選取長度以 UTF-16 碼元計算，與編輯器相同",
         "convertToConsole": "轉換為控制台",
         "parameters": "引數",
         "paramValuePlaceholder": "值（例如 'text' 或 123）",
@@ -1894,6 +2086,28 @@
             "noRawOutput": "沒有可匯出的 Explain 原始輸出。",
             "saveRawPlan": "儲存原始計畫…",
             "saveRawError": "儲存原始計畫失敗",
+            "snapshots": "計畫快照",
+            "snapshotsTitle": "執行計畫快照與基準比對",
+            "saveSnapshot": "儲存快照",
+            "snapshotNamePlaceholder": "輸入快照名稱（例如：建立索引前）...",
+            "noSnapshots": "尚無已儲存的計畫快照。",
+            "activeBaseline": "目前基準",
+            "setAsBaseline": "比對",
+            "isBaseline": "已選基準",
+            "comparingAgainst": "比對基準",
+            "incompatibleBaseline": "不相容的基準",
+            "clearBaseline": "清除基準",
+            "operatorsChanged": "個運算子已變更",
+            "snapshotSaved": "已成功儲存計畫快照",
+      "snapshotNameLabel": "快照名稱",
+      "snapshotSaveFailed": "儲存執行計畫快照失敗：已達儲存上限或儲存無法使用",
+      "snapshotDeleteFailed": "從儲存中刪除快照失敗",
+      "snapshotPinFailed": "更新快照釘選狀態失敗",
+      "analyzeMismatch": "估算 vs 實際",
+      "analyzeMismatchTooltip": "其中一個執行計劃具有實際執行指標（EXPLAIN ANALYZE），而另一個只有估算值",
+      "pinSnapshot": "釘選",
+      "unpinSnapshot": "取消釘選",
+            "time": "耗時",
             "formatText": "文字",
             "aiAnalysis": "AI 分析",
             "aiAnalysisTitle": "AI 執行計畫分析",
@@ -1950,7 +2164,12 @@
                 "operations": "操作",
                 "indexName": "索引",
                 "scans": "掃描次數"
-            }
+            },
+            "copied": "已複製",
+            "copyDetails": "複製詳情",
+            "detailsCopied": "節點詳情已複製到剪貼簿",
+            "copyDetailsFailed": "無法將節點詳情複製到剪貼簿",
+            "nodeDetails": "節點詳情"
         },
         "notebook": {
             "addSqlCell": "新增 SQL 儲存格",
@@ -1990,6 +2209,8 @@
             "exportCsv": "匯出為 CSV",
             "exportJson": "匯出為 JSON",
             "exportHtml": "匯出為 HTML",
+            "exportSql": "匯出 SQL 原始碼",
+            "exportSqlEmpty": "此筆記本沒有可匯出的 SQL。",
             "parameters": "引數",
             "paramName": "名稱",
             "paramValue": "值",
@@ -2013,6 +2234,8 @@
             "expandSection": "展開區域",
             "collapseAll": "全部摺疊",
             "expandAll": "全部展開",
+            "clearOutputs": "清除輸出",
+            "clearOutputsConfirm": "清除所有儲存格中顯示的結果、錯誤和執行時間？查詢、引數、圖表和執行歷史將會保留。",
             "outline": "大綱",
             "aiGenerate": "使用 AI 產生 SQL",
             "aiExplain": "使用 AI 解釋此查詢",
@@ -2135,6 +2358,24 @@
         "failCreate": "建立資料表失敗：",
         "requiresExtension": "需要擴充功能：{{ext}}"
     },
+    "createDatabase": {
+        "title": "建立資料庫",
+        "subtitle": "在此伺服器上執行 CREATE DATABASE",
+        "name": "資料庫名稱",
+        "namePlaceholder": "例如：analytics, staging",
+        "create": "建立資料庫",
+        "nameRequired": "資料庫名稱是必需的",
+        "failCreate": "建立資料庫失敗："
+    },
+    "createSchema": {
+        "title": "建立結構描述",
+        "subtitle": "在此資料庫中執行 CREATE SCHEMA",
+        "name": "結構描述名稱",
+        "namePlaceholder": "例如：store, reporting",
+        "create": "建立結構描述",
+        "nameRequired": "結構描述名稱是必需的",
+        "failCreate": "建立結構描述失敗："
+    },
     "schema": {
         "title": "結構描述：{{table}}",
         "loading": "載入結構描述中...",
@@ -2232,7 +2473,15 @@
         "exportMermaid": "匯出為 Mermaid 圖表",
         "exportSuccess": "圖表已匯出",
         "exportDbml": "匯出為 DBML",
-        "export": "匯出"
+        "exportMarkdown": "匯出為 Markdown",
+        "export": "匯出",
+        "legend": "圖例",
+        "primaryKey": "主鍵",
+        "primaryKeyDesc": "唯一識別表中列的欄位",
+        "foreignKey": "外鍵",
+        "foreignKeyDesc": "引用另一個表中的主鍵或唯一鍵",
+        "relationship": "關聯",
+        "relationshipDesc": "連接子表與父表的外鍵引用"
     },
     "views": {
         "createView": "建立檢視",
@@ -2370,6 +2619,7 @@
         "collapse": "摺疊",
         "expandAll": "全部展開",
         "collapseAll": "全部摺疊",
+        "sortKeys": "排序鍵",
         "search": "搜尋",
         "copyPath": "複製路徑",
         "copyValue": "複製值",
@@ -2431,7 +2681,10 @@
         "downloading": "下載中...",
         "uploading": "上傳中...",
         "openSidebar": "在編輯器中開啟",
-        "imagePreview": "圖片預覽"
+        "imagePreview": "圖片預覽",
+        "editAs": "編輯格式",
+        "text": "文字",
+        "hex": "十六進位"
     },
     "visualExplainPage": {
         "title": "視覺化執行計畫",
@@ -2950,6 +3203,10 @@
         },
         "unknown": {
             "summary": "連線失敗"
+        },
+        "keychain": {
+          "summary": "無法使用系統鑰匙圈",
+          "recovery": "Tabularis 無法存取作業系統的認證儲存空間來儲存密碼。在 Linux 上，請確認 Secret Service 提供程式（GNOME Keyring、KWallet、KeePassXC）正在執行且已解鎖，或關閉此連線的「Save passwords in Keychain」選項。"
         }
     },
     "connectionTest": {
@@ -3116,5 +3373,44 @@
         "copyMetadata": "複製中繼資料",
         "copied": "已複製到剪貼簿",
         "copyFailed": "無法複製到剪貼簿，請再試一次。"
+    },
+    "linkedGit": {
+        "title": "檢視 Git 變更",
+        "diskOnly": "提交使用磁碟上已儲存的檔案，不包含未儲存的編輯器草稿。只有勾選並檢視過的指令碼會被提交。",
+        "desktopOnly": "連結 SQL 資料夾的 Git 功能僅適用於桌面應用程式。",
+        "refresh": "重新整理變更",
+        "commit": "提交選取的指令碼",
+        "committed": "已建立提交 {{commit}}。",
+        "renames": "M 已修改 · A 已新增 · D 已刪除 · ? 未追蹤。重新命名會顯示為刪除及新增，請檢視兩者。",
+        "empty": "沒有變更的 SQL 指令碼。",
+        "files": "已變更的 SQL 指令碼",
+        "include": "將 {{path}} 包含在提交中",
+        "review": "檢視 {{path}}",
+        "diff": "已檢視檔案的差異",
+        "choose": "選取指令碼並檢視差異後，才能將其包含在提交中。",
+        "message": "提交訊息"
+  },
+    "aiInline": {
+        "title": "AI 行內補全",
+        "enable": "輸入時建議 SQL",
+        "privacy": "預設關閉。使用下方選擇的 AI 供應商和模型，包括本機供應商。最多傳送游標前 4,000 個字元、游標後 1,000 個字元，以及 8,000 個字元的快取資料表與結構描述名稱。SQL 可能含有敏感值。不會加入結果列、資料表註解或連線認證，也不會執行額外的資料庫查詢。",
+        "keys": "Tab 接受，Escape 隱藏。自動補全和縮排優先。接受建議只會插入文字，請在執行前檢查。"
+    },
+    "dataFiles": {
+        "workspaceName": "資料檔案",
+        "open": "開啟資料檔案",
+        "openMenu": "開啟資料檔案…",
+        "subtitle": "將 CSV、TSV、JSON、NDJSON 或 Parquet 檔案當作資料表查詢",
+        "fileFilter": "資料檔案",
+        "files": "要開啟的檔案",
+        "pluginRequired": "這些檔案透過 {{plugin}} 外掛開啟。請安裝或更新該外掛，以便將它們當作資料表查詢。",
+        "installing": "正在安裝 {{plugin}} 外掛…",
+        "opening": "正在開啟…",
+        "failed": "無法開啟該檔案。",
+        "unsupported": "不支援的資料檔案：{{files}}",
+        "pluginCannotOpen": "已安裝的外掛無法開啟 {{files}}。請在「設定」的「外掛」中更新。",
+        "installAndOpen": "安裝並開啟",
+        "dropTitle": "放開以當作資料表開啟",
+        "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
     }
 }

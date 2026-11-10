@@ -23,7 +23,6 @@ fn ssh_profile(id: &str, host: &str, password: Option<&str>) -> SshConnection {
         key_passphrase: None,
         allow_passphrase_prompt: None,
         save_in_keychain: Some(true),
-
     }
 }
 
@@ -282,7 +281,12 @@ mod merge {
         // The point of sharing profiles at all: a teammate receiving the
         // connection must also receive a usable tunnel.
         let base = VaultPayload::default();
-        let remote = ssh_payload(vec![vault_ssh("s1", "bastion.internal", Some("tunnel-pw"), "T1")]);
+        let remote = ssh_payload(vec![vault_ssh(
+            "s1",
+            "bastion.internal",
+            Some("tunnel-pw"),
+            "T1",
+        )]);
         let local = VaultPayload::default();
 
         let (merged, notes) = merge_payload(&base, &remote, &local, &ctx());
@@ -350,7 +354,6 @@ mod merge {
                 port: 5432,
                 kubectl_path: None,
                 kubeconfig_path: None,
-
             },
             updated_at: updated_at.to_string(),
             updated_by: "alice@box".to_string(),
@@ -502,7 +505,10 @@ mod vault_file {
             .map(|e| e.file_name().to_string_lossy().into_owned())
             .filter(|name| name.ends_with(".tmp"))
             .collect();
-        assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
+        assert!(
+            leftovers.is_empty(),
+            "temp files left behind: {leftovers:?}"
+        );
     }
 
     #[test]
@@ -524,7 +530,9 @@ mod vault_file {
     #[test]
     fn a_missing_vault_reads_as_none() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(vault::read(&dir.path().join("nothing.json")).unwrap().is_none());
+        assert!(vault::read(&dir.path().join("nothing.json"))
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -697,4 +705,3 @@ mod appearance {
         assert_eq!(vault::merge_appearance(None, None), None);
     }
 }
-

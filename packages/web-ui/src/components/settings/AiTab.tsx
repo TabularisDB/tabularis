@@ -90,6 +90,11 @@ const PROVIDERS: Array<{
         icon: <OllamaIcon size={18} className="text-current" />,
     },
     {
+        id: 'api-route',
+        label: 'API Route',
+        icon: <Network size={18} className="text-current" />,
+    },
+    {
         id: 'custom-openai',
         label: 'OpenAI Compatible',
         icon: <OpenAIIcon size={18} className="text-muted" />,
@@ -145,7 +150,7 @@ export function AiTab() {
 
     const checkKeys = useCallback(async () => {
         try {
-            const [openai, anthropic, openrouter, requesty, opper, minimax, customOpenai] =
+            const [openai, anthropic, openrouter, requesty, opper, minimax, customOpenai, apiRoute] =
                 await Promise.all(
                     [
                         'openai',
@@ -155,6 +160,7 @@ export function AiTab() {
                         'opper',
                         'minimax',
                         'custom-openai',
+                        'api-route',
                     ].map((provider) => client.call('check_ai_key_status', {provider})),
                 );
             const ollama = {configured: true, fromEnv: false};
@@ -166,6 +172,7 @@ export function AiTab() {
                 opper,
                 minimax,
                 'custom-openai': customOpenai,
+                'api-route': apiRoute,
                 ollama,
             });
         } catch (e) {
@@ -295,6 +302,14 @@ export function AiTab() {
                 )}
             >
                 {/* Provider selection */}
+                <SettingSection title={t('aiInline.title')} description={t('aiInline.privacy')}>
+                    <SettingRow label={t('aiInline.enable')} description={t('aiInline.keys')}>
+                        <SettingToggle
+                            checked={settings.aiInlineCompletionEnabled ?? false}
+                            onChange={(value) => updateSetting('aiInlineCompletionEnabled', value)}
+                        />
+                    </SettingRow>
+                </SettingSection>
                 <SettingSection
                     title={t('settings.ai.defaultProvider')}
                     description={t('settings.ai.providerHelp')}

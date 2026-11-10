@@ -268,6 +268,7 @@ async fn resolve_db_params(
     conn_id: &str,
 ) -> Result<(crate::models::SavedConnection, ConnectionParams), JsonRpcError> {
     let mut conn = find_connection(conn_id)?;
+    crate::application::read_only::prepare_params(&mut conn.params);
 
     // Load DB password from keychain unless the connection uses IAM auth,
     // whose 15-min tokens must come from the `password` field on every
@@ -1170,10 +1171,7 @@ async fn tool_run_query(
             data: None,
         })?;
 
-    let max_rows = args
-        .get("limit")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(100) as u32;
+    let max_rows = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as u32;
 
     audit.connection_id = Some(conn_id.to_string());
     audit.query = Some(query.to_string());
@@ -1193,6 +1191,17 @@ async fn tool_run_query(
     apply_database_override(&mut db_params, database, &capabilities)?;
 
     // Read-only enforcement (fail-closed: unknown counts as write).
+    crate::application::read_only::validate_query(&db_params, &capabilities, query).map_err(
+        |message| {
+            audit.status = "blocked_readonly".to_string();
+            audit.error = Some(message.clone());
+            JsonRpcError {
+                code: -32000,
+                message,
+                data: None,
+            }
+        },
+    )?;
     if config::is_connection_readonly(config, &conn.id) && kind != "select" {
         audit.status = "blocked_readonly".to_string();
         let msg = "Query blocked by Tabularis read-only mode. Enable writes for this connection in Settings → MCP → Read-only mode.".to_string();
@@ -1306,8 +1315,7 @@ async fn tool_run_query(
                         audit.query = Some(effective_query.clone());
                         audit.query_kind = Some(new_kind.to_string());
 
-                        if config::is_connection_readonly(config, &conn.id)
-                            && new_kind != "select"
+                        if config::is_connection_readonly(config, &conn.id) && new_kind != "select"
                         {
                             audit.status = "blocked_readonly".to_string();
                             let msg = "Edited query blocked by Tabularis read-only mode. Enable writes for this connection in Settings → MCP → Read-only mode.".to_string();
@@ -1377,7 +1385,14 @@ async fn tool_run_query(
     // here because it was classified as a read, and so is anything sent to a
     // read-only connection. Classification cannot see what a function call
     // does, so have the database refuse writes too.
-    let run_read_only = config::is_connection_readonly(config, &conn.id)
+    crate::application::read_only::validate_query(&db_params, &capabilities, &effective_query)
+        .map_err(|message| JsonRpcError {
+            code: -32000,
+            message,
+            data: None,
+        })?;
+    let run_read_only = db_params.read_only
+        || config::is_connection_readonly(config, &conn.id)
         || (approval_mode != "off" && !needs_approval);
     let result = if run_read_only {
         driver
@@ -1398,4 +1413,3 @@ async fn tool_run_query(
 
     tool_result(&result, format)
 }
-

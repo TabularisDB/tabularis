@@ -252,10 +252,9 @@ async fn golden_get_view_columns_active_users() {
 async fn golden_get_materialized_view_definition() {
     require_pg!();
     let params = pg_params();
-    let result =
-        postgres::get_materialized_view_definition(&params, "user_stats", "test_schema")
-            .await
-            .expect("get_materialized_view_definition");
+    let result = postgres::get_materialized_view_definition(&params, "user_stats", "test_schema")
+        .await
+        .expect("get_materialized_view_definition");
     write_golden("get_mv_definition.json", &result);
     assert_golden("get_mv_definition.json", &result);
 }

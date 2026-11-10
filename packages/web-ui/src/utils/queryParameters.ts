@@ -16,9 +16,10 @@ export const toBindParamName = (name: string): string => {
     return sanitized;
 };
 
-// Matches :paramName but ignores ::cast (Postgres)
-// Look for colon followed by word characters, ensuring it's not preceded by a colon
-const PARAM_RE = /(?<!:):([a-zA-Z_][a-zA-Z0-9_]*)(?!\w)/g;
+// Matches :paramName but ignores ::cast (Postgres) and table:id (SurrealQL record ids)
+// Look for colon followed by word characters, ensuring it's not preceded by a colon or
+// a word character
+const PARAM_RE = /(?<![\w:]):([a-zA-Z_][a-zA-Z0-9_]*)(?!\w)/g;
 
 /**
  * Returns `sql` with every string literal and comment replaced by spaces

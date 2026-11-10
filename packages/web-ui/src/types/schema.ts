@@ -17,6 +17,14 @@ export interface TableColumn {
      * `data_type`; render it with `formatColumnType` (#1277).
      */
     full_type?: string;
+    /**
+     * Column default as SQL that can follow `DEFAULT` unchanged (`'new'`,
+     * `CURRENT_TIMESTAMP`, `(uuid())`). `default_value` may be raw text (MySQL
+     * reports `new`), so the column editor restates this one (#271).
+     */
+    default_sql?: string | null;
+    /** `ON UPDATE` expression (MySQL `CURRENT_TIMESTAMP`), kept on ALTER (#271). */
+    on_update?: string | null;
 }
 
 export interface ForeignKey {

@@ -1,13 +1,17 @@
 use crate::config;
 use crate::credential_cache::CredentialCache;
 use crate::runtime::RuntimeContext;
+mod api_route;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+pub mod inline;
 
 // --- Data Structures ---
 
@@ -163,7 +167,14 @@ fn get_cache_path(runtime: &RuntimeContext) -> std::path::PathBuf {
     runtime.paths.config_dir().join("ai_models_cache.json")
 }
 
+static MODEL_CACHE_LOCK: Mutex<()> = Mutex::new(());
+
 fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
+    let _guard = MODEL_CACHE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    load_cache_unlocked(runtime)
+}
+
+fn load_cache_unlocked(runtime: &RuntimeContext) -> Option<AiModelsCache> {
     let path = get_cache_path(runtime);
     if path.exists() {
         let content = fs::read_to_string(path).ok()?;
@@ -174,6 +185,7 @@ fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
 }
 
 fn save_cache(runtime: &RuntimeContext, models: &HashMap<String, Vec<String>>) {
+    let _guard = MODEL_CACHE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let path = get_cache_path(runtime);
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -412,7 +424,7 @@ fn build_api_url(base_url: &str, endpoint: &str) -> String {
 }
 
 async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String> {
-    if base_url.is_empty() || api_key.is_empty() {
+    if base_url.is_empty() {
         return Vec::new();
     }
 
@@ -420,14 +432,22 @@ async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String
         return Vec::new();
     };
 
+    fetch_custom_openai_models_with_client(&client, base_url, api_key).await
+}
+
+async fn fetch_custom_openai_models_with_client(
+    client: &Client,
+    base_url: &str,
+    api_key: &str,
+) -> Vec<String> {
     let url = build_api_url(base_url, "/models");
 
-    match client
-        .get(&url)
-        .header("Authorization", format!("Bearer {}", api_key))
-        .send()
-        .await
-    {
+    let mut request = client.get(&url);
+    if !api_key.is_empty() {
+        request = request.bearer_auth(api_key);
+    }
+
+    match request.send().await {
         Ok(res) => {
             if res.status().is_success() {
                 if let Ok(json) = res.json::<OpenAiModelList>().await {
@@ -443,6 +463,7 @@ async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String
 // --- Commands ---
 
 pub fn clear_models_cache(runtime: &RuntimeContext) -> Result<(), String> {
+    let _guard = MODEL_CACHE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let path = get_cache_path(runtime);
     if path.exists() {
         fs::remove_file(path).map_err(|e| e.to_string())?;
@@ -479,19 +500,17 @@ pub async fn get_models(
                 }
 
                 // Always refresh custom-openai as it depends on user configuration
-                if let (Some(base_url), Ok(api_key)) = (
-                    app_config.ai_custom_openai_url.clone(),
-                    crate::application::ai::get_api_key(runtime, cache, "custom-openai"),
-                ) {
-                    if !base_url.is_empty() && !api_key.is_empty() {
-                        let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
-                        if !custom_models.is_empty() {
-                            cached_models.insert("custom-openai".to_string(), custom_models);
-                        } else {
-                            cached_models.insert("custom-openai".to_string(), vec![]);
-                        }
-                    }
-                }
+                let api_key = crate::application::ai::get_api_key(runtime, cache, "custom-openai")
+                    .unwrap_or_default();
+                let custom_models = fetch_custom_openai_models(
+                    app_config
+                        .ai_custom_openai_url
+                        .as_deref()
+                        .unwrap_or_default(),
+                    &api_key,
+                )
+                .await;
+                cached_models.insert("custom-openai".to_string(), custom_models);
 
                 // Always refresh Anthropic if API key is present
                 if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "anthropic") {
@@ -508,6 +527,8 @@ pub async fn get_models(
                         cached_models.insert("minimax".to_string(), minimax_models);
                     }
                 }
+
+                cached_models.insert("api-route".into(), api_route::models(runtime, cache).await);
 
                 // Account-specific ChatGPT models use the dedicated settings command.
                 cached_models.remove("chatgpt");
@@ -612,23 +633,19 @@ pub async fn get_models(
     }
 
     // 8. Custom OpenAI (Dynamic if configured)
-    if let (Some(base_url), Ok(api_key)) = (
-        app_config.ai_custom_openai_url,
-        crate::application::ai::get_api_key(runtime, cache, "custom-openai"),
-    ) {
-        if !base_url.is_empty() && !api_key.is_empty() {
-            let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
-            if !custom_models.is_empty() {
-                models.insert("custom-openai".to_string(), custom_models);
-            } else {
-                models.insert("custom-openai".to_string(), vec![]);
-            }
-        } else {
-            models.insert("custom-openai".to_string(), vec![]);
-        }
-    } else {
-        models.insert("custom-openai".to_string(), vec![]);
-    }
+    let api_key =
+        crate::application::ai::get_api_key(runtime, cache, "custom-openai").unwrap_or_default();
+    let custom_models = fetch_custom_openai_models(
+        app_config
+            .ai_custom_openai_url
+            .as_deref()
+            .unwrap_or_default(),
+        &api_key,
+    )
+    .await;
+    models.insert("custom-openai".to_string(), custom_models);
+
+    models.insert("api-route".into(), api_route::models(runtime, cache).await);
 
     // Save to Cache
     save_cache(runtime, &models);
@@ -669,6 +686,7 @@ async fn resolve_model(
             .filter(|m| !m.is_empty())
             .cloned()
             .ok_or_else(|| "No model specified for custom OpenAI provider.".to_string()),
+        "api-route" => Err("Select an API Route model in Settings > AI.".to_string()),
         _ => {
             let models = load_default_models();
             models
@@ -691,10 +709,12 @@ async fn dispatch_provider(
     if gen_req.provider == "chatgpt" {
         return crate::chatgpt::generate(&gen_req.model, &gen_req.prompt, system_prompt).await;
     }
-    let api_key = if gen_req.provider != "ollama" {
-        crate::application::ai::get_api_key(runtime, cache, &gen_req.provider)?
-    } else {
-        String::new()
+    let api_key = match gen_req.provider.as_str() {
+        "ollama" => String::new(),
+        "custom-openai" => {
+            crate::application::ai::get_api_key(runtime, cache, "custom-openai").unwrap_or_default()
+        }
+        _ => crate::application::ai::get_api_key(runtime, cache, &gen_req.provider)?,
     };
 
     let client = if gen_req.provider == "ollama" {
@@ -708,6 +728,16 @@ async fn dispatch_provider(
         "openrouter" => generate_openrouter(&client, &api_key, gen_req, system_prompt).await,
         "requesty" => generate_requesty(&client, &api_key, gen_req, system_prompt).await,
         "opper" => generate_opper(&client, &api_key, gen_req, system_prompt).await,
+        "api-route" => {
+            generate_custom_openai(
+                &client,
+                &api_key,
+                gen_req,
+                system_prompt,
+                api_route::BASE_URL,
+            )
+            .await
+        }
         "ollama" => generate_ollama(&client, gen_req, system_prompt, ollama_port).await,
         "custom-openai" => {
             let base_url = app_config
@@ -852,7 +882,7 @@ pub async fn analyze_explain_plan(
 const CRASH_ANALYSIS_SYSTEM_PROMPT: &str = "You help users of Tabularis, a desktop and web database client, after its SQL editor crashed. \
 The user message is a crash report with the error message, stack traces, app version, platform and mode (desktop or web). \
 Secrets in it were replaced with [redacted]. Do not ask for them. \
-Reply in {{LANGUAGE}} with plain text, no Markdown headings. \
+Reply in {{LANGUAGE}}. Keep formatting minimal: short paragraphs, a numbered list for the steps, no headings. \
 First explain in two or three sentences what most likely went wrong. \
 Then list up to five concrete recovery steps the user can try, such as retrying, closing the tab, reloading or restarting the app, or updating Tabularis. \
 If the report points to a bug in Tabularis, say so and suggest reporting it.";
@@ -1095,9 +1125,12 @@ async fn generate_custom_openai(
     // Build the chat completions endpoint URL
     let url = build_api_url(base_url, "/chat/completions");
 
-    let res = client
-        .post(&url)
-        .header("Authorization", format!("Bearer {}", api_key))
+    let mut request = client.post(&url);
+    if !api_key.is_empty() {
+        request = request.bearer_auth(api_key);
+    }
+
+    let res = request
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
@@ -1106,7 +1139,12 @@ async fn generate_custom_openai(
 
     if !res.status().is_success() {
         let error_text = res.text().await.unwrap_or_default();
-        return Err(format!("Custom OpenAI Error: {}", error_text));
+        let provider = if req.provider == "api-route" {
+            "API Route"
+        } else {
+            "Custom OpenAI"
+        };
+        return Err(format!("{provider} Error: {error_text}"));
     }
 
     let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;

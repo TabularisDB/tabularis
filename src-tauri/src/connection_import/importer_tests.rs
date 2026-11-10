@@ -133,9 +133,7 @@ async fn tableplus_import_accepts_manual_data_dir() {
 #[tokio::test]
 async fn datagrip_parses_xml() {
     let tmp = tempfile::tempdir().unwrap();
-    let ds = tmp
-        .path()
-        .join("DataGrip2024.3/options/dataSources.xml");
+    let ds = tmp.path().join("DataGrip2024.3/options/dataSources.xml");
     write(
         &ds,
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -167,9 +165,7 @@ async fn datagrip_parses_xml() {
 #[tokio::test]
 async fn datagrip_normalizes_raw_ssl_mode() {
     let tmp = tempfile::tempdir().unwrap();
-    let ds = tmp
-        .path()
-        .join("DataGrip2024.3/options/dataSources.xml");
+    let ds = tmp.path().join("DataGrip2024.3/options/dataSources.xml");
     write(
         &ds,
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -252,7 +248,11 @@ async fn sequelace_parses_favorites_plist() {
     assert_eq!(env.connections.len(), 2);
 
     // Grouped connection: fields, MySQL default driver, SSL mapped, group name.
-    let shop = env.connections.iter().find(|c| c.name == "Shop DB").unwrap();
+    let shop = env
+        .connections
+        .iter()
+        .find(|c| c.name == "Shop DB")
+        .unwrap();
     assert_eq!(shop.host, "db.example.com");
     assert_eq!(shop.port, 3307);
     assert_eq!(shop.database, "shop");
@@ -265,7 +265,11 @@ async fn sequelace_parses_favorites_plist() {
     assert_eq!(ssl.ca_certificate_path.as_deref(), Some("/certs/ca.pem"));
 
     // Top-level SSH connection (type 2), port given as a string.
-    let tun = env.connections.iter().find(|c| c.name == "Tunneled").unwrap();
+    let tun = env
+        .connections
+        .iter()
+        .find(|c| c.name == "Tunneled")
+        .unwrap();
     assert_eq!(tun.port, 3306);
     assert!(tun.group_name.is_none());
     let ssh = tun.ssh.as_ref().unwrap();

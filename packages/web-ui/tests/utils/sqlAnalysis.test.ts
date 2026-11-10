@@ -297,6 +297,73 @@ WHERE id = 1`;
             ).toBe(false);
         });
 
+        it('flags a DELETE or UPDATE with no WHERE inside a CTE body', () => {
+            // PostgreSQL runs the body even though the final statement is a SELECT.
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS (DELETE FROM users RETURNING *) SELECT count(*) FROM gone',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH reset AS MATERIALIZED (UPDATE accounts SET balance = 0 RETURNING id) SELECT * FROM reset',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH recent AS (SELECT 1), gone AS (DELETE FROM logs RETURNING id) SELECT * FROM gone',
+                ),
+            ).toBe(true);
+            // The WHERE of a subquery does not limit the rows the body deletes.
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS (DELETE FROM users USING (SELECT id FROM t WHERE x) s RETURNING *) SELECT 1',
+                ),
+            ).toBe(true);
+        });
+
+        it('allows a CTE body that filters its DELETE or only inserts', () => {
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS (DELETE FROM users WHERE id = 1 RETURNING *) SELECT * FROM gone',
+                ),
+            ).toBe(false);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH added AS (INSERT INTO audit (msg) VALUES (1) RETURNING id) SELECT id FROM added',
+                ),
+            ).toBe(false);
+        });
+
+        it('flags a CTE body written without a space before its parenthesis', () => {
+            // PostgreSQL accepts `AS(`, `AS MATERIALIZED(` and `x(a)AS(`.
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS(DELETE FROM users RETURNING *) SELECT count(*) FROM gone',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH reset AS(UPDATE accounts SET balance = 0 RETURNING id) SELECT * FROM reset',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH reset AS MATERIALIZED(UPDATE accounts SET balance = 0 RETURNING id) SELECT 1',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'with gone(id)as not materialized(delete from users returning id) select 1',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS(DELETE FROM users WHERE id = 1 RETURNING *) SELECT * FROM gone',
+                ),
+            ).toBe(false);
+        });
+
         it('flags a statement wrapped in parentheses instead of silently allowing it', () => {
             // The wrapping parens make the WHERE-depth scan treat any WHERE as
             // nested, so a wrapped statement is conservatively flagged either way
@@ -397,6 +464,61 @@ describe('isReadOnlyQuery', () => {
     it('sees through data-modifying CTEs', () => {
         expect(isReadOnlyQuery('WITH x AS (SELECT 1) SELECT * FROM x')).toBe(true);
         expect(isReadOnlyQuery('WITH gone AS (SELECT id FROM t) DELETE FROM t')).toBe(false);
+    });
+
+    it('flags a CTE body that writes even when the final statement is a SELECT', () => {
+        expect(
+            isReadOnlyQuery('WITH d AS (DELETE FROM t WHERE id = 1 RETURNING *) SELECT * FROM d'),
+        ).toBe(false);
+        expect(
+            isReadOnlyQuery('WITH u AS (UPDATE t SET a = 1 RETURNING id) SELECT id FROM u'),
+        ).toBe(false);
+        expect(
+            isReadOnlyQuery(
+                'WITH i AS (INSERT INTO t (a) VALUES (1) RETURNING id) SELECT id FROM i',
+            ),
+        ).toBe(false);
+        expect(
+            isReadOnlyQuery(
+                'WITH s AS NOT MATERIALIZED (SELECT 1), m AS (MERGE INTO t USING s ON true WHEN MATCHED THEN DELETE) SELECT 1',
+            ),
+        ).toBe(false);
+        expect(
+            isReadOnlyQuery(
+                'EXPLAIN ANALYZE WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d',
+            ),
+        ).toBe(false);
+    });
+
+    it('keeps read-only CTEs read-only', () => {
+        expect(isReadOnlyQuery('WITH x(a) AS (SELECT 1) SELECT a FROM x')).toBe(true);
+        expect(
+            isReadOnlyQuery(
+                'WITH x AS (SELECT CAST(a AS numeric(10, 2)) FROM t WHERE b IN (SELECT 1)) SELECT * FROM x',
+            ),
+        ).toBe(true);
+        expect(isReadOnlyQuery("WITH x AS (SELECT 'DELETE FROM t' AS s) SELECT * FROM x")).toBe(
+            true,
+        );
+        expect(isReadOnlyQuery('WITH RECURSIVE r AS (SELECT 1 UNION ALL SELECT 1) SELECT 1')).toBe(
+            true,
+        );
+        expect(isReadOnlyQuery('WITH x AS(SELECT CAST(a AS integer) FROM t) SELECT * FROM x')).toBe(
+            true,
+        );
+    });
+
+    it('flags a writing CTE body written without a space before its parenthesis', () => {
+        expect(isReadOnlyQuery('WITH gone AS(DELETE FROM t RETURNING *) SELECT * FROM gone')).toBe(
+            false,
+        );
+        expect(isReadOnlyQuery('WITH r AS(UPDATE t SET a = 0 RETURNING id) SELECT * FROM r')).toBe(
+            false,
+        );
+        expect(
+            isReadOnlyQuery('WITH r AS NOT MATERIALIZED(DELETE FROM t RETURNING id) SELECT 1'),
+        ).toBe(false);
+        expect(isReadOnlyQuery('WITH x(a)AS(UPDATE t SET a = 1 RETURNING a) SELECT 1')).toBe(false);
     });
 
     it('ignores keywords inside comments and string literals', () => {

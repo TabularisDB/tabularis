@@ -30,6 +30,7 @@ interface MockSelectProps {
 
 const driverState = vi.hoisted(() => ({
     defaultPort: 15432 as number | null,
+    defaultUsername: undefined as string | undefined,
     multiDatabase: false,
     uriPassthrough: false,
     catalogueDriver: 'mysql' as 'mysql' | 'sqlite',
@@ -128,6 +129,7 @@ vi.mock('@/hooks/useDrivers', () => ({
                 name: 'MySQL',
                 version: '1.0.0',
                 default_port: driverState.defaultPort,
+                default_username: driverState.defaultUsername,
                 connection_fields: driverState.connectionFields,
                 is_builtin: true,
                 capabilities: {
@@ -161,9 +163,26 @@ vi.mock('@/hooks/useDrivers', () => ({
                 },
             },
             {
+                id: 'postgres',
+                name: 'PostgreSQL',
+                version: '1.0.0',
+                default_port: 5432,
+                is_builtin: true,
+                capabilities: {
+                    file_based: false,
+                    folder_based: false,
+                    connection_string: true,
+                    supports_ssl: true,
+                    schemas: true,
+                    sql_dialect: 'postgres',
+                    query_timeout: true,
+                },
+            },
+            {
                 // Simulates the standalone PostgreSQL plugin (issue #614): a
                 // non-"postgres" driver id whose manifest explicitly declares the
-                // postgres SQL dialect.
+                // postgres SQL dialect. It does not declare query_timeout, so the
+                // timeout field must stay hidden even though the dialect matches.
                 id: 'postgresql',
                 name: 'PostgreSQL',
                 version: '1.0.0-beta.2',
@@ -176,6 +195,40 @@ vi.mock('@/hooks/useDrivers', () => ({
                     supports_ssl: true,
                     schemas: true,
                     sql_dialect: 'postgres',
+                },
+            },
+            {
+                // A flat multi-database plugin that declares the database input,
+                // as SurrealDB does for the `namespace/database` to sign in to.
+                id: 'surrealdb',
+                name: 'SurrealDB',
+                version: '0.1.1',
+                default_port: 8000,
+                is_builtin: false,
+                connection_fields: {
+                    database: {label: 'Namespace/Database', placeholder: 'namespace/database'},
+                },
+                capabilities: {
+                    schemas: false,
+                    file_based: false,
+                    folder_based: false,
+                    connection_string: true,
+                    supports_ssl: true,
+                    sql_dialect: 'mysql',
+                },
+            },
+            {
+                // A flat multi-database plugin that declares no database input.
+                id: 'redis',
+                name: 'Redis',
+                version: '1.0.0',
+                default_port: 6379,
+                is_builtin: false,
+                capabilities: {
+                    schemas: false,
+                    file_based: false,
+                    folder_based: false,
+                    connection_string: true,
                 },
             },
         ],
@@ -194,6 +247,7 @@ vi.mock('@/hooks/usePluginSlotRegistry', () => ({
 }));
 
 afterEach(() => {
+    driverState.defaultUsername = undefined;
     driverState.connectionFields = undefined;
     driverState.uriPassthrough = false;
 });
@@ -1186,7 +1240,7 @@ describe('NewConnectionModal advanced inline K8s paths', () => {
                 }),
             );
         });
-    });
+    }, 15_000);
 
     it('blocks a submission that applies paths until inline selections are remade', async () => {
         await openInlineK8s();
@@ -2053,6 +2107,93 @@ describe('NewConnectionModal keychain default', () => {
     });
 });
 
+describe('NewConnectionModal driver default username', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 8000;
+        driverState.defaultUsername = 'root';
+        vi.mocked(invoke).mockResolvedValue(undefined);
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+    });
+
+    function usernameInput() {
+        return screen.getByPlaceholderText('newConnection.usernamePlaceholder');
+    }
+
+    function portInput() {
+        return screen.getByPlaceholderText('3306');
+    }
+
+    it("pre-fills a new connection with the driver's default username and port", () => {
+        renderModal();
+        pickEngineFromCatalogue();
+
+        expect(usernameInput()).toHaveValue('root');
+        expect(portInput()).toHaveValue(8000);
+    });
+
+    it('leaves the username empty when the driver declares no default', () => {
+        driverState.defaultUsername = undefined;
+        renderModal();
+        pickEngineFromCatalogue();
+
+        expect(usernameInput()).toHaveValue('');
+    });
+
+    it('sends the default username, or the one the user typed instead', async () => {
+        renderModal();
+        pickEngineFromCatalogue();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.dbNamePlaceholder'), {
+            target: {value: 'shop'},
+        });
+
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+        await waitFor(() => {
+            expect(invoke).toHaveBeenCalledWith(
+                'test_connection',
+                expect.objectContaining({
+                    request: expect.objectContaining({
+                        params: expect.objectContaining({username: 'root', port: 8000}),
+                    }),
+                }),
+            );
+        });
+
+        vi.mocked(invoke).mockClear();
+        fireEvent.change(usernameInput(), {target: {value: 'admin'}});
+        expect(usernameInput()).toHaveValue('admin');
+
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+        await waitFor(() => {
+            expect(invoke).toHaveBeenCalledWith(
+                'test_connection',
+                expect.objectContaining({
+                    request: expect.objectContaining({
+                        params: expect.objectContaining({username: 'admin'}),
+                    }),
+                }),
+            );
+        });
+    });
+
+    it.each(['admin', ''])(
+        'keeps the saved username %j of an edited connection',
+        async (username) => {
+            renderModal(createInitialConnection({username, port: 8010}));
+
+            await waitFor(() => {
+                expect(invoke).toHaveBeenCalledWith('get_connection_by_id', expect.anything());
+            });
+            await waitFor(() => {
+                expect(portInput()).toHaveValue(8010);
+            });
+            expect(usernameInput()).toHaveValue(username);
+        },
+    );
+});
+
 // Simulates a driver plugin (e.g. a cloud warehouse with a service-account
 // key) storing a credential through `setSecretField` instead of `extra`.
 interface SecretFieldContext {
@@ -2262,5 +2403,397 @@ describe('NewConnectionModal connect timeout', () => {
         renderModal(createInitialConnection({driver: 'sqlite', database: '/tmp/a.db'}));
         fireEvent.click(await screen.findByText('newConnection.advanced'));
         expect(screen.queryByText('newConnection.connectTimeout')).not.toBeInTheDocument();
+    });
+});
+
+describe('NewConnectionModal database input of a flat multi-database plugin', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 15432;
+        driverState.multiDatabase = false;
+        vi.mocked(invoke).mockImplementation(async (command) =>
+            command === 'list_databases' ? ['app/logs', 'app/main'] : 'ok',
+        );
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+    });
+
+    function surrealConnection(params: Partial<InitialConnectionParams> = {}) {
+        return createInitialConnection({
+            driver: 'surrealdb',
+            host: 'localhost',
+            port: 8000,
+            database: '',
+            ...params,
+        });
+    }
+
+    async function openDatabasesTab() {
+        fireEvent.click(await screen.findByText('newConnection.selectDatabases'));
+    }
+
+    function databaseInput() {
+        return screen.getByRole('textbox', {name: 'Namespace/Database'});
+    }
+
+    function typeDatabase(value: string) {
+        fireEvent.change(databaseInput(), {target: {value}});
+    }
+
+    function sentParams(params: Record<string, unknown>) {
+        return expect.objectContaining({
+            request: expect.objectContaining({params: expect.objectContaining(params)}),
+        });
+    }
+
+    it('shows the input with the manifest label and placeholder on the Databases tab', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+
+        expect(databaseInput()).toHaveAttribute('placeholder', 'namespace/database');
+        expect(databaseInput()).toHaveAccessibleDescription(
+            'newConnection.databasesTabDatabaseHint',
+        );
+        // It stays above the mode switch, so it applies to both modes.
+        fireEvent.click(screen.getByText('newConnection.chooseDatabases'));
+        expect(databaseInput()).toBeInTheDocument();
+    });
+
+    it('is not shown for a built-in driver or a plugin that does not declare it', async () => {
+        driverState.multiDatabase = true;
+        const {unmount} = renderModal(createInitialConnection({host: 'localhost', database: ''}));
+        await openDatabasesTab();
+        expect(screen.queryByText('newConnection.databasesTabDatabaseHint')).toBeNull();
+        expect(screen.queryByPlaceholderText('newConnection.dbNamePlaceholder')).toBeNull();
+        unmount();
+
+        renderModal(createInitialConnection({driver: 'redis', host: 'localhost', database: ''}));
+        await openDatabasesTab();
+        expect(screen.queryByText('newConnection.databasesTabDatabaseHint')).toBeNull();
+        expect(screen.queryByPlaceholderText('newConnection.dbNamePlaceholder')).toBeNull();
+    });
+
+    it('sends the value with Load Databases', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase('app');
+        fireEvent.click(screen.getByText('newConnection.chooseDatabases'));
+        fireEvent.click(screen.getByText('newConnection.loadDatabases'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'list_databases',
+                expect.objectContaining({
+                    request: expect.objectContaining({
+                        params: expect.objectContaining({driver: 'surrealdb', database: 'app'}),
+                    }),
+                }),
+            ),
+        );
+        expect(await screen.findByRole('button', {name: 'app/main'})).toBeInTheDocument();
+    });
+
+    it('sends the value with Test Connection in All databases mode', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase(' app/main ');
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'test_connection',
+                sentParams({database: 'app/main'}),
+            ),
+        );
+    });
+
+    it('sends the value with Test Connection before a database is chosen', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase('app/main');
+        fireEvent.click(screen.getByText('newConnection.chooseDatabases'));
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'test_connection',
+                sentParams({database: 'app/main'}),
+            ),
+        );
+    });
+
+    it('saves the value in All databases mode, which still saves no selection', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase(' app/main ');
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({
+                        database: '',
+                        default_database: 'app/main',
+                    }),
+                }),
+            ),
+        );
+    });
+
+    it('saves the value next to the chosen databases', async () => {
+        renderModal(surrealConnection());
+        await openDatabasesTab();
+        typeDatabase('app');
+        fireEvent.click(screen.getByText('newConnection.chooseDatabases'));
+        fireEvent.click(screen.getByText('newConnection.loadDatabases'));
+        fireEvent.click(await screen.findByRole('button', {name: 'app/logs'}));
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({
+                        database: 'app/logs',
+                        default_database: 'app',
+                    }),
+                }),
+            ),
+        );
+    });
+
+    it('drops a cleared value on save', async () => {
+        renderModal(surrealConnection({default_database: 'app/main'}));
+        await openDatabasesTab();
+        typeDatabase('');
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.not.objectContaining({default_database: expect.anything()}),
+                }),
+            ),
+        );
+    });
+
+    it('shows the saved value when editing a connection in All databases mode', async () => {
+        renderModal(surrealConnection({default_database: 'app/main'}));
+        await openDatabasesTab();
+
+        expect(databaseInput()).toHaveValue('app/main');
+        expect(screen.getByText('newConnection.allDatabasesHint')).toBeInTheDocument();
+    });
+
+    it('shows the saved value, not the first chosen database, when editing a selection', async () => {
+        renderModal(
+            surrealConnection({database: ['app/main', 'app/logs'], default_database: 'app'}),
+        );
+        await openDatabasesTab();
+
+        expect(databaseInput()).toHaveValue('app');
+        expect(
+            await screen.findByRole('combobox', {name: 'newConnection.defaultDatabase'}),
+        ).toHaveValue('app/main');
+    });
+
+    it('does not take a saved selection as the default when none was saved', async () => {
+        for (const database of [['app/main', 'app/logs'], 'app/main']) {
+            vi.mocked(invoke).mockClear();
+            const {unmount} = renderModal(surrealConnection({database}));
+            await openDatabasesTab();
+
+            expect(databaseInput()).toHaveValue('');
+            fireEvent.click(screen.getByText('newConnection.save'));
+            await waitFor(() =>
+                expect(invoke).toHaveBeenCalledWith('update_connection', expect.anything()),
+            );
+            expect(
+                vi
+                    .mocked(invoke)
+                    .mock.calls.find(([command]) => command === 'update_connection')?.[1],
+            ).toEqual(
+                expect.objectContaining({
+                    params: expect.not.objectContaining({default_database: expect.anything()}),
+                }),
+            );
+            unmount();
+        }
+    });
+
+    it('is filled by an imported connection string', async () => {
+        renderModal(surrealConnection());
+        fireEvent.change(
+            await screen.findByPlaceholderText('newConnection.connectionStringPlaceholder'),
+            {target: {value: 'surrealdb://reader:secret@db.example:8000/app/main'}},
+        );
+        await openDatabasesTab();
+
+        expect(databaseInput()).toHaveValue('app/main');
+    });
+
+    it('keeps sending and saving no database in All databases mode for other drivers', async () => {
+        driverState.multiDatabase = true;
+        renderModal(
+            createInitialConnection({host: 'localhost', database: '', default_database: 'stale'}),
+        );
+        await openDatabasesTab();
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('test_connection', sentParams({database: ''})),
+        );
+
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({database: ''}),
+                }),
+            ),
+        );
+        expect(
+            vi.mocked(invoke).mock.calls.find(([command]) => command === 'update_connection')?.[1],
+        ).toEqual(
+            expect.objectContaining({
+                params: expect.not.objectContaining({default_database: expect.anything()}),
+            }),
+        );
+    });
+});
+
+describe('NewConnectionModal read-only mode', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 15432;
+        driverState.multiDatabase = false;
+        vi.mocked(invoke).mockResolvedValue('ok');
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    });
+
+    it('explains why a legacy plugin cannot enable protected execution', async () => {
+        renderModal(createInitialConnection({driver: 'postgresql', host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(screen.getByRole('checkbox', {name: 'readOnly.label'})).toBeDisabled();
+        expect(screen.getByText('readOnly.unsupported')).toBeInTheDocument();
+    });
+
+    it('retains a saved policy after a plugin loses support and permits explicitly disabling it', async () => {
+        renderModal(
+            createInitialConnection({driver: 'postgresql', host: 'localhost', read_only: true}),
+        );
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        const checkbox = screen.getByRole('checkbox', {name: 'readOnly.label'});
+        expect(checkbox).toBeChecked();
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(screen.getAllByText('readOnly.unsupported').length).toBeGreaterThan(1),
+        );
+        expect(invoke).not.toHaveBeenCalledWith('update_connection', expect.anything());
+        fireEvent.click(checkbox);
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({read_only: false}),
+                }),
+            ),
+        );
+    });
+});
+
+describe('NewConnectionModal query timeout', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 15432;
+        driverState.multiDatabase = false;
+        vi.mocked(invoke).mockResolvedValue('ok');
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    });
+
+    function queryTimeoutInput() {
+        const label = screen.getByText('newConnection.queryTimeout');
+        return label.parentElement!.querySelector('input')!;
+    }
+
+    it('saves the timeout for the built-in PostgreSQL driver', async () => {
+        renderModal(createInitialConnection({driver: 'postgres', host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        fireEvent.change(queryTimeoutInput(), {target: {value: '30'}});
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({query_timeout_secs: 30}),
+                }),
+            ),
+        );
+    });
+
+    it('drops the timeout when the field is cleared', async () => {
+        renderModal(
+            createInitialConnection({
+                driver: 'postgres',
+                host: 'localhost',
+                query_timeout_secs: 30,
+            }),
+        );
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(queryTimeoutInput()).toHaveValue(30);
+        fireEvent.change(queryTimeoutInput(), {target: {value: ''}});
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.not.objectContaining({query_timeout_secs: expect.anything()}),
+                }),
+            ),
+        );
+    });
+
+    it('is not offered for drivers that do not declare query_timeout', async () => {
+        renderModal(createInitialConnection({host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(screen.getByText('newConnection.connectTimeout')).toBeInTheDocument();
+        expect(screen.queryByText('newConnection.queryTimeout')).not.toBeInTheDocument();
+    });
+
+    it('is not offered for a postgres-dialect plugin that does not declare query_timeout', async () => {
+        renderModal(createInitialConnection({driver: 'postgresql', host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        // Connect timeout still follows the dialect; query timeout needs the capability.
+        expect(screen.getByText('newConnection.connectTimeout')).toBeInTheDocument();
+        expect(screen.queryByText('newConnection.queryTimeout')).not.toBeInTheDocument();
+    });
+
+    it('does not re-save a stale timeout on an unsupported plugin connection', async () => {
+        renderModal(
+            createInitialConnection({
+                driver: 'postgresql',
+                host: 'localhost',
+                query_timeout_secs: 45,
+            }),
+        );
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(screen.queryByText('newConnection.queryTimeout')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.not.objectContaining({query_timeout_secs: expect.anything()}),
+                }),
+            ),
+        );
     });
 });

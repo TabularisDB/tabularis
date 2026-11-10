@@ -99,7 +99,10 @@ fn the_same_password_and_salt_derive_the_same_key() {
 fn another_password_or_salt_derives_another_key() {
     let salt = random_salt();
     assert_ne!(test_key("hunter2", &salt), test_key("hunter3", &salt));
-    assert_ne!(test_key("hunter2", &salt), test_key("hunter2", &random_salt()));
+    assert_ne!(
+        test_key("hunter2", &salt),
+        test_key("hunter2", &random_salt())
+    );
 }
 
 #[test]
@@ -144,7 +147,9 @@ fn tampered_ciphertext_is_rejected() {
     // Swap the first base64 character for a different one, so the tamper
     // happens whatever the ciphertext turned out to be.
     let first = sealed.ciphertext.remove(0);
-    sealed.ciphertext.insert(0, if first == 'A' { 'B' } else { 'A' });
+    sealed
+        .ciphertext
+        .insert(0, if first == 'A' { 'B' } else { 'A' });
     assert!(open_with_key(&key, &sealed).is_err());
 }
 

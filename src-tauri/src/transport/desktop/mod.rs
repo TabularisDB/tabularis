@@ -6,7 +6,6 @@ pub mod ai_approval_watcher;
 pub mod ai_commands;
 pub mod askpass;
 pub mod backup;
-pub mod database_backup;
 pub mod chatgpt;
 pub mod clipboard_import;
 pub mod commands;
@@ -14,12 +13,17 @@ pub mod config;
 pub mod connection_appearance;
 pub mod connection_import_commands;
 pub mod connection_window;
+pub mod data_files;
+#[cfg(test)]
+mod connection_window_tests;
+pub mod database_backup;
 pub mod dump_commands;
 #[cfg(feature = "e2e-testing")]
 pub mod e2e_dialog_mock;
 pub mod explain_import;
 pub mod export;
 pub mod health_check;
+pub mod linked_folders;
 pub mod log_commands;
 pub mod mcp;
 pub mod notebooks;
@@ -28,22 +32,21 @@ pub mod preferences;
 pub mod proxy;
 pub mod query_history;
 pub mod runtime;
+pub mod sandbox_protocol;
 pub mod saved_queries;
 pub mod sql_file;
 pub mod sqlite_database;
 pub mod storage_location;
 pub mod system_theme;
 pub mod task_manager;
+#[cfg(test)]
+mod tests;
 pub mod theme_commands;
 pub mod theme_packages;
 pub mod ui_state_commands;
 pub mod updater;
 pub mod window_decorations;
 pub mod window_placement;
-#[cfg(test)]
-mod connection_window_tests;
-#[cfg(test)]
-mod tests;
 
 use tauri::Manager;
 
@@ -91,11 +94,19 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         //
         // Order matters: must be the FIRST plugin in the chain so it can
         // intercept duplicate launches before any heavy initialisation.
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             log::info!("Duplicate launch detected — forwarded to existing instance");
             if let Some(url) = argv.iter().find(|a| a.starts_with("tabularis:")) {
                 crate::transport::desktop::plugins::deep_link::handle_url(app, url);
             }
+            // "Open with" while the app is running: the files arrive as argv.
+            data_files::queue(
+                app,
+                crate::application::data_files::launch_data_files(
+                    argv.iter().skip(1),
+                    Some(std::path::Path::new(&cwd)),
+                ),
+            );
             if let Some(win) = tauri::Manager::get_webview_window(app, "main") {
                 let _ = win.unminimize();
                 let _ = win.set_focus();
@@ -106,7 +117,10 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_deep_link::init());
+        .plugin(tauri_plugin_deep_link::init())
+        .register_uri_scheme_protocol("tabularis-plugin", |ctx, request| {
+            crate::transport::desktop::sandbox_protocol::handle(ctx.app_handle(), request)
+        });
 
     // Dialog plugin: real in production, mocked under e2e-testing (the mock
     // auto-accepts ask()/confirm() so native Tauri confirm dialogs — which
@@ -137,6 +151,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         .manage(application_state.pending_explain_file.clone())
         .manage(application_state.clone())
         .manage(window_placement::WindowPlacementCache::default())
+        .manage(data_files::PendingDataFiles::default())
         .setup(move |app| {
             #[cfg(target_os = "linux")]
             system_theme::watch(app.handle().clone());
@@ -293,6 +308,17 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
                 }
             }
 
+            // Data files passed on the command line, which is how a file
+            // manager's "Open with" starts the app. The frontend collects them
+            // once it has mounted.
+            data_files::queue(
+                app.handle(),
+                crate::application::data_files::launch_data_files(
+                    args.files.iter().map(|file| file.to_string_lossy()),
+                    std::env::current_dir().ok().as_deref(),
+                ),
+            );
+
             // If the user launched with `--explain <FILE>`, spawn the Visual
             // Explain window and hide the main app window: the CLI flag is
             // meant to be a dedicated plan viewer, not a full app launch.
@@ -342,6 +368,8 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::save_connection,
             sqlite_database::create_sqlite_file,
             commands::create_sqlite_database,
+            commands::open_data_file,
+            data_files::consume_pending_data_files,
             commands::delete_connection,
             commands::update_connection,
             commands::duplicate_connection,
@@ -406,6 +434,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::set_selected_databases,
             commands::get_tables,
             commands::get_columns,
+            commands::get_approximate_row_count,
             commands::get_foreign_keys,
             commands::get_indexes,
             commands::delete_record,
@@ -419,6 +448,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::get_file_stats,
             commands::read_file_as_data_url,
             commands::execute_query,
+            commands::execute_plugin_read_only_query,
             commands::execute_query_batch,
             commands::release_query_session,
             commands::get_server_now,
@@ -443,6 +473,15 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             export::cancel_export,
             sql_file::read_sql_file,
             sql_file::write_sql_file,
+            linked_folders::list_linked_folders,
+            linked_folders::link_local_folder,
+            linked_folders::unlink_local_folder,
+            linked_folders::list_linked_directory,
+            linked_folders::read_linked_sql_file,
+            linked_folders::write_linked_sql_file,
+            linked_folders::linked_git_status,
+            linked_folders::linked_git_review,
+            linked_folders::linked_git_commit,
             saved_queries::get_saved_queries,
             saved_queries::save_query,
             saved_queries::update_saved_query,
@@ -505,6 +544,8 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             config::reset_tabrename_prompt,
             // AI
             ai::generate_ai_query,
+            ai::complete_ai_inline,
+            ai::cancel_ai_inline,
             ai::explain_ai_query,
             ai::analyze_ai_explain_plan,
             ai::analyze_ai_crash_report,
@@ -537,6 +578,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             // Routines
             commands::get_routines,
             commands::get_routine_parameters,
+            commands::routine_debug,
             commands::get_routine_definition,
             commands::build_routine_call_sql,
             commands::get_routine_create_template,
@@ -596,6 +638,10 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             dump_commands::cancel_dump,
             dump_commands::import_database,
             dump_commands::cancel_import,
+            dump_commands::export_table_to_sql,
+            dump_commands::read_table_sql_header,
+            dump_commands::import_table_from_sql,
+            dump_commands::cancel_table_import,
             // Updater
             updater::check_for_updates,
             updater::download_and_install_update,
@@ -646,6 +692,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             task_manager::get_tabularis_children,
             task_manager::kill_plugin_process,
             task_manager::restart_plugin_process,
+            task_manager::sync_plugin_settings,
             task_manager::open_task_manager_window,
             // Connection Appearance
             connection_appearance::save_connection_icon,
@@ -655,6 +702,18 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |app_handle, event| {
+            // macOS delivers "Open with" and dropped-on-Dock files as an event,
+            // not as arguments, both at launch and while running.
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            if let tauri::RunEvent::Opened { urls } = &event {
+                data_files::queue(
+                    app_handle,
+                    crate::application::data_files::launch_data_files(
+                        urls.iter().map(|url| url.as_str()),
+                        None,
+                    ),
+                );
+            }
             // Cmd+Q and relaunch paths can exit without CloseRequested.
             if matches!(&event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
                 window_placement::persist_cached(app_handle);

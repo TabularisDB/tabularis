@@ -159,28 +159,34 @@ mod classify_failure_tests {
 
     #[test]
     fn missing_plugin() {
-        assert!(hint("SessionManagerPlugin is not found. Please refer to install")
-            .contains("Session Manager plugin is not installed"));
+        assert!(
+            hint("SessionManagerPlugin is not found. Please refer to install")
+                .contains("Session Manager plugin is not installed")
+        );
     }
 
     #[test]
     fn expired_sso_credentials_name_the_fix() {
-        assert!(hint("Error when retrieving token from sso: Token has expired and refresh failed")
-            .contains("aws sso login"));
+        assert!(
+            hint("Error when retrieving token from sso: Token has expired and refresh failed")
+                .contains("aws sso login")
+        );
     }
 
     #[test]
     fn absent_credentials_are_distinct_from_expired_ones() {
-        assert!(hint("Unable to locate credentials. You can configure credentials by running")
-            .contains("No AWS credentials"));
+        assert!(
+            hint("Unable to locate credentials. You can configure credentials by running")
+                .contains("No AWS credentials")
+        );
     }
 
     #[test]
     fn target_not_connected() {
-        assert!(
-            hint("An error occurred (TargetNotConnected) when calling the StartSession operation")
-                .contains("SSM Agent")
-        );
+        assert!(hint(
+            "An error occurred (TargetNotConnected) when calling the StartSession operation"
+        )
+        .contains("SSM Agent"));
     }
 
     #[test]
@@ -193,14 +199,18 @@ mod classify_failure_tests {
 
     #[test]
     fn local_port_conflict() {
-        assert!(hint("listen tcp 127.0.0.1:54321: bind: address already in use")
-            .contains("Retry the connection"));
+        assert!(
+            hint("listen tcp 127.0.0.1:54321: bind: address already in use")
+                .contains("Retry the connection")
+        );
     }
 
     #[test]
     fn wrong_region_or_bad_target() {
-        assert!(hint("An error occurred (InvalidInstanceId) when calling StartSession")
-            .contains("region"));
+        assert!(
+            hint("An error occurred (InvalidInstanceId) when calling StartSession")
+                .contains("region")
+        );
     }
 
     #[test]
@@ -224,7 +234,12 @@ mod resolved_document_tests {
 
     #[test]
     fn matches_what_the_arguments_actually_carry() {
-        for host in ["localhost", "127.0.0.1", "", "db.eu-west-1.rds.amazonaws.com"] {
+        for host in [
+            "localhost",
+            "127.0.0.1",
+            "",
+            "db.eu-west-1.rds.amazonaws.com",
+        ] {
             let args = build_start_session_args("i-0abc", None, None, host, 3306, 54321);
             assert_eq!(document_of(&args), resolved_document(host), "host={host}");
         }

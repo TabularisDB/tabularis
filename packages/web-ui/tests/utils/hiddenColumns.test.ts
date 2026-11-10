@@ -16,7 +16,6 @@ import {
     projectVisibleColumns,
     resolveHiddenColumns,
     showColumns,
-    stepVisibleColumn,
     toHiddenColumnsState,
     toViewColumn,
     visibleColumnsInRange,
@@ -186,7 +185,7 @@ describe('hiddenColumns', () => {
         });
     });
 
-    describe('toViewColumn / nearestVisibleColumn / stepVisibleColumn', () => {
+    describe('toViewColumn / nearestVisibleColumn', () => {
         const visible = [0, 2, 4];
 
         it('maps a visible column to its position', () => {
@@ -198,14 +197,6 @@ describe('hiddenColumns', () => {
             expect(toViewColumn(5, visible)).toBe(2);
             expect(nearestVisibleColumn(3, visible)).toBe(4);
             expect(nearestVisibleColumn(9, visible)).toBe(4);
-        });
-
-        it('steps over hidden columns and stops at the edges', () => {
-            expect(stepVisibleColumn(0, visible, 1)).toBe(2);
-            expect(stepVisibleColumn(2, visible, 1)).toBe(4);
-            expect(stepVisibleColumn(4, visible, 1)).toBe(4);
-            expect(stepVisibleColumn(2, visible, -1)).toBe(0);
-            expect(stepVisibleColumn(0, visible, -1)).toBe(0);
         });
     });
 

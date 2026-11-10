@@ -115,3 +115,23 @@ export {
     normalizeExplainTableColumnOrder,
     shiftExplainTableColumn,
 } from './tableColumns';
+
+export type {
+    ExplainNodeDetailEntry,
+    ExplainNodeDetailSection,
+    FormatExplainNodeDetailsOptions,
+} from './nodeDetails';
+export {getExplainNodeDetailSections, formatExplainNodeDetails} from './nodeDetails';
+export type {
+    ExplainSnapshotContext,
+    ExplainSnapshot,
+    NodeMetricDelta,
+    NodeComparison,
+    PlanComparisonResult,
+} from './planComparison';
+export {
+    checkEngineCompatibility,
+    calculateMetricDelta,
+    alignPlanNodes,
+    comparePlanSnapshots,
+} from './planComparison';

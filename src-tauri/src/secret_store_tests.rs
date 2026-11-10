@@ -14,7 +14,9 @@ fn round_trips_secrets_across_reopen_without_storing_plaintext() {
     let path = temp.path().join("secrets.enc.json");
     let store = Arc::new(FileSecretStore::open(path.clone(), PASSPHRASE).unwrap());
 
-    credential(&store, "conn-1:db").set_password("s3cret-value").unwrap();
+    credential(&store, "conn-1:db")
+        .set_password("s3cret-value")
+        .unwrap();
     assert_eq!(
         credential(&store, "conn-1:db").get_password().unwrap(),
         "s3cret-value"
@@ -31,12 +33,14 @@ fn round_trips_secrets_across_reopen_without_storing_plaintext() {
 #[test]
 fn reports_missing_entries_as_no_entry() {
     let temp = tempfile::tempdir().unwrap();
-    let store = Arc::new(
-        FileSecretStore::open(temp.path().join("secrets.enc.json"), PASSPHRASE).unwrap(),
-    );
+    let store =
+        Arc::new(FileSecretStore::open(temp.path().join("secrets.enc.json"), PASSPHRASE).unwrap());
     let missing = credential(&store, "missing");
 
-    assert!(matches!(missing.get_password(), Err(keyring::Error::NoEntry)));
+    assert!(matches!(
+        missing.get_password(),
+        Err(keyring::Error::NoEntry)
+    ));
     assert!(matches!(
         missing.delete_credential(),
         Err(keyring::Error::NoEntry)
@@ -44,15 +48,17 @@ fn reports_missing_entries_as_no_entry() {
 
     missing.set_password("value").unwrap();
     missing.delete_credential().unwrap();
-    assert!(matches!(missing.get_password(), Err(keyring::Error::NoEntry)));
+    assert!(matches!(
+        missing.get_password(),
+        Err(keyring::Error::NoEntry)
+    ));
 }
 
 #[test]
 fn keeps_targets_services_and_users_apart() {
     let temp = tempfile::tempdir().unwrap();
-    let store = Arc::new(
-        FileSecretStore::open(temp.path().join("secrets.enc.json"), PASSPHRASE).unwrap(),
-    );
+    let store =
+        Arc::new(FileSecretStore::open(temp.path().join("secrets.enc.json"), PASSPHRASE).unwrap());
     let builder = FileCredentialBuilder(store.clone());
     builder
         .build(None, "tabularis", "a")
@@ -67,7 +73,10 @@ fn keeps_targets_services_and_users_apart() {
 
     assert_eq!(credential(&store, "a").get_password().unwrap(), "one");
     assert!(matches!(
-        builder.build(None, "other-service", "a").unwrap().get_password(),
+        builder
+            .build(None, "other-service", "a")
+            .unwrap()
+            .get_password(),
         Err(keyring::Error::NoEntry)
     ));
 }

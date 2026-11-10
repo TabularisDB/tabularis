@@ -160,6 +160,7 @@ const SubmenuRow = ({
     const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const focusFirstOnOpen = useRef(false);
     const suppressFocusOpen = useRef(false);
+    const pointerFocus = useRef(false);
 
     const cancelClose = () => {
         if (closeTimer.current) {
@@ -170,7 +171,7 @@ const SubmenuRow = ({
     const scheduleClose = () => {
         cancelClose();
         closeTimer.current = setTimeout(() => {
-            if (!rootRef.current?.contains(document.activeElement)) {
+            if (pointerFocus.current || !rootRef.current?.contains(document.activeElement)) {
                 setOpen(false);
                 setOffsetY(0);
             }
@@ -185,6 +186,7 @@ const SubmenuRow = ({
         submenuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
     };
     const handleSubmenuKeyDown: React.KeyboardEventHandler<HTMLButtonElement> = (event) => {
+        pointerFocus.current = false;
         if (event.key === 'ArrowLeft' || event.key === 'Escape') {
             event.preventDefault();
             event.stopPropagation();
@@ -219,7 +221,10 @@ const SubmenuRow = ({
             }}
             onMouseLeave={scheduleClose}
             onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node)) closeSubmenu();
+                if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                    pointerFocus.current = false;
+                    closeSubmenu();
+                }
             }}
         >
             {/* A click also opens the flyout (focus and the arrow keys do too),
@@ -227,6 +232,9 @@ const SubmenuRow = ({
             <button
                 ref={triggerRef}
                 type="button"
+                onPointerDown={() => {
+                    pointerFocus.current = true;
+                }}
                 disabled={item.disabled}
                 aria-haspopup="menu"
                 aria-expanded={open}
@@ -243,6 +251,7 @@ const SubmenuRow = ({
                     setOpen(true);
                 }}
                 onKeyDown={(event) => {
+                    pointerFocus.current = false;
                     if (event.key === 'ArrowRight') {
                         event.preventDefault();
                         if (open) focusFirstItem();

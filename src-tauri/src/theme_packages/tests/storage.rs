@@ -112,10 +112,9 @@ fn install_and_update_are_namespaced_and_do_not_touch_preferences_or_personal_fi
     );
     install_validated_theme(&root, &other_key, &validated("1.0.0"), &|| Ok(())).unwrap();
     install_validated_theme(&root, &key, &validated("2.0.0"), &|| Ok(())).unwrap();
-    let manifest: serde_json::Value = serde_json::from_slice(
-        &fs::read(root.join("themes/fixture-theme/.tabularium")).unwrap(),
-    )
-    .unwrap();
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("themes/fixture-theme/.tabularium")).unwrap())
+            .unwrap();
     assert_eq!(manifest["version"], "2.0.0");
     // Different registries replace the same kind/name, not parallel copies.
     assert!(!root.join(&key).exists());

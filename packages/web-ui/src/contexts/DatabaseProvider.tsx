@@ -19,6 +19,7 @@ import type {PluginManifest} from '@/types/plugins';
 import {clearAutocompleteCache} from '@/utils/autocomplete';
 import {loadOptionalMetadata} from '@/utils/connectionMetadata';
 import {toErrorMessage} from '@/utils/errors';
+import {effectiveConnectionCapabilities} from '@/utils/connectionPolicy';
 import {useSettings} from '@/hooks/useSettings';
 import {useToast} from '@/hooks/useToast';
 import {findConnectionsForDrivers} from '@/utils/connectionManager';
@@ -148,7 +149,12 @@ export const DatabaseProvider = ({children}: {children: ReactNode}) => {
     const activeData = getActiveConnectionData();
 
     const activeDriver = activeData?.driver ?? null;
-    const activeCapabilities = activeData?.capabilities ?? null;
+    const activeReadOnly = connections.find((connection) => connection.id === activeConnectionId)
+        ?.params.read_only;
+    const activeCapabilities = useMemo(
+        () => effectiveConnectionCapabilities(activeData?.capabilities ?? null, activeReadOnly),
+        [activeData?.capabilities, activeReadOnly],
+    );
     const activeConnectionName = activeData?.connectionName ?? null;
     const activeDatabaseName = activeData?.databaseName ?? null;
     const tables = activeData?.tables ?? [];
@@ -894,6 +900,17 @@ export const DatabaseProvider = ({children}: {children: ReactNode}) => {
             }
         },
         [client, activeConnectionId, connectionDataMap, updateConnectionData, loadSchemaData],
+    );
+
+    const refreshSchemas = useCallback(
+        async (targetConnectionId?: string) => {
+            const connId = targetConnectionId ?? activeConnectionId;
+            if (!connId) return [];
+            const schemasResult = await client.call('get_schemas', {connectionId: connId});
+            updateConnectionData(connId, {schemas: schemasResult});
+            return schemasResult;
+        },
+        [client, activeConnectionId, updateConnectionData],
     );
 
     const loadNestedSchemaData = useCallback(
@@ -2081,11 +2098,24 @@ export const DatabaseProvider = ({children}: {children: ReactNode}) => {
         [client],
     );
 
+    const connectionDataWithPolicy = useMemo(() => {
+        const effective = {...connectionDataMap};
+        for (const connection of connections) {
+            const data = effective[connection.id];
+            if (data && connection.params.read_only) {
+                effective[connection.id] = {
+                    ...data,
+                    capabilities: effectiveConnectionCapabilities(data.capabilities, true),
+                };
+            }
+        }
+        return effective;
+    }, [connectionDataMap, connections]);
+
     const getConnectionData = useCallback(
-        (connectionId: string): ConnectionData | undefined => {
-            return connectionDataMap[connectionId];
-        },
-        [connectionDataMap],
+        (connectionId: string): ConnectionData | undefined =>
+            connectionDataWithPolicy[connectionId],
+        [connectionDataWithPolicy],
     );
 
     const isConnectionOpen = useCallback(
@@ -2403,7 +2433,7 @@ export const DatabaseProvider = ({children}: {children: ReactNode}) => {
             value={{
                 activeConnectionId,
                 openConnectionIds,
-                connectionDataMap,
+                connectionDataMap: connectionDataWithPolicy,
                 activeTable,
                 activeDriver,
                 activeCapabilities,
@@ -2444,6 +2474,7 @@ export const DatabaseProvider = ({children}: {children: ReactNode}) => {
                 loadSchemaData,
                 refreshSchemaData,
                 setSelectedSchemas,
+                refreshSchemas,
                 loadDatabaseData,
                 refreshDatabaseData,
                 setSelectedDatabases,
