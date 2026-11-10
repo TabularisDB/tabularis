@@ -1,4 +1,4 @@
-import {useState, useMemo, useRef} from 'react';
+import {useState, useMemo, useRef, useContext, useEffect} from 'react';
 import {useTranslation} from 'react-i18next';
 import {
     Search,
@@ -8,15 +8,21 @@ import {
     AlertTriangle,
     X,
     ChevronDown,
+    ChevronRight,
     Calendar,
     Pause,
     Download,
+    Activity,
+    TrendingUp,
+    TrendingDown,
+    Info,
 } from 'lucide-react';
 import {groupByDate, formatHistoryTime} from '@/utils/dateGroups';
 import {SqlHighlight} from '@/components/ui/SqlHighlight';
 import {formatSqlPreview} from '@/utils/sqlHighlight';
 import {useSettings} from '@/hooks/useSettings';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {TabularisClientContext} from '@/contexts/TabularisClientContext';
 import {downloadTextFile} from '@/utils/fileDownloads';
 import {formatQueryHistoryAsSql} from '@/utils/queryHistoryExport';
 import {toErrorMessage} from '@/utils/errors';
@@ -37,9 +43,24 @@ import {
     type QueryHistoryOutcomeFilter,
     type QueryHistoryTimeRange,
 } from '@/utils/queryHistoryFilter';
-import type {QueryHistoryEntry, QueryHistoryRecoveryNotice} from '@/types/queryHistory';
+import {
+    computeQueryHistoryInsights,
+    sortAndFilterInsightGroups,
+    windowHoursForPreset,
+    QUERY_HISTORY_INSIGHTS_WINDOW_OPTIONS,
+    QUERY_HISTORY_INSIGHTS_SORT_OPTIONS,
+    type QueryHistoryInsightsSortField,
+    type QueryHistoryInsightsWindowPreset,
+} from '@/utils/queryHistoryInsights';
+import type {
+    QueryHistoryEntry,
+    QueryHistoryInsightsResponse,
+    QueryHistoryRecoveryNotice,
+} from '@/types/queryHistory';
 
 interface QueryHistorySectionProps {
+    connectionId?: string | null;
+    dialect?: string | null;
     entries: QueryHistoryEntry[];
     isLoading: boolean;
     isPaused?: boolean;
@@ -50,6 +71,8 @@ interface QueryHistorySectionProps {
     onContextMenu: (e: React.MouseEvent, entry: QueryHistoryEntry) => void;
     onClearAll: () => void;
 }
+
+type QueryHistoryViewMode = 'list' | 'insights';
 
 const selectClassName =
     'w-full appearance-none bg-surface-secondary border border-default rounded px-1.5 pr-5 py-1 text-[11px] text-primary focus:outline-none focus:border-focus/50 cursor-pointer';
@@ -131,7 +154,22 @@ const TIME_RANGE_LABEL_KEYS: Record<QueryHistoryTimeRange, string> = {
     custom: 'sidebar.historyTimeCustom',
 };
 
+const INSIGHTS_WINDOW_LABEL_KEYS: Record<QueryHistoryInsightsWindowPreset, string> = {
+    last24Hours: 'sidebar.historyInsightsWindow24h',
+    last7Days: 'sidebar.historyInsightsWindow7d',
+    last30Days: 'sidebar.historyInsightsWindow30d',
+};
+
+const INSIGHTS_SORT_LABEL_KEYS: Record<QueryHistoryInsightsSortField, string> = {
+    regressionsFirst: 'sidebar.historyInsightsSortRegressions',
+    totalDuration: 'sidebar.historyInsightsSortTotalDuration',
+    avgDuration: 'sidebar.historyInsightsSortAvgDuration',
+    callCount: 'sidebar.historyInsightsSortCallCount',
+};
+
 export function QueryHistorySection({
+    connectionId,
+    dialect,
     entries,
     isLoading,
     isPaused = false,
@@ -145,12 +183,14 @@ export function QueryHistorySection({
     const {t} = useTranslation();
     const {settings} = useSettings();
     const platform = usePlatformCapabilities();
+    const client = useContext(TabularisClientContext);
     const pauseToggleRef = useRef<HTMLButtonElement>(null);
     const [isExporting, setIsExporting] = useState(false);
     const [exportError, setExportError] = useState<string | null>(null);
 
     // Session-only: search and the new filters reset when the section unmounts
     // (same as the existing search field; nothing is persisted).
+    const [viewMode, setViewMode] = useState<QueryHistoryViewMode>('list');
     const [search, setSearch] = useState('');
     const [outcome, setOutcome] = useState<QueryHistoryOutcomeFilter>('any');
     const [timeRange, setTimeRange] = useState<QueryHistoryTimeRange>('all');
@@ -159,6 +199,19 @@ export function QueryHistorySection({
     const [database, setDatabase] = useState<QueryHistoryDatabaseFilter>('all');
     const [minDurationMs, setMinDurationMs] = useState('');
     const [selectedId, setSelectedId] = useState<string | null>(null);
+
+    // Insights mode controls (session-only)
+    const [insightsWindow, setInsightsWindow] =
+        useState<QueryHistoryInsightsWindowPreset>('last7Days');
+    const [insightsSort, setInsightsSort] =
+        useState<QueryHistoryInsightsSortField>('regressionsFirst');
+    const [regressionsOnly, setRegressionsOnly] = useState(false);
+    const [expandedFingerprints, setExpandedFingerprints] = useState<Record<string, boolean>>({});
+    const [insightsResult, setInsightsResult] = useState<
+        | {key: string; data: QueryHistoryInsightsResponse; error?: never}
+        | {key: string; error: string; data?: never}
+        | null
+    >(null);
 
     // "custom" is a mode of the time-range select, not a second filter: the
     // From/To inputs only exist while it is selected.
@@ -214,6 +267,88 @@ export function QueryHistorySection({
         [filteredEntries, settings.displayTimezone],
     );
 
+    const currentInsightsKey = connectionId
+        ? `${connectionId}:${database}:${insightsWindow}:${dialect ?? ''}`
+        : '';
+
+    const backendInsights =
+        viewMode === 'insights' && insightsResult?.key === currentInsightsKey && insightsResult.data
+            ? insightsResult.data
+            : null;
+
+    const insightsError =
+        viewMode === 'insights' &&
+        insightsResult?.key === currentInsightsKey &&
+        insightsResult.error
+            ? insightsResult.error
+            : null;
+
+    const isLoadingBackendInsights =
+        viewMode === 'insights' &&
+        Boolean(client && connectionId) &&
+        insightsResult?.key !== currentInsightsKey;
+
+    // Fetch backend insights from the non-deduplicated execution log when a
+    // TabularisClient and connectionId are available; fall back to local
+    // computation over `entries` when standalone or while the call resolves.
+    // Strictly adheres to .rules/react.md rule 2 (zero synchronous setState inside effects).
+    useEffect(() => {
+        if (viewMode !== 'insights' || !client || !connectionId) {
+            return;
+        }
+        let cancelled = false;
+        const requestKey = `${connectionId}:${database}:${insightsWindow}:${dialect ?? ''}`;
+        void client
+            .call('get_query_history_insights', {
+                connectionId,
+                database,
+                windowHours: windowHoursForPreset(insightsWindow),
+                dialect: dialect ?? undefined,
+            })
+            .then((response) => {
+                if (!cancelled) {
+                    setInsightsResult({key: requestKey, data: response});
+                }
+            })
+            .catch((error) => {
+                if (!cancelled) {
+                    setInsightsResult({key: requestKey, error: toErrorMessage(error)});
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [viewMode, client, connectionId, database, insightsWindow, dialect, entries]);
+
+    const fallbackInsights = useMemo(
+        () =>
+            computeQueryHistoryInsights(entries, {
+                database,
+                windowHours: windowHoursForPreset(insightsWindow),
+                dialect,
+            }),
+        [entries, database, insightsWindow, dialect],
+    );
+
+    const insightsData = backendInsights ?? fallbackInsights;
+
+    const visibleInsightGroups = useMemo(
+        () =>
+            sortAndFilterInsightGroups(insightsData.groups, {
+                search,
+                regressionsOnly,
+                sortBy: insightsSort,
+            }),
+        [insightsData.groups, search, regressionsOnly, insightsSort],
+    );
+
+    const toggleFingerprintExpanded = (fingerprint: string) => {
+        setExpandedFingerprints((prev) => ({
+            ...prev,
+            [fingerprint]: !prev[fingerprint],
+        }));
+    };
+
     const exportHistory = async () => {
         if (isExporting || filteredEntries.length === 0) return;
         setIsExporting(true);
@@ -240,6 +375,17 @@ export function QueryHistorySection({
         if (ms === null) return '';
         if (ms < 1000) return `${Math.round(ms)}ms`;
         return `${(ms / 1000).toFixed(1)}s`;
+    };
+
+    const formatSignedDelta = (deltaMs: number | null, relative: number | null): string => {
+        if (deltaMs === null) return '';
+        const sign = deltaMs >= 0 ? '+' : '-';
+        const absStr = formatDuration(Math.abs(deltaMs));
+        if (relative === null || !Number.isFinite(relative)) {
+            return `${sign}${absStr}`;
+        }
+        const pct = Math.round(Math.abs(relative) * 100);
+        return `${sign}${absStr} (${sign}${pct}%)`;
     };
 
     // A toggle with a constant name: the pressed state, not the label, says
@@ -407,7 +553,36 @@ export function QueryHistorySection({
             )}
             {pausedBanner}
 
-            {/* Database filter (session-only, same as search) */}
+            {/* View mode toggle: Entries vs Insights */}
+            <div className="px-2 pb-1.5 flex items-center gap-1">
+                <button
+                    type="button"
+                    aria-pressed={viewMode === 'list'}
+                    onClick={() => setViewMode('list')}
+                    className={`flex-1 py-1 px-2 rounded text-[11px] font-medium border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                        viewMode === 'list'
+                            ? 'bg-surface-tertiary text-primary border-default'
+                            : 'bg-surface-secondary text-muted border-transparent hover:text-primary'
+                    }`}
+                >
+                    {t('sidebar.historyViewList')}
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={viewMode === 'insights'}
+                    onClick={() => setViewMode('insights')}
+                    className={`flex-1 py-1 px-2 rounded text-[11px] font-medium border flex items-center justify-center gap-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                        viewMode === 'insights'
+                            ? 'bg-surface-tertiary text-primary border-default'
+                            : 'bg-surface-secondary text-muted border-transparent hover:text-primary'
+                    }`}
+                >
+                    <Activity size={11} className="shrink-0" />
+                    <span>{t('sidebar.historyViewInsights')}</span>
+                </button>
+            </div>
+
+            {/* Database filter (session-only, shared across Entries and Insights) */}
             <div className="px-2 pb-1.5">
                 <div className="relative min-w-0">
                     <select
@@ -433,218 +608,562 @@ export function QueryHistorySection({
                 </div>
             </div>
 
-            {/* Outcome + time filters (session-only, same as search) */}
-            <div className="px-2 pb-1.5 flex items-center gap-1">
-                <div className="relative flex-1 min-w-0">
-                    <select
-                        value={outcome}
-                        onChange={(e) => setOutcome(e.target.value as QueryHistoryOutcomeFilter)}
-                        aria-label={t('sidebar.historyOutcomeFilter')}
-                        className={selectClassName}
-                    >
-                        {QUERY_HISTORY_OUTCOME_OPTIONS.map((value) => (
-                            <option key={value} value={value}>
-                                {t(OUTCOME_LABEL_KEYS[value])}
-                            </option>
-                        ))}
-                    </select>
-                    <ChevronDown
-                        size={10}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
-                    />
-                </div>
-                <div className="relative flex-1 min-w-0">
-                    <select
-                        value={timeRange}
-                        onChange={(e) => {
-                            const next = e.target.value as QueryHistoryTimeRange;
-                            setTimeRange(next);
-                            // Presets must not stack on top of dates the user can no
-                            // longer see: from/to only exist in the custom mode.
-                            if (next !== 'custom') {
-                                setFrom('');
-                                setTo('');
-                            }
-                        }}
-                        aria-label={t('sidebar.historyTimeRangeFilter')}
-                        className={selectClassName}
-                    >
-                        {QUERY_HISTORY_TIME_RANGE_OPTIONS.map((value) => (
-                            <option key={value} value={value}>
-                                {t(TIME_RANGE_LABEL_KEYS[value])}
-                            </option>
-                        ))}
-                    </select>
-                    <ChevronDown
-                        size={10}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
-                    />
-                </div>
-            </div>
+            {viewMode === 'insights' ? (
+                <div>
+                    {/* Insights comparison window + sort controls */}
+                    <div className="px-2 pb-1.5 flex items-center gap-1">
+                        <div className="relative flex-1 min-w-0">
+                            <select
+                                value={insightsWindow}
+                                onChange={(e) =>
+                                    setInsightsWindow(
+                                        e.target.value as QueryHistoryInsightsWindowPreset,
+                                    )
+                                }
+                                aria-label={t('sidebar.historyInsightsWindowFilter')}
+                                className={selectClassName}
+                            >
+                                {QUERY_HISTORY_INSIGHTS_WINDOW_OPTIONS.map((value) => (
+                                    <option key={value} value={value}>
+                                        {t(INSIGHTS_WINDOW_LABEL_KEYS[value])}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown
+                                size={10}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                            />
+                        </div>
+                        <div className="relative flex-1 min-w-0">
+                            <select
+                                value={insightsSort}
+                                onChange={(e) =>
+                                    setInsightsSort(e.target.value as QueryHistoryInsightsSortField)
+                                }
+                                aria-label={t('sidebar.historyInsightsSortFilter')}
+                                className={selectClassName}
+                            >
+                                {QUERY_HISTORY_INSIGHTS_SORT_OPTIONS.map((value) => (
+                                    <option key={value} value={value}>
+                                        {t(INSIGHTS_SORT_LABEL_KEYS[value])}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown
+                                size={10}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                            />
+                        </div>
+                    </div>
 
-            {/* Custom date range (session-only, same as the filters above): the
-                inputs only exist while the custom mode is selected. */}
-            {isCustomRange && (
-                <div className="px-2 pb-1.5 flex items-center gap-1">
-                    <HistoryDateField
-                        label={t('sidebar.historyDateFrom')}
-                        value={from}
-                        onChange={setFrom}
-                    />
-                    <HistoryDateField
-                        label={t('sidebar.historyDateTo')}
-                        value={to}
-                        onChange={setTo}
-                    />
-                </div>
-            )}
+                    {/* Regressions-only filter toggle */}
+                    <div className="px-2 pb-1.5 flex items-center justify-between gap-2">
+                        <button
+                            type="button"
+                            aria-pressed={regressionsOnly}
+                            onClick={() => setRegressionsOnly((prev) => !prev)}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                                regressionsOnly
+                                    ? 'bg-accent-error/15 text-accent-error border-accent-error/40'
+                                    : 'bg-surface-secondary text-muted border-default hover:text-primary'
+                            }`}
+                        >
+                            <TrendingUp size={10} className="shrink-0" />
+                            <span>{t('sidebar.historyInsightsRegressionsOnly')}</span>
+                        </button>
+                        <span className="text-[10px] text-muted tabular-nums">
+                            {visibleInsightGroups.length} / {insightsData.groups.length}
+                        </span>
+                    </div>
 
-            {/* Explain a custom range that cannot be applied instead of widening it */}
-            {isCustomRange && rangeError && (
-                <div role="alert" className="px-3 pb-1 text-[10px] text-accent-warning">
-                    {t(RANGE_ERROR_LABEL_KEYS[rangeError])}
-                </div>
-            )}
+                    {insightsError !== null && (
+                        <div
+                            role="alert"
+                            className="mx-2 mb-2 p-2 rounded bg-accent-warning/10 border border-accent-warning/40 text-[10px] text-accent-warning leading-snug"
+                        >
+                            {t('sidebar.historyInsightsBackendError', {error: insightsError})}
+                        </div>
+                    )}
 
-            {/* Minimum recorded duration (session-only, same as the filters above) */}
-            <div className="px-2 pb-1.5">
-                {/* The label wraps the input, so a click anywhere in the box reaches it. */}
-                <label className={durationFieldClassName}>
-                    <span className="text-[11px] text-muted shrink-0">
-                        {t('sidebar.historyMinDuration')}
-                    </span>
-                    <input
-                        type="text"
-                        inputMode="decimal"
-                        autoCorrect="off"
-                        autoCapitalize="off"
-                        autoComplete="off"
-                        spellCheck={false}
-                        value={minDurationMs}
-                        onChange={(e) => setMinDurationMs(e.target.value)}
-                        placeholder="0"
-                        aria-label={t('sidebar.historyMinDurationFilter')}
-                        aria-invalid={minDurationError !== null}
-                        className={durationInputClassName}
-                    />
-                    <span className="text-[11px] text-muted shrink-0">
-                        {t('sidebar.historyMinDurationUnit')}
-                    </span>
-                </label>
-            </div>
+                    {isLoadingBackendInsights && (
+                        <div
+                            role="status"
+                            className="mx-2 mb-2 p-2 rounded bg-surface-secondary border border-default text-[10px] text-muted flex items-center gap-1.5"
+                        >
+                            <Loader2 size={11} className="animate-spin text-accent shrink-0" />
+                            <span>{t('common.loading', 'Loading...')}</span>
+                        </div>
+                    )}
 
-            {/* Explain a threshold that cannot be applied instead of ignoring it */}
-            {minDurationError && (
-                <div role="alert" className="px-3 pb-1 text-[10px] text-accent-warning">
-                    {t(MIN_DURATION_ERROR_LABEL_KEYS[minDurationError])}
-                </div>
-            )}
+                    {/* Coverage & client-observed timing disclosure */}
+                    <div className="mx-2 mb-2 p-2 rounded bg-surface-secondary border border-default text-[10px] text-muted leading-snug space-y-1">
+                        <div className="flex items-start gap-1.5">
+                            <Info size={11} className="shrink-0 mt-0.5 text-muted" />
+                            <span>
+                                {t('sidebar.historyInsightsClientObservedNote', {
+                                    executions: insightsData.coverage.currentWindowExecutions,
+                                    stored: insightsData.coverage.totalStoredExecutions,
+                                    maxStored: insightsData.coverage.maxStoredExecutions,
+                                })}
+                            </span>
+                        </div>
+                        {insightsData.coverage.currentWindowMissingDurationCount > 0 && (
+                            <div className="text-accent-warning">
+                                {t('sidebar.historyInsightsMissingDurationsNote', {
+                                    count: insightsData.coverage.currentWindowMissingDurationCount,
+                                })}
+                            </div>
+                        )}
+                        {(insightsData.coverage.retentionCapReached ||
+                            !insightsData.coverage.priorWindowFullyCovered) && (
+                            <div className="text-accent-warning">
+                                {t('sidebar.historyInsightsRetentionCapWarning', {
+                                    maxStored: insightsData.coverage.maxStoredExecutions,
+                                })}
+                            </div>
+                        )}
+                    </div>
 
-            {/* Filtered / total counter whenever any filter is active */}
-            {filterActive && (
-                <div className="px-3 pb-1 flex items-center justify-between gap-2 text-[10px] text-muted">
-                    <span>
-                        {filteredEntries.length} / {entries.length}
-                    </span>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setSearch('');
-                            setOutcome('any');
-                            setTimeRange('all');
-                            setDatabase('all');
-                            setFrom('');
-                            setTo('');
-                            setMinDurationMs('');
-                        }}
-                        className="shrink-0 underline hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
-                    >
-                        {t('sidebar.historyClearFilters')}
-                    </button>
-                </div>
-            )}
+                    {/* Aggregated query shapes */}
+                    {visibleInsightGroups.length === 0 ? (
+                        <div className="text-center p-3 text-xs text-muted italic">
+                            {t(
+                                regressionsOnly
+                                    ? 'sidebar.historyInsightsNoRegressions'
+                                    : 'sidebar.historyInsightsEmptyWindow',
+                            )}
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-default/40">
+                            {visibleInsightGroups.map((group) => {
+                                const isExpanded = Boolean(expandedFingerprints[group.fingerprint]);
+                                const deltaLabel = formatSignedDelta(
+                                    group.deltaAvgMs,
+                                    group.relativeDeltaAvg,
+                                );
 
-            {/* Grouped entries */}
-            {groupedEntries.length === 0 ? (
-                <div className="text-center p-2 text-xs text-muted italic">
-                    {t('sidebar.noHistorySearchResults')}
+                                return (
+                                    <div key={group.fingerprint} className="px-2.5 py-2">
+                                        <div className="flex items-center justify-between gap-1.5 mb-1">
+                                            <span className="px-1.5 py-0.5 rounded bg-surface-secondary border border-default text-[9px] font-mono font-semibold text-secondary uppercase shrink-0">
+                                                {group.statementKind}
+                                            </span>
+                                            {group.regressionStatus === 'regressed' && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-error/15 text-accent-error text-[10px] font-medium tabular-nums">
+                                                    <TrendingUp size={10} className="shrink-0" />
+                                                    <span>
+                                                        {t(
+                                                            'sidebar.historyInsightsStatusRegressed',
+                                                        )}{' '}
+                                                        {deltaLabel}
+                                                    </span>
+                                                </span>
+                                            )}
+                                            {group.regressionStatus === 'improved' && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-success/15 text-accent-success text-[10px] font-medium tabular-nums">
+                                                    <TrendingDown size={10} className="shrink-0" />
+                                                    <span>
+                                                        {t('sidebar.historyInsightsStatusImproved')}{' '}
+                                                        {deltaLabel}
+                                                    </span>
+                                                </span>
+                                            )}
+                                            {group.regressionStatus === 'stable' && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-secondary text-muted text-[10px] tabular-nums">
+                                                    <span>
+                                                        {t('sidebar.historyInsightsStatusStable')}{' '}
+                                                        {deltaLabel}
+                                                    </span>
+                                                </span>
+                                            )}
+                                            {group.regressionStatus === 'insufficientSamples' && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-secondary text-muted text-[10px] tabular-nums">
+                                                    <span>
+                                                        {t(
+                                                            'sidebar.historyInsightsStatusInsufficient',
+                                                            {
+                                                                current: group.timedSampleCount,
+                                                                prior: group.priorTimedSampleCount,
+                                                                min: insightsData.policy
+                                                                    .minRegressionSamples,
+                                                            },
+                                                        )}
+                                                    </span>
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <pre
+                                            className="text-[11px] leading-[1.4] font-mono whitespace-pre-wrap break-all text-primary mb-1.5 overflow-hidden"
+                                            style={{
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 3,
+                                                WebkitBoxOrient: 'vertical',
+                                            }}
+                                            title={group.fingerprint}
+                                        >
+                                            {group.fingerprint}
+                                        </pre>
+
+                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted tabular-nums mb-1">
+                                            <span>
+                                                {t('sidebar.historyInsightsCalls', {
+                                                    count: group.callCount,
+                                                })}
+                                            </span>
+                                            <span>·</span>
+                                            <span>
+                                                {group.avgDurationMs !== null
+                                                    ? t('sidebar.historyInsightsAvg', {
+                                                          value: formatDuration(
+                                                              group.avgDurationMs,
+                                                          ),
+                                                      })
+                                                    : t('sidebar.historyInsightsNoTimedSamples')}
+                                            </span>
+                                            <span>·</span>
+                                            <span>
+                                                {t('sidebar.historyInsightsTotal', {
+                                                    value: formatDuration(group.totalDurationMs),
+                                                })}
+                                            </span>
+                                            {group.failureCount > 0 && (
+                                                <>
+                                                    <span>·</span>
+                                                    <span className="text-accent-error">
+                                                        {t('sidebar.historyInsightsFailureRate', {
+                                                            rate: Math.round(
+                                                                group.failureRate * 100,
+                                                            ),
+                                                        })}
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center justify-between gap-2 text-[10px] text-muted tabular-nums">
+                                            <span>
+                                                {group.priorAvgDurationMs !== null
+                                                    ? t('sidebar.historyInsightsPriorAvg', {
+                                                          value: formatDuration(
+                                                              group.priorAvgDurationMs,
+                                                          ),
+                                                          count: group.priorTimedSampleCount,
+                                                      })
+                                                    : t('sidebar.historyInsightsPriorNoSamples')}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                aria-expanded={isExpanded}
+                                                onClick={() =>
+                                                    toggleFingerprintExpanded(group.fingerprint)
+                                                }
+                                                className="inline-flex items-center gap-0.5 text-secondary hover:text-primary underline focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                                            >
+                                                {isExpanded ? (
+                                                    <ChevronDown size={11} />
+                                                ) : (
+                                                    <ChevronRight size={11} />
+                                                )}
+                                                <span>
+                                                    {t(
+                                                        'sidebar.historyInsightsContributingExecutions',
+                                                        {
+                                                            count: (
+                                                                group.contributingExecutions ?? []
+                                                            ).length,
+                                                        },
+                                                    )}
+                                                </span>
+                                            </button>
+                                        </div>
+
+                                        {isExpanded &&
+                                            (group.contributingExecutions ?? []).length > 0 && (
+                                                <div className="mt-1.5 pl-2 border-l border-default space-y-1">
+                                                    {group.contributingExecutions.map(
+                                                        (execEntry) => (
+                                                            <button
+                                                                type="button"
+                                                                key={execEntry.id}
+                                                                aria-pressed={
+                                                                    selectedId === execEntry.id
+                                                                }
+                                                                onClick={() =>
+                                                                    setSelectedId(execEntry.id)
+                                                                }
+                                                                onDoubleClick={() =>
+                                                                    onDoubleClick(execEntry)
+                                                                }
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.preventDefault();
+                                                                        setSelectedId(execEntry.id);
+                                                                        onDoubleClick(execEntry);
+                                                                    }
+                                                                }}
+                                                                onContextMenu={(e) =>
+                                                                    onContextMenu(e, execEntry)
+                                                                }
+                                                                className={`block w-full text-left p-1.5 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                                                                    selectedId === execEntry.id
+                                                                        ? 'bg-surface-secondary'
+                                                                        : 'bg-surface-secondary/70 hover:bg-surface-secondary'
+                                                                }`}
+                                                                title={execEntry.sql}
+                                                            >
+                                                                <div className="flex items-center justify-between gap-2 text-[10px] text-muted tabular-nums mb-0.5">
+                                                                    <span>
+                                                                        {formatHistoryTime(
+                                                                            execEntry.executedAt,
+                                                                            settings.displayTimezone,
+                                                                        )}
+                                                                    </span>
+                                                                    <span>
+                                                                        {execEntry.executionTimeMs !==
+                                                                        null
+                                                                            ? formatDuration(
+                                                                                  execEntry.executionTimeMs,
+                                                                              )
+                                                                            : '—'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="font-mono text-[10px] text-primary truncate">
+                                                                    {formatSqlPreview(
+                                                                        execEntry.sql,
+                                                                    )}
+                                                                </div>
+                                                            </button>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             ) : (
-                groupedEntries.map(([groupKey, items]) => (
-                    <div key={groupKey}>
-                        <div className="px-3 py-1 text-[10px] font-semibold uppercase text-muted tracking-wider">
-                            {t(`sidebar.${groupKey}`)}
+                <>
+                    {/* Outcome + time filters (session-only, same as search) */}
+                    <div className="px-2 pb-1.5 flex items-center gap-1">
+                        <div className="relative flex-1 min-w-0">
+                            <select
+                                value={outcome}
+                                onChange={(e) =>
+                                    setOutcome(e.target.value as QueryHistoryOutcomeFilter)
+                                }
+                                aria-label={t('sidebar.historyOutcomeFilter')}
+                                className={selectClassName}
+                            >
+                                {QUERY_HISTORY_OUTCOME_OPTIONS.map((value) => (
+                                    <option key={value} value={value}>
+                                        {t(OUTCOME_LABEL_KEYS[value])}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown
+                                size={10}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                            />
                         </div>
-                        {items.map((entry) => (
-                            <button
-                                type="button"
-                                key={entry.id}
-                                aria-pressed={selectedId === entry.id}
-                                onClick={() => setSelectedId(entry.id)}
-                                onDoubleClick={() => onDoubleClick(entry)}
-                                onKeyDown={(e) => {
-                                    // Enter opens the entry like a double click; Space keeps selecting it.
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        setSelectedId(entry.id);
-                                        onDoubleClick(entry);
+                        <div className="relative flex-1 min-w-0">
+                            <select
+                                value={timeRange}
+                                onChange={(e) => {
+                                    const next = e.target.value as QueryHistoryTimeRange;
+                                    setTimeRange(next);
+                                    // Presets must not stack on top of dates the user can no
+                                    // longer see: from/to only exist in the custom mode.
+                                    if (next !== 'custom') {
+                                        setFrom('');
+                                        setTo('');
                                     }
                                 }}
-                                onContextMenu={(e) => onContextMenu(e, entry)}
-                                className={`block w-full text-left pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
-                                    selectedId === entry.id
-                                        ? entry.status === 'error'
-                                            ? 'bg-accent-error/15'
-                                            : 'bg-surface-secondary'
-                                        : entry.status === 'error'
-                                          ? 'hover:bg-accent-error/10'
-                                          : 'hover:bg-surface-secondary'
-                                }`}
-                                title={
-                                    entry.database ? `[${entry.database}] ${entry.sql}` : entry.sql
-                                }
+                                aria-label={t('sidebar.historyTimeRangeFilter')}
+                                className={selectClassName}
                             >
-                                <div className="flex items-center justify-between gap-2 mb-0.5">
-                                    <div className="flex items-center gap-1 text-[10px] text-muted min-w-0">
-                                        <span>
-                                            {formatHistoryTime(
-                                                entry.executedAt,
-                                                settings.displayTimezone,
-                                            )}
-                                        </span>
-                                        {entry.executionTimeMs !== null && (
-                                            <span className="text-muted/60">
-                                                {formatDuration(entry.executionTimeMs)}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {entry.database && (
-                                        <div className="flex items-center gap-0.5 text-[10px] text-muted shrink-0">
-                                            <Database size={9} className="shrink-0" />
-                                            <span className="truncate max-w-[80px]">
-                                                {entry.database}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                                {entry.status === 'error' ? (
-                                    <pre
-                                        className="text-[11px] leading-[1.4] font-mono whitespace-pre-wrap break-all text-accent-error/70 overflow-hidden"
-                                        style={{
-                                            display: '-webkit-box',
-                                            WebkitLineClamp: 3,
-                                            WebkitBoxOrient: 'vertical',
-                                        }}
-                                    >
-                                        {formatSqlPreview(entry.sql)}
-                                    </pre>
-                                ) : (
-                                    <SqlHighlight sql={entry.sql} />
-                                )}
-                            </button>
-                        ))}
+                                {QUERY_HISTORY_TIME_RANGE_OPTIONS.map((value) => (
+                                    <option key={value} value={value}>
+                                        {t(TIME_RANGE_LABEL_KEYS[value])}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown
+                                size={10}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                            />
+                        </div>
                     </div>
-                ))
+
+                    {/* Custom date range (session-only, same as the filters above): the
+                        inputs only exist while the custom mode is selected. */}
+                    {isCustomRange && (
+                        <div className="px-2 pb-1.5 flex items-center gap-1">
+                            <HistoryDateField
+                                label={t('sidebar.historyDateFrom')}
+                                value={from}
+                                onChange={setFrom}
+                            />
+                            <HistoryDateField
+                                label={t('sidebar.historyDateTo')}
+                                value={to}
+                                onChange={setTo}
+                            />
+                        </div>
+                    )}
+
+                    {/* Explain a custom range that cannot be applied instead of widening it */}
+                    {isCustomRange && rangeError && (
+                        <div role="alert" className="px-3 pb-1 text-[10px] text-accent-warning">
+                            {t(RANGE_ERROR_LABEL_KEYS[rangeError])}
+                        </div>
+                    )}
+
+                    {/* Minimum recorded duration (session-only, same as the filters above) */}
+                    <div className="px-2 pb-1.5">
+                        {/* The label wraps the input, so a click anywhere in the box reaches it. */}
+                        <label className={durationFieldClassName}>
+                            <span className="text-[11px] text-muted shrink-0">
+                                {t('sidebar.historyMinDuration')}
+                            </span>
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                autoComplete="off"
+                                spellCheck={false}
+                                value={minDurationMs}
+                                onChange={(e) => setMinDurationMs(e.target.value)}
+                                placeholder="0"
+                                aria-label={t('sidebar.historyMinDurationFilter')}
+                                aria-invalid={minDurationError !== null}
+                                className={durationInputClassName}
+                            />
+                            <span className="text-[11px] text-muted shrink-0">
+                                {t('sidebar.historyMinDurationUnit')}
+                            </span>
+                        </label>
+                    </div>
+
+                    {/* Explain a threshold that cannot be applied instead of ignoring it */}
+                    {minDurationError && (
+                        <div role="alert" className="px-3 pb-1 text-[10px] text-accent-warning">
+                            {t(MIN_DURATION_ERROR_LABEL_KEYS[minDurationError])}
+                        </div>
+                    )}
+
+                    {/* Filtered / total counter whenever any filter is active */}
+                    {filterActive && (
+                        <div className="px-3 pb-1 flex items-center justify-between gap-2 text-[10px] text-muted">
+                            <span>
+                                {filteredEntries.length} / {entries.length}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSearch('');
+                                    setOutcome('any');
+                                    setTimeRange('all');
+                                    setDatabase('all');
+                                    setFrom('');
+                                    setTo('');
+                                    setMinDurationMs('');
+                                }}
+                                className="shrink-0 underline hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                            >
+                                {t('sidebar.historyClearFilters')}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Grouped entries */}
+                    {groupedEntries.length === 0 ? (
+                        <div className="text-center p-2 text-xs text-muted italic">
+                            {t('sidebar.noHistorySearchResults')}
+                        </div>
+                    ) : (
+                        groupedEntries.map(([groupKey, items]) => (
+                            <div key={groupKey}>
+                                <div className="px-3 py-1 text-[10px] font-semibold uppercase text-muted tracking-wider">
+                                    {t(`sidebar.${groupKey}`)}
+                                </div>
+                                {items.map((entry) => (
+                                    <button
+                                        type="button"
+                                        key={entry.id}
+                                        aria-pressed={selectedId === entry.id}
+                                        onClick={() => setSelectedId(entry.id)}
+                                        onDoubleClick={() => onDoubleClick(entry)}
+                                        onKeyDown={(e) => {
+                                            // Enter opens the entry like a double click; Space keeps selecting it.
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                setSelectedId(entry.id);
+                                                onDoubleClick(entry);
+                                            }
+                                        }}
+                                        onContextMenu={(e) => onContextMenu(e, entry)}
+                                        className={`block w-full text-left pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                                            selectedId === entry.id
+                                                ? entry.status === 'error'
+                                                    ? 'bg-accent-error/15'
+                                                    : 'bg-surface-secondary'
+                                                : entry.status === 'error'
+                                                  ? 'hover:bg-accent-error/10'
+                                                  : 'hover:bg-surface-secondary'
+                                        }`}
+                                        title={
+                                            entry.database
+                                                ? `[${entry.database}] ${entry.sql}`
+                                                : entry.sql
+                                        }
+                                    >
+                                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                                            <div className="flex items-center gap-1 text-[10px] text-muted min-w-0">
+                                                <span>
+                                                    {formatHistoryTime(
+                                                        entry.executedAt,
+                                                        settings.displayTimezone,
+                                                    )}
+                                                </span>
+                                                {entry.executionTimeMs !== null && (
+                                                    <span className="text-muted/60">
+                                                        {formatDuration(entry.executionTimeMs)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {entry.database && (
+                                                <div className="flex items-center gap-0.5 text-[10px] text-muted shrink-0">
+                                                    <Database size={9} className="shrink-0" />
+                                                    <span className="truncate max-w-[80px]">
+                                                        {entry.database}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {entry.status === 'error' ? (
+                                            <pre
+                                                className="text-[11px] leading-[1.4] font-mono whitespace-pre-wrap break-all text-accent-error/70 overflow-hidden"
+                                                style={{
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 3,
+                                                    WebkitBoxOrient: 'vertical',
+                                                }}
+                                            >
+                                                {formatSqlPreview(entry.sql)}
+                                            </pre>
+                                        ) : (
+                                            <SqlHighlight sql={entry.sql} />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        ))
+                    )}
+                </>
             )}
         </div>
     );

@@ -1943,6 +1943,22 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .await["entries"][0]["id"],
         history_entry["id"]
     );
+    let insights = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_query_history_insights",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "now": "2026-08-22T01:00:00Z"
+        }),
+    )
+    .await;
+    assert_eq!(
+        insights["groups"][0]["fingerprint"],
+        "SELECT name FROM users"
+    );
     rpc_data(
         &client,
         &base_url,

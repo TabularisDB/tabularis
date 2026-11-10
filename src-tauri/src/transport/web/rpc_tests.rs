@@ -1075,6 +1075,7 @@ fn registers_saved_query_and_history_commands_with_database_authorization() {
         "add_query_history_entry",
         "delete_query_history_entry",
         "clear_query_history",
+        "get_query_history_insights",
     ] {
         let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
         assert_eq!(

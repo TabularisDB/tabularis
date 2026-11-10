@@ -497,6 +497,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             query_history::add_query_history_entry,
             query_history::delete_query_history_entry,
             query_history::clear_query_history,
+            query_history::get_query_history_insights,
             // Config
             config::get_schema_preference,
             config::set_schema_preference,

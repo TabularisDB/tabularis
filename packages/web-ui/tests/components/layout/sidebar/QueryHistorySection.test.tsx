@@ -2,6 +2,8 @@ import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {useState, type ComponentProps} from 'react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {QueryHistorySection} from '@/components/layout/sidebar/QueryHistorySection';
+import {TabularisClientContext} from '@/contexts/TabularisClientContext';
+import type {TabularisClient} from '@/api/client';
 import type {QueryHistoryEntry} from '@/types/queryHistory';
 
 const {downloadFile} = vi.hoisted(() => ({downloadFile: vi.fn()}));
@@ -512,5 +514,539 @@ describe('QueryHistorySection minimum duration filter (#1397)', () => {
         const field = minDurationInput().closest('label');
         expect(field).toHaveTextContent('sidebar.historyMinDuration');
         expect(field).toHaveTextContent('sidebar.historyMinDurationUnit');
+    });
+});
+
+describe('QueryHistorySection insights view (#1413)', () => {
+    it('aggregates query shapes, highlights regressions, discloses coverage/missing durations, and drills into contributing executions', () => {
+        const nowMs = Date.now();
+        const hoursAgoIso = (h: number) => new Date(nowMs - h * 3600 * 1000).toISOString();
+        const onDoubleClick = vi.fn();
+
+        const insightEntries: QueryHistoryEntry[] = [
+            // Current 7d window: 3 timed samples (avg 120ms) + 1 untimed execution
+            {
+                id: 'cur-1',
+                sql: "SELECT * FROM orders WHERE status = 'open' AND customer_id = 10",
+                executedAt: hoursAgoIso(1),
+                executionTimeMs: 110,
+                status: 'success',
+                rowsAffected: 5,
+                error: null,
+                database: 'sales',
+            },
+            {
+                id: 'cur-2',
+                sql: "SELECT * FROM orders WHERE status = 'paid' AND customer_id = 11",
+                executedAt: hoursAgoIso(2),
+                executionTimeMs: 120,
+                status: 'success',
+                rowsAffected: 2,
+                error: null,
+                database: 'sales',
+            },
+            {
+                id: 'cur-3',
+                sql: "SELECT * FROM orders WHERE status = 'shipped' AND customer_id = 12",
+                executedAt: hoursAgoIso(3),
+                executionTimeMs: 130,
+                status: 'success',
+                rowsAffected: 1,
+                error: null,
+                database: 'sales',
+            },
+            {
+                id: 'cur-untimed',
+                sql: "SELECT * FROM orders WHERE status = 'failed' AND customer_id = 13",
+                executedAt: hoursAgoIso(4),
+                executionTimeMs: null,
+                status: 'error',
+                rowsAffected: null,
+                error: 'cancelled',
+                database: 'sales',
+            },
+            // Prior 7d window (8..10 days ago): 3 timed samples (avg 30ms)
+            {
+                id: 'pri-1',
+                sql: "SELECT * FROM orders WHERE status = 'open' AND customer_id = 1",
+                executedAt: hoursAgoIso(24 * 8),
+                executionTimeMs: 25,
+                status: 'success',
+                rowsAffected: 1,
+                error: null,
+                database: 'sales',
+            },
+            {
+                id: 'pri-2',
+                sql: "SELECT * FROM orders WHERE status = 'open' AND customer_id = 2",
+                executedAt: hoursAgoIso(24 * 9),
+                executionTimeMs: 30,
+                status: 'success',
+                rowsAffected: 1,
+                error: null,
+                database: 'sales',
+            },
+            {
+                id: 'pri-3',
+                sql: "SELECT * FROM orders WHERE status = 'open' AND customer_id = 3",
+                executedAt: hoursAgoIso(24 * 10),
+                executionTimeMs: 35,
+                status: 'success',
+                rowsAffected: 1,
+                error: null,
+                database: 'sales',
+            },
+            // Second shape: insufficient samples (only 1 sample in current window)
+            {
+                id: 'single-1',
+                sql: 'SELECT id FROM customers WHERE active = 1',
+                executedAt: hoursAgoIso(5),
+                executionTimeMs: 15,
+                status: 'success',
+                rowsAffected: 1,
+                error: null,
+                database: 'sales',
+            },
+        ];
+
+        render(
+            <QueryHistorySection
+                entries={insightEntries}
+                isLoading={false}
+                recoveryNotice={null}
+                onDismissRecoveryNotice={vi.fn()}
+                onDoubleClick={onDoubleClick}
+                onContextMenu={vi.fn()}
+                onClearAll={vi.fn()}
+            />,
+        );
+
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyViewInsights'}));
+
+        // Client-observed timing disclosure & missing-duration disclosure
+        expect(screen.getByText('sidebar.historyInsightsClientObservedNote')).toBeInTheDocument();
+        expect(screen.getByText('sidebar.historyInsightsMissingDurationsNote')).toBeInTheDocument();
+
+        // Both normalized shapes are shown initially
+        expect(
+            screen.getByText("SELECT * FROM orders WHERE status = '?' AND customer_id = ?"),
+        ).toBeInTheDocument();
+        expect(screen.getByText('SELECT id FROM customers WHERE active = ?')).toBeInTheDocument();
+
+        // Filter to regressions only -> hides the 1-sample query shape
+        const regressionsToggle = screen.getByRole('button', {
+            name: 'sidebar.historyInsightsRegressionsOnly',
+        });
+        fireEvent.click(regressionsToggle);
+        expect(regressionsToggle).toHaveAttribute('aria-pressed', 'true');
+        expect(
+            screen.queryByText('SELECT id FROM customers WHERE active = ?'),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.getByText("SELECT * FROM orders WHERE status = '?' AND customer_id = ?"),
+        ).toBeInTheDocument();
+
+        // Expand contributing executions and load one into the editor
+        const drilldownBtn = screen.getByRole('button', {
+            name: 'sidebar.historyInsightsContributingExecutions',
+        });
+        expect(drilldownBtn).toHaveAttribute('aria-expanded', 'false');
+        fireEvent.click(drilldownBtn);
+        expect(drilldownBtn).toHaveAttribute('aria-expanded', 'true');
+
+        const firstExecutionButton = screen.getByTitle(
+            "SELECT * FROM orders WHERE status = 'open' AND customer_id = 10",
+        );
+        fireEvent.doubleClick(firstExecutionButton);
+        expect(onDoubleClick).toHaveBeenCalledWith(insightEntries[0]);
+    });
+
+    it('fetches backend insights via get_query_history_insights when TabularisClient and connectionId are present', async () => {
+        const call = vi.fn().mockResolvedValue({
+            groups: [],
+            coverage: {
+                currentWindowStart: '2026-10-31T00:00:00Z',
+                currentWindowEnd: '2026-11-07T00:00:00Z',
+                priorWindowStart: '2026-10-24T00:00:00Z',
+                priorWindowEnd: '2026-10-31T00:00:00Z',
+                totalStoredExecutions: 500,
+                maxStoredExecutions: 500,
+                retentionCapReached: true,
+                oldestRecordedAt: '2026-10-29T00:00:00Z',
+                priorWindowFullyCovered: false,
+                currentWindowExecutions: 12,
+                currentWindowMissingDurationCount: 0,
+                priorWindowExecutions: 4,
+                priorWindowMissingDurationCount: 0,
+            },
+            policy: {
+                minRegressionSamples: 3,
+                minRegressionDeltaMs: 10,
+                minRegressionRatio: 0.25,
+                timingSource: 'client-observed',
+            },
+        });
+        const mockClient = {call} as unknown as TabularisClient;
+
+        render(
+            <TabularisClientContext.Provider value={mockClient}>
+                <QueryHistorySection
+                    connectionId="conn-postgres-1"
+                    dialect="postgres"
+                    entries={[entry]}
+                    isLoading={false}
+                    recoveryNotice={null}
+                    onDismissRecoveryNotice={vi.fn()}
+                    onDoubleClick={vi.fn()}
+                    onContextMenu={vi.fn()}
+                    onClearAll={vi.fn()}
+                />
+            </TabularisClientContext.Provider>,
+        );
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyViewInsights'}));
+        });
+
+        expect(call).toHaveBeenCalledWith('get_query_history_insights', {
+            connectionId: 'conn-postgres-1',
+            database: 'all',
+            windowHours: 168,
+            dialect: 'postgres',
+        });
+        expect(screen.getByText('sidebar.historyInsightsRetentionCapWarning')).toBeInTheDocument();
+    });
+
+    it('shows a warning alert when backend insights call fails and gracefully uses local preview', async () => {
+        const call = vi.fn().mockRejectedValue(new Error('RPC network timeout'));
+        const mockClient = {call} as unknown as TabularisClient;
+        const recentEntry = {
+            ...entry,
+            executedAt: new Date().toISOString(),
+        };
+
+        render(
+            <TabularisClientContext.Provider value={mockClient}>
+                <QueryHistorySection
+                    connectionId="conn-postgres-1"
+                    dialect="postgres"
+                    entries={[recentEntry]}
+                    isLoading={false}
+                    recoveryNotice={null}
+                    onDismissRecoveryNotice={vi.fn()}
+                    onDoubleClick={vi.fn()}
+                    onContextMenu={vi.fn()}
+                    onClearAll={vi.fn()}
+                />
+            </TabularisClientContext.Provider>,
+        );
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyViewInsights'}));
+        });
+
+        expect(screen.getByText('sidebar.historyInsightsBackendError')).toBeInTheDocument();
+        expect(screen.getByText('SELECT ?')).toBeInTheDocument();
+    });
+
+    it('does not retain connection A insights when switching to connection B with pending response', async () => {
+        let resolveB: (val: any) => void = () => {};
+        const pendingPromiseB = new Promise((resolve) => {
+            resolveB = resolve;
+        });
+
+        const entryA: QueryHistoryEntry = {
+            id: 'entry-a',
+            sql: 'SELECT 1 FROM conn_a_table',
+            executedAt: new Date().toISOString(),
+            status: 'success',
+            durationMs: 10,
+        };
+        const entryB: QueryHistoryEntry = {
+            id: 'entry-b',
+            sql: 'SELECT 1 FROM conn_b_table',
+            executedAt: new Date().toISOString(),
+            status: 'success',
+            durationMs: 15,
+        };
+
+        const call = vi.fn().mockImplementation((method: string, args: any) => {
+            if (args.connectionId === 'conn-A') {
+                return Promise.resolve({
+                    groups: [
+                        {
+                            fingerprint: 'fp-unique-conn-A',
+                            statementKind: 'SELECT',
+                            sampleQuery: 'SELECT * FROM unique_conn_a_table',
+                            callCount: 10,
+                            totalDurationMs: 1000,
+                            avgDurationMs: 100,
+                            minDurationMs: 50,
+                            maxDurationMs: 200,
+                            failureCount: 0,
+                            failureRate: 0,
+                            currentWindowCallCount: 10,
+                            currentWindowTimedCount: 10,
+                            currentWindowAvgMs: 100,
+                            priorWindowCallCount: 10,
+                            priorWindowTimedCount: 10,
+                            priorWindowAvgMs: 100,
+                            deltaAvgMs: 0,
+                            relativeDeltaAvg: 0,
+                            regressionStatus: 'stable',
+                            contributingExecutions: [],
+                        },
+                    ],
+                    coverage: {
+                        currentWindowStart: '2026-10-31T00:00:00Z',
+                        currentWindowEnd: '2026-11-07T00:00:00Z',
+                        priorWindowStart: '2026-10-24T00:00:00Z',
+                        priorWindowEnd: '2026-10-31T00:00:00Z',
+                        totalStoredExecutions: 10,
+                        maxStoredExecutions: 500,
+                        retentionCapReached: false,
+                        currentWindowExecutions: 10,
+                        currentWindowMissingDurationCount: 0,
+                        priorWindowExecutions: 10,
+                        priorWindowMissingDurationCount: 0,
+                        priorWindowFullyCovered: true,
+                    },
+                });
+            }
+            if (args.connectionId === 'conn-B') {
+                return pendingPromiseB;
+            }
+            return Promise.resolve({groups: [], coverage: {}});
+        });
+
+        const mockClient = {call} as unknown as TabularisClient;
+
+        const {rerender} = render(
+            <TabularisClientContext.Provider value={mockClient}>
+                <QueryHistorySection
+                    connectionId="conn-A"
+                    dialect="postgres"
+                    entries={[entryA]}
+                    isLoading={false}
+                    recoveryNotice={null}
+                    onDismissRecoveryNotice={vi.fn()}
+                    onDoubleClick={vi.fn()}
+                    onContextMenu={vi.fn()}
+                    onClearAll={vi.fn()}
+                />
+            </TabularisClientContext.Provider>,
+        );
+
+        // Switch to insights mode for conn-A
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyViewInsights'}));
+        });
+
+        // Connection A insights should be loaded and visible
+        expect(screen.getByText('fp-unique-conn-A')).toBeInTheDocument();
+
+        // Switch to connection B whose backend insights promise is unresolved
+        await act(async () => {
+            rerender(
+                <TabularisClientContext.Provider value={mockClient}>
+                    <QueryHistorySection
+                        connectionId="conn-B"
+                        dialect="postgres"
+                        entries={[entryB]}
+                        isLoading={false}
+                        recoveryNotice={null}
+                        onDismissRecoveryNotice={vi.fn()}
+                        onDoubleClick={vi.fn()}
+                        onContextMenu={vi.fn()}
+                        onClearAll={vi.fn()}
+                    />
+                </TabularisClientContext.Provider>,
+            );
+        });
+
+        // Connection A values must no longer be displayed under connection B!
+        expect(screen.queryByText('fp-unique-conn-A')).not.toBeInTheDocument();
+
+        // Clean up pending promise wrapped in act
+        await act(async () => {
+            resolveB({groups: [], coverage: {}});
+        });
+    });
+
+    it('clears previous error on subsequent success and clears previous success on subsequent error', async () => {
+        let shouldFailA = true;
+        const entryA: QueryHistoryEntry = {
+            id: 'entry-a',
+            sql: 'SELECT 1 FROM table_a',
+            executedAt: new Date().toISOString(),
+            status: 'success',
+            durationMs: 10,
+        };
+
+        const successDataA = {
+            groups: [
+                {
+                    fingerprint: 'fp-success-conn-A',
+                    statementKind: 'SELECT',
+                    sampleQuery: 'SELECT * FROM table_a',
+                    callCount: 5,
+                    totalDurationMs: 50,
+                    avgDurationMs: 10,
+                    minDurationMs: 5,
+                    maxDurationMs: 15,
+                    failureCount: 0,
+                    failureRate: 0,
+                    currentWindowCallCount: 5,
+                    currentWindowTimedCount: 5,
+                    currentWindowAvgMs: 10,
+                    priorWindowCallCount: 5,
+                    priorWindowTimedCount: 5,
+                    priorWindowAvgMs: 10,
+                    deltaAvgMs: 0,
+                    relativeDeltaAvg: 0,
+                    regressionStatus: 'stable' as const,
+                    contributingExecutions: [],
+                },
+            ],
+            coverage: {
+                currentWindowStart: '2026-10-31T00:00:00Z',
+                currentWindowEnd: '2026-11-07T00:00:00Z',
+                priorWindowStart: '2026-10-24T00:00:00Z',
+                priorWindowEnd: '2026-10-31T00:00:00Z',
+                totalStoredExecutions: 5,
+                maxStoredExecutions: 500,
+                retentionCapReached: false,
+                currentWindowExecutions: 5,
+                currentWindowMissingDurationCount: 0,
+                priorWindowExecutions: 5,
+                priorWindowMissingDurationCount: 0,
+                priorWindowFullyCovered: true,
+            },
+        };
+
+        const call = vi.fn().mockImplementation((method: string, args: any) => {
+            if (args.connectionId === 'conn-A') {
+                if (shouldFailA) {
+                    return Promise.reject(new Error('Backend offline'));
+                }
+                return Promise.resolve(successDataA);
+            }
+            return Promise.resolve({groups: [], coverage: {}});
+        });
+
+        const mockClient = {call} as unknown as TabularisClient;
+
+        const {rerender} = render(
+            <TabularisClientContext.Provider value={mockClient}>
+                <QueryHistorySection
+                    connectionId="conn-A"
+                    dialect="postgres"
+                    entries={[entryA]}
+                    isLoading={false}
+                    recoveryNotice={null}
+                    onDismissRecoveryNotice={vi.fn()}
+                    onDoubleClick={vi.fn()}
+                    onContextMenu={vi.fn()}
+                    onClearAll={vi.fn()}
+                />
+            </TabularisClientContext.Provider>,
+        );
+
+        // Open insights: conn-A fails first
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.historyViewInsights'}));
+        });
+
+        expect(screen.getByText('sidebar.historyInsightsBackendError')).toBeInTheDocument();
+        expect(screen.queryByText('fp-success-conn-A')).not.toBeInTheDocument();
+
+        // Switch to conn-B
+        await act(async () => {
+            rerender(
+                <TabularisClientContext.Provider value={mockClient}>
+                    <QueryHistorySection
+                        connectionId="conn-B"
+                        dialect="postgres"
+                        entries={[]}
+                        isLoading={false}
+                        recoveryNotice={null}
+                        onDismissRecoveryNotice={vi.fn()}
+                        onDoubleClick={vi.fn()}
+                        onContextMenu={vi.fn()}
+                        onClearAll={vi.fn()}
+                    />
+                </TabularisClientContext.Provider>,
+            );
+        });
+
+        // Now conn-A will succeed
+        shouldFailA = false;
+
+        // Switch back to conn-A
+        await act(async () => {
+            rerender(
+                <TabularisClientContext.Provider value={mockClient}>
+                    <QueryHistorySection
+                        connectionId="conn-A"
+                        dialect="postgres"
+                        entries={[entryA]}
+                        isLoading={false}
+                        recoveryNotice={null}
+                        onDismissRecoveryNotice={vi.fn()}
+                        onDoubleClick={vi.fn()}
+                        onContextMenu={vi.fn()}
+                        onClearAll={vi.fn()}
+                    />
+                </TabularisClientContext.Provider>,
+            );
+        });
+
+        // Previous error must be cleared, and success data shown!
+        expect(screen.queryByText('sidebar.historyInsightsBackendError')).not.toBeInTheDocument();
+        expect(screen.getByText('fp-success-conn-A')).toBeInTheDocument();
+
+        // Now test the inverse: conn-A subsequently fails
+        shouldFailA = true;
+
+        // Switch away to conn-B and back to conn-A
+        await act(async () => {
+            rerender(
+                <TabularisClientContext.Provider value={mockClient}>
+                    <QueryHistorySection
+                        connectionId="conn-B"
+                        dialect="postgres"
+                        entries={[]}
+                        isLoading={false}
+                        recoveryNotice={null}
+                        onDismissRecoveryNotice={vi.fn()}
+                        onDoubleClick={vi.fn()}
+                        onContextMenu={vi.fn()}
+                        onClearAll={vi.fn()}
+                    />
+                </TabularisClientContext.Provider>,
+            );
+        });
+
+        await act(async () => {
+            rerender(
+                <TabularisClientContext.Provider value={mockClient}>
+                    <QueryHistorySection
+                        connectionId="conn-A"
+                        dialect="postgres"
+                        entries={[entryA]}
+                        isLoading={false}
+                        recoveryNotice={null}
+                        onDismissRecoveryNotice={vi.fn()}
+                        onDoubleClick={vi.fn()}
+                        onContextMenu={vi.fn()}
+                        onClearAll={vi.fn()}
+                    />
+                </TabularisClientContext.Provider>,
+            );
+        });
+
+        // Old success data must be cleared, and error alert displayed!
+        expect(screen.getByText('sidebar.historyInsightsBackendError')).toBeInTheDocument();
+        expect(screen.queryByText('fp-success-conn-A')).not.toBeInTheDocument();
     });
 });
