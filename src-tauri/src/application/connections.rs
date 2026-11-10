@@ -137,6 +137,11 @@ pub enum ConnectionCommand {
     CreateSqliteDatabase {
         path: String,
     },
+    OpenDataFile {
+        source: crate::application::data_files::DataFileSource,
+        /// Name for the workspace connection when this call creates it.
+        workspace_name: String,
+    },
 }
 
 pub async fn execute(
@@ -354,6 +359,10 @@ pub async fn execute_for_session(
         ConnectionCommand::CreateSqliteDatabase { path } => {
             json(create_sqlite_database(runtime, state, path).await?)
         }
+        ConnectionCommand::OpenDataFile {
+            source,
+            workspace_name,
+        } => json(open_data_file(runtime, state, source, workspace_name).await?),
     }
 }
 
@@ -897,6 +906,50 @@ async fn create_sqlite_database(
     })
 }
 
+/// Opens a data file as a table and returns the connection that holds it. The
+/// workspace connection is saved the first time a driver opens a file and
+/// reused afterwards.
+async fn open_data_file(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    source: crate::application::data_files::DataFileSource,
+    workspace_name: String,
+) -> Result<crate::application::data_files::OpenedDataFile, String> {
+    use crate::application::data_files;
+
+    let prepared = data_files::open(runtime, source).await?;
+    let driver = prepared.params.driver.clone();
+    let existing = load_file(runtime)?
+        .connections
+        .into_iter()
+        .find(|connection| data_files::is_same_workspace(&connection.params, &prepared.params));
+    let connection_id = match existing {
+        Some(connection) => connection.id,
+        None => {
+            let name = workspace_name.trim();
+            if name.is_empty() {
+                return Err("The data file workspace needs a name".to_string());
+            }
+            save_connection(
+                runtime,
+                state,
+                name.to_string(),
+                prepared.params,
+                PluginSecretChanges::default(),
+                None,
+                None,
+            )?
+            .id
+        }
+    };
+    Ok(data_files::OpenedDataFile {
+        connection_id,
+        driver,
+        table: prepared.table,
+        format: prepared.format.to_string(),
+    })
+}
+
 /// Drops cached plugin connection metadata for both the old and the new driver
 /// of an edited connection, and tells the frontend when any was dropped.
 async fn invalidate_connection_metadata(
@@ -1405,6 +1458,7 @@ pub async fn disconnect_connection(
     connection_id: &str,
 ) -> Result<(), String> {
     super::query_sessions::release_connection(runtime, session_id, connection_id).await;
+    super::routine_debug::release(session_id, Some(connection_id)).await;
     let still_owned = if let (Some(state), Some(session_id)) = (state, session_id) {
         let mut sessions = state
             .web_active_connections

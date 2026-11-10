@@ -1,10 +1,41 @@
 {
-  "readOnly": {
-    "label": "Modalità sola lettura",
-    "description": "Blocca le scritture su questa connessione. Gli script di avvio vengono ignorati in questa modalità.",
-    "unsupported": "Questo driver non supporta query protette in sola lettura.",
-    "writeBlocked": "Questa connessione è in sola lettura. Disattiva questa modalità nelle impostazioni per consentire le scritture.",
-    "banner": "{{name}} — sola lettura"
+  "routineDebug": {
+    "closeUnconfirmed": "Chiudi senza conferma del rilascio delle risorse",
+    "title": "Debug della routine",
+    "warning": "Avviare o continuare una routine esegue codice nel database. Può confermare transazioni o causare effetti esterni. Il debug non concede privilegi, ricompila routine o installa oggetti ausiliari automaticamente.",
+    "preview": "Anteprima della destinazione e dei parametri",
+    "start": "Avvia debug",
+    "continue": "Continua",
+    "into": "Entra",
+    "over": "Passa oltre",
+    "out": "Esci",
+    "status": "Aggiorna stato",
+    "stop": "Arresta e rilascia le risorse",
+    "source": "Sorgente",
+    "stack": "Stack delle chiamate",
+    "variables": "Variabili",
+    "outputs": "Parametri OUT e valore restituito",
+    "watches": "Variabili da esaminare (separate da virgole)",
+    "breakpoint": "Attiva o disattiva il punto di interruzione alla riga {{line}}",
+    "execution": "Esecuzione",
+    "transaction": "Transazione",
+    "resources": "Risorse",
+    "available": "Disponibile",
+    "partial": "Parziale",
+    "stale": "Dati obsoleti — aggiornamento necessario",
+    "unavailable": "Non disponibile",
+    "running": "In esecuzione",
+    "paused": "In pausa",
+    "completed": "Completata",
+    "failed": "Non riuscita",
+    "cancelled": "Annullata",
+    "unknown": "Sconosciuto",
+    "open": "Aperta",
+    "committed": "Confermata",
+    "rolled_back": "Annullata (rollback)",
+    "held": "Occupate",
+    "released": "Rilasciate",
+    "uncertain": "Non è stato possibile confermare l’ultima operazione. I dati visualizzati potrebbero essere obsoleti. Non riavviare la routine; aggiorna lo stato o arrestala per confermare il rilascio delle risorse."
   },
   "serverFilePicker": {
     "title": "Sfoglia i file del server",
@@ -100,6 +131,13 @@
     "warnConfirm": "Esegui comunque",
     "warnSnooze": "Non chiedere più per questa connessione (questa sessione)"
   },
+  "readOnly": {
+    "label": "Modalità sola lettura",
+    "description": "Blocca le scritture su questa connessione. Gli script di avvio vengono ignorati in questa modalità.",
+    "unsupported": "Questo driver non supporta query protette in sola lettura.",
+    "writeBlocked": "Questa connessione è in sola lettura. Disattiva questa modalità nelle impostazioni per consentire le scritture.",
+    "banner": "{{name}} — sola lettura"
+  },
   "textStats": {
     "characters": "Caratteri: {{count}}",
     "lines": "Righe: {{count}}",
@@ -130,6 +168,54 @@
     "hideDetails": "Nascondi dettagli",
     "beta": "Beta",
     "dismiss": "Chiudi"
+  },
+  "linkedFolders": {
+    "tab": "File SQL",
+    "chooseTitle": "Scegli una cartella di script SQL",
+    "link": "Collega cartella",
+    "refresh": "Aggiorna File SQL",
+    "empty": "Collega una cartella per sfogliare i suoi script SQL.",
+    "needsConnection": "Connettiti a un database prima di aprire un file SQL.",
+    "linkError": "Impossibile collegare la cartella",
+    "unlinkError": "Impossibile scollegare la cartella",
+    "unlink": "Scollega {{name}}",
+    "rootUnavailable": "Non disponibile",
+    "fileUnsaved": "{{name}} (modifiche non salvate)",
+    "unavailableTitle": "I File SQL non sono disponibili qui",
+    "unavailableMessage": "Collegare una cartella locale richiede l'app desktop. Nel browser usa Apri file SQL per importare un file.",
+    "status": {
+      "loading": "Caricamento…",
+      "empty": "Nessun file SQL",
+      "truncated": "Sono mostrate solo le prime voci"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "L'elenco salvato delle cartelle collegate non è leggibile. Correggi o rimuovi linked_folders.json nella cartella di configurazione.",
+      "linked_folder_not_found": "Questa cartella collegata non è più nell'elenco.",
+      "linked_folder_unavailable": "La cartella non esiste o non è leggibile.",
+      "linked_folder_limit_reached": "Raggiunto il numero massimo di cartelle collegate. Scollegane una prima.",
+      "linked_path_outside_root": "Il percorso è fuori dalla cartella collegata.",
+      "linked_path_not_sql_file": "Qui si possono aprire solo file .sql, .psql e .pgsql.",
+      "linked_directory_unreadable": "Impossibile leggere questa cartella.",
+      "linked_file_unreadable": "Impossibile leggere questo file. Potrebbe mancare, essere troppo grande o non UTF-8.",
+      "linked_file_too_large": "Questo file è troppo grande per essere salvato (limite 50 MB).",
+      "linked_file_write_failed": "Impossibile scrivere il file. Controlla i permessi e lo spazio libero su disco.",
+      "linked_file_conflict_modified": "Il file è cambiato su disco.",
+      "linked_file_conflict_missing": "Il file non esiste più su disco."
+    },
+    "conflict": {
+      "reload": "Ricarica dal disco",
+      "saveAs": "Salva come copia…",
+      "modified": {
+        "title": "File modificato su disco",
+        "message": "{{name}} è stato modificato fuori da Tabularis da quando l'hai aperto o salvato l'ultima volta. Non è stato scritto nulla. Sovrascrivi il file con la tua versione, salvala come copia o ricarica la versione su disco scartando le modifiche.",
+        "overwrite": "Sovrascrivi file"
+      },
+      "missing": {
+        "title": "File mancante su disco",
+        "message": "{{name}} è stato eliminato o spostato fuori da Tabularis. Le tue modifiche restano nell'editor. Ricrea il file con la tua versione o salvalo come copia altrove.",
+        "overwrite": "Ricrea file"
+      }
+    }
   },
   "sidebar": {
     "connections": "Connessioni",
@@ -2605,7 +2691,10 @@
     "downloading": "Download in corso...",
     "uploading": "Caricamento in corso...",
     "openSidebar": "Apri nell'editor",
-    "imagePreview": "Anteprima immagine"
+    "imagePreview": "Anteprima immagine",
+    "editAs": "Modifica come",
+    "text": "Testo",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",
@@ -3150,5 +3239,28 @@
     "groups": { "builtin": "Integrati · offline", "installed": "Pacchetti installati", "personal": "Temi personali" }, "modes": { "light": "Chiaro", "dark": "Scuro", "high-contrast": "Alto contrasto" },
     "importErrors": { "unrecognized": "Tema VS Code non riconosciuto.", "modeRequired": "Scegli una modalità e ripeti l'anteprima.", "includeOnly": "I temi con soli riferimenti include non sono importabili. Fornisci i colori effettivi.", "noSupportedData": "Nessun colore o regola SQL supportati.", "invalidColor": "Un colore supportato ha un valore non valido.", "invalidRules": "Regole dei token non valide o eccessive." },
     "diagnostics": { "unsupportedKey": "Campo non supportato", "unsupportedColor": "Colore non supportato", "unsupportedScope": "Ambito non supportato", "scopeApproximation": "Mappatura SQL approssimata", "unsupportedStyle": "Stile non supportato", "ignoredInclude": "Include non caricato", "ignoredSemanticTokens": "Token semantici ignorati", "unsupportedReference": "Riferimento esterno non caricato", "unsupportedSetting": "Impostazione non supportata", "tokenAlphaFlattened": "Opacità dei token calcolata sullo sfondo di base", "modeApproximation": "Modalità sostituita o approssimata", "diagnosticsTruncated": "Ulteriori diagnostiche omesse" }
+  },
+  "aiInline": {
+    "title": "Completamento IA in linea",
+    "enable": "Suggerisci SQL durante la digitazione",
+    "privacy": "Disattivato per impostazione predefinita. Usa il fornitore e il modello IA selezionati sotto, anche locali. Invia fino a 4.000 caratteri prima del cursore, 1.000 dopo e 8.000 caratteri di nomi di tabelle/schemi in cache. Il codice SQL può contenere valori sensibili. Non aggiunge righe dei risultati, commenti delle tabelle o credenziali. Non esegue query aggiuntive al database.",
+    "keys": "Tab accetta ed Esc nasconde. Completamento automatico e rientro hanno la precedenza. Accettare inserisce solo testo; controllalo prima di eseguirlo."
+  },
+  "dataFiles": {
+    "workspaceName": "File di dati",
+    "open": "Apri file di dati",
+    "openMenu": "Apri file di dati…",
+    "subtitle": "Interroga un file CSV, TSV, JSON, NDJSON o Parquet come una tabella",
+    "fileFilter": "File di dati",
+    "files": "File da aprire",
+    "pluginRequired": "Questi file si aprono con il plugin {{plugin}}. Installalo o aggiornalo per interrogarli come tabelle.",
+    "installing": "Installazione del plugin {{plugin}}…",
+    "opening": "Apertura…",
+    "failed": "Impossibile aprire il file.",
+    "unsupported": "File di dati non supportato: {{files}}",
+    "pluginCannotOpen": "Il plugin installato non può aprire {{files}}. Aggiornalo in Impostazioni, Plugin.",
+    "installAndOpen": "Installa e apri",
+    "dropTitle": "Rilascia per aprire come tabella",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

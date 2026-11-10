@@ -51,6 +51,7 @@ export function useCommandPaletteActionItems(
             {
                 openSettings: t('commandPalette.commands.openSettings'),
                 openConnections: t('commandPalette.commands.openConnections'),
+                openDataFile: t('dataFiles.openMenu'),
                 newConsole: t('editor.quickNavigator.actions.newConsole'),
                 openTableInConsole: t('commandPalette.commands.openTableInConsole'),
                 inspectTable: t('editor.quickNavigator.actions.inspect'),

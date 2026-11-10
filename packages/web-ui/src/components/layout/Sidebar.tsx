@@ -1,7 +1,17 @@
 import {lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef} from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
-import {Plug2, Settings, Cpu, PanelLeft, Layers, Star, Clock, BookOpen} from 'lucide-react';
+import {
+    Plug2,
+    Settings,
+    Cpu,
+    PanelLeft,
+    Layers,
+    Star,
+    Clock,
+    BookOpen,
+    FolderTree,
+} from 'lucide-react';
 import {DiscordIcon} from '@/components/icons/DiscordIcon';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {DISCORD_URL} from '@/config/links';
@@ -496,6 +506,11 @@ export const Sidebar = () => {
                             id: 'notebooks' as SidebarTab,
                             icon: BookOpen,
                             label: t('sidebar.notebooks.tab'),
+                        },
+                        {
+                            id: 'sqlFiles' as SidebarTab,
+                            icon: FolderTree,
+                            label: t('linkedFolders.tab'),
                         },
                     ].map((tab) => (
                         <button

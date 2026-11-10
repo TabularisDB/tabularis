@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 
 import {createBuiltInCommandItems} from '@/utils/builtInCommands';
+import {OPEN_DATA_FILE_EVENT} from '@/utils/dataFiles';
 import shortcutDefs from '@/config/shortcuts.json';
 import {formatShortcut, type ShortcutDef} from '@/utils/keybindings';
 import type {CommandScope} from '@/types/commands';
@@ -8,6 +9,7 @@ import type {CommandScope} from '@/types/commands';
 const labels = {
     openSettings: 'Open settings',
     openConnections: 'Open connection manager',
+    openDataFile: 'Open data file…',
     newConsole: 'New console',
     openTableInConsole: 'Open table in console',
     inspectTable: 'Inspect structure',
@@ -186,7 +188,30 @@ describe('createBuiltInCommandItems', () => {
             getShortcut,
         );
 
-        expect(items.map((item) => item.id)).toEqual(['app.open-settings', 'app.open-connections']);
+        expect(items.map((item) => item.id)).toEqual([
+            'app.open-settings',
+            'app.open-connections',
+            'app.open-data-file',
+        ]);
+    });
+
+    it('should ask the app to open a data file from any scope', async () => {
+        const requested = vi.fn();
+        window.addEventListener(OPEN_DATA_FILE_EVENT, requested);
+        const items = createBuiltInCommandItems(
+            createScope({connectionId: null, driver: null, table: null}),
+            labels,
+            modals(),
+            getShortcut,
+        );
+
+        const command = findItem(items, 'app.open-data-file');
+        await command.primaryAction.execute();
+        window.removeEventListener(OPEN_DATA_FILE_EVENT, requested);
+
+        expect(command.title).toBe('Open data file…');
+        expect(command.keywords).toEqual(expect.arrayContaining(['csv', 'parquet']));
+        expect(requested).toHaveBeenCalledTimes(1);
     });
 
     it('should offer connection commands without a table in scope', () => {
@@ -200,6 +225,7 @@ describe('createBuiltInCommandItems', () => {
         expect(items.map((item) => item.id)).toEqual([
             'app.open-settings',
             'app.open-connections',
+            'app.open-data-file',
             'connection.new-console',
         ]);
     });

@@ -1,4 +1,5 @@
 import type {DatabaseBackupStatus} from '@/types/databaseBackup';
+import type {DebugCommand, DebugResponse} from '@/types/routineDebug';
 import type {ChatGptModel, ChatGptSession} from '@/types/chatgpt';
 import type {TableQueryTemplateRequest} from '@/utils/tableQueryTemplates';
 import type {DataTypeRegistry} from '@/types/dataTypes';
@@ -43,6 +44,7 @@ import type {
     AiEventFilter,
     AiExplainRequest,
     AiGenerateRequest,
+    AiInlineRequest,
     AiKeyStatus,
     AiNameRequest,
     AiNotebookExport,
@@ -53,6 +55,13 @@ import type {
     PendingApproval,
 } from '@/types/ai';
 import type {ImportPreview, ImportResolution, ImportSourceInfo} from '@/types/connectionImport';
+import type {
+    LinkedDirectoryListing,
+    LinkedFileContent,
+    LinkedFileSaved,
+    LinkedFolder,
+    LinkedFolderStatus,
+} from '@/types/linkedFolders';
 import type {RequestId} from './errors';
 import type {
     LogEntry,
@@ -106,6 +115,24 @@ export interface ServerSaveTarget {
 
 export interface SqlitePathRequest {
     readonly path: string;
+}
+
+export interface OpenDataFileRequest {
+    /** Desktop-only source path. */
+    filePath?: string;
+    /** Browser-only opaque upload token. */
+    uploadToken?: string;
+    /** Name for the workspace connection when this call creates it. */
+    workspaceName: string;
+}
+
+/** A data file exposed as a table of the data file workspace connection. */
+export interface OpenedDataFile {
+    connectionId: string;
+    /** Id of the driver behind the workspace connection. */
+    driver: string;
+    table: string;
+    format: string;
 }
 
 /**
@@ -596,6 +623,10 @@ export interface CommandMap {
     >;
     create_sqlite_file: CommandDefinition<SqlitePathRequest, string, 'local-admin'>;
     create_sqlite_database: CommandDefinition<SqlitePathRequest, SavedConnection, 'local-admin'>;
+    // The workspace is a file-backed database whose SQL can read host files.
+    open_data_file: CommandDefinition<OpenDataFileRequest, OpenedDataFile, 'local-admin'>;
+    /** Desktop-only: host paths the system handed to the app ("Open with", command line). */
+    consume_pending_data_files: CommandDefinition<undefined, string[], 'local-admin'>;
     get_installation_source: CommandDefinition<undefined, string | null, 'local-admin'>;
     // MCP client status and installation operate on host configuration files or
     // local client CLIs, so browsers may use them only in local-admin Web mode.
@@ -915,6 +946,11 @@ export interface CommandMap {
     >;
     get_routine_edit_script: CommandDefinition<RoutineTargetRequest, string, 'database'>;
     drop_routine: CommandDefinition<RoutineTargetRequest, void, 'database'>;
+    routine_debug: CommandDefinition<
+        {connectionId: string; version: 1; command: DebugCommand},
+        DebugResponse,
+        'database'
+    >;
 
     get_trigger_definition: CommandDefinition<TriggerTargetRequest, string, 'database'>;
     create_trigger: CommandDefinition<MetadataRequest & {triggerSql: string}, void, 'database'>;
@@ -1145,6 +1181,8 @@ export interface CommandMap {
         'sensitive'
     >;
     generate_ai_query: CommandDefinition<{req: AiGenerateRequest}, string, 'sensitive'>;
+    complete_ai_inline: CommandDefinition<{req: AiInlineRequest}, string, 'sensitive'>;
+    cancel_ai_inline: CommandDefinition<{requestId: string}, void, 'sensitive'>;
     explain_ai_query: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     analyze_ai_explain_plan: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
     analyze_ai_crash_report: CommandDefinition<{req: AiExplainRequest}, string, 'sensitive'>;
@@ -1311,6 +1349,32 @@ export interface CommandMap {
     /** Paths are host paths; browsers may only use server file browser roots. */
     read_sql_file: CommandDefinition<{path: string}, string, 'local-admin'>;
     write_sql_file: CommandDefinition<{path: string; content: string}, void, 'local-admin'>;
+
+    /** Desktop only: linked folders are never routed through the web server. */
+    list_linked_folders: CommandDefinition<undefined, LinkedFolderStatus[], 'local-admin'>;
+    link_local_folder: CommandDefinition<{path: string}, LinkedFolder, 'local-admin'>;
+    unlink_local_folder: CommandDefinition<{id: string}, void, 'local-admin'>;
+    list_linked_directory: CommandDefinition<
+        {id: string; relativePath: string},
+        LinkedDirectoryListing,
+        'local-admin'
+    >;
+    read_linked_sql_file: CommandDefinition<
+        {id: string; relativePath: string},
+        LinkedFileContent,
+        'local-admin'
+    >;
+    write_linked_sql_file: CommandDefinition<
+        {
+            id: string;
+            relativePath: string;
+            content: string;
+            expectedVersion: string | null;
+            overwrite: boolean;
+        },
+        LinkedFileSaved,
+        'local-admin'
+    >;
 
     get_connection_metadata: CommandDefinition<
         ConnectionIdRequest,

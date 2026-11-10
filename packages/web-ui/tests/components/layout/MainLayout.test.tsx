@@ -47,6 +47,10 @@ vi.mock('@/components/modals/CommandPaletteModal', () => ({
     CommandPaletteModal: () => <div data-testid="palette-host" />,
 }));
 
+vi.mock('@/components/modals/DataFileGate', () => ({
+    DataFileGate: () => <div data-testid="data-file-gate" />,
+}));
+
 vi.mock('@/hooks/useConnectionLayoutContext', () => ({
     useConnectionLayoutContext: () => ({
         splitView: null,
@@ -79,6 +83,20 @@ describe('MainLayout', () => {
         );
 
         expect(screen.getByTestId('palette-host')).toBeInTheDocument();
+    });
+
+    it('should mount the data file gate once, over every page', () => {
+        render(
+            <MemoryRouter initialEntries={['/settings']}>
+                <Routes>
+                    <Route element={<MainLayout />}>
+                        <Route path="settings" element={<div>Settings</div>} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect(screen.getAllByTestId('data-file-gate')).toHaveLength(1);
     });
 
     it('should show the production banner only on the connection editor route', () => {

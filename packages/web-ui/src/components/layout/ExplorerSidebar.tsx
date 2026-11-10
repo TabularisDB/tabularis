@@ -39,6 +39,7 @@ import {
     Clock,
     Clipboard,
     BookOpen,
+    FolderTree,
     UsersRound,
     Folder,
     FolderOpen,
@@ -96,6 +97,7 @@ import {ViewEditorModal} from '@/components/modals/ViewEditorModal';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {RunRoutineModal} from '@/components/modals/RunRoutineModal';
+import {DebugRoutineModal} from '@/components/modals/DebugRoutineModal';
 import {Accordion} from './sidebar/Accordion';
 import {MetadataErrorIndicator} from './sidebar/MetadataErrorIndicator';
 import {SidebarTableItem} from './sidebar/SidebarTableItem';
@@ -115,6 +117,14 @@ import {SidebarPinnedGroup} from './sidebar/SidebarPinnedGroup';
 import {useExplorerPins} from '@/hooks/useExplorerPins';
 import {resolvePins, type PinnedObject} from '@/utils/explorerPins';
 import {NotebooksSection} from './sidebar/NotebooksSection';
+import {LinkedFoldersSection} from './sidebar/LinkedFoldersSection';
+import {
+    buildOpenLinkedFileIndex,
+    createLinkedFileTab,
+    findOpenLinkedFileTab,
+    getLinkedFolderErrorKey,
+    readLinkedSqlFile,
+} from '@/utils/linkedFolders';
 import {
     renameNotebook,
     deleteNotebook,
@@ -169,7 +179,7 @@ import {
     type CreateTableTarget,
 } from '@/utils/createTable';
 
-export type SidebarTab = 'structure' | 'favorites' | 'history' | 'notebooks';
+export type SidebarTab = 'structure' | 'favorites' | 'history' | 'notebooks' | 'sqlFiles';
 
 interface ExplorerSidebarProps {
     sidebarWidth: number;
@@ -330,6 +340,11 @@ export const ExplorerSidebar = ({
         schema?: string;
         database?: string;
         identityArgs?: string | null;
+    } | null>(null);
+    const [debugRoutine, setDebugRoutine] = useState<{
+        routine: RoutineInfo;
+        schema: string;
+        database: string;
     } | null>(null);
     const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
     const [createContainer, setCreateContainer] = useState<
@@ -614,6 +629,31 @@ export const ExplorerSidebar = ({
         if (!activeConnectionId) return;
         openNotebook(activeConnectionId, nb.id, nb.title);
         navigate('/editor');
+    };
+
+    // A linked file already open (same canonical path) is focused, never re-read
+    // over its tab, so unsaved edits survive a second click.
+    const handleOpenLinkedFile = async (folderId: string, relativePath: string) => {
+        if (!activeConnectionId) {
+            showAlert(t('linkedFolders.needsConnection'), {kind: 'info'});
+            return;
+        }
+        try {
+            const file = await readLinkedSqlFile(client, folderId, relativePath);
+            const existing = findOpenLinkedFileTab(tabs, file.path);
+            if (existing) {
+                setActiveTabId(existing.id);
+            } else {
+                addTab(createLinkedFileTab(folderId, relativePath, file));
+            }
+            navigate('/editor');
+        } catch (error) {
+            const key = getLinkedFolderErrorKey(error);
+            showAlert(`${t('editor.openSqlFileError')}: ${key ? t(key) : String(error)}`, {
+                title: t('common.error'),
+                kind: 'error',
+            });
+        }
     };
 
     const handleRenameNotebook = async (notebookId: string, title: string) => {
@@ -1476,6 +1516,11 @@ export const ExplorerSidebar = ({
                             label: t('sidebar.notebooks.tab'),
                             count: notebookCount,
                         },
+                        {
+                            id: 'sqlFiles' as const,
+                            icon: FolderTree,
+                            label: t('linkedFolders.tab'),
+                        },
                     ].map((tab) => {
                         const isActive = sidebarTab === tab.id;
                         return (
@@ -1858,6 +1903,14 @@ export const ExplorerSidebar = ({
                             onOpen={handleOpenNotebook}
                             onRename={handleRenameNotebook}
                             onDelete={handleDeleteNotebook}
+                        />
+                    )}
+
+                    {/* SQL Files tab: explicitly linked local folders of scripts */}
+                    {sidebarTab === 'sqlFiles' && (
+                        <LinkedFoldersSection
+                            openFiles={buildOpenLinkedFileIndex(tabs)}
+                            onOpenFile={handleOpenLinkedFile}
                         />
                     )}
 
@@ -4319,6 +4372,25 @@ export const ExplorerSidebar = ({
                                                 const canManageRoutines =
                                                     activeCapabilities?.routine_management === true;
                                                 return [
+                                                    activeCapabilities?.routine_debug === 1 &&
+                                                    !activeCapabilities.readonly &&
+                                                    routineData &&
+                                                    routineSchema &&
+                                                    (routineDatabase || activeDatabaseName)
+                                                        ? {
+                                                              label: t('routineDebug.title'),
+                                                              icon: Play,
+                                                              action: () =>
+                                                                  setDebugRoutine({
+                                                                      routine: routineData,
+                                                                      schema: routineSchema,
+                                                                      database:
+                                                                          routineDatabase ||
+                                                                          activeDatabaseName ||
+                                                                          '',
+                                                                  }),
+                                                          }
+                                                        : null,
                                                     canManageRoutines
                                                         ? {
                                                               label: t('routines.menuRun'),
@@ -5402,6 +5474,14 @@ export const ExplorerSidebar = ({
             />
 
             {/* Run routine with parameters */}
+            {debugRoutine && activeConnectionId && (
+                <DebugRoutineModal
+                    key={`${activeConnectionId}:${debugRoutine.routine.name}:${debugRoutine.routine.identity_args ?? ''}`}
+                    connectionId={activeConnectionId}
+                    {...debugRoutine}
+                    onClose={() => setDebugRoutine(null)}
+                />
+            )}
             {runRoutineModal && activeConnectionId && (
                 <RunRoutineModal
                     isOpen={true}

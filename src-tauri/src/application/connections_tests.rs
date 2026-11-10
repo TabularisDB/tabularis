@@ -1131,3 +1131,63 @@ async fn creating_a_sqlite_database_saves_a_connection_to_the_new_file() {
     assert_eq!(created["params"]["driver"], "sqlite");
     assert_eq!(load_file(&runtime).unwrap().connections.len(), 1);
 }
+
+#[tokio::test]
+async fn opening_data_files_saves_one_workspace_connection_and_reuses_it() {
+    // The driver is looked up in the process-wide registry.
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let (temp, runtime, state) = fixture();
+    let mut manifest = crate::plugins::driver::test_manifest();
+    manifest.id = "data-file-workspace-test".to_string();
+    manifest.capabilities.file_based = true;
+    manifest.capabilities.data_files = vec!["parquet".to_string()];
+    crate::drivers::registry::register_driver(crate::plugins::driver::test_driver_with_manifest(
+        manifest,
+        |_| Ok(Value::Null),
+    ))
+    .await;
+    let open = |file_name: &'static str, workspace_name: &'static str| {
+        let path = temp.path().join(file_name);
+        fs::write(&path, b"PAR1").unwrap();
+        execute(
+            &runtime,
+            &state,
+            ConnectionCommand::OpenDataFile {
+                source: crate::application::data_files::DataFileSource::ServerPath(path),
+                workspace_name: workspace_name.to_string(),
+            },
+        )
+    };
+
+    let first = open("metrics.parquet", "Data files").await.unwrap();
+    let second = open("events.parquet", "Renamed later").await.unwrap();
+    let unnamed_reuse = open("more.parquet", " ").await.unwrap();
+
+    let connections = load_file(&runtime).unwrap().connections;
+    assert_eq!(connections.len(), 1);
+    assert_eq!(connections[0].name, "Data files");
+    assert_eq!(connections[0].params.driver, "data-file-workspace-test");
+    assert_eq!(first["connectionId"], connections[0].id);
+    assert_eq!(first["driver"], "data-file-workspace-test");
+    assert_eq!(first["table"], "metrics");
+    assert_eq!(first["format"], "parquet");
+    assert_eq!(second["connectionId"], first["connectionId"]);
+    assert_eq!(second["table"], "events");
+    assert_eq!(unnamed_reuse["connectionId"], first["connectionId"]);
+
+    let unsupported = temp.path().join("report.xlsx");
+    fs::write(&unsupported, b"PK").unwrap();
+    let error = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::OpenDataFile {
+            source: crate::application::data_files::DataFileSource::ServerPath(unsupported),
+            workspace_name: "Data files".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, "No installed driver can open xlsx data files");
+
+    crate::drivers::registry::unregister_driver("data-file-workspace-test").await;
+}

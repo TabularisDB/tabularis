@@ -2,6 +2,7 @@ pub mod export;
 pub mod extract;
 pub mod types;
 
+mod cancel;
 mod explain;
 mod helpers;
 mod multi_result;
@@ -10,6 +11,8 @@ mod row_identity;
 mod stmt_classify;
 mod users;
 
+#[cfg(test)]
+mod column_comment_tests;
 #[cfg(test)]
 mod stmt_classify_tests;
 
@@ -1425,13 +1428,13 @@ pub async fn get_routine_definition(
     Ok(definition)
 }
 
-/// Acquires a single MySQL connection from the pool, honouring the optional
-/// schema override (which routes to a per-database pool to avoid invalidating
-/// the prepared-statement cache via `USE`).
+/// Acquires a single MySQL connection from the pool for a run, honouring the
+/// optional schema override (which routes to a per-database pool to avoid
+/// invalidating the prepared-statement cache via `USE`).
 async fn acquire_mysql_conn(
     params: &ConnectionParams,
     schema: Option<&str>,
-) -> Result<sqlx::pool::PoolConnection<sqlx::MySql>, String> {
+) -> Result<cancel::InFlight, String> {
     let pool = if let Some(db) = schema {
         let mut p = params.clone();
         p.database = crate::models::DatabaseSelection::Single(db.to_string());
@@ -1439,7 +1442,8 @@ async fn acquire_mysql_conn(
     } else {
         get_mysql_pool(params).await?
     };
-    pool.acquire().await.map_err(|e| e.to_string())
+    let conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    cancel::InFlight::new(conn, &pool).await
 }
 
 /// Executes one statement on an already-acquired connection. Used by both
@@ -1636,11 +1640,15 @@ pub async fn execute_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
-    let mut conn = acquire_mysql_conn(params, schema).await?;
+    let mut run = acquire_mysql_conn(params, schema).await?;
     // `exec_on_mysql_conn` runs the user's SQL verbatim (no literal inlining),
     // so it only needs to know whether to use the text protocol.
     let text = TextProto::protocol_only(force_text_protocol(params));
-    exec_on_mysql_conn(&mut *conn, query, limit, page, text).await
+    let outcome = run
+        .exec_within_query_timeout(params, query, limit, page, text)
+        .await?;
+    run.release();
+    outcome
 }
 
 /// Runs one statement inside `START TRANSACTION READ ONLY` and always rolls
@@ -1658,17 +1666,17 @@ pub async fn execute_read_only_query(
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
     use sqlx::Executor as _;
-    let mut guard =
-        crate::drivers::common::DetachOnDrop::new(acquire_mysql_conn(params, schema).await?);
-    guard
-        .conn()
+    let mut run = acquire_mysql_conn(params, schema).await?;
+    run.conn()
         .execute(sqlx::raw_sql("START TRANSACTION READ ONLY"))
         .await
         .map_err(|e| e.to_string())?;
     let text = TextProto::protocol_only(force_text_protocol(params));
-    let outcome = exec_on_mysql_conn(guard.conn(), query, limit, page, text).await;
-    match guard.conn().execute(sqlx::raw_sql("ROLLBACK")).await {
-        Ok(_) => guard.release(),
+    let outcome = run
+        .exec_within_query_timeout(params, query, limit, page, text)
+        .await?;
+    match run.conn().execute(sqlx::raw_sql("ROLLBACK")).await {
+        Ok(_) => run.release(),
         Err(e) => log::warn!("MySQL: ROLLBACK after a read-only query failed: {e}"),
     }
     outcome
@@ -1691,20 +1699,23 @@ pub async fn execute_batch(
     schema: Option<&str>,
     on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
 ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
-    let mut conn = acquire_mysql_conn(params, schema).await?;
+    let mut run = acquire_mysql_conn(params, schema).await?;
     // See `execute_query`: statements run verbatim, so only the protocol flag
     // is needed here, not the literal-escaping mode.
     let text = TextProto::protocol_only(force_text_protocol(params));
     let mut results = Vec::with_capacity(queries.len());
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
-        let outcome = exec_on_mysql_conn(&mut *conn, q, limit, page, text).await;
+        let outcome = run
+            .exec_within_query_timeout(params, q, limit, page, text)
+            .await?;
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
         if let Some(cb) = on_progress {
             cb(idx, &res);
         }
         results.push(res);
     }
+    run.release();
     Ok(results)
 }
 
@@ -1981,11 +1992,13 @@ fn mysql_numeric_setting(key: &str, default: u64) -> u64 {
 
 pub struct MysqlDriver {
     manifest: PluginManifest,
+    no_backslash_escapes: bool,
 }
 
 impl MysqlDriver {
     pub fn new() -> Self {
         Self {
+            no_backslash_escapes: false,
             manifest: PluginManifest {
                 id: "mysql".to_string(),
                 name: "MySQL".to_string(),
@@ -1999,9 +2012,11 @@ impl MysqlDriver {
                     materialized_views: false,
                     routines: true,
                     routine_management: true,
+                    routine_debug: None,
                     file_based: false,
                     folder_based: false,
                     in_memory: false,
+                    data_files: Vec::new(),
                     connection_string: true,
                     connection_string_example: "mysql://user:pass@localhost:3306/db".into(),
                     connection_string_examples: Vec::new(),
@@ -2013,10 +2028,10 @@ impl MysqlDriver {
                     serial_type: String::new(),
                     inline_pk: false,
                     table_query_templates: false,
-                    column_comments: false,
+                    column_comments: true,
                     drop_table_sql: false,
                     column_stats: false,
-                    query_timeout: false,
+                    query_timeout: true,
                     alter_column: true,
                     create_foreign_keys: true,
                     no_connection_required: false,
@@ -2661,6 +2676,12 @@ impl DatabaseDriver for MysqlDriver {
         if column.is_pk {
             def.push_str(" PRIMARY KEY");
         }
+        if let Some(comment) = &column.comment {
+            def.push_str(&format!(
+                " COMMENT {}",
+                mysql_string_literal(comment, self.no_backslash_escapes)
+            ));
+        }
         Ok(vec![def])
     }
 
@@ -2703,7 +2724,54 @@ impl DatabaseDriver for MysqlDriver {
         if let Some(on_update) = &new_column.on_update {
             def.push_str(&format!(" ON UPDATE {}", on_update));
         }
+        // MODIFY/CHANGE restates the definition, so retain unchanged comments too.
+        if new_column.comment.is_some() || old_column.comment.is_some() {
+            def.push_str(&format!(
+                " COMMENT {}",
+                mysql_string_literal(
+                    new_column.comment.as_deref().unwrap_or(""),
+                    self.no_backslash_escapes
+                )
+            ));
+        }
         Ok(vec![def])
+    }
+
+    async fn get_add_column_sql_for_connection(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        column: crate::models::ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        if column.comment.as_deref().unwrap_or("").is_empty() {
+            return self.get_add_column_sql(table, column, schema).await;
+        }
+        let pool = get_mysql_pool(params).await?;
+        let mut driver = Self::new();
+        driver.no_backslash_escapes = server_no_backslash_escapes(&pool).await?;
+        driver.get_add_column_sql(table, column, schema).await
+    }
+
+    async fn get_alter_column_sql_for_connection(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        old_column: crate::models::ColumnDefinition,
+        new_column: crate::models::ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        if new_column.comment.as_deref().unwrap_or("").is_empty() {
+            return self
+                .get_alter_column_sql(table, old_column, new_column, schema)
+                .await;
+        }
+        let pool = get_mysql_pool(params).await?;
+        let mut driver = Self::new();
+        driver.no_backslash_escapes = server_no_backslash_escapes(&pool).await?;
+        driver
+            .get_alter_column_sql(table, old_column, new_column, schema)
+            .await
     }
 
     async fn get_create_index_sql(

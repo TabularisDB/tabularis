@@ -276,6 +276,11 @@ describe('BrowserPlatformCapabilities host-only integrations', () => {
         const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
 
         expect(capabilities.supports('openStorageLocation')).toBe(false);
+        expect(capabilities.supports('linkLocalFolders')).toBe(false);
+        expect(capabilities.negotiation.capabilities.linkLocalFolders).toMatchObject({
+            supported: false,
+            adaptation: 'unsupported',
+        });
         await expect(capabilities.openStorageLocation()).rejects.toThrow(
             'The browser cannot open folders on the Tabularis server',
         );

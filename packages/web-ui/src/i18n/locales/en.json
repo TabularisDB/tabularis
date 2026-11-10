@@ -1,10 +1,41 @@
 {
-  "readOnly": {
-    "label": "Read-only mode",
-    "description": "Block writes on this connection. Startup scripts are skipped while enabled.",
-    "unsupported": "This driver does not support protected read-only queries.",
-    "writeBlocked": "This connection is read-only. Disable read-only mode in its settings to allow writes.",
-    "banner": "{{name}} — read-only mode"
+  "routineDebug": {
+    "closeUnconfirmed": "Close despite unconfirmed resource release",
+    "title": "Debug routine",
+    "warning": "Starting or continuing a routine executes database code. It may commit transactions or cause external effects. Debugging does not automatically grant privileges, recompile routines or install helper objects.",
+    "preview": "Preview target and parameters",
+    "start": "Start debugging",
+    "continue": "Continue",
+    "into": "Step into",
+    "over": "Step over",
+    "out": "Step out",
+    "status": "Refresh status",
+    "stop": "Stop and release resources",
+    "source": "Source",
+    "stack": "Call stack",
+    "variables": "Variables",
+    "outputs": "OUT parameters and return value",
+    "watches": "Variable names to inspect (comma separated)",
+    "breakpoint": "Toggle breakpoint at line {{line}}",
+    "execution": "Execution",
+    "transaction": "Transaction",
+    "resources": "Resources",
+    "available": "Available",
+    "partial": "Partial",
+    "stale": "Stale — refresh required",
+    "unavailable": "Unavailable",
+    "running": "Running",
+    "paused": "Paused",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "unknown": "Unknown",
+    "open": "Open",
+    "committed": "Committed",
+    "rolled_back": "Rolled back",
+    "held": "Held",
+    "released": "Released",
+    "uncertain": "The latest operation could not be confirmed. Displayed data may be stale. Do not restart the routine; refresh status or stop to confirm cleanup."
   },
   "serverFilePicker": {
     "title": "Browse server files",
@@ -93,6 +124,13 @@
     "warnConfirm": "Run anyway",
     "warnSnooze": "Don't ask again for this connection (this session)"
   },
+  "readOnly": {
+    "label": "Read-only mode",
+    "description": "Block writes on this connection. Startup scripts are skipped while enabled.",
+    "unsupported": "This driver does not support protected read-only queries.",
+    "writeBlocked": "This connection is read-only. Disable read-only mode in its settings to allow writes.",
+    "banner": "{{name}} — read-only mode"
+  },
   "textStats": {
     "characters": "Characters: {{count}}",
     "lines": "Lines: {{count}}",
@@ -123,6 +161,54 @@
     "hideDetails": "Hide details",
     "beta": "Beta",
     "dismiss": "Dismiss"
+  },
+  "linkedFolders": {
+    "tab": "SQL Files",
+    "chooseTitle": "Choose a folder of SQL scripts",
+    "link": "Link folder",
+    "refresh": "Refresh SQL Files",
+    "empty": "Link a folder to browse its SQL scripts.",
+    "needsConnection": "Connect to a database before opening a SQL file.",
+    "linkError": "Could not link the folder",
+    "unlinkError": "Could not unlink the folder",
+    "unlink": "Unlink {{name}}",
+    "rootUnavailable": "Unavailable",
+    "fileUnsaved": "{{name}} (unsaved changes)",
+    "unavailableTitle": "SQL Files are not available here",
+    "unavailableMessage": "Linking a local folder needs the desktop app. In the browser, use Open SQL file to import a file.",
+    "status": {
+      "loading": "Loading…",
+      "empty": "No SQL files",
+      "truncated": "Only the first entries are shown"
+    },
+    "errors": {
+      "linked_folders_file_unreadable": "The saved list of linked folders could not be read. Fix or remove linked_folders.json in the config folder.",
+      "linked_folder_not_found": "This linked folder no longer exists in your list.",
+      "linked_folder_unavailable": "The folder is missing or cannot be read.",
+      "linked_folder_limit_reached": "The maximum number of linked folders is reached. Unlink one first.",
+      "linked_path_outside_root": "The path is outside the linked folder.",
+      "linked_path_not_sql_file": "Only .sql, .psql and .pgsql files can be opened here.",
+      "linked_directory_unreadable": "This folder cannot be read.",
+      "linked_file_unreadable": "This file cannot be read. It may be missing, too large or not UTF-8.",
+      "linked_file_too_large": "This file is too large to save (limit 50 MB).",
+      "linked_file_write_failed": "The file could not be written. Check its permissions and free disk space.",
+      "linked_file_conflict_modified": "The file changed on disk.",
+      "linked_file_conflict_missing": "The file no longer exists on disk."
+    },
+    "conflict": {
+      "reload": "Reload from disk",
+      "saveAs": "Save as copy…",
+      "modified": {
+        "title": "File changed on disk",
+        "message": "{{name}} was modified outside Tabularis since you opened or last saved it. Nothing was written. Overwrite the file with your version, save your version as a copy, or reload the disk version and discard your edits.",
+        "overwrite": "Overwrite file"
+      },
+      "missing": {
+        "title": "File missing on disk",
+        "message": "{{name}} was deleted or moved outside Tabularis. Your edits are kept in the editor. Recreate the file with your version, or save it as a copy elsewhere.",
+        "overwrite": "Recreate file"
+      }
+    }
   },
   "sidebar": {
     "connections": "Connections",
@@ -2662,7 +2748,10 @@
     "downloading": "Downloading...",
     "uploading": "Uploading...",
     "openSidebar": "Open in editor",
-    "imagePreview": "Image preview"
+    "imagePreview": "Image preview",
+    "editAs": "Edit as",
+    "text": "Text",
+    "hex": "Hex"
   },
   "visualExplainPage": {
     "title": "Visual Explain",
@@ -3253,5 +3342,28 @@
     "copyMetadata": "Copy metadata",
     "copied": "Copied to clipboard",
     "copyFailed": "Could not copy to the clipboard. Try again."
+  },
+  "aiInline": {
+    "title": "AI inline completion",
+    "enable": "Suggest SQL while typing",
+    "privacy": "Off by default. Uses the AI provider and model selected below, including local providers. Sends up to 4,000 characters before the cursor, 1,000 after it and 8,000 characters of cached table/schema names. SQL may contain sensitive literals. Result rows, table comments and connection credentials are never added. No extra database queries are made.",
+    "keys": "Tab accepts and Escape dismisses. Autocomplete and indentation take priority. Acceptance inserts text only; review it before running."
+  },
+  "dataFiles": {
+    "workspaceName": "Data files",
+    "open": "Open data file",
+    "openMenu": "Open data file…",
+    "subtitle": "Query a CSV, TSV, JSON, NDJSON or Parquet file as a table",
+    "fileFilter": "Data files",
+    "files": "Files to open",
+    "pluginRequired": "These files open with the {{plugin}} plugin. Install or update it to query them as tables.",
+    "installing": "Installing the {{plugin}} plugin…",
+    "opening": "Opening…",
+    "failed": "The file could not be opened.",
+    "unsupported": "Not a supported data file: {{files}}",
+    "pluginCannotOpen": "The installed plugin cannot open {{files}}. Update it in Settings, Plugins.",
+    "installAndOpen": "Install and open",
+    "dropTitle": "Drop to open as a table",
+    "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
   }
 }

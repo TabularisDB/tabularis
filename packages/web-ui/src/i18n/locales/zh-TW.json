@@ -1,10 +1,41 @@
 {
-  "readOnly": {
-    "label": "唯讀模式",
-    "description": "阻止透過此連線寫入。啟用時略過啟動指令碼。",
-    "unsupported": "此驅動程式不支援受保護的唯讀查詢。",
-    "writeBlocked": "此連線為唯讀。請在連線設定中停用此模式以允許寫入。",
-    "banner": "{{name}} — 唯讀模式"
+  "routineDebug": {
+    "closeUnconfirmed": "尚未確認資源釋放仍關閉",
+    "title": "偵錯常式",
+    "warning": "啟動或繼續常式會執行資料庫程式碼，可能提交交易或造成外部影響。偵錯不會自動授予權限、重新編譯常式或安裝輔助物件。",
+    "preview": "預覽目標與參數",
+    "start": "開始偵錯",
+    "continue": "繼續",
+    "into": "逐步執行",
+    "over": "不進入函式逐步執行",
+    "out": "跳出函式",
+    "status": "重新整理狀態",
+    "stop": "停止並釋放資源",
+    "source": "原始碼",
+    "stack": "呼叫堆疊",
+    "variables": "變數",
+    "outputs": "OUT 參數與傳回值",
+    "watches": "要檢查的變數名稱（以逗號分隔）",
+    "breakpoint": "切換第 {{line}} 行的中斷點",
+    "execution": "執行",
+    "transaction": "交易",
+    "resources": "資源",
+    "available": "可用",
+    "partial": "部分可用",
+    "stale": "資料已過期 — 需要重新整理",
+    "unavailable": "無法使用",
+    "running": "執行中",
+    "paused": "已暫停",
+    "completed": "已完成",
+    "failed": "失敗",
+    "cancelled": "已取消",
+    "unknown": "未知",
+    "open": "開啟",
+    "committed": "已提交",
+    "rolled_back": "已回復",
+    "held": "保留中",
+    "released": "已釋放",
+    "uncertain": "無法確認上次操作。顯示的資料可能已過期。請勿重新啟動常式；請重新整理狀態或停止，以確認資源已釋放。"
   },
     "serverFilePicker": {
         "title": "瀏覽伺服器檔案",
@@ -97,6 +128,13 @@
         "warnConfirm": "仍然執行",
         "warnSnooze": "此連線不再詢問（本次工作階段）"
     },
+    "readOnly": {
+      "label": "唯讀模式",
+      "description": "阻止透過此連線寫入。啟用時略過啟動指令碼。",
+      "unsupported": "此驅動程式不支援受保護的唯讀查詢。",
+      "writeBlocked": "此連線為唯讀。請在連線設定中停用此模式以允許寫入。",
+      "banner": "{{name}} — 唯讀模式"
+    },
     "textStats": {
       "characters": "字元數:{{count}}",
       "lines": "行數:{{count}}",
@@ -127,6 +165,54 @@
         "hideDetails": "隱藏詳情",
         "beta": "測試版",
         "dismiss": "關閉"
+    },
+    "linkedFolders": {
+        "tab": "SQL 檔案",
+        "chooseTitle": "選擇 SQL 腳本資料夾",
+        "link": "連結資料夾",
+        "refresh": "重新整理 SQL 檔案",
+        "empty": "連結資料夾以瀏覽其中的 SQL 腳本。",
+        "needsConnection": "請先連線資料庫，再開啟 SQL 檔案。",
+        "linkError": "無法連結該資料夾",
+        "unlinkError": "無法取消連結該資料夾",
+        "unlink": "取消連結 {{name}}",
+        "rootUnavailable": "無法使用",
+        "fileUnsaved": "{{name}}（有未儲存的變更）",
+        "unavailableTitle": "此處無法使用 SQL 檔案",
+        "unavailableMessage": "連結本機資料夾需要桌面版應用程式。在瀏覽器中請使用「開啟 SQL 檔案」匯入檔案。",
+        "status": {
+            "loading": "載入中…",
+            "empty": "沒有 SQL 檔案",
+            "truncated": "僅顯示前面的項目"
+        },
+        "errors": {
+            "linked_folders_file_unreadable": "無法讀取已儲存的連結資料夾清單。請修正或刪除設定資料夾中的 linked_folders.json。",
+            "linked_folder_not_found": "該連結資料夾已不在清單中。",
+            "linked_folder_unavailable": "資料夾不存在或無法讀取。",
+            "linked_folder_limit_reached": "已達連結資料夾數量上限。請先取消連結一個。",
+            "linked_path_outside_root": "路徑位於連結資料夾之外。",
+            "linked_path_not_sql_file": "此處只能開啟 .sql、.psql 和 .pgsql 檔案。",
+            "linked_directory_unreadable": "無法讀取此資料夾。",
+            "linked_file_unreadable": "無法讀取此檔案。它可能不存在、過大或不是 UTF-8 編碼。",
+            "linked_file_too_large": "此檔案過大，無法儲存（上限 50 MB）。",
+            "linked_file_write_failed": "無法寫入檔案。請檢查權限與磁碟剩餘空間。",
+            "linked_file_conflict_modified": "檔案在磁碟上已變更。",
+            "linked_file_conflict_missing": "檔案在磁碟上已不存在。"
+        },
+        "conflict": {
+            "reload": "從磁碟重新載入",
+            "saveAs": "另存為副本…",
+            "modified": {
+                "title": "檔案在磁碟上已變更",
+                "message": "自你開啟或上次儲存以來，{{name}} 已在 Tabularis 之外被修改。未寫入任何內容。你可以用自己的版本覆寫檔案、另存為副本，或重新載入磁碟版本並捨棄你的編輯。",
+                "overwrite": "覆寫檔案"
+            },
+            "missing": {
+                "title": "磁碟上找不到檔案",
+                "message": "{{name}} 已在 Tabularis 之外被刪除或移動。你的編輯仍保留在編輯器中。你可以用自己的版本重新建立檔案，或另存為副本到其他位置。",
+                "overwrite": "重新建立檔案"
+            }
+        }
     },
     "sidebar": {
         "connections": "連線",
@@ -2583,7 +2669,10 @@
         "downloading": "下載中...",
         "uploading": "上傳中...",
         "openSidebar": "在編輯器中開啟",
-        "imagePreview": "圖片預覽"
+        "imagePreview": "圖片預覽",
+        "editAs": "編輯格式",
+        "text": "文字",
+        "hex": "十六進位"
     },
     "visualExplainPage": {
         "title": "視覺化執行計畫",
@@ -3268,5 +3357,28 @@
         "copyMetadata": "複製中繼資料",
         "copied": "已複製到剪貼簿",
         "copyFailed": "無法複製到剪貼簿，請再試一次。"
+    },
+    "aiInline": {
+        "title": "AI 行內補全",
+        "enable": "輸入時建議 SQL",
+        "privacy": "預設關閉。使用下方選擇的 AI 供應商和模型，包括本機供應商。最多傳送游標前 4,000 個字元、游標後 1,000 個字元，以及 8,000 個字元的快取資料表與結構描述名稱。SQL 可能含有敏感值。不會加入結果列、資料表註解或連線認證，也不會執行額外的資料庫查詢。",
+        "keys": "Tab 接受，Escape 隱藏。自動補全和縮排優先。接受建議只會插入文字，請在執行前檢查。"
+    },
+    "dataFiles": {
+        "workspaceName": "資料檔案",
+        "open": "開啟資料檔案",
+        "openMenu": "開啟資料檔案…",
+        "subtitle": "將 CSV、TSV、JSON、NDJSON 或 Parquet 檔案當作資料表查詢",
+        "fileFilter": "資料檔案",
+        "files": "要開啟的檔案",
+        "pluginRequired": "這些檔案透過 {{plugin}} 外掛開啟。請安裝或更新該外掛，以便將它們當作資料表查詢。",
+        "installing": "正在安裝 {{plugin}} 外掛…",
+        "opening": "正在開啟…",
+        "failed": "無法開啟該檔案。",
+        "unsupported": "不支援的資料檔案：{{files}}",
+        "pluginCannotOpen": "已安裝的外掛無法開啟 {{files}}。請在「設定」的「外掛」中更新。",
+        "installAndOpen": "安裝並開啟",
+        "dropTitle": "放開以當作資料表開啟",
+        "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
     }
 }

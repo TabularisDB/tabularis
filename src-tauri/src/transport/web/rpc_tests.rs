@@ -6,6 +6,26 @@ use axum::http::header::CONTENT_TYPE;
 use axum::http::HeaderValue;
 use uuid::Uuid;
 
+#[test]
+fn routine_debug_web_command_preserves_native_identity_and_rejects_extra_fields() {
+    let body = br#"{"connectionId":"oracle","version":1,"command":{"action":"step","session_id":"session","mode":"over"}}"#;
+    let command =
+        decode_database_object_command(DatabaseObjectRpcCommand::RoutineDebug, body).unwrap();
+    assert!(
+        matches!(command, DatabaseObjectCommand::RoutineDebug { version: 1, command: crate::routine_debug::DebugCommand::Step { session_id, mode: crate::routine_debug::DebugStep::Over }, .. } if session_id == "session")
+    );
+    let invalid = br#"{"connectionId":"oracle","version":1,"command":{"action":"start","preview_id":"p","session_id":"s","sql":"CALL other()"}}"#;
+    assert!(
+        decode_database_object_command(DatabaseObjectRpcCommand::RoutineDebug, invalid).is_err()
+    );
+    assert!(matches!(
+        RpcCommand::parse("routine_debug"),
+        Some(RpcCommand::DatabaseObject(
+            DatabaseObjectRpcCommand::RoutineDebug
+        ))
+    ));
+}
+
 struct FixtureApplication {
     delay: Duration,
     saved_params: HashMap<String, ConnectionParams>,
@@ -1591,6 +1611,11 @@ async fn routes_ai_commands_through_the_shared_application_api() {
         ),
         ("get_ai_models", serde_json::json!({"forceRefresh": false})),
         ("generate_ai_query", generate),
+        ("complete_ai_inline", serde_json::json!({"req": {
+            "requestId": "inline-contract", "provider": "ollama", "model": "local",
+            "prefix": "SELECT ", "suffix": "", "schema": "", "dialect": "postgres"
+        }})),
+        ("cancel_ai_inline", serde_json::json!({"requestId": "inline-contract"})),
         ("explain_ai_query", explain.clone()),
         ("analyze_ai_explain_plan", explain.clone()),
         ("analyze_ai_crash_report", explain),
@@ -2288,7 +2313,16 @@ fn registers_merged_host_commands_with_explicit_authorization() {
         assert_eq!(command.metadata().authorization, authorization, "{name}");
     }
     // Desktop-only integrations never get a browser route.
-    for name in ["open_storage_location", "get_linux_system_theme"] {
+    for name in [
+        "open_storage_location",
+        "get_linux_system_theme",
+        "list_linked_folders",
+        "link_local_folder",
+        "unlink_local_folder",
+        "list_linked_directory",
+        "read_linked_sql_file",
+        "write_linked_sql_file",
+    ] {
         assert!(RpcCommand::parse(name).is_none(), "{name}");
     }
 }
@@ -3127,4 +3161,55 @@ async fn database_backup_rpc_requires_local_admin_and_uses_the_shared_applicatio
             assert_eq!(response.status(), expected, "{command}");
         }
     }
+}
+
+#[tokio::test]
+async fn opens_data_files_only_for_local_admin_upload_sessions() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let payload = Bytes::from(
+        serde_json::to_vec(&serde_json::json!({
+            "uploadToken": Uuid::new_v4().to_string(),
+            "workspaceName": "Data files",
+        }))
+        .unwrap(),
+    );
+    let headers = json_headers();
+    let dispatch = |session: Option<Uuid>, granted: AuthorizationLevel| {
+        dispatcher.dispatch(
+            "open_data_file",
+            RequestId("open-data-file".to_string()),
+            &headers,
+            payload.clone(),
+            session,
+            granted,
+        )
+    };
+
+    // The workspace database can read host files through SQL.
+    let restricted = dispatch(Some(Uuid::new_v4()), AuthorizationLevel::Sensitive).await;
+    assert_eq!(restricted.status(), StatusCode::FORBIDDEN);
+
+    let without_session = dispatch(None, AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(without_session.status(), StatusCode::BAD_REQUEST);
+
+    let allowed = dispatch(Some(Uuid::new_v4()), AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(allowed.status(), StatusCode::OK);
+
+    let desktop_only_field = dispatcher
+        .dispatch(
+            "open_data_file",
+            RequestId("open-data-file-path".to_string()),
+            &json_headers(),
+            Bytes::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "filePath": "/etc/passwd",
+                    "workspaceName": "Data files",
+                }))
+                .unwrap(),
+            ),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
+    assert_eq!(desktop_only_field.status(), StatusCode::BAD_REQUEST);
 }
