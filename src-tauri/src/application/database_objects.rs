@@ -1,4 +1,4 @@
-use crate::drivers::driver_trait::DatabaseDriver;
+use crate::drivers::driver_trait::{DatabaseDriver, SqlDialect};
 use crate::models::{
     ColumnDefinition, ConnectionParams, DbPrivilegeCatalog, DbUserGrantSet, DbUserInfo,
     RoutineCallArg, RoutineParameter,
@@ -9,8 +9,17 @@ use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
 
+#[cfg(test)]
+#[path = "database_objects_tests.rs"]
+mod database_objects_tests;
+
 #[derive(Debug)]
 pub enum DatabaseObjectCommand {
+    RoutineDebug {
+        connection_id: String,
+        version: u32,
+        command: crate::routine_debug::DebugCommand,
+    },
     GetTableQueryTemplate {
         connection_id: String,
         request: crate::models::TableQueryTemplateRequest,
@@ -241,6 +250,14 @@ pub async fn execute(
     command: DatabaseObjectCommand,
 ) -> Result<Value, String> {
     match command {
+        DatabaseObjectCommand::RoutineDebug {
+            connection_id,
+            version,
+            command,
+        } => json(
+            super::routine_debug::execute(runtime, session_id, &connection_id, version, command)
+                .await?,
+        ),
         DatabaseObjectCommand::GetTableQueryTemplate {
             connection_id,
             request,
@@ -528,8 +545,15 @@ pub async fn execute(
             schema,
             database,
         } => json(
-            get_create_table_sql(runtime, &connection_id, table_name, columns, schema, database)
-                .await?,
+            get_create_table_sql(
+                runtime,
+                &connection_id,
+                table_name,
+                columns,
+                schema,
+                database,
+            )
+            .await?,
         ),
         DatabaseObjectCommand::GetAddColumnSql {
             connection_id,
@@ -1070,6 +1094,25 @@ pub async fn get_create_table_sql(
         .await
 }
 
+async fn column_sql_builder_driver_and_params(
+    runtime: &RuntimeContext,
+    connection_id: &str,
+    database: Option<String>,
+    comment: Option<&str>,
+) -> Result<(Arc<dyn DatabaseDriver>, ConnectionParams), String> {
+    let (driver, params) =
+        sql_builder_driver_and_params(runtime, connection_id, database.clone()).await?;
+    // Only nonempty comments need mode-aware literals; ordinary previews stay offline.
+    if !comment.unwrap_or("").is_empty()
+        && driver.manifest().is_builtin
+        && driver.manifest().capabilities.sql_dialect == Some(SqlDialect::Mysql)
+    {
+        connected_driver_and_params(runtime, None, connection_id, database).await
+    } else {
+        Ok((driver, params))
+    }
+}
+
 pub async fn get_add_column_sql(
     runtime: &RuntimeContext,
     connection_id: &str,
@@ -1078,9 +1121,15 @@ pub async fn get_add_column_sql(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let (driver, _) = sql_builder_driver_and_params(runtime, connection_id, database).await?;
+    let (driver, params) = column_sql_builder_driver_and_params(
+        runtime,
+        connection_id,
+        database,
+        column.comment.as_deref(),
+    )
+    .await?;
     driver
-        .get_add_column_sql(&table, column, schema.as_deref())
+        .get_add_column_sql_for_connection(&params, &table, column, schema.as_deref())
         .await
 }
 
@@ -1093,9 +1142,21 @@ pub async fn get_alter_column_sql(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let (driver, _) = sql_builder_driver_and_params(runtime, connection_id, database).await?;
+    let (driver, params) = column_sql_builder_driver_and_params(
+        runtime,
+        connection_id,
+        database,
+        new_column.comment.as_deref(),
+    )
+    .await?;
     driver
-        .get_alter_column_sql(&table, old_column, new_column, schema.as_deref())
+        .get_alter_column_sql_for_connection(
+            &params,
+            &table,
+            old_column,
+            new_column,
+            schema.as_deref(),
+        )
         .await
 }
 
@@ -1318,7 +1379,8 @@ pub async fn get_drop_table_sql(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Option<String>, String> {
-    let driver_id = crate::application::connections::saved_connection_driver(runtime, connection_id)?;
+    let driver_id =
+        crate::application::connections::saved_connection_driver(runtime, connection_id)?;
     let driver = driver_for(&driver_id).await?;
     if driver.manifest().is_builtin || !driver.manifest().capabilities.drop_table_sql {
         return Ok(None);

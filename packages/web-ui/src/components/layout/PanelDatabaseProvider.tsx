@@ -47,6 +47,7 @@ export const PanelDatabaseProvider = ({connectionId, children}: Props) => {
                     sharedContext.refreshSchemaData(schema, connectionId),
                 setSelectedSchemas: (schemas: string[]) =>
                     sharedContext.setSelectedSchemas(schemas, connectionId),
+                refreshSchemas: () => sharedContext.refreshSchemas(connectionId),
                 loadDatabaseData: (database: string) =>
                     sharedContext.loadDatabaseData(database, connectionId),
                 refreshDatabaseData: (database: string) =>

@@ -9,6 +9,24 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('SchemaDiagramLegend', () => {
+    it('associates each legend trigger with its own content', () => {
+        render(
+            <>
+                <SchemaDiagramLegend />
+                <SchemaDiagramLegend />
+            </>,
+        );
+        const triggers = screen.getAllByRole('button', {name: /legend/i});
+        const ids = triggers.map((trigger) => trigger.getAttribute('aria-controls'));
+        expect(new Set(ids).size).toBe(2);
+        for (const trigger of triggers) {
+            fireEvent.click(trigger);
+            expect(
+                document.getElementById(trigger.getAttribute('aria-controls')!),
+            ).toHaveTextContent('Primary Key');
+        }
+    });
+
     it('renders collapsed by default with accessible attributes', () => {
         render(<SchemaDiagramLegend />);
 

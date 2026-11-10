@@ -20,6 +20,12 @@ import {
     resetScriptBlockState,
     scanScriptWord,
 } from './scriptBlocks';
+import {
+    createCompoundBodyState,
+    isInsideBody,
+    onBodyCharacter,
+    resetCompoundBodyState,
+} from './compoundBodies';
 
 interface RawSegment {
     readonly start: number;
@@ -54,6 +60,7 @@ export function splitInto(sql: string, options: DialectOptions, batchOnly = fals
 function collectSegments(sql: string, options: DialectOptions, batchOnly: boolean): RawSegment[] {
     const state: TokenizerState = {delimiter: ';', lineLeading: true};
     const blocks = options.scriptBlocks ? createScriptBlockState() : null;
+    const bodies = options.triggerBodies || options.atomicBodies ? createCompoundBodyState() : null;
     const segments: RawSegment[] = [];
     let segStart = 0;
     let hasMeaningful = false;
@@ -73,10 +80,13 @@ function collectSegments(sql: string, options: DialectOptions, batchOnly: boolea
             case 'goDelimiter':
             case 'slashDelimiter':
                 // Batch mode: `;` ends a statement, not a batch — keep it inline.
-                // Same for a `;` inside an open GoogleSQL procedural block.
+                // Same for a `;` inside an open GoogleSQL procedural block or
+                // an open trigger or BEGIN ATOMIC body.
                 if (
                     token.kind === 'delimiter' &&
-                    (batchOnly || (blocks !== null && isInsideBlock(blocks)))
+                    (batchOnly ||
+                        (blocks !== null && isInsideBlock(blocks)) ||
+                        (bodies !== null && isInsideBody(bodies)))
                 ) {
                     if (blocks !== null) onStatementDelimiter(blocks);
                     position += token.length;
@@ -84,6 +94,7 @@ function collectSegments(sql: string, options: DialectOptions, batchOnly: boolea
                     break;
                 }
                 if (blocks !== null) resetScriptBlockState(blocks);
+                if (bodies !== null) resetCompoundBodyState(bodies);
                 pushSegment(position, token.kind);
                 position += token.length;
                 segStart = position;
@@ -91,6 +102,7 @@ function collectSegments(sql: string, options: DialectOptions, batchOnly: boolea
                 state.lineLeading = false;
                 break;
             case 'setDelimiter':
+                if (bodies !== null) resetCompoundBodyState(bodies);
                 pushSegment(position, token.kind);
                 position += token.length;
                 segStart = position;
@@ -102,6 +114,9 @@ function collectSegments(sql: string, options: DialectOptions, batchOnly: boolea
             case 'data': {
                 hasMeaningful = true;
                 state.lineLeading = false;
+                if (bodies !== null && token.kind === 'data') {
+                    onBodyCharacter(sql, position, options, bodies);
+                }
                 if (blocks !== null) {
                     const wordLength =
                         token.kind === 'data' ? scanScriptWord(sql, position, options, blocks) : 0;

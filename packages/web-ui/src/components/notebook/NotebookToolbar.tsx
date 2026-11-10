@@ -9,6 +9,7 @@ import {
     OctagonX,
     FileCode,
     FileText,
+    FileDown,
     Database,
     ChevronsDownUp,
     ChevronsUpDown,
@@ -16,6 +17,7 @@ import {
     Undo2,
     Redo2,
     History,
+    Eraser,
 } from 'lucide-react';
 import {ContextMenu, type ContextMenuItem} from '@/components/ui/ContextMenu';
 
@@ -25,12 +27,15 @@ interface NotebookToolbarProps {
     onRunAll: () => void;
     onExport: () => void;
     onExportHtml: () => void;
+    onExportSql: () => void;
     onImport: () => void;
     isRunning: boolean;
     stopOnError: boolean;
     onToggleStopOnError: () => void;
     onCollapseAll: () => void;
     onExpandAll: () => void;
+    onClearOutputs: () => void;
+    canClearOutputs: boolean;
     onUndo: () => void;
     onRedo: () => void;
     canUndo: boolean;
@@ -56,7 +61,7 @@ function ToolbarButton({
             onClick={onClick}
             disabled={disabled}
             title={title}
-            className="flex items-center gap-1.5 px-2 py-1 text-xs text-secondary hover:text-primary hover:bg-surface-secondary rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-secondary hover:text-primary hover:bg-surface-secondary rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
             {children}
         </button>
@@ -77,12 +82,15 @@ export function NotebookToolbar({
     onRunAll,
     onExport,
     onExportHtml,
+    onExportSql,
     onImport,
     isRunning,
     stopOnError,
     onToggleStopOnError,
     onCollapseAll,
     onExpandAll,
+    onClearOutputs,
+    canClearOutputs,
     onUndo,
     onRedo,
     canUndo,
@@ -117,6 +125,11 @@ export function NotebookToolbar({
             label: t('editor.notebook.exportHtml'),
             icon: FileCode,
             action: onExportHtml,
+        },
+        {
+            label: t('editor.notebook.exportSql'),
+            icon: FileDown,
+            action: onExportSql,
         },
     ];
 
@@ -209,6 +222,16 @@ export function NotebookToolbar({
                 <ToolbarButton onClick={onExpandAll} title={t('editor.notebook.expandAll')}>
                     <ChevronsUpDown size={14} />
                     <span className="hidden @[720px]:inline">{t('editor.notebook.expandAll')}</span>
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={onClearOutputs}
+                    disabled={!canClearOutputs}
+                    title={t('editor.notebook.clearOutputs')}
+                >
+                    <Eraser size={14} />
+                    <span className="hidden @[720px]:inline">
+                        {t('editor.notebook.clearOutputs')}
+                    </span>
                 </ToolbarButton>
             </ToolbarGroup>
 

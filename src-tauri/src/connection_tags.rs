@@ -43,11 +43,7 @@ pub fn create_tag_impl(
 ) -> Result<ConnectionTag, String> {
     validate_tag_input(name, color)?;
     let name = name.trim();
-    if file
-        .tags
-        .iter()
-        .any(|t| t.name.eq_ignore_ascii_case(name))
-    {
+    if file.tags.iter().any(|t| t.name.eq_ignore_ascii_case(name)) {
         return Err(format!("A tag named \"{name}\" already exists"));
     }
     let tag = ConnectionTag {
@@ -256,7 +252,10 @@ mod tests {
     #[test]
     fn delete_detaches_tag_from_connections() {
         let mut file = file_with_tags(&[("t1", "Prod"), ("t2", "Dev")]);
-        file.connections = vec![conn("c1", Some(vec!["t1", "t2"])), conn("c2", Some(vec!["t1"]))];
+        file.connections = vec![
+            conn("c1", Some(vec!["t1", "t2"])),
+            conn("c2", Some(vec!["t1"])),
+        ];
         delete_tag_impl(&mut file, "t1").unwrap();
         assert_eq!(file.tags.len(), 1);
         assert_eq!(file.connections[0].tag_ids, Some(vec!["t2".to_string()]));
@@ -282,8 +281,7 @@ mod tests {
         );
 
         // Unknown ids are dropped, not fatal (orphans after a partial import).
-        set_connection_tags_impl(&mut file, "c1", &["nope".to_string(), "t1".to_string()])
-            .unwrap();
+        set_connection_tags_impl(&mut file, "c1", &["nope".to_string(), "t1".to_string()]).unwrap();
         assert_eq!(file.connections[0].tag_ids, Some(vec!["t1".to_string()]));
         assert!(set_connection_tags_impl(&mut file, "missing", &[]).is_err());
 

@@ -153,4 +153,32 @@ describe('SidebarNestedDatabaseItem', () => {
             expect(onViewERDiagram).toHaveBeenCalledWith('tabularis_pr822_demo', 'public');
         },
     );
+
+    it('opens New Schema from the database row', () => {
+        const onCreateSchema = vi.fn();
+
+        render(
+            <SidebarNestedDatabaseItem
+                {...baseProps}
+                nestedData={confirmedNestedData}
+                onSetSelectedSchemas={vi.fn()}
+                onCreateSchema={onCreateSchema}
+            />,
+        );
+
+        fireEvent.click(screen.getByTitle('sidebar.newSchema'));
+        expect(onCreateSchema).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides New Schema when the parent does not pass an action', () => {
+        render(
+            <SidebarNestedDatabaseItem
+                {...baseProps}
+                nestedData={confirmedNestedData}
+                onSetSelectedSchemas={vi.fn()}
+            />,
+        );
+
+        expect(screen.queryByTitle('sidebar.newSchema')).not.toBeInTheDocument();
+    });
 });

@@ -76,6 +76,11 @@ function browserCapabilityNegotiation(serverFileBrowser: boolean): PlatformCapab
             adaptation: 'unsupported',
             reason: 'The browser cannot open folders on the Tabularis server',
         },
+        linkLocalFolders: {
+            supported: false,
+            adaptation: 'unsupported',
+            reason: 'Linking folders needs the desktop app; the web server never browses its own filesystem for this',
+        },
     });
 }
 
@@ -204,6 +209,10 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
             return Promise.reject(new Error('Invalid application asset path'));
         }
         return Promise.resolve(`/api/v1/assets/connection-icons/${encodeURIComponent(match[1])}`);
+    }
+
+    pluginFrameBaseUrl(): string {
+        return '/api/v1/sandbox/plugins/';
     }
 
     async readClipboard(): Promise<string> {

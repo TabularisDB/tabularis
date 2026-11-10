@@ -1,4 +1,4 @@
-import {memo, useState, useCallback} from 'react';
+import {memo, useState, useCallback, useId} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Key, Link, Info, ChevronDown, ChevronUp} from 'lucide-react';
 import clsx from 'clsx';
@@ -10,6 +10,7 @@ export interface SchemaDiagramLegendProps {
 
 export const SchemaDiagramLegend = memo(({className}: SchemaDiagramLegendProps) => {
     const {t} = useTranslation();
+    const contentId = useId();
     const [isOpen, setIsOpen] = useState(false);
     const close = useCallback(() => setIsOpen(false), []);
 
@@ -29,7 +30,7 @@ export const SchemaDiagramLegend = memo(({className}: SchemaDiagramLegendProps) 
                 onClick={() => setIsOpen((prev) => !prev)}
                 className="flex items-center gap-2 px-3 py-2 text-primary hover:bg-surface-secondary rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus transition-colors font-medium"
                 aria-expanded={isOpen}
-                aria-controls="schema-diagram-legend-content"
+                aria-controls={contentId}
                 title={t('erDiagram.legend', 'Legend')}
             >
                 <Info size={16} className="text-secondary" />
@@ -43,7 +44,7 @@ export const SchemaDiagramLegend = memo(({className}: SchemaDiagramLegendProps) 
 
             {isOpen && (
                 <div
-                    id="schema-diagram-legend-content"
+                    id={contentId}
                     className="absolute top-full left-0 mt-1 p-3 bg-elevated border border-strong rounded-lg shadow-xl flex flex-col gap-2.5 min-w-[260px] max-w-[300px] z-20"
                 >
                     {/* Primary Key Item */}

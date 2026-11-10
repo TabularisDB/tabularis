@@ -17,6 +17,16 @@ export interface AiGenerateRequest {
     schema: string;
 }
 
+export interface AiInlineRequest {
+    requestId: string;
+    provider: string;
+    model: string;
+    prefix: string;
+    suffix: string;
+    schema: string;
+    dialect: string;
+}
+
 export interface AiExplainRequest {
     provider: string;
     model: string;

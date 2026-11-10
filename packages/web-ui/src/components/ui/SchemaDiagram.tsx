@@ -29,7 +29,7 @@ import {
     Lock,
     LockOpen,
 } from 'lucide-react';
-import {generateMermaidErDiagram, generateDbml} from '@/utils/schemaExport';
+import {generateMermaidErDiagram, generateDbml, generateMarkdownSchema} from '@/utils/schemaExport';
 import {formatColumnType} from '@/utils/columnType';
 import {useAlert} from '@/hooks/useAlert';
 import {toErrorMessage} from '@/utils/errors';
@@ -48,6 +48,17 @@ const nodeTypes = {
 };
 
 const ANIMATION_THRESHOLD = 50;
+
+type SchemaExportFormat = 'mermaid' | 'dbml' | 'markdown';
+
+const EXPORT_FILE_TYPES: Record<
+    SchemaExportFormat,
+    {extension: string; filterName: string; mimeType: string}
+> = {
+    mermaid: {extension: 'mmd', filterName: 'Mermaid', mimeType: 'text/plain'},
+    dbml: {extension: 'dbml', filterName: 'DBML', mimeType: 'text/plain'},
+    markdown: {extension: 'md', filterName: 'Markdown', mimeType: 'text/markdown'},
+};
 
 // The table node grows with its content (min-w-[220px], no max width), so the
 // layout must estimate the rendered size per node: a fixed width lets wide
@@ -189,30 +200,29 @@ const SchemaDiagramContent = ({
         });
     }, [layoutDirectionFromSettings]);
 
-    // Export the full schema as a Mermaid erDiagram. Uses allNodes/allEdges
-    // rather than the rendered nodes so the export stays complete even while a
-    // single table is focused.
+    // Export the full schema. Uses allNodes/allEdges rather than the rendered
+    // nodes so the export stays complete even while a single table is focused.
     const handleExport = useCallback(
-        async (format: 'mermaid' | 'dbml') => {
+        async (format: SchemaExportFormat) => {
             if (allNodes.length === 0) return;
 
-            const isMermaid = format === 'mermaid';
-            const extension = isMermaid ? 'mmd' : 'dbml';
+            const {extension, filterName, mimeType} = EXPORT_FILE_TYPES[format];
 
             try {
-                const content = isMermaid
-                    ? generateMermaidErDiagram(allNodes, allEdges)
-                    : generateDbml(allNodes, allEdges);
+                let content: string;
+                if (format === 'mermaid') {
+                    content = generateMermaidErDiagram(allNodes, allEdges);
+                } else if (format === 'dbml') {
+                    content = generateDbml(allNodes, allEdges);
+                } else {
+                    const scope = [database, schema].filter(Boolean).join('.');
+                    content = generateMarkdownSchema(allNodes, allEdges, {scope});
+                }
                 const downloaded = await downloadTextFile(platform, {
                     fileName: `schema_${new Date().toISOString().slice(0, 10)}.${extension}`,
                     contents: content,
-                    mimeType: 'text/plain',
-                    filters: [
-                        {
-                            name: isMermaid ? 'Mermaid' : 'DBML',
-                            extensions: [extension],
-                        },
-                    ],
+                    mimeType,
+                    filters: [{name: filterName, extensions: [extension]}],
                 });
                 if (downloaded) {
                     showAlert(t('erDiagram.exportSuccess'), {kind: 'info'});
@@ -221,7 +231,7 @@ const SchemaDiagramContent = ({
                 showAlert(String(err), {kind: 'error'});
             }
         },
-        [allNodes, allEdges, platform, showAlert, t],
+        [allNodes, allEdges, database, schema, platform, showAlert, t],
     );
 
     // Callback per tornare alla vista completa
@@ -544,6 +554,11 @@ const SchemaDiagramContent = ({
                             label: t('erDiagram.exportDbml'),
                             icon: Download,
                             action: () => handleExport('dbml'),
+                        },
+                        {
+                            label: t('erDiagram.exportMarkdown'),
+                            icon: Download,
+                            action: () => handleExport('markdown'),
                         },
                     ]}
                 />

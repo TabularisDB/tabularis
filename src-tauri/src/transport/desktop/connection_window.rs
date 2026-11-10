@@ -77,8 +77,11 @@ pub async fn open_connection_window(
             let app = close_app.clone();
             let connection_id = close_connection_id.clone();
             crate::async_rt::spawn(async move {
-                if let Err(e) =
-                    crate::transport::desktop::commands::disconnect_connection(app, connection_id.clone()).await
+                if let Err(e) = crate::transport::desktop::commands::disconnect_connection(
+                    app,
+                    connection_id.clone(),
+                )
+                .await
                 {
                     log::warn!(
                         "Failed to disconnect '{}' on connection window close: {}",

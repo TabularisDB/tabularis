@@ -446,7 +446,16 @@ fn keychain_failure_persists_passwords_and_reports_fallback_without_exposing_the
     let mut params = connection_params("db-secret");
     params.ssh_enabled = Some(true);
     params.ssh_password = Some("ssh-secret".into());
-    let saved = save_connection(&runtime, &state, "Fallback".into(), params, Default::default(), None, None).unwrap();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Fallback".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
     assert_eq!(saved.params.save_in_keychain, Some(false));
     assert_eq!(saved.params.password, None);
     let persisted = find_connection(&load_file(&runtime).unwrap(), &saved.id).unwrap();
@@ -489,8 +498,16 @@ fn duplicate_clears_a_missing_uri_marker() {
     let (_temp, runtime, state) = fixture();
     let mut params = connection_params("secret");
     params.connection_uri = Some("postgres://user:secret@localhost/db".into());
-    let original =
-        save_connection(&runtime, &state, "Original".into(), params, Default::default(), None, None).unwrap();
+    let original = save_connection(
+        &runtime,
+        &state,
+        "Original".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
     runtime
         .secrets
         .delete(&secret_account(&original.id, CONNECTION_URI_SUFFIX))
@@ -615,7 +632,16 @@ fn switching_driver_does_not_keep_the_previous_drivers_uri() {
     let (_temp, runtime, state) = fixture();
     let mut params = connection_params("secret");
     params.connection_uri = Some("postgres://user:secret@localhost/db".into());
-    let saved = save_connection(&runtime, &state, "Original".into(), params, Default::default(), None, None).unwrap();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Original".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
     let mut params = saved.params;
     params.driver = "mysql".into();
     let updated = update_connection(
@@ -682,8 +708,16 @@ fn plugin_secrets_live_in_the_keychain_for_the_whole_connection_lifecycle() {
         .extra
         .insert("token".to_string(), "inline-token".to_string());
     let changes = HashMap::from([("token".to_string(), Some("stored-token".to_string()))]);
-    let saved =
-        save_connection(&runtime, &state, "Plugin".into(), params, changes, None, None).unwrap();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Plugin".into(),
+        params,
+        changes,
+        None,
+        None,
+    )
+    .unwrap();
     let account = |id: &str| format!("{id}:plugin:test-plugin:token");
 
     assert_eq!(saved.plugin_secret_keys, vec!["token"]);
@@ -1096,4 +1130,64 @@ async fn creating_a_sqlite_database_saves_a_connection_to_the_new_file() {
     assert!(path.is_file());
     assert_eq!(created["params"]["driver"], "sqlite");
     assert_eq!(load_file(&runtime).unwrap().connections.len(), 1);
+}
+
+#[tokio::test]
+async fn opening_data_files_saves_one_workspace_connection_and_reuses_it() {
+    // The driver is looked up in the process-wide registry.
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let (temp, runtime, state) = fixture();
+    let mut manifest = crate::plugins::driver::test_manifest();
+    manifest.id = "data-file-workspace-test".to_string();
+    manifest.capabilities.file_based = true;
+    manifest.capabilities.data_files = vec!["parquet".to_string()];
+    crate::drivers::registry::register_driver(crate::plugins::driver::test_driver_with_manifest(
+        manifest,
+        |_| Ok(Value::Null),
+    ))
+    .await;
+    let open = |file_name: &'static str, workspace_name: &'static str| {
+        let path = temp.path().join(file_name);
+        fs::write(&path, b"PAR1").unwrap();
+        execute(
+            &runtime,
+            &state,
+            ConnectionCommand::OpenDataFile {
+                source: crate::application::data_files::DataFileSource::ServerPath(path),
+                workspace_name: workspace_name.to_string(),
+            },
+        )
+    };
+
+    let first = open("metrics.parquet", "Data files").await.unwrap();
+    let second = open("events.parquet", "Renamed later").await.unwrap();
+    let unnamed_reuse = open("more.parquet", " ").await.unwrap();
+
+    let connections = load_file(&runtime).unwrap().connections;
+    assert_eq!(connections.len(), 1);
+    assert_eq!(connections[0].name, "Data files");
+    assert_eq!(connections[0].params.driver, "data-file-workspace-test");
+    assert_eq!(first["connectionId"], connections[0].id);
+    assert_eq!(first["driver"], "data-file-workspace-test");
+    assert_eq!(first["table"], "metrics");
+    assert_eq!(first["format"], "parquet");
+    assert_eq!(second["connectionId"], first["connectionId"]);
+    assert_eq!(second["table"], "events");
+    assert_eq!(unnamed_reuse["connectionId"], first["connectionId"]);
+
+    let unsupported = temp.path().join("report.xlsx");
+    fs::write(&unsupported, b"PK").unwrap();
+    let error = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::OpenDataFile {
+            source: crate::application::data_files::DataFileSource::ServerPath(unsupported),
+            workspace_name: "Data files".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, "No installed driver can open xlsx data files");
+
+    crate::drivers::registry::unregister_driver("data-file-workspace-test").await;
 }

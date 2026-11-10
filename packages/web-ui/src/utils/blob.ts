@@ -433,11 +433,37 @@ export function blobHexToWireFormat(
         bytes[index / 2] = Number.parseInt(normalized.slice(index, index + 2), 16);
     }
 
+    return bytesToBlobWireFormat(bytes, mimeType);
+}
+
+/** Encodes text as UTF-8 bytes in the BLOB wire format. */
+export function blobTextToWireFormat(text: string, mimeType = 'application/octet-stream'): string {
+    return bytesToBlobWireFormat(new TextEncoder().encode(text), mimeType);
+}
+
+function bytesToBlobWireFormat(bytes: Uint8Array, mimeType: string): string {
     let binary = '';
     for (const byte of bytes) {
         binary += String.fromCharCode(byte);
     }
     return `BLOB:${bytes.length}:${mimeType}:${btoa(binary)}`;
+}
+
+/**
+ * The text of a BLOB that the grid shows as text (complete, generic, printable
+ * UTF-8), or null. Also null when saving that text unchanged would not write
+ * the same bytes back: a textarea turns CRLF into LF, and the decoder drops a
+ * UTF-8 byte order mark.
+ */
+export function blobValueToEditableText(value: unknown): string | null {
+    const metadata = extractBlobMetadata(value);
+    const text = metadata ? formatBlobTextPreview(value, metadata) : null;
+    if (text === null || text.includes('\r')) {
+        return null;
+    }
+    const sameBytes =
+        extractBase64Payload(blobTextToWireFormat(text)) === extractBase64Payload(value);
+    return sameBytes ? text : null;
 }
 
 function formatBlobTextPreview(value: unknown, metadata: BlobMetadata): string | null {
