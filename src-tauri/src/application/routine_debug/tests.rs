@@ -1,8 +1,118 @@
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+fn writable_runtime(connection_id: &str) -> (tempfile::TempDir, RuntimeContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let mut runtime = RuntimeContext::system();
+    runtime.paths = Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+        temp.path().to_path_buf(),
+        temp.path().to_path_buf(),
+    ));
+    std::fs::write(
+        runtime.paths.connections_file(),
+        serde_json::to_vec(&serde_json::json!({
+            "groups": [],
+            "connections": [{
+                "id": connection_id,
+                "name": "Debugger policy fixture",
+                "params": {"driver": "test-driver", "database": "fixture"}
+            }]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    (temp, runtime)
+}
+
+#[tokio::test]
+async fn saved_read_only_policy_blocks_a_cached_preview_but_keeps_cleanup() {
+    let connection_id = "saved-readonly-debugger";
+    let (_temp, runtime) = writable_runtime(connection_id);
+    let owner = Some(Uuid::new_v4());
+    let id = Uuid::new_v4().to_string();
+    let legacy = crate::plugins::driver::test_driver(|_| serde_json::Value::Null);
+    let mut manifest = legacy.manifest().clone();
+    manifest.capabilities.routine_debug = Some(1);
+    let actions = Arc::new(Mutex::new(Vec::new()));
+    let recorded = actions.clone();
+    let driver = Arc::new(crate::plugins::driver::test_driver_with_manifest(
+        manifest,
+        move |request| {
+            let command = &request.params["command"];
+            recorded
+                .lock()
+                .unwrap()
+                .push(command["action"].as_str().unwrap().to_string());
+            Ok(serde_json::to_value(cancelled_preview(
+                command["session_id"].as_str().unwrap().into(),
+            ))
+            .unwrap())
+        },
+    ));
+    sessions().lock().unwrap().insert(
+        id.clone(),
+        Session {
+            owner,
+            connection_id: connection_id.into(),
+            driver,
+            params: ConnectionParams::default(),
+            preview_id: Some("native-preview".into()),
+            created: Instant::now(),
+            started: false,
+            closing_preview: false,
+            terminal: None,
+        },
+    );
+    let path = runtime.paths.connections_file();
+    let mut saved: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    saved["connections"][0]["params"]["read_only"] = serde_json::json!(true);
+    std::fs::write(&path, serde_json::to_vec(&saved).unwrap()).unwrap();
+    let outcome = execute(
+        &runtime,
+        owner,
+        connection_id,
+        1,
+        DebugCommand::Start {
+            preview_id: id.clone(),
+            session_id: id.clone(),
+        },
+    )
+    .await;
+    assert!(
+        outcome.is_err(),
+        "a saved read-only policy must reject a cached debugger start"
+    );
+    assert_eq!(
+        outcome.unwrap_err(),
+        crate::application::read_only::WRITE_BLOCKED
+    );
+    assert!(
+        actions.lock().unwrap().is_empty(),
+        "the native start must not be dispatched"
+    );
+    std::fs::remove_file(path).unwrap();
+    let stopped = execute(
+        &runtime,
+        owner,
+        connection_id,
+        1,
+        DebugCommand::Stop {
+            session_id: id.clone(),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(
+        matches!(stopped, DebugResponse::Session {session, ..} if matches!(session.resources, DebugResources::Released))
+    );
+    assert_eq!(*actions.lock().unwrap(), vec!["stop"]);
+    assert!(!sessions().lock().unwrap().contains_key(&id));
+}
+
 #[tokio::test]
 async fn rejected_inspection_does_not_resume_or_cancel_execution() {
+    let (_temp, runtime) = writable_runtime("inspection");
     let legacy = crate::plugins::driver::test_driver(|_| serde_json::Value::Null);
     let mut manifest = legacy.manifest().clone();
     manifest.capabilities.routine_debug = Some(1);
@@ -41,11 +151,9 @@ async fn rejected_inspection_does_not_resume_or_cancel_execution() {
         frame_id: "1:2".into(),
         names: vec!["F()".into()],
     };
-    assert!(
-        execute(&RuntimeContext::system(), owner, "inspection", 1, command)
-            .await
-            .is_err()
-    );
+    assert!(execute(&runtime, owner, "inspection", 1, command)
+        .await
+        .is_err());
     assert_eq!(*actions.lock().unwrap(), vec!["read_variables"]);
     release(owner, Some("inspection")).await;
     assert_eq!(*actions.lock().unwrap(), vec!["read_variables", "stop"]);
@@ -152,7 +260,7 @@ async fn sessions_are_owned_and_failed_start_cannot_be_replayed() {
             terminal: None,
         },
     );
-    let runtime = RuntimeContext::system();
+    let (_temp, runtime) = writable_runtime("connection");
     let command = || DebugCommand::Start {
         preview_id: id.clone(),
         session_id: id.clone(),
@@ -396,7 +504,7 @@ async fn closing_preview_cannot_start_even_when_native_discard_fails() {
             terminal: None,
         },
     );
-    let runtime = RuntimeContext::system();
+    let (_temp, runtime) = writable_runtime("closing");
     assert!(execute(
         &runtime,
         owner,
