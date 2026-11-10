@@ -1355,13 +1355,16 @@ async fn project_config_multibyte_at_size_boundary_does_not_panic() {
     let tmp = tempfile::tempdir().unwrap();
     let env_file = tmp.path().join(".env");
 
-    // 65,535 ASCII characters followed by a 3-byte UTF-8 character (€) via variable expansion
-    let ascii_prefix = "a".repeat(65_535);
+    // Base URL is 41 bytes. We set query prefix length so exactly 1 byte remains before
+    // the 65,536-byte limit, testing truncation when a 3-byte UTF-8 character (€)
+    // crosses the boundary without panicking or corrupting the URL connection structure.
+    let base_url = "postgres://user:pass@127.0.0.1:5432/db?x=";
+    let query_prefix = "a".repeat(65_536 - base_url.len() - 1);
     write(
         &env_file,
         &format!(
-            "EURO=€\nBIG_PASS=\"{}${{EURO}}\"\nDATABASE_URL=\"postgres://user:${{BIG_PASS}}@127.0.0.1:5432/db\"\n",
-            ascii_prefix
+            "EURO=€\nQUERY_PREFIX=\"{}\"\nDATABASE_URL=\"{}${{QUERY_PREFIX}}${{EURO}}\"\n",
+            query_prefix, base_url
         ),
     );
 
@@ -1373,6 +1376,8 @@ async fn project_config_multibyte_at_size_boundary_does_not_panic() {
         .iter()
         .find(|c| c.name.contains("DATABASE_URL"))
         .unwrap();
+    assert_eq!(conn.driver_label, "PostgreSQL");
+    assert_eq!(conn.database, "db");
     assert!(conn
         .warnings
         .iter()
