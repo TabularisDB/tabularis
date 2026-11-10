@@ -115,6 +115,7 @@ describe('sqlSyntax', () => {
                 tripleQuotedStrings: true,
                 stringPrefixes: ['r', 'b', 'rb', 'br'],
                 scriptBlocks: true,
+                psqlBlocks: false,
                 triggerBodies: false,
                 atomicBodies: false,
             });

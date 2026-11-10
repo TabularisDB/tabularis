@@ -124,6 +124,13 @@
     "warnConfirm": "Run anyway",
     "warnSnooze": "Don't ask again for this connection (this session)"
   },
+  "readOnly": {
+    "label": "Read-only mode",
+    "description": "Block writes on this connection. Startup scripts are skipped while enabled.",
+    "unsupported": "This driver does not support protected read-only queries.",
+    "writeBlocked": "This connection is read-only. Disable read-only mode in its settings to allow writes.",
+    "banner": "{{name}} — read-only mode"
+  },
   "textStats": {
     "characters": "Characters: {{count}}",
     "lines": "Lines: {{count}}",
@@ -3265,6 +3272,10 @@
     },
     "unknown": {
       "summary": "Connection failed"
+    },
+    "keychain": {
+      "summary": "System keychain unavailable",
+      "recovery": "Tabularis could not reach the OS credential store to save the passwords. On Linux, make sure a Secret Service provider (GNOME Keyring, KWallet, KeePassXC) is running and unlocked, or turn off \"Save passwords in Keychain\" for this connection."
     }
   },
   "connectionTest": {
@@ -3335,6 +3346,22 @@
     "copyMetadata": "Copy metadata",
     "copied": "Copied to clipboard",
     "copyFailed": "Could not copy to the clipboard. Try again."
+  },
+  "linkedGit": {
+    "title": "Review Git changes",
+    "diskOnly": "Commits use saved files on disk. Unsaved editor drafts are not included. Only checked, reviewed scripts will be committed.",
+    "desktopOnly": "Git for linked SQL folders is available in the desktop app only.",
+    "refresh": "Refresh changes",
+    "commit": "Commit selected scripts",
+    "committed": "Created commit {{commit}}.",
+    "renames": "M modified · A added · D deleted · ? untracked. Renames appear as a deletion and an addition; review both.",
+    "empty": "No changed SQL scripts.",
+    "files": "Changed SQL scripts",
+    "include": "Include {{path}} in commit",
+    "review": "Review {{path}}",
+    "diff": "Reviewed file diff",
+    "choose": "Select a script to review its diff before including it.",
+    "message": "Commit message"
   },
   "aiInline": {
     "title": "AI inline completion",

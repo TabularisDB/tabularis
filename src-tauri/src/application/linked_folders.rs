@@ -96,6 +96,16 @@ pub fn links_file_path(config_dir: &Path) -> PathBuf {
     config_dir.join("linked_folders.json")
 }
 
+/// Git callers receive only a persisted, still-canonical approved root.
+pub fn linked_git_root(store: &Path, id: &str) -> Result<PathBuf, String> {
+    let folder = find_folder(store, id)?;
+    let root = canonical_root(&folder)?;
+    if root != Path::new(&folder.path) {
+        return Err(LINKED_PATH_OUTSIDE_ROOT.to_string());
+    }
+    Ok(root)
+}
+
 fn load_links(store: &Path) -> Result<Vec<LinkedFolder>, String> {
     let content = match fs::read_to_string(store) {
         Ok(content) => content,

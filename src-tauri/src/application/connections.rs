@@ -393,6 +393,7 @@ pub(crate) fn resolve_saved_connection_params(
     let driver_id = saved.params.driver.clone();
     let plugin_secrets = load_plugin_secrets(runtime, &saved);
     let mut params = saved.params;
+    super::read_only::prepare_params(&mut params);
     restore_secrets_for_connect(runtime, connection_id, &mut params)?;
     params.extra.extend(plugin_secrets);
     params.connection_id = Some(connection_id.to_string());
@@ -1503,6 +1504,7 @@ fn prepare_connection_request(
     runtime: &RuntimeContext,
     request: &mut TestConnectionRequest,
 ) -> Result<(), String> {
+    super::read_only::prepare_params(&mut request.params);
     let iam_auth = request.params.use_iam_auth.unwrap_or(false);
     let mut stored_plugin_secrets = std::collections::HashMap::new();
     let saved = match request.connection_id.as_deref() {
@@ -1672,6 +1674,7 @@ async fn test_connection(
         Some(db_target),
     );
     let capabilities = &driver.manifest().capabilities;
+    super::read_only::validate_support(&resolved, capabilities)?;
     if capabilities.file_based
         && crate::fs_path::requires_existing_database_file(
             capabilities.in_memory,

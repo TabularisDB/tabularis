@@ -3212,6 +3212,10 @@
     },
     "unknown": {
       "summary": "Falha na conexão"
+    },
+    "keychain": {
+      "summary": "Chaveiro do sistema indisponível",
+      "recovery": "O Tabularis não conseguiu acessar o armazenamento de credenciais do sistema para salvar as senhas. No Linux, verifique se um provedor do Secret Service (GNOME Keyring, KWallet, KeePassXC) está em execução e desbloqueado, ou desative \"Salvar senhas no Keychain\" para esta conexão."
     }
   },
   "connectionTest": {
@@ -3257,6 +3261,22 @@
     "importErrors": { "unrecognized": "Tema do VS Code não reconhecido.", "modeRequired": "Escolha um modo e abra a prévia novamente.", "includeOnly": "Temas contendo apenas includes não podem ser importados. Forneça as cores reais.", "noSupportedData": "Nenhuma cor ou regra SQL compatível encontrada.", "invalidColor": "Uma cor compatível tem valor inválido.", "invalidRules": "Regras de tokens inválidas ou excessivas." },
     "diagnostics": { "unsupportedKey": "Campo não compatível", "unsupportedColor": "Cor não compatível", "unsupportedScope": "Escopo não compatível", "scopeApproximation": "Mapeamento SQL aproximado", "unsupportedStyle": "Estilo não compatível", "ignoredInclude": "Include não carregado", "ignoredSemanticTokens": "Tokens semânticos ignorados", "unsupportedReference": "Referência externa não carregada", "unsupportedSetting": "Configuração não compatível", "tokenAlphaFlattened": "Opacidade dos tokens calculada sobre o fundo base", "modeApproximation": "Modo substituído ou aproximado", "diagnosticsTruncated": "Diagnósticos adicionais omitidos" }
   },
+  "linkedGit": {
+    "title": "Revisar alterações do Git",
+    "diskOnly": "Os commits usam arquivos salvos em disco. Rascunhos não salvos ficam de fora. Apenas scripts marcados e revisados serão incluídos.",
+    "desktopOnly": "Git para pastas SQL vinculadas está disponível apenas no aplicativo desktop.",
+    "refresh": "Atualizar alterações",
+    "commit": "Criar commit dos scripts selecionados",
+    "committed": "Commit {{commit}} criado.",
+    "renames": "M modificado · A adicionado · D excluído · ? não rastreado. Renomeações aparecem como exclusão e adição; revise ambas.",
+    "empty": "Nenhum script SQL alterado.",
+    "files": "Scripts SQL alterados",
+    "include": "Incluir {{path}} no commit",
+    "review": "Revisar {{path}}",
+    "diff": "Diferenças do arquivo revisado",
+    "choose": "Selecione um script para revisar suas diferenças antes de incluí-lo.",
+    "message": "Mensagem do commit"
+  },
   "aiInline": {
     "title": "Conclusão de IA em linha",
     "enable": "Sugerir SQL ao digitar",
@@ -3279,5 +3299,12 @@
     "installAndOpen": "Instalar e abrir",
     "dropTitle": "Solte para abrir como tabela",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "readOnly": {
+    "label": "Modo somente leitura",
+    "description": "Bloqueia gravações nesta conexão. Os scripts de inicialização são ignorados neste modo.",
+    "unsupported": "Este driver não oferece consultas protegidas somente leitura.",
+    "writeBlocked": "Esta conexão é somente leitura. Desative este modo nas configurações para permitir gravações.",
+    "banner": "{{name}} — somente leitura"
   }
 }

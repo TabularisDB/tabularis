@@ -169,11 +169,12 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
+| `read_only_queries` | bool | Implements the optional database-enforced `execute_read_only_query` RPC, allowing users to enable read-only mode per connection. Defaults to `false`. See [Optional protected read-only queries](#optional-protected-read-only-queries). |
 | `table_export` | bool | Offers **Export table to SQL...** on table nodes. Defaults to `true`; set `false` for non-SQL plugins. See [Table Export and Import](#table-export-and-import). |
 | `table_import` | bool | Offers **Import table from SQL...** on database and schema nodes. Defaults to `true`; set `false` for non-SQL plugins. Always off when `readonly` is `true`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
-| `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL sets this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
+| `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL and MySQL set this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
 
 For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
 
@@ -189,6 +190,53 @@ For URI passthrough drivers, an opaque placeholder (such as `jdbc:h2:mem:test`) 
   ]
 }
 ```
+
+### Optional protected read-only queries
+
+Writable drivers can opt in to the connection's **Read-only mode** by declaring
+`capabilities.read_only_queries: true`. This is distinct from `readonly: true`,
+which describes a driver that is always read-only. The default is `false`: older
+plugins continue working, but cannot enable this connection policy.
+
+Implement the `execute_read_only_query` JSON-RPC method. Its request and response
+have the same shape as `execute_query` (a bare `QueryResult` response):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "method": "execute_read_only_query",
+  "params": {
+    "params": {"driver": "example", "database": "analytics", "read_only": true},
+    "query": "SELECT * FROM items",
+    "limit": 100,
+    "page": 1,
+    "schema": null
+  }
+}
+```
+
+The host preflights the SQL using the declared dialect, but a keyword filter
+cannot detect side effects in stored functions. The plugin must enforce write
+protection using its database's transaction, session or equivalent mechanism,
+including for calls whose SQL looks like a read. If protection cannot be enabled,
+return an error. An unsupported method, timeout or protection failure never falls
+back to `execute_query`. Restore or discard the physical connection on every
+success, error and cancellation path; protection must not leak to writable users.
+
+`ConnectionParams.read_only` is persisted per connection and forwarded to all
+driver calls, including connection testing and metadata discovery. The host omits
+the saved `startup_script` while it is enabled. Plugins must also ensure their
+own initialization and metadata operations cannot write in this mode. A driver
+that loses the capability must refuse protected execution until the user updates
+the plugin or explicitly disables the policy.
+
+Read-only batches are preflighted in full, then each statement uses the protected
+RPC independently. Explicit transaction/session-control statements are refused;
+connection-local state is not shared between these calls. Visual EXPLAIN is
+unavailable because its separate RPC has no protected execution contract; raw
+EXPLAIN statements can use the protected query RPC. Existing `readonly` drivers
+continue using their normal execution method and need no new RPC.
 
 ### Declare `sql_dialect` (or `sql_syntax`)
 
@@ -223,6 +271,7 @@ Always set `sql_dialect` to the closest preset, and add `sql_syntax` when no pre
 | `nested_block_comments` | bool | preset (`postgres`, `mssql`: `true`) | `/* … */` comments nest. |
 | `line_comment_requires_space` | bool | preset (`mysql`: `true`) | `--` only starts a comment when followed by whitespace (`1--1` is arithmetic). |
 | `script_blocks` | bool | `false` | Procedural blocks stay one statement: `BEGIN … END` (not `BEGIN TRANSACTION`), `EXCEPTION WHEN ERROR THEN`, `IF … END IF`, `LOOP`, `WHILE`, `REPEAT`, `FOR … DO`, `CASE … END CASE`, labels and `CREATE PROCEDURE` bodies. |
+| `psql_blocks` | bool | `false` | Firebird PSQL: preserve declarations and nested BEGIN/CASE blocks in procedures, functions, triggers, packages and EXECUTE BLOCK. Enable alternative q-quotes and consume standalone isql SET TERM directives. Ordinary transaction statements remain separate. Requires a host and registry schema supporting this field. |
 | `dollar_quoting` | bool | preset (`postgres`: `true`) | `$tag$ … $tag$` strings. |
 | `string_escape` | string | preset (`mysql`: doubled quote plus doubled backslash; others: `"standard"`) | How the host writes string literals in filters, foreign-key filters, Copy as INSERT / IN list, clipboard import, dumps and notebook cell CTEs: `"standard"` (`'it''s'`) or `"backslash"` (`'it\'s'`, with `\\`, NUL (`\0`), `\n` and `\r` escaped too). On a `mysql` base (`extends: "mysql"`, or `sql_dialect: "mysql"` without `extends`) `"standard"` is ignored with a warning, since the engine still reads `\` as an escape character; `"backslash"` is allowed. |
 | `like_escape` | bool | `true` | Whether `LIKE … ESCAPE '!'` is supported. With `false`, literal LIKE filters escape `%`, `_` and `\` with a backslash (the engine's default LIKE escape) and omit `ESCAPE`. |
@@ -935,7 +984,7 @@ Optional settings appear only when the user set them. For example, `connect_time
 
 ### Cancel Notification (Optional)
 
-When a call exceeds the configured plugin call timeout, Tabularis stops waiting and reports the error to the user. Right after that it writes a JSON-RPC **notification** (no top-level `id`) naming the abandoned request:
+When a call exceeds the configured plugin call timeout, or its awaiting task is explicitly aborted, Tabularis stops waiting and writes a JSON-RPC **notification** (no top-level `id`) naming the abandoned request:
 
 ```json
 { "jsonrpc": "2.0", "method": "cancel", "params": { "id": 1 } }
@@ -946,7 +995,13 @@ When a call exceeds the configured plugin call timeout, Tabularis stops waiting 
 - **Do not reply.** A notification has no response; writing one would put an unexpected line on `stdout`.
 - **Ignore unknown ids** (already finished, already cancelled, or not cancellable). A late or duplicate cancel must never be treated as an error.
 - **Keep reading `stdin` while a request runs.** A plugin that processes requests strictly one at a time only sees the cancel after the long call has finished.
-- No cancel is sent when the timeout is disabled (`0`): the call simply waits.
+- Disabling the timeout (`0`) disables automatic deadline cancellation; explicit caller cancellation still sends the notification. Calls abandoned before dispatch are not sent to the plugin.
+
+### Session State Refresh (Optional)
+
+Session-aware drivers can implement `get_session_state` with params `{ "session_id": "..." }` and result `{ "in_transaction": true }` (or `false`). Report the actual retained session state after earlier requests have settled; an unknown or released session reports `false`. This RPC must not create a new transaction or execute the original query again.
+
+The host uses this read-only probe after a failed or cancelled query/batch, because the abandoned response may have carried a transaction-state change. It waits at most five seconds. Return JSON-RPC `-32601` when unsupported. Unsupported, failed or malformed probes retain the last cached state, if any; an unavailable probe does not prove that a transaction closed. Cancellation may preserve or abort a transaction depending on the driver, so the host does not infer the state solely from cancellation.
 
 ---
 

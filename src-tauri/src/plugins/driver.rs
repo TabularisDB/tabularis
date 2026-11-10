@@ -22,6 +22,10 @@ use crate::plugins::rpc::{
     cancel_notification_line, JsonRpcRequest, JsonRpcResponse, PluginCallError,
 };
 
+#[path = "call_cancellation.rs"]
+mod call_cancellation;
+use call_cancellation::PendingCallGuard;
+
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
@@ -93,8 +97,8 @@ fn parse_session_error(value: &Value) -> Option<(String, bool)> {
     Some((error.to_string(), in_transaction))
 }
 
-/// The last `in_transaction` a plugin reported per session, so a failed or
-/// cancelled run can still be answered by `session_in_transaction`.
+/// Last reported transaction state, used as a fallback by legacy plugins
+/// without the optional get_session_state RPC.
 fn plugin_session_states() -> &'static Mutex<HashMap<String, bool>> {
     static STATES: std::sync::OnceLock<Mutex<HashMap<String, bool>>> = std::sync::OnceLock::new();
     STATES.get_or_init(Default::default)
@@ -183,7 +187,7 @@ enum PluginCommand {
         oneshot::Sender<Result<Value, PluginCallError>>,
     ),
     /// Drop the pending entry for `id` because the caller stopped waiting
-    /// (timed out), and send the plugin a `cancel` notification for it.
+    /// (timed out or aborted), and send the plugin a `cancel` notification for it.
     /// Prevents an unbounded leak of orphaned response senders.
     Cancel(u64),
 }
@@ -306,6 +310,10 @@ impl PluginProcess {
                     msg = rx.recv(), if !channel_drained => {
                         match msg {
                             Some(PluginCommand::Call(req, resp_tx)) => {
+                                // A caller aborted before dispatch must not start database work.
+                                if resp_tx.is_closed() {
+                                    continue;
+                                }
                                 let id = req.id;
                                 pending_requests.insert(id, resp_tx);
 
@@ -528,32 +536,32 @@ impl PluginProcess {
                 .into());
         }
         permit.send(PluginCommand::Call(req, tx));
-
-        let Some(timeout) = timeout else {
-            return rx.await.unwrap_or_else(|_| {
+        let mut pending = PendingCallGuard::new(self.sender.clone(), id);
+        let result = if let Some(timeout) = timeout {
+            match tokio::time::timeout(timeout, rx).await {
+                Ok(Ok(result)) => result,
+                Ok(Err(_)) => Err(dropped_plugin_response_error(
+                    !self.accepting_calls.load(Ordering::Acquire),
+                )),
+                Err(_) => {
+                    let _ = self.sender.send(PluginCommand::Cancel(id)).await;
+                    Err(format!(
+                        "Plugin call '{}' timed out after {}s",
+                        method,
+                        timeout.as_secs()
+                    )
+                    .into())
+                }
+            }
+        } else {
+            rx.await.unwrap_or_else(|_| {
                 Err(dropped_plugin_response_error(
                     !self.accepting_calls.load(Ordering::Acquire),
                 ))
-            });
+            })
         };
-
-        match tokio::time::timeout(timeout, rx).await {
-            Ok(Ok(result)) => result,
-            Ok(Err(_)) => Err(dropped_plugin_response_error(
-                !self.accepting_calls.load(Ordering::Acquire),
-            )),
-            Err(_) => {
-                // Tell the management task to drop the now-orphaned pending
-                // entry so it does not leak one slot per timeout.
-                let _ = self.sender.send(PluginCommand::Cancel(id)).await;
-                Err(format!(
-                    "Plugin call '{}' timed out after {}s",
-                    method,
-                    timeout.as_secs()
-                )
-                .into())
-            }
-        }
+        pending.disarm();
+        result
     }
 }
 
@@ -1288,6 +1296,39 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    async fn execute_read_only_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<QueryResult, String> {
+        if self.manifest.capabilities.readonly {
+            return self.execute_query(params, query, limit, page, schema).await;
+        }
+        if !self.manifest.capabilities.read_only_queries {
+            // Preserve legacy MCP behaviour when no connection policy was set.
+            if !params.read_only {
+                return self.execute_query(params, query, limit, page, schema).await;
+            }
+            return Err("This plugin does not support protected read-only queries".into());
+        }
+        let result = self
+            .process
+            .call(
+                "execute_read_only_query",
+                json!({
+                    "params": self.with_primary_database(params), "query": query, "limit": limit,
+                    "page": page, "schema": schema,
+                }),
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        // No execute_query fallback: a missing RPC or protection error fails closed.
+        serde_json::from_value(result).map_err(|error| error.to_string())
+    }
+
     async fn execute_batch(
         &self,
         params: &ConnectionParams,
@@ -1422,6 +1463,30 @@ impl DatabaseDriver for RpcDriver {
     }
 
     async fn session_in_transaction(&self, session_id: &str) -> Option<bool> {
+        // A cancelled caller can miss the response that carries the new state.
+        // Older plugins retain the cached-state fallback through -32601.
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            self.process
+                .call_detailed("get_session_state", json!({"session_id": session_id})),
+        )
+        .await
+        {
+            Ok(Ok(value)) => {
+                if let Some(state) = value.get("in_transaction").and_then(Value::as_bool) {
+                    remember_session_state(Some(session_id), state);
+                    return Some(state);
+                }
+                log::warn!("Plugin returned invalid get_session_state response");
+            }
+            Ok(Err(error)) if is_method_not_found(&error) => {}
+            Ok(Err(error)) => {
+                log::warn!("Plugin session state refresh failed: {error}");
+            }
+            Err(_) => {
+                log::warn!("Plugin session state refresh timed out");
+            }
+        }
         let states = plugin_session_states()
             .lock()
             .unwrap_or_else(|e| e.into_inner());
@@ -2616,6 +2681,7 @@ mod tests {
     fn test_connection_params() -> ConnectionParams {
         ConnectionParams {
             driver: "test-plugin".to_string(),
+            read_only: false,
             host: Some("localhost".to_string()),
             port: Some(1234),
             username: Some("user".to_string()),
@@ -4170,6 +4236,10 @@ mod table_query_template_tests;
 #[cfg(test)]
 #[path = "column_stats_tests.rs"]
 mod column_stats_tests;
+
+#[cfg(test)]
+#[path = "read_only_tests.rs"]
+mod read_only_tests;
 
 #[cfg(test)]
 #[path = "startup_tests.rs"]

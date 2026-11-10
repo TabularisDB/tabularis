@@ -78,6 +78,8 @@ export interface DriverCapabilities {
     manage_tables?: boolean;
     /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */
     readonly?: boolean;
+    /** Implements the protected execute_read_only_query RPC. Defaults to false. */
+    read_only_queries?: boolean;
     /** Offers "Export table to SQL" on table nodes. Defaults to true; non-SQL plugins set false. */
     table_export?: boolean;
     /** Offers "Import table from SQL" on database and schema nodes. Defaults to true; ignored (off) when readonly. */
@@ -144,6 +146,8 @@ export interface SqlSyntaxDescriptor {
     nested_block_comments?: boolean;
     line_comment_requires_space?: boolean;
     script_blocks?: boolean;
+    /** Firebird PSQL bodies, alternative q-quotes and isql SET TERM directives. */
+    psql_blocks?: boolean;
     dollar_quoting?: boolean;
     /** Generated string literals: `standard` (`''`) or `backslash` (`\'`). */
     string_escape?: 'standard' | 'backslash';

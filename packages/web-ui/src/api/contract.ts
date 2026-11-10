@@ -64,6 +64,12 @@ import type {
 } from '@/types/linkedFolders';
 import type {RequestId} from './errors';
 import type {
+    LinkedGitStatus,
+    LinkedGitReview,
+    LinkedGitReviewedFile,
+    LinkedGitCommit,
+} from '@/types/linkedFolderGit';
+import type {
     LogEntry,
     LogSettings,
     ProcessInfo,
@@ -156,6 +162,7 @@ export interface ThemePackageRequest {
 export type UiStateEntries = Readonly<Record<string, unknown>>;
 
 export interface ConnectionParameters {
+    read_only?: boolean;
     driver: string;
     database: string | string[];
     default_database?: string;
@@ -1351,6 +1358,17 @@ export interface CommandMap {
 
     /** Desktop only: linked folders are never routed through the web server. */
     list_linked_folders: CommandDefinition<undefined, LinkedFolderStatus[], 'local-admin'>;
+    linked_git_status: CommandDefinition<{id: string}, LinkedGitStatus, 'local-admin'>;
+    linked_git_review: CommandDefinition<
+        {id: string; relativePath: string},
+        LinkedGitReview,
+        'local-admin'
+    >;
+    linked_git_commit: CommandDefinition<
+        {id: string; files: LinkedGitReviewedFile[]; message: string},
+        LinkedGitCommit,
+        'local-admin'
+    >;
     link_local_folder: CommandDefinition<{path: string}, LinkedFolder, 'local-admin'>;
     unlink_local_folder: CommandDefinition<{id: string}, void, 'local-admin'>;
     list_linked_directory: CommandDefinition<

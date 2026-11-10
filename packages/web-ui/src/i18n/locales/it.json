@@ -131,6 +131,13 @@
     "warnConfirm": "Esegui comunque",
     "warnSnooze": "Non chiedere più per questa connessione (questa sessione)"
   },
+  "readOnly": {
+    "label": "Modalità sola lettura",
+    "description": "Blocca le scritture su questa connessione. Gli script di avvio vengono ignorati in questa modalità.",
+    "unsupported": "Questo driver non supporta query protette in sola lettura.",
+    "writeBlocked": "Questa connessione è in sola lettura. Disattiva questa modalità nelle impostazioni per consentire le scritture.",
+    "banner": "{{name}} — sola lettura"
+  },
   "textStats": {
     "characters": "Caratteri: {{count}}",
     "lines": "Righe: {{count}}",
@@ -3188,6 +3195,10 @@
     },
     "unknown": {
       "summary": "Connessione fallita"
+    },
+    "keychain": {
+      "summary": "Portachiavi di sistema non disponibile",
+      "recovery": "Tabularis non è riuscito a raggiungere l'archivio credenziali del sistema per salvare le password. Su Linux, verifica che un provider Secret Service (GNOME Keyring, KWallet, KeePassXC) sia attivo e sbloccato, oppure disattiva \"Salva password nel Portachiavi\" per questa connessione."
     }
   },
   "connectionTest": {
@@ -3232,6 +3243,22 @@
     "groups": { "builtin": "Integrati · offline", "installed": "Pacchetti installati", "personal": "Temi personali" }, "modes": { "light": "Chiaro", "dark": "Scuro", "high-contrast": "Alto contrasto" },
     "importErrors": { "unrecognized": "Tema VS Code non riconosciuto.", "modeRequired": "Scegli una modalità e ripeti l'anteprima.", "includeOnly": "I temi con soli riferimenti include non sono importabili. Fornisci i colori effettivi.", "noSupportedData": "Nessun colore o regola SQL supportati.", "invalidColor": "Un colore supportato ha un valore non valido.", "invalidRules": "Regole dei token non valide o eccessive." },
     "diagnostics": { "unsupportedKey": "Campo non supportato", "unsupportedColor": "Colore non supportato", "unsupportedScope": "Ambito non supportato", "scopeApproximation": "Mappatura SQL approssimata", "unsupportedStyle": "Stile non supportato", "ignoredInclude": "Include non caricato", "ignoredSemanticTokens": "Token semantici ignorati", "unsupportedReference": "Riferimento esterno non caricato", "unsupportedSetting": "Impostazione non supportata", "tokenAlphaFlattened": "Opacità dei token calcolata sullo sfondo di base", "modeApproximation": "Modalità sostituita o approssimata", "diagnosticsTruncated": "Ulteriori diagnostiche omesse" }
+  },
+  "linkedGit": {
+    "title": "Esamina le modifiche Git",
+    "diskOnly": "I commit usano i file salvati su disco. Le bozze non salvate sono escluse. Saranno inclusi solo gli script selezionati ed esaminati.",
+    "desktopOnly": "Git per le cartelle SQL collegate è disponibile solo nell’app desktop.",
+    "refresh": "Aggiorna modifiche",
+    "commit": "Crea commit degli script selezionati",
+    "committed": "Commit {{commit}} creato.",
+    "renames": "M modificato · A aggiunto · D eliminato · ? non tracciato. Le rinomine appaiono come eliminazione e aggiunta; esamina entrambe.",
+    "empty": "Nessuno script SQL modificato.",
+    "files": "Script SQL modificati",
+    "include": "Includi {{path}} nel commit",
+    "review": "Esamina {{path}}",
+    "diff": "Differenze del file esaminato",
+    "choose": "Seleziona uno script per esaminarne le differenze prima di includerlo.",
+    "message": "Messaggio del commit"
   },
   "aiInline": {
     "title": "Completamento IA in linea",

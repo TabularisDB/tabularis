@@ -272,6 +272,10 @@
               "type": "boolean",
               "description": "-- needs a following whitespace to start a comment."
             },
+            "psql_blocks": {
+              "type": "boolean",
+              "description": "Firebird PSQL bodies, alternative q-quotes and standalone isql SET TERM directives."
+            },
             "script_blocks": {
               "type": "boolean",
               "description": "Procedural BEGIN … END, IF, LOOP, WHILE, REPEAT, FOR and CASE blocks stay one statement."
@@ -416,6 +420,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table and column management is also hidden regardless of manage_tables. Defaults to false."
+        },
+        "read_only_queries": {
+          "type": "boolean",
+          "default": false,
+          "description": "Implements execute_read_only_query with database-enforced write protection. Enables optional read-only mode per connection. Errors must never fall back to ordinary execution."
         },
         "table_export": {
           "type": "boolean",

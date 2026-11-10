@@ -197,6 +197,10 @@ pub struct DriverCapabilities {
     /// Defaults to `false`.
     #[serde(default)]
     pub readonly: bool,
+    /// Implements database-enforced `execute_read_only_query`. Unlike `readonly`,
+    /// this allows users to switch a writable connection into read-only mode.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub read_only_queries: bool,
     /// Offers "Export table to SQL" on table nodes (#709). `None` (the
     /// manifest omits it) means enabled; non-SQL plugins set `false`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

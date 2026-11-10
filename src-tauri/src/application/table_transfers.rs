@@ -938,9 +938,20 @@ async fn write_plugin_rows<W: Write, F: FnMut(u64)>(
     let mut batch: Vec<Vec<serde_json::Value>> = Vec::new();
     let mut page = 1u32;
     loop {
-        let result = drv
-            .execute_query(params, query, Some(PLUGIN_PAGE_SIZE), page, schema)
-            .await?;
+        let result = if params.read_only {
+            super::read_only::execute_query(
+                drv.as_ref(),
+                params,
+                query,
+                Some(PLUGIN_PAGE_SIZE),
+                page,
+                schema,
+            )
+            .await?
+        } else {
+            drv.execute_query(params, query, Some(PLUGIN_PAGE_SIZE), page, schema)
+                .await?
+        };
         let fetched = result.rows.len() as u32;
         if writer.columns.is_empty() {
             writer.columns = result.columns.clone();
@@ -1076,6 +1087,7 @@ pub async fn import_table(
     source: TableImportSource,
     options: TableImportOptions,
 ) -> Result<TableImportResult, String> {
+    crate::application::read_only::ensure_writable(runtime, &connection_id)?;
     let (driver, mut params) =
         super::connections::resolve_saved_connection_params(runtime, session_id, &connection_id)?;
     scope_database(&mut params, options.database.as_deref());

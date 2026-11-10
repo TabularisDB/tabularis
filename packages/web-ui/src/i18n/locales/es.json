@@ -124,6 +124,13 @@
     "warnConfirm": "Ejecutar de todos modos",
     "warnSnooze": "No volver a preguntar para esta conexión (esta sesión)"
   },
+  "readOnly": {
+    "label": "Modo de solo lectura",
+    "description": "Bloquea las escrituras en esta conexión. Los scripts de inicio se omiten en este modo.",
+    "unsupported": "Este controlador no admite consultas protegidas de solo lectura.",
+    "writeBlocked": "Esta conexión es de solo lectura. Desactiva este modo en su configuración para permitir escrituras.",
+    "banner": "{{name}} — solo lectura"
+  },
   "textStats": {
     "characters": "Caracteres: {{count}}",
     "lines": "Líneas: {{count}}",
@@ -3089,6 +3096,10 @@
     },
     "unknown": {
       "summary": "Error de conexión"
+    },
+    "keychain": {
+      "summary": "Llavero del sistema no disponible",
+      "recovery": "Tabularis no pudo acceder al almacén de credenciales del sistema para guardar las contraseñas. En Linux, asegúrate de que un proveedor de Secret Service (GNOME Keyring, KWallet, KeePassXC) esté en ejecución y desbloqueado, o desactiva \"Guardar contraseñas en el Llavero\" para esta conexión."
     }
   },
   "connectionTest": {
@@ -3133,6 +3144,22 @@
     "groups": { "builtin": "Integrados · sin conexión", "installed": "Paquetes instalados", "personal": "Temas personales" }, "modes": { "light": "Claro", "dark": "Oscuro", "high-contrast": "Alto contraste" },
     "importErrors": { "unrecognized": "Tema de VS Code no reconocido.", "modeRequired": "Elija un modo y repita la vista previa.", "includeOnly": "No se pueden importar temas con solo referencias include. Proporcione los colores reales.", "noSupportedData": "No se encontraron colores o reglas SQL compatibles.", "invalidColor": "Un color compatible tiene un valor no válido.", "invalidRules": "Reglas de tokens no válidas o excesivas." },
     "diagnostics": { "unsupportedKey": "Campo no compatible", "unsupportedColor": "Color no compatible", "unsupportedScope": "Ámbito no compatible", "scopeApproximation": "Asignación SQL aproximada", "unsupportedStyle": "Estilo no compatible", "ignoredInclude": "Include no cargado", "ignoredSemanticTokens": "Tokens semánticos ignorados", "unsupportedReference": "Referencia externa no cargada", "unsupportedSetting": "Ajuste no compatible", "tokenAlphaFlattened": "Opacidad de tokens calculada sobre el fondo base", "modeApproximation": "Modo sustituido o aproximado", "diagnosticsTruncated": "Se omitieron diagnósticos adicionales" }
+  },
+  "linkedGit": {
+    "title": "Revisar cambios de Git",
+    "diskOnly": "Los commits usan archivos guardados en disco. No incluyen borradores sin guardar. Solo se incluirán los scripts marcados y revisados.",
+    "desktopOnly": "Git para carpetas SQL vinculadas solo está disponible en la aplicación de escritorio.",
+    "refresh": "Actualizar cambios",
+    "commit": "Crear commit de scripts seleccionados",
+    "committed": "Commit {{commit}} creado.",
+    "renames": "M modificado · A añadido · D eliminado · ? sin seguimiento. Los renombrados aparecen como eliminación y adición; revisa ambos.",
+    "empty": "No hay scripts SQL modificados.",
+    "files": "Scripts SQL modificados",
+    "include": "Incluir {{path}} en el commit",
+    "review": "Revisar {{path}}",
+    "diff": "Diferencias del archivo revisado",
+    "choose": "Selecciona un script para revisar sus diferencias antes de incluirlo.",
+    "message": "Mensaje del commit"
   },
   "aiInline": {
     "title": "Completado de IA en línea",

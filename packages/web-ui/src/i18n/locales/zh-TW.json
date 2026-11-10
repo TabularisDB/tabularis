@@ -128,6 +128,13 @@
         "warnConfirm": "仍然執行",
         "warnSnooze": "此連線不再詢問（本次工作階段）"
     },
+    "readOnly": {
+      "label": "唯讀模式",
+      "description": "阻止透過此連線寫入。啟用時略過啟動指令碼。",
+      "unsupported": "此驅動程式不支援受保護的唯讀查詢。",
+      "writeBlocked": "此連線為唯讀。請在連線設定中停用此模式以允許寫入。",
+      "banner": "{{name}} — 唯讀模式"
+    },
     "textStats": {
       "characters": "字元數:{{count}}",
       "lines": "行數:{{count}}",
@@ -3184,6 +3191,10 @@
         },
         "unknown": {
             "summary": "連線失敗"
+        },
+        "keychain": {
+          "summary": "無法使用系統鑰匙圈",
+          "recovery": "Tabularis 無法存取作業系統的認證儲存空間來儲存密碼。在 Linux 上，請確認 Secret Service 提供程式（GNOME Keyring、KWallet、KeePassXC）正在執行且已解鎖，或關閉此連線的「Save passwords in Keychain」選項。"
         }
     },
     "connectionTest": {
@@ -3351,6 +3362,22 @@
         "copied": "已複製到剪貼簿",
         "copyFailed": "無法複製到剪貼簿，請再試一次。"
     },
+    "linkedGit": {
+        "title": "檢視 Git 變更",
+        "diskOnly": "提交使用磁碟上已儲存的檔案，不包含未儲存的編輯器草稿。只有勾選並檢視過的指令碼會被提交。",
+        "desktopOnly": "連結 SQL 資料夾的 Git 功能僅適用於桌面應用程式。",
+        "refresh": "重新整理變更",
+        "commit": "提交選取的指令碼",
+        "committed": "已建立提交 {{commit}}。",
+        "renames": "M 已修改 · A 已新增 · D 已刪除 · ? 未追蹤。重新命名會顯示為刪除及新增，請檢視兩者。",
+        "empty": "沒有變更的 SQL 指令碼。",
+        "files": "已變更的 SQL 指令碼",
+        "include": "將 {{path}} 包含在提交中",
+        "review": "檢視 {{path}}",
+        "diff": "已檢視檔案的差異",
+        "choose": "選取指令碼並檢視差異後，才能將其包含在提交中。",
+        "message": "提交訊息"
+  },
     "aiInline": {
         "title": "AI 行內補全",
         "enable": "輸入時建議 SQL",

@@ -124,6 +124,13 @@
     "warnConfirm": "Exécuter quand même",
     "warnSnooze": "Ne plus demander pour cette connexion (cette session)"
   },
+  "readOnly": {
+    "label": "Mode lecture seule",
+    "description": "Bloque les écritures sur cette connexion. Les scripts de démarrage sont ignorés dans ce mode.",
+    "unsupported": "Ce pilote ne prend pas en charge les requêtes protégées en lecture seule.",
+    "writeBlocked": "Cette connexion est en lecture seule. Désactivez ce mode dans ses paramètres pour autoriser les écritures.",
+    "banner": "{{name}} — mode lecture seule"
+  },
   "textStats": {
     "characters": "Caractères : {{count}}",
     "lines": "Lignes : {{count}}",
@@ -3234,6 +3241,10 @@
     },
     "unknown": {
       "summary": "Échec de la connexion"
+    },
+    "keychain": {
+      "summary": "Trousseau système indisponible",
+      "recovery": "Tabularis n'a pas pu joindre le magasin d'identifiants du système pour enregistrer les mots de passe. Sous Linux, vérifiez qu'un fournisseur Secret Service (GNOME Keyring, KWallet, KeePassXC) est lancé et déverrouillé, ou désactivez « Enregistrer les mots de passe dans le trousseau » pour cette connexion."
     }
   },
   "connectionTest": {
@@ -3278,6 +3289,22 @@
     "groups": { "builtin": "Intégrés · hors ligne", "installed": "Paquets installés", "personal": "Thèmes personnels" }, "modes": { "light": "Clair", "dark": "Sombre", "high-contrast": "Contraste élevé" },
     "importErrors": { "unrecognized": "Thème VS Code non reconnu.", "modeRequired": "Choisissez un mode puis relancez l’aperçu.", "includeOnly": "Les thèmes composés uniquement d’includes ne sont pas importables. Fournissez les couleurs réelles.", "noSupportedData": "Aucune couleur ou règle SQL prise en charge.", "invalidColor": "Valeur incorrecte pour une couleur prise en charge.", "invalidRules": "Règles de jetons incorrectes ou trop nombreuses." },
     "diagnostics": { "unsupportedKey": "Champ non pris en charge", "unsupportedColor": "Couleur non prise en charge", "unsupportedScope": "Portée non prise en charge", "scopeApproximation": "Correspondance SQL approximative", "unsupportedStyle": "Style non pris en charge", "ignoredInclude": "Include non chargé", "ignoredSemanticTokens": "Jetons sémantiques ignorés", "unsupportedReference": "Référence externe non chargée", "unsupportedSetting": "Réglage non pris en charge", "tokenAlphaFlattened": "Opacité des jetons calculée sur le fond de base", "modeApproximation": "Mode remplacé ou approximatif", "diagnosticsTruncated": "Diagnostics supplémentaires omis" }
+  },
+  "linkedGit": {
+    "title": "Examiner les modifications Git",
+    "diskOnly": "Les commits utilisent les fichiers enregistrés sur disque. Les brouillons non enregistrés sont exclus. Seuls les scripts cochés et examinés seront inclus.",
+    "desktopOnly": "Git pour les dossiers SQL liés est disponible uniquement dans l’application de bureau.",
+    "refresh": "Actualiser les modifications",
+    "commit": "Créer le commit des scripts sélectionnés",
+    "committed": "Commit {{commit}} créé.",
+    "renames": "M modifié · A ajouté · D supprimé · ? non suivi. Un renommage apparaît comme une suppression et un ajout ; examinez les deux.",
+    "empty": "Aucun script SQL modifié.",
+    "files": "Scripts SQL modifiés",
+    "include": "Inclure {{path}} dans le commit",
+    "review": "Examiner {{path}}",
+    "diff": "Différences du fichier examiné",
+    "choose": "Sélectionnez un script pour examiner ses différences avant de l’inclure.",
+    "message": "Message du commit"
   },
   "aiInline": {
     "title": "Complétion IA en ligne",

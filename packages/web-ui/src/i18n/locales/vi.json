@@ -124,6 +124,13 @@
     "warnConfirm": "Vẫn chạy",
     "warnSnooze": "Không hỏi lại cho kết nối này (trong phiên hiện tại)"
   },
+  "readOnly": {
+    "label": "Chế độ chỉ đọc",
+    "description": "Chặn thao tác ghi trên kết nối này. Bỏ qua tập lệnh khởi động khi bật chế độ này.",
+    "unsupported": "Trình điều khiển này không hỗ trợ truy vấn chỉ đọc được bảo vệ.",
+    "writeBlocked": "Kết nối này ở chế độ chỉ đọc. Tắt chế độ này trong cài đặt kết nối để cho phép ghi.",
+    "banner": "{{name}} — chỉ đọc"
+  },
   "textStats": {
     "characters": "Ký tự: {{count}}",
     "lines": "Dòng: {{count}}",
@@ -3230,6 +3237,10 @@
     },
     "unknown": {
       "summary": "Kết nối thất bại"
+    },
+    "keychain": {
+      "summary": "Không thể truy cập kho khóa hệ thống",
+      "recovery": "Tabularis không thể truy cập kho thông tin đăng nhập của hệ điều hành để lưu mật khẩu. Trên Linux, hãy bảo đảm dịch vụ Secret Service (GNOME Keyring, KWallet, KeePassXC) đang chạy và đã được mở khóa, hoặc tắt tùy chọn \"Save passwords in Keychain\" cho kết nối này."
     }
   },
   "connectionTest": {
@@ -3275,6 +3286,22 @@
     "modes": { "light": "Sáng", "dark": "Tối", "high-contrast": "Tương phản cao" },
     "importErrors": { "unrecognized": "Không phải theme VS Code hợp lệ.", "modeRequired": "Hãy chọn chế độ cụ thể, rồi xem trước lại.", "includeOnly": "Không thể nhập theme chỉ gồm include. Hãy cung cấp màu thực tế.", "noSupportedData": "Không tìm thấy màu hoặc quy tắc token SQL nào được hỗ trợ.", "invalidColor": "Một màu được hỗ trợ có giá trị không hợp lệ.", "invalidRules": "Quy tắc token không hợp lệ hoặc quá nhiều." },
     "diagnostics": { "unsupportedKey": "Trường không được hỗ trợ", "unsupportedColor": "Màu không được hỗ trợ", "unsupportedScope": "Scope không được hỗ trợ", "scopeApproximation": "Ánh xạ scope SQL gần đúng", "unsupportedStyle": "Kiểu chữ không được hỗ trợ", "ignoredInclude": "Không tải include", "ignoredSemanticTokens": "Đã bỏ qua semantic token", "unsupportedReference": "Không tải tham chiếu bên ngoài", "unsupportedSetting": "Cài đặt không được hỗ trợ", "tokenAlphaFlattened": "Độ trong suốt của token đã được trộn sẵn với màu nền", "modeApproximation": "Chế độ bị ghi đè hoặc lấy gần đúng", "diagnosticsTruncated": "Đã lược bớt các chẩn đoán khác" }
+  },
+  "linkedGit": {
+    "title": "Xem lại thay đổi Git",
+    "diskOnly": "Commit sử dụng các tệp đã lưu trên đĩa. Bản nháp chưa lưu không được bao gồm. Chỉ các tập lệnh đã đánh dấu và xem lại mới được commit.",
+    "desktopOnly": "Git cho thư mục SQL được liên kết chỉ có trên ứng dụng máy tính.",
+    "refresh": "Làm mới thay đổi",
+    "commit": "Commit các tập lệnh đã chọn",
+    "committed": "Đã tạo commit {{commit}}.",
+    "renames": "M đã sửa · A đã thêm · D đã xóa · ? chưa theo dõi. Đổi tên được hiển thị thành xóa và thêm; hãy xem lại cả hai.",
+    "empty": "Không có tập lệnh SQL thay đổi.",
+    "files": "Các tập lệnh SQL đã thay đổi",
+    "include": "Bao gồm {{path}} trong commit",
+    "review": "Xem lại {{path}}",
+    "diff": "Khác biệt của tệp đã xem lại",
+    "choose": "Chọn tập lệnh để xem lại khác biệt trước khi bao gồm.",
+    "message": "Thông điệp commit"
   },
   "aiInline": {
     "title": "Hoàn thành AI nội tuyến",

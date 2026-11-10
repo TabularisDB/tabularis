@@ -2665,6 +2665,49 @@ describe('NewConnectionModal database input of a flat multi-database plugin', ()
     });
 });
 
+describe('NewConnectionModal read-only mode', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 15432;
+        driverState.multiDatabase = false;
+        vi.mocked(invoke).mockResolvedValue('ok');
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    });
+
+    it('explains why a legacy plugin cannot enable protected execution', async () => {
+        renderModal(createInitialConnection({driver: 'postgresql', host: 'localhost'}));
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        expect(screen.getByRole('checkbox', {name: 'readOnly.label'})).toBeDisabled();
+        expect(screen.getByText('readOnly.unsupported')).toBeInTheDocument();
+    });
+
+    it('retains a saved policy after a plugin loses support and permits explicitly disabling it', async () => {
+        renderModal(
+            createInitialConnection({driver: 'postgresql', host: 'localhost', read_only: true}),
+        );
+        fireEvent.click(await screen.findByText('newConnection.advanced'));
+        const checkbox = screen.getByRole('checkbox', {name: 'readOnly.label'});
+        expect(checkbox).toBeChecked();
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(screen.getAllByText('readOnly.unsupported').length).toBeGreaterThan(1),
+        );
+        expect(invoke).not.toHaveBeenCalledWith('update_connection', expect.anything());
+        fireEvent.click(checkbox);
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'update_connection',
+                expect.objectContaining({
+                    params: expect.objectContaining({read_only: false}),
+                }),
+            ),
+        );
+    });
+});
+
 describe('NewConnectionModal query timeout', () => {
     beforeEach(() => {
         vi.clearAllMocks();
