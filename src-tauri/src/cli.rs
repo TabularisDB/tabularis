@@ -114,7 +114,8 @@ pub struct WebArgs {
 
     /// Who controls connections on this instance. In `managed-only` mode every
     /// authenticated user shares all of the instance's connections; run a
-    /// separate instance for each group of users
+    /// separate instance for each group of users. Enforcement is not active
+    /// yet: this does not restrict anything today
     #[arg(long, value_name = "MODE", value_enum)]
     pub connection_mode: Option<WebConnectionMode>,
 

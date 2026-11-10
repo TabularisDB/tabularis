@@ -9,6 +9,8 @@ Managed mode lets an operator supply the connections of a Tabularis Web instance
 
 This is being delivered in steps (issue #1273). The current step adds the policy type, the instance configuration, the persisted marker and their tests. **Enforcement is not active yet**: backend denials, credential redaction, session capabilities and the frontend land in later steps, and so does the provisioning API (issue #1274). Do not rely on `managed-only` as a security boundary until then.
 
+Known gap for the enforcement step: the native Tabularis JSON import (`connection_import::tabularis::apply` via `apply_export_payload`) keeps an incoming `managed: true`, while foreign-app conversion writes `false`. Enforcement must cover both native import paths with forgery and provenance checks.
+
 ## Instance modes
 
 | Mode | Behaviour |
