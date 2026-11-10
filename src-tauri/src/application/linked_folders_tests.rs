@@ -2,6 +2,31 @@ use super::*;
 use std::fs;
 use tempfile::TempDir;
 
+#[test]
+fn git_root_requires_a_persisted_link() {
+    let fixture = Fixture::new();
+    assert!(linked_git_root(&fixture.store, "not-approved").is_err());
+    let folder = fixture.link();
+    assert_eq!(
+        linked_git_root(&fixture.store, &folder.id).unwrap(),
+        fs::canonicalize(fixture.root()).unwrap()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn git_root_refuses_a_link_retargeted_to_another_directory() {
+    let fixture = Fixture::new();
+    let folder = fixture.link();
+    let external = tempfile::tempdir().unwrap();
+    fs::remove_dir(fixture.root()).unwrap();
+    std::os::unix::fs::symlink(external.path(), fixture.root()).unwrap();
+    assert_eq!(
+        linked_git_root(&fixture.store, &folder.id).unwrap_err(),
+        LINKED_PATH_OUTSIDE_ROOT
+    );
+}
+
 struct Fixture {
     _config: TempDir,
     workspace: TempDir,

@@ -3222,6 +3222,22 @@
     "importErrors": { "unrecognized": "Hindi nakilalang VS Code theme.", "modeRequired": "Pumili ng mode at silipin muli.", "includeOnly": "Hindi ma-import ang temang puro include lang. Ibigay ang aktuwal na mga kulay.", "noSupportedData": "Walang suportadong kulay o SQL token rule.", "invalidColor": "Mali ang halaga ng suportadong kulay.", "invalidRules": "Mali o sobra ang mga token rule." },
     "diagnostics": { "unsupportedKey": "Hindi suportadong field", "unsupportedColor": "Hindi suportadong kulay", "unsupportedScope": "Hindi suportadong saklaw", "scopeApproximation": "Tinatayang SQL mapping", "unsupportedStyle": "Hindi suportadong estilo", "ignoredInclude": "Hindi ni-load ang include", "ignoredSemanticTokens": "Binale-wala ang semantic token", "unsupportedReference": "Hindi ni-load ang panlabas na sanggunian", "unsupportedSetting": "Hindi suportadong setting", "tokenAlphaFlattened": "Kinalkula ang opacity ng token laban sa batayang background", "modeApproximation": "Pinalitan o tinantiya ang mode", "diagnosticsTruncated": "Hindi isinama ang dagdag na diagnostic" }
   },
+  "linkedGit": {
+    "title": "Suriin ang mga pagbabago sa Git",
+    "diskOnly": "Ginagamit ng commit ang mga file na naka-save sa disk. Hindi kasama ang mga hindi pa naka-save na draft. Mga minarkahan at nasuring script lang ang isasama.",
+    "desktopOnly": "Available lang sa desktop app ang Git para sa mga naka-link na SQL folder.",
+    "refresh": "I-refresh ang mga pagbabago",
+    "commit": "I-commit ang mga napiling script",
+    "committed": "Nagawa ang commit {{commit}}.",
+    "renames": "M binago · A idinagdag · D tinanggal · ? hindi sinusubaybayan. Ipinapakita ang pagpapalit ng pangalan bilang pagtanggal at pagdagdag; suriin pareho.",
+    "empty": "Walang binagong SQL script.",
+    "files": "Mga binagong SQL script",
+    "include": "Isama ang {{path}} sa commit",
+    "review": "Suriin ang {{path}}",
+    "diff": "Mga pagkakaiba ng nasuring file",
+    "choose": "Pumili ng script at suriin ang mga pagkakaiba bago ito isama.",
+    "message": "Mensahe ng commit"
+  },
   "aiInline": {
     "title": "AI inline completion",
     "enable": "Magmungkahi ng SQL habang nagta-type",

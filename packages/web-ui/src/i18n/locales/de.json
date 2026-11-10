@@ -3200,6 +3200,22 @@
     "importErrors": { "unrecognized": "Kein erkanntes VS-Code-Design.", "modeRequired": "Modus auswählen und Vorschau erneut öffnen.", "includeOnly": "Reine Include-Designs sind nicht importierbar. Die tatsächlichen Farben bereitstellen.", "noSupportedData": "Keine unterstützten Farben oder SQL-Tokenregeln gefunden.", "invalidColor": "Ungültiger Wert einer unterstützten Farbe.", "invalidRules": "Ungültige oder zu viele Tokenregeln." },
     "diagnostics": { "unsupportedKey": "Nicht unterstütztes Feld", "unsupportedColor": "Nicht unterstützte Farbe", "unsupportedScope": "Nicht unterstützter Bereich", "scopeApproximation": "Angenäherte SQL-Zuordnung", "unsupportedStyle": "Nicht unterstützter Stil", "ignoredInclude": "Include nicht geladen", "ignoredSemanticTokens": "Semantische Tokens ignoriert", "unsupportedReference": "Externe Referenz nicht geladen", "unsupportedSetting": "Nicht unterstützte Einstellung", "tokenAlphaFlattened": "Token-Deckkraft gegen den Basishintergrund berechnet", "modeApproximation": "Modus überschrieben oder angenähert", "diagnosticsTruncated": "Weitere Diagnosen ausgelassen" }
   },
+  "linkedGit": {
+    "title": "Git-Änderungen prüfen",
+    "diskOnly": "Commits verwenden gespeicherte Dateien auf der Platte. Ungespeicherte Editor-Entwürfe werden nicht einbezogen. Nur markierte, geprüfte Skripte werden committet.",
+    "desktopOnly": "Git für verknüpfte SQL-Ordner ist nur in der Desktop-App verfügbar.",
+    "refresh": "Änderungen aktualisieren",
+    "commit": "Ausgewählte Skripte committen",
+    "committed": "Commit {{commit}} erstellt.",
+    "renames": "M geändert · A hinzugefügt · D gelöscht · ? nicht versioniert. Umbenennungen erscheinen als Löschung und neue Datei; beide prüfen.",
+    "empty": "Keine geänderten SQL-Skripte.",
+    "files": "Geänderte SQL-Skripte",
+    "include": "{{path}} in Commit aufnehmen",
+    "review": "{{path}} prüfen",
+    "diff": "Geprüfter Datei-Diff",
+    "choose": "Wähle ein Skript und prüfe den Diff, bevor du es aufnimmst.",
+    "message": "Commit-Nachricht"
+  },
   "aiInline": {
     "title": "KI-Inline-Vervollständigung",
     "enable": "SQL-Vorschläge beim Tippen",

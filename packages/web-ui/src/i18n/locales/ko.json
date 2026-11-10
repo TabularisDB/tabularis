@@ -3156,6 +3156,22 @@
     "importErrors": { "unrecognized": "인식할 수 없는 VS Code 테마입니다.", "modeRequired": "모드를 선택한 뒤 다시 미리 보세요.", "includeOnly": "include만 있는 테마는 가져올 수 없습니다. 실제 색상을 제공하세요.", "noSupportedData": "지원되는 색상 또는 SQL 토큰 규칙이 없습니다.", "invalidColor": "지원되는 색상의 값이 잘못되었습니다.", "invalidRules": "토큰 규칙이 잘못되었거나 너무 많습니다." },
     "diagnostics": { "unsupportedKey": "지원되지 않는 필드", "unsupportedColor": "지원되지 않는 색상", "unsupportedScope": "지원되지 않는 범위", "scopeApproximation": "근사 SQL 범위 매핑", "unsupportedStyle": "지원되지 않는 스타일", "ignoredInclude": "include를 불러오지 않음", "ignoredSemanticTokens": "의미 토큰 무시됨", "unsupportedReference": "외부 참조를 불러오지 않음", "unsupportedSetting": "지원되지 않는 설정", "tokenAlphaFlattened": "토큰 불투명도를 기본 배경에 합성", "modeApproximation": "모드 재정의 또는 근사 변환", "diagnosticsTruncated": "추가 진단 생략됨" }
   },
+  "linkedGit": {
+    "title": "Git 변경 사항 검토",
+    "diskOnly": "커밋은 디스크에 저장된 파일을 사용합니다. 저장하지 않은 초안은 포함되지 않습니다. 검토 후 선택한 스크립트만 커밋됩니다.",
+    "desktopOnly": "연결된 SQL 폴더의 Git 기능은 데스크톱 앱에서만 사용할 수 있습니다.",
+    "refresh": "변경 사항 새로 고침",
+    "commit": "선택한 스크립트 커밋",
+    "committed": "커밋 {{commit}} 생성됨.",
+    "renames": "M 수정 · A 추가 · D 삭제 · ? 추적 안 됨. 이름 변경은 삭제와 추가로 표시되므로 둘 다 검토하세요.",
+    "empty": "변경된 SQL 스크립트가 없습니다.",
+    "files": "변경된 SQL 스크립트",
+    "include": "커밋에 {{path}} 포함",
+    "review": "{{path}} 검토",
+    "diff": "검토한 파일의 차이점",
+    "choose": "스크립트를 선택하고 포함하기 전에 차이점을 검토하세요.",
+    "message": "커밋 메시지"
+  },
   "aiInline": {
     "title": "AI 인라인 완성",
     "enable": "입력 중 SQL 제안",

@@ -3142,6 +3142,22 @@
     "importErrors": { "unrecognized": "无法识别此 VS Code 主题。", "modeRequired": "请选择模式，然后重新预览。", "includeOnly": "无法导入仅含 include 的主题。请提供实际颜色数据。", "noSupportedData": "未找到支持的颜色或 SQL 词法规则。", "invalidColor": "某个支持的颜色值无效。", "invalidRules": "词法规则无效或过多。" },
     "diagnostics": { "unsupportedKey": "不支持的字段", "unsupportedColor": "不支持的颜色", "unsupportedScope": "不支持的作用域", "scopeApproximation": "近似 SQL 作用域映射", "unsupportedStyle": "不支持的样式", "ignoredInclude": "未加载 include", "ignoredSemanticTokens": "已忽略语义词法标记", "unsupportedReference": "未加载外部引用", "unsupportedSetting": "不支持的设置", "tokenAlphaFlattened": "词法标记不透明度按基础背景计算", "modeApproximation": "模式已覆盖或近似转换", "diagnosticsTruncated": "已省略其他诊断信息" }
   },
+  "linkedGit": {
+    "title": "查看 Git 更改",
+    "diskOnly": "提交使用磁盘上已保存的文件，不包含未保存的编辑器草稿。只有勾选并查看过的脚本才会被提交。",
+    "desktopOnly": "关联 SQL 文件夹的 Git 功能仅适用于桌面应用。",
+    "refresh": "刷新更改",
+    "commit": "提交选中的脚本",
+    "committed": "已创建提交 {{commit}}。",
+    "renames": "M 已修改 · A 已添加 · D 已删除 · ? 未跟踪。重命名显示为删除和添加，请查看两者。",
+    "empty": "没有已更改的 SQL 脚本。",
+    "files": "已更改的 SQL 脚本",
+    "include": "将 {{path}} 包含在提交中",
+    "review": "查看 {{path}}",
+    "diff": "已查看文件的差异",
+    "choose": "选择脚本并查看差异后，才能将其包含在提交中。",
+    "message": "提交消息"
+  },
   "aiInline": {
     "title": "AI 行内补全",
     "enable": "输入时建议 SQL",

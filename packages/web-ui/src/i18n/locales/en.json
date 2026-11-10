@@ -3336,6 +3336,22 @@
     "copied": "Copied to clipboard",
     "copyFailed": "Could not copy to the clipboard. Try again."
   },
+  "linkedGit": {
+    "title": "Review Git changes",
+    "diskOnly": "Commits use saved files on disk. Unsaved editor drafts are not included. Only checked, reviewed scripts will be committed.",
+    "desktopOnly": "Git for linked SQL folders is available in the desktop app only.",
+    "refresh": "Refresh changes",
+    "commit": "Commit selected scripts",
+    "committed": "Created commit {{commit}}.",
+    "renames": "M modified · A added · D deleted · ? untracked. Renames appear as a deletion and an addition; review both.",
+    "empty": "No changed SQL scripts.",
+    "files": "Changed SQL scripts",
+    "include": "Include {{path}} in commit",
+    "review": "Review {{path}}",
+    "diff": "Reviewed file diff",
+    "choose": "Select a script to review its diff before including it.",
+    "message": "Commit message"
+  },
   "aiInline": {
     "title": "AI inline completion",
     "enable": "Suggest SQL while typing",
