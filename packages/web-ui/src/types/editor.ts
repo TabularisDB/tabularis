@@ -77,6 +77,9 @@ export interface QueryResultEntry {
     page: number;
     activeTable: string | null;
     pkColumns: string[] | null;
+    /** Set on entries split from one statement's several result sets (e.g. a
+     * MySQL `CALL`): re-running `query` would not yield this set alone. */
+    fromResultSets?: boolean;
     /// Rows a Run All statement returned, captured while the batch's session
     /// state was live. Set for paged batch results: page changes slice this
     /// instead of re-running the statement (#205).
