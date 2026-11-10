@@ -92,6 +92,10 @@ export const ImportDatabaseModal = ({
             // Uploads can finish after cancellation, closing, or a newer opening.
             if (!isCurrent()) return;
             operation.dispatched = true;
+            const destination =
+                sqlCapabilities?.create_database && createDatabase
+                    ? newDatabase.trim()
+                    : targetDatabase;
             await client.call(
                 'import_database',
                 {
@@ -101,18 +105,7 @@ export const ImportDatabaseModal = ({
                     ...(sqlCapabilities
                         ? {createDatabase: sqlCapabilities.create_database && createDatabase}
                         : {}),
-                    ...((
-                        sqlCapabilities?.create_database && createDatabase
-                            ? newDatabase.trim()
-                            : targetDatabase
-                    )
-                        ? {
-                              database:
-                                  sqlCapabilities?.create_database && createDatabase
-                                      ? newDatabase.trim()
-                                      : targetDatabase,
-                          }
-                        : {}),
+                    ...(destination ? {database: destination} : {}),
                 },
                 {
                     deadlineMs: DATABASE_TRANSFER_DEADLINE_MS,

@@ -2516,6 +2516,7 @@
     "failGetDefinition": "Échec de la récupération de la définition : "
   },
   "triggers": {
+    "nativeSqlHelp": "Saisissez une instruction de déclencheur complète dans le dialecte SQL de la base de données. Les déclencheurs existants sont enregistrés sans être supprimés au préalable.",
     "createTrigger": "Créer un trigger",
     "editTrigger": "Modifier le trigger",
     "createSubtitle": "Créer un nouveau trigger de base de données",
@@ -2576,6 +2577,10 @@
     "dismiss": "Compris"
   },
   "dump": {
+    "emptyTargetRequired": "Restaurez dans une base de données nouvelle ou vide. Les bases de données existantes ne sont jamais écrasées.",
+    "createDatabase": "Créer une nouvelle base de données",
+    "serverDatabasePath": "Chemin ou alias de la base de données sur le serveur",
+    "startRestore": "Restaurer la base de données",
     "title": "Exporter la base de données",
     "dumpDatabase": "Exporter la base de données",
     "importDatabase": "Exécuter un fichier SQL...",

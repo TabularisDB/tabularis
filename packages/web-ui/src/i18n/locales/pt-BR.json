@@ -2487,6 +2487,7 @@
     "failGetDefinition": "Falha ao obter definição: "
   },
   "triggers": {
+    "nativeSqlHelp": "Insira uma instrução de gatilho completa no dialeto SQL do banco de dados. Os gatilhos existentes são salvos sem serem excluídos antes.",
     "createTrigger": "Criar Trigger",
     "editTrigger": "Editar Trigger",
     "createSubtitle": "Criar um novo trigger de banco de dados",
@@ -2547,6 +2548,10 @@
     "dismiss": "Entendi"
   },
   "dump": {
+    "emptyTargetRequired": "Restaure em um banco de dados novo ou vazio. Bancos de dados existentes nunca são sobrescritos.",
+    "createDatabase": "Criar um novo banco de dados",
+    "serverDatabasePath": "Caminho ou alias do banco de dados no servidor",
+    "startRestore": "Restaurar banco de dados",
     "title": "Dump do Banco de Dados",
     "dumpDatabase": "Dump do Banco de Dados",
     "importDatabase": "Executar Arquivo SQL...",

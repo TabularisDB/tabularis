@@ -2506,6 +2506,7 @@
     "failGetDefinition": "Hindi nakuha ang definition: "
   },
   "triggers": {
+    "nativeSqlHelp": "Ilagay ang buong trigger statement sa SQL dialect ng database. Sine-save ang mga kasalukuyang trigger nang hindi muna binubura.",
     "createTrigger": "Gumawa ng Trigger",
     "editTrigger": "I-edit ang Trigger",
     "createSubtitle": "Gumawa ng bagong database trigger",
@@ -2566,6 +2567,10 @@
     "dismiss": "Nakuha ko na"
   },
   "dump": {
+    "emptyTargetRequired": "Ibalik sa bago o walang laman na database. Hindi ino-overwrite ang mga kasalukuyang database.",
+    "createDatabase": "Gumawa ng bagong database",
+    "serverDatabasePath": "Path o alias ng database sa server",
+    "startRestore": "Ibalik ang database",
     "title": "I-dump ang Database",
     "dumpDatabase": "I-dump ang Database",
     "importDatabase": "Patakbuhin ang SQL File...",

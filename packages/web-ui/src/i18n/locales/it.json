@@ -102,6 +102,7 @@
     "matchCaseHint": "Distingue maiuscole e minuscole (LIKE). Deseleziona per ignorarle (ILIKE)."
   },
   "triggers":{
+    "nativeSqlHelp": "Inserisci un’istruzione trigger completa nel dialetto SQL del database. I trigger esistenti vengono salvati senza essere prima eliminati.",
     "originalRestored": "Il trigger originale è stato ripristinato.",
     "restoreFailed": "Anche il ripristino del trigger originale è fallito: ",
     "singleEventHint": "Questo database consente un solo evento per trigger.",
@@ -2562,6 +2563,10 @@
     "dismiss": "Ho capito"
   },
   "dump": {
+    "emptyTargetRequired": "Ripristina in un database nuovo o vuoto. I database esistenti non vengono mai sovrascritti.",
+    "createDatabase": "Crea un nuovo database",
+    "serverDatabasePath": "Percorso o alias del database sul server",
+    "startRestore": "Ripristina database",
     "title": "Esporta Database",
     "dumpDatabase": "Esporta Database",
     "importDatabase": "Esegui File SQL...",

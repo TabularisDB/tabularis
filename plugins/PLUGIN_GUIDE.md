@@ -2117,6 +2117,11 @@ Desktop file paths come from the native chooser; browser requests still use opaq
 session-owned upload/download tokens. ZIP imports pass the extracted SQL file
 while retaining its cleanup guard. No browser client supplies a server file path.
 
+Whole-file import/export RPCs do not inherit the ordinary 120-second plugin
+timeout. Explicit global or per-plugin call timeouts still apply, including
+zero to disable them. Transfer cancellation and the client transfer deadline
+remain active.
+
 #### `render_insert_statements` *(optional)*
 
 Renders complete `INSERT` statements for one batch of up to 500 rows, for

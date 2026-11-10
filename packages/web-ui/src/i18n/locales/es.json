@@ -1822,6 +1822,7 @@
     "auto": "Auto"
   },
   "triggers":{
+    "nativeSqlHelp": "Introduce una instrucción de trigger completa en el dialecto SQL de la base de datos. Los triggers existentes se guardan sin eliminarlos antes.",
     "originalRestored": "Se restauró el trigger original.",
     "restoreFailed": "La restauración del trigger original también falló: ",
     "singleEventHint": "Esta base de datos permite un solo evento por trigger.",
@@ -2463,6 +2464,10 @@
     "supportAction": "Apoyar en GitHub Sponsors"
   },
   "dump": {
+    "emptyTargetRequired": "Restaura en una base de datos nueva o vacía. Las bases de datos existentes nunca se sobrescriben.",
+    "createDatabase": "Crear una base de datos nueva",
+    "serverDatabasePath": "Ruta o alias de la base de datos en el servidor",
+    "startRestore": "Restaurar base de datos",
     "title": "Exportar Base de Datos",
     "dumpDatabase": "Exportar Base de Datos",
     "importDatabase": "Ejecutar Archivo SQL...",

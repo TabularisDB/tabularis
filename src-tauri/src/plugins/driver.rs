@@ -497,7 +497,12 @@ impl PluginProcess {
                 })
                 .await;
         }
-        let timeout = crate::plugins::call_timeout::for_plugin(&self.plugin_id);
+        let timeout = match method {
+            "export_database_sql" | "import_database_sql" => {
+                crate::plugins::call_timeout::for_database_transfer(&self.plugin_id)
+            }
+            _ => crate::plugins::call_timeout::for_plugin(&self.plugin_id),
+        };
         self.send_request(method, params, timeout).await
     }
 

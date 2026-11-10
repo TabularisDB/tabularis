@@ -2487,6 +2487,7 @@
     "confirmAlter": "ビュー「{{view}}」を変更してもよろしいですか？"
   },
   "triggers": {
+    "nativeSqlHelp": "データベースのSQL方言で完全なトリガー文を入力してください。既存のトリガーは事前に削除せずに保存されます。",
     "createTrigger": "トリガーを作成",
     "editTrigger": "トリガーを編集",
     "createSubtitle": "新しいデータベーストリガーを作成します",
@@ -2547,6 +2548,10 @@
     "dismiss": "了解"
   },
   "dump": {
+    "emptyTargetRequired": "新規または空のデータベースに復元します。既存のデータベースは上書きされません。",
+    "createDatabase": "新しいデータベースを作成",
+    "serverDatabasePath": "データベースサーバー上のパスまたはエイリアス",
+    "startRestore": "データベースを復元",
     "title": "データベースをダンプ",
     "dumpDatabase": "データベースをダンプ",
     "importDatabase": "SQL ファイルを実行...",

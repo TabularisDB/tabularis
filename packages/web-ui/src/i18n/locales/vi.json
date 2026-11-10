@@ -2513,6 +2513,7 @@
     "failGetDefinition": "Không lấy được định nghĩa: "
   },
   "triggers": {
+    "nativeSqlHelp": "Nhập câu lệnh trigger đầy đủ theo phương ngữ SQL của cơ sở dữ liệu. Các trigger hiện có được lưu mà không bị xóa trước.",
     "createTrigger": "Tạo trigger",
     "editTrigger": "Sửa trigger",
     "createSubtitle": "Tạo một trigger mới trong cơ sở dữ liệu",
@@ -2573,6 +2574,10 @@
     "dismiss": "Đã hiểu"
   },
   "dump": {
+    "emptyTargetRequired": "Khôi phục vào cơ sở dữ liệu mới hoặc trống. Cơ sở dữ liệu hiện có không bao giờ bị ghi đè.",
+    "createDatabase": "Tạo cơ sở dữ liệu mới",
+    "serverDatabasePath": "Đường dẫn hoặc bí danh cơ sở dữ liệu trên máy chủ",
+    "startRestore": "Khôi phục cơ sở dữ liệu",
     "title": "Dump cơ sở dữ liệu",
     "dumpDatabase": "Dump cơ sở dữ liệu",
     "importDatabase": "Chạy tệp SQL...",
