@@ -31,7 +31,15 @@ pub(super) fn extract_float_value(
     row.try_get::<f64, _>(index).ok().map(|value| {
         serde_json::Number::from_f64(value)
             .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null)
+            .unwrap_or_else(|| {
+                if value.is_nan() {
+                    serde_json::Value::String("NaN".to_string())
+                } else if value.is_sign_negative() {
+                    serde_json::Value::String("-Infinity".to_string())
+                } else {
+                    serde_json::Value::String("Infinity".to_string())
+                }
+            })
     })
 }
 

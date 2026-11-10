@@ -165,7 +165,6 @@ pub async fn load_plugins_from_dir(
     };
 
     for path in entries {
-
         if let Some(enabled) = enabled_ids {
             if let Some(dir_name) = path.file_name().and_then(|n| n.to_str()) {
                 if !enabled.iter().any(|id| id == dir_name) {

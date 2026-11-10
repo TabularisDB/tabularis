@@ -102,6 +102,8 @@ export interface ConnectionParams {
     pooler_mode?: string;
     /** Seconds to wait for a new connection; unset keeps the driver default. */
     connect_timeout_secs?: number;
+    /** Seconds a statement may run before it is cancelled on the server; unset or 0 means no limit. */
+    query_timeout_secs?: number;
     /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
      * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
     extra?: Record<string, string>;
@@ -112,16 +114,29 @@ export interface ConnectionParams {
 /** Upper bound for `connect_timeout_secs`; the backend reads it as a u32. */
 export const MAX_CONNECT_TIMEOUT_SECS = 3600;
 
+/** Upper bound for `query_timeout_secs`: one day. */
+export const MAX_QUERY_TIMEOUT_SECS = 86400;
+
 /**
- * Parse the connect timeout field into whole seconds in
- * [0, MAX_CONNECT_TIMEOUT_SECS]. Empty or non-numeric input (including
- * overflow such as `1e999`) returns undefined, which keeps the driver default.
+ * Parse a seconds field into whole seconds in [0, max]. Empty or non-numeric
+ * input (including overflow such as `1e999`) returns undefined, which leaves
+ * the setting unset.
  */
-export function parseConnectTimeoutSecs(raw: string): number | undefined {
+function parseWholeSecs(raw: string, max: number): number | undefined {
     if (raw.trim() === '') return undefined;
     const secs = Number(raw);
     if (!Number.isFinite(secs)) return undefined;
-    return Math.min(MAX_CONNECT_TIMEOUT_SECS, Math.max(0, Math.floor(secs)));
+    return Math.min(max, Math.max(0, Math.floor(secs)));
+}
+
+/** Parse the connect timeout field. Unset keeps the driver default. */
+export function parseConnectTimeoutSecs(raw: string): number | undefined {
+    return parseWholeSecs(raw, MAX_CONNECT_TIMEOUT_SECS);
+}
+
+/** Parse the query timeout field. Unset or 0 means no limit. */
+export function parseQueryTimeoutSecs(raw: string): number | undefined {
+    return parseWholeSecs(raw, MAX_QUERY_TIMEOUT_SECS);
 }
 
 /**

@@ -1,5 +1,6 @@
 import type {ForeignKey} from './schema';
 import type {GridHistory} from '@/utils/gridUndo';
+import type {LinkedFileRef} from './linkedFolders';
 
 export type {ForeignKey};
 
@@ -149,6 +150,8 @@ export interface Tab {
     /** Content last read from / written to `sourceFilePath`; dirty = query differs from it. */
     sourceFileContent?: string;
     sourceFileDirty?: boolean;
+    /** Set when the file was opened from a linked folder: saves go through the link and check `version`. */
+    sourceFileLink?: LinkedFileRef;
     /** Pinned tabs come first in the tab bar, and bulk close actions skip them. */
     pinned?: boolean;
 }

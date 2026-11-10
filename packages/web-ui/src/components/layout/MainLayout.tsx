@@ -13,6 +13,7 @@ import {isEditorRoute} from '@/routing';
 import {resolveRenderedSplitLayout} from '@/utils/connectionLayout';
 import {ROOT_COMMAND_SCOPE_ID} from '@/utils/commandScopeStore';
 import {CommandPaletteModal} from '@/components/modals/CommandPaletteModal';
+import {DataFileGate} from '@/components/modals/DataFileGate';
 import {CommandPaletteScopeBridge} from './CommandPaletteScopeBridge';
 import {ProductionBanner} from './ProductionBanner';
 import {RightSidebar} from './RightSidebar';
@@ -63,6 +64,7 @@ const MainLayoutContent = () => {
             </main>
             <RightSidebar />
             <CommandPaletteModal />
+            <DataFileGate />
         </div>
     );
 };

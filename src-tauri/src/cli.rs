@@ -2,7 +2,7 @@
 //!
 //! Keeping this in its own module means `lib.rs` does not have to know about
 //! clap, and the command surface (`--mcp`, `web`, `--debug`, `--explain`,
-//! `--help`, `--version`) lives in one place.
+//! data files to open, `--help`, `--version`) lives in one place.
 
 use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
@@ -19,7 +19,13 @@ pub enum WebAuthMode {
 }
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None, args_conflicts_with_subcommands = true)]
+#[command(
+    version,
+    about,
+    long_about = None,
+    args_conflicts_with_subcommands = true,
+    after_help = "Open data files as tables by passing them on their own:\n  tabularis orders.csv trips.parquet"
+)]
 pub struct Args {
     /// Start in MCP Server mode (Model Context Protocol)
     #[arg(long)]
@@ -36,6 +42,12 @@ pub struct Args {
     /// (Postgres `EXPLAIN (FORMAT JSON)` output).
     #[arg(long, value_name = "FILE")]
     pub explain: Option<String>,
+
+    /// Data files to open as tables: set when the arguments are nothing but
+    /// data files, which is how a file manager's "Open with" starts the app.
+    /// Not a clap positional, which would swallow a misplaced `web`.
+    #[arg(skip)]
+    pub files: Vec<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -119,6 +131,7 @@ impl Args {
             command: None,
             debug: false,
             explain: None,
+            files: Vec::new(),
         }
     }
 }
@@ -138,10 +151,41 @@ where
     T: Into<std::ffi::OsString>,
 {
     let arguments: Vec<std::ffi::OsString> = arguments.into_iter().map(Into::into).collect();
+    if let Some(files) = data_file_launch(&arguments) {
+        return Ok(Args {
+            files,
+            ..Args::defaults()
+        });
+    }
     match Args::try_parse_from(arguments.clone()) {
         Err(_) if has_only_platform_launch_arguments(&arguments) => Ok(Args::defaults()),
         result => result,
     }
+}
+
+fn is_platform_launch_argument(argument: &std::ffi::OsStr) -> bool {
+    argument
+        .to_str()
+        .is_some_and(|value| value.starts_with("-psn_") || value.starts_with("tabularis:"))
+}
+
+/// The data files of an "Open with" launch: every argument is a data file
+/// (a path or a `file://` URL, by its extension) or a platform launch
+/// argument, and at least one is a data file. Anything else is left to clap.
+fn data_file_launch(arguments: &[std::ffi::OsString]) -> Option<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for argument in arguments.iter().skip(1) {
+        if is_platform_launch_argument(argument) {
+            continue;
+        }
+        let name = argument.to_str()?;
+        if name.starts_with('-') || crate::application::data_files::data_file_format(name).is_none()
+        {
+            return None;
+        }
+        files.push(PathBuf::from(argument));
+    }
+    (!files.is_empty()).then_some(files)
 }
 
 fn has_only_platform_launch_arguments(arguments: &[std::ffi::OsString]) -> bool {
@@ -152,11 +196,7 @@ fn has_only_platform_launch_arguments(arguments: &[std::ffi::OsString]) -> bool 
 
     std::iter::once(first)
         .chain(launch_arguments)
-        .all(|argument| {
-            argument
-                .to_str()
-                .is_some_and(|value| value.starts_with("-psn_") || value.starts_with("tabularis:"))
-        })
+        .all(|argument| is_platform_launch_argument(argument))
 }
 
 #[cfg(test)]

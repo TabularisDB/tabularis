@@ -258,6 +258,16 @@ export function AppearanceTab() {
                         </SettingRow>
 
                         <SettingRow
+                            label={t('settings.appearance_editorMinimap')}
+                            description={t('settings.appearance_editorMinimapDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.editorMinimap ?? false}
+                                onChange={(v) => updateSetting('editorMinimap', v)}
+                            />
+                        </SettingRow>
+
+                        <SettingRow
                             label={t('settings.appearance_editorShowLineNumbers')}
                             description={t('settings.appearance_editorShowLineNumbersDesc')}
                         >
@@ -295,6 +305,18 @@ export function AppearanceTab() {
                                     {value: 'lower', label: 'lower'},
                                 ]}
                                 mono
+                            />
+                        </SettingRow>
+                    </SettingSection>
+
+                    <SettingSection title={t('settings.diagnostics_title')}>
+                        <SettingRow
+                            label={t('settings.diagnostics_enabled')}
+                            description={t('settings.diagnostics_enabledDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.sqlDiagnosticsEnabled ?? false}
+                                onChange={(v) => updateSetting('sqlDiagnosticsEnabled', v)}
                             />
                         </SettingRow>
                     </SettingSection>

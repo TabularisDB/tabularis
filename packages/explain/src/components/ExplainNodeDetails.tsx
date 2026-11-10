@@ -41,7 +41,8 @@ export function ExplainNodeDetails({
         },
         [t],
     );
-    const [copied, setCopied] = useState(false);
+    const [copiedNodeId, setCopiedNodeId] = useState<string | null>(null);
+    const copied = node !== null && copiedNodeId === node.id;
     const [isCopying, setIsCopying] = useState(false);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -52,13 +53,6 @@ export function ExplainNodeDetails({
             }
         };
     }, []);
-
-    useEffect(() => {
-        setCopied(false);
-        if (timerRef.current) {
-            clearTimeout(timerRef.current);
-        }
-    }, [node?.id]);
 
     const handleCopy = useCallback(async () => {
         if (!node || isCopying) return;
@@ -86,9 +80,9 @@ export function ExplainNodeDetails({
                 if (timerRef.current) {
                     clearTimeout(timerRef.current);
                 }
-                setCopied(true);
+                setCopiedNodeId(node.id);
                 timerRef.current = setTimeout(() => {
-                    setCopied(false);
+                    setCopiedNodeId(null);
                 }, 2000);
             }
         } catch (err) {
@@ -102,7 +96,6 @@ export function ExplainNodeDetails({
         ? getExplainNodeDetailSections(node, {
               hasAnalyzeData,
               metrics,
-              diagnostics,
               t: translate,
           })
         : [];

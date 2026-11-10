@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 use plist::Value;
 
 use super::keychain_read::{read_generic_password, KeychainReadResult};
-use super::types::{ImportEnvelope, ImportedConnection, ImportedCredentials, ImportedSsh, ImportedSsl};
+use super::types::{
+    ImportEnvelope, ImportedConnection, ImportedCredentials, ImportedSsh, ImportedSsl,
+};
 use super::{driver_map, resolve_key_path, ForeignAppImporter, ForeignImportError};
 
 const KEYCHAIN_SERVICE: &str = "com.tableplus.TablePlus";
@@ -57,7 +59,9 @@ impl ForeignAppImporter for TablePlusImporter {
         let data_dir = self.data_dir_for(file);
         let path = data_dir.join("Connections.plist");
         if !path.is_file() {
-            return Err(ForeignImportError::FileNotFound(self.display_name().to_string()));
+            return Err(ForeignImportError::FileNotFound(
+                self.display_name().to_string(),
+            ));
         }
         let entries = load_plist_array(&path).ok_or_else(|| {
             ForeignImportError::UnsupportedFormat("Expected array in Connections.plist".into())
@@ -80,7 +84,8 @@ impl ForeignAppImporter for TablePlusImporter {
                 None => continue,
             };
 
-            let driver_label = map_driver(dict.get("Driver").and_then(Value::as_string).unwrap_or(""));
+            let driver_label =
+                map_driver(dict.get("Driver").and_then(Value::as_string).unwrap_or(""));
             let driver_id = driver_map::canonical_id(&driver_label);
             let host = dict
                 .get("DatabaseHost")
@@ -165,7 +170,10 @@ impl TablePlusImporter {
             .map(|b| home.join(format!("Library/Application Support/{}/Data", b)))
             .find(|p| p.is_dir());
         bundle.unwrap_or_else(|| {
-            home.join(format!("Library/Application Support/{}/Data", KNOWN_BUNDLE_IDS[0]))
+            home.join(format!(
+                "Library/Application Support/{}/Data",
+                KNOWN_BUNDLE_IDS[0]
+            ))
         })
     }
 
@@ -176,7 +184,10 @@ impl TablePlusImporter {
     fn data_dir_for(&self, file: Option<&Path>) -> PathBuf {
         match file {
             Some(path) if path.is_dir() => path.to_path_buf(),
-            Some(path) => path.parent().map(Path::to_path_buf).unwrap_or_else(|| self.data_dir()),
+            Some(path) => path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| self.data_dir()),
             None => self.data_dir(),
         }
     }
@@ -203,12 +214,26 @@ fn parse_ssh(dict: &plist::Dictionary) -> Option<ImportedSsh> {
     if dict.get("isOverSSH").and_then(Value::as_boolean) != Some(true) {
         return None;
     }
-    let use_key = dict.get("isUsePrivateKey").and_then(Value::as_boolean).unwrap_or(false);
-    let key_name = dict.get("ServerPrivateKeyName").and_then(Value::as_string).unwrap_or("");
+    let use_key = dict
+        .get("isUsePrivateKey")
+        .and_then(Value::as_boolean)
+        .unwrap_or(false);
+    let key_name = dict
+        .get("ServerPrivateKeyName")
+        .and_then(Value::as_string)
+        .unwrap_or("");
     Some(ImportedSsh {
-        host: dict.get("ServerAddress").and_then(Value::as_string).unwrap_or("").to_string(),
+        host: dict
+            .get("ServerAddress")
+            .and_then(Value::as_string)
+            .unwrap_or("")
+            .to_string(),
         port: dict.get("ServerPort").and_then(plist_port),
-        username: dict.get("ServerUser").and_then(Value::as_string).unwrap_or("").to_string(),
+        username: dict
+            .get("ServerUser")
+            .and_then(Value::as_string)
+            .unwrap_or("")
+            .to_string(),
         auth_type: if use_key { "ssh_key" } else { "password" }.to_string(),
         private_key_path: if use_key && !key_name.is_empty() {
             Some(resolve_key_path(key_name))

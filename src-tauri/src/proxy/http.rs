@@ -35,8 +35,7 @@ pub fn build_reqwest_012_client(
     let mut builder = reqwest_012::Client::builder().timeout(timeout).no_proxy();
     if let Some(endpoint) = proxy {
         let url = endpoint_to_proxy_url(endpoint)?;
-        let proxy =
-            reqwest_012::Proxy::all(&url).map_err(|e| format!("Invalid proxy URL: {e}"))?;
+        let proxy = reqwest_012::Proxy::all(&url).map_err(|e| format!("Invalid proxy URL: {e}"))?;
         builder = builder.proxy(proxy);
     }
     builder

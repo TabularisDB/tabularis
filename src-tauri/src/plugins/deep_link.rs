@@ -133,7 +133,10 @@ fn is_valid_slug(s: &str) -> bool {
         return false;
     }
     let valid_char = |b: &u8| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-';
-    bytes.iter().all(valid_char) && bytes.first().is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+    bytes.iter().all(valid_char)
+        && bytes
+            .first()
+            .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
 }
 
 #[cfg(test)]
@@ -142,9 +145,10 @@ mod tests {
 
     #[test]
     fn parses_canonical_install_url() {
-        let req =
-            parse_install_url("tabularis://install/duckdb?version=0.2.0&registry=https%3A%2F%2Fr.example")
-                .expect("valid URL");
+        let req = parse_install_url(
+            "tabularis://install/duckdb?version=0.2.0&registry=https%3A%2F%2Fr.example",
+        )
+        .expect("valid URL");
         assert_eq!(req.slug, "duckdb");
         assert_eq!(req.version.as_deref(), Some("0.2.0"));
         assert_eq!(req.registry.as_deref(), Some("https://r.example"));
@@ -159,7 +163,10 @@ mod tests {
         .expect("valid URL");
         assert_eq!(req.slug, "firestore-tabularis");
         assert_eq!(req.version.as_deref(), Some("0.2.0"));
-        assert_eq!(req.registry.as_deref(), Some("https://registry.tabularis.dev"));
+        assert_eq!(
+            req.registry.as_deref(),
+            Some("https://registry.tabularis.dev")
+        );
     }
 
     #[test]

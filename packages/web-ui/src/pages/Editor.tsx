@@ -192,9 +192,11 @@ import type {
     ResultsSessionSnapshot,
 } from '@/platform/secondaryWindowSessions';
 import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
+import {inlineSchema, inlineTables} from '@/utils/aiInlineCompletion';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import {UserManagementView} from '@/components/users/UserManagementView';
 import {useSqlAutocompleteRegistration} from '@/hooks/useSqlAutocompleteRegistration';
+import {useSqlDiagnosticsOptions} from '@/hooks/useSqlDiagnosticsOptions';
 import {createNotebook, renameNotebook} from '@/utils/notebookStore';
 import type {OnMount, Monaco} from '@monaco-editor/react';
 import {useAlert} from '@/hooks/useAlert';
@@ -210,6 +212,15 @@ import {useConnectionLayoutContext} from '@/hooks/useConnectionLayoutContext';
 import {useKeybindings} from '@/hooks/useKeybindings';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {openSqlFile, saveSqlFile} from '@/utils/sqlFileTransfer';
+import {
+    getLinkedFileConflict,
+    getLinkedFolderErrorKey,
+    readLinkedSqlFile,
+    savedLinkedFileTab,
+    writeLinkedSqlFile,
+    type LinkedFileConflictKind,
+} from '@/utils/linkedFolders';
+import {LinkedFileConflictModal} from '@/components/modals/LinkedFileConflictModal';
 import {useSecondaryWindows} from '@/hooks/useSecondaryWindows';
 import type {
     BatchStatementResult,
@@ -257,6 +268,9 @@ import clsx from 'clsx';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {createRequestId} from '@/api/errors';
 import {downloadGeneratedFile, downloadTextFile} from '@/utils/fileDownloads';
+import {useUiState} from '@/hooks/useUiState';
+import {UI_STATE_KEYS} from '@/utils/uiStateStore';
+import {DEFAULT_EDITOR_PANEL_HEIGHT, resolveEditorPanelHeight} from '@/utils/editorPanelHeight';
 
 const LOADED_ROWS_EXPORT_MIME_TYPES: Record<ResultExportFormat, string> = {
     csv: 'text/csv',
@@ -314,6 +328,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         selectedDatabases,
         activeConnectionName,
         activeDatabaseName,
+        tables,
+        schemaDataMap,
+        databaseDataMap,
+        nestedDatabaseDataMap,
     } = useDatabase();
     const {allDrivers} = useDrivers();
     const {explorerConnectionId} = useConnectionLayoutContext();
@@ -517,8 +535,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [showNewRowModal, setShowNewRowModal] = useState(false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
-    const [editorHeight, setEditorHeight] = useState(300);
-    const editorHeightRef = useRef(300);
+    // Saved across restarts and shared by every editor pane (see utils/editorPanelHeight).
+    const [storedEditorHeight, setEditorHeight] = useUiState<unknown>(
+        UI_STATE_KEYS.editorPanelHeight,
+        DEFAULT_EDITOR_PANEL_HEIGHT,
+    );
+    const editorHeight = resolveEditorPanelHeight(storedEditorHeight, window.innerHeight);
+    const editorHeightRef = useRef(editorHeight);
     // Root of this editor instance: the resize logic must stay scoped to it,
     // in split view every pane mounts its own Editor
     const editorRootRef = useRef<HTMLDivElement>(null);
@@ -675,8 +698,53 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [],
     );
 
+    const [linkedConflict, setLinkedConflict] = useState<{
+        tabId: string;
+        kind: LinkedFileConflictKind;
+    } | null>(null);
+    const [isResolvingLinkedConflict, setIsResolvingLinkedConflict] = useState(false);
+
+    // Linked files are written only while the disk copy still matches what the
+    // tab last read or wrote; otherwise the conflict dialog decides.
+    const saveLinkedSqlFile = useCallback(
+        async (tab: Tab, overwrite: boolean) => {
+            const link = tab.sourceFileLink;
+            if (!link) return;
+            const savedQuery = tab.query;
+            try {
+                const saved = await writeLinkedSqlFile(client, link, savedQuery, overwrite);
+                updateTab(tab.id, (currentTab) =>
+                    savedLinkedFileTab(
+                        currentTab.sourceFileLink ?? link,
+                        saved,
+                        savedQuery,
+                        currentTab.query,
+                    ),
+                );
+                setLinkedConflict(null);
+                showToast(t('editor.sqlFileSaved'), {kind: 'success'});
+            } catch (error) {
+                const kind = getLinkedFileConflict(error);
+                if (kind) {
+                    setLinkedConflict({tabId: tab.id, kind});
+                    return;
+                }
+                const key = getLinkedFolderErrorKey(error);
+                showAlert(`${t('editor.saveSqlFileError')}: ${key ? t(key) : String(error)}`, {
+                    title: t('common.error'),
+                    kind: 'error',
+                });
+            }
+        },
+        [client, showAlert, showToast, t, updateTab],
+    );
+
     const handleSaveSqlFile = useCallback(
         async (tab: Tab, saveAs = false) => {
+            if (tab.sourceFileLink && !saveAs) {
+                await saveLinkedSqlFile(tab, false);
+                return;
+            }
             try {
                 const savedQuery = tab.query;
                 const saved = await saveSqlFile(platform, client, {
@@ -694,9 +762,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 if (!saved) return;
                 if (saved.kind === 'path') {
                     updateTab(tab.id, (currentTab) =>
-                        savedSqlFileTab(saved.path, savedQuery, currentTab.query),
+                        // Save As detaches the tab from the linked folder.
+                        ({
+                            ...savedSqlFileTab(saved.path, savedQuery, currentTab.query),
+                            sourceFileLink: undefined,
+                        }),
                     );
                 }
+                setLinkedConflict(null);
                 showToast(t('editor.sqlFileSaved'), {kind: 'success'});
             } catch (error) {
                 showAlert(`${t('editor.saveSqlFileError')}: ${String(error)}`, {
@@ -705,7 +778,44 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 });
             }
         },
-        [client, platform, showAlert, showToast, t, updateTab],
+        [client, platform, saveLinkedSqlFile, showAlert, showToast, t, updateTab],
+    );
+
+    const linkedConflictTab = linkedConflict
+        ? tabs.find((tab) => tab.id === linkedConflict.tabId)
+        : undefined;
+
+    const resolveLinkedConflict = useCallback(
+        async (action: 'overwrite' | 'reload') => {
+            const tab = linkedConflictTab;
+            const link = tab?.sourceFileLink;
+            if (!tab || !link) return;
+            setIsResolvingLinkedConflict(true);
+            try {
+                if (action === 'overwrite') {
+                    await saveLinkedSqlFile(tab, true);
+                    return;
+                }
+                const file = await readLinkedSqlFile(client, link.folderId, link.relativePath);
+                updateTab(tab.id, {
+                    query: file.content,
+                    sourceFilePath: file.path,
+                    sourceFileContent: file.content,
+                    sourceFileDirty: false,
+                    sourceFileLink: {...link, version: file.version},
+                });
+                setLinkedConflict(null);
+            } catch (error) {
+                const key = getLinkedFolderErrorKey(error);
+                showAlert(`${t('editor.openSqlFileError')}: ${key ? t(key) : String(error)}`, {
+                    title: t('common.error'),
+                    kind: 'error',
+                });
+            } finally {
+                setIsResolvingLinkedConflict(false);
+            }
+        },
+        [client, linkedConflictTab, saveLinkedSqlFile, showAlert, t, updateTab],
     );
 
     const isEditorOpen = !isTableTab && (activeTab?.isEditorOpen ?? activeTab?.type !== 'table');
@@ -4615,6 +4725,56 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         enabled: !isNotebookTab && !isUsersTab,
     });
 
+    const sqlDiagnostics = useSqlDiagnosticsOptions(activeConnectionId, {
+        schema: activeTab?.schema ?? activeSchema,
+        database: activeTab?.database,
+        enabled: !isNotebookTab && !isUsersTab,
+    });
+
+    const inlineCompletion = useMemo(() => {
+        if (
+            !settings.aiEnabled ||
+            !settings.aiInlineCompletionEnabled ||
+            !activeConnectionId ||
+            !activeTab
+        )
+            return undefined;
+        const schema = activeTab.schema ?? activeSchema;
+        const database = activeTab.database ?? activeDatabaseName;
+        // Only use already-loaded metadata for this tab's exact namespace.
+        const cached = inlineTables(
+            {
+                tables,
+                schemaDataMap,
+                databaseDataMap,
+                nestedDatabaseDataMap,
+                activeCapabilities,
+                activeSchema,
+                activeDatabaseName,
+            },
+            schema,
+            database,
+        );
+        return {
+            key: JSON.stringify([activeConnectionId, activeTab.id, database, schema]),
+            schema: inlineSchema(cached),
+            dialect: activeDialect.dialect ?? 'generic',
+        };
+    }, [
+        settings.aiEnabled,
+        settings.aiInlineCompletionEnabled,
+        activeConnectionId,
+        activeTab,
+        activeSchema,
+        activeDatabaseName,
+        activeCapabilities,
+        activeDialect.dialect,
+        nestedDatabaseDataMap,
+        schemaDataMap,
+        databaseDataMap,
+        tables,
+    ]);
+
     // E2E: expose a submit-changes hook for tauri-wd tests. The WDIO
     // element.click() on the Submit button doesn't reliably trigger React's
     // onClick in WKWebView, so the test calls this directly. This mirrors
@@ -4676,6 +4836,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const startResize = () => {
         isDragging.current = true;
+        editorHeightRef.current = editorHeight;
+        // `editorHeight` is clamped to the current window: only a real drag may
+        // save, or a plain click would overwrite a height saved on a larger screen.
+        let didResize = false;
         document.body.style.cursor = 'row-resize';
         const activeEditor = activeTab ? editorsRef.current[activeTab.id] : undefined;
 
@@ -4701,6 +4865,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const newHeight = e.clientY - panelTop;
             if (newHeight > 100 && newHeight < maxHeight) {
                 editorHeightRef.current = newHeight;
+                didResize = true;
                 if (rafRef.current) cancelAnimationFrame(rafRef.current);
                 rafRef.current = requestAnimationFrame(() => {
                     panels.forEach((el) => {
@@ -4715,7 +4880,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             document.body.style.cursor = '';
             overlay.remove();
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            setEditorHeight(editorHeightRef.current);
+            if (didResize) setEditorHeight(editorHeightRef.current);
             requestAnimationFrame(() => activeEditor?.layout());
             document.removeEventListener('mousemove', handleResize);
             document.removeEventListener('mouseup', stopResize);
@@ -5744,6 +5909,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 initialValue={tab.query}
                                 dialect={activeDialect}
                                 foldPreview
+                                cursorStatus
+                                diagnostics={isActive ? sqlDiagnostics : undefined}
+                                inlineCompletion={isActive ? inlineCompletion : undefined}
                                 onChange={(val) => {
                                     // Debounced Monaco edits can arrive after this tab becomes
                                     // inactive. The callback belongs to the tab's stable id;
@@ -6561,6 +6729,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 csvDelimiter={csvDelimiter}
                                                 csvIncludeHeaders={csvIncludeHeaders}
                                                 transposed={!!activeTab.transposed}
+                                                conditionalFormatting={activeTab.type === 'table'}
                                                 sortClause={activeTab.sortClause}
                                                 onSort={
                                                     activeTab.type === 'table' &&
@@ -6907,6 +7076,20 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 warningMessage={exportState.warningMessage}
                 onCancel={cancelExport}
                 onClose={closeExportModal}
+            />
+            <LinkedFileConflictModal
+                isOpen={linkedConflict !== null && linkedConflictTab !== undefined}
+                kind={linkedConflict?.kind ?? 'modified'}
+                fileName={linkedConflictTab?.title ?? ''}
+                busy={isResolvingLinkedConflict}
+                onClose={() => setLinkedConflict(null)}
+                onOverwrite={() => void resolveLinkedConflict('overwrite')}
+                onReload={() => void resolveLinkedConflict('reload')}
+                onSaveAs={() => {
+                    const tab = linkedConflictTab;
+                    setLinkedConflict(null);
+                    if (tab) void handleSaveSqlFile(tab, true);
+                }}
             />
             <QueryParamsModal
                 isOpen={queryParamsModal.isOpen}

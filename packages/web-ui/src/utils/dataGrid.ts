@@ -8,6 +8,7 @@ import {formatBlobValue, isBlobColumn, isBlobWireFormat} from './blob';
 import {isJsonColumn} from './json';
 import type {ResultCommands} from '@/types/commands';
 import {escapeRegExp} from './escape';
+import type {FormatTone} from './conditionalFormatting';
 
 /** Sentinel value indicating that the database DEFAULT value should be used */
 export const USE_DEFAULT_SENTINEL = '__USE_DEFAULT__';
@@ -984,7 +985,24 @@ export interface FrozenCellRowState {
     isInsertion: boolean;
     isPendingDelete: boolean;
     isZebra: boolean;
+    /** Tone of a conditional formatting row rule (#991), or null. */
+    formatTone?: FormatTone | null;
 }
+
+/**
+ * Opaque backdrop of a frozen cell in a row painted by a rule (#991): the
+ * row tint of `FORMAT_ROW_CLASS` pre-mixed over the grid background. A muted
+ * row has no tint, so it keeps the plain backdrop.
+ */
+const FROZEN_FORMAT_BACKDROP_CLASS: Record<FormatTone, string> = {
+    danger: 'before:bg-[color-mix(in_srgb,var(--accent-error)_15%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--accent-error)_25%,var(--bg-elevated))]',
+    warning:
+        'before:bg-[color-mix(in_srgb,var(--accent-warning)_15%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--accent-warning)_25%,var(--bg-elevated))]',
+    success:
+        'before:bg-[color-mix(in_srgb,var(--accent-success)_15%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--accent-success)_25%,var(--bg-elevated))]',
+    info: 'before:bg-[color-mix(in_srgb,var(--accent-info)_15%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--accent-info)_25%,var(--bg-elevated))]',
+    muted: 'before:bg-elevated group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_50%,var(--bg-elevated))]',
+};
 
 // Both layers sit under the cell content. `::before` is the opaque row
 // background, `::after` repaints the cell's own tint (selection, edits) on top.
@@ -1026,6 +1044,8 @@ export function getFrozenCellBackdropClass(row: FrozenCellRowState): string {
         backdrop = 'before:bg-[color-mix(in_srgb,var(--semantic-new)_8%,var(--bg-elevated))]';
     } else if (row.isPendingDelete) {
         backdrop = 'before:bg-[color-mix(in_srgb,var(--semantic-deleted)_10%,var(--bg-elevated))]';
+    } else if (row.formatTone) {
+        backdrop = FROZEN_FORMAT_BACKDROP_CLASS[row.formatTone];
     } else if (row.isZebra) {
         backdrop =
             'before:bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_90%,var(--bg-elevated))]';

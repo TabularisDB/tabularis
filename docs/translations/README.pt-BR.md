@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis é um workspace SQL de desktop, de código aberto, com 3 drivers de banco de dados integrados e 26 plugins disponíveis, incluindo DuckDB, ClickHouse, Redis e Firestore. Seu servidor MCP integrado permite que Claude, Cursor e Devin (antigo Windsurf) leiam seu esquema e executem consultas no mesmo aplicativo que você já usa.
+Tabularis é um workspace SQL de desktop, de código aberto, com 3 drivers de banco de dados integrados e 29 plugins disponíveis, incluindo DuckDB, ClickHouse, Redis e Firestore. Seu servidor MCP integrado permite que Claude, Cursor e Devin (antigo Windsurf) leiam seu esquema e executem consultas no mesmo aplicativo que você já usa.
 
 <p align="center">
   <b><a href="https://tabularis.dev">Site</a></b> ·
@@ -71,11 +71,11 @@ sudo snap install tabularis       # Linux
 
 Ou baixe um instalador diretamente:
 
-- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.31.0/tabularis_0.31.0_x64-setup.exe)
+- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_x64-setup.exe)
 
-- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.31.0/tabularis_0.31.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.31.0/tabularis_0.31.0_x64.dmg)
+- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_x64.dmg)
 
-- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.31.0/tabularis_0.31.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.31.0/tabularis_0.31.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.31.0/tabularis-0.31.0-1.x86_64.rpm)
+- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis-0.32.0-1.x86_64.rpm)
 
 A interface do aplicativo está disponível em inglês, italiano, espanhol, chinês (simplificado), francês, alemão, japonês, russo, coreano, tagalo e português (Brasil).
 
@@ -92,7 +92,7 @@ A interface do aplicativo está disponível em inglês, italiano, espanhol, chin
 | Plugins em **qualquer linguagem** (JSON-RPC via stdio)                    |                 ✅                 |       Plugins Java/Eclipse        | Plugins JavaScript |          ❌           |
 | IA text-to-SQL com **modelos locais** (Ollama)                            |                 ✅                 |     Assistente de IA na nuvem     |         ❌         |          ❌           |
 | EXPLAIN Visual com gráficos de plano interativos                          |                 ✅                 |                ✅                 |         ❌         |          ❌           |
-| Bancos de dados prontos para uso                                          | 3 integrados + 26 plugins de drivers |               100+                |        20+         |          ~10          |
+| Bancos de dados prontos para uso                                          | 3 integrados + 29 plugins de drivers |               100+                |        20+         |          ~10          |
 
 > [!NOTE]
 > Comparação de junho de 2026; os recursos de outras ferramentas podem ter mudado desde então. Se você precisa de dezenas de drivers, use o DBeaver. O Tabularis foca em fazer bem um número menor de bancos de dados.
@@ -118,14 +118,17 @@ PostgreSQL, MySQL/MariaDB e SQLite já vêm integrados. O driver PostgreSQL inte
 | IBM Informix             | [tabularis-informix-plugin](https://github.com/danielnuld/tabularis-informix-plugin)            | HackerNews     | [tabularis-hackernews-plugin](https://github.com/TabularisDB/tabularis-hackernews-plugin)       |
 | Cassandra / ScyllaDB     | [tabularis-cassandra-plugin](https://github.com/TabularisDB/tabularis-cassandra-plugin)         | Harper         | [tabularis-harper-plugin](https://github.com/HarperFast/tabularis-harper-plugin)                |
 | PostgreSQL               | [tabularis-postgresql-plugin](https://github.com/TabularisDB/tabularis-postgresql-plugin)       | Trino          | [tabularis-trino-plugin](https://github.com/TabularisDB/tabularis-trino-plugin)                 |
+| Neon                     | [neon-plugin](https://github.com/TabularisDB/neon-plugin)                                       | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
+| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         |                |                                                                                                 |
 
 **No quadro de recompensas**
 
 | Status       | Bancos de dados                                                              |
 | ------------ | ---------------------------------------------------------------------------- |
-| Em andamento | Amazon Redshift, Etcd, Meilisearch, Snowflake, SQL Anywhere                                |
-| Planejado    | TiDB                                                            |
-| Aberto       | Firebird, SurrealDB                                      |
+| Em andamento   | Meilisearch                  |
+| Em breve       | Snowflake                    |
+| Planejado      | Amazon Redshift, TiDB        |
+| Aberto         | Etcd, Firebird, SQL Anywhere |
 
 > [!NOTE]
 > Os drivers **disponíveis** podem ser instalados a partir do [registro de plugins](https://tabularis.dev/plugins). Todo o resto está no [quadro de recompensas](https://tabularis.dev/plugins/bounties): reivindique um, patrocine um ou [solicite um banco de dados](https://github.com/TabularisDB/tabularis/discussions).
