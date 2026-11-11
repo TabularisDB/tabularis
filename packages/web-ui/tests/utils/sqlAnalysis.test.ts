@@ -527,4 +527,47 @@ describe('isReadOnlyQuery', () => {
         expect(isReadOnlyQuery('/* UPDATE t */ SELECT 1')).toBe(true);
         expect(isReadOnlyQuery("SELECT ';DELETE FROM t;' FROM dual")).toBe(true);
     });
+
+    it('flags a PRAGMA that sets a value or does work', () => {
+        expect(isReadOnlyQuery('PRAGMA user_version = 42')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA journal_mode=DELETE')).toBe(false);
+        expect(isReadOnlyQuery('pragma main.user_version = 1;')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA writable_schema = 1')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA\nuser_version\n=\n42')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA "main".user_version = 5')).toBe(false);
+        // The call form sets the value too.
+        expect(isReadOnlyQuery('PRAGMA user_version(42)')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA journal_mode(DELETE)')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA wal_checkpoint(TRUNCATE)')).toBe(false);
+        // Action pragmas work without an argument.
+        expect(isReadOnlyQuery('PRAGMA optimize')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA incremental_vacuum')).toBe(false);
+        expect(isReadOnlyQuery('SELECT 1; PRAGMA user_version = 42')).toBe(false);
+    });
+
+    it('keeps a PRAGMA that only reads read-only', () => {
+        expect(isReadOnlyQuery('PRAGMA user_version')).toBe(true);
+        expect(isReadOnlyQuery('PRAGMA main.journal_mode;')).toBe(true);
+        expect(isReadOnlyQuery("PRAGMA foreign_key_list('orders')")).toBe(true);
+        expect(isReadOnlyQuery('PRAGMA main.index_list(users)')).toBe(true);
+        expect(isReadOnlyQuery('pragma integrity_check(10)')).toBe(true);
+        expect(isReadOnlyQuery('PRAGMA foreign_key_check')).toBe(true);
+        expect(isReadOnlyQuery('PRAGMA main . table_info ( users )')).toBe(true);
+    });
+
+    it('flags SELECT ... INTO, which creates a table or writes a file', () => {
+        expect(isReadOnlyQuery('SELECT * INTO backup_users FROM users')).toBe(false);
+        expect(isReadOnlyQuery('select * into temp t from users')).toBe(false);
+        expect(isReadOnlyQuery("SELECT * FROM users INTO OUTFILE '/tmp/users.csv'")).toBe(false);
+        expect(isReadOnlyQuery('WITH a AS (SELECT 1) SELECT * INTO t2 FROM a')).toBe(false);
+        expect(isReadOnlyQuery("TABLE users INTO OUTFILE '/tmp/users.csv'")).toBe(false);
+        expect(isReadOnlyQuery('SELECT id INTO@latest FROM users')).toBe(false);
+        expect(isReadOnlyQuery('SELECT 1; SELECT * INTO copy FROM users')).toBe(false);
+    });
+
+    it('does not mistake a name or text containing "into" for SELECT ... INTO', () => {
+        expect(isReadOnlyQuery("SELECT 'INTO' AS word FROM t")).toBe(true);
+        expect(isReadOnlyQuery('SELECT into_count, "into" FROM t')).toBe(true);
+        expect(isReadOnlyQuery('SELECT * FROM t -- INTO backup')).toBe(true);
+    });
 });
