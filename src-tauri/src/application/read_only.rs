@@ -1,6 +1,8 @@
 //! Connection-wide write policy shared by desktop, web and MCP.
 
-use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities};
+use crate::drivers::driver_trait::{
+    DatabaseDriver, DriverCapabilities, QueryChunkSink, StreamSummary,
+};
 use crate::models::{ConnectionParams, QueryResult};
 use crate::runtime::RuntimeContext;
 
@@ -64,6 +66,21 @@ pub async fn execute_query(
     validate_query(params, &driver.manifest().capabilities, query)?;
     driver
         .execute_read_only_query(params, query, limit, page, schema)
+        .await
+}
+
+/// `execute_query` without a row limit, with the rows handed to `sink` in
+/// batches. A rejected statement sends nothing to `sink`.
+pub async fn execute_query_stream(
+    driver: &dyn DatabaseDriver,
+    params: &ConnectionParams,
+    query: &str,
+    schema: Option<&str>,
+    sink: &mut QueryChunkSink<'_>,
+) -> Result<StreamSummary, String> {
+    validate_query(params, &driver.manifest().capabilities, query)?;
+    driver
+        .execute_read_only_query_stream(params, query, schema, sink)
         .await
 }
 

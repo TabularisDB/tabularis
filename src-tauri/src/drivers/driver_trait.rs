@@ -21,7 +21,8 @@ use crate::models::{
 /// the command layer supplies a closure that emits a Tauri event.
 pub type BatchProgressFn = dyn Fn(usize, &BatchStatementResult) + Send + Sync;
 
-/// One piece of a streamed result: the column names once, then row batches.
+/// One piece of a streamed result: the column names, then row batches. A
+/// later `Columns` starts the next result set of the same statement.
 #[derive(Debug, Clone, PartialEq)]
 pub enum QueryChunk {
     Columns(Vec<String>),
@@ -41,22 +42,29 @@ pub struct StreamSummary {
     pub in_transaction: bool,
 }
 
+impl StreamSummary {
+    pub fn of(result: &QueryResult, in_transaction: bool) -> Self {
+        Self {
+            affected_rows: result.affected_rows,
+            server_time_ms: result.server_time_ms,
+            fetch_time_ms: result.fetch_time_ms,
+            in_transaction,
+        }
+    }
+}
+
 /// Delivers a whole result as one stream: its columns, then all rows as one batch.
 pub fn stream_whole(
     result: QueryResult,
     in_transaction: bool,
     sink: &mut QueryChunkSink<'_>,
 ) -> StreamSummary {
+    let summary = StreamSummary::of(&result, in_transaction);
     sink(QueryChunk::Columns(result.columns));
     if !result.rows.is_empty() {
         sink(QueryChunk::Rows(result.rows));
     }
-    StreamSummary {
-        affected_rows: result.affected_rows,
-        server_time_ms: result.server_time_ms,
-        fetch_time_ms: result.fetch_time_ms,
-        in_transaction,
-    }
+    summary
 }
 
 /// SQL dialect declaration used by the frontend statement splitter
@@ -946,6 +954,25 @@ pub trait DatabaseDriver: Send + Sync {
         schema: Option<&str>,
     ) -> Result<QueryResult, String> {
         self.execute_query(params, query, limit, page, schema).await
+    }
+
+    /// [`Self::execute_read_only_query`] without a row limit, with the rows
+    /// handed to `sink` as in [`Self::execute_query_stream`]. A driver that
+    /// implements it streams through the same read-only protection.
+    ///
+    /// The default implementation runs [`Self::execute_read_only_query`] and
+    /// delivers its whole result as one batch.
+    async fn execute_read_only_query_stream(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        schema: Option<&str>,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<StreamSummary, String> {
+        let result = self
+            .execute_read_only_query(params, query, None, 1, schema)
+            .await?;
+        Ok(stream_whole(result, false, sink))
     }
 
     /// `execute_batch` with the caller's connection carried across calls.

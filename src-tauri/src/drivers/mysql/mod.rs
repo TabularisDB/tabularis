@@ -5,7 +5,6 @@ pub mod types;
 mod cancel;
 mod explain;
 mod helpers;
-mod multi_result;
 mod routines;
 mod row_identity;
 mod stmt_classify;
@@ -20,6 +19,7 @@ mod stmt_classify_tests;
 mod tests;
 
 use crate::drivers::common::parse_unsafe_bigint_string;
+use crate::drivers::driver_trait::{QueryChunk, QueryChunkSink, StreamSummary};
 use crate::models::{
     ConnectionParams, ForeignKey, Index, Pagination, QueryResult, RoutineInfo, RoutineParameter,
     TableColumn, TableInfo, TriggerInfo, ViewInfo,
@@ -1450,12 +1450,59 @@ async fn acquire_mysql_conn(
 /// `execute_query` (one statement, one connection) and `execute_batch`
 /// (many statements, one shared connection — required for session-local
 /// state like `SET @var`, `LAST_INSERT_ID()`, transactions, temp tables).
+///
+/// With a `stream` sink the rows go to it and the returned result has none;
+/// otherwise they are collected into the result.
 async fn exec_on_mysql_conn(
     conn: &mut sqlx::MySqlConnection,
     query: &str,
     limit: Option<u32>,
     page: u32,
     text: TextProto,
+    stream: Option<&mut QueryChunkSink<'_>>,
+) -> Result<QueryResult, String> {
+    let Some(sink) = stream else {
+        let mut collected = crate::drivers::common::CollectedRows::default();
+        let meta =
+            fetch_on_mysql_conn(conn, query, limit, page, text, &mut collected.sink()).await?;
+        let mut result = collected.into_result(meta);
+        if let (Some(cap), None) = (limit, &result.pagination) {
+            cap_rows(&mut result, cap as usize);
+            for set in result.additional_results.iter_mut().flatten() {
+                cap_rows(set, cap as usize);
+            }
+        }
+        return Ok(result);
+    };
+    let mut named = false;
+    let meta = fetch_on_mysql_conn(conn, query, limit, page, text, &mut |chunk| {
+        named |= matches!(chunk, QueryChunk::Columns(_));
+        sink(chunk)
+    })
+    .await?;
+    if !named {
+        // Without a row MySQL sends no column metadata.
+        sink(QueryChunk::Columns(Vec::new()));
+    }
+    Ok(meta)
+}
+
+fn cap_rows(set: &mut QueryResult, cap: usize) {
+    if set.rows.len() > cap {
+        set.rows.truncate(cap);
+        set.truncated = true;
+    }
+}
+
+/// Runs one statement and hands its rows to `sink`, each result set after
+/// its own `Columns`. The returned result has no columns or rows.
+async fn fetch_on_mysql_conn(
+    conn: &mut sqlx::MySqlConnection,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    text: TextProto,
+    sink: &mut QueryChunkSink<'_>,
 ) -> Result<QueryResult, String> {
     // Transaction-control statements have to bypass the prepared-statement
     // protocol — see `is_text_protocol_stmt`. They never return a result
@@ -1505,7 +1552,6 @@ async fn exec_on_mysql_conn(
     let mut pagination: Option<Pagination> = None;
     let final_query: String;
     let mut manual_limit = limit;
-    let mut truncated = false;
 
     if is_select && limit.is_some() {
         let l = limit.unwrap();
@@ -1516,7 +1562,7 @@ async fn exec_on_mysql_conn(
             page,
             page_size: l,
             total_rows: None,
-            has_more: false, // will be updated after streaming
+            has_more: false, // set once the rows are collected
         });
 
         manual_limit = None;
@@ -1527,8 +1573,10 @@ async fn exec_on_mysql_conn(
     // A single statement may stream back several result sets (e.g. a `CALL`
     // whose procedure body holds multiple `SELECT`s), so `fetch_many` is used
     // instead of `fetch`: it interleaves rows with one `Either::Left`
-    // terminator per result set, which the collector folds into discrete sets.
-    let mut collector = multi_result::ResultSetCollector::new(manual_limit);
+    // terminator per result set. Sets without rows send nothing: without a
+    // row sqlx has no column metadata, and the trailing `OK` packet of a
+    // `CALL` arrives as an empty set too.
+    let mut out = crate::drivers::common::RowBatcher::new(sink);
 
     let start_instant = std::time::Instant::now();
     let mut server_time_ms: Option<f64> = None;
@@ -1548,19 +1596,16 @@ async fn exec_on_mysql_conn(
                 server_time_ms = Some(start_instant.elapsed().as_secs_f64() * 1000.0);
             }
             match result {
-                Ok(sqlx::Either::Left(_)) => collector.end_result_set(),
+                Ok(sqlx::Either::Left(_)) => out.end_set(),
                 Ok(sqlx::Either::Right(row)) => {
-                    // Initialize columns from the first row of each result set
-                    if collector.needs_columns() {
-                        collector.set_columns(
-                            row.columns().iter().map(|c| c.name().to_string()).collect(),
-                        );
+                    if out.rows == 0 {
+                        out.columns(row.columns().iter().map(|c| c.name().to_string()).collect());
                     }
 
-                    // Past the row cap the row is still consumed (the stream
-                    // must drain to reach later result sets) but not decoded.
-                    if collector.at_limit() {
-                        collector.note_overflow_row();
+                    // Past the per-set cap the row is still consumed (the
+                    // stream must drain to reach later result sets) but not
+                    // decoded; the one row over tells the caller to truncate.
+                    if manual_limit.is_some_and(|l| out.rows > l as usize) {
                         continue;
                     }
 
@@ -1570,64 +1615,24 @@ async fn exec_on_mysql_conn(
                         let val = extract_value(&row, i, None);
                         json_row.push(val);
                     }
-                    collector.push_row(json_row);
+                    out.push(json_row);
                 }
                 Err(e) => return Err(e.to_string()),
             }
         }
     } // event_stream dropped here — conn borrow released
+    out.flush();
 
     let (server_time, fetch_time) =
         crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
 
-    let mut result_sets = collector.finish();
-    let primary = if result_sets.is_empty() {
-        multi_result::ResultSetData::default()
-    } else {
-        result_sets.remove(0)
-    };
-    let columns = primary.columns;
-    let mut json_rows = primary.rows;
-    if primary.truncated {
-        truncated = true;
-    }
-    let additional_results = if result_sets.is_empty() {
-        None
-    } else {
-        Some(
-            result_sets
-                .into_iter()
-                .map(|set| QueryResult {
-                    columns: set.columns,
-                    rows: set.rows,
-                    affected_rows: 0,
-                    truncated: set.truncated,
-                    pagination: None,
-                    additional_results: None,
-                    server_time_ms: None,
-                    fetch_time_ms: None,
-                })
-                .collect(),
-        )
-    };
-
-    // Apply LIMIT +1 result: if we got page_size+1 rows, has_more=true
-    if let Some(ref mut p) = pagination {
-        let has_more = json_rows.len() > p.page_size as usize;
-        if has_more {
-            json_rows.truncate(p.page_size as usize);
-        }
-        p.has_more = has_more;
-        truncated = has_more;
-    }
-
     Ok(QueryResult {
-        columns,
-        rows: json_rows,
+        columns: vec![],
+        rows: vec![],
         affected_rows: 0,
-        truncated,
+        truncated: false,
         pagination,
-        additional_results,
+        additional_results: None,
         server_time_ms: server_time,
         fetch_time_ms: fetch_time,
     })
@@ -1645,10 +1650,28 @@ pub async fn execute_query(
     // so it only needs to know whether to use the text protocol.
     let text = TextProto::protocol_only(force_text_protocol(params));
     let outcome = run
-        .exec_within_query_timeout(params, query, limit, page, text)
+        .exec_within_query_timeout(params, query, limit, page, text, None)
         .await?;
     run.release();
     outcome
+}
+
+/// `execute_query` without a row limit, with the rows handed to `sink` in
+/// batches as they arrive. Each result set of a `CALL` starts with its own
+/// `Columns`.
+pub async fn execute_query_stream(
+    params: &ConnectionParams,
+    query: &str,
+    schema: Option<&str>,
+    sink: &mut QueryChunkSink<'_>,
+) -> Result<StreamSummary, String> {
+    let mut run = acquire_mysql_conn(params, schema).await?;
+    let text = TextProto::protocol_only(force_text_protocol(params));
+    let outcome = run
+        .exec_within_query_timeout(params, query, None, 1, text, Some(sink))
+        .await?;
+    run.release();
+    Ok(StreamSummary::of(&outcome?, false))
 }
 
 /// Runs one statement inside `START TRANSACTION READ ONLY` and always rolls
@@ -1665,6 +1688,29 @@ pub async fn execute_read_only_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
+    run_read_only(params, query, limit, page, schema, None).await
+}
+
+/// `execute_read_only_query` without a row limit, with the rows handed to
+/// `sink` in batches as they arrive.
+pub async fn execute_read_only_query_stream(
+    params: &ConnectionParams,
+    query: &str,
+    schema: Option<&str>,
+    sink: &mut QueryChunkSink<'_>,
+) -> Result<StreamSummary, String> {
+    let result = run_read_only(params, query, None, 1, schema, Some(sink)).await?;
+    Ok(StreamSummary::of(&result, false))
+}
+
+async fn run_read_only(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    stream: Option<&mut QueryChunkSink<'_>>,
+) -> Result<QueryResult, String> {
     use sqlx::Executor as _;
     let mut run = acquire_mysql_conn(params, schema).await?;
     run.conn()
@@ -1673,7 +1719,7 @@ pub async fn execute_read_only_query(
         .map_err(|e| e.to_string())?;
     let text = TextProto::protocol_only(force_text_protocol(params));
     let outcome = run
-        .exec_within_query_timeout(params, query, limit, page, text)
+        .exec_within_query_timeout(params, query, limit, page, text, stream)
         .await?;
     match run.conn().execute(sqlx::raw_sql("ROLLBACK")).await {
         Ok(_) => run.release(),
@@ -1707,7 +1753,7 @@ pub async fn execute_batch(
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
         let outcome = run
-            .exec_within_query_timeout(params, q, limit, page, text)
+            .exec_within_query_timeout(params, q, limit, page, text, None)
             .await?;
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
         if let Some(cb) = on_progress {
@@ -2535,6 +2581,27 @@ impl DatabaseDriver for MysqlDriver {
         schema: Option<&str>,
     ) -> Result<crate::models::QueryResult, String> {
         execute_read_only_query(params, query, limit, page, schema).await
+    }
+
+    async fn execute_query_stream(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        schema: Option<&str>,
+        _session_id: Option<&str>,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<StreamSummary, String> {
+        execute_query_stream(params, query, schema, sink).await
+    }
+
+    async fn execute_read_only_query_stream(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        schema: Option<&str>,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<StreamSummary, String> {
+        execute_read_only_query_stream(params, query, schema, sink).await
     }
 
     async fn execute_batch(

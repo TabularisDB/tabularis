@@ -794,11 +794,19 @@ pub async fn execute_query_stream(
     query: &str,
     sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
 ) -> Result<crate::drivers::driver_trait::StreamSummary, String> {
-    use crate::drivers::driver_trait::QueryChunk;
     let pool = get_sqlite_pool(params).await?;
     let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    stream_on_sqlite_conn(&mut conn, query, sink).await
+}
+
+async fn stream_on_sqlite_conn(
+    conn: &mut sqlx::SqliteConnection,
+    query: &str,
+    sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
+) -> Result<crate::drivers::driver_trait::StreamSummary, String> {
+    use crate::drivers::driver_trait::{QueryChunk, StreamSummary};
     let mut named = false;
-    let meta = fetch_on_sqlite_conn(&mut conn, query, None, 1, &mut |chunk| {
+    let meta = fetch_on_sqlite_conn(conn, query, None, 1, &mut |chunk| {
         named |= matches!(chunk, QueryChunk::Columns(_));
         sink(chunk)
     })
@@ -818,12 +826,7 @@ pub async fn execute_query_stream(
         };
         sink(QueryChunk::Columns(columns));
     }
-    Ok(crate::drivers::driver_trait::StreamSummary {
-        affected_rows: meta.affected_rows,
-        server_time_ms: meta.server_time_ms,
-        fetch_time_ms: meta.fetch_time_ms,
-        in_transaction: false,
-    })
+    Ok(StreamSummary::of(&meta, false))
 }
 
 /// Runs one statement with `PRAGMA query_only` on, inside a transaction that
@@ -837,6 +840,28 @@ pub async fn execute_read_only_query(
     limit: Option<u32>,
     page: u32,
 ) -> Result<QueryResult, String> {
+    let mut guard = begin_read_only(params).await?;
+    let outcome = exec_on_sqlite_conn(guard.conn(), query, limit, page).await;
+    end_read_only(guard, params).await;
+    outcome
+}
+
+/// `execute_read_only_query` without a row limit, with the rows handed to
+/// `sink` in batches as they arrive.
+pub async fn execute_read_only_query_stream(
+    params: &ConnectionParams,
+    query: &str,
+    sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
+) -> Result<crate::drivers::driver_trait::StreamSummary, String> {
+    let mut guard = begin_read_only(params).await?;
+    let outcome = stream_on_sqlite_conn(guard.conn(), query, sink).await;
+    end_read_only(guard, params).await;
+    outcome
+}
+
+type ReadOnlyConn = crate::drivers::common::DetachOnDrop<sqlx::Sqlite>;
+
+async fn begin_read_only(params: &ConnectionParams) -> Result<ReadOnlyConn, String> {
     use sqlx::Executor as _;
     let pool = get_sqlite_pool(params).await?;
     let mut guard =
@@ -846,7 +871,11 @@ pub async fn execute_read_only_query(
         .execute(sqlx::raw_sql("PRAGMA query_only = ON; BEGIN"))
         .await
         .map_err(|e| e.to_string())?;
-    let outcome = exec_on_sqlite_conn(guard.conn(), query, limit, page).await;
+    Ok(guard)
+}
+
+async fn end_read_only(mut guard: ReadOnlyConn, params: &ConnectionParams) {
+    use sqlx::Executor as _;
     let cleanup = if params.read_only {
         "ROLLBACK"
     } else {
@@ -856,7 +885,6 @@ pub async fn execute_read_only_query(
         Ok(_) => guard.release(),
         Err(e) => log::warn!("SQLite: resetting after a read-only query failed: {e}"),
     }
-    outcome
 }
 
 /// Runs a sequence of statements on a single pooled connection so
@@ -1414,6 +1442,16 @@ impl DatabaseDriver for SqliteDriver {
         _schema: Option<&str>,
     ) -> Result<crate::models::QueryResult, String> {
         execute_read_only_query(params, query, limit, page).await
+    }
+
+    async fn execute_read_only_query_stream(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        _schema: Option<&str>,
+        sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
+    ) -> Result<crate::drivers::driver_trait::StreamSummary, String> {
+        execute_read_only_query_stream(params, query, sink).await
     }
 
     async fn execute_batch(

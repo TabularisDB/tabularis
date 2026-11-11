@@ -1291,13 +1291,36 @@ pub async fn execute_read_only_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
+    run_read_only(params, query, limit, page, schema, None).await
+}
+
+/// `execute_read_only_query` without a row limit, with the rows handed to
+/// `sink` in batches as they arrive.
+pub async fn execute_read_only_query_stream(
+    params: &ConnectionParams,
+    query: &str,
+    schema: Option<&str>,
+    sink: &mut QueryChunkSink<'_>,
+) -> Result<StreamSummary, String> {
+    let result = run_read_only(params, query, None, 1, schema, Some(sink)).await?;
+    Ok(StreamSummary::of(&result, false))
+}
+
+async fn run_read_only(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    stream: Option<&mut QueryChunkSink<'_>>,
+) -> Result<QueryResult, String> {
     let mut in_flight = InFlight::new(acquire_pg_client(params, schema).await?, params);
     let client = in_flight.client.as_ref().expect("set above");
     client
         .batch_execute("BEGIN READ ONLY")
         .await
         .map_err(|e| format_pg_error(&e))?;
-    let outcome = exec_within_query_timeout(client, params, query, limit, page, None).await?;
+    let outcome = exec_within_query_timeout(client, params, query, limit, page, stream).await?;
     match client.batch_execute("ROLLBACK").await {
         // Back to the pool only once the transaction is closed.
         Ok(()) => drop(in_flight.client.take()),
@@ -1337,12 +1360,7 @@ pub async fn execute_query_stream(
 ) -> Result<StreamSummary, String> {
     let (result, in_transaction) =
         run_in_session(params, query, None, 1, schema, session_id, Some(sink)).await?;
-    Ok(StreamSummary {
-        affected_rows: result.affected_rows,
-        server_time_ms: result.server_time_ms,
-        fetch_time_ms: result.fetch_time_ms,
-        in_transaction,
-    })
+    Ok(StreamSummary::of(&result, in_transaction))
 }
 
 async fn run_in_session(
@@ -2882,6 +2900,16 @@ impl DatabaseDriver for PostgresDriver {
         sink: &mut QueryChunkSink<'_>,
     ) -> Result<StreamSummary, String> {
         execute_query_stream(params, query, schema, session_id, sink).await
+    }
+
+    async fn execute_read_only_query_stream(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        schema: Option<&str>,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<StreamSummary, String> {
+        execute_read_only_query_stream(params, query, schema, sink).await
     }
 
     async fn execute_read_only_query(

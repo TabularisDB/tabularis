@@ -1,6 +1,4 @@
-use crate::drivers::driver_trait::{
-    stream_whole, BatchProgressFn, DatabaseDriver, QueryChunk, StreamSummary,
-};
+use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, QueryChunk, StreamSummary};
 use crate::models::{BatchStatementResult, ExplainQueryOutput, QueryResult};
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use serde::Serialize;
@@ -319,8 +317,7 @@ pub async fn execute_query(
 }
 
 /// `execute_query` without a row limit, with the rows handed to `sink` in
-/// batches as the driver fetches them. A read-only connection is never
-/// streamed: its protected result is delivered as one batch.
+/// batches as the driver fetches them.
 #[allow(clippy::too_many_arguments)]
 pub async fn stream_query(
     runtime: &RuntimeContext,
@@ -343,16 +340,15 @@ pub async fn stream_query(
         database,
         move |driver, params, query, session| async move {
             if params.read_only {
-                let result = super::read_only::execute_query(
+                return super::read_only::execute_query_stream(
                     driver.as_ref(),
                     &params,
                     &query,
-                    None,
-                    1,
                     schema.as_deref(),
+                    &mut sink,
                 )
-                .await?;
-                return Ok((stream_whole(result, false, &mut sink), false));
+                .await
+                .map(|summary| (summary, false));
             }
             let summary = driver
                 .execute_query_stream(

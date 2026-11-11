@@ -384,46 +384,59 @@ async fn read_only_native_dumps_match_writable_dumps_across_page_boundaries() {
     }
 }
 
-#[tokio::test]
-async fn on_a_read_only_connection_stream_query_delivers_the_read_only_result_as_one_batch_and_a_write_statement_is_rejected_with_the_same_error_as_execute_query(
+async fn stream_protected(
+    runtime: &RuntimeContext,
+    sql: &str,
+) -> (
+    Result<crate::drivers::driver_trait::StreamSummary, String>,
+    Vec<crate::drivers::driver_trait::QueryChunk>,
 ) {
-    use crate::application::queries::{
-        execute_query, stream_query, QueryRequestScope, QueryResponsePolicy,
-    };
+    let chunks = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = chunks.clone();
+    let result = crate::application::queries::stream_query(
+        runtime,
+        &crate::commands::QueryCancellationState::default(),
+        crate::application::queries::QueryRequestScope::DESKTOP,
+        "protected".into(),
+        sql.into(),
+        None,
+        None,
+        None,
+        move |chunk| sink.lock().unwrap().push(chunk),
+    )
+    .await;
+    let chunks = chunks.lock().unwrap().clone();
+    (result, chunks)
+}
+
+#[tokio::test]
+async fn a_read_only_sqlite_connection_streams_a_1200_row_select_as_a_500_row_batch_and_then_700_rows(
+) {
     use crate::drivers::driver_trait::QueryChunk;
     let (_temp, runtime, _params) = fixture().await;
-    let cancellation = crate::commands::QueryCancellationState::default();
-    let stream = |sql: &str| {
-        let chunks = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let sink = chunks.clone();
-        let result = stream_query(
-            &runtime,
-            &cancellation,
-            QueryRequestScope::DESKTOP,
-            "protected".into(),
-            sql.into(),
-            None,
-            None,
-            None,
-            move |chunk| sink.lock().unwrap().push(chunk),
-        );
-        async move { (result.await, chunks.lock().unwrap().clone()) }
-    };
-
     let read = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 1200) SELECT x FROM n";
-    let (result, chunks) = stream(read).await;
+    let (result, chunks) = stream_protected(&runtime, read).await;
     result.unwrap();
-    let [QueryChunk::Columns(columns), QueryChunk::Rows(rows)] = chunks.as_slice() else {
+    let [QueryChunk::Columns(columns), QueryChunk::Rows(first), QueryChunk::Rows(rest)] =
+        chunks.as_slice()
+    else {
         panic!("unexpected chunks: {chunks:?}");
     };
     assert_eq!(columns, &["x"]);
-    assert_eq!(rows.len(), 1200);
+    assert_eq!((first.len(), rest.len()), (500, 700));
+    assert_eq!(rest.last(), Some(&vec![json!(1200)]));
+}
 
+#[tokio::test]
+async fn a_write_statement_on_a_read_only_connection_is_rejected_with_the_same_error_as_execute_query_and_no_columns_or_rows_are_sent(
+) {
+    use crate::application::queries::{execute_query, QueryRequestScope, QueryResponsePolicy};
+    let (_temp, runtime, _params) = fixture().await;
     let write = "INSERT INTO items VALUES (1)";
-    let streamed = stream(write).await.0.unwrap_err();
+    let (streamed, chunks) = stream_protected(&runtime, write).await;
     let executed = execute_query(
         &runtime,
-        &cancellation,
+        &crate::commands::QueryCancellationState::default(),
         QueryRequestScope::DESKTOP,
         QueryResponsePolicy::Unbounded,
         "protected".into(),
@@ -436,6 +449,7 @@ async fn on_a_read_only_connection_stream_query_delivers_the_read_only_result_as
     )
     .await
     .unwrap_err();
-    assert_eq!(streamed, executed);
-    assert_eq!(streamed, WRITE_BLOCKED);
+    assert_eq!(streamed.unwrap_err(), executed);
+    assert_eq!(executed, WRITE_BLOCKED);
+    assert!(chunks.is_empty(), "sent before the rejection: {chunks:?}");
 }

@@ -43,27 +43,37 @@ impl<'a> RowBatcher<'a> {
             (self.sink)(QueryChunk::Rows(std::mem::take(&mut self.batch)));
         }
     }
+
+    /// Flushes the current result set; the next row starts a new one.
+    pub fn end_set(&mut self) {
+        self.flush();
+        self.rows = 0;
+    }
 }
 
-/// Gathers a driver's chunks back into one [`QueryResult`].
+/// Gathers a driver's chunks back into one [`QueryResult`]. Each `Columns`
+/// starts a result set; sets after the first go to `additional_results`.
 #[derive(Default)]
 pub struct CollectedRows {
-    columns: Vec<String>,
-    rows: Vec<Vec<Value>>,
+    sets: Vec<(Vec<String>, Vec<Vec<Value>>)>,
 }
 
 impl CollectedRows {
     pub fn sink(&mut self) -> impl FnMut(QueryChunk) + Send + '_ {
         move |chunk| match chunk {
-            QueryChunk::Columns(columns) => self.columns = columns,
-            QueryChunk::Rows(rows) => self.rows.extend(rows),
+            QueryChunk::Columns(columns) => self.sets.push((columns, Vec::new())),
+            QueryChunk::Rows(rows) => match self.sets.last_mut() {
+                Some((_, set)) => set.extend(rows),
+                None => self.sets.push((Vec::new(), rows)),
+            },
         }
     }
 
     /// Puts the rows into `meta`. A paginated query fetches one row past the
     /// page, which only tells whether there is a next page.
     pub fn into_result(self, mut meta: QueryResult) -> QueryResult {
-        let mut rows = self.rows;
+        let mut sets = self.sets.into_iter();
+        let (columns, mut rows) = sets.next().unwrap_or_default();
         if let Some(pagination) = meta.pagination.as_mut() {
             let page_size = pagination.page_size as usize;
             pagination.has_more = rows.len() > page_size;
@@ -72,8 +82,23 @@ impl CollectedRows {
             }
             meta.truncated = pagination.has_more;
         }
-        meta.columns = self.columns;
+        meta.columns = columns;
         meta.rows = rows;
+        let additional: Vec<_> = sets
+            .map(|(columns, rows)| QueryResult {
+                columns,
+                rows,
+                affected_rows: 0,
+                truncated: false,
+                pagination: None,
+                additional_results: None,
+                server_time_ms: None,
+                fetch_time_ms: None,
+            })
+            .collect();
+        if !additional.is_empty() {
+            meta.additional_results = Some(additional);
+        }
         meta
     }
 }
