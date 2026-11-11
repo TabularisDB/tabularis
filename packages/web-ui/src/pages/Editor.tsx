@@ -127,6 +127,7 @@ import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
 import {totalPageCount} from '@/utils/pagination';
 import {batchSnapshotLimit, isSnapshotResult, snapshotPage} from '@/utils/batchSnapshot';
+import {streamQueryResult} from '@/utils/queryStream';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
 import {TransposeIcon} from '@/components/icons/TransposeIcon';
 import {HiddenColumnsIndicator} from '@/components/ui/HiddenColumnsIndicator';
@@ -915,6 +916,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     // its (now wrong-table) column metadata over the newer run's.
     const queryGenerationRef = useRef<Record<string, number>>({});
     const activeQueryRequestIdsRef = useRef<Set<string>>(new Set());
+    const stoppedQueryRequestIdsRef = useRef<Set<string>>(new Set());
     // Stable refs for functions used inside Monaco actions (which capture closures at mount time)
     const runQueryRef = useRef<typeof runQuery>(null!);
     const runMultipleQueriesRef = useRef<typeof runMultipleQueries>(null!);
@@ -1332,6 +1334,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const stopQuery = useCallback(async () => {
         if (!activeConnectionId) return;
         const requestIds = [...activeQueryRequestIdsRef.current];
+        requestIds.forEach((id) => stoppedQueryRequestIdsRef.current.add(id));
         try {
             if (requestIds.length === 0) {
                 await client.call('cancel_query', {connectionId: activeConnectionId});
@@ -1549,22 +1552,57 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                         pageSizeOverride ?? targetTab.pageSize,
                         settings.resultPageSize,
                     );
-                    const res = await client.call(
-                        'execute_query',
-                        {
-                            connectionId: targetConnectionId,
-                            query: textToRun,
-                            limit: pageSize,
-                            page: pageNum,
-                            // One statement at a time is how a transaction is driven: BEGIN,
-                            // the changes, a verifying SELECT, COMMIT. Without the session the
-                            // run would land on a different pooled connection each time.
-                            sessionId: targetTabId,
-                            ...(schema ? {schema} : {}),
-                            ...(targetTab?.database ? {database: targetTab.database} : {}),
-                        },
-                        {requestId: queryRequestId, cancellationId: queryRequestId},
-                    );
+                    const request = {
+                        connectionId: targetConnectionId,
+                        query: textToRun,
+                        // One statement at a time is how a transaction is driven: BEGIN,
+                        // the changes, a verifying SELECT, COMMIT. Without the session the
+                        // run would land on a different pooled connection each time.
+                        sessionId: targetTabId,
+                        ...(schema ? {schema} : {}),
+                        ...(targetTab?.database ? {database: targetTab.database} : {}),
+                    };
+                    const callOptions = {requestId: queryRequestId, cancellationId: queryRequestId};
+                    const isLiveRun = () =>
+                        queryGenerationRef.current[targetTabId] === generation &&
+                        !stoppedQueryRequestIdsRef.current.has(queryRequestId);
+                    const res =
+                        pageSize === undefined && !backgroundRefresh
+                            ? await streamQueryResult(
+                                  client,
+                                  request,
+                                  callOptions,
+                                  (partial, rowCount) => {
+                                      if (!partial) {
+                                          updateTab(targetTabId, {streamedRows: rowCount});
+                                      } else if (partial.additional_results) {
+                                          const entries = createEntriesFromResultSets(
+                                              targetTabId,
+                                              textToRun,
+                                              partial,
+                                              null,
+                                              t('editor.multiResult.resultSetPrefix'),
+                                          );
+                                          updateTab(targetTabId, (tab) => ({
+                                              results: entries,
+                                              activeResultId: tab.activeResultId ?? entries[0].id,
+                                              result: null,
+                                              streamedRows: rowCount,
+                                          }));
+                                      } else {
+                                          updateTab(targetTabId, {
+                                              result: partial,
+                                              streamedRows: rowCount,
+                                          });
+                                      }
+                                  },
+                                  isLiveRun,
+                              )
+                            : await client.call(
+                                  'execute_query',
+                                  {...request, limit: pageSize, page: pageNum},
+                                  callOptions,
+                              );
                     const end = performance.now();
                     const latestTab = tabsRef.current.find((tab) => tab.id === targetTabId);
                     if (backgroundRefresh && (!latestTab || !canApplyRefresh(latestTab)))
@@ -1769,8 +1807,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     }
                 } finally {
                     activeQueryRequestIdsRef.current.delete(queryRequestId);
+                    stoppedQueryRequestIdsRef.current.delete(queryRequestId);
                     if (queryGenerationRef.current[targetTabId] === generation) {
-                        updateTab(targetTabId, {isLoading: false, isAutoRefreshing: false});
+                        updateTab(targetTabId, {
+                            isLoading: false,
+                            isAutoRefreshing: false,
+                            streamedRows: undefined,
+                        });
                     }
                     if (!automaticRefresh && targetTab.type === 'table') schedule.complete();
                 }
@@ -6184,7 +6227,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                     });
                                 }}
                             />
-                        ) : activeTab.isLoading && !activeTab.isAutoRefreshing ? (
+                        ) : activeTab.isLoading &&
+                          !activeTab.isAutoRefreshing &&
+                          activeTab.streamedRows === undefined ? (
                             <div className="flex flex-col items-center justify-center h-full text-muted">
                                 <div className="w-12 h-12 border-4 border-surface-secondary border-t-accent-primary rounded-full animate-spin mb-4"></div>
                                 <p className="text-sm">{t('editor.executingQuery')}</p>
@@ -6235,7 +6280,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                         <div className="flex items-center gap-2 @[480px]:gap-4 min-w-0">
                                             <span className="truncate whitespace-nowrap">
                                                 {t('editor.rowsRetrieved', {
-                                                    count: activeTab.result.rows.length,
+                                                    count:
+                                                        activeTab.streamedRows ??
+                                                        activeTab.result.rows.length,
                                                 })}
                                                 {activeTab.result.columns.length > 0 && (
                                                     <span className="hidden @[400px]:inline text-muted">
@@ -6284,6 +6331,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                     {t('editor.autoPaginated')}
                                                 </span>
                                             )}
+                                            {activeTab.result.truncated &&
+                                                !activeTab.result.pagination && (
+                                                    <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0">
+                                                        {t('editor.batchSnapshotTruncated', {
+                                                            count: activeTab.result.rows.length,
+                                                        })}
+                                                    </span>
+                                                )}
                                         </div>
 
                                         {/* Shown for every grid result, not only table results, so

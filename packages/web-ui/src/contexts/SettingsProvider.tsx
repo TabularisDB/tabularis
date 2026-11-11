@@ -159,7 +159,7 @@ export const SettingsProvider = ({children}: {children: ReactNode}) => {
                 const savedLocal = localStorage.getItem('tabularis_settings');
                 let finalSettings = {...DEFAULT_SETTINGS};
 
-                if (savedLocal && !config.resultPageSize && !config.language) {
+                if (savedLocal && config.resultPageSize == null && !config.language) {
                     // Migration needed
                     const localData = JSON.parse(savedLocal);
                     finalSettings = {
@@ -189,7 +189,8 @@ export const SettingsProvider = ({children}: {children: ReactNode}) => {
                     }
 
                     // Ensure resultPageSize has a valid default
-                    if (!finalSettings.resultPageSize || finalSettings.resultPageSize < 0) {
+                    // 0 is valid: it streams all rows.
+                    if (finalSettings.resultPageSize == null || finalSettings.resultPageSize < 0) {
                         finalSettings.resultPageSize = DEFAULT_SETTINGS.resultPageSize;
                     }
 

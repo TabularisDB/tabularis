@@ -118,6 +118,8 @@ export interface Tab {
     isLoading?: boolean;
     autoRefreshIntervalMs?: AutoRefreshInterval;
     isAutoRefreshing?: boolean;
+    /** Rows received so far while a streamed result is still arriving. */
+    streamedRows?: number;
     autoRefreshError?: string;
     connectionId: string;
     flowState?: FlowState;

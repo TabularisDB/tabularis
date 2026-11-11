@@ -103,7 +103,7 @@ export function saveFontCache(fontFamily: string, fontSize: number): void {
 
 export function migrateFromLocalStorage(backendConfig: Partial<Settings>): MigrationResult {
     // Check if migration is needed (backend is empty/default)
-    const needsMigration = !backendConfig.resultPageSize && !backendConfig.language;
+    const needsMigration = backendConfig.resultPageSize == null && !backendConfig.language;
 
     if (!needsMigration) {
         return {settings: backendConfig, migrated: false};

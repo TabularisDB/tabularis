@@ -4,6 +4,7 @@ import type {AuthorizationLevel} from './contract';
 import type {SshAskpassRequest} from '@/types/askpass';
 import type {RequestId} from './errors';
 import type {AiActivityEvent, PendingApproval} from '@/types/ai';
+import type {QueryChunk} from './queryStream';
 
 export interface EventDefinition<Payload, Authorization extends AuthorizationLevel> {
     readonly payload: Payload;
@@ -32,6 +33,7 @@ export interface EventMap {
         'database'
     >;
     'query-cancelled': EventDefinition<{requestId: RequestId; connectionId: string}, 'database'>;
+    'query-stream-chunk': EventDefinition<{requestId: RequestId; chunk: QueryChunk}, 'database'>;
     dump_progress: EventDefinition<
         {
             connection_id: string;
@@ -101,6 +103,7 @@ export const EVENT_AUTHORIZATION = {
     'batch-statement-complete': 'database',
     'query-status': 'database',
     'query-cancelled': 'database',
+    'query-stream-chunk': 'database',
     dump_progress: 'database',
     import_progress: 'database',
     export_progress: 'database',

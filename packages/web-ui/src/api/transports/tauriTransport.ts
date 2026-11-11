@@ -1,4 +1,4 @@
-import {invoke, type InvokeArgs} from '@tauri-apps/api/core';
+import {Channel, invoke, type InvokeArgs} from '@tauri-apps/api/core';
 import {emit, listen} from '@tauri-apps/api/event';
 import type {TabularisTransport} from '@/api/client';
 import type {
@@ -10,6 +10,12 @@ import type {
 } from '@/api/contract';
 import type {EventName, EventPayload, Unsubscribe} from '@/api/events';
 import {createRequestId, normalizeTabularisError} from '@/api/errors';
+import {
+    countChunks,
+    type QueryChunk,
+    type StreamedQuery,
+    type StreamQueryRequest,
+} from '@/api/queryStream';
 
 type TauriInvoke = typeof invoke;
 type TauriListen = typeof listen;
@@ -57,6 +63,26 @@ export class TauriTransport implements TabularisTransport {
                 throw normalizeTabularisError(error, 'TAURI_COMMAND_FAILED', requestId);
             },
         );
+    }
+
+    async streamQuery(
+        request: StreamQueryRequest,
+        onChunk: (chunk: QueryChunk) => void,
+        options?: CommandCallOptions,
+    ): Promise<StreamedQuery> {
+        const requestId = options?.requestId ?? createRequestId();
+        const chunks = countChunks(onChunk);
+        const channel = new Channel<QueryChunk>(chunks.deliver);
+        try {
+            const reply = await this.invokeCommand<StreamedQuery>('stream_query', {
+                ...request,
+                onChunk: channel,
+            });
+            await chunks.until(reply.chunks);
+            return reply;
+        } catch (error) {
+            throw normalizeTabularisError(error, 'TAURI_COMMAND_FAILED', requestId);
+        }
     }
 
     readPluginAsset(pluginId: string, assetPath: string): Promise<string> {

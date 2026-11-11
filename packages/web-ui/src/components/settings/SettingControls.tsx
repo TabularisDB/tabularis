@@ -222,7 +222,10 @@ export function SettingNumberInput({
                 max={max}
                 step={step}
                 value={value}
-                onChange={(e) => onChange(parseInt(e.target.value) || fallback)}
+                onChange={(e) => {
+                    const parsed = parseInt(e.target.value);
+                    onChange(Number.isNaN(parsed) || parsed < (min ?? 0) ? fallback : parsed);
+                }}
                 className="bg-base border border-strong rounded px-3 py-2 text-primary w-24 focus:outline-none focus:border-focus transition-colors"
             />
             {suffix && <span className="text-sm text-muted">{suffix}</span>}

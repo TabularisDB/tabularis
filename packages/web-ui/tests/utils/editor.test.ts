@@ -1122,11 +1122,11 @@ describe('editor', () => {
 
         it('should return undefined for 0 (pagination disabled)', () => {
             expect(resolveTabPageSize(0, 500)).toBeUndefined();
+            expect(resolveTabPageSize(undefined, 0)).toBeUndefined();
         });
 
         it('should fall back to 100 when neither value is usable', () => {
             expect(resolveTabPageSize(undefined, undefined)).toBe(100);
-            expect(resolveTabPageSize(undefined, 0)).toBe(100);
             expect(resolveTabPageSize(undefined, -5)).toBe(100);
             expect(resolveTabPageSize(-1, undefined)).toBe(100);
         });

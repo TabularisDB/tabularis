@@ -22,6 +22,12 @@ import {
     type Unsubscribe,
 } from '@/api/events';
 import type {FileTransferMetadata, FileUploadRequest} from '@/api/fileTransfers';
+import {
+    countChunks,
+    type QueryChunk,
+    type StreamedQuery,
+    type StreamQueryRequest,
+} from '@/api/queryStream';
 import type {SessionNegotiation} from '@/api/session';
 
 const EXPECTED_API_VERSION = 'v1';
@@ -133,6 +139,29 @@ export class HttpTransport implements TabularisTransport {
     ): Promise<unknown> {
         void _tracking;
         return this.callRpc<unknown>(command, request, options);
+    }
+
+    async streamQuery(
+        request: StreamQueryRequest,
+        onChunk: (chunk: QueryChunk) => void,
+        options?: CommandCallOptions,
+    ): Promise<StreamedQuery> {
+        const requestId = options?.requestId ?? createRequestId();
+        const chunks = countChunks(onChunk);
+        // Subscribed before the call so no early chunk is missed.
+        const unsubscribe = await this.subscribe('query-stream-chunk', (payload) => {
+            if (payload.requestId === requestId) chunks.deliver(payload.chunk);
+        });
+        try {
+            const reply = await this.callRpc<StreamedQuery>('stream_query', request, {
+                ...options,
+                requestId,
+            });
+            await chunks.until(reply.chunks);
+            return reply;
+        } finally {
+            unsubscribe();
+        }
     }
 
     async uploadFile(request: FileUploadRequest): Promise<FileTransferMetadata> {
