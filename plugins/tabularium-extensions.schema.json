@@ -145,7 +145,6 @@
           "default": false,
           "description": "true if the driver supports connecting through a local Unix socket file instead of TCP host:port."
         },
-        },
         "no_connection_required": {
           "type": "boolean",
           "description": "API-based driver with no host/port/credentials. Hides the connection form entirely."
