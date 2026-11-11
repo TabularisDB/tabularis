@@ -2101,7 +2101,12 @@
       "aiAnalysis": "Analisis IA",
       "aiAnalysisTitle": "Analisis IA del Plan de Ejecucion",
       "aiAnalyzing": "Analizando plan de ejecucion con IA...",
-      "aiConfigRequired": "Proveedor de IA no configurado. Ve a Configuracion > IA."
+      "aiConfigRequired": "Proveedor de IA no configurado. Ve a Configuracion > IA.",
+      "copied": "Copiado",
+      "copyDetails": "Copiar detalles",
+      "detailsCopied": "Detalles del nodo copiados al portapapeles",
+      "copyDetailsFailed": "Error al copiar los detalles del nodo al portapapeles",
+      "nodeDetails": "Detalles del nodo"
     },
     "notebook": {
       "addSqlCell": "Agregar Celda SQL",

@@ -2128,7 +2128,12 @@
         "operations": "Operationen",
         "indexName": "Index",
         "scans": "Scans"
-      }
+      },
+      "copied": "Kopiert",
+      "copyDetails": "Details kopieren",
+      "detailsCopied": "Knotendetails in die Zwischenablage kopiert",
+      "copyDetailsFailed": "Knotendetails konnten nicht in die Zwischenablage kopiert werden",
+      "nodeDetails": "Knotendetails"
     },
     "notebook": {
       "addSqlCell": "SQL-Zelle hinzufügen",

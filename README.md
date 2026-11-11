@@ -376,7 +376,9 @@ Portal command reads reuse one cached D-Bus connection, while the live watcher k
 
 <sub>[Full reference on tabularis.dev →](https://tabularis.dev/wiki/ai-assistant)</sub>
 
-Optional Text-to-SQL and query explanation powered by **OpenAI**, **Anthropic**, **MiniMax**, **OpenRouter**, **Requesty**, **Ollama** (local models, no API key, full privacy), and any **OpenAI-compatible API** (Groq, Perplexity, Azure OpenAI, LocalAI, ...). Model lists are fetched from your provider and cached locally; custom models can be configured per provider.
+Optional Text-to-SQL and query explanation powered by **OpenAI**, **Anthropic**, **MiniMax**, **OpenRouter**, **Requesty**, **API Route**, **Ollama** (local models, no API key, full privacy), and any **OpenAI-compatible API** (Groq, Perplexity, Azure OpenAI, LocalAI, ...). Model lists are fetched from your provider and cached locally; custom models can be configured per provider.
+
+To use [API Route](https://www.api-route.com), open **Settings > AI**, enable AI and select **API Route**. Save your API Route key, refresh the model list and choose a default model. Alternatively, set `API_ROUTE_API_KEY` in the environment of the desktop app or web server. The integration uses `https://global.api-route.com/v1/models` and `/chat/completions`; model access and billing depend on your API Route account. The provider's proxy settings apply to both endpoints. Adding API Route does not change existing provider selections.
 
 ### MCP Server: AI Agent Integration
 

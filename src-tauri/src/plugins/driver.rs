@@ -1919,8 +1919,7 @@ impl DatabaseDriver for RpcDriver {
         rows: &[Vec<serde_json::Value>],
     ) -> Result<Option<Vec<String>>, String> {
         let res = self
-            .process
-            .call_detailed(
+            .call_with_connection_detailed(
                 "render_insert_statements",
                 json!({ "table": table, "schema": schema, "columns": columns, "rows": rows }),
             )
@@ -3568,6 +3567,25 @@ mod tests {
             Some(vec![
                 "INSERT INTO [users] ([id], [name]) VALUES (1, N'Ann'), (2, NULL);".to_string()
             ])
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_insert_renderer_receives_bound_connection() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            assert_eq!(request.params["params"]["database"], "export-source");
+            Ok(json!([]))
+        });
+        let mut params = test_connection_params();
+        params.database = crate::models::DatabaseSelection::Single("export-source".into());
+        let bound = driver.bind_connection_params(&params).unwrap();
+        assert_eq!(
+            bound
+                .render_insert_statements("items", None, &["id".into()], &[vec![json!(1)]])
+                .await
+                .unwrap(),
+            Some(vec![])
         );
     }
 

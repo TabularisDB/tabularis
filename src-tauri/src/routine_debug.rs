@@ -61,13 +61,17 @@ pub enum DebugCommand {
 }
 
 impl DebugCommand {
+    pub(crate) fn requires_writable_connection(&self) -> bool {
+        !matches!(self, Self::Stop { .. } | Self::Status { .. })
+    }
+
     /// Even inspection may evaluate code in a native debugger. Only stop/status
     /// remain available after a connection is switched to read-only.
     pub fn validate(&self, version: u32, readonly: bool) -> Result<(), String> {
         if version != PROTOCOL_VERSION {
             return Err("Unsupported routine debugger protocol version".into());
         }
-        if readonly && !matches!(self, Self::Stop { .. } | Self::Status { .. }) {
+        if readonly && self.requires_writable_connection() {
             return Err("Routine debugging is unavailable on read-only connections".into());
         }
         match self {

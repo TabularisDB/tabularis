@@ -52,11 +52,15 @@ fn serve(
             key.eq_ignore_ascii_case("content-length")
                 .then(|| value.trim().parse::<usize>().unwrap())
         })
-        .unwrap();
+        .unwrap_or(0);
     assert!(length < 64 * 1024);
     let mut bytes = vec![0; length];
     stream.read_exact(&mut bytes).unwrap();
-    let body = serde_json::from_slice(&bytes).unwrap();
+    let body = if bytes.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap()
+    };
     let response = response.to_string();
     write!(stream, "HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}", response.len()).unwrap();
     stream.flush().unwrap();
@@ -168,6 +172,16 @@ async fn generate(provider: &str, fixture: &Fixture) -> Result<String, String> {
             )
             .await
         }
+        "api-route" => {
+            generate_custom_openai(
+                &fixture.client,
+                "fixture-key",
+                &req,
+                "SQL instructions",
+                api_route::BASE_URL,
+            )
+            .await
+        }
         "ollama" => generate_ollama(&fixture.client, &req, "SQL instructions", fixture.port).await,
         _ => unreachable!(),
     }
@@ -180,6 +194,87 @@ fn success(provider: &str) -> serde_json::Value {
         "ollama" => json!({"message":{"content":text}}),
         _ => json!({"choices":[{"message":{"content":text}}]}),
     }
+}
+
+#[tokio::test]
+async fn api_route_discovers_account_models_and_rejects_auth_errors() {
+    assert!(
+        api_route::models_with_client(&Client::new(), "", vec!["cached-model".into()])
+            .await
+            .is_empty()
+    );
+    for (status, response, expected) in [
+        (
+            200,
+            json!({"data":[{"id":"account-chat-model"}]}),
+            vec!["account-chat-model"],
+        ),
+        (401, json!({"error":"invalid key"}), vec!["cached-model"]),
+        (
+            503,
+            json!({"error":"temporarily unavailable"}),
+            vec!["cached-model"],
+        ),
+        (200, json!({"unexpected":"response"}), vec!["cached-model"]),
+        (200, json!({"data":[]}), vec![]),
+    ] {
+        let fixture = Fixture::new(true, vec![(status, response)]);
+        assert_eq!(
+            api_route::models_with_client(
+                &fixture.client,
+                "fixture-key",
+                vec!["cached-model".into()]
+            )
+            .await,
+            expected
+        );
+        let requests = fixture.requests.join().unwrap();
+        assert_eq!(
+            requests[0].target,
+            "CONNECT global.api-route.com:443 HTTP/1.1"
+        );
+        assert!(requests[0].headers.starts_with("GET /v1/models "));
+        assert!(requests[0]
+            .headers
+            .to_ascii_lowercase()
+            .contains("authorization: bearer fixture-key"));
+    }
+}
+
+#[tokio::test]
+async fn api_route_preserves_cached_models_when_the_network_is_unavailable() {
+    // Keep the proxy socket open without responding to force a local timeout.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let proxy = format!("http://{}", listener.local_addr().unwrap());
+    let client = Client::builder()
+        .no_proxy()
+        .proxy(reqwest::Proxy::all(proxy).unwrap())
+        .timeout(Duration::from_millis(100))
+        .build()
+        .unwrap();
+    assert_eq!(
+        api_route::models_with_client(&client, "fixture-key", vec!["cached-model".into()]).await,
+        ["cached-model"]
+    );
+    assert!(
+        api_route::models_with_client(&client, "fixture-key", vec![])
+            .await
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn api_route_requires_an_explicit_model_and_preserves_account_model_ids() {
+    let config = config::AppConfig::default();
+    assert!(resolve_model("api-route", "", &config, 11434)
+        .await
+        .is_err());
+    assert_eq!(
+        resolve_model("api-route", "account-chat-model", &config, 11434)
+            .await
+            .unwrap(),
+        "account-chat-model"
+    );
 }
 
 #[tokio::test]
@@ -252,6 +347,7 @@ async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() 
         "openrouter",
         "minimax",
         "custom-openai",
+        "api-route",
         "ollama",
     ] {
         let fixture = Fixture::new(provider != "ollama", vec![(200, success(provider))]);
@@ -262,6 +358,9 @@ async fn existing_providers_keep_their_wire_protocols_and_parse_completed_sql() 
         );
         let requests = fixture.requests.join().unwrap();
         let request = &requests[0];
+        if provider == "api-route" {
+            assert_eq!(request.target, "CONNECT global.api-route.com:443 HTTP/1.1");
+        }
         assert_eq!(request.body["model"], "fixture-model", "{provider}");
         assert!(
             request.body.get("input").is_none(),
@@ -360,6 +459,7 @@ async fn existing_providers_propagate_http_failures() {
         "anthropic",
         "openrouter",
         "custom-openai",
+        "api-route",
         "ollama",
     ] {
         let fixture = Fixture::new(
@@ -367,6 +467,9 @@ async fn existing_providers_propagate_http_failures() {
             vec![(400, json!({"error":"fixture-rejection"}))],
         );
         let error = generate(provider, &fixture).await.unwrap_err();
+        if provider == "api-route" {
+            assert!(error.starts_with("API Route Error:"));
+        }
         assert!(error.contains("fixture-rejection"), "{provider}: {error}");
         fixture.requests.join().unwrap();
     }
@@ -509,4 +612,100 @@ async fn minimax_retries_its_other_region_after_a_failure() {
     );
     assert_eq!(requests[0].body, requests[1].body);
     assert_eq!(requests[0].body["model"], "MiniMax-M3.1-Flash");
+}
+
+#[tokio::test]
+async fn api_route_overlapping_refresh_preserves_latest_cache() {
+    for (status, response, expected) in [
+        (
+            200,
+            json!({"data":[{"id":"warm-model"}]}),
+            vec!["warm-model"],
+        ),
+        (503, json!({"error":"unavailable"}), vec!["fresh-api-route"]),
+        (200, json!({"unexpected":true}), vec!["fresh-api-route"]),
+        (200, json!({"data":[]}), vec![]),
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let mut runtime = RuntimeContext::system();
+        runtime.paths = std::sync::Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            temp.path().to_path_buf(),
+            temp.path().to_path_buf(),
+        ));
+        let original = AiModelsCache {
+            last_updated: 123,
+            models: HashMap::from([
+                ("openai".into(), vec!["stale-openai".into()]),
+                ("api-route".into(), vec!["stale-api-route".into()]),
+            ]),
+        };
+        fs::write(
+            get_cache_path(&runtime),
+            serde_json::to_vec(&original).unwrap(),
+        )
+        .unwrap();
+        let fixture = Fixture::new(true, vec![(status, response)]);
+        let mut request = Box::pin(api_route::models_with_cache(
+            &runtime,
+            &fixture.client,
+            "fixture-key",
+        ));
+        // Suspend the warm refresh at network I/O, then finish a forced refresh.
+        std::future::poll_fn(|cx| {
+            assert!(std::future::Future::poll(request.as_mut(), cx).is_pending());
+            std::task::Poll::Ready(())
+        })
+        .await;
+        let fresh = HashMap::from([
+            ("openai".into(), vec!["fresh-openai".into()]),
+            ("api-route".into(), vec!["fresh-api-route".into()]),
+        ]);
+        save_cache(&runtime, &fresh);
+        let timestamp = load_cache(&runtime).unwrap().last_updated;
+        assert_eq!(request.await, expected);
+        fixture.requests.join().unwrap();
+        let persisted = load_cache(&runtime).unwrap();
+        assert_eq!(persisted.models["openai"], fresh["openai"]);
+        assert_eq!(persisted.models["api-route"], expected);
+        assert_eq!(persisted.last_updated, timestamp);
+    }
+}
+
+#[tokio::test]
+async fn api_route_warm_success_survives_failed_refresh_without_extending_cache_age() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut runtime = RuntimeContext::system();
+    runtime.paths = std::sync::Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+        temp.path().to_path_buf(),
+        temp.path().to_path_buf(),
+    ));
+    let original = AiModelsCache {
+        last_updated: 123,
+        models: HashMap::from([
+            ("api-route".into(), vec!["catalog-A".into()]),
+            ("openai".into(), vec!["unrelated-model".into()]),
+        ]),
+    };
+    fs::write(
+        get_cache_path(&runtime),
+        serde_json::to_vec(&original).unwrap(),
+    )
+    .unwrap();
+    for (status, response, expected) in [
+        (200, json!({"data":[{"id":"catalog-B"}]}), vec!["catalog-B"]),
+        (503, json!({"error":"unavailable"}), vec!["catalog-B"]),
+        (200, json!({"data":[]}), vec![]),
+        (503, json!({"error":"unavailable"}), vec![]),
+    ] {
+        let fixture = Fixture::new(true, vec![(status, response)]);
+        assert_eq!(
+            api_route::models_with_cache(&runtime, &fixture.client, "fixture-key").await,
+            expected
+        );
+        fixture.requests.join().unwrap();
+        let persisted = load_cache(&runtime).unwrap();
+        assert_eq!(persisted.models["api-route"], expected);
+        assert_eq!(persisted.last_updated, original.last_updated);
+        assert_eq!(persisted.models["openai"], original.models["openai"]);
+    }
 }

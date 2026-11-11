@@ -84,6 +84,11 @@ const PROVIDERS: Array<{
         icon: <OllamaIcon size={18} className="text-current" />,
     },
     {
+        id: 'api-route',
+        label: 'API Route',
+        icon: <Network size={18} className="text-current" />,
+    },
+    {
         id: 'custom-openai',
         label: 'OpenAI Compatible',
         icon: <OpenAIIcon size={18} className="text-muted" />,
@@ -139,7 +144,7 @@ export function AiTab() {
 
     const checkKeys = useCallback(async () => {
         try {
-            const [openai, anthropic, openrouter, requesty, minimax, customOpenai] =
+            const [openai, anthropic, openrouter, requesty, minimax, customOpenai, apiRoute] =
                 await Promise.all(
                     [
                         'openai',
@@ -148,6 +153,7 @@ export function AiTab() {
                         'requesty',
                         'minimax',
                         'custom-openai',
+                        'api-route',
                     ].map((provider) => client.call('check_ai_key_status', {provider})),
                 );
             const ollama = {configured: true, fromEnv: false};
@@ -158,6 +164,7 @@ export function AiTab() {
                 requesty,
                 minimax,
                 'custom-openai': customOpenai,
+                'api-route': apiRoute,
                 ollama,
             });
         } catch (e) {

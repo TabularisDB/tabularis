@@ -495,7 +495,16 @@ async fn write_dump(
     schema: Option<&str>,
     options: &DumpOptions,
 ) -> Result<(), String> {
-    let file = File::create(file_path).map_err(|error| error.to_string())?;
+    let pending = file_path.with_file_name(format!(".tabularis-dump-{}.tmp", Uuid::new_v4()));
+    let mut open = fs::OpenOptions::new();
+    open.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        open.mode(0o600);
+    }
+    let file = open.open(&pending).map_err(|error| error.to_string())?;
+    let _cleanup = TemporaryFile::new(pending.clone());
     let mut writer = BufWriter::new(file);
     writeln!(writer, "-- Tabularis Dump").map_err(|error| error.to_string())?;
     let database_label = if session_id.is_some() {
@@ -583,6 +592,8 @@ async fn write_dump(
         );
     }
     writer.flush().map_err(|error| error.to_string())?;
+    drop(writer);
+    fs::rename(&pending, file_path).map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -596,6 +607,9 @@ async fn export_table_data(
     schema: Option<&str>,
 ) -> Result<(), String> {
     let query = format!("SELECT * FROM {}", dialect.table_ref(schema, table));
+    if !drv.manifest().is_builtin {
+        return export_plugin_table_data(writer, drv, params, dialect, table, schema, &query).await;
+    }
     let mut batch = Vec::new();
     stream_sql_rows(drv, params, driver, &query, table, schema, |_, cells| {
         let values = cells
@@ -605,6 +619,70 @@ async fn export_table_data(
         write_insert_batch(writer, dialect, schema, table, &mut batch, values)
     })
     .await?;
+    flush_insert_batch(writer, dialect, schema, table, &mut batch)
+}
+
+async fn export_plugin_table_data(
+    writer: &mut BufWriter<File>,
+    drv: &Arc<dyn DatabaseDriver>,
+    params: &ConnectionParams,
+    dialect: &DumpDialect,
+    table: &str,
+    schema: Option<&str>,
+    query: &str,
+) -> Result<(), String> {
+    let mut page = 1;
+    let mut plugin_renderer = true;
+    let mut json_columns = None;
+    let mut batch = Vec::new();
+    loop {
+        let result = if params.read_only {
+            super::read_only::execute_query(drv.as_ref(), params, query, Some(1000), page, schema)
+                .await?
+        } else {
+            drv.execute_query(params, query, Some(1000), page, schema)
+                .await?
+        };
+        let fetched = result.rows.len() as u32;
+        for rows in result.rows.chunks(100) {
+            if plugin_renderer {
+                match drv
+                    .render_insert_statements(table, schema, &result.columns, rows)
+                    .await?
+                {
+                    Some(statements) => {
+                        for statement in statements {
+                            writeln!(
+                                writer,
+                                "{}",
+                                crate::table_sql::terminate_statements(&statement)
+                            )
+                            .map_err(|error| error.to_string())?;
+                        }
+                        continue;
+                    }
+                    None => plugin_renderer = false,
+                }
+            }
+            let names = match &json_columns {
+                Some(names) => names,
+                None => json_columns.insert(json_column_names(
+                    &drv.get_columns(params, table, schema).await?,
+                )),
+            };
+            for row in rows {
+                let values = plugin_row_cells(row.clone(), &result.columns, names)
+                    .into_iter()
+                    .map(|cell| cell.render(dialect))
+                    .collect();
+                write_insert_batch(writer, dialect, schema, table, &mut batch, values)?;
+            }
+        }
+        if fetched == 0 || !plugin_dump_has_more(result.pagination, fetched, 1000) {
+            break;
+        }
+        page += 1;
+    }
     flush_insert_batch(writer, dialect, schema, table, &mut batch)
 }
 

@@ -3,6 +3,7 @@
 Guides for running Tabularis in a browser with `tabularis web`.
 
 - [WEB_MODE_OPERATIONS.md](WEB_MODE_OPERATIONS.md): Web CLI, local and remote operation, storage, limitations, plugins, troubleshooting, and upgrades.
+- [WEB_BASE_PATH.md](WEB_BASE_PATH.md): custom frontend mount paths behind an authenticating reverse proxy.
 - [WEB_REMOTE_SECURITY.md](WEB_REMOTE_SECURITY.md): remote threat model and reverse-proxy deployment guide.
 - [WEB_MODE_CONTAINERS.md](WEB_MODE_CONTAINERS.md): Docker images, Docker Compose, Helm chart, and the encrypted container secret store.
 - [WEB_MODE_UPGRADES.md](WEB_MODE_UPGRADES.md): upgrading a Web mode deployment.

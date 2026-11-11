@@ -2139,7 +2139,12 @@
         "operations": "Operações",
         "indexName": "Índice",
         "scans": "Varreduras"
-      }
+      },
+      "copied": "Copiado",
+      "copyDetails": "Copiar detalhes",
+      "detailsCopied": "Detalhes do nó copiados para a área de transferência",
+      "copyDetailsFailed": "Falha ao copiar detalhes do nó para a área de transferência",
+      "nodeDetails": "Detalhes do nó"
     },
     "notebook": {
       "addSqlCell": "Adicionar Célula SQL",

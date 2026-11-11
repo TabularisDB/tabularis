@@ -12,6 +12,8 @@ ARG DEBIAN_VERSION=trixie
 
 # ── Frontend: platform independent, built once on the build host ───────────
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-${DEBIAN_VERSION}-slim AS web-ui
+ARG TABULARIS_BASE_PATH=/
+ENV TABULARIS_BASE_PATH=${TABULARIS_BASE_PATH}
 WORKDIR /src
 RUN corepack enable
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./

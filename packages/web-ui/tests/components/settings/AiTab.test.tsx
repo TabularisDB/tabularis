@@ -2,15 +2,16 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {AiTab} from '@/components/settings/AiTab';
 
-const {invoke, updateSetting} = vi.hoisted(() => ({
+const {invoke, updateSetting, settings} = vi.hoisted(() => ({
     invoke: vi.fn(),
     updateSetting: vi.fn(),
+    settings: {aiEnabled: true, aiProvider: 'openrouter', aiModel: ''},
 }));
 vi.unmock('lucide-react');
 vi.mock('@tauri-apps/api/core', () => ({invoke}));
 vi.mock('@/hooks/useSettings', () => ({
     useSettings: () => ({
-        settings: {aiEnabled: true, aiProvider: 'openrouter', aiModel: ''},
+        settings,
         updateSetting,
     }),
 }));
@@ -22,6 +23,7 @@ vi.mock('react-i18next', () => ({
 describe('AiTab proxy configuration', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        settings.aiProvider = 'openrouter';
         invoke.mockImplementation(async (cmd: string) => {
             if (cmd === 'check_ai_key_status') return {configured: true, fromEnv: false};
             if (cmd === 'get_ai_models') return {openrouter: []};
@@ -54,6 +56,29 @@ describe('AiTab proxy configuration', () => {
         fireEvent.click(screen.getByRole('button', {name: 'settings.network.modeInherit'}));
         expect(screen.queryByPlaceholderText('127.0.0.1')).not.toBeInTheDocument();
         expect(updateSetting).toHaveBeenLastCalledWith('aiProviderProxies', {});
+    });
+
+    it('offers API Route without changing the saved provider until selected', async () => {
+        render(<AiTab />);
+        await screen.findByText('settings.ai.configured');
+        expect(invoke).toHaveBeenCalledWith('check_ai_key_status', {provider: 'api-route'});
+        expect(updateSetting).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', {name: /API Route/}));
+        expect(updateSetting).toHaveBeenCalledWith('aiProvider', 'api-route');
+    });
+
+    it('uses the API Route proxy settings and allows model refresh when selected', async () => {
+        settings.aiProvider = 'api-route';
+        render(<AiTab />);
+        await screen.findByText('settings.ai.configured');
+        fireEvent.click(screen.getByRole('button', {name: 'settings.network.modeDisabled'}));
+        expect(updateSetting).toHaveBeenLastCalledWith('aiProviderProxies', {
+            'api-route': {mode: 'disabled'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'settings.ai.refresh'}));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('get_ai_models', {forceRefresh: true}),
+        );
     });
 });
 
