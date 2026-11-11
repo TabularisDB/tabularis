@@ -1,4 +1,6 @@
-use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver};
+use crate::drivers::driver_trait::{
+    stream_whole, BatchProgressFn, DatabaseDriver, QueryChunk, StreamSummary,
+};
 use crate::models::{BatchStatementResult, ExplainQueryOutput, QueryResult};
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use serde::Serialize;
@@ -272,6 +274,129 @@ pub async fn execute_query(
     query_session_id: Option<String>,
     database: Option<String>,
 ) -> Result<QueryResult, String> {
+    let effective_limit = response_limit(policy, limit);
+    let page = page.unwrap_or(1);
+    let query_result = run_registered_query(
+        runtime,
+        cancellation,
+        scope,
+        connection_id,
+        query,
+        query_session_id,
+        database,
+        move |driver, params, query, session| async move {
+            if params.read_only {
+                return super::read_only::execute_query(
+                    driver.as_ref(),
+                    &params,
+                    &query,
+                    effective_limit,
+                    page,
+                    schema.as_deref(),
+                )
+                .await
+                .map(|result| (result, false));
+            }
+            driver
+                .execute_query_in_session(
+                    &params,
+                    &query,
+                    effective_limit,
+                    page,
+                    schema.as_deref(),
+                    session.as_deref(),
+                )
+                .await
+        },
+    )
+    .await?;
+    enforce_response_size(policy, &query_result)?;
+    log::info!(
+        "Query executed successfully, returned {} rows",
+        query_result.rows.len()
+    );
+    Ok(query_result)
+}
+
+/// `execute_query` without a row limit, with the rows handed to `sink` in
+/// batches as the driver fetches them. A read-only connection is never
+/// streamed: its protected result is delivered as one batch.
+#[allow(clippy::too_many_arguments)]
+pub async fn stream_query(
+    runtime: &RuntimeContext,
+    cancellation: &crate::commands::QueryCancellationState,
+    scope: QueryRequestScope<'_>,
+    connection_id: String,
+    query: String,
+    schema: Option<String>,
+    query_session_id: Option<String>,
+    database: Option<String>,
+    mut sink: impl FnMut(QueryChunk) + Send + 'static,
+) -> Result<StreamSummary, String> {
+    run_registered_query(
+        runtime,
+        cancellation,
+        scope,
+        connection_id,
+        query,
+        query_session_id,
+        database,
+        move |driver, params, query, session| async move {
+            if params.read_only {
+                let result = super::read_only::execute_query(
+                    driver.as_ref(),
+                    &params,
+                    &query,
+                    None,
+                    1,
+                    schema.as_deref(),
+                )
+                .await?;
+                return Ok((stream_whole(result, false, &mut sink), false));
+            }
+            let summary = driver
+                .execute_query_stream(
+                    &params,
+                    &query,
+                    schema.as_deref(),
+                    session.as_deref(),
+                    &mut sink,
+                )
+                .await?;
+            let in_transaction = summary.in_transaction;
+            Ok((summary, in_transaction))
+        },
+    )
+    .await
+}
+
+/// Runs one user statement on a task that `cancel_query` can abort, after the
+/// connection's read-only preflight. `run` gets the driver, the connection,
+/// the sanitized query and the driver session, and returns its value with
+/// whether the session is left inside a transaction.
+#[allow(clippy::too_many_arguments)]
+async fn run_registered_query<T, F, Fut>(
+    runtime: &RuntimeContext,
+    cancellation: &crate::commands::QueryCancellationState,
+    scope: QueryRequestScope<'_>,
+    connection_id: String,
+    query: String,
+    query_session_id: Option<String>,
+    database: Option<String>,
+    run: F,
+) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(
+            Arc<dyn DatabaseDriver>,
+            crate::models::ConnectionParams,
+            String,
+            Option<String>,
+        ) -> Fut
+        + Send
+        + 'static,
+    Fut: std::future::Future<Output = Result<(T, bool), String>> + Send + 'static,
+{
     log::info!(
         "Executing query on connection: {} | Query: {}",
         connection_id,
@@ -284,7 +409,6 @@ pub async fn execute_query(
 
     super::read_only::validate_query(&params, &driver.manifest().capabilities, &sanitized_query)?;
 
-    let effective_limit = response_limit(policy, limit);
     let driver_session = query_session_id.as_deref().map(|id| {
         super::query_sessions::register(scope.session_id, &connection_id, id, driver.clone())
     });
@@ -295,27 +419,8 @@ pub async fn execute_query(
             if let Some(id) = task_session.as_deref() {
                 driver.release_session(id).await;
             }
-            return super::read_only::execute_query(
-                driver.as_ref(),
-                &params,
-                &sanitized_query,
-                effective_limit,
-                page.unwrap_or(1),
-                schema.as_deref(),
-            )
-            .await
-            .map(|result| (result, false));
         }
-        driver
-            .execute_query_in_session(
-                &params,
-                &sanitized_query,
-                effective_limit,
-                page.unwrap_or(1),
-                schema.as_deref(),
-                task_session.as_deref(),
-            )
-            .await
+        run(driver, params, sanitized_query, task_session).await
     });
     let _registration = QueryTaskRegistration::new(
         cancellation,
@@ -340,7 +445,7 @@ pub async fn execute_query(
     }
 
     match result {
-        Ok(Ok((query_result, in_transaction))) => {
+        Ok(Ok((value, in_transaction))) => {
             super::query_sessions::report(
                 runtime,
                 scope.session_id,
@@ -348,15 +453,10 @@ pub async fn execute_query(
                 query_session_id.as_deref(),
                 in_transaction,
             );
-            enforce_response_size(policy, &query_result)?;
-            log::info!(
-                "Query executed successfully, returned {} rows",
-                query_result.rows.len()
-            );
             if let Some(database) = dropped {
                 emit_database_dropped(runtime, scope.session_id, &connection_id, &database);
             }
-            Ok(query_result)
+            Ok(value)
         }
         Ok(Err(error)) => {
             log::error!("Query execution failed: {error}");

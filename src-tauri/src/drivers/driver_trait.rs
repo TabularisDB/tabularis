@@ -21,6 +21,44 @@ use crate::models::{
 /// the command layer supplies a closure that emits a Tauri event.
 pub type BatchProgressFn = dyn Fn(usize, &BatchStatementResult) + Send + Sync;
 
+/// One piece of a streamed result: the column names once, then row batches.
+#[derive(Debug, Clone, PartialEq)]
+pub enum QueryChunk {
+    Columns(Vec<String>),
+    Rows(Vec<Vec<serde_json::Value>>),
+}
+
+/// Receives the chunks of [`DatabaseDriver::execute_query_stream`] in order.
+/// Called from the driver's task, so it must not block.
+pub type QueryChunkSink<'a> = dyn FnMut(QueryChunk) + Send + 'a;
+
+/// What a streamed query reports once its last chunk is delivered.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct StreamSummary {
+    pub affected_rows: u64,
+    pub server_time_ms: Option<f64>,
+    pub fetch_time_ms: Option<f64>,
+    pub in_transaction: bool,
+}
+
+/// Delivers a whole result as one stream: its columns, then all rows as one batch.
+pub fn stream_whole(
+    result: QueryResult,
+    in_transaction: bool,
+    sink: &mut QueryChunkSink<'_>,
+) -> StreamSummary {
+    sink(QueryChunk::Columns(result.columns));
+    if !result.rows.is_empty() {
+        sink(QueryChunk::Rows(result.rows));
+    }
+    StreamSummary {
+        affected_rows: result.affected_rows,
+        server_time_ms: result.server_time_ms,
+        fetch_time_ms: result.fetch_time_ms,
+        in_transaction,
+    }
+}
+
 /// SQL dialect declaration used by the frontend statement splitter
 /// (`packages/web-ui/src/utils/sqlSplitter/`) to pick per-dialect tokenizer rules:
 /// string-literal quoting, identifier quoting (backticks vs brackets),
@@ -866,6 +904,26 @@ pub trait DatabaseDriver: Send + Sync {
             .execute_query(params, query, limit, page, schema)
             .await?;
         Ok((result, false))
+    }
+
+    /// `execute_query_in_session` without a row limit, with the rows handed to
+    /// `sink` as they arrive: the column names once, then a first batch of
+    /// 500 rows so a grid can paint early, then batches of 10,000 rows.
+    ///
+    /// The default implementation runs [`Self::execute_query_in_session`]
+    /// and delivers its whole result as one batch.
+    async fn execute_query_stream(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        schema: Option<&str>,
+        session_id: Option<&str>,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<StreamSummary, String> {
+        let (result, in_transaction) = self
+            .execute_query_in_session(params, query, None, 1, schema, session_id)
+            .await?;
+        Ok(stream_whole(result, in_transaction, sink))
     }
 
     /// `execute_query` with the database itself refusing writes.

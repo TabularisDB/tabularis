@@ -164,3 +164,86 @@ async fn cancellation_slots_are_isolated_by_session_and_request() {
     task_b.abort();
     let _ = task_b.await;
 }
+
+struct NoSecrets;
+impl crate::runtime::secrets::RuntimeSecrets for NoSecrets {
+    fn get(&self, _: &str) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+    fn delete(&self, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn cancelling_a_running_stream_with_cancel_query_stops_delivery_and_removes_its_abort_handle()
+{
+    use crate::drivers::driver_trait::QueryChunk;
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            temp.path().into(),
+            temp.path().into(),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    let database = temp.path().join("stream.sqlite");
+    std::fs::File::create(&database).unwrap();
+    crate::drivers::registry::register_driver(crate::drivers::sqlite::SqliteDriver::new()).await;
+    let saved: crate::models::SavedConnection = serde_json::from_value(serde_json::json!({
+        "id": "streamed",
+        "name": "Streamed",
+        "params": { "driver": "sqlite", "database": database.to_string_lossy() },
+    }))
+    .unwrap();
+    crate::persistence::save_connections_file(
+        &runtime.paths.connections_file(),
+        &crate::models::ConnectionsFile {
+            connections: vec![saved],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let cancellation = Arc::new(QueryCancellationState::default());
+    let (sender, mut chunks) = tokio::sync::mpsc::unbounded_channel();
+    let stream = tokio::spawn({
+        let (runtime, cancellation) = (runtime.clone(), cancellation.clone());
+        async move {
+            stream_query(
+                &runtime,
+                &cancellation,
+                QueryRequestScope::DESKTOP,
+                "streamed".into(),
+                "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 100000000) SELECT x FROM n"
+                    .into(),
+                None,
+                None,
+                None,
+                move |chunk| {
+                    let _ = sender.send(chunk);
+                },
+            )
+            .await
+        }
+    });
+    while !matches!(chunks.recv().await, Some(QueryChunk::Rows(_))) {}
+
+    cancel_query(&cancellation, None, "streamed", None).unwrap();
+
+    assert_eq!(stream.await.unwrap().unwrap_err(), "Query cancelled");
+    let mut late = 0;
+    while chunks.recv().await.is_some() {
+        late += 1;
+    }
+    assert!(late < 10, "{late} batches arrived after the cancel");
+    assert!(!cancellation
+        .handles
+        .lock()
+        .unwrap()
+        .contains_key("streamed"));
+}
