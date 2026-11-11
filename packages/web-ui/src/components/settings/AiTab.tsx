@@ -40,6 +40,7 @@ import {
     MiniMaxIcon,
     OpenRouterIcon,
     RequestyIcon,
+    OpperIcon,
     OllamaIcon,
 } from '@/components/icons/ClientIcons';
 
@@ -77,6 +78,11 @@ const PROVIDERS: Array<{
         id: 'requesty',
         label: 'Requesty',
         icon: <RequestyIcon size={18} className="text-current" />,
+    },
+    {
+        id: 'opper',
+        label: 'Opper',
+        icon: <OpperIcon size={18} className="text-current" />,
     },
     {
         id: 'ollama',
@@ -144,13 +150,14 @@ export function AiTab() {
 
     const checkKeys = useCallback(async () => {
         try {
-            const [openai, anthropic, openrouter, requesty, minimax, customOpenai, apiRoute] =
+            const [openai, anthropic, openrouter, requesty, opper, minimax, customOpenai, apiRoute] =
                 await Promise.all(
                     [
                         'openai',
                         'anthropic',
                         'openrouter',
                         'requesty',
+                        'opper',
                         'minimax',
                         'custom-openai',
                         'api-route',
@@ -162,6 +169,7 @@ export function AiTab() {
                 anthropic,
                 openrouter,
                 requesty,
+                opper,
                 minimax,
                 'custom-openai': customOpenai,
                 'api-route': apiRoute,
