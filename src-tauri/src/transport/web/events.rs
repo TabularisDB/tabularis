@@ -224,6 +224,7 @@ impl WebEventBus {
             | "session-transaction-state"
             | "query-status"
             | "query-cancelled"
+            | "query-stream-chunk"
             | "dump_progress"
             | "import_progress"
             | "export_progress"

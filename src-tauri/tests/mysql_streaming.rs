@@ -192,3 +192,36 @@ async fn a_mysql_call_that_returns_two_result_sets_streams_the_first_sets_column
     )
     .await;
 }
+
+#[tokio::test]
+#[ignore = "requires an explicitly configured disposable local MySQL/MariaDB server with TLS"]
+async fn a_mysql_call_with_a_row_limit_trims_each_result_set_to_the_limit_and_marks_it_truncated() {
+    with_database(
+        |db| {
+            vec![format!(
+                "CREATE PROCEDURE {db}.big_sets() BEGIN \
+                 SELECT 1 AS a UNION ALL SELECT 2 UNION ALL SELECT 3; \
+                 SELECT 'x' AS b UNION ALL SELECT 'y' UNION ALL SELECT 'z' UNION ALL SELECT 'w'; \
+                 END"
+            )]
+        },
+        |params| async move {
+            let result = mysql::execute_query(&params, "CALL big_sets()", Some(2), 1, None)
+                .await
+                .expect("execute_query should succeed");
+            let second = &result.additional_results.as_deref().expect("a second set")[0];
+
+            assert_eq!(
+                result.rows,
+                [[serde_json::json!(1)], [serde_json::json!(2)]]
+            );
+            assert!(result.truncated);
+            assert_eq!(
+                second.rows,
+                [[serde_json::json!("x")], [serde_json::json!("y")]]
+            );
+            assert!(second.truncated);
+        },
+    )
+    .await;
+}

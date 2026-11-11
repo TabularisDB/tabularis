@@ -178,20 +178,20 @@ impl crate::runtime::secrets::RuntimeSecrets for NoSecrets {
     }
 }
 
-#[tokio::test]
-async fn cancelling_a_running_stream_with_cancel_query_stops_delivery_and_removes_its_abort_handle()
-{
-    use crate::drivers::driver_trait::QueryChunk;
-    let temp = tempfile::tempdir().unwrap();
+/// A runtime whose saved connection `streamed` is an empty SQLite file in `dir`.
+pub(crate) async fn sqlite_runtime(
+    dir: &std::path::Path,
+    events: Arc<dyn crate::runtime::events::RuntimeEvents>,
+) -> RuntimeContext {
     let runtime = RuntimeContext::new(
         Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
-            temp.path().into(),
-            temp.path().into(),
+            dir.into(),
+            dir.into(),
         )),
-        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        events,
         Arc::new(NoSecrets),
     );
-    let database = temp.path().join("stream.sqlite");
+    let database = dir.join("stream.sqlite");
     std::fs::File::create(&database).unwrap();
     crate::drivers::registry::register_driver(crate::drivers::sqlite::SqliteDriver::new()).await;
     let saved: crate::models::SavedConnection = serde_json::from_value(serde_json::json!({
@@ -208,6 +208,19 @@ async fn cancelling_a_running_stream_with_cancel_query_stops_delivery_and_remove
         },
     )
     .unwrap();
+    runtime
+}
+
+#[tokio::test]
+async fn cancelling_a_running_stream_with_cancel_query_stops_delivery_and_removes_its_abort_handle()
+{
+    use crate::drivers::driver_trait::QueryChunk;
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = sqlite_runtime(
+        temp.path(),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+    )
+    .await;
 
     let cancellation = Arc::new(QueryCancellationState::default());
     let (sender, mut chunks) = tokio::sync::mpsc::unbounded_channel();
@@ -246,4 +259,86 @@ async fn cancelling_a_running_stream_with_cancel_query_stops_delivery_and_remove
         .lock()
         .unwrap()
         .contains_key("streamed"));
+}
+
+#[derive(Default)]
+struct RecordedEvents(std::sync::Mutex<Vec<(String, Value)>>);
+
+impl crate::runtime::events::RuntimeEvents for RecordedEvents {
+    fn emit(&self, event: &str, payload: Value) -> Result<(), String> {
+        self.0.lock().unwrap().push((event.to_string(), payload));
+        Ok(())
+    }
+}
+
+/// Runs `query` as the web `stream_query` route and returns its reply and the
+/// row JSON sent in its chunk events.
+async fn web_stream(query: &str) -> (Value, Vec<Value>) {
+    let temp = tempfile::tempdir().unwrap();
+    let events = Arc::new(RecordedEvents::default());
+    let runtime = sqlite_runtime(temp.path(), events.clone()).await;
+    let state = Arc::new(ApplicationState::default());
+    let reply = execute(
+        &runtime,
+        &state,
+        Some(Uuid::new_v4()),
+        "request-1",
+        QueryCommand::Stream {
+            connection_id: "streamed".into(),
+            query: query.into(),
+            schema: None,
+            query_session_id: None,
+            database: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(state.query_cancellation.handles.lock().unwrap().is_empty());
+    let chunks: Vec<Value> = events
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(event, payload)| {
+            event == "query-stream-chunk" && payload["requestId"] == "request-1"
+        })
+        .map(|(_, payload)| payload["chunk"].clone())
+        .collect();
+    assert_eq!(reply["chunks"], chunks.len());
+    let rows = chunks
+        .iter()
+        .filter_map(|chunk| chunk["rows"].as_array())
+        .flatten()
+        .cloned()
+        .collect();
+    (reply, rows)
+}
+
+const ENDLESS_ROWS: &str =
+    "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 100000000)";
+
+#[tokio::test]
+async fn a_web_stream_stops_at_10000_rows_and_marks_the_result_truncated() {
+    let (reply, rows) = web_stream(&format!("{ENDLESS_ROWS} SELECT x FROM n")).await;
+
+    assert_eq!(reply["truncated"], true);
+    assert_eq!(rows.len(), WEB_MAX_ROWS_PER_PAGE as usize);
+    assert_eq!(rows.last().unwrap()[0], WEB_MAX_ROWS_PER_PAGE);
+}
+
+#[tokio::test]
+async fn a_web_stream_that_passes_16_mib_stops_and_marks_the_result_truncated() {
+    let (reply, rows) = web_stream(&format!(
+        "{ENDLESS_ROWS} SELECT x, hex(zeroblob(2000)) FROM n"
+    ))
+    .await;
+
+    assert_eq!(reply["truncated"], true);
+    let bytes: usize = rows
+        .iter()
+        .map(|row| serde_json::to_vec(row).unwrap().len())
+        .sum();
+    assert!(bytes <= WEB_MAX_RESPONSE_BYTES);
+    assert!(bytes > WEB_MAX_RESPONSE_BYTES - 4_100, "{bytes} bytes");
+    assert!(rows.len() < WEB_MAX_ROWS_PER_PAGE as usize);
 }

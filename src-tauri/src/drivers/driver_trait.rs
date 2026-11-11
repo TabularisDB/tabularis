@@ -23,7 +23,8 @@ pub type BatchProgressFn = dyn Fn(usize, &BatchStatementResult) + Send + Sync;
 
 /// One piece of a streamed result: the column names, then row batches. A
 /// later `Columns` starts the next result set of the same statement.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum QueryChunk {
     Columns(Vec<String>),
     Rows(Vec<Vec<serde_json::Value>>),
@@ -34,7 +35,7 @@ pub enum QueryChunk {
 pub type QueryChunkSink<'a> = dyn FnMut(QueryChunk) + Send + 'a;
 
 /// What a streamed query reports once its last chunk is delivered.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct StreamSummary {
     pub affected_rows: u64,
     pub server_time_ms: Option<f64>,

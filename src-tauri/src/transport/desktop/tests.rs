@@ -153,3 +153,89 @@ async fn desktop_productivity_commands_use_the_managed_custom_config_directory()
         .join(format!("{connection}.json"))
         .exists());
 }
+
+#[tokio::test]
+async fn the_desktop_stream_command_sends_the_columns_and_every_row_batch_in_order_and_matches_execute_query(
+) {
+    use crate::commands::QueryCancellationState;
+    use crate::transport::desktop::commands;
+    use tauri::Manager;
+    let root = tempfile::tempdir().unwrap();
+    let runtime = crate::application::queries::tests::sqlite_runtime(
+        root.path(),
+        Arc::new(NoopRuntimeEvents),
+    )
+    .await;
+    let app = tauri::test::mock_builder()
+        .manage(runtime)
+        .manage(Arc::new(QueryCancellationState::default()))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    let handle = app.handle().clone();
+    let query = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 1200) SELECT x, 'row ' || x AS label FROM n";
+    let messages = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let channel = tauri::ipc::Channel::new({
+        let messages = messages.clone();
+        move |body| {
+            let tauri::ipc::InvokeResponseBody::Json(json) = body else {
+                panic!("expected a JSON chunk");
+            };
+            messages
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str::<serde_json::Value>(&json).unwrap());
+            Ok(())
+        }
+    });
+
+    let reply = commands::stream_query(
+        handle.clone(),
+        handle.state(),
+        channel,
+        "streamed".into(),
+        query.into(),
+        None,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+    let expected = commands::execute_query(
+        handle.clone(),
+        handle.state(),
+        "streamed".into(),
+        query.into(),
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let messages = messages.lock().unwrap();
+    assert_eq!(reply.chunks, messages.len() as u64);
+    assert_eq!(
+        messages[0],
+        serde_json::json!({ "columns": expected.columns })
+    );
+    let batches: Vec<&Vec<serde_json::Value>> = messages[1..]
+        .iter()
+        .map(|message| message["rows"].as_array().unwrap())
+        .collect();
+    assert_eq!(
+        batches.iter().map(|rows| rows.len()).collect::<Vec<_>>(),
+        [500, 700]
+    );
+    let streamed: Vec<serde_json::Value> = batches.into_iter().flatten().cloned().collect();
+    assert_eq!(
+        streamed,
+        serde_json::to_value(&expected.rows)
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .clone()
+    );
+    assert!(!reply.truncated);
+}
