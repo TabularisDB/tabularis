@@ -4,7 +4,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {Editor} from '@/pages/Editor';
 import {EditorContext, type EditorContextType} from '@/contexts/EditorContext';
 import {createAutoRefreshSchedule, type AutoRefreshSchedule} from '@/utils/autoRefresh';
-import type {QueryChunk, StreamedQuery} from '@/api/queryStream';
+import {countChunks, type QueryChunk, type StreamedQuery} from '@/api/queryStream';
 import type {Tab, QueryResult} from '@/types/editor';
 import type {DataGridCommandTarget} from '@/components/ui/DataGrid';
 
@@ -318,5 +318,33 @@ describe('streamed query results', () => {
 
         expect(grid()).toBe('500:[1]..[500]');
         expect(screen.getByText(/^editor\.rowsRetrieved:500/)).toBeInTheDocument();
+    });
+
+    it('when the reply has arrived but stream chunks are still missing after 5 seconds, the run fails with an error and the loading state clears', async () => {
+        vi.useFakeTimers();
+        try {
+            client.streamQuery.mockImplementation(
+                async (_request: unknown, onChunk: (chunk: QueryChunk) => void) => {
+                    const chunks = countChunks(onChunk);
+                    stream = {send: chunks.deliver, finish: () => {}, fail: () => {}};
+                    await chunks.until(2);
+                    return reply(2);
+                },
+            );
+            render(<Harness />);
+            await run();
+            await send({columns: ['n']});
+            expect(screen.getByRole('button', {name: /editor\.stop/})).toBeInTheDocument();
+
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5_000);
+            });
+
+            expect(context.activeTab?.error).toMatch(/Stream incomplete/);
+            expect(context.activeTab?.isLoading).toBe(false);
+            expect(screen.queryByRole('button', {name: /editor\.stop/})).toBeNull();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
