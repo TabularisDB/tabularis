@@ -34,6 +34,8 @@ desktop = [
     "dep:gtk",
 ]
 e2e-testing = ["desktop", "dep:tauri-plugin-webdriver-automation"]
+# Experimental GPUI desktop shell (`tabularis native`). Not part of any release build.
+native = ["dep:gpui-component", "dep:gpui", "dep:gpui_platform"]
 
 [profile.release]
 codegen-units = 1
@@ -46,6 +48,9 @@ strip = true
 tauri-build = { version = "2.5.3", features = [], optional = true }
 
 [dependencies]
+gpui-component = { version = "=0.9.1", optional = true }
+gpui = { package = "gpui-pre", version = "=0.3.12", optional = true }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit", "wayland", "x11", "runtime_shaders"], optional = true }
 serde_json = { version = "1.0", features = ["raw_value"] }
 tempfile = "3.24.0"
 jsonschema = { version = "0.18", default-features = false }

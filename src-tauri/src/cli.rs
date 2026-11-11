@@ -54,6 +54,9 @@ pub struct Args {
 pub enum Command {
     /// Start the browser-based Web UI
     Web(WebArgs),
+    /// Start the native desktop UI (experimental)
+    #[cfg(feature = "native")]
+    Native,
 }
 
 #[derive(Debug, ClapArgs)]
