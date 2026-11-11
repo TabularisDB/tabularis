@@ -12,6 +12,28 @@ function asPlatform(value: object): PlatformCapabilities {
 }
 
 describe('databaseTransfers', () => {
+    it('uses the native backup filter and retains the explicit format in the desktop request', async () => {
+        const chooseSaveTarget = vi.fn().mockResolvedValue({reference: '/tmp/database.fbk'});
+        const call = vi.fn().mockResolvedValue(null);
+        await runDatabaseDump(
+            asClient({call}),
+            asPlatform({negotiation: {environment: 'tauri'}, chooseSaveTarget}),
+            {connectionId: 'firebird', options: {format: 'firebird', structure: true, data: true}},
+            'database.fbk',
+        );
+        expect(chooseSaveTarget).toHaveBeenCalledWith({
+            suggestedName: 'database.fbk',
+            filters: [{name: 'Firebird Backup', extensions: ['fbk']}],
+        });
+        expect(call).toHaveBeenCalledWith(
+            'dump_database',
+            expect.objectContaining({
+                filePath: '/tmp/database.fbk',
+                options: {format: 'firebird', structure: true, data: true},
+            }),
+            expect.any(Object),
+        );
+    });
     it('uploads browser imports with a purpose-bound opaque token', async () => {
         const uploadFile = vi.fn().mockResolvedValue({token: 'upload-token'});
         const readInputBlob = vi.fn().mockResolvedValue(new Blob(['SELECT 1;']));

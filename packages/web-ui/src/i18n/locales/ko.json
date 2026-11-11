@@ -2504,6 +2504,10 @@
     "dismiss": "확인했습니다"
   },
   "dump": {
+    "format": "백업 형식",
+    "sqlFormat": "SQL 스크립트 (.sql)",
+    "firebirdFormat": "전체 Firebird 백업 (.fbk)",
+    "nativeBackupDescription": "배열과 객체 소유자를 포함한 전체 데이터베이스를 저장합니다. 복원에는 새 데이터베이스 경로가 필요합니다. 외부 테이블은 일반 테이블이 되며 원본 섀도 파일은 다시 생성되지 않습니다.",
     "emptyTargetRequired": "새 데이터베이스 또는 빈 데이터베이스로 복원합니다. 기존 데이터베이스는 덮어쓰지 않습니다.",
     "createDatabase": "새 데이터베이스 만들기",
     "serverDatabasePath": "데이터베이스 서버의 경로 또는 별칭",

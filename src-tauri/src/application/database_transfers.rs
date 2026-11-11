@@ -320,8 +320,15 @@ async fn dump_database_job(
     if let Some(database) = database.as_ref().filter(|database| !database.is_empty()) {
         params.database = crate::models::DatabaseSelection::Single(database.clone());
     }
+    let native_backup = options.format.as_deref() == Some("firebird");
+    let extension = if native_backup { "fbk" } else { "sql" };
+    let mime_type = if native_backup {
+        "application/octet-stream"
+    } else {
+        SQL_MIME_TYPE
+    };
     let download_file_name = format!(
-        "{}_dump.sql",
+        "{}_dump.{extension}",
         safe_name(database_name(&params, &connection_id)),
     );
     let (file_path, download_owner, temporary) = match destination {
@@ -329,7 +336,7 @@ async fn dump_database_job(
         DumpDestination::SessionDownload(owner) => {
             let directory = runtime.paths.data_dir().join("database-dump-jobs");
             create_private_directory(&directory)?;
-            let path = directory.join(format!(".pending-{}.sql", Uuid::new_v4()));
+            let path = directory.join(format!(".pending-{}.{extension}", Uuid::new_v4()));
             let guard = TemporaryFile::new(path.clone());
             (path, Some(owner), Some(guard))
         }
@@ -373,7 +380,7 @@ async fn dump_database_job(
             owner,
             "database-dump",
             &download_file_name,
-            Some(SQL_MIME_TYPE),
+            Some(mime_type),
             ReaderStream::new(file),
         )
         .await?;
@@ -515,6 +522,13 @@ async fn write_dump(
     schema: Option<&str>,
     options: &DumpOptions,
 ) -> Result<(), String> {
+    if options
+        .format
+        .as_deref()
+        .is_some_and(|format| !matches!(format, "sql" | "firebird"))
+    {
+        return Err("Unknown database backup format".into());
+    }
     let pending = file_path.with_file_name(format!(".tabularis-dump-{}.tmp", Uuid::new_v4()));
     let mut open = fs::OpenOptions::new();
     open.write(true).create_new(true);
@@ -530,6 +544,15 @@ async fn write_dump(
     let drv = crate::drivers::registry::get_driver(driver)
         .await
         .ok_or_else(|| format!("Driver {driver} unavailable"))?;
+    let native_backup = options.format.as_deref() == Some("firebird");
+    if native_backup
+        && !drv
+            .get_database_sql_capabilities(params)
+            .await?
+            .is_some_and(|capabilities| capabilities.native_backup)
+    {
+        return Err("This driver does not support native Firebird backups".into());
+    }
     if let Some(result) = drv
         .export_database_sql(
             params,
@@ -555,10 +578,17 @@ async fn write_dump(
                 tables_processed: result.tables,
                 total_tables: result.tables,
                 percentage: 100.0,
-                current_operation: format!("Exported {} rows", result.rows),
+                current_operation: if native_backup {
+                    "Native backup complete".into()
+                } else {
+                    format!("Exported {} rows", result.rows)
+                },
             },
         );
         return Ok(());
+    }
+    if native_backup {
+        return Err("The driver did not produce the requested native backup".into());
     }
     let file = fs::OpenOptions::new()
         .write(true)

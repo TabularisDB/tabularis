@@ -35,7 +35,10 @@ export async function runDatabaseDump(
     if (platform.negotiation.environment === 'tauri') {
         const target = await platform.chooseSaveTarget({
             suggestedName,
-            filters: [{name: 'SQL File', extensions: ['sql']}],
+            filters:
+                request.options.format === 'firebird'
+                    ? [{name: 'Firebird Backup', extensions: ['fbk']}]
+                    : [{name: 'SQL File', extensions: ['sql']}],
         });
         if (!target) return false;
         commandRequest = {...request, filePath: target.reference};

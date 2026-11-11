@@ -16,6 +16,8 @@ use crate::models::{
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DatabaseSqlCapabilities {
     pub format: String,
+    #[serde(default)]
+    pub native_backup: bool,
     pub create_database: bool,
     pub requires_empty_target: bool,
     pub target_label: String,
@@ -23,6 +25,8 @@ pub struct DatabaseSqlCapabilities {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DatabaseSqlExportOptions {
+    #[serde(default)]
+    pub format: Option<String>,
     pub structure: bool,
     pub data: bool,
     pub tables: Option<Vec<String>>,

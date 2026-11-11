@@ -5,6 +5,100 @@ use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 
 #[tokio::test]
+async fn native_backup_negotiates_support_and_transfers_binary_without_sql_fallback() {
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let supported = Arc::new(AtomicBool::new(true));
+    let advertised = supported.clone();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.id = format!("native-backup-{}", Uuid::new_v4());
+    manifest.is_builtin = false;
+    let params = ConnectionParams {
+        driver: manifest.id.clone(),
+        ..Default::default()
+    };
+    let binary = [0, 2, 4, 255, 128, 0];
+    let drv = crate::plugins::driver::test_driver_with_manifest(manifest, move |request| {
+        match request.method.as_str() {
+            "get_database_sql_capabilities" => Ok(
+                json!({"format":"sql","native_backup":advertised.load(Ordering::SeqCst),"create_database":true,"requires_empty_target":true,"target_label":"Path"}),
+            ),
+            "export_database_sql" => {
+                assert_eq!(request.params["options"]["format"], "firebird");
+                fs::write(request.params["file_path"].as_str().unwrap(), binary).unwrap();
+                Ok(json!({"rows":0,"tables":0}))
+            }
+            "import_database_sql" => {
+                assert_eq!(request.params["create_database"], true);
+                assert_eq!(
+                    fs::read(request.params["file_path"].as_str().unwrap()).unwrap(),
+                    binary
+                );
+                Ok(json!({"statements":0}))
+            }
+            method => panic!("Native transfer must not fall through to {method}"),
+        }
+    });
+    crate::drivers::registry::register_driver(drv).await;
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            directory.path().into(),
+            directory.path().into(),
+        )),
+        Arc::new(RecordingEvents::default()),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let path = directory.path().join("opaque-file.tmp");
+    let options = DumpOptions {
+        format: Some("firebird".into()),
+        structure: true,
+        data: true,
+        tables: None,
+    };
+    write_dump(
+        &runtime,
+        None,
+        "native",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options,
+    )
+    .await
+    .unwrap();
+    assert_eq!(fs::read(&path).unwrap(), binary);
+    execute_import(
+        &runtime,
+        None,
+        &path,
+        false,
+        "native",
+        &params,
+        &params.driver,
+        None,
+        true,
+    )
+    .await
+    .unwrap();
+    supported.store(false, Ordering::SeqCst);
+    assert!(write_dump(
+        &runtime,
+        None,
+        "native",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options
+    )
+    .await
+    .unwrap_err()
+    .contains("does not support"));
+    assert_eq!(fs::read(&path).unwrap(), binary);
+}
+
+#[tokio::test]
 async fn database_sql_plugin_transfers_whole_files_without_metadata_or_sql_splitting() {
     use crate::drivers::sqlite::SqliteDriver;
     let directory = tempfile::tempdir().unwrap();
@@ -56,6 +150,7 @@ async fn database_sql_plugin_transfers_whole_files_without_metadata_or_sql_split
     );
     let path = directory.path().join("database.sql");
     let options = DumpOptions {
+        format: None,
         structure: true,
         data: true,
         tables: None,
@@ -194,6 +289,7 @@ async fn database_dump_uses_plugin_renderer_and_preserves_previous_file_on_failu
     let path = directory.path().join("dump.sql");
     fs::write(&path, "previous backup").unwrap();
     let options = DumpOptions {
+        format: None,
         structure: false,
         data: true,
         tables: Some(vec!["items".into()]),

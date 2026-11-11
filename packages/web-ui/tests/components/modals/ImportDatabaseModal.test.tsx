@@ -50,6 +50,38 @@ const props = () => ({
 });
 
 describe('ImportDatabaseModal cancellation', () => {
+    it('requires a new destination for a native Firebird backup', async () => {
+        mocks.capabilities = {
+            format: 'sql',
+            native_backup: true,
+            create_database: true,
+            requires_empty_target: true,
+            target_label: 'Path',
+        };
+        mocks.platform.negotiation.environment = 'tauri';
+        render(
+            <ImportDatabaseModal
+                {...props()}
+                inputFile={{reference: 'native-file', name: 'backup.fbk'}}
+            />,
+        );
+        await act(async () => {});
+        expect(screen.getByRole('checkbox')).toBeChecked();
+        expect(screen.getByRole('checkbox')).toBeDisabled();
+        expect(screen.getByRole('button', {name: 'dump.startRestore'})).toBeDisabled();
+        fireEvent.change(screen.getByRole('textbox'), {target: {value: '/server/new.fdb'}});
+        fireEvent.click(screen.getByRole('button', {name: 'dump.startRestore'}));
+        await act(async () => {});
+        expect(mocks.call).toHaveBeenCalledWith(
+            'import_database',
+            expect.objectContaining({
+                filePath: 'native-file',
+                database: '/server/new.fdb',
+                createDatabase: true,
+            }),
+            expect.any(Object),
+        );
+    });
     beforeEach(() => {
         mocks.capabilities = null;
         mocks.call.mockReset().mockResolvedValue(undefined);

@@ -50,6 +50,8 @@ export const ImportDatabaseModal = ({
     const [isImporting, setIsImporting] = useState(false);
     const [sqlCapabilities, setSqlCapabilities] = useState<DatabaseSqlCapabilities | null>();
     const [createDatabase, setCreateDatabase] = useState(true);
+    const nativeBackup = sqlCapabilities?.native_backup === true && /\.fbk$/i.test(inputFile.name);
+    const createNewDatabase = nativeBackup || createDatabase;
     const [newDatabase, setNewDatabase] = useState('');
     const [progress, setProgress] = useState<EventPayload<'import_progress'> | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export const ImportDatabaseModal = ({
             if (!isCurrent()) return;
             operation.dispatched = true;
             const destination =
-                sqlCapabilities?.create_database && createDatabase
+                sqlCapabilities?.create_database && createNewDatabase
                     ? newDatabase.trim()
                     : targetDatabase;
             await client.call(
@@ -103,7 +105,7 @@ export const ImportDatabaseModal = ({
                     ...source,
                     ...(activeSchema ? {schema: activeSchema} : {}),
                     ...(sqlCapabilities
-                        ? {createDatabase: sqlCapabilities.create_database && createDatabase}
+                        ? {createDatabase: sqlCapabilities.create_database && createNewDatabase}
                         : {}),
                     ...(destination ? {database: destination} : {}),
                 },
@@ -137,7 +139,7 @@ export const ImportDatabaseModal = ({
         platform,
         targetDatabase,
         sqlCapabilities,
-        createDatabase,
+        createNewDatabase,
         newDatabase,
     ]);
 
@@ -285,7 +287,8 @@ export const ImportDatabaseModal = ({
                                 <label className="flex items-center gap-2 text-sm">
                                     <input
                                         type="checkbox"
-                                        checked={createDatabase}
+                                        checked={createNewDatabase}
+                                        disabled={nativeBackup}
                                         onChange={(event) =>
                                             setCreateDatabase(event.target.checked)
                                         }
@@ -293,7 +296,7 @@ export const ImportDatabaseModal = ({
                                     {t('dump.createDatabase', 'Create a new database')}
                                 </label>
                             )}
-                            {sqlCapabilities.create_database && createDatabase && (
+                            {sqlCapabilities.create_database && createNewDatabase && (
                                 <label className="flex flex-col gap-1 text-sm">
                                     {t(
                                         'dump.serverDatabasePath',
@@ -412,7 +415,7 @@ export const ImportDatabaseModal = ({
                         <button
                             disabled={
                                 sqlCapabilities.create_database &&
-                                createDatabase &&
+                                createNewDatabase &&
                                 !newDatabase.trim()
                             }
                             onClick={() => {

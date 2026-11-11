@@ -454,6 +454,7 @@ export interface BackupRunResult {
 }
 
 export interface DumpOptions {
+    format?: 'sql' | 'firebird';
     structure: boolean;
     data: boolean;
     tables?: string[] | null;

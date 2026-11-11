@@ -2464,6 +2464,10 @@
     "supportAction": "Apoyar en GitHub Sponsors"
   },
   "dump": {
+    "format": "Formato de copia",
+    "sqlFormat": "Script SQL (.sql)",
+    "firebirdFormat": "Copia completa de Firebird (.fbk)",
+    "nativeBackupDescription": "Incluye toda la base de datos, arrays y propietarios. La restauración requiere una ruta nueva. Las tablas externas se convierten en tablas normales; no se recrean los archivos de sombra originales.",
     "emptyTargetRequired": "Restaura en una base de datos nueva o vacía. Las bases de datos existentes nunca se sobrescriben.",
     "createDatabase": "Crear una base de datos nueva",
     "serverDatabasePath": "Ruta o alias de la base de datos en el servidor",

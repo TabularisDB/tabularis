@@ -1,8 +1,14 @@
-import {render} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {DumpDatabaseModal} from '@/components/modals/DumpDatabaseModal';
 import {useDatabase} from '@/hooks/useDatabase';
+
+const mocks = vi.hoisted(() => ({
+    call: vi.fn().mockResolvedValue(null),
+    chooseSaveTarget: vi.fn().mockResolvedValue({reference: '/tmp/backup.fbk'}),
+}));
+vi.mock('lucide-react', (importOriginal) => importOriginal());
 
 vi.mock('@/hooks/useDatabase', () => ({
     useDatabase: vi.fn(),
@@ -27,6 +33,46 @@ function mockUseDatabase(overrides: Partial<ReturnType<typeof useDatabase>>) {
 describe('DumpDatabaseModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mocks.call.mockResolvedValue(null);
+    });
+
+    it('exports the entire native backup without applying table or SQL-only selections', async () => {
+        mocks.call.mockImplementation(async (command) =>
+            command === 'get_database_sql_capabilities'
+                ? {
+                      format: 'sql',
+                      native_backup: true,
+                      create_database: true,
+                      requires_empty_target: true,
+                      target_label: 'Path',
+                  }
+                : null,
+        );
+        mockUseDatabase({});
+        render(
+            <DumpDatabaseModal
+                isOpen
+                onClose={vi.fn()}
+                connectionId="firebird"
+                databaseName="example"
+                tables={['ONE_TABLE']}
+            />,
+        );
+        fireEvent.change(await screen.findByRole('combobox'), {target: {value: 'firebird'}});
+        expect(screen.queryByRole('checkbox')).toBeNull();
+        fireEvent.click(screen.getByRole('button', {name: /export/i}));
+        await waitFor(() =>
+            expect(mocks.call).toHaveBeenCalledWith(
+                'dump_database',
+                expect.objectContaining({
+                    options: {format: 'firebird', structure: true, data: true},
+                }),
+                expect.any(Object),
+            ),
+        );
+        expect(mocks.chooseSaveTarget).toHaveBeenCalledWith(
+            expect.objectContaining({filters: [{name: 'Firebird Backup', extensions: ['fbk']}]}),
+        );
     });
 
     it("refreshes the nested schema's table list on open for a schema-based (nested multi-db) dump", () => {
@@ -95,11 +141,14 @@ describe('DumpDatabaseModal', () => {
 });
 
 vi.mock('@/hooks/useTabularisClient', () => {
-    const client = {call: vi.fn(), subscribe: async () => () => {}};
+    const client = {call: mocks.call, subscribe: async () => () => {}};
     return {useTabularisClient: () => client};
 });
 
 vi.mock('@/hooks/usePlatformCapabilities', () => {
-    const platform = {negotiation: {environment: 'tauri'}};
+    const platform = {
+        negotiation: {environment: 'tauri'},
+        chooseSaveTarget: mocks.chooseSaveTarget,
+    };
     return {usePlatformCapabilities: () => platform};
 });

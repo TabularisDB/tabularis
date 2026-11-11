@@ -2493,6 +2493,7 @@ mod tests {
                         &params,
                         "owned.tmp",
                         &DatabaseSqlExportOptions {
+                            format: None,
                             structure: true,
                             data: true,
                             tables: None

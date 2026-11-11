@@ -2456,6 +2456,10 @@
     "dismiss": "知道了"
   },
   "dump": {
+    "format": "备份格式",
+    "sqlFormat": "SQL 脚本 (.sql)",
+    "firebirdFormat": "完整 Firebird 备份 (.fbk)",
+    "nativeBackupDescription": "包含整个数据库、数组和对象所有者。恢复需要新的数据库路径。外部表数据将转为普通表；不会重新创建源影子文件。",
     "emptyTargetRequired": "恢复到新的或空的数据库。绝不会覆盖现有数据库。",
     "createDatabase": "创建新数据库",
     "serverDatabasePath": "数据库服务器上的数据库路径或别名",

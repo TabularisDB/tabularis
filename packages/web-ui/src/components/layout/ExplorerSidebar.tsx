@@ -987,8 +987,15 @@ export const ExplorerSidebar = ({
             : undefined;
 
     const handleImportDatabase = async (database?: string, schema?: string) => {
+        const capabilities = activeConnectionId
+            ? await client
+                  .call('get_database_sql_capabilities', {connectionId: activeConnectionId})
+                  .catch(() => null)
+            : null;
         const inputFile = await platform.chooseInputFile({
-            filters: [{name: 'SQL / Zip File', extensions: ['sql', 'zip']}],
+            filters: capabilities?.native_backup
+                ? [{name: 'SQL / Zip / Firebird Backup', extensions: ['sql', 'zip', 'fbk']}]
+                : [{name: 'SQL / Zip File', extensions: ['sql', 'zip']}],
         });
         if (inputFile) {
             setPendingImport({

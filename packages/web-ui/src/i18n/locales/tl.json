@@ -2567,6 +2567,10 @@
     "dismiss": "Nakuha ko na"
   },
   "dump": {
+    "format": "Format ng backup",
+    "sqlFormat": "SQL script (.sql)",
+    "firebirdFormat": "Kumpletong Firebird backup (.fbk)",
+    "nativeBackupDescription": "Kasama ang buong database, mga array at may-ari ng mga object. Kailangan ng bagong database path sa pagpapanumbalik. Nagiging karaniwang table ang mga external table; hindi muling ginagawa ang orihinal na shadow file.",
     "emptyTargetRequired": "Ibalik sa bago o walang laman na database. Hindi ino-overwrite ang mga kasalukuyang database.",
     "createDatabase": "Gumawa ng bagong database",
     "serverDatabasePath": "Path o alias ng database sa server",

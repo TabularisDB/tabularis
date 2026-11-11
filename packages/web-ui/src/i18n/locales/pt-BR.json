@@ -2548,6 +2548,10 @@
     "dismiss": "Entendi"
   },
   "dump": {
+    "format": "Formato do backup",
+    "sqlFormat": "Script SQL (.sql)",
+    "firebirdFormat": "Backup completo do Firebird (.fbk)",
+    "nativeBackupDescription": "Inclui todo o banco, arrays e proprietários. A restauração exige um novo caminho. Tabelas externas tornam-se tabelas comuns; os arquivos de sombra originais não são recriados.",
     "emptyTargetRequired": "Restaure em um banco de dados novo ou vazio. Bancos de dados existentes nunca são sobrescritos.",
     "createDatabase": "Criar um novo banco de dados",
     "serverDatabasePath": "Caminho ou alias do banco de dados no servidor",
