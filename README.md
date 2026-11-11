@@ -373,11 +373,12 @@ Portal command reads reuse one cached D-Bus connection, while the live watcher k
 
 Optional Text-to-SQL and query explanation powered by **OpenAI**, **Anthropic**, **MiniMax**, **OpenRouter**, **Requesty**, **Ollama** (local models, no API key, full privacy), and any **OpenAI-compatible API** (Groq, Perplexity, Azure OpenAI, LocalAI, ...). Model lists are fetched from your provider and cached locally; custom models can be configured per provider.
 
-Install AI providers from **Settings → Plugins → AI assistants**, then select one
-in **Settings → AI**. Providers are declarative packages updated independently
-of Tabularis. Previously configured providers are downloaded automatically after
-upgrading, retaining credentials and settings; failed downloads can be retried
-from AI settings. ChatGPT account login remains built in.
+The existing providers are **built in** and remain available offline. Install
+additional providers, including **Google Gemini**, directly from **Settings → AI**
+with **Install and use**, or manage external packages in the Plugin Center.
+All API-key providers share a declarative HTTP runtime; existing credentials,
+models, endpoints and proxy settings are preserved on upgrade. ChatGPT account
+login remains built in.
 
 To publish a provider, see the [AI assistant package guide](plugins/ai-assistants/README.md).
 

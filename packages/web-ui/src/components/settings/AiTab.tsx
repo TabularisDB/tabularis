@@ -30,6 +30,7 @@ import {Select} from '@/components/ui/Select';
 import {SettingSection, SettingRow, SettingToggle} from './SettingControls';
 import {ProxyOverrideEditor} from './ProxyFields';
 import {ChatGptSettings} from './ChatGptSettings';
+import {AiProviderCatalog} from './AiProviderCatalog';
 import {
     defaultProxyOverride,
     normalizeProxyOverride,
@@ -50,6 +51,7 @@ export function AiTab() {
         error: providerError,
         loading: providersLoading,
         retryMigration,
+        refresh: refreshProviders,
     } = useAiProviders();
     const selectedProvider = providers.find((provider) => provider.id === settings.aiProvider);
     const requiresKey = selectedProvider?.ai_assistant.authentication === 'api-key';
@@ -68,7 +70,12 @@ export function AiTab() {
             ...providers.map((provider) => ({
                 id: provider.id,
                 label: provider.name,
-                icon: <Sparkles size={18} />,
+                icon: provider.icon ? (
+                    <img src={provider.icon} alt="" className="h-5 w-5" />
+                ) : (
+                    <Sparkles size={18} />
+                ),
+                builtin: provider.builtin,
                 authentication: provider.ai_assistant.authentication,
             })),
         ],
@@ -334,6 +341,11 @@ export function AiTab() {
                                         <span className="block text-sm font-medium leading-5">
                                             {p.label}
                                         </span>
+                                        {'builtin' in p && p.builtin && (
+                                            <span className="block text-xs text-muted">
+                                                {t('settings.ai.builtinProvider')}
+                                            </span>
+                                        )}
                                         <span className="mt-0.5 block text-xs text-muted">
                                             {t(
                                                 p.authentication === 'account'
@@ -356,6 +368,17 @@ export function AiTab() {
                         })}
                     </div>
                 </SettingSection>
+
+                <AiProviderCatalog
+                    installedIds={providers.map((provider) => provider.id)}
+                    onInstalled={async (id) => {
+                        await refreshProviders();
+                        await updateSetting('aiModel', '');
+                        await updateSetting('aiProvider', id);
+                        setKeyInput('');
+                        setEditingKey(false);
+                    }}
+                />
 
                 {/* Provider configuration */}
                 {settings.aiProvider && (settings.aiProvider === 'chatgpt' || selectedProvider) && (

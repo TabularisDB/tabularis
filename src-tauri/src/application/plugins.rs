@@ -136,10 +136,12 @@ pub async fn fetch_plugin_registry(
         // Unknown or ambiguous kinds have no install path; keep them out of the
         // Plugin Center so the kind filter only ever offers drivers and themes.
         .filter(|plugin| {
-            matches!(
-                plugin.kind.as_deref(),
-                None | Some("driver") | Some("theme") | Some("ai-assistant")
-            )
+            !(plugin.kind.as_deref() == Some(crate::ai_assistants::KIND)
+                && crate::ai_assistants::is_builtin(&plugin.id))
+                && matches!(
+                    plugin.kind.as_deref(),
+                    None | Some("driver") | Some("theme") | Some("ai-assistant")
+                )
         })
         .map(|plugin| {
             let (installed_version, platform) = if plugin.kind.as_deref() == Some("theme") {

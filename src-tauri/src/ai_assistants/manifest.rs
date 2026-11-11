@@ -120,6 +120,10 @@ pub struct AssistantManifest {
     pub description: String,
     pub kind: String,
     #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default, skip_deserializing)]
+    pub builtin: bool,
+    #[serde(default)]
     pub min_runtime_version: Option<String>,
     pub ai_assistant: AssistantContract,
     #[serde(default)]
@@ -182,6 +186,9 @@ pub fn parse_manifest(source: &[u8]) -> Result<AssistantManifest, String> {
 }
 
 pub fn read_manifest(root: &Path, id: &str) -> Result<AssistantManifest, String> {
+    if let Some(manifest) = builtin_manifest(id) {
+        return manifest;
+    }
     let dir = destination(root, id)?;
     let path = dir.join(".tabularium");
     let meta = std::fs::symlink_metadata(&path).map_err(|_| {
@@ -204,13 +211,59 @@ pub fn read_manifest(root: &Path, id: &str) -> Result<AssistantManifest, String>
 }
 
 pub fn list_installed(root: &Path) -> Vec<AssistantManifest> {
-    let Ok(entries) = std::fs::read_dir(root.join(KIND)) else {
-        return vec![];
-    };
-    let mut manifests = entries
-        .filter_map(Result::ok)
-        .filter_map(|entry| read_manifest(root, &entry.file_name().to_string_lossy()).ok())
+    let mut manifests = BUILTIN_IDS
+        .iter()
+        .filter_map(|id| builtin_manifest(id)?.ok())
         .collect::<Vec<_>>();
+    if let Ok(entries) = std::fs::read_dir(root.join(KIND)) {
+        manifests.extend(entries.filter_map(Result::ok).filter_map(|entry| {
+            let id = entry.file_name().to_string_lossy().into_owned();
+            if is_builtin(&id) {
+                None
+            } else {
+                read_manifest(root, &id).ok()
+            }
+        }));
+    }
     manifests.sort_by(|a, b| a.name.cmp(&b.name));
     manifests
+}
+
+pub const BUILTIN_IDS: &[&str] = &[
+    "openai",
+    "anthropic",
+    "ollama",
+    "openrouter",
+    "requesty",
+    "minimax",
+    "custom-openai",
+];
+
+pub fn is_builtin(id: &str) -> bool {
+    BUILTIN_IDS.contains(&id)
+}
+
+fn builtin_manifest(id: &str) -> Option<Result<AssistantManifest, String>> {
+    let source: &[u8] = match id {
+        "openai" => include_bytes!("../../../plugins/ai-assistants/packages/openai/.tabularium"),
+        "anthropic" => {
+            include_bytes!("../../../plugins/ai-assistants/packages/anthropic/.tabularium")
+        }
+        "ollama" => include_bytes!("../../../plugins/ai-assistants/packages/ollama/.tabularium"),
+        "openrouter" => {
+            include_bytes!("../../../plugins/ai-assistants/packages/openrouter/.tabularium")
+        }
+        "requesty" => {
+            include_bytes!("../../../plugins/ai-assistants/packages/requesty/.tabularium")
+        }
+        "minimax" => include_bytes!("../../../plugins/ai-assistants/packages/minimax/.tabularium"),
+        "custom-openai" => {
+            include_bytes!("../../../plugins/ai-assistants/packages/custom-openai/.tabularium")
+        }
+        _ => return None,
+    };
+    Some(parse_manifest(source).map(|mut manifest| {
+        manifest.builtin = true;
+        manifest
+    }))
 }

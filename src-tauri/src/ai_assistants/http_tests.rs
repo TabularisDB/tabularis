@@ -226,18 +226,58 @@ async fn providers_without_authentication_never_read_the_keychain() {
     let mut manifest = tests::package("ollama");
     manifest["ai_assistant"]["models"]["sources"][0]["request"]["url"] =
         json!(format!("http://{addr}"));
-    let directory = destination(&runtime.paths.plugins_dir(), "ollama").unwrap();
+    manifest["id"] = json!("local-fixture");
+    let directory = destination(&runtime.paths.plugins_dir(), "local-fixture").unwrap();
     std::fs::create_dir_all(&directory).unwrap();
     std::fs::write(directory.join(".tabularium"), manifest.to_string()).unwrap();
     let result = call(
         &runtime,
         &crate::credential_cache::CredentialCache::default(),
-        "ollama",
+        "local-fixture",
         "list_models",
         Value::Null,
     )
     .await
     .unwrap();
     assert_eq!(result, json!(["local-model"]));
+    task.abort();
+}
+
+#[tokio::test]
+async fn gemini_native_api_supports_model_resources_settings_and_filtered_discovery() {
+    let (addr, state, task) = fixture(vec![
+        (StatusCode::OK, json!({"models":[{"name":"models/gemini-test","supportedGenerationMethods":["generateContent"]},{"name":"models/embed","supportedGenerationMethods":["embedContent"]}]})),
+        (StatusCode::OK, json!({"candidates":[{"content":{"parts":[{"thought":true,"text":"private reasoning"},{"text":"SELECT 1;"}]}}]})),
+    ]).await;
+    let mut manifest = parse_manifest(tests::package("gemini").to_string().as_bytes()).unwrap();
+    manifest.ai_assistant.default_models.clear();
+    route(&mut manifest.ai_assistant.models.sources[0].request, addr);
+    manifest.ai_assistant.generate.requests[0].url =
+        format!("http://{addr}/v1beta/{{{{model}}}}:generateContent");
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let models = http::execute(
+        &client,
+        &manifest,
+        &json!({"settings":{}}),
+        Some("fixture-key"),
+        "list_models",
+    )
+    .await
+    .unwrap();
+    assert_eq!(models, json!(["models/gemini-test"]));
+    let result = http::execute(&client, &manifest, &json!({"settings":{},"model":"models/gemini-test","prompt":"Count customers","system_prompt":"SQL only"}), Some("fixture-key"), "generate").await.unwrap();
+    assert_eq!(result, "SELECT 1;");
+    let captured = state.captured.lock().unwrap();
+    assert_eq!(captured[1].0, "/v1beta/models/gemini-test:generateContent");
+    assert_eq!(captured[1].1["x-goog-api-key"], "fixture-key");
+    assert!(!captured[1].1.contains_key("authorization"));
+    assert_eq!(
+        captured[1].2["systemInstruction"]["parts"][0]["text"],
+        "SQL only"
+    );
+    assert_eq!(
+        captured[1].2["contents"][0]["parts"][0]["text"],
+        "Count customers"
+    );
     task.abort();
 }

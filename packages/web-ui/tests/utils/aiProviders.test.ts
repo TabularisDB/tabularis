@@ -27,3 +27,10 @@ describe('mergeLocalAiProviders', () => {
         expect(mergeLocalAiProviders([{...remote, kind: 'driver'}], [provider])).toHaveLength(2);
     });
 });
+
+it('never exposes built-in providers as removable or updatable packages', () => {
+    const local = mergeLocalAiProviders([], [provider])[0];
+    const builtin = {...provider, builtin: true};
+    expect(mergeLocalAiProviders([{...local, latest_version: '99.0.0'}], [builtin])).toEqual([]);
+    expect(mergeLocalAiProviders([], [builtin])).toEqual([]);
+});

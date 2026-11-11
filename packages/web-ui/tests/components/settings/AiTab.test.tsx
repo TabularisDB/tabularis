@@ -103,3 +103,7 @@ vi.mock('@/hooks/useTabularisClient', () => {
 vi.mock('@/hooks/usePlatformCapabilities', () => ({
     usePlatformCapabilities: () => ({negotiation: {environment: 'tauri'}}),
 }));
+
+vi.mock('@/hooks/usePluginRegistry', () => ({
+    usePluginRegistry: () => ({plugins: [], loading: false, error: null, refresh: vi.fn()}),
+}));

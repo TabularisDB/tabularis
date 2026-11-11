@@ -833,7 +833,16 @@
       "manageProviders": "Sfoglia i provider AI",
       "retryMigration": "Riprova i download",
       "pluginMigration": "Ripristino dei provider AI: {{providers}}. I download verranno ritentati dopo un errore di rete.",
-      "providerMissing": "{{provider}} non è installato. Installalo dal Plugin Center per continuare a usare la configurazione salvata."
+      "providerMissing": "{{provider}} non è installato. Installalo dal Plugin Center per continuare a usare la configurazione salvata.",
+      "availableProviders": "Provider disponibili",
+      "installProviderHelp": "Installa e seleziona un provider AI senza uscire da queste impostazioni.",
+      "installAndUse": "Installa e usa",
+      "installAndUseProvider": "Installa e usa {{provider}}",
+      "installingProvider": "Installazione del provider…",
+      "providerRegistryOffline": "Il registro dei provider non è disponibile. I provider installati restano disponibili.",
+      "allProvidersInstalled": "Tutti i provider disponibili sono installati.",
+      "providerRequiresUpdate": "Questo provider richiede una versione o una piattaforma compatibile.",
+      "builtinProvider": "Integrato"
     },
     "updates": "Aggiornamenti",
     "openSourceLibraries": "Librerie Open Source",

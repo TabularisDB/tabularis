@@ -7,6 +7,13 @@ export function mergeLocalAiProviders(
     remote: RegistryPluginWithStatus[],
     installed: AiAssistantManifest[],
 ): RegistryPluginWithStatus[] {
+    const builtinIds = new Set(
+        installed.filter((provider) => provider.builtin).map((provider) => provider.id),
+    );
+    remote = remote.filter(
+        (plugin) => plugin.kind !== 'ai-assistant' || !builtinIds.has(plugin.id),
+    );
+    installed = installed.filter((provider) => !provider.builtin);
     const known = new Set(
         remote.filter((plugin) => plugin.kind === 'ai-assistant').map((plugin) => plugin.id),
     );
@@ -31,6 +38,7 @@ export function mergeLocalAiProviders(
                 kind: 'ai-assistant',
                 author: '',
                 homepage: '',
+                icon: plugin.icon ?? undefined,
                 latest_version: plugin.version,
                 installed_version: plugin.version,
                 update_available: false,

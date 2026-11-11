@@ -66,21 +66,27 @@ fn validates_every_provider_as_data_and_rejects_executable_extensions() {
 fn failed_update_preserves_installed_provider_and_never_enters_driver_discovery() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("plugins");
-    let dest = destination(&root, "openai").unwrap();
+    let dest = destination(&root, "gemini").unwrap();
     let guard = crate::plugins::install_cancellation::begin("archive-test-openai").unwrap();
-    let good = archive(&package("openai"), None);
-    install::install_archive(&dest, "openai", "1.0.0", &good, guard.cancellation()).unwrap();
+    let good = archive(&package("gemini"), None);
+    install::install_archive(&dest, "gemini", "1.0.1", &good, guard.cancellation()).unwrap();
     for bad in [
         archive(&package("anthropic"), None),
-        archive(&package("openai"), Some("../escape")),
-        archive(&package("openai"), Some("code.js")),
+        archive(&package("gemini"), Some("../escape")),
+        archive(&package("gemini"), Some("code.js")),
     ] {
         assert!(
-            install::install_archive(&dest, "openai", "1.0.0", &bad, guard.cancellation()).is_err()
+            install::install_archive(&dest, "gemini", "1.0.1", &bad, guard.cancellation()).is_err()
         );
-        assert_eq!(read_manifest(&root, "openai").unwrap().version, "1.0.0");
+        assert_eq!(read_manifest(&root, "gemini").unwrap().version, "1.0.1");
     }
-    assert_eq!(list_installed(&root).len(), 1);
+    assert_eq!(
+        list_installed(&root)
+            .iter()
+            .filter(|provider| !provider.builtin)
+            .count(),
+        1
+    );
     assert!(crate::plugins::installer::list_installed_from(&root).is_empty());
 }
 
@@ -200,9 +206,9 @@ async fn completed_migration_preserves_settings_and_does_not_undo_uninstall() {
         settings["custom-openai"].settings["model"],
         "saved-custom-model"
     );
-    uninstall(&runtime, "ollama").unwrap();
+    assert!(uninstall(&runtime, "ollama").is_err());
     migrate_legacy_providers(&runtime, &cache).await.unwrap();
-    assert!(!destination(&runtime.paths.plugins_dir(), "ollama")
+    assert!(destination(&runtime.paths.plugins_dir(), "ollama")
         .unwrap()
         .exists());
     let state: Value = serde_json::from_slice(&std::fs::read(marker).unwrap()).unwrap();
@@ -213,13 +219,13 @@ async fn completed_migration_preserves_settings_and_does_not_undo_uninstall() {
 fn interrupted_update_recovers_the_previous_declarative_package() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("plugins");
-    let original = destination(&root, "openai").unwrap();
+    let original = destination(&root, "gemini").unwrap();
     std::fs::create_dir_all(&original).unwrap();
-    std::fs::write(original.join(".tabularium"), package("openai").to_string()).unwrap();
-    let backup = root.join(KIND).join(".backup-openai");
+    std::fs::write(original.join(".tabularium"), package("gemini").to_string()).unwrap();
+    let backup = root.join(KIND).join(".backup-gemini");
     std::fs::rename(&original, &backup).unwrap();
     recover_installations(&root);
-    assert_eq!(read_manifest(&root, "openai").unwrap().version, "1.0.0");
+    assert_eq!(read_manifest(&root, "gemini").unwrap().version, "1.0.1");
     assert!(!backup.exists());
 }
 
@@ -248,7 +254,13 @@ async fn offline_upgrade_keeps_its_pending_snapshot_and_retries_without_resettin
     let cache = crate::credential_cache::CredentialCache::default();
     migrate_legacy_providers(&runtime, &cache).await.unwrap();
     let state: Value = serde_json::from_slice(&std::fs::read(&marker).unwrap()).unwrap();
-    assert_eq!(state["pending"], json!(["openai"]));
+    assert_eq!(state["pending"], json!([]));
+    assert_eq!(state["completed"], json!(["openai"]));
+    assert!(
+        read_manifest(&runtime.paths.plugins_dir(), "openai")
+            .unwrap()
+            .builtin
+    );
     let directory = destination(&runtime.paths.plugins_dir(), "openai").unwrap();
     std::fs::create_dir_all(&directory).unwrap();
     std::fs::write(directory.join(".tabularium"), package("openai").to_string()).unwrap();
@@ -261,4 +273,66 @@ async fn offline_upgrade_keeps_its_pending_snapshot_and_retries_without_resettin
             .as_deref(),
         Some("saved-model")
     );
+}
+
+#[test]
+fn builtin_providers_are_available_offline_and_cannot_be_shadowed() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("plugins");
+    let providers = list_installed(&root);
+    assert_eq!(providers.len(), manifest::BUILTIN_IDS.len());
+    assert!(providers
+        .iter()
+        .all(|provider| provider.builtin && provider.icon.is_some()));
+    let directory = destination(&root, "openrouter").unwrap();
+    std::fs::create_dir_all(&directory).unwrap();
+    let mut spoofed = package("openrouter");
+    spoofed["ai_assistant"]["generate"]["requests"][0]["url"] = json!("https://untrusted.invalid");
+    std::fs::write(directory.join(".tabularium"), spoofed.to_string()).unwrap();
+    let provider = read_manifest(&root, "openrouter").unwrap();
+    assert!(provider.builtin);
+    assert_eq!(
+        provider.ai_assistant.generate.requests[0].url,
+        "https://openrouter.ai/api/v1"
+    );
+    assert_eq!(list_installed(&root).len(), providers.len());
+    assert!(read_manifest(&root, "gemini").is_err());
+    let guard = crate::plugins::install_cancellation::begin("builtin-shadow-fixture").unwrap();
+    assert!(install::install_archive(
+        &directory,
+        "openrouter",
+        "1.0.0",
+        &archive(&spoofed, None),
+        guard.cancellation()
+    )
+    .is_err());
+}
+
+#[test]
+fn gemini_model_url_resources_are_encoded_without_changing_the_origin() {
+    let manifest = parse_manifest(package("gemini").to_string().as_bytes()).unwrap();
+    let template = &manifest.ai_assistant.generate.requests[0].url;
+    let url =
+        recipe::request_url(template, "", &json!({"model":"models/gemini-2.5-flash"})).unwrap();
+    assert_eq!(
+        url.as_str(),
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    );
+    for model in ["../escape", "models/../escape", "", "models//name"] {
+        assert!(recipe::request_url(template, "", &json!({"model":model})).is_err());
+    }
+    let url = recipe::request_url(
+        template,
+        "",
+        &json!({"model":"models/name?key=leak#fragment"}),
+    )
+    .unwrap();
+    assert_eq!(url.host_str(), Some("generativelanguage.googleapis.com"));
+    assert!(url.query().is_none() && url.fragment().is_none());
+    for template in [
+        "https://{{model}}/generate",
+        "https://example.invalid?model={{model}}",
+    ] {
+        assert!(recipe::request_url(template, "", &json!({"model":"evil.invalid"})).is_err());
+    }
 }

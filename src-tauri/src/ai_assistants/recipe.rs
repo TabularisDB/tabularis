@@ -86,8 +86,38 @@ pub fn request_url(template: &str, append: &str, variables: &Value) -> Result<ur
         let (name, tail) = tail
             .split_once("}}")
             .ok_or("Invalid AI assistant URL template")?;
+        if name == "model" {
+            // Model resources may contain a namespace (models/name, org/name),
+            // but cannot replace an origin or escape its resource path.
+            let prefix = url::Url::parse(&output)
+                .map_err(|_| "Model URL variables require an absolute endpoint prefix")?;
+            if prefix.host_str().is_none()
+                || prefix.query().is_some()
+                || prefix.fragment().is_some()
+                || !output.ends_with('/')
+            {
+                return Err("Model URL variables are only supported in resource paths".into());
+            }
+            let model = variable(name, variables)?
+                .as_str()
+                .filter(|model| !model.is_empty() && model.len() <= 512)
+                .ok_or("Missing or invalid AI assistant model")?;
+            let mut encoded = Vec::new();
+            for segment in model.split('/') {
+                if segment.is_empty() || matches!(segment, "." | "..") {
+                    return Err("Invalid AI assistant model resource path".into());
+                }
+                encoded.push(urlencoding::encode(segment));
+            }
+            output.push_str(&encoded.join("/"));
+            rest = tail;
+            continue;
+        }
         if !name.starts_with("settings.") {
-            return Err("Only user settings can be interpolated into AI assistant URLs".into());
+            return Err(
+                "Only settings and model resources can be interpolated into AI assistant URLs"
+                    .into(),
+            );
         }
         let value = variable(name, variables)?;
         let text = value

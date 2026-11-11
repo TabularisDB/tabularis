@@ -773,7 +773,16 @@
       "manageProviders": "Browse AI providers",
       "retryMigration": "Retry downloads",
       "pluginMigration": "Restoring your AI providers: {{providers}}. Downloads retry after a network failure.",
-      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration."
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Install and select an AI provider without leaving these settings.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in"
     },
     "updates": "Updates",
     "openSourceLibraries": "Open-Source-Bibliotheken",

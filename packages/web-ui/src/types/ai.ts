@@ -16,6 +16,8 @@ export interface AiAssistantManifest {
     version: string;
     description: string;
     kind: 'ai-assistant';
+    builtin?: boolean;
+    icon?: string | null;
     ai_assistant: {
         api_version: 1;
         authentication: 'api-key' | 'none';

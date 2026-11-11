@@ -14,6 +14,9 @@ pub async fn install(
     base: &str,
     cancellation: &InstallCancellation,
 ) -> Result<(), String> {
+    if super::is_builtin(id) {
+        return Err("Built-in AI providers are updated with the application".into());
+    }
     let final_dir = destination(&runtime.paths.plugins_dir(), id)?;
     let detail = tabularium::fetch_plugin_detail(base, id).await?;
     if detail.kind.as_deref() != Some(KIND) {
@@ -66,6 +69,9 @@ pub(crate) fn install_archive(
     bytes: &[u8],
     cancellation: &InstallCancellation,
 ) -> Result<(), String> {
+    if super::is_builtin(id) {
+        return Err("Built-in AI providers cannot be replaced by external packages".into());
+    }
     let parent = final_dir
         .parent()
         .ok_or("Invalid AI assistant install path")?;
@@ -111,7 +117,14 @@ pub(crate) fn install_archive(
         if file.is_dir() {
             continue;
         }
-        if ![".tabularium", "README.md", "LICENSE", "LICENSE.txt"].contains(&file.name())
+        if ![
+            ".tabularium",
+            "README.md",
+            "LICENSE",
+            "LICENSE.txt",
+            "icon.svg",
+        ]
+        .contains(&file.name())
             || !seen.insert(file.name().to_string())
             || file
                 .unix_mode()
@@ -161,6 +174,9 @@ pub(crate) fn install_archive(
 }
 
 pub fn uninstall(runtime: &RuntimeContext, id: &str) -> Result<(), String> {
+    if super::is_builtin(id) {
+        return Err("Built-in AI providers cannot be removed".into());
+    }
     let directory = destination(&runtime.paths.plugins_dir(), id)?;
     let _lock = package_lock(directory.parent().ok_or("Invalid AI assistant path")?, id)?;
     read_manifest(&runtime.paths.plugins_dir(), id)?;

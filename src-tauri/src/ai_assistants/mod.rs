@@ -8,7 +8,7 @@ mod recipe;
 pub use http::call;
 pub use install::{install, recover_installations, uninstall};
 pub use manifest::{
-    destination, list_installed, parse_manifest, read_manifest, AssistantContract,
+    destination, is_builtin, list_installed, parse_manifest, read_manifest, AssistantContract,
     AssistantManifest, Authentication, GenerationRecipe, HttpRequest, JsonFilter, ModelDiscovery,
     ModelSource, ResponseRecipe,
 };

@@ -1,0 +1,73 @@
+{
+  "id": "gemini",
+  "name": "Google Gemini",
+  "version": "1.0.1",
+  "kind": "ai-assistant",
+  "description": "Google Gemini assistant using the native generateContent API.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "api_key_env": "GEMINI_API_KEY",
+    "api_key_header": "x-goog-api-key",
+    "api_key_prefix": "",
+    "default_models": [
+      "models/gemini-flash-latest"
+    ],
+    "generate": {
+      "requests": [
+        {
+          "url": "https://generativelanguage.googleapis.com/v1beta/{{model}}:generateContent",
+          "body": {
+            "systemInstruction": {
+              "parts": [
+                {
+                  "text": "{{system_prompt}}"
+                }
+              ]
+            },
+            "contents": [
+              {
+                "role": "user",
+                "parts": [
+                  {
+                    "text": "{{prompt}}"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "response": {
+        "path": "/candidates/0/content/parts",
+        "select": {
+          "path": "/thought",
+          "equals": false,
+          "missing_matches": true
+        },
+        "value_path": "/text"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://generativelanguage.googleapis.com/v1beta/models"
+          },
+          "items_path": "/models",
+          "id_path": "/name",
+          "filters": [
+            {
+              "path": "/supportedGenerationMethods",
+              "contains": "generateContent"
+            }
+          ]
+        }
+      ],
+      "cache_seconds": 86400
+    }
+  },
+  "settings": [],
+  "license": "Apache-2.0",
+  "icon": "https://raw.githubusercontent.com/TabularisDB/tabularis-gemini-plugin/main/icon.svg"
+}

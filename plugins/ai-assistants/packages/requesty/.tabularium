@@ -95,5 +95,6 @@
     }
   },
   "settings": [],
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzY0NzQ4YiI+PHBhdGggZD0iTTguNSAxNy41di0xMWg0LjI1YTMuMjUgMy4yNSAwIDAxMCA2LjVIOC41bTQgMCAzLjUgNC41IiAvPjwvc3ZnPgo="
 }

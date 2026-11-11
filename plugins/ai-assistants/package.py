@@ -11,8 +11,12 @@ args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 for manifest in sorted((Path(__file__).parent / "packages").glob("*/.tabularium")):
     data = json.loads(manifest.read_text())
+    if data["id"] in {"openai", "anthropic", "ollama", "openrouter", "requesty", "minimax", "custom-openai"}:
+        continue
     target = args.output / f"{data['id']}-{data['version']}-universal.zip"
     with ZipFile(target, "w", ZIP_DEFLATED) as archive:
         archive.write(manifest, ".tabularium")
+        if manifest.with_name("icon.svg").exists():
+            archive.write(manifest.with_name("icon.svg"), "icon.svg")
         archive.write(Path(__file__).resolve().parents[2] / "LICENSE", "LICENSE")
     print(target)

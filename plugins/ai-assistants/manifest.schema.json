@@ -345,7 +345,8 @@
     },
     "icon": {
       "type": "string",
-      "maxLength": 2048
+      "maxLength": 16384,
+      "pattern": "^(https://|data:image/svg\\+xml;base64,)"
     },
     "author": {
       "type": "string",
