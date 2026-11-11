@@ -468,3 +468,85 @@ async fn a_version_history_failure_does_not_block_the_save() {
     .unwrap();
     assert_eq!(queries[0].sql, "SELECT 2");
 }
+
+#[tokio::test]
+async fn query_history_insights_counts_consecutive_executions_and_isolates_connections() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_dir = temp.path();
+
+    for (idx, ms) in [(1, 100.0), (2, 120.0), (3, 140.0)] {
+        execute(
+            config_dir,
+            ProductivityCommand::AddQueryHistoryEntry {
+                connection_id: "connection-a".to_string(),
+                sql: "SELECT * FROM users WHERE id = 1".to_string(),
+                executed_at: format!("2026-08-22T0{idx}:00:00Z"),
+                execution_time_ms: Some(ms),
+                status: "success".to_string(),
+                rows_affected: Some(1),
+                error: None,
+                database: Some("app".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    // Another connection's executions must never leak into connection-a's insights
+    execute(
+        config_dir,
+        ProductivityCommand::AddQueryHistoryEntry {
+            connection_id: "connection-b".to_string(),
+            sql: "SELECT * FROM users WHERE id = 1".to_string(),
+            executed_at: "2026-08-22T04:00:00Z".to_string(),
+            execution_time_ms: Some(999.0),
+            status: "error".to_string(),
+            rows_affected: None,
+            error: Some("boom".to_string()),
+            database: Some("app".to_string()),
+        },
+    )
+    .await
+    .unwrap();
+
+    // The history list still deduplicates consecutive identical queries for connection-a
+    let list_res: QueryHistoryResponse = from_value(
+        execute(
+            config_dir,
+            ProductivityCommand::GetQueryHistory {
+                connection_id: "connection-a".to_string(),
+            },
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(list_res.entries.len(), 1);
+
+    // Insights aggregates all 3 recorded executions for connection-a
+    let insights: crate::query_history::QueryHistoryInsightsResponse = from_value(
+        execute(
+            config_dir,
+            ProductivityCommand::GetQueryHistoryInsights {
+                request: crate::query_history::QueryHistoryInsightsRequest {
+                    connection_id: "connection-a".to_string(),
+                    database: Some("db:app".to_string()),
+                    window_hours: Some(24),
+                    dialect: Some("postgres".to_string()),
+                    now: Some("2026-08-22T12:00:00Z".to_string()),
+                    max_groups: None,
+                    max_executions_per_group: None,
+                },
+            },
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(insights.groups.len(), 1);
+    assert_eq!(insights.groups[0].call_count, 3);
+    assert_eq!(insights.groups[0].timed_sample_count, 3);
+    assert_eq!(insights.groups[0].avg_duration_ms, Some(120.0));
+    assert_eq!(insights.groups[0].failure_count, 0);
+    assert_eq!(insights.groups[0].contributing_executions.len(), 3);
+}

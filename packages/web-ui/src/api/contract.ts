@@ -36,7 +36,12 @@ import type {MonacoThemeDefinition, Theme} from '@/types/theme';
 import type {Settings} from '@/contexts/SettingsContext';
 import type {SavedQuery, SavedQueryFolder, SavedQueryVersion} from '@/contexts/SavedQueriesContext';
 import type {ColumnStatsRequest, PluginColumnStats} from '@/utils/columnStats';
-import type {QueryHistoryEntry, QueryHistoryResponse} from '@/types/queryHistory';
+import type {
+    QueryHistoryEntry,
+    QueryHistoryInsightsRequest,
+    QueryHistoryInsightsResponse,
+    QueryHistoryResponse,
+} from '@/types/queryHistory';
 import type {UserOverrides} from '@/utils/keybindings';
 import type {NotebookMetadata} from '@/types/notebook';
 import type {
@@ -1143,6 +1148,11 @@ export interface CommandMap {
         'database'
     >;
     clear_query_history: CommandDefinition<ConnectionIdRequest, void, 'database'>;
+    get_query_history_insights: CommandDefinition<
+        QueryHistoryInsightsRequest,
+        QueryHistoryInsightsResponse,
+        'database'
+    >;
 
     create_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;
     save_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;

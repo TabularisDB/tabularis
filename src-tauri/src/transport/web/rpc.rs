@@ -323,6 +323,7 @@ enum ProductivityRpcCommand {
     AddQueryHistoryEntry,
     DeleteQueryHistoryEntry,
     ClearQueryHistory,
+    GetQueryHistoryInsights,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -869,6 +870,24 @@ struct AddQueryHistoryEntryRequest {
     rows_affected: Option<i64>,
     error: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct GetQueryHistoryInsightsRpcRequest {
+    connection_id: String,
+    #[serde(default)]
+    database: Option<String>,
+    #[serde(default)]
+    window_hours: Option<u32>,
+    #[serde(default)]
+    dialect: Option<String>,
+    #[serde(default)]
+    now: Option<String>,
+    #[serde(default)]
+    max_groups: Option<usize>,
+    #[serde(default)]
+    max_executions_per_group: Option<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -2414,6 +2433,7 @@ impl ProductivityRpcCommand {
             "add_query_history_entry" => Self::AddQueryHistoryEntry,
             "delete_query_history_entry" => Self::DeleteQueryHistoryEntry,
             "clear_query_history" => Self::ClearQueryHistory,
+            "get_query_history_insights" => Self::GetQueryHistoryInsights,
             _ => return None,
         })
     }
@@ -3290,6 +3310,20 @@ fn decode_productivity_command(
             let request: ConnectionIdRequest = decode_payload(body)?;
             ProductivityCommand::ClearQueryHistory {
                 connection_id: request.connection_id,
+            }
+        }
+        ProductivityRpcCommand::GetQueryHistoryInsights => {
+            let request: GetQueryHistoryInsightsRpcRequest = decode_payload(body)?;
+            ProductivityCommand::GetQueryHistoryInsights {
+                request: crate::query_history::QueryHistoryInsightsRequest {
+                    connection_id: request.connection_id,
+                    database: request.database,
+                    window_hours: request.window_hours,
+                    dialect: request.dialect,
+                    now: request.now,
+                    max_groups: request.max_groups,
+                    max_executions_per_group: request.max_executions_per_group,
+                },
             }
         }
     })
