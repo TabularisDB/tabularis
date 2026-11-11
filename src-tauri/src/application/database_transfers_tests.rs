@@ -6,6 +6,7 @@ use std::time::Duration;
 
 #[tokio::test]
 async fn native_backup_negotiates_support_and_transfers_binary_without_sql_fallback() {
+    let _registry_guard = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
     use crate::drivers::sqlite::SqliteDriver;
     let directory = tempfile::tempdir().unwrap();
     let supported = Arc::new(AtomicBool::new(true));
@@ -96,6 +97,7 @@ async fn native_backup_negotiates_support_and_transfers_binary_without_sql_fallb
     .unwrap_err()
     .contains("does not support"));
     assert_eq!(fs::read(&path).unwrap(), binary);
+    crate::drivers::registry::unregister_driver(&params.driver).await;
 }
 
 #[tokio::test]
