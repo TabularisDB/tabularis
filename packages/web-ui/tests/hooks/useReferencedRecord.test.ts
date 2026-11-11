@@ -79,6 +79,40 @@ describe('useReferencedRecord hook integration', () => {
             });
         });
 
+        it('uses fk.ref_schema when present for cross-schema foreign keys', async () => {
+            const mockInvoke = vi.mocked(invoke);
+            mockInvoke.mockResolvedValueOnce({
+                columns: ['id', 'name'],
+                rows: [[101, 'Org in Core']],
+                affected_rows: 1,
+            });
+
+            await fetchReferencedRecord(
+                {
+                    connectionId: 'conn-123',
+                    fk: {
+                        name: 'fk_carry_forwards_org',
+                        column_name: 'organization_id',
+                        ref_table: 'organizations',
+                        ref_column: 'id',
+                        ref_schema: 'core',
+                    },
+                    value: 101,
+                    driver: 'postgres',
+                    schema: 'billing',
+                },
+                client,
+            );
+
+            expect(mockInvoke).toHaveBeenCalledWith('execute_query', {
+                connectionId: 'conn-123',
+                query: 'SELECT * FROM "core"."organizations" WHERE "id" = 101',
+                limit: 100,
+                page: 1,
+                schema: 'core',
+            });
+        });
+
         it('handles missing value by returning empty QueryResult without executing query', async () => {
             const mockInvoke = vi.mocked(invoke);
             const res = await fetchReferencedRecord(

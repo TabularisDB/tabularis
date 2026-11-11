@@ -114,9 +114,9 @@ export function RelatedRecordsPanel({
                     </span>
                     <span
                         className="text-xs px-2 py-0.5 rounded bg-surface-tertiary/40 border border-strong font-mono truncate text-accent-info max-w-[200px]"
-                        title={fk.ref_table}
+                        title={fk.ref_schema ? `${fk.ref_schema}.${fk.ref_table}` : fk.ref_table}
                     >
-                        {fk.ref_table}
+                        {fk.ref_schema ? `${fk.ref_schema}.${fk.ref_table}` : fk.ref_table}
                     </span>
                     <span className="text-xs text-muted font-medium select-none shrink-0">
                         ({fk.ref_column} = {formattedValue})

@@ -594,7 +594,9 @@ export function DataGridCell({
                                         }}
                                         className="opacity-0 group-hover/fkcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-accent hover:bg-surface-tertiary flex-shrink-0"
                                         title={t('dataGrid.openReferenced', {
-                                            table: fkForPreview.ref_table,
+                                            table: fkForPreview.ref_schema
+                                                ? `${fkForPreview.ref_schema}.${fkForPreview.ref_table}`
+                                                : fkForPreview.ref_table,
                                         })}
                                     >
                                         <ExternalLink size={11} />

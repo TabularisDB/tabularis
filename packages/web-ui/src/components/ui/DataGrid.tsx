@@ -4616,7 +4616,9 @@ export const DataGrid = React.memo(function DataGrid({
                             if (onForeignKeyNavigate) {
                                 menuItems.push({
                                     label: t('dataGrid.openReferenced', {
-                                        table: fkForContextPreview.ref_table,
+                                        table: fkForContextPreview.ref_schema
+                                            ? `${fkForContextPreview.ref_schema}.${fkForContextPreview.ref_table}`
+                                            : fkForContextPreview.ref_table,
                                     }),
                                     icon: ExternalLink,
                                     action: () => {

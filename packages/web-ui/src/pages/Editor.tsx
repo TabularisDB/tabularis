@@ -3260,7 +3260,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 sourceType,
             );
 
-            const targetSchema = activeCapabilities?.schemas ? currentTab.schema : undefined;
+            const targetSchema = activeCapabilities?.schemas
+                ? (fk.ref_schema ?? currentTab.schema)
+                : undefined;
 
             const newTabId = addTab({
                 type: 'table',
@@ -3268,7 +3270,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 schema: targetSchema,
                 database: currentTab.database,
                 title: currentTab.database
-                    ? `${fk.ref_table} (${currentTab.database}${targetSchema ? `.${targetSchema}` : ''})`
+                    ? `${fk.ref_table} (${currentTab.database})`
                     : fk.ref_table,
                 filterClause,
                 // Reset clauses that may linger on an existing dedup'd tab

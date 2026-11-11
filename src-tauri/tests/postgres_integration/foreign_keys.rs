@@ -60,8 +60,7 @@ async fn test_get_foreign_keys_cross_schema() {
     let lookup_fk = lookup_fk.unwrap();
     assert_eq!(lookup_fk.ref_table, "lookup");
     assert_eq!(lookup_fk.ref_column, "code");
-    // TODO: Once PR #402 merges and ForeignKey gains `ref_schema`, assert:
-    // assert_eq!(lookup_fk.ref_schema.as_deref(), Some("other_schema"));
+    assert_eq!(lookup_fk.ref_schema.as_deref(), Some("other_schema"));
 }
 
 #[tokio::test]

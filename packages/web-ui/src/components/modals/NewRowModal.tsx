@@ -52,14 +52,15 @@ export const NewRowModal = ({isOpen, onClose, tableName, onSaveSuccess}: NewRowM
             setLoadingFk((prev) => ({...prev, [fk.column_name]: true}));
             setFkErrors((prev) => ({...prev, [fk.column_name]: ''}));
             try {
-                const quotedTable = quoteTableRef(fk.ref_table, activeDriver, activeSchema);
+                const targetSchema = fk.ref_schema ?? activeSchema;
+                const quotedTable = quoteTableRef(fk.ref_table, activeDriver, targetSchema);
                 // Select * from referenced table to get context
                 const query = `SELECT * FROM ${quotedTable} LIMIT 100`;
 
                 const result = await client.call('execute_query', {
                     connectionId: activeConnectionId,
                     query,
-                    ...(activeSchema ? {schema: activeSchema} : {}),
+                    ...(targetSchema ? {schema: targetSchema} : {}),
                 });
 
                 const options = result.rows.map((rowArray) => {

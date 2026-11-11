@@ -36,7 +36,8 @@ export async function fetchReferencedRecord(
     if (!isForeignKeyValueNavigable(value)) {
         return {columns: [], rows: [], affected_rows: 0};
     }
-    const quotedTable = quoteTableRef(fk.ref_table, driver, schema);
+    const targetSchema = fk.ref_schema ?? schema;
+    const quotedTable = quoteTableRef(fk.ref_table, driver, targetSchema);
     const filterClause = buildForeignKeyFilterClause(fk, value, driver, sourceColumnType);
 
     const query = `SELECT * FROM ${quotedTable} WHERE ${filterClause}`;
@@ -46,7 +47,7 @@ export async function fetchReferencedRecord(
         query,
         limit: 100,
         page: 1,
-        ...(schema ? {schema} : {}),
+        ...(targetSchema ? {schema: targetSchema} : {}),
         ...(database ? {database} : {}),
     });
 }

@@ -539,6 +539,8 @@ pub struct ForeignKey {
     pub column_name: String,
     pub ref_table: String,
     pub ref_column: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ref_schema: Option<String>,
     pub on_delete: Option<String>,
     pub on_update: Option<String>,
     /// 1-based position of this column within its (possibly composite) foreign

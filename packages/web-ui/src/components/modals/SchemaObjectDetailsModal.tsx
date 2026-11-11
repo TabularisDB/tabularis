@@ -105,7 +105,9 @@ export const SchemaObjectDetailsModal = ({
             t('objectDetails.references'),
             rows
                 .map((row, i) =>
-                    'ref_table' in row ? `${i + 1}. ${row.ref_table}.${row.ref_column}` : '',
+                    'ref_table' in row
+                        ? `${i + 1}. ${row.ref_schema ? `${row.ref_schema}.${row.ref_table}` : row.ref_table}.${row.ref_column}`
+                        : '',
                 )
                 .join('\n'),
         ]);

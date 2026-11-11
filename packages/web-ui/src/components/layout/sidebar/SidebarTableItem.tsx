@@ -358,7 +358,7 @@ const SidebarTableItemImpl = ({
                                         <div
                                             key={fk.name}
                                             className="flex items-center gap-2 px-3 py-1 text-xs text-secondary hover:bg-surface-secondary hover:text-primary cursor-pointer group font-mono"
-                                            title={`${fk.column_name} -> ${fk.ref_table}.${fk.ref_column}`}
+                                            title={`${fk.column_name} -> ${fk.ref_schema ? `${fk.ref_schema}.${fk.ref_table}` : fk.ref_table}.${fk.ref_column}`}
                                             onContextMenu={(e) =>
                                                 handleContextMenu(e, 'foreign_key', fk.name)
                                             }

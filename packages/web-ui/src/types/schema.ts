@@ -32,6 +32,7 @@ export interface ForeignKey {
     column_name: string;
     ref_table: string;
     ref_column: string;
+    ref_schema?: string | null;
     on_delete?: string | null;
     on_update?: string | null;
     /**

@@ -86,6 +86,11 @@ async fn parity_get_foreign_keys_cross_schema() {
         Some("code"),
         "lookup_code FK should reference code column"
     );
+    assert_eq!(
+        lookup_fk.get("ref_schema").and_then(|v| v.as_str()),
+        Some("other_schema"),
+        "lookup_code FK should reference other_schema"
+    );
 }
 
 /// Parity equivalent of `test_get_foreign_keys_table_without_fks`.
