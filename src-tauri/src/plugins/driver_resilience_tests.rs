@@ -47,7 +47,7 @@ async fn aborted_plugin_call_sends_cancel_even_when_the_command_queue_is_full() 
     let running = process.clone();
     let call =
         tokio::spawn(async move { running.send_request("execute_query", json!({}), None).await });
-    let PluginCommand::Call(request, response) = receiver.recv().await.unwrap() else {
+    let PluginCommand::Call(request, response, _) = receiver.recv().await.unwrap() else {
         panic!("expected call")
     };
     process

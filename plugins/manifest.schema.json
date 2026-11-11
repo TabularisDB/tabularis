@@ -426,6 +426,11 @@
           "default": false,
           "description": "Implements execute_read_only_query with database-enforced write protection. Enables optional read-only mode per connection. Errors must never fall back to ordinary execution."
         },
+        "streaming_results": {
+          "type": "boolean",
+          "default": false,
+          "description": "Implements execute_query_stream: the plugin sends the rows as query_rows notifications before the reply. A plugin that also declares read_only_queries implements execute_read_only_query_stream. When false, the host gets the whole result from execute_query."
+        },
         "table_export": {
           "type": "boolean",
           "default": true,

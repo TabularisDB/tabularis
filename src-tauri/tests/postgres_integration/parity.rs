@@ -293,6 +293,7 @@ fn plugin_manifest() -> PluginManifest {
             drop_table_sql: false,
             column_stats: false,
             read_only_queries: false,
+            streaming_results: false,
             query_timeout: false,
             alter_column: true,
             create_foreign_keys: true,

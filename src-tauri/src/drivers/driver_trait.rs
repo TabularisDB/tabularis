@@ -35,7 +35,8 @@ pub enum QueryChunk {
 pub type QueryChunkSink<'a> = dyn FnMut(QueryChunk) + Send + 'a;
 
 /// What a streamed query reports once its last chunk is delivered.
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct StreamSummary {
     pub affected_rows: u64,
     pub server_time_ms: Option<f64>,
@@ -248,6 +249,10 @@ pub struct DriverCapabilities {
     /// this allows users to switch a writable connection into read-only mode.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub read_only_queries: bool,
+    /// Implements `execute_query_stream`: rows arrive as `query_rows`
+    /// notifications before the reply. Omitted/false delivers one batch.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub streaming_results: bool,
     /// Offers "Export table to SQL" on table nodes (#709). `None` (the
     /// manifest omits it) means enabled; non-SQL plugins set `false`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

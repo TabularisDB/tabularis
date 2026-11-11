@@ -53,6 +53,13 @@ pub enum JsonRpcResponse {
         error: JsonRpcError,
         id: Option<u64>,
     },
+    /// A message from the plugin with no reply expected, e.g. `query_rows`.
+    Notification {
+        jsonrpc: String,
+        method: String,
+        #[serde(default)]
+        params: Value,
+    },
 }
 
 /// A JSON-RPC notification: no `id`, so the plugin must not reply.

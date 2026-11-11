@@ -2457,6 +2457,7 @@ impl PostgresDriver {
                     explain: true,
                     readonly: false,
                     read_only_queries: true,
+                    streaming_results: false,
                     table_export: None,
                     table_import: None,
                     triggers: true,

@@ -10,7 +10,10 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::{mpsc, oneshot, OnceCell};
 
-use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
+use crate::drivers::driver_trait::{
+    stream_whole, BatchProgressFn, DatabaseDriver, PluginManifest, QueryChunk, QueryChunkSink,
+    StreamSummary,
+};
 use crate::models::{
     AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
     DatabaseSelection, DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index,
@@ -86,6 +89,26 @@ fn parse_query_response(value: Value) -> Result<(QueryResult, bool), String> {
     }
     let parsed: QueryResult = serde_json::from_value(value).map_err(|e| e.to_string())?;
     Ok((parsed, false))
+}
+
+/// Params of a `query_rows` notification. `columns` starts a new result set.
+#[derive(serde::Deserialize)]
+struct QueryRows {
+    columns: Option<Vec<String>>,
+    #[serde(default)]
+    rows: Vec<Vec<Value>>,
+}
+
+fn deliver_query_rows(params: Value, sink: &mut QueryChunkSink<'_>) -> Result<(), String> {
+    let QueryRows { columns, rows } = serde_json::from_value(params)
+        .map_err(|e| format!("Invalid query_rows notification: {e}"))?;
+    if let Some(columns) = columns {
+        sink(QueryChunk::Columns(columns));
+    }
+    if !rows.is_empty() {
+        sink(QueryChunk::Rows(rows));
+    }
+    Ok(())
 }
 
 /// A session-aware plugin answers a failed statement with its error and the
@@ -179,12 +202,22 @@ fn route_selected_plugin_database(request: &mut Value) {
     connection.insert("database".to_string(), Value::String(selected));
 }
 
+/// Carries the `params` of each `query_rows` notification for one request.
+type RowSender = mpsc::UnboundedSender<Value>;
+
+type PendingCall = (
+    oneshot::Sender<Result<Value, PluginCallError>>,
+    Option<RowSender>,
+);
+
 /// Message sent to the management task that owns the plugin child process.
 enum PluginCommand {
     /// Dispatch a JSON-RPC request and route the response back via the sender.
+    /// The optional row sender receives the request's `query_rows` notifications.
     Call(
         JsonRpcRequest,
         oneshot::Sender<Result<Value, PluginCallError>>,
+        Option<RowSender>,
     ),
     /// Drop the pending entry for `id` because the caller stopped waiting
     /// (timed out or aborted), and send the plugin a `cancel` notification for it.
@@ -264,10 +297,7 @@ impl PluginProcess {
             let stdout = child.stdout.take().expect("Failed to open stdout");
             let mut reader = BufReader::new(stdout);
 
-            let mut pending_requests: HashMap<
-                u64,
-                oneshot::Sender<Result<Value, PluginCallError>>,
-            > = HashMap::new();
+            let mut pending_requests: HashMap<u64, PendingCall> = HashMap::new();
             let mut line_buf = String::new();
             let mut shutting_down = false;
             let mut shutdown_deadline: Option<tokio::time::Instant> = None;
@@ -309,20 +339,20 @@ impl PluginProcess {
                     }
                     msg = rx.recv(), if !channel_drained => {
                         match msg {
-                            Some(PluginCommand::Call(req, resp_tx)) => {
+                            Some(PluginCommand::Call(req, resp_tx, rows)) => {
                                 // A caller aborted before dispatch must not start database work.
                                 if resp_tx.is_closed() {
                                     continue;
                                 }
                                 let id = req.id;
-                                pending_requests.insert(id, resp_tx);
+                                pending_requests.insert(id, (resp_tx, rows));
 
                                 let mut req_str = serde_json::to_string(&req).unwrap();
                                 req_str.push('\n');
 
                                 if let Err(e) = stdin.write_all(req_str.as_bytes()).await {
                                     log::error!("Failed to write to plugin stdin: {}", e);
-                                    if let Some(tx) = pending_requests.remove(&id) {
+                                    if let Some((tx, _)) = pending_requests.remove(&id) {
                                         let _ = tx.send(Err(format!("Plugin communication error: {}", e).into()));
                                     }
                                 }
@@ -363,13 +393,23 @@ impl PluginProcess {
                             Ok(_) => {
                                 match serde_json::from_str::<JsonRpcResponse>(&line_buf) {
                                     Ok(JsonRpcResponse::Success { result, id, .. }) => {
-                                        if let Some(tx) = id.and_then(|id| pending_requests.remove(&id)) {
+                                        if let Some((tx, _)) = id.and_then(|id| pending_requests.remove(&id)) {
                                             let _ = tx.send(Ok(result));
                                         }
                                     }
                                     Ok(JsonRpcResponse::Error { error, id: Some(id), .. }) => {
-                                        if let Some(tx) = pending_requests.remove(&id) {
+                                        if let Some((tx, _)) = pending_requests.remove(&id) {
                                             let _ = tx.send(Err(PluginCallError::Remote(error)));
+                                        }
+                                    }
+                                    Ok(JsonRpcResponse::Notification { method, params, .. }) => {
+                                        let id = params.get("request_id").and_then(Value::as_u64);
+                                        // Unknown ids belong to finished or cancelled calls.
+                                        if let Some((_, Some(rows))) = id
+                                            .filter(|_| method == "query_rows")
+                                            .and_then(|id| pending_requests.get(&id))
+                                        {
+                                            let _ = rows.send(params);
                                         }
                                     }
                                     Ok(JsonRpcResponse::Error { error, id: None, .. }) => {
@@ -395,7 +435,7 @@ impl PluginProcess {
             }
             // Give remaining callers a specific shutdown failure instead of
             // an ambiguous dropped-channel/no-response error.
-            for (_, sender) in pending_requests.drain() {
+            for (_, (sender, _)) in pending_requests.drain() {
                 let _ = sender.send(Err(
                     "Plugin shutdown grace period elapsed before RPC completed"
                         .to_string()
@@ -472,6 +512,24 @@ impl PluginProcess {
     }
 
     async fn call_detailed(&self, method: &str, params: Value) -> Result<Value, PluginCallError> {
+        self.ensure_initialized().await;
+        let timeout = crate::plugins::call_timeout::for_plugin(&self.plugin_id);
+        self.send_request(method, params, timeout).await
+    }
+
+    /// [`Self::call_detailed`] with the request's `query_rows` notifications sent to `rows`.
+    async fn call_streaming(
+        &self,
+        method: &str,
+        params: Value,
+        rows: RowSender,
+    ) -> Result<Value, PluginCallError> {
+        self.ensure_initialized().await;
+        let timeout = crate::plugins::call_timeout::for_plugin(&self.plugin_id);
+        self.dispatch(method, params, timeout, Some(rows)).await
+    }
+
+    async fn ensure_initialized(&self) {
         if let Some(settings) = &self.initialization_settings {
             self.initialized
                 .get_or_init(|| async {
@@ -494,8 +552,6 @@ impl PluginProcess {
                 })
                 .await;
         }
-        let timeout = crate::plugins::call_timeout::for_plugin(&self.plugin_id);
-        self.send_request(method, params, timeout).await
     }
 
     /// `timeout: None` waits for the response indefinitely.
@@ -504,6 +560,16 @@ impl PluginProcess {
         method: &str,
         params: Value,
         timeout: Option<Duration>,
+    ) -> Result<Value, PluginCallError> {
+        self.dispatch(method, params, timeout, None).await
+    }
+
+    async fn dispatch(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Option<Duration>,
+        rows: Option<RowSender>,
     ) -> Result<Value, PluginCallError> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let mut params = params;
@@ -535,7 +601,7 @@ impl PluginProcess {
                 .to_string()
                 .into());
         }
-        permit.send(PluginCommand::Call(req, tx));
+        permit.send(PluginCommand::Call(req, tx, rows));
         let mut pending = PendingCallGuard::new(self.sender.clone(), id);
         let result = if let Some(timeout) = timeout {
             match tokio::time::timeout(timeout, rx).await {
@@ -624,6 +690,32 @@ impl RpcDriver {
             }
         }
         self.process.call_detailed(method, arguments).await
+    }
+
+    /// Calls a streaming RPC, hands its `query_rows` notifications to `sink`
+    /// in order and returns the final reply. Dropping the future cancels the call.
+    async fn stream_rpc(
+        &self,
+        method: &str,
+        arguments: Value,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<Value, String> {
+        let (rows_tx, mut rows_rx) = mpsc::unbounded_channel();
+        let reply = self.process.call_streaming(method, arguments, rows_tx);
+        tokio::pin!(reply);
+        loop {
+            tokio::select! {
+                biased;
+                Some(rows) = rows_rx.recv() => deliver_query_rows(rows, sink)?,
+                reply = &mut reply => {
+                    // The plugin wrote every notification before its reply.
+                    while let Ok(rows) = rows_rx.try_recv() {
+                        deliver_query_rows(rows, sink)?;
+                    }
+                    return reply.map_err(|e| e.to_string());
+                }
+            }
+        }
     }
 
     pub fn with_connection_metadata(mut self, enabled: bool) -> Self {
@@ -1329,6 +1421,39 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(result).map_err(|error| error.to_string())
     }
 
+    async fn execute_read_only_query_stream(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        schema: Option<&str>,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<StreamSummary, String> {
+        let capabilities = &self.manifest.capabilities;
+        if capabilities.readonly || (!capabilities.read_only_queries && !params.read_only) {
+            return self
+                .execute_query_stream(params, query, schema, None, sink)
+                .await;
+        }
+        if !(capabilities.streaming_results && capabilities.read_only_queries) {
+            let result = self
+                .execute_read_only_query(params, query, None, 1, schema)
+                .await?;
+            return Ok(stream_whole(result, false, sink));
+        }
+        let reply = self
+            .stream_rpc(
+                "execute_read_only_query_stream",
+                json!({ "params": self.with_primary_database(params), "query": query, "schema": schema }),
+                sink,
+            )
+            .await?;
+        let summary: StreamSummary = serde_json::from_value(reply).map_err(|e| e.to_string())?;
+        Ok(StreamSummary {
+            in_transaction: false,
+            ..summary
+        })
+    }
+
     async fn execute_batch(
         &self,
         params: &ConnectionParams,
@@ -1410,6 +1535,41 @@ impl DatabaseDriver for RpcDriver {
         let (result, in_transaction) = parse_query_response(res)?;
         remember_session_state(session_id, in_transaction);
         Ok((result, in_transaction))
+    }
+
+    async fn execute_query_stream(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        schema: Option<&str>,
+        session_id: Option<&str>,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<StreamSummary, String> {
+        if !self.manifest.capabilities.streaming_results {
+            let (result, in_transaction) = self
+                .execute_query_in_session(params, query, None, 1, schema, session_id)
+                .await?;
+            return Ok(stream_whole(result, in_transaction, sink));
+        }
+        let reply = self
+            .stream_rpc(
+                "execute_query_stream",
+                json!({
+                    "params": self.with_primary_database(params),
+                    "query": query,
+                    "schema": schema,
+                    "session_id": session_id
+                }),
+                sink,
+            )
+            .await?;
+        if let Some((error, in_transaction)) = parse_session_error(&reply) {
+            remember_session_state(session_id, in_transaction);
+            return Err(error);
+        }
+        let summary: StreamSummary = serde_json::from_value(reply).map_err(|e| e.to_string())?;
+        remember_session_state(session_id, summary.in_transaction);
+        Ok(summary)
     }
 
     async fn execute_batch_in_session(
@@ -2312,7 +2472,7 @@ where
     let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
     tokio::spawn(async move {
         while let Some(command) = rx.recv().await {
-            if let PluginCommand::Call(request, response_tx) = command {
+            if let PluginCommand::Call(request, response_tx, _) = command {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     handle_request(request)
                 }))
@@ -2371,7 +2531,7 @@ where
     let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
     tokio::spawn(async move {
         while let Some(command) = rx.recv().await {
-            if let PluginCommand::Call(request, response_tx) = command {
+            if let PluginCommand::Call(request, response_tx, _) = command {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     handle_request(request)
                 }))
@@ -4274,3 +4434,7 @@ mod ddl_context_tests;
 #[cfg(all(test, unix))]
 #[path = "process_exit_tests.rs"]
 mod process_exit_tests;
+
+#[cfg(test)]
+#[path = "streaming_tests.rs"]
+mod streaming_tests;
