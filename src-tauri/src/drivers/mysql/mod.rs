@@ -453,6 +453,7 @@ pub async fn get_foreign_keys(
             column_name: mysql_row_str(r, 1),
             ref_table: mysql_row_str(r, 2),
             ref_column: mysql_row_str(r, 3),
+            ref_schema: None,
             on_update: mysql_row_str_opt(r, 4),
             on_delete: mysql_row_str_opt(r, 5),
             // ORDINAL_POSITION is 1-based position within the key (#840).
@@ -605,6 +606,7 @@ pub async fn get_all_foreign_keys_batch(
             column_name: mysql_row_str(row, 2),
             ref_table: mysql_row_str(row, 3),
             ref_column: mysql_row_str(row, 4),
+            ref_schema: None,
             on_update: mysql_row_str_opt(row, 5),
             on_delete: mysql_row_str_opt(row, 6),
             seq_in_fk: row

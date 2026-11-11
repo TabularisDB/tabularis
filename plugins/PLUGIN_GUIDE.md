@@ -1122,6 +1122,7 @@ Get foreign key relationships for a table.
     "column_name": "user_id",
     "ref_table": "users",
     "ref_column": "id",
+    "ref_schema": "auth",
     "on_update": "CASCADE",
     "on_delete": "SET NULL",
     "seq_in_fk": 1
@@ -1130,6 +1131,8 @@ Get foreign key relationships for a table.
 ```
 
 > **Composite foreign keys:** For a multi-column foreign key, return one entry per column, all sharing the same `name`; set `seq_in_fk` to the 1-based position of each column within its constraint. Tabularis groups entries by `name` (ordered by `seq_in_fk`, falling back to row order) and emits a single multi-column `FOREIGN KEY (a, b) REFERENCES t (x, y)` clause. `seq_in_fk` is optional and additive; older plugins may omit it for single-column FKs.
+>
+> **Cross-schema references:** `ref_schema` is an optional additive field (same backward-compatibility rules as `seq_in_fk`) naming the schema of `ref_table`. Drivers with `capabilities.schemas = true` should set it, because a foreign key can reference a table in another schema (`billing.invoices.org_id → core.organizations.id`). The Related Records panel and "Open referenced table" then query `ref_schema.ref_table`; without it, Tabularis assumes the referenced table is in the source table's schema. Omit it or return `null` for drivers without schemas.
 
 ---
 
