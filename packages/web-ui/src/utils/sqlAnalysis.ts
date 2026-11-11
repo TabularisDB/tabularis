@@ -315,7 +315,11 @@ export const isReadOnlyQuery = (sql: string): boolean =>
             if (keyword === null || !READ_ONLY_KEYWORDS.has(keyword)) return false;
             if (keyword === 'PRAGMA') return isReadOnlyPragma(s);
             // `SELECT ... INTO new_table` creates a table, and MySQL's
-            // `INTO OUTFILE` writes a file on the server.
+            // `INTO OUTFILE` writes a file on the server. The dialect is not
+            // known here, so `$$...$$` strings, `[bracket]` identifiers and
+            // `#` comments are left in: each is code in some other dialect
+            // (`#` is an operator in PostgreSQL), and stripping it could hide
+            // a real statement. An `INTO` inside one therefore asks too.
             return !/\bINTO\b/i.test(s);
         });
 

@@ -539,6 +539,9 @@ describe('isReadOnlyQuery', () => {
         expect(isReadOnlyQuery('PRAGMA user_version(42)')).toBe(false);
         expect(isReadOnlyQuery('PRAGMA journal_mode(DELETE)')).toBe(false);
         expect(isReadOnlyQuery('PRAGMA wal_checkpoint(TRUNCATE)')).toBe(false);
+        // A quoted name is not looked up, so it never passes as a read.
+        expect(isReadOnlyQuery('PRAGMA "journal_mode"(WAL)')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA "journal_mode" = WAL')).toBe(false);
         // Action pragmas work without an argument.
         expect(isReadOnlyQuery('PRAGMA optimize')).toBe(false);
         expect(isReadOnlyQuery('PRAGMA incremental_vacuum')).toBe(false);
@@ -563,11 +566,22 @@ describe('isReadOnlyQuery', () => {
         expect(isReadOnlyQuery("TABLE users INTO OUTFILE '/tmp/users.csv'")).toBe(false);
         expect(isReadOnlyQuery('SELECT id INTO@latest FROM users')).toBe(false);
         expect(isReadOnlyQuery('SELECT 1; SELECT * INTO copy FROM users')).toBe(false);
+        // EXPLAIN is classified by its target, with or without ANALYZE.
+        expect(isReadOnlyQuery('EXPLAIN SELECT * INTO copy FROM users')).toBe(false);
+        expect(isReadOnlyQuery('EXPLAIN ANALYZE SELECT * INTO copy FROM users')).toBe(false);
     });
 
     it('does not mistake a name or text containing "into" for SELECT ... INTO', () => {
         expect(isReadOnlyQuery("SELECT 'INTO' AS word FROM t")).toBe(true);
         expect(isReadOnlyQuery('SELECT into_count, "into" FROM t')).toBe(true);
         expect(isReadOnlyQuery('SELECT * FROM t -- INTO backup')).toBe(true);
+    });
+
+    it('asks when only the dialect could tell that an INTO is not code', () => {
+        // A PostgreSQL dollar-quoted string, a SQL Server bracket identifier
+        // and a MySQL `#` comment. Each is code in some other dialect.
+        expect(isReadOnlyQuery('SELECT $$ insert into $$')).toBe(false);
+        expect(isReadOnlyQuery('SELECT [into] FROM t')).toBe(false);
+        expect(isReadOnlyQuery('SELECT 1 # into')).toBe(false);
     });
 });
