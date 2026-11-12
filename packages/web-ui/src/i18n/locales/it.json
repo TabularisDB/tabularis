@@ -2674,6 +2674,7 @@
     "openViewer": "Apri visualizzatore JSON"
   },
   "textViewer": {
+    "save": "Salva",
     "wrapLines": "A capo automatico"
   },
   "rowEditor": {

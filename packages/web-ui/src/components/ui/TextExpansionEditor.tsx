@@ -101,12 +101,11 @@ export const TextExpansionEditor = ({
                     type="button"
                     onClick={() => setWrapLines((v) => !v)}
                     aria-pressed={wrapLines}
-                    title={t('textViewer.wrapLines')}
                     className={`px-2 py-1 rounded border transition-colors flex items-center gap-1 mr-auto ${
                         wrapLines
                             ? 'bg-accent-primary/30 text-accent border-accent-primary/50'
                             : 'bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary'
-                    } focus-visible:outline focus-visible:outline-focus`}
+                    } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus`}
                 >
                     <WrapText size={12} />
                     {t('textViewer.wrapLines')}

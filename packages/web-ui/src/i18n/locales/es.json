@@ -2575,6 +2575,7 @@
     "openViewer": "Abrir visor JSON"
   },
   "textViewer": {
+    "save": "Guardar",
     "wrapLines": "Ajuste de línea"
   },
   "rowEditor": {

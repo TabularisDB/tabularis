@@ -2567,6 +2567,7 @@
     "openViewer": "打开 JSON 查看器"
   },
   "textViewer": {
+    "save": "保存",
     "wrapLines": "自动换行"
   },
   "rowEditor": {

@@ -2614,6 +2614,7 @@
     "openViewer": "JSON-Viewer öffnen"
   },
   "textViewer": {
+    "save": "Speichern",
     "wrapLines": "Zeilenumbruch"
   },
   "rowEditor": {
