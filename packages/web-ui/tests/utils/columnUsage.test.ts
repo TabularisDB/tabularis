@@ -257,6 +257,234 @@ describe('columnUsage', () => {
         });
     });
 
+    describe('review findings', () => {
+        const mysql = (sql: string, options = {}) =>
+            findColumnReferences(sql, ordersNoSchema, {dialect: 'mysql', ...options}).map((m) =>
+                m.reason ? `${m.confidence}:${m.reason}` : m.confidence,
+            );
+
+        it('reads the tables of a parenthesised join, as MySQL stores view bodies', () => {
+            expect(
+                mysql(
+                    'select `o`.`customer_id` AS `customer_id` from (`orders` `o` join `customers` `c` on((`c`.`id` = `o`.`customer_id`)))',
+                ),
+            ).toEqual(['parsed', 'parsed']);
+            expect(
+                mysql(
+                    'select `o`.`customer_id` from ((`orders` `o` join `customers` `c` on((`c`.`id` = `o`.`customer_id`))) join `refunds` `r` on((`r`.`order_id` = `o`.`id`)))',
+                ),
+            ).toEqual(['parsed', 'parsed']);
+            expect(
+                mysql(
+                    'select `r`.`customer_id` from ((`customers` `c` join `refunds` `r` on((`r`.`id` = `c`.`id`))) join `orders` `o` on((`o`.`id` = `r`.`id`)))',
+                ),
+            ).toEqual([]);
+            expect(
+                summary(
+                    'SELECT o.customer_id FROM (public.orders o JOIN customers c ON c.id = o.customer_id)',
+                    ordersPublic,
+                ),
+            ).toEqual(['parsed', 'parsed']);
+            expect(mysql('SELECT customer_id FROM (orders, customers)')).toEqual([
+                'uncertain:several-tables',
+            ]);
+            expect(summary('SELECT customer_id FROM (VALUES (1)) v', ordersNoSchema)).toEqual([]);
+        });
+
+        it('redacts numbers written after a dollar sign in every dialect', () => {
+            for (const dialect of ['mssql', 'mysql', 'sqlite', 'postgres', undefined] as const) {
+                const sql =
+                    'SELECT customer_id FROM orders WHERE total > $100.50 AND card = $4111111111111111 OR x = $1';
+                const redacted = redactSqlLiterals(sql, dialect);
+                expect(redacted).not.toMatch(/[0-9]/);
+                const start = sql.indexOf('customer_id');
+                const snippet = buildUsageSnippet(sql, start, start + 11, dialect);
+                expect(snippet.text).not.toMatch(/[0-9]/);
+                expect(snippet.match).toBe('customer_id');
+            }
+            expect(redactSqlLiterals('SELECT a$1, t$x FROM t', 'mysql')).toBe(
+                'SELECT a$1, t$x FROM t',
+            );
+            expect(redactSqlLiterals('SELECT $tag$4111$tag$', 'postgres')).toBe("SELECT '?'");
+        });
+
+        it('only reports a * that expands the target table in its own query', () => {
+            expect(
+                summary(
+                    'SELECT * FROM customers WHERE id IN (SELECT id FROM orders)',
+                    ordersNoSchema,
+                ),
+            ).toEqual([]);
+            expect(
+                summary(
+                    'SELECT * FROM customers WHERE EXISTS (SELECT 1 FROM orders o WHERE o.cid = customers.id)',
+                    ordersNoSchema,
+                ),
+            ).toEqual([]);
+            expect(
+                summary(
+                    'SELECT c.id FROM customers c WHERE EXISTS (SELECT * FROM orders o WHERE o.cid = c.id)',
+                    ordersNoSchema,
+                ),
+            ).toEqual([]);
+            expect(
+                summary('SELECT * FROM (SELECT customer_id FROM orders) d', ordersNoSchema),
+            ).toEqual(['parsed']);
+            const union = 'SELECT * FROM customers UNION ALL SELECT * FROM orders';
+            const matches = findColumnReferences(union, ordersNoSchema, {dialect: 'postgres'});
+            expect(matches.map((m) => m.reason)).toEqual(['wildcard']);
+            expect(matches[0].start).toBe(union.lastIndexOf('*'));
+            expect(summary('SELECT 2 * 3, count(*) FROM orders', ordersNoSchema)).toEqual([]);
+        });
+
+        it('finds a * after select items that hold FROM, ORDER BY or CASE', () => {
+            for (const sql of [
+                'SELECT CASE WHEN a > 1 THEN 1 END AS k, * FROM orders',
+                'SELECT EXTRACT(YEAR FROM d) AS y, * FROM orders',
+                'SELECT SUBSTRING(x FROM 2) AS s, * FROM orders',
+                'SELECT row_number() OVER (ORDER BY id) AS rn, * FROM orders',
+                'SELECT CASE WHEN a THEN CASE b WHEN 1 THEN 2 END END, (SELECT max(id) FROM refunds), * FROM orders',
+            ]) {
+                expect(summary(sql, ordersNoSchema)).toEqual(['uncertain:wildcard']);
+            }
+            expect(
+                summary('SELECT EXTRACT(YEAR FROM d) AS y, * FROM customers', ordersNoSchema),
+            ).toEqual([]);
+        });
+
+        it('keeps a derived table in extra parentheses a derived table', () => {
+            expect(
+                summary(
+                    'SELECT d.customer_id FROM ((SELECT customer_id FROM orders)) d',
+                    ordersNoSchema,
+                ),
+            ).toEqual(['uncertain:derived-table', 'parsed']);
+            expect(
+                summary(
+                    'SELECT o.customer_id FROM ((orders o JOIN customers c ON c.id = o.cid))',
+                    ordersNoSchema,
+                ),
+            ).toEqual(['parsed']);
+        });
+
+        it('recognises * after TOP, ALL, DISTINCT ON and MySQL select modifiers', () => {
+            const wildcard = ['uncertain:wildcard'];
+            const mssql = (sql: string) =>
+                findColumnReferences(sql, ordersNoSchema, {dialect: 'mssql'}).map(
+                    (m) => `${m.confidence}:${m.reason}`,
+                );
+            expect(mssql('SELECT TOP 10 * FROM orders')).toEqual(wildcard);
+            expect(mssql('SELECT TOP (5) PERCENT WITH TIES * FROM orders ORDER BY id')).toEqual(
+                wildcard,
+            );
+            expect(mssql('SELECT DISTINCT TOP 3 * FROM orders')).toEqual(wildcard);
+            expect(summary('SELECT ALL * FROM orders', ordersNoSchema)).toEqual(wildcard);
+            expect(summary('SELECT DISTINCT ON (id) * FROM orders', ordersNoSchema)).toEqual(
+                wildcard,
+            );
+            expect(mysql('SELECT SQL_CALC_FOUND_ROWS * FROM orders')).toEqual(wildcard);
+            expect(mysql('SELECT HIGH_PRIORITY SQL_NO_CACHE DISTINCTROW * FROM orders')).toEqual(
+                wildcard,
+            );
+            expect(summary('DELETE FROM orders WHERE id = 1 RETURNING *', ordersNoSchema)).toEqual(
+                wildcard,
+            );
+        });
+
+        it('keeps reading a comma join after an ON or USING clause', () => {
+            // x is known not to have the column, so only the comma-joined
+            // customers table can make the unqualified column ambiguous.
+            const xOnly = (ref: RelationRef) => (ref.name === 'x' ? ['a'] : undefined);
+            expect(
+                summary(
+                    'SELECT customer_id FROM orders o JOIN x ON x.a = o.a, customers c',
+                    ordersNoSchema,
+                    {columnsOf: xOnly},
+                ),
+            ).toEqual(['uncertain:several-tables']);
+            expect(
+                summary(
+                    'SELECT customer_id FROM orders o JOIN x USING (a), customers c',
+                    ordersNoSchema,
+                    {columnsOf: xOnly},
+                ),
+            ).toEqual(['uncertain:several-tables']);
+            const columnsOf = (ref: RelationRef) =>
+                ref.name === 'customers'
+                    ? ['id']
+                    : ref.name === 'orders'
+                      ? ['customer_id', 'total']
+                      : undefined;
+            expect(
+                mysql(
+                    'INSERT INTO orders (customer_id) SELECT id FROM customers ON DUPLICATE KEY UPDATE customer_id = 7, total = 3',
+                    {columnsOf},
+                ),
+            ).toEqual(['parsed', 'parsed']);
+            expect(
+                summary(
+                    'INSERT INTO orders (customer_id) SELECT id FROM customers ON CONFLICT (id) DO UPDATE SET customer_id = 7, total = 3',
+                    ordersNoSchema,
+                    {columnsOf},
+                ),
+            ).toEqual(['parsed', 'parsed']);
+        });
+
+        it('reads USING as a table list only in DELETE and MERGE', () => {
+            expect(
+                summary(
+                    "EXECUTE format('INSERT INTO audit VALUES ($1)') USING orders.customer_id",
+                    ordersNoSchema,
+                ),
+            ).toEqual(['uncertain:unresolved-qualifier']);
+            expect(
+                summary(
+                    'DELETE FROM refunds r USING orders o WHERE o.customer_id = r.customer_id',
+                    ordersNoSchema,
+                ),
+            ).toEqual(['parsed']);
+            expect(
+                summary(
+                    'MERGE INTO archive a USING orders o ON a.id = o.id WHEN MATCHED THEN UPDATE SET owner = o.customer_id',
+                    ordersNoSchema,
+                ),
+            ).toEqual(['parsed']);
+        });
+
+        it('scopes CTE names to the query after their definition', () => {
+            expect(
+                summary(
+                    'WITH orders AS (SELECT * FROM orders WHERE total > 0) SELECT customer_id FROM orders',
+                    ordersNoSchema,
+                ),
+            ).toEqual(['uncertain:wildcard']);
+            expect(
+                summary(
+                    'WITH orders AS (SELECT customer_id FROM orders) SELECT o.customer_id FROM orders o',
+                    ordersNoSchema,
+                ),
+            ).toEqual(['parsed', 'uncertain:derived-table']);
+            expect(
+                summary(
+                    'WITH RECURSIVE orders AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM orders) SELECT customer_id FROM orders',
+                    ordersNoSchema,
+                ),
+            ).toEqual([]);
+            expect(
+                summary(
+                    'SELECT customer_id FROM orders WHERE id IN (WITH orders AS (SELECT 1 AS id) SELECT id FROM orders)',
+                    ordersNoSchema,
+                ),
+            ).toEqual(['parsed']);
+            expect(
+                summary(
+                    'WITH recent AS (SELECT customer_id FROM orders), orders AS (SELECT 1) SELECT customer_id FROM recent',
+                    ordersNoSchema,
+                ),
+            ).toEqual(['parsed']);
+        });
+    });
+
     describe('strongestMatch', () => {
         it('prefers parsed matches, then the earliest one', () => {
             expect(

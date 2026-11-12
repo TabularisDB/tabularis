@@ -68,6 +68,9 @@ interface LexToken {
 const WORD_START = /[\p{L}_]/u;
 const WORD_CHAR = /[\p{L}\p{N}_$]/u;
 const DIGIT = /[0-9]/;
+// A digit starts a number unless it continues a name; `$` before it does not
+// make it one (MSSQL money literals `$100.50`, placeholders `$1`).
+const NAME_CHAR = /[\p{L}\p{N}_]/u;
 const MAX_EXECUTABLE_DEPTH = 4;
 
 function identifierRule(source: string, position: number, options: DialectOptions) {
@@ -91,7 +94,7 @@ function lexInto(
         // character at a time.
         if (
             WORD_START.test(ch) ||
-            (DIGIT.test(ch) && !WORD_CHAR.test(source[position - 1] ?? ''))
+            (DIGIT.test(ch) && !NAME_CHAR.test(source[position - 1] ?? ''))
         ) {
             const token = scanToken(source, position, options, state);
             if (token && token.kind === 'data' && token.length === 1) {
@@ -310,11 +313,28 @@ const LIST_END = new Set([
     'SELECT',
     'RETURNING',
     'WINDOW',
-    'ON',
-    'USING',
     'QUALIFY',
     'FOR',
+    'WHEN',
 ]);
+
+// Words that may stand between SELECT and a bare `*`.
+const SELECT_MODIFIERS = new Set([
+    'ALL',
+    'DISTINCT',
+    'DISTINCTROW',
+    'UNIQUE',
+    'HIGH_PRIORITY',
+    'STRAIGHT_JOIN',
+    'SQL_SMALL_RESULT',
+    'SQL_BIG_RESULT',
+    'SQL_BUFFER_RESULT',
+    'SQL_NO_CACHE',
+    'SQL_CACHE',
+    'SQL_CALC_FOUND_ROWS',
+]);
+
+const SET_OPERATORS = new Set(['UNION', 'INTERSECT', 'EXCEPT', 'MINUS']);
 
 const DYNAMIC_SQL_WORDS = new Set(['EXECUTE', 'EXEC', 'PREPARE', 'SP_EXECUTESQL']);
 
@@ -323,6 +343,8 @@ interface Binding {
     ref?: RelationRef;
     /** The query level (see `computeScopes`) whose FROM list holds it. */
     scope: number;
+    /** Index of the token where the relation starts. */
+    at: number;
 }
 
 interface StatementModel {
@@ -331,6 +353,8 @@ interface StatementModel {
     scopes: number[];
     /** Enclosing query level of each subquery level. */
     parents: Map<number, number>;
+    /** Index of the parenthesis that opens each subquery level. */
+    opens: Map<number, number>;
     /** alias (lower-cased) → bindings it was given in this statement. */
     bindings: Map<string, Binding[]>;
     relations: Binding[];
@@ -350,14 +374,39 @@ function skipParens(tokens: LexToken[], open: number): number {
     return tokens.length - 1;
 }
 
-function collectCteNames(tokens: LexToken[]): Set<string> {
-    const names = new Set<string>();
+interface CteDefinition {
+    name: string;
+    bodyOpen: number;
+    bodyClose: number;
+    recursive: boolean;
+    /** Index of the parenthesis that closes the query the WITH belongs to. */
+    visibleUntil: number;
+}
+
+// The closing parenthesis of the level `from` is in, or the end of the tokens.
+function enclosingClose(tokens: LexToken[], from: number): number {
+    let depth = 0;
+    for (let k = from; k < tokens.length; k++) {
+        if (tokens[k].kind !== 'punct') continue;
+        if (tokens[k].value === '(') depth++;
+        else if (tokens[k].value === ')') {
+            if (depth === 0) return k;
+            depth--;
+        }
+    }
+    return tokens.length;
+}
+
+function collectCtes(tokens: LexToken[]): CteDefinition[] {
+    const ctes: CteDefinition[] = [];
     for (let i = 0; i < tokens.length; i++) {
         if (keyword(tokens[i]) !== 'WITH') continue;
         let j = i + 1;
-        if (keyword(tokens[j]) === 'RECURSIVE') j++;
+        const recursive = keyword(tokens[j]) === 'RECURSIVE';
+        if (recursive) j++;
+        const visibleUntil = enclosingClose(tokens, i);
         while (isIdent(tokens[j])) {
-            names.add(tokens[j].value.toLowerCase());
+            const name = tokens[j].value.toLowerCase();
             j++;
             if (tokens[j]?.value === '(') j = skipParens(tokens, j) + 1;
             if (keyword(tokens[j]) !== 'AS') break;
@@ -365,19 +414,39 @@ function collectCteNames(tokens: LexToken[]): Set<string> {
             if (keyword(tokens[j]) === 'NOT') j++;
             if (keyword(tokens[j]) === 'MATERIALIZED') j++;
             if (tokens[j]?.value !== '(') break;
-            j = skipParens(tokens, j) + 1;
+            const bodyClose = skipParens(tokens, j);
+            ctes.push({name, bodyOpen: j, bodyClose, recursive, visibleUntil});
+            j = bodyClose + 1;
             if (tokens[j]?.value !== ',') break;
             j++;
         }
     }
-    return names;
+    return ctes;
+}
+
+// A CTE name hides a table only after its own body (or inside it, when
+// recursive) and up to the end of the query that defines it.
+function isCteAt(ctes: CteDefinition[], name: string, index: number): boolean {
+    const key = name.toLowerCase();
+    return ctes.some(
+        (cte) =>
+            cte.name === key &&
+            index < cte.visibleUntil &&
+            (index > cte.bodyClose ||
+                (cte.recursive && index > cte.bodyOpen && index < cte.bodyClose)),
+    );
 }
 
 // A parenthesis that opens with SELECT or WITH starts a new query level;
 // any other (function arguments, IN lists, column lists) stays in its level.
-function computeScopes(tokens: LexToken[]): {scopes: number[]; parents: Map<number, number>} {
+function computeScopes(tokens: LexToken[]): {
+    scopes: number[];
+    parents: Map<number, number>;
+    opens: Map<number, number>;
+} {
     const scopes: number[] = [];
     const parents = new Map<number, number>();
+    const opens = new Map<number, number>();
     const stack: number[] = [0];
     let next = 1;
     for (let i = 0; i < tokens.length; i++) {
@@ -390,26 +459,28 @@ function computeScopes(tokens: LexToken[]): {scopes: number[]; parents: Map<numb
             const first = keyword(tokens[i + 1]);
             if (first === 'SELECT' || first === 'WITH') {
                 parents.set(next, stack[stack.length - 1]);
+                opens.set(next, i);
                 stack.push(next++);
             } else {
                 stack.push(stack[stack.length - 1]);
             }
         }
     }
-    return {scopes, parents};
+    return {scopes, parents, opens};
 }
 
 function buildModel(tokens: LexToken[]): StatementModel {
-    const {scopes, parents} = computeScopes(tokens);
+    const {scopes, parents, opens} = computeScopes(tokens);
     const model: StatementModel = {
         tokens,
         scopes,
         parents,
+        opens,
         bindings: new Map(),
         relations: [],
         nameTokens: new Set(),
     };
-    const cteNames = collectCteNames(tokens);
+    const ctes = collectCtes(tokens);
     const listDepths = new Set<number>();
     let depth = 0;
 
@@ -423,6 +494,9 @@ function buildModel(tokens: LexToken[]): StatementModel {
     // Derived tables: the index of their closing parenthesis. Their body is
     // walked like the rest of the statement and the alias read after it.
     const derivedCloses = new Set<number>();
+    // Parenthesised joins `(a JOIN b ON ...)`: the index of their opening
+    // parenthesis. Their tables are read like a FROM list one level deeper.
+    const joinGroups = new Set<number>();
 
     const readAlias = (start: number, binding: Binding, defaultAlias?: string): number => {
         let i = start;
@@ -455,8 +529,22 @@ function buildModel(tokens: LexToken[]): StatementModel {
         let binding: Binding;
         let defaultAlias: string | undefined;
         if (tokens[i]?.value === '(') {
-            derivedCloses.add(skipParens(tokens, i));
-            model.relations.push({scope: scopes[i]});
+            const first = tokens[i + 1];
+            const close = skipParens(tokens, i);
+            // `((SELECT ...)) d` is one derived table in extra parentheses.
+            const wrapsOneParen =
+                tokens[i + 1]?.value === '(' &&
+                ['SELECT', 'WITH', 'VALUES'].includes(keyword(tokens[i + 2])) &&
+                skipParens(tokens, i + 1) === close - 1;
+            if (
+                (isIdent(first) || (tokens[i + 1]?.value === '(' && !wrapsOneParen)) &&
+                !['SELECT', 'WITH', 'VALUES', 'TABLE'].includes(keyword(first))
+            ) {
+                joinGroups.add(i);
+                return i;
+            }
+            derivedCloses.add(close);
+            model.relations.push({scope: scopes[i], at: i});
             return i;
         } else if (isIdent(tokens[i])) {
             const parts: LexToken[] = [tokens[i]];
@@ -473,11 +561,15 @@ function buildModel(tokens: LexToken[]): StatementModel {
             if (allowFunction && tokens[i]?.value === '(') {
                 // Table function: its columns are not the table's.
                 i = skipParens(tokens, i) + 1;
-                binding = {scope: scopes[start]};
-            } else if (!schema && cteNames.has(name.toLowerCase())) {
-                binding = {scope: scopes[start]};
+                binding = {scope: scopes[start], at: start};
+            } else if (!schema && isCteAt(ctes, name, start)) {
+                binding = {scope: scopes[start], at: start};
             } else {
-                binding = {ref: schema ? {name, schema} : {name}, scope: scopes[start]};
+                binding = {
+                    ref: schema ? {name, schema} : {name},
+                    scope: scopes[start],
+                    at: start,
+                };
             }
         } else {
             return i;
@@ -489,15 +581,28 @@ function buildModel(tokens: LexToken[]): StatementModel {
         return i;
     };
 
+    const verbBefore = (index: number, verbs: string[]): boolean => {
+        for (let k = index - 1; k >= 0; k--) {
+            if (scopes[k] === scopes[index] && verbs.includes(keyword(tokens[k]))) return true;
+        }
+        return false;
+    };
+
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
         if (token.kind === 'punct') {
-            if (token.value === '(') depth++;
-            else if (token.value === ')') {
+            if (token.value === '(') {
+                depth++;
+                if (joinGroups.has(i)) {
+                    listDepths.add(depth);
+                    const next = readRelation(i + 1, true);
+                    if (next > i + 1) i = next - 1;
+                }
+            } else if (token.value === ')') {
                 listDepths.delete(depth);
                 depth = Math.max(0, depth - 1);
                 if (derivedCloses.has(i)) {
-                    const next = readAlias(i + 1, {scope: scopes[i]});
+                    const next = readAlias(i + 1, {scope: scopes[i], at: i});
                     if (next > i + 1) i = next - 1;
                 }
             } else if (token.value === ',' && listDepths.has(depth)) {
@@ -509,18 +614,26 @@ function buildModel(tokens: LexToken[]): StatementModel {
         const word = keyword(token);
         if (!word) continue;
         if (LIST_END.has(word)) listDepths.delete(depth);
+        // `ON DUPLICATE KEY UPDATE a = 1, b = 2` / `ON CONFLICT ... DO UPDATE`.
+        if (word === 'ON' && ['DUPLICATE', 'CONFLICT'].includes(keyword(tokens[i + 1])))
+            listDepths.delete(depth);
         if (RELATION_KEYWORDS.has(word)) {
             // `DELETE t FROM`, `INSERT INTO`, `UPDATE t SET` and `FROM a, b`.
             if (word === 'TABLE' && keyword(tokens[i - 1]) !== 'LOCK') continue;
-            if (word === 'UPDATE' && ['KEY', 'FOR', 'DO'].includes(keyword(tokens[i - 1])))
+            if (word === 'UPDATE' && ['KEY', 'FOR', 'DO', 'THEN'].includes(keyword(tokens[i - 1])))
                 continue;
             if (word === 'FROM' && keyword(tokens[i - 1]) === 'DISTINCT') continue;
             if (tokens[i + 1]?.value === '(' && word !== 'FROM' && word !== 'JOIN') continue;
             if (word === 'FROM' || word === 'UPDATE') listDepths.add(depth);
             const next = readRelation(i + 1, word === 'FROM' || word === 'JOIN');
             if (next > i + 1) i = next - 1;
-        } else if (word === 'USING' && tokens[i + 1]?.value !== '(') {
-            // `DELETE FROM a USING b` (PostgreSQL) / `DELETE FROM a USING a JOIN b` (MySQL).
+        } else if (
+            word === 'USING' &&
+            tokens[i + 1]?.value !== '(' &&
+            verbBefore(i, ['DELETE', 'MERGE'])
+        ) {
+            // `DELETE FROM a USING b` (PostgreSQL), `DELETE FROM a USING a JOIN b`
+            // (MySQL) and `MERGE INTO a USING b`; not `EXECUTE ... USING var`.
             listDepths.add(depth);
             const next = readRelation(i + 1, true);
             if (next > i + 1) i = next - 1;
@@ -597,17 +710,104 @@ function analyseStatement(
         return null;
     };
 
+    const matchingOpen = (close: number): number => {
+        let depth = 0;
+        for (let k = close; k >= 0; k--) {
+            if (tokens[k].kind !== 'punct') continue;
+            if (tokens[k].value === ')') depth++;
+            else if (tokens[k].value === '(' && --depth === 0) return k;
+        }
+        return 0;
+    };
+
+    // The SELECT (or RETURNING) whose column list holds the bare `*` at
+    // `index`, past `TOP n`, `DISTINCT ON (..)` and MySQL modifiers; undefined
+    // when that `*` is not a select-list item (a product, `count(*)`).
+    const selectListStart = (index: number): number | undefined => {
+        const scope = model.scopes[index];
+        let j = index - 1;
+        if (tokens[j]?.value === ',') {
+            // Walk back over earlier select items to their SELECT, jumping over
+            // parentheses (`EXTRACT(YEAR FROM d)`, `OVER (ORDER BY id)`) and
+            // `CASE ... END`, whose keywords say nothing about the list.
+            for (let k = j - 1; k >= 0; k--) {
+                const current = tokens[k];
+                if (current.kind === 'punct' && current.value === ')') {
+                    k = matchingOpen(k);
+                    continue;
+                }
+                if (model.scopes[k] !== scope) continue;
+                const word = keyword(current);
+                if (word === 'END') {
+                    let nesting = 0;
+                    for (; k >= 0; k--) {
+                        const inner = keyword(tokens[k]);
+                        if (inner === 'END') nesting++;
+                        else if (inner === 'CASE' && --nesting === 0) break;
+                    }
+                    continue;
+                }
+                if (word === 'SELECT' || word === 'RETURNING') return k;
+                if (LIST_END.has(word) || RELATION_KEYWORDS.has(word)) return undefined;
+            }
+            return undefined;
+        }
+        if (keyword(tokens[j]) === 'TIES' && keyword(tokens[j - 1]) === 'WITH') j -= 2;
+        if (keyword(tokens[j]) === 'PERCENT') j--;
+        if (tokens[j]?.kind === 'number' && keyword(tokens[j - 1]) === 'TOP') {
+            j -= 2;
+        } else if (tokens[j]?.kind === 'punct' && tokens[j].value === ')') {
+            const open = matchingOpen(j);
+            if (keyword(tokens[open - 1]) === 'TOP') j = open - 2;
+            else if (keyword(tokens[open - 1]) === 'ON' && keyword(tokens[open - 2]) === 'DISTINCT')
+                j = open - 3;
+            else return undefined;
+        }
+        while (SELECT_MODIFIERS.has(keyword(tokens[j]))) j--;
+        const word = keyword(tokens[j]);
+        return word === 'SELECT' || word === 'RETURNING' ? j : undefined;
+    };
+
+    // A bare `*` reads the target column when a table of its own SELECT (up
+    // to the next UNION/INTERSECT/EXCEPT of that level) is the target. Inside
+    // EXISTS (..) the columns are never read.
+    const wildcardExpandsTarget = (index: number, listStart: number): boolean => {
+        const scope = model.scopes[index];
+        const open = model.opens.get(scope);
+        if (open !== undefined && keyword(tokens[open - 1]) === 'EXISTS') return false;
+        let from = -1;
+        let until = tokens.length;
+        if (keyword(tokens[listStart]) === 'SELECT') {
+            from = listStart;
+            for (let k = listStart + 1; k < tokens.length; k++) {
+                if (model.scopes[k] === scope && SET_OPERATORS.has(keyword(tokens[k]))) {
+                    until = k;
+                    break;
+                }
+            }
+        }
+        return model.relations.some(
+            (r) =>
+                r.scope === scope &&
+                r.at > from &&
+                r.at < until &&
+                r.ref !== undefined &&
+                resolveVerdict(matchRelation(r.ref, target, options.defaultSchema)) !== null,
+        );
+    };
+
     let wildcardSeen = false;
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
 
         if (token.kind === 'punct' && token.value === '*' && !wildcardSeen) {
             const prev = tokens[i - 1];
-            const bare =
-                keyword(prev) === 'SELECT' || keyword(prev) === 'DISTINCT' || prev?.value === ',';
-            if (bare && targetInStatement) {
-                wildcardSeen = true;
-                matches.push(uncertain(token, 'wildcard'));
+            const listStart = prev?.value === '.' ? undefined : selectListStart(i);
+            if (listStart !== undefined) {
+                if (wildcardExpandsTarget(i, listStart)) {
+                    wildcardSeen = true;
+                    matches.push(uncertain(token, 'wildcard'));
+                }
             } else if (prev?.value === '.' && isIdent(tokens[i - 2])) {
                 const bindings = model.bindings.get(tokens[i - 2].value.toLowerCase()) ?? [];
                 if (
