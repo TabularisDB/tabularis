@@ -2195,6 +2195,24 @@
       "copyDetailsFailed": "Impossibile copiare i dettagli del nodo negli appunti",
       "nodeDetails": "Dettagli nodo"
     },
+    "dmlPreview": {
+      "action": "Anteprima modifiche",
+      "title": "Anteprima modifiche",
+      "titleUpdate": "Anteprima UPDATE su {{target}}",
+      "titleDelete": "Anteprima DELETE su {{target}}",
+      "loading": "Generazione dell’anteprima…",
+      "previewSql": "SQL di anteprima",
+      "truncated": "Vengono mostrate le prime {{limit}} righe; ce ne sono altre corrispondenti.",
+      "noFilter": "Questa istruzione non ha una clausola WHERE, quindi interesserebbe ogni riga in {{target}}.",
+      "triggers": "{{target}} ha {{triggers}} trigger e {{rules}} regole. Vengono eseguiti con l’istruzione, non in questa anteprima.",
+      "canDiffer": "Scritture concorrenti e trigger possono far differire l’effetto finale da questa anteprima.",
+      "stale": "Il testo dell’editor o la connessione è cambiato da questa anteprima. Esegui di nuovo Anteprima modifiche.",
+      "empty": "Nessuna riga corrisponde a questa istruzione.",
+      "runStatement": "Esegui istruzione",
+      "close": "Chiudi",
+      "notAvailable": "L’anteprima è disponibile per un singolo UPDATE o DELETE PostgreSQL su una tabella.",
+      "fillParameters": "Compila i parametri della query prima dell’anteprima."
+    },
     "notebook": {
       "addSqlCell": "Aggiungi Cella SQL",
       "addMarkdownCell": "Aggiungi Cella Markdown",

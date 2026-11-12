@@ -2166,6 +2166,24 @@
       "copyDetailsFailed": "Nabigong kopyahin ang mga detalye ng node sa clipboard",
       "nodeDetails": "Mga Detalye ng Node"
     },
+    "dmlPreview": {
+      "action": "I-preview ang mga pagbabago",
+      "title": "I-preview ang mga pagbabago",
+      "titleUpdate": "I-preview ang UPDATE sa {{target}}",
+      "titleDelete": "I-preview ang DELETE sa {{target}}",
+      "loading": "Gumagawa ng preview…",
+      "previewSql": "SQL ng preview",
+      "truncated": "Ipinapakita ang unang {{limit}} (na) row; may iba pang tumutugma.",
+      "noFilter": "Walang WHERE clause ang statement na ito, kaya maaapektuhan nito ang bawat row sa {{target}}.",
+      "triggers": "May {{triggers}} (na) trigger at {{rules}} (na) rule ang {{target}}. Gumagana ang mga ito sa pag-execute, hindi sa preview na ito.",
+      "canDiffer": "Maaaring magkaiba ang huling epekto sa preview na ito dahil sa sabay-sabay na pagsulat at mga trigger.",
+      "stale": "Nagbago ang teksto sa editor o ang connection mula noong ginawa ang preview na ito. Patakbuhin ulit ang I-preview ang mga pagbabago.",
+      "empty": "Walang row na tumutugma sa statement na ito.",
+      "runStatement": "Patakbuhin ang statement",
+      "close": "Isara",
+      "notAvailable": "Available ang preview para sa iisang PostgreSQL UPDATE o DELETE sa isang table.",
+      "fillParameters": "Punuan muna ang mga parameter ng query bago i-preview."
+    },
     "notebook": {
       "addSqlCell": "Magdagdag ng SQL Cell",
       "addMarkdownCell": "Magdagdag ng Markdown Cell",

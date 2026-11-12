@@ -357,6 +357,7 @@ enum QueryRpcCommand {
     Count,
     Explain,
     GetServerNow,
+    PreviewDml,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1123,6 +1124,16 @@ struct ExecuteQueryRequest {
     schema: Option<String>,
     session_id: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PreviewDmlChangesRequest {
+    connection_id: String,
+    sql: String,
+    schema: Option<String>,
+    database: Option<String>,
+    limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2482,6 +2493,7 @@ impl QueryRpcCommand {
             "count_query" => Self::Count,
             "explain_query_plan" => Self::Explain,
             "get_server_now" => Self::GetServerNow,
+            "preview_dml_changes" => Self::PreviewDml,
             _ => return None,
         })
     }
@@ -3445,6 +3457,16 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
             let request: ConnectionIdRequest = decode_payload(body)?;
             QueryCommand::GetServerNow {
                 connection_id: request.connection_id,
+            }
+        }
+        QueryRpcCommand::PreviewDml => {
+            let request: PreviewDmlChangesRequest = decode_payload(body)?;
+            QueryCommand::PreviewDml {
+                connection_id: request.connection_id,
+                sql: request.sql,
+                schema: request.schema,
+                database: request.database,
+                limit: request.limit,
             }
         }
     })

@@ -2108,6 +2108,24 @@
       "copyDetailsFailed": "无法将节点详情复制到剪贴板",
       "nodeDetails": "节点详情"
     },
+    "dmlPreview": {
+      "action": "预览更改",
+      "title": "预览更改",
+      "titleUpdate": "预览对 {{target}} 的 UPDATE",
+      "titleDelete": "预览对 {{target}} 的 DELETE",
+      "loading": "正在生成预览…",
+      "previewSql": "预览 SQL",
+      "truncated": "正在显示前 {{limit}} 行；还有更多匹配的行。",
+      "noFilter": "这条语句没有 WHERE 子句，因此会影响到 {{target}} 中的每一行。",
+      "triggers": "{{target}} 有 {{triggers}} 个触发器和 {{rules}} 条规则。它们会在执行时运行，而不会在此预览中运行。",
+      "canDiffer": "并发写入和触发器可能使最终效果与此预览不同。",
+      "stale": "自生成此预览以来，编辑器文本或连接已更改。请再次运行“预览更改”。",
+      "empty": "没有行匹配此语句。",
+      "runStatement": "运行语句",
+      "close": "关闭",
+      "notAvailable": "预览适用于针对单个表的一条 PostgreSQL UPDATE 或 DELETE。",
+      "fillParameters": "预览前请先填写查询参数。"
+    },
     "notebook": {
       "addSqlCell": "添加 SQL 单元格",
       "addMarkdownCell": "添加 Markdown 单元格",

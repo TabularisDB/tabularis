@@ -2135,6 +2135,24 @@
       "copyDetailsFailed": "Knotendetails konnten nicht in die Zwischenablage kopiert werden",
       "nodeDetails": "Knotendetails"
     },
+    "dmlPreview": {
+      "action": "Änderungen vorschauen",
+      "title": "Änderungen vorschauen",
+      "titleUpdate": "UPDATE auf {{target}} vorschauen",
+      "titleDelete": "DELETE auf {{target}} vorschauen",
+      "loading": "Vorschau wird erstellt…",
+      "previewSql": "Vorschau-SQL",
+      "truncated": "Die ersten {{limit}} Zeilen werden angezeigt; es gibt weitere Treffer.",
+      "noFilter": "Diese Anweisung hat keine WHERE-Klausel und würde jede Zeile in {{target}} betreffen.",
+      "triggers": "{{target}} hat {{triggers}} Trigger und {{rules}} Regeln. Sie laufen bei der Ausführung, nicht in dieser Vorschau.",
+      "canDiffer": "Gleichzeitige Schreibvorgänge und Trigger können das endgültige Ergebnis von dieser Vorschau unterscheiden.",
+      "stale": "Der Editortext oder die Verbindung hat sich seit dieser Vorschau geändert. Führen Sie „Änderungen vorschauen“ erneut aus.",
+      "empty": "Keine Zeilen entsprechen dieser Anweisung.",
+      "runStatement": "Anweisung ausführen",
+      "close": "Schließen",
+      "notAvailable": "Die Vorschau ist für ein einzelnes PostgreSQL-UPDATE oder -DELETE auf einer Tabelle verfügbar.",
+      "fillParameters": "Füllen Sie die Abfrageparameter aus, bevor Sie die Vorschau ausführen."
+    },
     "notebook": {
       "addSqlCell": "SQL-Zelle hinzufügen",
       "addMarkdownCell": "Markdown-Zelle hinzufügen",

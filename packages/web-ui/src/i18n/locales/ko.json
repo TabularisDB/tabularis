@@ -2103,6 +2103,24 @@
       "copyDetailsFailed": "노드 세부 정보를 클립보드에 복사하지 못했습니다",
       "nodeDetails": "노드 세부 정보"
     },
+    "dmlPreview": {
+      "action": "변경 미리 보기",
+      "title": "변경 미리 보기",
+      "titleUpdate": "{{target}}의 UPDATE 미리 보기",
+      "titleDelete": "{{target}}의 DELETE 미리 보기",
+      "loading": "미리 보기를 만드는 중…",
+      "previewSql": "미리 보기 SQL",
+      "truncated": "처음 {{limit}}개 행을 표시합니다. 일치하는 행이 더 있습니다.",
+      "noFilter": "이 문에는 WHERE 절이 없어서 {{target}}의 모든 행에 영향을 줍니다.",
+      "triggers": "{{target}}에 트리거 {{triggers}}개와 규칙 {{rules}}개가 있습니다. 실행 시에만 동작하며 이 미리 보기에서는 실행되지 않습니다.",
+      "canDiffer": "동시 쓰기와 트리거 때문에 최종 결과가 이 미리 보기와 달라질 수 있습니다.",
+      "stale": "이 미리 보기를 만든 이후 편집기 내용이나 연결이 변경되었습니다. 변경 미리 보기를 다시 실행하세요.",
+      "empty": "이 문에 일치하는 행이 없습니다.",
+      "runStatement": "문 실행",
+      "close": "닫기",
+      "notAvailable": "미리 보기는 한 테이블에 대한 단일 PostgreSQL UPDATE 또는 DELETE에서 사용할 수 있습니다.",
+      "fillParameters": "미리 보기 전에 쿼리 매개변수를 입력하세요."
+    },
     "notebook": {
       "addSqlCell": "SQL 셀 추가",
       "addMarkdownCell": "마크다운 셀 추가",

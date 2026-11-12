@@ -329,6 +329,28 @@ export interface ExplainQueryRequest extends MetadataRequest {
     analyze: boolean;
 }
 
+export interface PreviewDmlChangesRequest extends MetadataRequest {
+    sql: string;
+    limit?: number;
+}
+
+export interface DmlPreview {
+    kind: 'update' | 'delete';
+    target: string;
+    sourceSql: string;
+    connectionId: string;
+    schema: string | null;
+    database: string | null;
+    previewSql: string;
+    assignedColumns: string[];
+    hasFilter: boolean;
+    limit: number;
+    truncated: boolean;
+    triggers: number;
+    rules: number;
+    result: QueryResult;
+}
+
 export interface CancelQueryRequest extends ConnectionIdRequest {
     queryRequestId?: RequestId;
 }
@@ -1068,6 +1090,7 @@ export interface CommandMap {
         'database'
     >;
     explain_query_plan: CommandDefinition<ExplainQueryRequest, ExplainQueryOutput, 'database'>;
+    preview_dml_changes: CommandDefinition<PreviewDmlChangesRequest, DmlPreview, 'database'>;
     cancel_query: CommandDefinition<CancelQueryRequest, void, 'database'>;
     get_server_now: CommandDefinition<ConnectionIdRequest, string, 'database'>;
 

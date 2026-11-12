@@ -1562,6 +1562,13 @@ async fn routes_query_execution_commands_through_the_shared_application_api() {
             "get_server_now",
             serde_json::json!({"connectionId": "connection-1"}),
         ),
+        (
+            "preview_dml_changes",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "sql": "UPDATE orders SET status = 'paid' WHERE id = 1"
+            }),
+        ),
     ];
 
     for (command, payload) in commands {
