@@ -146,6 +146,189 @@ describe('columnUsageCollector', () => {
             });
         });
 
+        describe('foreign keys across schemas', () => {
+            const fk = (
+                name: string,
+                column_name: string,
+                ref_table: string,
+                ref_column: string,
+                ref_schema?: string | null,
+            ) => ({
+                name,
+                column_name,
+                ref_table,
+                ref_column,
+                ...(ref_schema !== undefined ? {ref_schema} : {}),
+            });
+            const fkLookups = (
+                outgoing: ReturnType<typeof fk>[],
+                tables: TableSchema[],
+            ): ColumnUsageLookups =>
+                lookups({
+                    getForeignKeys: async () => outgoing,
+                    getSchemaSnapshot: async () => tables,
+                    getViews: async () => [],
+                    getHistory: async () => [],
+                });
+            const collectFks = async (
+                outgoing: ReturnType<typeof fk>[],
+                tables: TableSchema[],
+                usageTarget: ColumnUsageTarget = target,
+            ) =>
+                (
+                    await collectColumnUsage(fkLookups(outgoing, tables), {
+                        target: usageTarget,
+                        dialect: 'postgres',
+                        viewsSupported: true,
+                    })
+                ).evidence.map((e) => ({
+                    direction: e.direction,
+                    confidence: e.confidence,
+                    objectSchema: e.objectSchema,
+                    objectName: e.objectName,
+                    relatedColumn: e.relatedColumn,
+                }));
+            const invoices = (...foreign_keys: ReturnType<typeof fk>[]): TableSchema => ({
+                name: 'invoices',
+                columns: [column('id'), column('customer_id')],
+                foreign_keys,
+            });
+
+            it('does not report a key into the same table name in another schema as incoming', async () => {
+                const evidence = await collectFks(
+                    [],
+                    [
+                        invoices(
+                            fk(
+                                'invoices_sales_fk',
+                                'customer_id',
+                                'orders',
+                                'customer_id',
+                                'sales',
+                            ),
+                        ),
+                    ],
+                );
+                expect(evidence).toEqual([]);
+            });
+
+            it('reports an incoming key whose referenced schema is the target schema', async () => {
+                const evidence = await collectFks(
+                    [],
+                    [
+                        invoices(
+                            fk(
+                                'invoices_public_fk',
+                                'customer_id',
+                                'orders',
+                                'customer_id',
+                                'public',
+                            ),
+                            fk(
+                                'invoices_sales_fk',
+                                'customer_id',
+                                'orders',
+                                'customer_id',
+                                'sales',
+                            ),
+                            fk(
+                                'invoices_archive_fk',
+                                'customer_id',
+                                'orders',
+                                'customer_id',
+                                'archive',
+                            ),
+                        ),
+                    ],
+                );
+                expect(evidence).toEqual([
+                    {
+                        direction: 'incoming',
+                        confidence: 'confirmed',
+                        objectSchema: 'public',
+                        objectName: 'invoices',
+                        relatedColumn: 'customer_id',
+                    },
+                ]);
+            });
+
+            it('reads a key without a referenced schema as one into the source schema', async () => {
+                for (const refSchema of [undefined, null, '']) {
+                    const evidence = await collectFks(
+                        [fk('orders_customer_fk', 'customer_id', 'customers', 'id', refSchema)],
+                        [
+                            invoices(
+                                fk(
+                                    'invoices_fk',
+                                    'customer_id',
+                                    'orders',
+                                    'customer_id',
+                                    refSchema,
+                                ),
+                            ),
+                        ],
+                    );
+                    expect(
+                        evidence.map((e) => [e.direction, e.objectSchema, e.objectName]),
+                    ).toEqual([
+                        ['outgoing', 'public', 'customers'],
+                        ['incoming', 'public', 'invoices'],
+                    ]);
+                }
+            });
+
+            it('opens an outgoing key in the schema it references', async () => {
+                const evidence = await collectFks(
+                    [
+                        fk('orders_sales_customer_fk', 'customer_id', 'customers', 'id', 'sales'),
+                        fk('orders_public_customer_fk', 'customer_id', 'customers', 'id', 'public'),
+                        fk('orders_other_fk', 'region_id', 'regions', 'id', 'sales'),
+                    ],
+                    [],
+                );
+                expect(evidence).toEqual([
+                    {
+                        direction: 'outgoing',
+                        confidence: 'confirmed',
+                        objectSchema: 'sales',
+                        objectName: 'customers',
+                        relatedColumn: 'id',
+                    },
+                    {
+                        direction: 'outgoing',
+                        confidence: 'confirmed',
+                        objectSchema: 'public',
+                        objectName: 'customers',
+                        relatedColumn: 'id',
+                    },
+                ]);
+            });
+
+            it('compares nothing when neither side knows a schema', async () => {
+                const evidence = await collectFks(
+                    [fk('orders_customer_fk', 'customer_id', 'customers', 'id')],
+                    [invoices(fk('invoices_fk', 'customer_id', 'orders', 'customer_id'))],
+                    {database: 'shop', table: 'orders', column: 'customer_id'},
+                );
+                expect(evidence).toEqual([
+                    {
+                        direction: 'outgoing',
+                        confidence: 'confirmed',
+                        objectSchema: undefined,
+                        objectName: 'customers',
+                        relatedColumn: 'id',
+                    },
+                    {
+                        direction: 'incoming',
+                        confidence: 'confirmed',
+                        objectSchema: undefined,
+                        objectName: 'invoices',
+                        relatedColumn: 'customer_id',
+                    },
+                ]);
+            });
+        });
+
         it('keeps literal values out of history snippets', async () => {
             const result = await collectColumnUsage(lookups(), {
                 target,

@@ -8,6 +8,7 @@ import type {TableSchema} from '@/types/editor';
 import type {QueryHistoryEntry} from '@/types/queryHistory';
 import type {DialectInput} from './sqlSplitter';
 import {toErrorMessage} from './errors';
+import {getReferencedSchema} from './foreignKeys';
 import {
     buildUsageSnippet,
     findColumnReferences,
@@ -220,12 +221,14 @@ export async function collectColumnUsage(
             scanned++;
             for (const fk of outgoing) {
                 if (!sameName(fk.column_name, target.column)) continue;
+                const refSchema = getReferencedSchema(fk, target.schema);
                 result.evidence.push({
-                    id: `fk-out-${fk.name}-${fk.ref_table}-${fk.ref_column}`,
+                    id: `fk-out-${fk.name}-${refSchema ?? ''}-${fk.ref_table}-${fk.ref_column}`,
                     source: 'foreign-key',
                     confidence: 'confirmed',
                     direction: 'outgoing',
                     objectName: fk.ref_table,
+                    ...(refSchema ? {objectSchema: refSchema} : {}),
                     relatedColumn: fk.ref_column,
                     constraintName: fk.name,
                 });
@@ -235,13 +238,18 @@ export async function collectColumnUsage(
         }
         if (cancelled()) return cancelRest();
         try {
+            // The snapshot holds the tables of the target's schema, so a key
+            // there references the target only when its referenced schema
+            // (the source schema when the driver doesn't report one) matches.
             snapshot = await lookups.getSchemaSnapshot();
             scanned++;
             for (const table of snapshot) {
                 for (const fk of table.foreign_keys ?? []) {
+                    const refSchema = getReferencedSchema(fk, target.schema);
                     if (
                         !sameName(fk.ref_table, target.table) ||
-                        !sameName(fk.ref_column, target.column)
+                        !sameName(fk.ref_column, target.column) ||
+                        (refSchema && target.schema && !sameName(refSchema, target.schema))
                     ) {
                         continue;
                     }
