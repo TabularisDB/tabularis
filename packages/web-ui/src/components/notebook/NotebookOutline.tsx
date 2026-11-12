@@ -1,9 +1,13 @@
 import {useState, useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
-import {List, ChevronDown, Sparkles, Loader2} from 'lucide-react';
+import {List, ChevronDown, Sparkles, Loader2, AlertCircle, CheckCircle2} from 'lucide-react';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import type {NotebookCell} from '@/types/notebook';
-import {extractOutline, getUnnamedCellsWithContent} from '@/utils/notebookOutline';
+import {
+    extractOutline,
+    getUnnamedCellsWithContent,
+    type SqlCellExecutionStatus,
+} from '@/utils/notebookOutline';
 import {useSettings} from '@/hooks/useSettings';
 
 interface NotebookOutlineProps {
@@ -78,6 +82,49 @@ function CellTypeBadge({cellType}: {cellType: 'sql' | 'markdown'}) {
     return <span className="text-accent mr-1">MD</span>;
 }
 
+function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
+    const {t} = useTranslation();
+    if (!status || status === 'idle') return null;
+
+    if (status === 'running') {
+        return (
+            <span
+                className="inline-flex items-center ml-auto pl-1 text-accent-warning shrink-0"
+                title={t('editor.notebook.statusRunning')}
+                aria-label={t('editor.notebook.statusRunning')}
+            >
+                <Loader2 size={11} className="animate-spin" />
+            </span>
+        );
+    }
+
+    if (status === 'failed') {
+        return (
+            <span
+                className="inline-flex items-center ml-auto pl-1 text-accent-error shrink-0"
+                title={t('editor.notebook.statusFailed')}
+                aria-label={t('editor.notebook.statusFailed')}
+            >
+                <AlertCircle size={11} />
+            </span>
+        );
+    }
+
+    if (status === 'has_output') {
+        return (
+            <span
+                className="inline-flex items-center ml-auto pl-1 text-accent-success shrink-0"
+                title={t('editor.notebook.statusOutputAvailable')}
+                aria-label={t('editor.notebook.statusOutputAvailable')}
+            >
+                <CheckCircle2 size={11} />
+            </span>
+        );
+    }
+
+    return null;
+}
+
 export function NotebookOutline({
     cells,
     onScrollToCell,
@@ -115,11 +162,14 @@ export function NotebookOutline({
                             key={`${entry.cellId}-${i}`}
                             type="button"
                             onClick={() => onScrollToCell(entry.cellId)}
-                            className="block w-full text-left text-xs text-secondary hover:text-primary transition-colors truncate"
+                            className="flex items-center w-full text-left text-xs text-secondary hover:text-primary transition-colors truncate"
                             style={{paddingLeft: `${(entry.level - 1) * 12}px`}}
                         >
                             <CellTypeBadge cellType={entry.cellType} />
-                            {entry.text}
+                            <span className="truncate flex-1">{entry.text}</span>
+                            {entry.cellType === 'sql' && (
+                                <SqlStatusIndicator status={entry.status} />
+                            )}
                         </button>
                     ))}
                 </div>
