@@ -1192,6 +1192,8 @@
     },
     "shortcuts": {
       "title": "Keyboard Shortcuts",
+      "searchPlaceholder": "Search actions or shortcuts",
+      "noMatches": "No shortcuts match your search.",
       "categories": {
         "editor": "Editor",
         "navigation": "Navigation",

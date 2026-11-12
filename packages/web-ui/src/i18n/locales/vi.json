@@ -1178,6 +1178,8 @@
     },
     "shortcuts": {
       "title": "Phím tắt",
+      "searchPlaceholder": "Tìm hành động hoặc phím tắt",
+      "noMatches": "Không có phím tắt nào khớp với tìm kiếm.",
       "categories": {
         "editor": "Trình soạn thảo",
         "navigation": "Điều hướng",

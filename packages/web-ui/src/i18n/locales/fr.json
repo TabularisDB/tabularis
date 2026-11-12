@@ -1160,6 +1160,8 @@
     },
     "shortcuts": {
       "title": "Raccourcis clavier",
+      "searchPlaceholder": "Rechercher une action ou un raccourci",
+      "noMatches": "Aucun raccourci ne correspond à la recherche.",
       "categories": {
         "editor": "Éditeur",
         "navigation": "Navigation",

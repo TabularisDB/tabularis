@@ -1158,6 +1158,8 @@
     },
     "shortcuts": {
       "title": "Mga Keyboard Shortcut",
+      "searchPlaceholder": "Maghanap ng aksyon o shortcut",
+      "noMatches": "Walang shortcut na tumutugma sa iyong paghahanap.",
       "categories": {
         "editor": "Editor",
         "navigation": "Navigation",

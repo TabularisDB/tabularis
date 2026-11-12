@@ -1088,6 +1088,8 @@
     },
     "shortcuts": {
       "title": "键盘快捷键",
+      "searchPlaceholder": "搜索操作或快捷键",
+      "noMatches": "没有匹配的快捷键。",
       "categories": {
         "editor": "编辑器",
         "navigation": "导航",

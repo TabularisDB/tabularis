@@ -1187,6 +1187,8 @@
     },
     "shortcuts": {
       "title": "Scorciatoie da tastiera",
+      "searchPlaceholder": "Cerca azioni o scorciatoie",
+      "noMatches": "Nessuna scorciatoia corrisponde alla ricerca.",
       "categories": {
         "editor": "Editor",
         "navigation": "Navigazione",

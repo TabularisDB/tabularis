@@ -1188,6 +1188,8 @@
         },
         "shortcuts": {
             "title": "鍵盤快速鍵",
+            "searchPlaceholder": "搜尋動作或快速鍵",
+            "noMatches": "沒有符合的快速鍵。",
             "categories": {
                 "editor": "編輯器",
                 "navigation": "導航",

@@ -1127,6 +1127,8 @@
     },
     "shortcuts": {
       "title": "Tastenkürzel",
+      "searchPlaceholder": "Aktionen oder Tastenkürzel suchen",
+      "noMatches": "Keine passenden Tastenkürzel gefunden.",
       "categories": {
         "editor": "Editor",
         "navigation": "Navigation",
