@@ -30,7 +30,13 @@ function createRemoteDriver(id: string, example: string): ConnectionStringDriver
 // example-derived protocol.
 const CAPABILITY_DRIVERS: ConnectionStringDriver[] = [
     createRemoteDriver('postgres', 'postgres://user:pass@localhost:5432/db'),
-    createRemoteDriver('mysql', 'mysql://user:pass@localhost:3306/db'),
+    {
+        ...createRemoteDriver('mysql', 'mysql://user:pass@localhost:3306/db'),
+        capabilities: {
+            ...createRemoteDriver('mysql', 'mysql://user:pass@localhost:3306/db').capabilities,
+            unix_socket: true,
+        },
+    },
     {
         id: 'sqlite',
         capabilities: {
@@ -806,6 +812,69 @@ describe('connectionStringParser', () => {
                 );
                 expect(result.error).toContain('mongodb+srv');
             }
+        });
+    });
+
+    describe('MySQL Unix socket', () => {
+        it('imports ?socket= as the socket path', () => {
+            const result = parseConnectionString(
+                'mysql://root@localhost/db?socket=/tmp/mysql.sock',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('mysql');
+                expect(result.params.unix_socket_path).toBe('/tmp/mysql.sock');
+                expect(result.params.username).toBe('root');
+                expect(result.params.database).toBe('db');
+                expect(toConnectionParams(result.params).unix_socket_path).toBe('/tmp/mysql.sock');
+            }
+        });
+
+        it('decodes a percent-encoded socket path', () => {
+            const result = parseConnectionString(
+                'mysql://root@localhost/db?socket=%2Fvar%2Frun%2Fmysqld%2Fmysqld.sock',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success && result.params.unix_socket_path).toBe(
+                '/var/run/mysqld/mysqld.sock',
+            );
+        });
+
+        it('leaves the socket path unset without the parameter or when it is blank', () => {
+            for (const uri of [
+                'mysql://root@localhost:3306/db',
+                'mysql://root@localhost/db?socket=',
+                'mysql://root@localhost/db?socket=%20%20',
+            ]) {
+                const result = parseConnectionString(uri, CAPABILITY_DRIVERS);
+                expect(result.success).toBe(true);
+                if (result.success) expect(result.params.unix_socket_path).toBeUndefined();
+            }
+        });
+
+        it('follows the unix_socket capability, not the driver id', () => {
+            const mariadb: ConnectionStringDriver = {
+                id: 'mariadb',
+                capabilities: {
+                    ...createRemoteDriver('mariadb', 'mariadb://user:pass@localhost:3306/db')
+                        .capabilities,
+                    unix_socket: true,
+                },
+            };
+            const result = parseConnectionString('mariadb://root@localhost/db?socket=/tmp/m.sock', [
+                mariadb,
+            ]);
+            expect(result.success && result.params.unix_socket_path).toBe('/tmp/m.sock');
+        });
+
+        it('ignores ?socket= for other drivers', () => {
+            const result = parseConnectionString(
+                'postgres://user@localhost/db?socket=/tmp/.s.PGSQL.5432',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) expect(result.params.unix_socket_path).toBeUndefined();
         });
     });
 });
