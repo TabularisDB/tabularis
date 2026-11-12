@@ -26,6 +26,7 @@ import {Plus, Trash2, Edit2, Download, Code2, AlertCircle, Check} from 'lucide-r
 import clsx from 'clsx';
 import DOMPurify from 'dompurify';
 import {ensureMonaco} from '@/utils/monaco';
+import {toErrorMessage} from '@/utils/errors';
 
 function snippetLanguage(dialect: SqlDialectScope | undefined, drivers: PluginManifest[]): string {
     if (dialect?.startsWith('driver:')) {
@@ -73,7 +74,7 @@ export function SnippetsTab() {
     const {t} = useTranslation();
     const editorTheme = useEditorTheme();
     const {drivers} = useDrivers();
-    const {downloadFile} = usePlatformCapabilities();
+    const platform = usePlatformCapabilities();
     const {showAlert} = useAlert();
     const [isExporting, setIsExporting] = useState(false);
     const monacoRef = useRef<typeof Monaco | null>(null);
@@ -213,17 +214,18 @@ export function SnippetsTab() {
         if (snippets.length === 0 || isExporting) return;
         setIsExporting(true);
         try {
-            await downloadFile({
+            await platform.downloadFile({
                 fileName: 'tabularis-snippets.json',
                 contents: new TextEncoder().encode(serializeSqlSnippets(snippets)),
                 mimeType: 'application/json',
                 title: t('settings.snippets.exportJson', 'Export JSON'),
                 filters: [{name: 'JSON', extensions: ['json']}],
             });
-        } catch {
-            showAlert(t('settings.snippets.exportFailed', 'Failed to export snippets.'), {
-                kind: 'error',
-            });
+        } catch (failure) {
+            showAlert(
+                `${t('settings.snippets.exportFailed', 'Failed to export snippets.')} ${toErrorMessage(failure)}`,
+                {kind: 'error'},
+            );
         } finally {
             setIsExporting(false);
         }

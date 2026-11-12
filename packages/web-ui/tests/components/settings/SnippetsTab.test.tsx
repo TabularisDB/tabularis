@@ -1,6 +1,7 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {SnippetsTab} from '@/components/settings/SnippetsTab';
+import type {DownloadFileRequest} from '@/platform/capabilities';
 import {
     loadSqlSnippets,
     saveSqlSnippets,
@@ -20,9 +21,15 @@ const mocks = vi.hoisted(() => ({
     downloadFile: vi.fn(),
     showAlert: vi.fn(),
 }));
-vi.mock('@/hooks/usePlatformCapabilities', () => ({
-    usePlatformCapabilities: () => ({downloadFile: mocks.downloadFile}),
-}));
+vi.mock('@/hooks/usePlatformCapabilities', () => {
+    const platform = {
+        operations: mocks.downloadFile,
+        downloadFile(request: DownloadFileRequest) {
+            return this.operations(request);
+        },
+    };
+    return {usePlatformCapabilities: () => platform};
+});
 vi.mock('@/hooks/useAlert', () => ({useAlert: () => ({showAlert: mocks.showAlert})}));
 vi.mock('@/hooks/useEditorTheme', () => ({useEditorTheme: () => mocks.theme}));
 vi.mock('@/hooks/useDrivers', () => ({
@@ -125,9 +132,12 @@ describe('SnippetsTab', () => {
             fireEvent.click(button);
             await waitFor(() => expect(button).toBeEnabled());
             if (outcome === 'failure')
-                expect(mocks.showAlert).toHaveBeenCalledWith('Failed to export snippets.', {
-                    kind: 'error',
-                });
+                expect(mocks.showAlert).toHaveBeenCalledWith(
+                    'Failed to export snippets. write failed',
+                    {
+                        kind: 'error',
+                    },
+                );
             else expect(mocks.showAlert).not.toHaveBeenCalled();
             expect({...localStorage}).toEqual(before);
             fireEvent.click(button);
