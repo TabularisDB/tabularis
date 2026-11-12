@@ -2699,6 +2699,10 @@
     "expand": "Espandi/comprimi albero JSON",
     "openViewer": "Apri visualizzatore JSON"
   },
+  "textViewer": {
+    "save": "Salva",
+    "wrapLines": "A capo automatico"
+  },
   "rowEditor": {
     "title": "Modifica Riga",
     "subtitle": "Riga #{{row}}",

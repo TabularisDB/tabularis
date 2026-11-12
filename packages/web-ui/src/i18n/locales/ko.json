@@ -2650,7 +2650,8 @@
     "sideBySide": "나란히 보기"
   },
   "textViewer": {
-    "save": "저장"
+    "save": "저장",
+    "wrapLines": "줄 바꿈"
   },
   "rowEditor": {
     "title": "행 편집",

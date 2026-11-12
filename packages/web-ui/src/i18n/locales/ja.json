@@ -2668,6 +2668,10 @@
   "secondaryWindows": {
     "sessionExpired": "このサブウィンドウのセッションは期限切れです。元の画面に戻って、もう一度開いてください。"
   },
+  "textViewer": {
+    "save": "保存",
+    "wrapLines": "折り返し"
+  },
   "rowEditor": {
     "title": "行を編集",
     "subtitle": "行 #{{row}}",

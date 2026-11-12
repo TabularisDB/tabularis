@@ -2600,6 +2600,10 @@
     "expand": "Expandir/contraer árbol JSON",
     "openViewer": "Abrir visor JSON"
   },
+  "textViewer": {
+    "save": "Guardar",
+    "wrapLines": "Ajuste de línea"
+  },
   "rowEditor": {
     "title": "Editar Fila",
     "subtitle": "Fila #{{row}}",

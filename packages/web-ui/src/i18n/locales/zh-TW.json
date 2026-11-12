@@ -2674,7 +2674,8 @@
         "sideBySide": "並排"
     },
     "textViewer": {
-        "save": "儲存"
+        "save": "儲存",
+        "wrapLines": "自動換行"
     },
     "rowEditor": {
         "title": "編輯列",

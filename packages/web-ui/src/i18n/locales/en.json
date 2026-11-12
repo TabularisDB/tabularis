@@ -2754,7 +2754,8 @@
     "sideBySide": "Side by side"
   },
   "textViewer": {
-    "save": "Save"
+    "save": "Save",
+    "wrapLines": "Wrap lines"
   },
   "rowEditor": {
     "title": "Edit Row",

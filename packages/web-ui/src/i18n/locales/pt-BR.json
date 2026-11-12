@@ -2694,7 +2694,8 @@
     "sideBySide": "Lado a lado"
   },
   "textViewer": {
-    "save": "Salvar"
+    "save": "Salvar",
+    "wrapLines": "Quebrar linhas"
   },
   "rowEditor": {
     "title": "Editar Linha",

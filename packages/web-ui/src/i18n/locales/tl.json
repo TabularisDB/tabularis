@@ -2713,7 +2713,8 @@
     "sideBySide": "Magkatabi"
   },
   "textViewer": {
-    "save": "I-save"
+    "save": "I-save",
+    "wrapLines": "I-wrap ang mga linya"
   },
   "rowEditor": {
     "title": "I-edit ang Row",
