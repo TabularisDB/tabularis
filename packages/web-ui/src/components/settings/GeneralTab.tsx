@@ -96,12 +96,13 @@ export function GeneralTab() {
             </SettingSection>
 
             <SettingSection title={t('settings.dataEditor')}>
-                <SettingRow label={t('settings.pageSize')} description={t('settings.pageSizeDesc')}>
+                <SettingRow
+                    label={t('settings.pageSize')}
+                    description={`${t('settings.pageSizeDesc')} ${t('settings.pageSizeAllRows')}`}
+                >
                     <SettingNumberInput
                         value={settings.resultPageSize ?? DEFAULT_SETTINGS.resultPageSize}
-                        onChange={(v) =>
-                            updateSetting('resultPageSize', v || DEFAULT_SETTINGS.resultPageSize)
-                        }
+                        onChange={(v) => updateSetting('resultPageSize', v)}
                         min={0}
                         suffix={t('settings.rows')}
                         fallback={DEFAULT_SETTINGS.resultPageSize}

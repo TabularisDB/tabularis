@@ -1506,6 +1506,35 @@ pub async fn execute_query<R: Runtime>(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn stream_query<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, std::sync::Arc<QueryCancellationState>>,
+    on_chunk: tauri::ipc::Channel<crate::drivers::driver_trait::QueryChunk>,
+    connection_id: String,
+    query: String,
+    schema: Option<String>,
+    database: Option<String>,
+    session_id: Option<String>,
+) -> Result<crate::application::queries::StreamedQuery, String> {
+    crate::application::queries::stream_query_to(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &state,
+        crate::application::queries::QueryRequestScope::DESKTOP,
+        crate::application::queries::QueryResponsePolicy::Unbounded,
+        connection_id,
+        query,
+        schema,
+        session_id,
+        database,
+        move |chunk| {
+            let _ = on_chunk.send(chunk);
+        },
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn execute_plugin_read_only_query<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,

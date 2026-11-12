@@ -606,3 +606,48 @@ async fn read_only_query_does_not_leak_into_the_pool() {
         .expect("writes still work after a read-only query");
     }
 }
+
+const STREAM_1200_ROWS: &str = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 1200) SELECT x, 'row ' || x AS label FROM n";
+
+async fn stream(
+    params: &ConnectionParams,
+    query: &str,
+) -> Vec<crate::drivers::driver_trait::QueryChunk> {
+    use crate::drivers::driver_trait::DatabaseDriver;
+    let mut chunks = Vec::new();
+    super::SqliteDriver::new()
+        .execute_query_stream(params, query, None, None, &mut |chunk| chunks.push(chunk))
+        .await
+        .unwrap();
+    chunks
+}
+
+#[tokio::test]
+async fn a_sqlite_query_returning_1200_rows_streams_columns_first_then_a_500_row_batch_then_the_remaining_700_rows(
+) {
+    use crate::drivers::driver_trait::QueryChunk;
+    let (params, _file) = setup_test_db().await;
+    let chunks = stream(&params, STREAM_1200_ROWS).await;
+    let expected = super::execute_query(&params, STREAM_1200_ROWS, None, 1)
+        .await
+        .unwrap();
+    let [QueryChunk::Columns(columns), QueryChunk::Rows(first), QueryChunk::Rows(rest)] =
+        chunks.as_slice()
+    else {
+        panic!("unexpected chunks: {chunks:?}");
+    };
+    assert_eq!(columns, &expected.columns);
+    assert_eq!((first.len(), rest.len()), (500, 700));
+    assert_eq!([first.as_slice(), rest.as_slice()].concat(), expected.rows);
+}
+
+#[tokio::test]
+async fn a_sqlite_query_that_returns_no_rows_streams_its_columns_and_no_row_batch() {
+    use crate::drivers::driver_trait::QueryChunk;
+    let (params, _file) = setup_test_db().await;
+    let chunks = stream(&params, "SELECT id, name FROM users WHERE id < 0").await;
+    assert_eq!(
+        chunks,
+        [QueryChunk::Columns(vec!["id".into(), "name".into()])]
+    );
+}

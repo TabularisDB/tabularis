@@ -1,4 +1,4 @@
-use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver};
+use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, QueryChunk, StreamSummary};
 use crate::models::{BatchStatementResult, ExplainQueryOutput, QueryResult};
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use serde::Serialize;
@@ -31,6 +31,13 @@ pub enum QueryCommand {
         connection_id: String,
         query: String,
         schema: Option<String>,
+    },
+    Stream {
+        connection_id: String,
+        query: String,
+        schema: Option<String>,
+        query_session_id: Option<String>,
+        database: Option<String>,
     },
     ExecuteBatch {
         connection_id: String,
@@ -151,6 +158,33 @@ pub async fn execute(
         } => execute_plugin_read_only_query(runtime, connection_id, query, schema)
             .await
             .and_then(json),
+        QueryCommand::Stream {
+            connection_id,
+            query,
+            schema,
+            query_session_id,
+            database,
+        } => {
+            let events = runtime.events.clone();
+            let request_id = request_id.to_string();
+            stream_query_to(
+                runtime,
+                &state.query_cancellation,
+                scope,
+                QueryResponsePolicy::WebBounded,
+                connection_id,
+                query,
+                schema,
+                query_session_id,
+                database,
+                move |chunk| {
+                    let payload = serde_json::json!({ "requestId": request_id, "chunk": chunk });
+                    let _ = emit_event(&*events, session_id, "query-stream-chunk", payload);
+                },
+            )
+            .await
+            .and_then(json)
+        }
         QueryCommand::ExecuteBatch {
             connection_id,
             queries,
@@ -249,6 +283,7 @@ impl QueryCommand {
         match self {
             Self::Execute { connection_id, .. }
             | Self::PluginReadOnly { connection_id, .. }
+            | Self::Stream { connection_id, .. }
             | Self::ExecuteBatch { connection_id, .. }
             | Self::Count { connection_id, .. }
             | Self::Explain { connection_id, .. }
@@ -272,6 +307,237 @@ pub async fn execute_query(
     query_session_id: Option<String>,
     database: Option<String>,
 ) -> Result<QueryResult, String> {
+    let effective_limit = response_limit(policy, limit);
+    let page = page.unwrap_or(1);
+    let query_result = run_registered_query(
+        runtime,
+        cancellation,
+        scope,
+        connection_id,
+        query,
+        query_session_id,
+        database,
+        move |driver, params, query, session| async move {
+            if params.read_only {
+                return super::read_only::execute_query(
+                    driver.as_ref(),
+                    &params,
+                    &query,
+                    effective_limit,
+                    page,
+                    schema.as_deref(),
+                )
+                .await
+                .map(|result| (result, false));
+            }
+            driver
+                .execute_query_in_session(
+                    &params,
+                    &query,
+                    effective_limit,
+                    page,
+                    schema.as_deref(),
+                    session.as_deref(),
+                )
+                .await
+        },
+    )
+    .await?;
+    enforce_response_size(policy, &query_result)?;
+    log::info!(
+        "Query executed successfully, returned {} rows",
+        query_result.rows.len()
+    );
+    Ok(query_result)
+}
+
+/// `execute_query` without a row limit, with the rows handed to `sink` in
+/// batches as the driver fetches them.
+#[allow(clippy::too_many_arguments)]
+pub async fn stream_query(
+    runtime: &RuntimeContext,
+    cancellation: &crate::commands::QueryCancellationState,
+    scope: QueryRequestScope<'_>,
+    connection_id: String,
+    query: String,
+    schema: Option<String>,
+    query_session_id: Option<String>,
+    database: Option<String>,
+    mut sink: impl FnMut(QueryChunk) + Send + 'static,
+) -> Result<StreamSummary, String> {
+    run_registered_query(
+        runtime,
+        cancellation,
+        scope,
+        connection_id,
+        query,
+        query_session_id,
+        database,
+        move |driver, params, query, session| async move {
+            if params.read_only {
+                return super::read_only::execute_query_stream(
+                    driver.as_ref(),
+                    &params,
+                    &query,
+                    schema.as_deref(),
+                    &mut sink,
+                )
+                .await
+                .map(|summary| (summary, false));
+            }
+            let summary = driver
+                .execute_query_stream(
+                    &params,
+                    &query,
+                    schema.as_deref(),
+                    session.as_deref(),
+                    &mut sink,
+                )
+                .await?;
+            let in_transaction = summary.in_transaction;
+            Ok((summary, in_transaction))
+        },
+    )
+    .await
+}
+
+/// The reply to a streamed query once its last chunk is sent.
+#[derive(Debug, Serialize)]
+pub struct StreamedQuery {
+    #[serde(flatten)]
+    pub summary: StreamSummary,
+    /// The client waits for this many chunks: they travel apart from the reply.
+    pub chunks: u64,
+    /// Rows were cut at the web response limits.
+    pub truncated: bool,
+}
+
+/// The rows and serialized row bytes a web stream may still send.
+struct StreamLimit {
+    rows_left: usize,
+    bytes_left: usize,
+    truncated: bool,
+}
+
+impl StreamLimit {
+    fn for_policy(policy: QueryResponsePolicy) -> Option<Self> {
+        (policy == QueryResponsePolicy::WebBounded).then_some(Self {
+            rows_left: WEB_MAX_ROWS_PER_PAGE as usize,
+            bytes_left: WEB_MAX_RESPONSE_BYTES,
+            truncated: false,
+        })
+    }
+
+    /// Cuts `chunk` to what still fits; nothing passes once a limit is hit.
+    fn admit(&mut self, chunk: QueryChunk) -> Option<QueryChunk> {
+        if self.truncated {
+            return None;
+        }
+        let QueryChunk::Rows(mut rows) = chunk else {
+            return Some(chunk);
+        };
+        let mut fit = 0;
+        for row in &rows {
+            let bytes = serde_json::to_vec(row).map_or(usize::MAX, |bytes| bytes.len());
+            if fit == self.rows_left || bytes > self.bytes_left {
+                self.truncated = true;
+                break;
+            }
+            self.bytes_left -= bytes;
+            fit += 1;
+        }
+        self.rows_left -= fit;
+        rows.truncate(fit);
+        (!rows.is_empty()).then_some(QueryChunk::Rows(rows))
+    }
+}
+
+/// [`stream_query`] for a transport: counts the chunks it hands to `send`
+/// and, under the web policy, stops the query at the web response limits.
+#[allow(clippy::too_many_arguments)]
+pub async fn stream_query_to(
+    runtime: &RuntimeContext,
+    cancellation: &crate::commands::QueryCancellationState,
+    scope: QueryRequestScope<'_>,
+    policy: QueryResponsePolicy,
+    connection_id: String,
+    query: String,
+    schema: Option<String>,
+    query_session_id: Option<String>,
+    database: Option<String>,
+    mut send: impl FnMut(QueryChunk) + Send + 'static,
+) -> Result<StreamedQuery, String> {
+    let chunks = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let limit_reached = Arc::new(tokio::sync::Notify::new());
+    let mut limit = StreamLimit::for_policy(policy);
+    let (sent, signal) = (chunks.clone(), limit_reached.clone());
+    let stream = stream_query(
+        runtime,
+        cancellation,
+        scope,
+        connection_id,
+        query,
+        schema,
+        query_session_id,
+        database,
+        move |chunk| {
+            let chunk = match limit.as_mut() {
+                Some(limit) => limit.admit(chunk),
+                None => Some(chunk),
+            };
+            if let Some(chunk) = chunk {
+                sent.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                send(chunk);
+            }
+            if limit.as_ref().is_some_and(|limit| limit.truncated) {
+                signal.notify_one();
+            }
+        },
+    );
+    let count = || chunks.load(std::sync::atomic::Ordering::SeqCst);
+    // Dropping the stream future aborts the query task through its registration.
+    tokio::select! {
+        biased;
+        _ = limit_reached.notified() => Ok(StreamedQuery {
+            summary: StreamSummary::default(),
+            chunks: count(),
+            truncated: true,
+        }),
+        result = stream => result.map(|summary| StreamedQuery {
+            summary,
+            chunks: count(),
+            truncated: false,
+        }),
+    }
+}
+
+/// Runs one user statement on a task that `cancel_query` can abort, after the
+/// connection's read-only preflight. `run` gets the driver, the connection,
+/// the sanitized query and the driver session, and returns its value with
+/// whether the session is left inside a transaction.
+#[allow(clippy::too_many_arguments)]
+async fn run_registered_query<T, F, Fut>(
+    runtime: &RuntimeContext,
+    cancellation: &crate::commands::QueryCancellationState,
+    scope: QueryRequestScope<'_>,
+    connection_id: String,
+    query: String,
+    query_session_id: Option<String>,
+    database: Option<String>,
+    run: F,
+) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(
+            Arc<dyn DatabaseDriver>,
+            crate::models::ConnectionParams,
+            String,
+            Option<String>,
+        ) -> Fut
+        + Send
+        + 'static,
+    Fut: std::future::Future<Output = Result<(T, bool), String>> + Send + 'static,
+{
     log::info!(
         "Executing query on connection: {} | Query: {}",
         connection_id,
@@ -284,7 +550,6 @@ pub async fn execute_query(
 
     super::read_only::validate_query(&params, &driver.manifest().capabilities, &sanitized_query)?;
 
-    let effective_limit = response_limit(policy, limit);
     let driver_session = query_session_id.as_deref().map(|id| {
         super::query_sessions::register(scope.session_id, &connection_id, id, driver.clone())
     });
@@ -295,27 +560,8 @@ pub async fn execute_query(
             if let Some(id) = task_session.as_deref() {
                 driver.release_session(id).await;
             }
-            return super::read_only::execute_query(
-                driver.as_ref(),
-                &params,
-                &sanitized_query,
-                effective_limit,
-                page.unwrap_or(1),
-                schema.as_deref(),
-            )
-            .await
-            .map(|result| (result, false));
         }
-        driver
-            .execute_query_in_session(
-                &params,
-                &sanitized_query,
-                effective_limit,
-                page.unwrap_or(1),
-                schema.as_deref(),
-                task_session.as_deref(),
-            )
-            .await
+        run(driver, params, sanitized_query, task_session).await
     });
     let _registration = QueryTaskRegistration::new(
         cancellation,
@@ -340,7 +586,7 @@ pub async fn execute_query(
     }
 
     match result {
-        Ok(Ok((query_result, in_transaction))) => {
+        Ok(Ok((value, in_transaction))) => {
             super::query_sessions::report(
                 runtime,
                 scope.session_id,
@@ -348,15 +594,10 @@ pub async fn execute_query(
                 query_session_id.as_deref(),
                 in_transaction,
             );
-            enforce_response_size(policy, &query_result)?;
-            log::info!(
-                "Query executed successfully, returned {} rows",
-                query_result.rows.len()
-            );
             if let Some(database) = dropped {
                 emit_database_dropped(runtime, scope.session_id, &connection_id, &database);
             }
-            Ok(query_result)
+            Ok(value)
         }
         Ok(Err(error)) => {
             log::error!("Query execution failed: {error}");
@@ -925,4 +1166,4 @@ fn json<T: Serialize>(value: T) -> Result<Value, String> {
 
 #[cfg(test)]
 #[path = "queries_tests.rs"]
-mod tests;
+pub(crate) mod tests;
