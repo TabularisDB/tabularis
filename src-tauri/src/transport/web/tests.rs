@@ -1321,6 +1321,7 @@ async fn executes_representative_commands_over_versioned_rpc() {
                 appearance: None,
                 tag_ids: None,
                 environment: None,
+                managed: false,
             }],
             ..Default::default()
         },

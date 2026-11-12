@@ -164,6 +164,7 @@ fn ssh_tests_restore_inline_plaintext_secrets_from_saved_database_connections() 
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         }],
         ..crate::models::ConnectionsFile::default()
     };

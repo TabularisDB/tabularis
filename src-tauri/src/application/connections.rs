@@ -853,6 +853,7 @@ fn save_connection(
             appearance: None,
             tag_ids: None,
             environment,
+            managed: false,
         };
         file.connections.push(connection.clone());
         save_file(runtime, state, &file)?;
@@ -1017,6 +1018,7 @@ fn update_connection(
             appearance: existing.appearance,
             tag_ids: existing.tag_ids,
             environment,
+            managed: existing.managed,
         };
         file.connections[index] = connection.clone();
         save_file(runtime, state, &file)?;
@@ -1166,6 +1168,7 @@ fn duplicate_connection(
             appearance,
             tag_ids: original.tag_ids,
             environment: validate_environment(original.environment).unwrap_or(None),
+            managed: false,
         };
         file.connections.push(duplicate.clone());
         save_file(runtime, state, &file)?;
