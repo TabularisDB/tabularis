@@ -830,6 +830,7 @@ const SqlEditorInternal = ({
                     nonBasicASCII: false,
                 },
                 renderControlCharacters: settings.editorHighlightInvisibleCharacters ?? true,
+                renderWhitespace: settings.editorRenderWhitespace ?? 'selection',
                 lineNumbers: (settings.editorShowLineNumbers ?? true) ? 'on' : 'off',
                 folding: true,
                 showFoldingControls: 'always',
