@@ -80,4 +80,9 @@ describe('Boolean column values', () => {
         expect(getBooleanValue('true')).toBeUndefined();
         expect(getBooleanValue(null)).toBeUndefined();
     });
+
+    it('keeps a native Boolean when the column type is bit', () => {
+        expect(booleanEditValue(true, true, 'bit')).toBe(true);
+        expect(booleanEditValue(false, true, 'bit')).toBe(false);
+    });
 });

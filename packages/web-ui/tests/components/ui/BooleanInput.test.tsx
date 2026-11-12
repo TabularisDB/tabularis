@@ -38,4 +38,35 @@ describe('BooleanInput', () => {
         render(<BooleanInput name="enabled" value={true} disabled onChange={onChange} />);
         expect(screen.getByRole('checkbox')).toBeDisabled();
     });
+
+    it('does not toggle when the value text is clicked', () => {
+        const onChange = vi.fn();
+        render(<BooleanInput name="enabled" value={true} onChange={onChange} />);
+        fireEvent.click(screen.getByText('true'));
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('keeps display checkboxes out of the tab order and from taking mouse focus', () => {
+        const onChange = vi.fn();
+        render(<BooleanInput name="enabled" value={true} display onChange={onChange} />);
+        const checkbox = screen.getByRole('checkbox', {name: 'enabled'});
+        expect(checkbox).toHaveAttribute('tabindex', '-1');
+        expect(fireEvent.mouseDown(checkbox)).toBe(false);
+        fireEvent.click(checkbox);
+        expect(onChange).toHaveBeenCalledWith(false);
+    });
+
+    it('lets modified Space keys reach the grid', () => {
+        const onKeyDown = vi.fn();
+        render(
+            <div onKeyDown={onKeyDown}>
+                <BooleanInput name="enabled" value={false} onChange={vi.fn()} />
+            </div>,
+        );
+        fireEvent.keyDown(screen.getByRole('checkbox', {name: 'enabled'}), {
+            key: ' ',
+            shiftKey: true,
+        });
+        expect(onKeyDown).toHaveBeenCalled();
+    });
 });

@@ -514,6 +514,7 @@ export function DataGridCell({
                                         nullLabel={nullLabel}
                                         nullable={nullableColumns?.includes(colName)}
                                         disabled={booleanDisabled}
+                                        display
                                         onChange={(next) =>
                                             ctx.changeBooleanCell?.(
                                                 rowIndex,

@@ -239,6 +239,14 @@ describe('DataGrid Boolean checkboxes (#1499)', () => {
         );
     });
 
+    it('does not stage a change when the Boolean value text is clicked', () => {
+        const onPendingChange = vi.fn();
+        renderBooleanGrid({onPendingChange});
+        expect(screen.getByRole('checkbox', {name: 'enabled'})).toHaveAttribute('tabindex', '-1');
+        fireEvent.click(screen.getByText('true'));
+        expect(onPendingChange).not.toHaveBeenCalled();
+    });
+
     it('removes a pending change when toggled back to the stored value', async () => {
         const onPendingChange = vi.fn();
         renderBooleanGrid({

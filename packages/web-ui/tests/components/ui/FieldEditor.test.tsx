@@ -53,6 +53,20 @@ describe('FieldEditor', () => {
         expect(onChange).toHaveBeenCalledWith(true);
     });
 
+    it('shows the configured NULL label on a nullable Boolean', () => {
+        render(
+            <FieldEditor
+                name="enabled"
+                type="boolean"
+                value={null}
+                isNullable
+                nullLabel="∅"
+                onChange={vi.fn()}
+            />,
+        );
+        expect(screen.getByText('∅')).toBeInTheDocument();
+    });
+
     it('retains a numeric Boolean representation and allows NULL', () => {
         const onChange = vi.fn();
         const {rerender} = render(

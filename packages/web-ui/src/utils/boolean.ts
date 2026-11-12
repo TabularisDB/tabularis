@@ -53,6 +53,7 @@ export function booleanEditValue(next: boolean | null, original: unknown, type?:
             return original === original.toUpperCase() ? value.toUpperCase() : value;
         }
     }
+    if (typeof original === 'boolean') return next;
     if (/^(tinyint|bit)\b/i.test(type?.trim() ?? '')) return next ? 1 : 0;
     return next;
 }

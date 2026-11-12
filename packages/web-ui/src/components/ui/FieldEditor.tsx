@@ -33,6 +33,7 @@ export interface FieldEditorProps {
     isAutoIncrement?: boolean;
     hasDefault?: boolean;
     isNullable?: boolean;
+    nullLabel?: string;
     originalValue?: unknown;
     detectJsonInTextColumns?: boolean;
     connectionId?: string | null;
@@ -61,6 +62,7 @@ export const FieldEditor = ({
     isAutoIncrement = false,
     hasDefault = false,
     isNullable = false,
+    nullLabel,
     originalValue,
     detectJsonInTextColumns = false,
     connectionId,
@@ -101,6 +103,7 @@ export const FieldEditor = ({
         (isLongTextValue(value) || isLongTextValue(originalValue));
 
     const defaultPlaceholder = placeholder || t('rowEditor.enterValue');
+    const booleanNullLabel = nullLabel ?? t('dataGrid.null');
 
     // Determine if we should show quick action buttons
     const showQuickActions = isAutoIncrement || hasDefault || isNullable;
@@ -184,6 +187,7 @@ export const FieldEditor = ({
         <BooleanInput
             name={name}
             value={booleanValue}
+            nullLabel={booleanNullLabel}
             nullable={isNullable}
             disabled={disabled}
             onChange={(next) =>

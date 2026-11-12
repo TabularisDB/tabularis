@@ -3,6 +3,8 @@ import {useEffect, useMemo, useRef} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useRowEditor} from '@/hooks/useRowEditor';
 import {useDatabase} from '@/hooks/useDatabase';
+import {useSettings} from '@/hooks/useSettings';
+import {getNullDisplayLabel} from '@/utils/nullDisplay';
 import {FieldEditor} from './FieldEditor';
 import {SlotAnchor} from './SlotAnchor';
 
@@ -59,7 +61,9 @@ export const RowEditorPanel = ({
     onTogglePin,
 }: RowEditorPanelProps) => {
     const {t} = useTranslation();
+    const {settings} = useSettings();
     const {connectionDataMap} = useDatabase();
+    const nullLabel = getNullDisplayLabel(settings.nullDisplay, t('dataGrid.null'));
     // The sidebar is outside the pane provider. Its row can belong to a
     // different connection than the globally active one.
     const rowDriver = connectionId ? (connectionDataMap[connectionId]?.driver ?? null) : null;
@@ -192,6 +196,7 @@ export const RowEditorPanel = ({
                                 isAutoIncrement={autoIncrementColumns?.includes(column.name)}
                                 hasDefault={defaultValueColumns?.includes(column.name)}
                                 isNullable={nullableColumns?.includes(column.name)}
+                                nullLabel={nullLabel}
                                 connectionId={connectionId}
                                 tableName={tableName}
                                 pkMap={pkMap}
