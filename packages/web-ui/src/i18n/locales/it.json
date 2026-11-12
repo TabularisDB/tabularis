@@ -681,6 +681,7 @@
       "title": "Snippet SQL",
       "subtitle": "Definisci modelli SQL riutilizzabili con prefissi di attivazione e segnaposto tab-stop per il completamento automatico di Monaco.",
       "add": "Nuovo snippet",
+      "duplicate": "Duplica",
       "createTitle": "Crea snippet",
       "editTitle": "Modifica snippet",
       "nameLabel": "Nome snippet",

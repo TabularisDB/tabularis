@@ -1,4 +1,4 @@
-import {useState, useCallback, useEffect, useRef} from 'react';
+import {useState, useCallback, useEffect, useLayoutEffect, useRef} from 'react';
 import type {BeforeMount} from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
 import {MonacoEditor} from '@/components/ui/LazyMonaco';
@@ -15,11 +15,14 @@ import {
     deleteSqlSnippet,
     validateSnippetPrefix,
     validateSnippetBody,
+    snippetPrefixConflicts,
+    getSnippetCopyName,
+    getSnippetCopyPrefix,
     type SqlSnippet,
     type SqlDialectScope,
     normalizeDriverToDialect,
 } from '@/utils/sqlSnippets';
-import {Plus, Trash2, Edit2, Code2, AlertCircle, Check} from 'lucide-react';
+import {Plus, Trash2, Edit2, Copy, Code2, AlertCircle, Check} from 'lucide-react';
 import clsx from 'clsx';
 import DOMPurify from 'dompurify';
 import {ensureMonaco} from '@/utils/monaco';
@@ -71,6 +74,9 @@ export function SnippetsTab() {
     const editorTheme = useEditorTheme();
     const {drivers} = useDrivers();
     const monacoRef = useRef<typeof Monaco | null>(null);
+    const formRef = useRef<HTMLFormElement>(null);
+    const nameInputRef = useRef<HTMLInputElement>(null);
+    const [formRevealKey, setFormRevealKey] = useState(0);
 
     useEffect(() => {
         if (monacoRef.current) loadMonacoTheme(editorTheme, monacoRef.current);
@@ -115,6 +121,14 @@ export function SnippetsTab() {
         setSnippets(loadSqlSnippets());
     }, []);
 
+    const revealForm = () => setFormRevealKey((key) => key + 1);
+
+    useLayoutEffect(() => {
+        if (formRevealKey === 0) return;
+        formRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});
+        nameInputRef.current?.focus();
+    }, [formRevealKey]);
+
     const handleStartCreate = () => {
         setEditingSnippet(null);
         setName('');
@@ -124,6 +138,7 @@ export function SnippetsTab() {
         setDialect('all');
         setFormError(null);
         setIsCreating(true);
+        revealForm();
     };
 
     const handleStartEdit = (snippet: SqlSnippet) => {
@@ -135,6 +150,19 @@ export function SnippetsTab() {
         setDescription(snippet.description || '');
         setDialect(snippet.dialect || 'all');
         setFormError(null);
+        revealForm();
+    };
+
+    const handleDuplicate = (snippet: SqlSnippet) => {
+        setEditingSnippet(null);
+        setName(getSnippetCopyName(snippet.name, snippets));
+        setPrefix(getSnippetCopyPrefix(snippet.prefix, snippet.dialect || 'all', snippets));
+        setBody(snippet.body);
+        setDescription(snippet.description || '');
+        setDialect(snippet.dialect || 'all');
+        setFormError(null);
+        setIsCreating(true);
+        revealForm();
     };
 
     const handleCancel = () => {
@@ -163,14 +191,7 @@ export function SnippetsTab() {
             return;
         }
 
-        // Check for duplicate prefix collision within the same dialect scope (excluding current snippet if editing)
-        const duplicate = snippets.some(
-            (s) =>
-                s.id !== editingSnippet?.id &&
-                s.prefix.toLowerCase() === trimmedPrefix.toLowerCase() &&
-                (s.dialect === dialect || s.dialect === 'all' || dialect === 'all'),
-        );
-        if (duplicate) {
+        if (snippetPrefixConflicts(snippets, trimmedPrefix, dialect, editingSnippet?.id)) {
             setFormError(
                 t(
                     'settings.snippets.duplicatePrefix',
@@ -232,6 +253,7 @@ export function SnippetsTab() {
             {/* Create / Edit Form */}
             {(isCreating || editingSnippet) && (
                 <form
+                    ref={formRef}
                     onSubmit={handleSave}
                     className="flex flex-col gap-4 p-4 rounded-xl border border-default bg-elevated/60 shadow-sm"
                 >
@@ -260,6 +282,7 @@ export function SnippetsTab() {
                             </label>
                             <input
                                 id="snippet-name-input"
+                                ref={nameInputRef}
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
@@ -431,6 +454,15 @@ export function SnippetsTab() {
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => handleDuplicate(snippet)}
+                                    className="p-1.5 rounded-lg text-secondary hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                    title={t('settings.snippets.duplicate', 'Duplicate')}
+                                    aria-label={t('settings.snippets.duplicate', 'Duplicate')}
+                                >
+                                    <Copy size={14} />
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => handleStartEdit(snippet)}

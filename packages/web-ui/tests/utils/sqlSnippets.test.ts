@@ -2,6 +2,9 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import {
     validateSnippetPrefix,
     validateSnippetBody,
+    snippetPrefixConflicts,
+    getSnippetCopyName,
+    getSnippetCopyPrefix,
     normalizeDriverToDialect,
     isSnippetDialectCompatible,
     isOffsetInCommentOrString,
@@ -12,7 +15,18 @@ import {
     resetSqlSnippetsCache,
     DEFAULT_SQL_SNIPPETS,
     SQL_SNIPPETS_STORAGE_KEY,
+    type SqlSnippet,
 } from '@/utils/sqlSnippets';
+
+function snippet(partial: Partial<SqlSnippet> & Pick<SqlSnippet, 'id' | 'prefix'>): SqlSnippet {
+    return {
+        name: partial.name ?? partial.prefix,
+        body: 'SELECT 1;',
+        createdAt: '',
+        updatedAt: '',
+        ...partial,
+    };
+}
 
 describe('sqlSnippets utils', () => {
     beforeEach(() => {
@@ -28,6 +42,39 @@ describe('sqlSnippets utils', () => {
             expect(validateSnippetPrefix('   ').valid).toBe(false);
             expect(validateSnippetPrefix('prefix with spaces').valid).toBe(false);
             expect(validateSnippetPrefix('prefix!@#').valid).toBe(false);
+        });
+
+        it('detects prefix collisions across overlapping dialect scopes', () => {
+            const snippets = [
+                snippet({id: 'all', prefix: 'orders', dialect: 'all'}),
+                snippet({id: 'pg', prefix: 'pgonly', dialect: 'postgres'}),
+            ];
+            expect(snippetPrefixConflicts(snippets, 'orders', 'mysql')).toBe(true);
+            expect(snippetPrefixConflicts(snippets, 'Orders', 'postgres')).toBe(true);
+            expect(snippetPrefixConflicts(snippets, 'pgonly', 'postgres')).toBe(true);
+            expect(snippetPrefixConflicts(snippets, 'pgonly', 'mysql')).toBe(false);
+            expect(snippetPrefixConflicts(snippets, 'pgonly', 'all')).toBe(true);
+            expect(snippetPrefixConflicts(snippets, 'orders', 'all', 'all')).toBe(false);
+        });
+
+        it('allocates unique copy names and prefixes', () => {
+            expect(getSnippetCopyName('Active orders', [])).toBe('Active orders (copy)');
+            expect(
+                getSnippetCopyName('Active orders', [
+                    snippet({id: 'c', name: 'Active orders (copy)', prefix: 'x'}),
+                ]),
+            ).toBe('Active orders (copy 2)');
+            expect(getSnippetCopyPrefix('orders', 'all', [])).toBe('orders_copy');
+            expect(
+                getSnippetCopyPrefix('orders', 'postgres', [
+                    snippet({id: 'c', prefix: 'orders_copy', dialect: 'postgres'}),
+                ]),
+            ).toBe('orders_copy_2');
+            expect(
+                getSnippetCopyPrefix('orders', 'mysql', [
+                    snippet({id: 'c', prefix: 'orders_copy', dialect: 'postgres'}),
+                ]),
+            ).toBe('orders_copy');
         });
 
         it('validates snippet bodies', () => {

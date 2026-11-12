@@ -1,7 +1,7 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {SnippetsTab} from '@/components/settings/SnippetsTab';
-import {saveSqlSnippets, type SqlSnippet} from '@/utils/sqlSnippets';
+import {loadSqlSnippets, saveSqlSnippets, type SqlSnippet} from '@/utils/sqlSnippets';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
@@ -211,6 +211,159 @@ describe('SnippetsTab', () => {
 
         expect(screen.getByText('Updated Name')).toBeInTheDocument();
         expect(screen.queryByText('Initial Name')).not.toBeInTheDocument();
+    });
+
+    it.each(['all', 'postgres', 'driver:oracle', 'driver:unavailable'] as const)(
+        'duplicates a %s snippet with a unique name and prefix on the first save',
+        (dialect) => {
+            const source: SqlSnippet = {
+                id: 'source',
+                name: 'Active orders',
+                prefix: 'orders',
+                body: '  SELECT ${1:column}, $2 FROM ${3:orders};\n\t$0  ',
+                description: dialect === 'all' ? undefined : 'Order template',
+                dialect,
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+            };
+            saveSqlSnippets([source]);
+            render(<SnippetsTab />);
+
+            fireEvent.click(screen.getByRole('button', {name: 'Duplicate'}));
+            expect(screen.getByText('Create Snippet')).toBeInTheDocument();
+            expect(screen.getByLabelText('Snippet Name')).toHaveValue('Active orders (copy)');
+            expect(screen.getByLabelText(/Trigger Prefix/)).toHaveValue('orders_copy');
+            expect(screen.getByLabelText('Snippet Body')).toHaveValue(source.body);
+            expect(screen.getByLabelText('Description')).toHaveValue(source.description ?? '');
+            expect(screen.getByRole('button', {name: 'Dialect Scope'})).toHaveTextContent(
+                {
+                    all: 'All Dialects',
+                    postgres: 'PostgreSQL',
+                    'driver:oracle': 'Oracle',
+                    'driver:unavailable': 'unavailable',
+                }[dialect],
+            );
+            expect(loadSqlSnippets()).toEqual([source]);
+
+            fireEvent.click(screen.getByRole('button', {name: 'Save'}));
+            const [original, duplicate] = loadSqlSnippets();
+            expect(original).toEqual(source);
+            expect(duplicate).toMatchObject({
+                ...source,
+                name: 'Active orders (copy)',
+                prefix: 'orders_copy',
+                id: expect.any(String),
+                createdAt: expect.any(String),
+                updatedAt: expect.any(String),
+            });
+            expect(duplicate.id).not.toBe(source.id);
+            expect(duplicate.createdAt).not.toBe(source.createdAt);
+            expect(duplicate.updatedAt).toBe(duplicate.createdAt);
+
+            fireEvent.click(screen.getAllByRole('button', {name: 'Edit'})[1]);
+            fireEvent.change(screen.getByLabelText('Snippet Body'), {target: {value: 'SELECT 2;'}});
+            fireEvent.click(screen.getByRole('button', {name: 'Save'}));
+            expect(loadSqlSnippets()[0]).toEqual(source);
+            expect(loadSqlSnippets()[1].body).toBe('SELECT 2;');
+        },
+    );
+
+    it('increments copy suffixes when the suggested name or prefix is already taken', () => {
+        const source: SqlSnippet = {
+            id: 'source',
+            name: 'Active orders',
+            prefix: 'orders',
+            body: 'SELECT 1;',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        };
+        saveSqlSnippets([
+            source,
+            {
+                ...source,
+                id: 'existing-copy',
+                name: 'Active orders (copy)',
+                prefix: 'orders_copy',
+            },
+        ]);
+        render(<SnippetsTab />);
+
+        fireEvent.click(screen.getAllByRole('button', {name: 'Duplicate'})[0]);
+        expect(screen.getByLabelText('Snippet Name')).toHaveValue('Active orders (copy 2)');
+        expect(screen.getByLabelText(/Trigger Prefix/)).toHaveValue('orders_copy_2');
+        fireEvent.click(screen.getByRole('button', {name: 'Save'}));
+        expect(loadSqlSnippets()[2]).toMatchObject({
+            name: 'Active orders (copy 2)',
+            prefix: 'orders_copy_2',
+            body: source.body,
+        });
+    });
+
+    it('still rejects saving a duplicate that reuses the original prefix', () => {
+        const source: SqlSnippet = {
+            id: 'source',
+            name: 'Active orders',
+            prefix: 'orders',
+            body: 'SELECT 1;',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        };
+        saveSqlSnippets([source]);
+        render(<SnippetsTab />);
+
+        fireEvent.click(screen.getByRole('button', {name: 'Duplicate'}));
+        fireEvent.change(screen.getByLabelText(/Trigger Prefix/), {target: {value: 'orders'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Save'}));
+        expect(screen.getByText(/A snippet with this prefix already exists/)).toBeInTheDocument();
+        expect(loadSqlSnippets()).toEqual([source]);
+    });
+
+    it('cancels a duplicate without changing storage or retaining the source id', () => {
+        render(<SnippetsTab />);
+        const source = loadSqlSnippets()[0];
+        const saved = localStorage.getItem('tabularis.sql_snippets.v1');
+        fireEvent.click(screen.getAllByRole('button', {name: 'Edit'})[0]);
+        fireEvent.change(screen.getByLabelText('Snippet Name'), {target: {value: 'Unsaved edit'}});
+        fireEvent.click(screen.getAllByRole('button', {name: 'Duplicate'})[0]);
+        expect(screen.getByText('Create Snippet')).toBeInTheDocument();
+        expect(screen.getByLabelText('Snippet Name')).toHaveValue(`${source.name} (copy)`);
+        expect(screen.getByLabelText(/Trigger Prefix/)).toHaveValue(`${source.prefix}_copy`);
+        expect(screen.getByLabelText('Description')).toHaveValue(source.description);
+        fireEvent.change(screen.getByLabelText('Snippet Body'), {target: {value: 'SELECT 2;'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
+        expect(screen.queryByText('Create Snippet')).not.toBeInTheDocument();
+        expect(localStorage.getItem('tabularis.sql_snippets.v1')).toBe(saved);
+        expect(loadSqlSnippets()[0]).toEqual(source);
+    });
+
+    it('scrolls the form into view and focuses the name when duplicating or editing', () => {
+        const source: SqlSnippet = {
+            id: 'source',
+            name: 'Active orders',
+            prefix: 'orders',
+            body: 'SELECT 1;',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        };
+        saveSqlSnippets([source]);
+        render(<SnippetsTab />);
+        const scrollIntoView = vi.spyOn(HTMLFormElement.prototype, 'scrollIntoView');
+
+        fireEvent.click(screen.getByRole('button', {name: 'Duplicate'}));
+        const createForm = screen.getByText('Create Snippet').closest('form');
+        expect(createForm).toBeTruthy();
+        expect(scrollIntoView.mock.contexts).toContain(createForm);
+        expect(scrollIntoView).toHaveBeenCalledWith({behavior: 'smooth', block: 'start'});
+        expect(screen.getByLabelText('Snippet Name')).toHaveFocus();
+
+        fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
+        scrollIntoView.mockClear();
+        fireEvent.click(screen.getByRole('button', {name: 'Edit'}));
+        const editForm = screen.getByText('Edit Snippet').closest('form');
+        expect(editForm).toBeTruthy();
+        expect(scrollIntoView.mock.contexts).toContain(editForm);
+        expect(screen.getByLabelText('Snippet Name')).toHaveFocus();
+        scrollIntoView.mockRestore();
     });
 
     it('deletes a snippet', () => {
