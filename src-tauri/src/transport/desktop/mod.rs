@@ -479,6 +479,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             linked_folders::list_linked_directory,
             linked_folders::read_linked_sql_file,
             linked_folders::write_linked_sql_file,
+            linked_folders::search_linked_folder,
             linked_folders::linked_git_status,
             linked_folders::linked_git_review,
             linked_folders::linked_git_commit,

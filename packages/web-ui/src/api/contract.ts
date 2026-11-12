@@ -60,6 +60,7 @@ import type {
     LinkedFileContent,
     LinkedFileSaved,
     LinkedFolder,
+    LinkedFolderSearchResult,
     LinkedFolderStatus,
 } from '@/types/linkedFolders';
 import type {RequestId} from './errors';
@@ -1390,6 +1391,15 @@ export interface CommandMap {
             overwrite: boolean;
         },
         LinkedFileSaved,
+        'local-admin'
+    >;
+    search_linked_folder: CommandDefinition<
+        {
+            id: string;
+            query: string;
+            caseSensitive: boolean;
+        },
+        LinkedFolderSearchResult,
         'local-admin'
     >;
 

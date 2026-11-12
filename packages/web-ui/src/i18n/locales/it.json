@@ -3272,6 +3272,22 @@
     "choose": "Seleziona uno script per esaminarne le differenze prima di includerlo.",
     "message": "Messaggio del commit"
   },
+  "linkedFolderSearch": {
+    "title": "Cerca in {{name}}",
+    "buttonLabel": "Cerca nella cartella",
+    "inputPlaceholder": "Cerca nei file SQL…",
+    "clearInput": "Cancella ricerca",
+    "matchCase": "Maiuscole/minuscole",
+    "matchesSummary": "{{count}} corrispondenze in {{files}} file",
+    "skippedFiles": "{{count}} ignorati",
+    "truncatedWarning": "Risultati limitati a 200 corrispondenze",
+    "typeToSearch": "Digita per cercare nei file SQL di questa cartella",
+    "noMatchesTitle": "Nessuna corrispondenza trovata",
+    "noMatchesMessage": "Nessuna occorrenza di \"{{query}}\" trovata in questa cartella.",
+    "resultsListLabel": "Risultati della ricerca",
+    "openInEditor": "Apri nell'editor",
+    "selectToPreview": "Seleziona una corrispondenza per visualizzare l'anteprima"
+  },
   "aiInline": {
     "title": "Completamento IA in linea",
     "enable": "Suggerisci SQL durante la digitazione",

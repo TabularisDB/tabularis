@@ -11,6 +11,7 @@ import {
     GitBranch,
     Loader2,
     RefreshCw,
+    Search,
     X,
 } from 'lucide-react';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
@@ -26,6 +27,7 @@ import {
 } from '@/utils/linkedFolders';
 import type {LinkedFolderStatus} from '@/types/linkedFolders';
 import {LinkedFolderGitModal} from '@/components/modals/LinkedFolderGitModal';
+import {LinkedFolderSearchModal} from '@/components/modals/LinkedFolderSearchModal';
 
 interface LinkedFoldersSectionProps {
     /** Open linked files by `folderId:relativePath`; `dirty` marks unsaved edits. */
@@ -49,6 +51,7 @@ export function LinkedFoldersSection({openFiles, onOpenFile}: LinkedFoldersSecti
 
     const [folders, setFolders] = useState<LinkedFolderStatus[]>([]);
     const [gitFolder, setGitFolder] = useState<LinkedFolderStatus | null>(null);
+    const [searchFolder, setSearchFolder] = useState<LinkedFolderStatus | null>(null);
     const [isLoading, setIsLoading] = useState(canLink);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -338,20 +341,38 @@ export function LinkedFoldersSection({openFiles, onOpenFile}: LinkedFoldersSecti
                                 )}
                             </button>
                             {isRoot && !unavailable && (
-                                <button
-                                    type="button"
-                                    className={iconButtonClassName}
-                                    aria-label={t('linkedGit.title')}
-                                    title={t('linkedGit.title')}
-                                    onClick={() =>
-                                        setGitFolder(
-                                            folders.find((folder) => folder.id === row.folderId) ??
-                                                null,
-                                        )
-                                    }
-                                >
-                                    <GitBranch size={12} aria-hidden="true" />
-                                </button>
+                                <>
+                                    <button
+                                        type="button"
+                                        className={iconButtonClassName}
+                                        aria-label={t('linkedFolderSearch.buttonLabel')}
+                                        title={t('linkedFolderSearch.buttonLabel')}
+                                        onClick={() =>
+                                            setSearchFolder(
+                                                folders.find(
+                                                    (folder) => folder.id === row.folderId,
+                                                ) ?? null,
+                                            )
+                                        }
+                                    >
+                                        <Search size={12} aria-hidden="true" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={iconButtonClassName}
+                                        aria-label={t('linkedGit.title')}
+                                        title={t('linkedGit.title')}
+                                        onClick={() =>
+                                            setGitFolder(
+                                                folders.find(
+                                                    (folder) => folder.id === row.folderId,
+                                                ) ?? null,
+                                            )
+                                        }
+                                    >
+                                        <GitBranch size={12} aria-hidden="true" />
+                                    </button>
+                                </>
                             )}
                             {isRoot && (
                                 <button
@@ -376,6 +397,14 @@ export function LinkedFoldersSection({openFiles, onOpenFile}: LinkedFoldersSecti
                     key={gitFolder.id}
                     folder={gitFolder}
                     onClose={() => setGitFolder(null)}
+                />
+            )}
+            {searchFolder && (
+                <LinkedFolderSearchModal
+                    key={searchFolder.id}
+                    folder={searchFolder}
+                    onClose={() => setSearchFolder(null)}
+                    onOpenFile={onOpenFile}
                 />
             )}
         </div>

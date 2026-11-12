@@ -43,3 +43,20 @@ export interface LinkedFileRef {
     relativePath: string;
     version: string;
 }
+
+export interface LinkedFolderSearchMatch {
+    relativePath: string;
+    lineNumber: number;
+    columnNumber: number;
+    matchLength: number;
+    lineContent: string;
+}
+
+export interface LinkedFolderSearchResult {
+    folderId: string;
+    query: string;
+    matches: LinkedFolderSearchMatch[];
+    filesSearched: number;
+    filesSkipped: number;
+    truncated: boolean;
+}

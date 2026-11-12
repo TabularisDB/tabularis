@@ -3315,6 +3315,22 @@
     "choose": "Chọn tập lệnh để xem lại khác biệt trước khi bao gồm.",
     "message": "Thông điệp commit"
   },
+  "linkedFolderSearch": {
+    "title": "Tìm kiếm trong {{name}}",
+    "buttonLabel": "Tìm kiếm thư mục",
+    "inputPlaceholder": "Tìm kiếm tệp SQL…",
+    "clearInput": "Xóa tìm kiếm",
+    "matchCase": "Phân biệt chữ hoa/thường",
+    "matchesSummary": "{{count}} kết quả trong {{files}} tệp",
+    "skippedFiles": "Đã bỏ qua {{count}}",
+    "truncatedWarning": "Kết quả được giới hạn ở 200 mục khớp",
+    "typeToSearch": "Nhập để tìm kiếm trong các tệp SQL của thư mục này",
+    "noMatchesTitle": "Không tìm thấy kết quả",
+    "noMatchesMessage": "Không tìm thấy \"{{query}}\" trong thư mục này.",
+    "resultsListLabel": "Kết quả tìm kiếm",
+    "openInEditor": "Mở trong Trình soạn thảo",
+    "selectToPreview": "Chọn một kết quả để xem trước"
+  },
   "aiInline": {
     "title": "Hoàn thành AI nội tuyến",
     "enable": "Gợi ý SQL khi nhập",
