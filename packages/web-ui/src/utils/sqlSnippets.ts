@@ -98,12 +98,14 @@ export function snippetPrefixConflicts(
 ): boolean {
     const normalized = prefix.toLowerCase();
     const scope = dialectScope(dialect);
-    return snippets.some(
-        (snippet) =>
+    return snippets.some((snippet) => {
+        const existingScope = dialectScope(snippet.dialect);
+        return (
             snippet.id !== excludeId &&
             snippet.prefix.toLowerCase() === normalized &&
-            (snippet.dialect === scope || snippet.dialect === 'all' || scope === 'all'),
-    );
+            (existingScope === scope || existingScope === 'all' || scope === 'all')
+        );
+    });
 }
 
 /** Unused display name for a duplicated snippet: "X (copy)", then "X (copy 2)". */
