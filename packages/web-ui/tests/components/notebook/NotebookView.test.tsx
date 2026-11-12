@@ -909,8 +909,12 @@ describe('NotebookView', () => {
                 isLoading: false,
                 history: undefined,
                 isCollapsed: false,
+                isQueryPlanVisible: false,
             });
             expect(copy.content).toBe('SELECT * FROM {{cell_1}}');
+            // The original keeps its open plan; the copy starts closed, so no plan is prepared for it.
+            expect(savedCell('second').isQueryPlanVisible).toBe(true);
+            expect(explainFor(copy.id)).toBeNull();
             expect(copy.chartConfig).toEqual(chartConfig);
             expect(copy.chartConfig).not.toBe(state.cells[1].chartConfig);
             expect(saved?.params).toEqual(params);
@@ -942,6 +946,7 @@ describe('NotebookView', () => {
                 history: undefined,
                 isPreview: false,
                 isCollapsed: false,
+                isQueryPlanVisible: false,
             });
             expect(savedCell('notes')).toEqual(state.cells[2]);
         });

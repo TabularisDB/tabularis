@@ -47,7 +47,9 @@ export function addCellToCells(
  * A document-only copy of `cell` with a fresh id: same type, content, name,
  * schema and display/chart configuration, but no result, error, execution
  * time, loading state or execution history. Markdown copies start in edit
- * mode and every copy starts expanded. Nothing is shared with the original.
+ * mode and every copy starts expanded. The query plan starts closed: an open
+ * plan fetches EXPLAIN as soon as it mounts, and duplicating must not run
+ * anything against the database. Nothing is shared with the original.
  */
 export function duplicateCell(cell: NotebookCell): NotebookCell {
     const {chartConfig} = cell;
@@ -63,6 +65,7 @@ export function duplicateCell(cell: NotebookCell): NotebookCell {
         isLoading: false,
         history: undefined,
         isCollapsed: false,
+        isQueryPlanVisible: false,
         isPreview: cell.type === 'markdown' ? false : cell.isPreview,
     };
 }

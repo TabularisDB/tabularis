@@ -292,8 +292,18 @@ describe('notebook utils', () => {
                 isLoading: false,
                 history: undefined,
                 isCollapsed: false,
+                isQueryPlanVisible: false,
             });
         });
+
+        it.each([true, false, undefined])(
+            'starts the copy with the query plan closed (source %s)',
+            (isQueryPlanVisible) => {
+                const source = ranSqlCell({isQueryPlanVisible});
+                expect(duplicateCell(source).isQueryPlanVisible).toBe(false);
+                expect(source.isQueryPlanVisible).toBe(isQueryPlanVisible);
+            },
+        );
 
         it('keeps cell references verbatim', () => {
             const copy = duplicateCell(
@@ -346,6 +356,7 @@ describe('notebook utils', () => {
                 id: copy.id,
                 isPreview: false,
                 isCollapsed: false,
+                isQueryPlanVisible: false,
             });
         });
 
