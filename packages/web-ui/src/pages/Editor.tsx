@@ -236,7 +236,7 @@ import {CommandPaletteScopeBridge} from '@/components/layout/CommandPaletteScope
 import type {CommandScope} from '@/types/commands';
 import {ROOT_COMMAND_SCOPE_ID} from '@/utils/commandScopeStore';
 import {createActiveEditorCommands} from '@/utils/editorCommands';
-import {buildForeignKeyFilterClause} from '@/utils/foreignKeys';
+import {buildForeignKeyFilterClause, getReferencedSchema} from '@/utils/foreignKeys';
 import {
     buildCellValueFilterClause,
     combineFilterClauses,
@@ -3260,7 +3260,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 sourceType,
             );
 
-            const targetSchema = activeCapabilities?.schemas ? currentTab.schema : undefined;
+            const targetSchema = activeCapabilities?.schemas
+                ? getReferencedSchema(fk, currentTab.schema)
+                : undefined;
 
             const newTabId = addTab({
                 type: 'table',
@@ -6769,7 +6771,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             connectionId={activeConnectionId}
                                             driver={activeDriver}
                                             capabilities={activeCapabilities}
-                                            schema={activeSchema}
+                                            schema={activeTab?.schema ?? activeSchema}
                                             database={
                                                 activeTab?.database ??
                                                 activeDatabaseName ??

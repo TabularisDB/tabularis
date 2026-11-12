@@ -56,6 +56,18 @@ export function isForeignKeyValueNavigable(value: unknown): boolean {
     return value !== null && value !== undefined && value !== '';
 }
 
+/**
+ * Schema that holds the FK's referenced table: the driver-reported
+ * `ref_schema` when present, otherwise the source table's schema (drivers and
+ * plugins that don't report it, or same-schema FKs).
+ */
+export function getReferencedSchema(
+    fk: Pick<ForeignKey, 'ref_schema'>,
+    sourceSchema?: string | null,
+): string | undefined {
+    return fk.ref_schema || sourceSchema || undefined;
+}
+
 export interface ForeignKeyPreviewOptions {
     isPendingDelete?: boolean;
     isInsertion?: boolean;

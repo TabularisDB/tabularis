@@ -539,6 +539,12 @@ pub struct ForeignKey {
     pub column_name: String,
     pub ref_table: String,
     pub ref_column: String,
+    /// Schema of the referenced table, for drivers with schemas (PostgreSQL).
+    /// The referenced table can live in another schema than the source table,
+    /// so callers must not qualify `ref_table` with the source schema when this
+    /// is set. `None` means "same schema as the source table".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ref_schema: Option<String>,
     pub on_delete: Option<String>,
     pub on_update: Option<String>,
     /// 1-based position of this column within its (possibly composite) foreign
