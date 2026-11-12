@@ -12,7 +12,8 @@ describe('BooleanInput', () => {
         const onChange = vi.fn();
         render(<BooleanInput name="enabled" value={value} nullable onChange={onChange} />);
         const checkbox = screen.getByRole('checkbox', {name: 'enabled'});
-        expect(checkbox).toHaveAttribute('aria-checked', value === null ? 'mixed' : String(value));
+        expect(checkbox).toHaveProperty('checked', value === true);
+        expect(checkbox).toHaveProperty('indeterminate', value === null);
         fireEvent.click(checkbox);
         expect(onChange).toHaveBeenCalledWith(next);
     });

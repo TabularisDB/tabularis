@@ -28,7 +28,6 @@ export function BooleanInput({
             <input
                 type="checkbox"
                 aria-label={name}
-                aria-checked={value === null ? 'mixed' : value}
                 checked={value === true}
                 ref={(element) => {
                     if (element) element.indeterminate = value === null;

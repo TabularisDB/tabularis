@@ -9,6 +9,7 @@ import React, {
     useContext,
 } from 'react';
 import {useTranslation} from 'react-i18next';
+import {isBooleanColumnType} from '@/utils/boolean';
 import {
     useReactTable,
     getCoreRowModel,
@@ -697,8 +698,14 @@ export const DataGrid = React.memo(function DataGrid({
         return new Map(columnMetadata.map((col) => [col.name, col.data_type]));
     }, [columnMetadata]);
     const booleanTypeMap = useMemo(
-        () => new Map(columnMetadata?.map((col) => [col.name, col.full_type ?? col.data_type])),
-        [columnMetadata],
+        () =>
+            new Map(
+                columnMetadata?.flatMap((col) => {
+                    const type = col.full_type ?? col.data_type;
+                    return isBooleanColumnType(type, copyDriver) ? [[col.name, type] as const] : [];
+                }),
+            ),
+        [columnMetadata, copyDriver],
     );
     // Jump to column lists the visible columns only (#1299).
     const columnChoices = useMemo(
@@ -3653,7 +3660,6 @@ export const DataGrid = React.memo(function DataGrid({
     const rowCtx: RowCtx = useMemo(
         () => ({
             booleanTypeMap,
-            booleanDriver: copyDriver,
             changeBooleanCell,
             tableName,
             generatedColumns,
@@ -3706,7 +3712,6 @@ export const DataGrid = React.memo(function DataGrid({
         }),
         [
             booleanTypeMap,
-            copyDriver,
             changeBooleanCell,
             tableName,
             generatedColumns,

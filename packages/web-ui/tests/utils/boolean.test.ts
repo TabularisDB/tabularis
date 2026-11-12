@@ -1,8 +1,30 @@
 import {describe, expect, it} from 'vitest';
-import {booleanEditValue, getBooleanValue} from '@/utils/boolean';
+import {
+    booleanEditValue,
+    getBooleanValue,
+    isBooleanColumnType,
+    parseBooleanValue,
+} from '@/utils/boolean';
 import type {DriverCapabilities} from '@/types/plugins';
 
 describe('Boolean column values', () => {
+    it('classifies column types without requiring a cell value', () => {
+        expect(isBooleanColumnType('BOOLEAN')).toBe(true);
+        expect(
+            isBooleanColumnType('tinyint(1)', {sql_dialect: 'mysql'} as DriverCapabilities),
+        ).toBe(true);
+        expect(isBooleanColumnType('bit', {sql_dialect: 'mssql'} as DriverCapabilities)).toBe(true);
+        expect(isBooleanColumnType('bit', 'postgres')).toBe(false);
+        expect(isBooleanColumnType('integer')).toBe(false);
+        expect(isBooleanColumnType()).toBe(false);
+    });
+
+    it('parses values independently of the precomputed column classification', () => {
+        expect(parseBooleanValue('t')).toBe(true);
+        expect(parseBooleanValue(0)).toBe(false);
+        expect(parseBooleanValue(null)).toBeNull();
+        expect(parseBooleanValue('other')).toBeUndefined();
+    });
     it.each(['bool', 'BOOLEAN', ' pg_catalog.bool '])('recognizes %s', (type) => {
         expect(getBooleanValue(true, type)).toBe(true);
         expect(getBooleanValue('f', type)).toBe(false);

@@ -168,6 +168,38 @@ class ResizeObserverMock {
 vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 
 describe('DataGrid Boolean checkboxes (#1499)', () => {
+    it('shows native Boolean results without metadata but keeps explicitly typed text unchanged', () => {
+        const {rerender} = render(
+            <DataGrid
+                columns={['value']}
+                data={[[true]]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+        expect(screen.getByRole('checkbox', {name: 'value'})).toBeChecked();
+        rerender(
+            <DataGrid
+                columns={['value']}
+                data={[[true]]}
+                columnMetadata={[
+                    {
+                        name: 'value',
+                        data_type: 'text',
+                        is_pk: false,
+                        is_nullable: false,
+                        is_auto_increment: false,
+                    },
+                ]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+        expect(screen.queryByRole('checkbox', {name: 'value'})).toBeNull();
+        expect(screen.getByText('true')).toBeInTheDocument();
+    });
     const metadata = [
         {
             name: 'id',

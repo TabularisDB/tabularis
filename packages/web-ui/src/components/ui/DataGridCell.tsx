@@ -1,5 +1,5 @@
 import React from 'react';
-import {booleanEditValue, getBooleanValue} from '@/utils/boolean';
+import {booleanEditValue, parseBooleanValue} from '@/utils/boolean';
 import {BooleanInput} from './BooleanInput';
 import {ExternalLink, Eye, EyeOff} from 'lucide-react';
 import {MASKED_PLACEHOLDER} from '@/utils/columnMasking';
@@ -101,7 +101,6 @@ export function DataGridCell({
     style,
 }: DataGridCellProps) {
     const {
-        booleanDriver,
         columns,
         autoIncrementColumns,
         defaultValueColumns,
@@ -170,8 +169,10 @@ export function DataGridCell({
     } = resolved;
 
     const colTypeForCell = columnTypeMap?.get(colName);
-    const booleanType = ctx.booleanTypeMap?.get(colName) ?? colTypeForCell;
-    const booleanValue = getBooleanValue(displayValue, booleanType, ctx.booleanDriver);
+    const booleanType = ctx.booleanTypeMap?.get(colName);
+    const isBooleanCell =
+        booleanType !== undefined || (!colTypeForCell && typeof displayValue === 'boolean');
+    const booleanValue = isBooleanCell ? parseBooleanValue(displayValue) : undefined;
     const booleanDisabled = !!(
         readonlyProp ||
         !ctx.tableName ||
@@ -332,11 +333,7 @@ export function DataGridCell({
             ) : isEditing ? (
                 (() => {
                     if (booleanValue !== undefined) {
-                        const editingBoolean = getBooleanValue(
-                            editingValue,
-                            booleanType,
-                            booleanDriver,
-                        );
+                        const editingBoolean = parseBooleanValue(editingValue);
                         if (editingBoolean !== undefined) {
                             return (
                                 <BooleanInput

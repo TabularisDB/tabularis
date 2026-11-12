@@ -3,21 +3,20 @@ import {isMysqlDialect} from './identifiers';
 
 export type BooleanDriver = string | DriverCapabilities | null | undefined;
 
-/** Undefined means this type or value must keep its ordinary editor. */
-export function getBooleanValue(
-    value: unknown,
-    type?: string,
-    driver?: BooleanDriver,
-): boolean | null | undefined {
+export function isBooleanColumnType(type?: string, driver?: BooleanDriver): boolean {
     const normalized = type?.trim().toLowerCase();
     const dialect = typeof driver === 'object' ? driver?.sql_dialect : driver;
-    const supported = normalized
-        ? /^(?:pg_catalog\.)?bool(?:ean)?$/.test(normalized) ||
-          (isMysqlDialect(driver) &&
-              /^(?:tinyint\s*\(\s*1\s*\)(?:\s+unsigned)?|bit\s*\(\s*1\s*\))$/.test(normalized)) ||
-          (dialect === 'mssql' && normalized === 'bit')
-        : typeof value === 'boolean';
-    if (!supported) return undefined;
+    return (
+        !!normalized &&
+        (/^(?:pg_catalog\.)?bool(?:ean)?$/.test(normalized) ||
+            (isMysqlDialect(driver) &&
+                /^(?:tinyint\s*\(\s*1\s*\)(?:\s+unsigned)?|bit\s*\(\s*1\s*\))$/.test(normalized)) ||
+            (dialect === 'mssql' && normalized === 'bit'))
+    );
+}
+
+/** Only called after the column has been identified as Boolean. */
+export function parseBooleanValue(value: unknown): boolean | null | undefined {
     if (value === null || value === undefined) return null;
     if (value === true || value === 1) return true;
     if (value === false || value === 0) return false;
@@ -26,6 +25,16 @@ export function getBooleanValue(
         if (/^(false|f|0)$/i.test(value)) return false;
     }
     return undefined;
+}
+
+/** Undefined means this type or value must keep its ordinary editor. */
+export function getBooleanValue(
+    value: unknown,
+    type?: string,
+    driver?: BooleanDriver,
+): boolean | null | undefined {
+    const supported = type?.trim() ? isBooleanColumnType(type, driver) : typeof value === 'boolean';
+    return supported ? parseBooleanValue(value) : undefined;
 }
 
 /** Retain the driver's wire representation, including when reverting an edit. */
