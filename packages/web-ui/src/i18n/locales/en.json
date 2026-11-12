@@ -667,7 +667,7 @@
       "subtitle": "Define reusable SQL templates with trigger prefixes and tab-stop placeholders for Monaco autocomplete.",
       "add": "New Snippet",
       "exportJson": "Export JSON",
-      "exportFailed": "Failed to export snippets.",
+      "exportFailed": "Failed to export snippets: {{error}}",
       "createTitle": "Create Snippet",
       "editTitle": "Edit Snippet",
       "nameLabel": "Snippet Name",

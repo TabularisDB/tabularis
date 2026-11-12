@@ -667,7 +667,7 @@
       "subtitle": "Définissez des modèles SQL réutilisables avec préfixes de déclenchement et tabulations pour la saisie semi-automatique de Monaco.",
       "add": "Nouvel extrait",
       "exportJson": "Exporter en JSON",
-      "exportFailed": "Échec de l’exportation des extraits.",
+      "exportFailed": "Échec de l’exportation des extraits : {{error}}",
       "createTitle": "Créer un extrait",
       "editTitle": "Modifier l'extrait",
       "nameLabel": "Nom de l'extrait",

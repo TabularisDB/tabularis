@@ -662,7 +662,7 @@
       "subtitle": "Monacoのオートコンプリート用に、トリガープレフィックスとタブストッププレースホルダーを備えた再利用可能なSQLテンプレートを定義します。",
       "add": "新規スニペット",
       "exportJson": "JSON をエクスポート",
-      "exportFailed": "スニペットのエクスポートに失敗しました。",
+      "exportFailed": "スニペットのエクスポートに失敗しました: {{error}}",
       "createTitle": "スニペットを作成",
       "editTitle": "スニペットを編集",
       "nameLabel": "スニペット名",

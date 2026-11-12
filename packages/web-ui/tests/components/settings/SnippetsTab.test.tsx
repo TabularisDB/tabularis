@@ -11,7 +11,20 @@ import {
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key: string, defaultValue?: string) => defaultValue || key,
+        t: (key: string, defaultValueOrOptions?: string | Record<string, unknown>) => {
+            if (typeof defaultValueOrOptions === 'string' || defaultValueOrOptions == null) {
+                return defaultValueOrOptions || key;
+            }
+            let result =
+                typeof defaultValueOrOptions.defaultValue === 'string'
+                    ? defaultValueOrOptions.defaultValue
+                    : key;
+            for (const [name, value] of Object.entries(defaultValueOrOptions)) {
+                if (name === 'defaultValue') continue;
+                result = result.replaceAll(`{{${name}}}`, String(value));
+            }
+            return result;
+        },
     }),
 }));
 
@@ -133,7 +146,7 @@ describe('SnippetsTab', () => {
             await waitFor(() => expect(button).toBeEnabled());
             if (outcome === 'failure')
                 expect(mocks.showAlert).toHaveBeenCalledWith(
-                    'Failed to export snippets. write failed',
+                    'Failed to export snippets: write failed',
                     {
                         kind: 'error',
                     },

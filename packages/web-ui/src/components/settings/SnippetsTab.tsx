@@ -27,6 +27,7 @@ import clsx from 'clsx';
 import DOMPurify from 'dompurify';
 import {ensureMonaco} from '@/utils/monaco';
 import {toErrorMessage} from '@/utils/errors';
+import {downloadTextFile} from '@/utils/fileDownloads';
 
 function snippetLanguage(dialect: SqlDialectScope | undefined, drivers: PluginManifest[]): string {
     if (dialect?.startsWith('driver:')) {
@@ -214,16 +215,19 @@ export function SnippetsTab() {
         if (snippets.length === 0 || isExporting) return;
         setIsExporting(true);
         try {
-            await platform.downloadFile({
+            await downloadTextFile(platform, {
                 fileName: 'tabularis-snippets.json',
-                contents: new TextEncoder().encode(serializeSqlSnippets(snippets)),
+                contents: serializeSqlSnippets(snippets),
                 mimeType: 'application/json',
                 title: t('settings.snippets.exportJson', 'Export JSON'),
                 filters: [{name: 'JSON', extensions: ['json']}],
             });
         } catch (failure) {
             showAlert(
-                `${t('settings.snippets.exportFailed', 'Failed to export snippets.')} ${toErrorMessage(failure)}`,
+                t('settings.snippets.exportFailed', {
+                    defaultValue: 'Failed to export snippets: {{error}}',
+                    error: toErrorMessage(failure),
+                }),
                 {kind: 'error'},
             );
         } finally {
@@ -250,7 +254,7 @@ export function SnippetsTab() {
                         type="button"
                         onClick={handleExport}
                         disabled={snippets.length === 0 || isExporting}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-secondary text-secondary border border-default text-xs disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-secondary text-secondary hover:text-primary border border-default text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                     >
                         <Download size={14} aria-hidden="true" />
                         {t('settings.snippets.exportJson', 'Export JSON')}
