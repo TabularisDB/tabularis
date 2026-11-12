@@ -2520,6 +2520,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn database_sql_capabilities_ignore_legacy_native_backup_boolean() {
+        use super::*;
+        let driver = test_driver_result(|_| {
+            Ok(json!({
+                "format": "sql",
+                "native_backup": true,
+                "create_database": true,
+                "requires_empty_target": true,
+                "target_label": "Path"
+            }))
+        });
+        let capabilities = driver
+            .get_database_sql_capabilities(&test_connection_params())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(capabilities.native_backup.is_none());
+        assert_eq!(capabilities.format, "sql");
+    }
+
+    #[tokio::test]
     async fn syncing_settings_keeps_the_process_available() {
         use super::*;
         use crate::drivers::driver_trait::DatabaseDriver;

@@ -9,7 +9,11 @@ import {validateDumpOptions, toggleTableSelection, selectAllTables} from '@/util
 import {formatElapsedTime} from '@/utils/formatTime';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
-import {nativeBackupExtension, runDatabaseDump} from '@/utils/databaseTransfers';
+import {
+    declaredNativeBackup,
+    nativeBackupExtension,
+    runDatabaseDump,
+} from '@/utils/databaseTransfers';
 import type {EventPayload} from '@/api/events';
 import type {DatabaseSqlCapabilities} from '@/types/plugins';
 
@@ -51,10 +55,7 @@ export const DumpDatabaseModal = ({
     const [includeStructure, setIncludeStructure] = useState(true);
     const [sqlCapabilities, setSqlCapabilities] = useState<DatabaseSqlCapabilities | null>(null);
     const [format, setFormat] = useState('sql');
-    const nativeBackupSpec =
-        sqlCapabilities?.native_backup && nativeBackupExtension(sqlCapabilities.native_backup)
-            ? sqlCapabilities.native_backup
-            : null;
+    const nativeBackupSpec = declaredNativeBackup(sqlCapabilities);
     const nativeBackup = nativeBackupSpec != null && format === nativeBackupSpec.format;
     const [includeData, setIncludeData] = useState(true);
     const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set(tables));

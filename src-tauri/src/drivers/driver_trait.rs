@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::any::AnyConnectOptions;
 use sqlx::{AnyConnection, Connection};
 use std::str::FromStr;
@@ -23,11 +23,37 @@ pub struct NativeBackupCapability {
     pub description: Option<String>,
 }
 
+/// Published plugins used `native_backup: true`. Treat that as omitted rather
+/// than failing the whole capabilities call; native dump needs the object.
+fn deserialize_native_backup<'de, D>(
+    deserializer: D,
+) -> Result<Option<NativeBackupCapability>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum NativeBackupField {
+        Flag(bool),
+        Spec(NativeBackupCapability),
+    }
+    Ok(
+        match Option::<NativeBackupField>::deserialize(deserializer)? {
+            None | Some(NativeBackupField::Flag(_)) => None,
+            Some(NativeBackupField::Spec(spec)) => Some(spec),
+        },
+    )
+}
+
 /// Optional whole-database SQL protocol. Other drivers keep the host transfer path.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DatabaseSqlCapabilities {
     pub format: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_native_backup",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub native_backup: Option<NativeBackupCapability>,
     pub create_database: bool,
     pub requires_empty_target: bool,

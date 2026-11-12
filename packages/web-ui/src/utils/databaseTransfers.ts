@@ -17,13 +17,23 @@ export function nativeBackupExtension(native: NativeBackupCapability): string | 
     return NATIVE_BACKUP_EXTENSION.test(extension) ? extension : null;
 }
 
+export function declaredNativeBackup(
+    capabilities: DatabaseSqlCapabilities | null | undefined,
+): NativeBackupCapability | null {
+    const native = capabilities?.native_backup;
+    if (!native || typeof native !== 'object') {
+        return null;
+    }
+    return nativeBackupExtension(native) ? native : null;
+}
+
 export function isNativeBackupFile(
     fileName: string,
     capabilities: DatabaseSqlCapabilities | null | undefined,
 ): boolean {
-    const extension = capabilities?.native_backup
-        ? nativeBackupExtension(capabilities.native_backup)
-        : null;
+    const native = declaredNativeBackup(capabilities);
+    if (!native) return false;
+    const extension = nativeBackupExtension(native);
     if (!extension) return false;
     return fileName.toLowerCase().endsWith(`.${extension.toLowerCase()}`);
 }
@@ -31,7 +41,7 @@ export function isNativeBackupFile(
 export function databaseImportFilters(
     capabilities: DatabaseSqlCapabilities | null | undefined,
 ): PlatformFileFilter[] {
-    const native = capabilities?.native_backup;
+    const native = declaredNativeBackup(capabilities);
     const extension = native ? nativeBackupExtension(native) : null;
     if (!native || !extension) {
         return [{name: 'SQL / Zip File', extensions: ['sql', 'zip']}];
@@ -47,8 +57,11 @@ export function databaseImportFilters(
 export function dumpSaveFilters(
     native: NativeBackupCapability | null | undefined,
 ): PlatformFileFilter[] {
-    const extension = native ? nativeBackupExtension(native) : null;
-    if (!native || !extension) {
+    if (!native || typeof native !== 'object') {
+        return [{name: 'SQL File', extensions: ['sql']}];
+    }
+    const extension = nativeBackupExtension(native);
+    if (!extension) {
         return [{name: 'SQL File', extensions: ['sql']}];
     }
     return [{name: native.label, extensions: [extension]}];

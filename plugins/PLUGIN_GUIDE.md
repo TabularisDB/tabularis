@@ -2111,7 +2111,9 @@ all other errors stop the operation. Built-in drivers default to that path.
   - `label`: dump-dialog option text (for example `"Complete Firebird backup (.fbk)"`)
   - `description`: optional help shown when that format is selected
   The host never infers a native format from the driver id. A plugin that omits
-  `native_backup` only offers SQL.
+  `native_backup` only offers SQL. A boolean `native_backup` (for example `true`
+  from Firebird plugin v1.0.0) is accepted and treated as omitted: the host
+  still offers SQL, but not a native dump, until the plugin sends the object.
 - `export_database_sql`: `{params, file_path: string, options: {format?: string, structure: boolean, data: boolean, tables: string[] | null}}`
   returns null or `{rows: number, tables: number}`. `options.format` is omitted or
   `"sql"` for SQL, or the `native_backup.format` id for a native backup. Do not

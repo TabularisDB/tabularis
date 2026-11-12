@@ -6,6 +6,49 @@ use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 
 #[test]
+fn database_sql_capabilities_ignore_legacy_native_backup_boolean() {
+    let capabilities: DatabaseSqlCapabilities = serde_json::from_value(json!({
+        "format": "sql",
+        "native_backup": true,
+        "create_database": true,
+        "requires_empty_target": true,
+        "target_label": "Path"
+    }))
+    .unwrap();
+    assert_eq!(capabilities.native_backup, None);
+
+    let capabilities: DatabaseSqlCapabilities = serde_json::from_value(json!({
+        "format": "sql",
+        "native_backup": false,
+        "create_database": false,
+        "requires_empty_target": false,
+        "target_label": "Path"
+    }))
+    .unwrap();
+    assert_eq!(capabilities.native_backup, None);
+
+    let capabilities: DatabaseSqlCapabilities = serde_json::from_value(json!({
+        "format": "sql",
+        "native_backup": {
+            "format": "opaque",
+            "extension": "bin",
+            "label": "Opaque backup (.bin)"
+        },
+        "create_database": true,
+        "requires_empty_target": true,
+        "target_label": "Path"
+    }))
+    .unwrap();
+    assert_eq!(
+        capabilities
+            .native_backup
+            .as_ref()
+            .map(|native| native.format.as_str()),
+        Some("opaque")
+    );
+}
+
+#[test]
 fn native_backup_extension_rejects_path_components() {
     assert_eq!(file_extension("bin").unwrap(), "bin");
     assert_eq!(file_extension(".fbk").unwrap(), "fbk");

@@ -164,5 +164,13 @@ describe('databaseTransfers', () => {
         expect(dumpSaveFilters(unsafe.native_backup)).toEqual([
             {name: 'SQL File', extensions: ['sql']},
         ]);
+        const legacy = {
+            ...capabilities,
+            native_backup: true,
+        } as unknown as typeof capabilities;
+        expect(databaseImportFilters(legacy)).toEqual([
+            {name: 'SQL / Zip File', extensions: ['sql', 'zip']},
+        ]);
+        expect(isNativeBackupFile('backup.fbk', legacy)).toBe(false);
     });
 });
