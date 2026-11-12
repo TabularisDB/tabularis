@@ -15,6 +15,7 @@ interface RowEditorPanelProps {
     columns: Array<{
         name: string;
         type?: string;
+        booleanType?: string;
         characterMaximumLength?: number;
         isGenerated?: boolean;
     }>;
@@ -170,7 +171,15 @@ export const RowEditorPanel = ({
 
                             <FieldEditor
                                 name={column.name}
+                                disabled={isGenerated}
                                 type={column.type}
+                                booleanType={column.booleanType}
+                                booleanDriver={
+                                    connectionId
+                                        ? (connectionDataMap[connectionId]?.capabilities ??
+                                          rowDriver)
+                                        : rowDriver
+                                }
                                 characterMaximumLength={column.characterMaximumLength}
                                 value={value}
                                 originalValue={originalRowData?.[column.name]}

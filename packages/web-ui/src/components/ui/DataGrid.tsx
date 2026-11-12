@@ -696,6 +696,10 @@ export const DataGrid = React.memo(function DataGrid({
         if (!columnMetadata) return null;
         return new Map(columnMetadata.map((col) => [col.name, col.data_type]));
     }, [columnMetadata]);
+    const booleanTypeMap = useMemo(
+        () => new Map(columnMetadata?.map((col) => [col.name, col.full_type ?? col.data_type])),
+        [columnMetadata],
+    );
     // Jump to column lists the visible columns only (#1299).
     const columnChoices = useMemo(
         () =>
@@ -1123,6 +1127,7 @@ export const DataGrid = React.memo(function DataGrid({
                 return {
                     name: colName,
                     type: meta?.data_type,
+                    booleanType: meta?.full_type ?? meta?.data_type,
                     characterMaximumLength: meta?.character_maximum_length,
                     isGenerated: meta?.is_generated,
                 };
@@ -1233,7 +1238,7 @@ export const DataGrid = React.memo(function DataGrid({
     }, [rightSidebar, selectedRowIndices, openInSidebar, readonlyProp, tableName]);
 
     const handleCellDoubleClick = useCallback(
-        (rowIndex: number, colIndex: number, value: unknown) => {
+        (rowIndex: number, colIndex: number, value: unknown, directValue?: unknown) => {
             const mergedRow = mergedRows[rowIndex];
             if (!mergedRow) return;
 
@@ -1329,6 +1334,12 @@ export const DataGrid = React.memo(function DataGrid({
             ) {
                 openInSidebar(rowIndex, colName);
                 return;
+            }
+
+            if (directValue !== undefined) {
+                editingCellRef.current = {rowIndex, colIndex, value: directValue};
+                setEditingCell(editingCellRef.current);
+                return true;
             }
 
             let editValue = value;
@@ -1570,6 +1581,22 @@ export const DataGrid = React.memo(function DataGrid({
             handleEditCommit();
         },
         [handleEditCommit],
+    );
+
+    const changeBooleanCell = useCallback(
+        (rowIndex: number, colIndex: number, value: unknown) => {
+            if (
+                handleCellDoubleClick(
+                    rowIndex,
+                    colIndex,
+                    mergedRows[rowIndex]?.rowData[colIndex],
+                    value,
+                )
+            ) {
+                handleEditCommit();
+            }
+        },
+        [handleCellDoubleClick, handleEditCommit, mergedRows],
     );
 
     const columnHelper = useMemo(() => createColumnHelper<unknown[]>(), []);
@@ -3625,6 +3652,11 @@ export const DataGrid = React.memo(function DataGrid({
     // skip re-rendering rows that didn't change during scroll.
     const rowCtx: RowCtx = useMemo(
         () => ({
+            booleanTypeMap,
+            booleanDriver: copyDriver,
+            changeBooleanCell,
+            tableName,
+            generatedColumns,
             columns,
             autoIncrementColumns,
             defaultValueColumns,
@@ -3673,6 +3705,11 @@ export const DataGrid = React.memo(function DataGrid({
             visibleColIndices,
         }),
         [
+            booleanTypeMap,
+            copyDriver,
+            changeBooleanCell,
+            tableName,
+            generatedColumns,
             columns,
             autoIncrementColumns,
             defaultValueColumns,

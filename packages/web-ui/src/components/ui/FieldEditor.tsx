@@ -1,4 +1,6 @@
 import {useMemo} from 'react';
+import {booleanEditValue, getBooleanValue, type BooleanDriver} from '@/utils/boolean';
+import {BooleanInput} from './BooleanInput';
 import {useTranslation} from 'react-i18next';
 import {Sparkles, Ban, Eraser, FileDigit} from 'lucide-react';
 import {GeometryInput} from './GeometryInput';
@@ -19,6 +21,9 @@ import {USE_DEFAULT_SENTINEL} from '@/utils/dataGrid';
 export interface FieldEditorProps {
     name: string;
     type?: string;
+    booleanType?: string;
+    booleanDriver?: BooleanDriver;
+    disabled?: boolean;
     characterMaximumLength?: number;
     value: unknown;
     onChange: (value: unknown) => void;
@@ -44,6 +49,9 @@ export interface FieldEditorProps {
 export const FieldEditor = ({
     name,
     type,
+    booleanType = type,
+    booleanDriver,
+    disabled,
     characterMaximumLength,
     value,
     onChange,
@@ -105,6 +113,7 @@ export const FieldEditor = ({
         return String(value ?? '');
     }, [isGeometric, value]);
 
+    const booleanValue = getBooleanValue(value, booleanType, booleanDriver);
     const inputElement = isBlob ? (
         <div className={`${className}`}>
             {editableBlobHex !== null ? (
@@ -170,6 +179,16 @@ export const FieldEditor = ({
             onChange={(newValue) => onChange(newValue)}
             placeholder={defaultPlaceholder}
             className={className}
+        />
+    ) : booleanValue !== undefined ? (
+        <BooleanInput
+            name={name}
+            value={booleanValue}
+            nullable={isNullable}
+            disabled={disabled}
+            onChange={(next) =>
+                onChange(booleanEditValue(next, originalValue ?? value, booleanType))
+            }
         />
     ) : (
         <textarea

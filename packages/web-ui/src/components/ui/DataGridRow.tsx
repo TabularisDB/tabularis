@@ -1,4 +1,5 @@
 import React from 'react';
+import type {BooleanDriver} from '@/utils/boolean';
 import {isZebraStripedRow, DATA_GRID_ROW_HEIGHT, type MergedRow} from '@/utils/dataGrid';
 import {getFindMatchState} from '@/utils/gridFind';
 import {DataGridCell, DataGridExpansionRow} from './DataGridCell';
@@ -16,6 +17,11 @@ import {
  * on MemoRow only sees a new `ctx` reference when one of these actually changes.
  */
 export interface RowCtx {
+    booleanTypeMap?: Map<string, string>;
+    booleanDriver?: BooleanDriver;
+    changeBooleanCell?: (rowIndex: number, colIndex: number, value: unknown) => void;
+    tableName?: string | null;
+    generatedColumns?: Set<string> | null;
     columns: string[];
     autoIncrementColumns?: string[];
     defaultValueColumns?: string[];
