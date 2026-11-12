@@ -12,6 +12,7 @@ import {
     HISTORY_LIMIT,
     COALESCE_MS,
 } from '@/utils/notebookUndo';
+import {duplicateCellToEnd} from '@/utils/notebook';
 import type {NotebookCell} from '@/types/notebook';
 
 function state(content: string, extra: Partial<NotebookState> = {}): NotebookState {
@@ -218,6 +219,30 @@ describe('notebookUndo', () => {
             const prev = ns([cell('a')]);
             const next = ns([cell('a'), cell('b', {type: 'markdown'})]);
             expect(describeChange(prev, next).kind).toBe('addMarkdown');
+        });
+
+        it('records a duplicate as one added cell at the end, undone and redone whole', () => {
+            const prev = ns([
+                cell('a', {content: 'SELECT 1'}),
+                cell('b', {content: 'SELECT * FROM {{cell_1}}', result: null}),
+                cell('c', {type: 'markdown', content: '# Notes'}),
+            ]);
+            const next = ns(duplicateCellToEnd(prev.cells, 'b'));
+            expect(describeChange(prev, next)).toMatchObject({
+                kind: 'addSql',
+                n: 4,
+                detail: 'SELECT * FROM {{cell_1}}',
+            });
+            expect(describeChange(next, ns(duplicateCellToEnd(next.cells, 'c'))).kind).toBe(
+                'addMarkdown',
+            );
+
+            const history = recordEdit(createHistory(), prev, next, 10_000);
+            expect(history.past).toEqual([prev]);
+            const undone = undo(history, next);
+            expect(undone?.state).toBe(prev);
+            const redone = undone && redo(undone.history, undone.state);
+            expect(redone?.state).toBe(next);
         });
 
         it('detects a deleted cell by its old position', () => {

@@ -328,3 +328,45 @@ describe('NotebookCellWrapper query plans', () => {
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 });
+
+describe('NotebookCellWrapper duplicate action', () => {
+    const label = 'editor.notebook.duplicateCellToEnd';
+
+    it.each(['sql', 'markdown'] as const)(
+        'offers a labelled duplicate button on %s cells',
+        (type) => {
+            const onDuplicate = vi.fn();
+            const props = makeProps();
+            render(
+                <NotebookCellWrapper
+                    {...props}
+                    cell={{...props.cell, type}}
+                    onDuplicate={onDuplicate}
+                    canDuplicate
+                />,
+            );
+            const button = screen.getByRole('button', {name: label});
+            expect(button).toHaveAttribute('title', label);
+            expect(button).toBeEnabled();
+            fireEvent.click(button);
+            expect(onDuplicate).toHaveBeenCalledTimes(1);
+            expect(props.onRun).not.toHaveBeenCalled();
+        },
+    );
+
+    it('is disabled when duplication is not allowed', () => {
+        const onDuplicate = vi.fn();
+        render(
+            <NotebookCellWrapper {...makeProps()} onDuplicate={onDuplicate} canDuplicate={false} />,
+        );
+        const button = screen.getByRole('button', {name: label});
+        expect(button).toBeDisabled();
+        fireEvent.click(button);
+        expect(onDuplicate).not.toHaveBeenCalled();
+    });
+
+    it('is hidden without a duplicate handler', () => {
+        render(<NotebookCellWrapper {...makeProps()} />);
+        expect(screen.queryByRole('button', {name: label})).not.toBeInTheDocument();
+    });
+});

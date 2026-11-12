@@ -2175,6 +2175,7 @@
       "copySource": "Quelle kopieren",
       "copiedSource": "Quelle in die Zwischenablage kopiert",
       "copySourceFailed": "Die Zellquelle konnte nicht in die Zwischenablage kopiert werden.",
+      "duplicateCellToEnd": "Am Ende duplizieren",
       "moveCellUp": "Nach oben",
       "moveCellDown": "Nach unten",
       "export": "Notebook exportieren",

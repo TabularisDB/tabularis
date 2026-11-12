@@ -2206,6 +2206,7 @@
       "copySource": "Kopyahin ang source",
       "copiedSource": "Nakopya ang source sa clipboard",
       "copySourceFailed": "Hindi makopya ang source ng cell sa clipboard.",
+      "duplicateCellToEnd": "I-duplicate sa dulo",
       "moveCellUp": "Ilipat Pataas",
       "moveCellDown": "Ilipat Pababa",
       "export": "I-export ang Notebook",

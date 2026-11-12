@@ -107,6 +107,8 @@ vi.mock('@/components/notebook/NotebookToolbar', () => ({
         canClearOutputs,
         onUndo,
         canUndo,
+        onRedo,
+        canRedo,
     }: ComponentProps<typeof NotebookToolbar>) => (
         <>
             <button onClick={onRunAll} disabled={isRunning}>
@@ -117,6 +119,9 @@ vi.mock('@/components/notebook/NotebookToolbar', () => ({
             </button>
             <button onClick={onUndo} disabled={!canUndo}>
                 Undo
+            </button>
+            <button onClick={onRedo} disabled={!canRedo}>
+                Redo
             </button>
         </>
     ),
@@ -134,6 +139,8 @@ vi.mock('@/components/notebook/NotebookCellWrapper', async () => {
             onRun,
             onUpdate,
             onMoveDown,
+            onDuplicate,
+            canDuplicate,
         }: ComponentProps<typeof NotebookCellWrapper>) => {
             // A remount discards per-cell plan state, so mounts are observable here.
             useEffect(() => {
@@ -161,6 +168,9 @@ vi.mock('@/components/notebook/NotebookCellWrapper', async () => {
                     </button>
                     <button onClick={onRun}>Run {cell.id}</button>
                     <button onClick={onMoveDown}>Move down {cell.id}</button>
+                    <button onClick={onDuplicate} disabled={!canDuplicate}>
+                        Duplicate {cell.id}
+                    </button>
                 </section>
             );
         },
@@ -828,6 +838,178 @@ describe('NotebookView', () => {
 
             expect(clearButton()).toBeDisabled();
             expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        });
+    });
+
+    describe('Duplicate to end', () => {
+        const historyEntry = {
+            query: 'SELECT 1',
+            result: queryResult,
+            executionTime: 3,
+            timestamp: 1,
+        };
+        const chartConfig = {type: 'bar' as const, labelColumn: 'id', valueColumns: ['id']};
+
+        function notebookToDuplicate(): NotebookState {
+            return {
+                params,
+                stopOnError: true,
+                cells: [
+                    sqlCell('base', 'SELECT 1 AS id', {result: queryResult, executionTime: 2}),
+                    sqlCell('second', 'SELECT * FROM {{cell_1}}', {
+                        name: 'Second',
+                        schema: 'cell_schema',
+                        result: queryResult,
+                        error: undefined,
+                        executionTime: 12,
+                        history: [historyEntry],
+                        chartConfig,
+                        isQueryPlanVisible: true,
+                    }),
+                    {
+                        id: 'notes',
+                        type: 'markdown',
+                        content: '# Notes on {{cell_2}}',
+                        isPreview: true,
+                        isCollapsed: true,
+                    },
+                ],
+            };
+        }
+
+        const ids = () => fixtures.notebooks.get(notebookId)?.cells.map((cell) => cell.id) ?? [];
+        const lastCell = () => {
+            const cells = fixtures.notebooks.get(notebookId)?.cells ?? [];
+            return cells[cells.length - 1];
+        };
+        const duplicateButton = (id: string) =>
+            screen.getByRole('button', {name: `Duplicate ${id}`});
+
+        it('appends a document-only copy of the second SQL cell without running it', async () => {
+            const state = notebookToDuplicate();
+            renderNotebook(state);
+            await settle();
+
+            fireEvent.click(duplicateButton('second'));
+            await settle();
+
+            expect(setNotebookState).toHaveBeenCalledTimes(1);
+            const saved = fixtures.notebooks.get(notebookId);
+            expect(saved?.cells).toHaveLength(4);
+            // Existing cells keep their objects and positions.
+            expect(saved?.cells.slice(0, 3)).toEqual(state.cells);
+            const copy = lastCell();
+            expect(state.cells.map((cell) => cell.id)).not.toContain(copy.id);
+            expect(copy).toEqual({
+                ...state.cells[1],
+                id: copy.id,
+                result: null,
+                error: undefined,
+                executionTime: null,
+                isLoading: false,
+                history: undefined,
+                isCollapsed: false,
+            });
+            expect(copy.content).toBe('SELECT * FROM {{cell_1}}');
+            expect(copy.chartConfig).toEqual(chartConfig);
+            expect(copy.chartConfig).not.toBe(state.cells[1].chartConfig);
+            expect(saved?.params).toEqual(params);
+            expect(saved?.stopOnError).toBe(true);
+            // The copy is rendered last, and nothing was executed.
+            const sections = screen.getAllByRole('textbox');
+            expect(sections[sections.length - 1]).toHaveAccessibleName(`SQL ${copy.id}`);
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(fixtures.guardQuery).not.toHaveBeenCalled();
+            expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+        });
+
+        it('starts a Markdown copy expanded and in edit mode', async () => {
+            const state = notebookToDuplicate();
+            renderNotebook(state);
+            await settle();
+
+            fireEvent.click(duplicateButton('notes'));
+            await settle();
+
+            expect(ids().slice(0, 3)).toEqual(['base', 'second', 'notes']);
+            expect(lastCell()).toEqual({
+                ...state.cells[2],
+                id: lastCell().id,
+                result: null,
+                error: undefined,
+                executionTime: null,
+                isLoading: false,
+                history: undefined,
+                isPreview: false,
+                isCollapsed: false,
+            });
+            expect(savedCell('notes')).toEqual(state.cells[2]);
+        });
+
+        it('keeps the copy independent from later edits to the original', async () => {
+            renderNotebook(notebookToDuplicate());
+            await settle();
+
+            fireEvent.click(duplicateButton('second'));
+            const copyId = lastCell().id;
+            fireEvent.change(screen.getByRole('textbox', {name: 'SQL second'}), {
+                target: {value: 'SELECT 2'},
+            });
+
+            expect(savedCell('second').content).toBe('SELECT 2');
+            expect(savedCell(copyId).content).toBe('SELECT * FROM {{cell_1}}');
+        });
+
+        it('is one undoable step that redo restores', async () => {
+            renderNotebook(notebookToDuplicate());
+            await settle();
+            const undo = screen.getByRole('button', {name: 'Undo'});
+            const redo = screen.getByRole('button', {name: 'Redo'});
+            expect(undo).toBeDisabled();
+
+            fireEvent.click(duplicateButton('second'));
+            const copyId = lastCell().id;
+            expect(ids()).toEqual(['base', 'second', 'notes', copyId]);
+            expect(undo).toBeEnabled();
+
+            fireEvent.click(undo);
+            expect(ids()).toEqual(['base', 'second', 'notes']);
+            expect(undo).toBeDisabled();
+            expect(redo).toBeEnabled();
+
+            fireEvent.click(redo);
+            expect(ids()).toEqual(['base', 'second', 'notes', copyId]);
+            expect(savedCell(copyId).content).toBe('SELECT * FROM {{cell_1}}');
+            expect(redo).toBeDisabled();
+            expect(mockInvoke).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            {name: 'Run All', trigger: 'Run All'},
+            {name: 'a single cell run', trigger: 'Run base'},
+        ])('is disabled while $name is executing', async ({trigger}) => {
+            let finish: (value: QueryResult) => void = () => {};
+            mockInvoke.mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            renderNotebook({cells: [sqlCell('base', 'SELECT 1')]});
+            await settle();
+            expect(duplicateButton('base')).toBeEnabled();
+
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name: trigger}));
+            });
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            expect(duplicateButton('base')).toBeDisabled();
+            fireEvent.click(duplicateButton('base'));
+            expect(ids()).toEqual(['base']);
+
+            await act(async () => {
+                finish(queryResult);
+            });
+            await waitFor(() => expect(duplicateButton('base')).toBeEnabled());
         });
     });
 });

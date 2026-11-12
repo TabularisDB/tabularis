@@ -16,6 +16,7 @@ import {
     History,
     Network,
     Copy,
+    CopyPlus,
 } from 'lucide-react';
 import type {NotebookCellType} from '@/types/notebook';
 import {CellNameAiButton} from './CellNameAiButton';
@@ -31,6 +32,8 @@ interface NotebookCellHeaderProps {
     onMoveUp: () => void;
     onMoveDown: () => void;
     onDelete: () => void;
+    onDuplicate?: () => void;
+    canDuplicate?: boolean;
     onRun?: () => void;
     onTogglePreview?: () => void;
     isLoading?: boolean;
@@ -108,6 +111,8 @@ export function NotebookCellHeader({
     onMoveUp,
     onMoveDown,
     onDelete,
+    onDuplicate,
+    canDuplicate = true,
     onRun,
     onTogglePreview,
     isLoading,
@@ -405,6 +410,17 @@ export function NotebookCellHeader({
                 >
                     <ChevronDown size={14} />
                 </ActionButton>
+
+                {onDuplicate && (
+                    <ActionButton
+                        onClick={onDuplicate}
+                        disabled={!canDuplicate}
+                        title={t('editor.notebook.duplicateCellToEnd')}
+                        ariaLabel={t('editor.notebook.duplicateCellToEnd')}
+                    >
+                        <CopyPlus size={14} />
+                    </ActionButton>
+                )}
 
                 <ActionButton onClick={onDelete} title={t('editor.notebook.deleteCell')}>
                     <Trash2 size={14} />

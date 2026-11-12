@@ -2143,6 +2143,7 @@
       "copySource": "소스 복사",
       "copiedSource": "소스를 클립보드에 복사했습니다",
       "copySourceFailed": "셀 소스를 클립보드에 복사할 수 없습니다.",
+      "duplicateCellToEnd": "끝에 복제",
       "moveCellUp": "위로 이동",
       "moveCellDown": "아래로 이동",
       "export": "노트북 내보내기",

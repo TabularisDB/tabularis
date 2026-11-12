@@ -19,6 +19,8 @@ interface NotebookCellWrapperProps {
     onMoveUp: () => void;
     onMoveDown: () => void;
     onRun: () => void;
+    onDuplicate?: () => void;
+    canDuplicate?: boolean;
     connectionId: string;
     explainQuery?: ResolvedQuery;
     activeSchema?: string;
@@ -41,6 +43,8 @@ export function NotebookCellWrapper({
     onMoveUp,
     onMoveDown,
     onRun,
+    onDuplicate,
+    canDuplicate,
     connectionId,
     explainQuery,
     activeSchema,
@@ -83,6 +87,8 @@ export function NotebookCellWrapper({
                 onMoveUp={onMoveUp}
                 onMoveDown={onMoveDown}
                 onDelete={onDelete}
+                onDuplicate={onDuplicate}
+                canDuplicate={canDuplicate}
                 onRun={cell.type === 'sql' ? onRun : undefined}
                 onTogglePreview={
                     cell.type === 'markdown'

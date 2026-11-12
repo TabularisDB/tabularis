@@ -2225,6 +2225,7 @@
             "copySource": "複製原始碼",
             "copiedSource": "原始碼已複製到剪貼簿",
             "copySourceFailed": "無法將儲存格原始碼複製到剪貼簿。",
+            "duplicateCellToEnd": "複製到末尾",
             "moveCellUp": "上移",
             "moveCellDown": "下移",
             "export": "匯出筆記本",
