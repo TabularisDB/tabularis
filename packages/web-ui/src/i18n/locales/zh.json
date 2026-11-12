@@ -901,7 +901,24 @@
       "customOpenaiModelDesc": "输入您的 OpenAI 兼容服务提供的模型名称。",
       "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。",
       "promptResetSuccess": "提示词已重置为默认值",
-      "apiKeySaved": "API 密钥已安全保存"
+      "apiKeySaved": "API 密钥已安全保存",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "重试设置",
+      "pluginMigration": "正在恢复 AI 提供商设置：{{providers}}。",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "无需离开此设置页面即可安装或移除外部 AI 提供商。",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "移除 {{provider}}",
+      "removingProvider": "正在移除提供商…",
+      "noExternalProviders": "没有可用的外部提供商。",
+      "activeProviderRemoved": "当前提供商已移除，AI 已停用。请启用 AI 并选择其他提供商以继续。"
     },
     "updates": "更新",
     "openSourceLibraries": "开源库",
@@ -1090,7 +1107,9 @@
         }
       },
       "poweredBy": "技术支持：",
-      "openHomepage": "打开主页"
+      "openHomepage": "打开主页",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "键盘快捷键",

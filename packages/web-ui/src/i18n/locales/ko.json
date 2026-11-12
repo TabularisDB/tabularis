@@ -907,7 +907,24 @@
       "customOpenaiModelDesc": "OpenAI 호환 서비스가 제공하는 모델 이름을 입력하세요.",
       "customOpenaiModelHelp": "사용 중인 OpenAI 호환 제공자의 정확한 모델 이름을 입력하세요.",
       "promptResetSuccess": "프롬프트가 기본값으로 재설정되었습니다",
-      "apiKeySaved": "API 키가 안전하게 저장되었습니다"
+      "apiKeySaved": "API 키가 안전하게 저장되었습니다",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "설정 다시 시도",
+      "pluginMigration": "AI 제공업체 설정을 복원하는 중: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "이 설정에서 외부 AI 제공자를 설치하거나 제거할 수 있습니다.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "{{provider}} 제거",
+      "removingProvider": "제공자 제거 중…",
+      "noExternalProviders": "사용 가능한 외부 제공자가 없습니다.",
+      "activeProviderRemoved": "활성 제공자가 제거되어 AI가 비활성화되었습니다. 계속하려면 AI를 활성화하고 다른 제공자를 선택하세요."
     },
     "updates": "업데이트",
     "openSourceLibraries": "오픈소스 라이브러리",
@@ -1098,7 +1115,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "키보드 단축키",

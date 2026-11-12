@@ -985,7 +985,24 @@
       "customOpenaiModelDesc": "Nhập tên model do dịch vụ tương thích OpenAI của bạn cung cấp.",
       "customOpenaiModelHelp": "Nhập chính xác tên model của nhà cung cấp tương thích OpenAI.",
       "promptResetSuccess": "Đã đặt lại prompt về mặc định",
-      "apiKeySaved": "Đã lưu API key an toàn"
+      "apiKeySaved": "Đã lưu API key an toàn",
+      "manageProviders": "Duyệt các nhà cung cấp AI",
+      "retryMigration": "Thử khôi phục lại",
+      "pluginMigration": "Đang khôi phục cài đặt nhà cung cấp AI: {{providers}}.",
+      "providerMissing": "Chưa cài đặt {{provider}}. Hãy cài đặt từ Trung tâm plugin để tiếp tục dùng cấu hình đã lưu.",
+      "availableProviders": "Nhà cung cấp có sẵn",
+      "installProviderHelp": "Cài đặt hoặc gỡ bỏ nhà cung cấp AI bên ngoài ngay trong phần cài đặt này.",
+      "installAndUse": "Cài đặt và sử dụng",
+      "installAndUseProvider": "Cài đặt và sử dụng {{provider}}",
+      "installingProvider": "Đang cài đặt nhà cung cấp…",
+      "providerRegistryOffline": "Không thể kết nối kho nhà cung cấp. Các nhà cung cấp đã cài đặt vẫn có thể sử dụng.",
+      "allProvidersInstalled": "Đã cài đặt tất cả nhà cung cấp có sẵn.",
+      "providerRequiresUpdate": "Nhà cung cấp này yêu cầu phiên bản ứng dụng hoặc nền tảng tương thích.",
+      "builtinProvider": "Tích hợp sẵn",
+      "removeProvider": "Gỡ bỏ {{provider}}",
+      "removingProvider": "Đang gỡ bỏ nhà cung cấp…",
+      "noExternalProviders": "Không có nhà cung cấp bên ngoài.",
+      "activeProviderRemoved": "Nhà cung cấp đang dùng đã bị gỡ bỏ. AI đã bị tắt. Hãy bật AI và chọn nhà cung cấp khác để tiếp tục."
     },
     "updates": "Cập nhật",
     "openSourceLibraries": "Thư viện mã nguồn mở",
@@ -1180,7 +1197,9 @@
         }
       },
       "poweredBy": "Cung cấp bởi",
-      "openHomepage": "Mở trang chủ"
+      "openHomepage": "Mở trang chủ",
+      "kindAiAssistant": "Trợ lý AI",
+      "kindAiAssistants": "Trợ lý AI"
     },
     "shortcuts": {
       "title": "Phím tắt",

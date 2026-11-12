@@ -995,7 +995,24 @@
             "customOpenaiModelDesc": "輸入您的 OpenAI 相容服務提供的模型名稱。",
             "customOpenaiModelHelp": "輸入您的 OpenAI 相容提供者的確切模型名稱。",
             "promptResetSuccess": "提示詞已重設為預設值",
-            "apiKeySaved": "API 金鑰已安全儲存"
+            "apiKeySaved": "API 金鑰已安全儲存",
+            "manageProviders": "瀏覽 AI 供應商",
+            "retryMigration": "重試還原",
+            "pluginMigration": "正在還原 AI 供應商設定：{{providers}}。",
+            "providerMissing": "尚未安裝 {{provider}}。請從外掛中心安裝，以繼續使用已儲存的設定。",
+            "availableProviders": "可用的供應商",
+            "installProviderHelp": "直接在此設定頁面安裝或移除外部 AI 供應商。",
+            "installAndUse": "安裝並使用",
+            "installAndUseProvider": "安裝並使用 {{provider}}",
+            "installingProvider": "正在安裝供應商…",
+            "providerRegistryOffline": "無法連線至供應商登錄庫。已安裝的供應商仍可使用。",
+            "allProvidersInstalled": "已安裝所有可用的供應商。",
+            "providerRequiresUpdate": "此供應商需要相容的應用程式版本或平台。",
+            "builtinProvider": "內建",
+            "removeProvider": "移除 {{provider}}",
+            "removingProvider": "正在移除供應商…",
+            "noExternalProviders": "沒有可用的外部供應商。",
+            "activeProviderRemoved": "目前使用的供應商已移除。AI 已停用。請啟用 AI 並選擇其他供應商以繼續。"
         },
         "updates": "更新",
         "openSourceLibraries": "開源庫",
@@ -1190,7 +1207,9 @@
                 }
             },
             "poweredBy": "技術支援：",
-            "openHomepage": "開啟主頁"
+            "openHomepage": "開啟主頁",
+            "kindAiAssistant": "AI 助理",
+            "kindAiAssistants": "AI 助理"
         },
         "shortcuts": {
             "title": "鍵盤快速鍵",

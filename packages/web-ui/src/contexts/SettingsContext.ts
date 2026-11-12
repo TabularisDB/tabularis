@@ -19,7 +19,8 @@ export type AiProvider =
     | 'api-route'
     | 'ollama'
     | 'custom-openai'
-    | 'minimax';
+    | 'minimax'
+    | (string & {});
 export type ERDiagramLayout = 'LR' | 'TB';
 export type WindowDecorationsMode = 'automatic' | 'alwaysShow' | 'alwaysHide';
 

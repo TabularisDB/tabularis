@@ -961,7 +961,24 @@
       "customOpenaiModelDesc": "Ingresa el nombre del modelo proporcionado por tu servicio compatible con OpenAI.",
       "customOpenaiModelHelp": "Ingresa el nombre exacto del modelo para tu proveedor compatible con OpenAI.",
       "promptResetSuccess": "Prompt restablecido al valor predeterminado",
-      "apiKeySaved": "Clave API guardada de forma segura"
+      "apiKeySaved": "Clave API guardada de forma segura",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Reintentar configuración",
+      "pluginMigration": "Restaurando la configuración de tus proveedores de IA: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Instala o elimina proveedores de IA externos sin salir de estos ajustes.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "Eliminar {{provider}}",
+      "removingProvider": "Eliminando proveedor…",
+      "noExternalProviders": "No hay proveedores externos disponibles.",
+      "activeProviderRemoved": "Se ha eliminado el proveedor activo. La IA se ha desactivado. Activa la IA y selecciona otro proveedor para continuar."
     },
     "updates": "Actualizaciones",
     "openSourceLibraries": "Librerías Open Source",
@@ -1154,7 +1171,9 @@
         }
       },
       "poweredBy": "Con tecnología de",
-      "openHomepage": "Abrir página"
+      "openHomepage": "Abrir página",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Atajos de teclado",

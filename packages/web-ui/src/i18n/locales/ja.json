@@ -950,7 +950,24 @@
       "customOpenaiModelDesc": "OpenAI 互換サービスが提供するモデル名を入力してください。",
       "customOpenaiModelHelp": "OpenAI 互換プロバイダの正確なモデル名を入力してください。",
       "promptResetSuccess": "プロンプトをデフォルトにリセットしました",
-      "apiKeySaved": "APIキーを安全に保存しました"
+      "apiKeySaved": "APIキーを安全に保存しました",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "設定を再試行",
+      "pluginMigration": "AI プロバイダーの設定を復元しています: {{providers}}。",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "この設定画面から外部AIプロバイダーをインストールまたは削除できます。",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "{{provider}}を削除",
+      "removingProvider": "プロバイダーを削除中…",
+      "noExternalProviders": "利用可能な外部プロバイダーはありません。",
+      "activeProviderRemoved": "使用中のプロバイダーが削除され、AIが無効になりました。続行するにはAIを有効にして、別のプロバイダーを選択してください。"
     },
     "updates": "アップデート",
     "openSourceLibraries": "オープンソースライブラリ",
@@ -1143,7 +1160,9 @@
         }
       },
       "poweredBy": "提供：",
-      "openHomepage": "ホームページを開く"
+      "openHomepage": "ホームページを開く",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "キーボードショートカット",

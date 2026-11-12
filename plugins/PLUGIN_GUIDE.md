@@ -8,6 +8,10 @@ Tabularis supports extending its capabilities via a JSON-RPC based external plug
 
 This guide details how to implement and register a custom external plugin.
 
+AI providers use a separate, declarative `ai-assistant` package contract. See the
+[AI assistant package guide](./ai-assistants/README.md); those packages contain
+HTTP templates and JSON selectors and do not use the executable driver protocol.
+
 Native routine debugging is an optional, versioned capability. See
 [Routine debugger protocol v1](./ROUTINE_DEBUG.md) for the RPC, lifecycle,
 write protections and required native integration evidence.

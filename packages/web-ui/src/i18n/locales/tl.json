@@ -969,7 +969,24 @@
       "customOpenaiModelDesc": "Ilagay ang pangalan ng model na ibinibigay ng iyong OpenAI-compatible service.",
       "customOpenaiModelHelp": "Ilagay ang eksaktong pangalan ng model para sa iyong OpenAI-compatible provider.",
       "promptResetSuccess": "Na-reset ang prompt sa default",
-      "apiKeySaved": "Matagumpay na na-save ang API key"
+      "apiKeySaved": "Matagumpay na na-save ang API key",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Subukan muli ang pag-setup",
+      "pluginMigration": "Ibinabalik ang mga setting ng iyong AI provider: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Mag-install o mag-alis ng mga external AI provider nang hindi umaalis sa mga setting na ito.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "Alisin ang {{provider}}",
+      "removingProvider": "Inaalis ang provider…",
+      "noExternalProviders": "Walang available na external provider.",
+      "activeProviderRemoved": "Inalis ang aktibong provider. Na-disable ang AI. I-enable ang AI at pumili ng ibang provider para magpatuloy."
     },
     "updates": "Mga Update",
     "openSourceLibraries": "Mga Open Source Library",
@@ -1160,7 +1177,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Mga Keyboard Shortcut",

@@ -380,6 +380,15 @@ Optional Text-to-SQL and query explanation powered by **OpenAI**, **Anthropic**,
 
 To use [API Route](https://www.api-route.com), open **Settings > AI**, enable AI and select **API Route**. Save your API Route key, refresh the model list and choose a default model. Alternatively, set `API_ROUTE_API_KEY` in the environment of the desktop app or web server. The integration uses `https://global.api-route.com/v1/models` and `/chat/completions`; model access and billing depend on your API Route account. The provider's proxy settings apply to both endpoints. Adding API Route does not change existing provider selections.
 
+The existing providers are **built in** and remain available offline. Install
+additional providers, including **Google Gemini**, directly from **Settings → AI**
+with **Install and use**, or manage external packages in the Plugin Center.
+All API-key providers share a declarative HTTP runtime; existing credentials,
+models, endpoints and proxy settings are preserved on upgrade. ChatGPT account
+login remains built in.
+
+To publish a provider, see the [AI assistant package guide](plugins/ai-assistants/README.md).
+
 ### MCP Server: AI Agent Integration
 
 <sub>[Full reference on tabularis.dev →](https://tabularis.dev/wiki/mcp-server)</sub>

@@ -938,7 +938,24 @@
       "customOpenaiModelDesc": "Digite o nome do modelo fornecido pelo seu serviço compatível com OpenAI.",
       "customOpenaiModelHelp": "Digite o nome exato do modelo do seu provedor compatível com OpenAI.",
       "promptResetSuccess": "Prompt restaurado ao padrão",
-      "apiKeySaved": "Chave de API salva com segurança"
+      "apiKeySaved": "Chave de API salva com segurança",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Tentar configurar novamente",
+      "pluginMigration": "Restaurando as configurações dos seus provedores de IA: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Instale ou remova provedores de IA externos sem sair destas configurações.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "Remover {{provider}}",
+      "removingProvider": "Removendo provedor…",
+      "noExternalProviders": "Nenhum provedor externo disponível.",
+      "activeProviderRemoved": "O provedor ativo foi removido. A IA foi desativada. Ative a IA e selecione outro provedor para continuar."
     },
     "updates": "Atualizações",
     "openSourceLibraries": "Bibliotecas de Código Aberto",
@@ -1135,7 +1152,9 @@
         }
       },
       "poweredBy": "Desenvolvido por",
-      "openHomepage": "Abrir página inicial"
+      "openHomepage": "Abrir página inicial",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Atalhos de Teclado",

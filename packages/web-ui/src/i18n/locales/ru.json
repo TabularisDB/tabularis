@@ -931,7 +931,24 @@
       "customOpenaiModelDesc": "Введите название модели, предоставляемой OpenAI-совместимым сервисом.",
       "customOpenaiModelHelp": "Укажите точное название модели вашего OpenAI-совместимого провайдера.",
       "promptResetSuccess": "Промпт сброшен к значению по умолчанию",
-      "apiKeySaved": "API-ключ надёжно сохранён"
+      "apiKeySaved": "API-ключ надёжно сохранён",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Повторить настройку",
+      "pluginMigration": "Восстановление настроек поставщиков ИИ: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Устанавливайте или удаляйте внешних поставщиков ИИ прямо в этих настройках.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "Удалить {{provider}}",
+      "removingProvider": "Удаление поставщика…",
+      "noExternalProviders": "Нет доступных внешних поставщиков.",
+      "activeProviderRemoved": "Активный поставщик удалён. ИИ отключён. Включите ИИ и выберите другого поставщика, чтобы продолжить."
     },
     "updates": "Обновления",
     "openSourceLibraries": "Библиотеки с открытым исходным кодом",
@@ -1122,7 +1139,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Горячие клавиши",

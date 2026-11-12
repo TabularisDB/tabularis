@@ -97,6 +97,16 @@ pub async fn bootstrap_application(
             config.active_external_drivers.as_deref(),
         )
         .await;
+        crate::ai_assistants::recover_installations(&plugins_dir);
+        let migration_runtime = context.clone();
+        tokio::spawn(async move {
+            let cache = crate::credential_cache::CredentialCache::default();
+            if let Err(error) =
+                crate::ai_assistants::migrate_legacy_providers(&migration_runtime, &cache).await
+            {
+                log::warn!("AI assistant migration could not complete: {error}");
+            }
+        });
     }
 
     if options.run_connection_migrations {

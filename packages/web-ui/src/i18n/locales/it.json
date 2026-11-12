@@ -996,7 +996,24 @@
       "customOpenaiModelDesc": "Inserisci il nome del modello fornito dal tuo servizio compatibile OpenAI.",
       "customOpenaiModelHelp": "Inserisci il nome esatto del modello per il tuo provider compatibile OpenAI.",
       "promptResetSuccess": "Prompt ripristinato al valore predefinito",
-      "apiKeySaved": "Chiave API salvata in modo sicuro"
+      "apiKeySaved": "Chiave API salvata in modo sicuro",
+      "manageProviders": "Sfoglia i provider AI",
+      "retryMigration": "Riprova la configurazione",
+      "pluginMigration": "Ripristino delle impostazioni dei provider AI: {{providers}}.",
+      "providerMissing": "{{provider}} non è installato. Installalo dal Plugin Center per continuare a usare la configurazione salvata.",
+      "availableProviders": "Provider disponibili",
+      "installProviderHelp": "Installa o rimuovi i provider AI esterni senza uscire da queste impostazioni.",
+      "installAndUse": "Installa e usa",
+      "installAndUseProvider": "Installa e usa {{provider}}",
+      "installingProvider": "Installazione del provider…",
+      "providerRegistryOffline": "Il registro dei provider non è disponibile. I provider installati restano disponibili.",
+      "allProvidersInstalled": "Tutti i provider disponibili sono installati.",
+      "providerRequiresUpdate": "Questo provider richiede una versione o una piattaforma compatibile.",
+      "builtinProvider": "Integrato",
+      "removeProvider": "Rimuovi {{provider}}",
+      "removingProvider": "Rimozione del provider…",
+      "noExternalProviders": "Nessun provider esterno disponibile.",
+      "activeProviderRemoved": "Il provider attivo è stato rimosso. L’AI è stata disattivata. Attiva l’AI e seleziona un altro provider per continuare."
     },
     "updates": "Aggiornamenti",
     "openSourceLibraries": "Librerie Open Source",
@@ -1189,7 +1206,9 @@
         }
       },
       "poweredBy": "Powered by",
-      "openHomepage": "Apri homepage"
+      "openHomepage": "Apri homepage",
+      "kindAiAssistant": "Assistente AI",
+      "kindAiAssistants": "Assistenti AI"
     },
     "shortcuts": {
       "title": "Scorciatoie da tastiera",

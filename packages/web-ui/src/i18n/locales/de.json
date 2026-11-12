@@ -936,7 +936,24 @@
       "customOpenaiModelDesc": "Gib den Modellnamen deines OpenAI-kompatiblen Dienstes ein.",
       "customOpenaiModelHelp": "Gib den exakten Modellnamen für deinen OpenAI-kompatiblen Anbieter ein.",
       "promptResetSuccess": "Prompt auf Standard zurückgesetzt",
-      "apiKeySaved": "API-Schlüssel sicher gespeichert"
+      "apiKeySaved": "API-Schlüssel sicher gespeichert",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Einrichtung erneut versuchen",
+      "pluginMigration": "Deine AI-Provider-Einstellungen werden wiederhergestellt: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Externe KI-Anbieter direkt in diesen Einstellungen installieren oder entfernen.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "{{provider}} entfernen",
+      "removingProvider": "Anbieter wird entfernt…",
+      "noExternalProviders": "Keine externen Anbieter verfügbar.",
+      "activeProviderRemoved": "Der aktive Anbieter wurde entfernt. KI wurde deaktiviert. Aktiviere KI und wähle einen anderen Anbieter, um fortzufahren."
     },
     "updates": "Updates",
     "openSourceLibraries": "Open-Source-Bibliotheken",
@@ -1129,7 +1146,9 @@
         }
       },
       "poweredBy": "Bereitgestellt von",
-      "openHomepage": "Homepage öffnen"
+      "openHomepage": "Homepage öffnen",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Tastenkürzel",
