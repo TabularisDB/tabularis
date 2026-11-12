@@ -385,6 +385,7 @@
     "noQueryHistory": "Aucun historique de requêtes",
     "noHistorySearchResults": "Aucune requête ne correspond à votre recherche",
     "searchHistory": "Rechercher dans l’historique...",
+    "historySearchErrors": "Inclure les messages d’erreur",
     "historyOutcomeFilter": "Filtrer par résultat",
     "historyOutcomeAny": "Tous les résultats",
     "historyOutcomeSucceeded": "Réussies",

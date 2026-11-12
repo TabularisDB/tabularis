@@ -389,6 +389,7 @@
         "noQueryHistory": "暫無查詢歷史",
         "noHistorySearchResults": "沒有符合的查詢",
         "searchHistory": "搜尋歷史...",
+        "historySearchErrors": "包含錯誤訊息",
         "historyOutcomeFilter": "按結果篩選",
         "historyOutcomeAny": "全部結果",
         "historyOutcomeSucceeded": "成功",

@@ -379,6 +379,7 @@
     "noQueryHistory": "Nessuna cronologia query",
     "noHistorySearchResults": "Nessuna query corrisponde alla ricerca",
     "searchHistory": "Cerca nella cronologia...",
+    "historySearchErrors": "Includi i messaggi di errore",
     "historyOutcomeFilter": "Filtra per esito",
     "historyOutcomeAny": "Qualsiasi esito",
     "historyOutcomeSucceeded": "Riuscite",

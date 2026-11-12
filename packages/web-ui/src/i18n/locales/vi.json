@@ -383,6 +383,7 @@
     "noQueryHistory": "Chưa có lịch sử truy vấn",
     "noHistorySearchResults": "Không có truy vấn nào khớp với tìm kiếm",
     "searchHistory": "Tìm trong lịch sử...",
+    "historySearchErrors": "Bao gồm thông báo lỗi",
     "historyOutcomeFilter": "Lọc theo kết quả",
     "historyOutcomeAny": "Mọi kết quả",
     "historyOutcomeSucceeded": "Thành công",

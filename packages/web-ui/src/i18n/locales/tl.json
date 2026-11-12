@@ -385,6 +385,7 @@
     "noQueryHistory": "Walang kasaysayan ng query",
     "noHistorySearchResults": "Walang query na tumugma sa iyong paghahanap",
     "searchHistory": "Maghanap sa kasaysayan...",
+    "historySearchErrors": "Isama ang mga mensahe ng error",
     "historyOutcomeFilter": "I-filter ayon sa resulta",
     "historyOutcomeAny": "Anumang resulta",
     "historyOutcomeSucceeded": "Matagumpay",

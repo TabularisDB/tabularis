@@ -355,6 +355,7 @@
     "noQueryHistory": "쿼리 기록이 없습니다",
     "noHistorySearchResults": "검색과 일치하는 쿼리가 없습니다",
     "searchHistory": "기록 검색...",
+    "historySearchErrors": "오류 메시지 포함",
     "historyOutcomeFilter": "결과로 필터",
     "historyOutcomeAny": "모든 결과",
     "historyOutcomeSucceeded": "성공",
