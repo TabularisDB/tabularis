@@ -167,6 +167,167 @@ class ResizeObserverMock {
 
 vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 
+describe('DataGrid Boolean checkboxes (#1499)', () => {
+    it('shows native Boolean results without metadata but keeps explicitly typed text unchanged', () => {
+        const {rerender} = render(
+            <DataGrid
+                columns={['value']}
+                data={[[true]]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+        expect(screen.getByRole('checkbox', {name: 'value'})).toBeChecked();
+        rerender(
+            <DataGrid
+                columns={['value']}
+                data={[[true]]}
+                columnMetadata={[
+                    {
+                        name: 'value',
+                        data_type: 'text',
+                        is_pk: false,
+                        is_nullable: false,
+                        is_auto_increment: false,
+                    },
+                ]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+        expect(screen.queryByRole('checkbox', {name: 'value'})).toBeNull();
+        expect(screen.getByText('true')).toBeInTheDocument();
+    });
+    const metadata = [
+        {
+            name: 'id',
+            data_type: 'integer',
+            is_pk: true,
+            is_nullable: false,
+            is_auto_increment: false,
+        },
+        {
+            name: 'enabled',
+            data_type: 'boolean',
+            is_pk: false,
+            is_nullable: true,
+            is_auto_increment: false,
+        },
+    ];
+    const renderBooleanGrid = (props: Partial<ComponentProps<typeof DataGrid>> = {}) =>
+        render(
+            <DataGrid
+                columns={['id', 'enabled']}
+                data={[[1, true]]}
+                columnMetadata={metadata}
+                tableName="flags"
+                pkColumns={['id']}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                {...props}
+            />,
+        );
+
+    it.each([false, true])('stages a toggle in transposed=%s', async (transposed) => {
+        const onPendingChange = vi.fn();
+        renderBooleanGrid({transposed, onPendingChange});
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        await waitFor(() =>
+            expect(onPendingChange).toHaveBeenCalledExactlyOnceWith({id: 1}, 'enabled', false),
+        );
+    });
+
+    it('does not stage a change when the Boolean value text is clicked', () => {
+        const onPendingChange = vi.fn();
+        renderBooleanGrid({onPendingChange});
+        expect(screen.getByRole('checkbox', {name: 'enabled'})).toHaveAttribute('tabindex', '-1');
+        fireEvent.click(screen.getByText('true'));
+        expect(onPendingChange).not.toHaveBeenCalled();
+    });
+
+    it('removes a pending change when toggled back to the stored value', async () => {
+        const onPendingChange = vi.fn();
+        renderBooleanGrid({
+            onPendingChange,
+            pendingChanges: {
+                [serializePkKey({id: 1})]: {pkOriginalValue: {id: 1}, changes: {enabled: false}},
+            },
+        });
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        await waitFor(() =>
+            expect(onPendingChange).toHaveBeenCalledExactlyOnceWith({id: 1}, 'enabled', undefined),
+        );
+    });
+
+    it('cycles nullable false to NULL', async () => {
+        const onPendingChange = vi.fn();
+        renderBooleanGrid({data: [[1, false]], nullableColumns: ['enabled'], onPendingChange});
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        await waitFor(() =>
+            expect(onPendingChange).toHaveBeenCalledExactlyOnceWith({id: 1}, 'enabled', null),
+        );
+    });
+
+    it.each([
+        {readonly: true},
+        {tableName: undefined},
+        {pkColumns: []},
+        {pendingDeletions: {[serializePkKey({id: 1})]: {id: 1}}},
+        {columnMetadata: [metadata[0], {...metadata[1], is_generated: true}]},
+    ])('disables a Boolean that cannot be edited: %s', (props) => {
+        renderBooleanGrid(props);
+        expect(screen.getByRole('checkbox', {name: 'enabled'})).toBeDisabled();
+    });
+
+    it('uses full MySQL types and the connection plugin capabilities', async () => {
+        const previousDatabase = databaseMock.getMockImplementation();
+        databaseMock.mockReturnValue({
+            connections: [],
+            activeSchema: null,
+            getConnectionData: () => ({
+                driver: 'custom-mysql',
+                capabilities: {sql_dialect: 'mysql'},
+            }),
+        });
+        const onPendingChange = vi.fn();
+        renderBooleanGrid({
+            connectionId: 'mysql-connection',
+            data: [[1, 0]],
+            onPendingChange,
+            columnMetadata: [
+                metadata[0],
+                {...metadata[1], data_type: 'tinyint', full_type: 'tinyint(1)'},
+            ],
+        });
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        await waitFor(() =>
+            expect(onPendingChange).toHaveBeenCalledExactlyOnceWith({id: 1}, 'enabled', 1),
+        );
+        databaseMock.mockImplementation(previousDatabase!);
+    });
+
+    it('stages a Boolean value in a newly inserted row', async () => {
+        const onPendingInsertionChange = vi.fn();
+        renderBooleanGrid({
+            data: [],
+            pendingInsertions: {
+                draft: {tempId: 'draft', data: {id: 2, enabled: false}, displayIndex: 0},
+            },
+            onPendingInsertionChange,
+        });
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        await waitFor(() =>
+            expect(onPendingInsertionChange).toHaveBeenCalledExactlyOnceWith(
+                'draft',
+                'enabled',
+                true,
+            ),
+        );
+    });
+});
+
 describe('DataGrid layout', () => {
     it('keeps hidden header tooltips out of scrollable overflow', () => {
         const {container} = render(
