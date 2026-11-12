@@ -19,6 +19,22 @@ export interface SqlSnippetsStorage {
     snippets: SqlSnippet[];
 }
 
+/** Filters only the management list; stored snippets and completion rules stay unchanged. */
+export function filterSqlSnippets(
+    snippets: readonly SqlSnippet[],
+    query: string,
+    scope: string,
+): SqlSnippet[] {
+    const needle = query.trim().toLocaleLowerCase();
+    return snippets.filter(
+        (snippet) =>
+            (scope === '' || (snippet.dialect ?? 'all') === scope) &&
+            [snippet.name, snippet.prefix, snippet.description ?? ''].some((value) =>
+                value.toLocaleLowerCase().includes(needle),
+            ),
+    );
+}
+
 export const SQL_SNIPPETS_STORAGE_KEY = 'tabularis.sql_snippets.v1';
 export const CURRENT_STORAGE_VERSION = 1;
 

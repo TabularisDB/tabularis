@@ -1,6 +1,7 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import {
     validateSnippetPrefix,
+    filterSqlSnippets,
     validateSnippetBody,
     snippetPrefixConflicts,
     getSnippetCopyName,
@@ -29,6 +30,65 @@ function snippet(partial: Partial<SqlSnippet> & Pick<SqlSnippet, 'id' | 'prefix'
 }
 
 describe('sqlSnippets utils', () => {
+    describe('filterSqlSnippets', () => {
+        const snippets = [
+            {
+                id: 'generic',
+                name: 'Orders',
+                prefix: 'ord',
+                body: 'secret body',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'pg',
+                name: 'Postgres',
+                prefix: 'pg_orders',
+                description: 'Sales report',
+                dialect: 'postgres' as const,
+                body: 'SELECT 1',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'plugin',
+                name: 'Plugin',
+                prefix: 'plugin',
+                description: 'ORDERS',
+                dialect: 'driver:offline' as const,
+                body: 'SELECT 2',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'explicit-generic',
+                name: 'Other',
+                prefix: 'other',
+                dialect: 'all' as const,
+                body: 'SELECT 3',
+                createdAt: '',
+                updatedAt: '',
+            },
+        ];
+
+        it('matches name, prefix and optional description without changing order or records', () => {
+            expect(filterSqlSnippets(snippets, '  ORDERS  ', '')).toEqual(snippets.slice(0, 3));
+            expect(filterSqlSnippets(snippets, 'sales', '')).toEqual([snippets[1]]);
+            expect(filterSqlSnippets(snippets, 'secret body', '')).toEqual([]);
+            expect(filterSqlSnippets(snippets, '  ', '')).toEqual(snippets);
+            expect(filterSqlSnippets(snippets, '', '')[0]).toBe(snippets[0]);
+        });
+
+        it('combines exact scope and text filters, including legacy generic and offline plugins', () => {
+            expect(filterSqlSnippets(snippets, 'orders', 'postgres')).toEqual([snippets[1]]);
+            expect(filterSqlSnippets(snippets, 'orders', 'driver:offline')).toEqual([snippets[2]]);
+            expect(filterSqlSnippets(snippets, '', 'all')).toEqual([snippets[0], snippets[3]]);
+            expect(filterSqlSnippets(snippets, 'sales', 'all')).toEqual([]);
+            expect(filterSqlSnippets(snippets, '', 'driver:off')).toEqual([]);
+            expect(filterSqlSnippets([], '', '')).toEqual([]);
+        });
+    });
+
     beforeEach(() => {
         localStorage.clear();
     });
