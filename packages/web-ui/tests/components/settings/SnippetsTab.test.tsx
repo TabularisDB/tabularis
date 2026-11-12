@@ -141,6 +141,56 @@ describe('SnippetsTab', () => {
         expect(loadSqlSnippets().slice(1)).toEqual(snippets.slice(1));
     });
 
+    it.each(['delete', 'rescope'])(
+        'falls back to all scopes after removing the last scope by %s',
+        (action) => {
+            const snippets: SqlSnippet[] = [
+                {
+                    id: 'generic',
+                    name: 'Generic orders',
+                    prefix: 'ord',
+                    body: 'SELECT 1;',
+                    dialect: 'all',
+                    createdAt: '',
+                    updatedAt: '',
+                },
+                {
+                    id: 'plugin',
+                    name: 'Plugin orders',
+                    prefix: 'plug',
+                    body: 'SELECT 2;',
+                    dialect: 'driver:offline',
+                    createdAt: '',
+                    updatedAt: '',
+                },
+            ];
+            saveSqlSnippets(snippets);
+            render(<SnippetsTab />);
+            const scope = screen.getByRole('button', {name: 'Filter by scope'});
+            fireEvent.change(screen.getByRole('searchbox'), {target: {value: 'orders'}});
+            fireEvent.click(scope);
+            fireEvent.click(screen.getByText('offline', {selector: 'button span'}));
+            expect(screen.queryByText('Generic orders')).not.toBeInTheDocument();
+            if (action === 'delete') {
+                fireEvent.click(screen.getByRole('button', {name: 'Delete'}));
+            } else {
+                fireEvent.click(screen.getByRole('button', {name: 'Edit'}));
+                fireEvent.click(screen.getByRole('button', {name: 'Dialect Scope'}));
+                fireEvent.click(screen.getByText('All Dialects'));
+                fireEvent.click(screen.getByRole('button', {name: 'Save'}));
+            }
+            expect(scope).toHaveTextContent('All scopes');
+            expect(screen.getByText('Generic orders')).toBeInTheDocument();
+            expect(screen.queryByText('No matching snippets.')).not.toBeInTheDocument();
+            expect(screen.getByRole('searchbox')).toHaveValue('orders');
+            fireEvent.click(scope);
+            expect(
+                screen.queryByText('offline', {selector: 'button span'}),
+            ).not.toBeInTheDocument();
+            expect(loadSqlSnippets()).toHaveLength(action === 'delete' ? 1 : 2);
+        },
+    );
+
     it('distinguishes an empty library from no matching snippets', () => {
         saveSqlSnippets([]);
         render(<SnippetsTab />);

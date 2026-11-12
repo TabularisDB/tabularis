@@ -90,8 +90,9 @@ export function SnippetsTab() {
     const [snippets, setSnippets] = useState<SqlSnippet[]>(() => loadSqlSnippets());
     const [query, setQuery] = useState('');
     const [scopeFilter, setScopeFilter] = useState('');
-    const filteredSnippets = filterSqlSnippets(snippets, query, scopeFilter);
     const filterScopes = [...new Set(snippets.map((snippet) => snippet.dialect ?? 'all'))];
+    const effectiveScope = filterScopes.some((scope) => scope === scopeFilter) ? scopeFilter : '';
+    const filteredSnippets = filterSqlSnippets(snippets, query, effectiveScope);
     const [editingSnippet, setEditingSnippet] = useState<SqlSnippet | null>(null);
     const [isCreating, setIsCreating] = useState(false);
 
@@ -428,7 +429,7 @@ export function SnippetsTab() {
                 <Select
                     ariaLabel={t('settings.snippets.filterScope', 'Filter by scope')}
                     placeholder={t('settings.snippets.allScopes', 'All scopes')}
-                    value={scopeFilter}
+                    value={effectiveScope}
                     options={['', ...filterScopes]}
                     labels={{
                         ...Object.fromEntries(
