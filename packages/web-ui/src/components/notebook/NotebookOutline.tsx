@@ -91,9 +91,11 @@ function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
             <span
                 className="inline-flex items-center ml-auto pl-1 text-accent-warning shrink-0"
                 title={t('editor.notebook.statusRunning')}
+                role="img"
                 aria-label={t('editor.notebook.statusRunning')}
             >
-                <Loader2 size={11} className="animate-spin" />
+                <Loader2 size={11} className="animate-spin" aria-hidden="true" />
+                <span className="sr-only">{t('editor.notebook.statusRunning')}</span>
             </span>
         );
     }
@@ -103,9 +105,11 @@ function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
             <span
                 className="inline-flex items-center ml-auto pl-1 text-accent-error shrink-0"
                 title={t('editor.notebook.statusFailed')}
+                role="img"
                 aria-label={t('editor.notebook.statusFailed')}
             >
-                <AlertCircle size={11} />
+                <AlertCircle size={11} aria-hidden="true" />
+                <span className="sr-only">{t('editor.notebook.statusFailed')}</span>
             </span>
         );
     }
@@ -115,9 +119,11 @@ function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
             <span
                 className="inline-flex items-center ml-auto pl-1 text-accent-success shrink-0"
                 title={t('editor.notebook.statusOutputAvailable')}
+                role="img"
                 aria-label={t('editor.notebook.statusOutputAvailable')}
             >
-                <CheckCircle2 size={11} />
+                <CheckCircle2 size={11} aria-hidden="true" />
+                <span className="sr-only">{t('editor.notebook.statusOutputAvailable')}</span>
             </span>
         );
     }
