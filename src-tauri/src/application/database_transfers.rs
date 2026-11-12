@@ -65,6 +65,7 @@ pub enum DatabaseTransferCommand {
 
 pub use crate::drivers::driver_trait::DatabaseSqlExportOptions as DumpOptions;
 
+#[derive(Debug)]
 struct ResolvedDumpFormat {
     native: bool,
     extension: String,
