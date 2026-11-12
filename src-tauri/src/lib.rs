@@ -110,6 +110,7 @@ pub mod sql_file_tests;
 pub mod sqlite_database;
 #[cfg(test)]
 pub mod sqlite_database_tests;
+pub mod ssh_socks5;
 pub mod ssh_tunnel;
 pub mod ssm_tunnel;
 pub mod storage_location;

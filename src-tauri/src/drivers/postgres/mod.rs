@@ -2333,6 +2333,7 @@ impl PostgresDriver {
                     connection_string_examples: Vec::new(),
                     connection_uri: false,
                     connection_uri_schemes: Vec::new(),
+                    socks5_proxy: false,
                     identifier_quote: "\"".into(),
                     alter_primary_key: true,
                     auto_increment_keyword: String::new(),

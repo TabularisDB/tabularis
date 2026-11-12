@@ -328,6 +328,21 @@ pub struct ConnectionParams {
         skip_serializing_if = "crate::proxy::types::skip_optional_proxy_override"
     )]
     pub proxy: Option<crate::proxy::ProxyOverride>,
+    /// Local SOCKS5 proxy the host opened through the SSH tunnel for a
+    /// driver with the `socks5_proxy` capability. Set at runtime only, by
+    /// tunnel resolution, which clears any value a caller sent; the driver
+    /// routes every endpoint through it (e.g. all nodes of a
+    /// `mongodb+srv://` cluster).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_host: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_port: Option<u16>,
+    /// RFC 1929 credentials the local SOCKS5 proxy requires. Generated per
+    /// tunnel; absent when the listener cannot authenticate (system `ssh -D`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_password: Option<String>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,

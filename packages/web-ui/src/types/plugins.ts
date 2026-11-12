@@ -49,6 +49,13 @@ export interface DriverCapabilities {
     connection_uri_schemes?: string[];
     /** CamelCase alias accepted for plugin compatibility. */
     connectionUriSchemes?: string[];
+    /** The driver sends its connections through the SOCKS5 proxy given in
+     * `socks5_proxy_host`/`socks5_proxy_port` (plus `socks5_proxy_username`/
+     * `socks5_proxy_password` when set). With SSH enabled, the host then opens
+     * a dynamic forward instead of rewriting host/port. Defaults to false. */
+    socks5_proxy?: boolean;
+    /** CamelCase alias accepted for plugin compatibility. */
+    socks5Proxy?: boolean;
     identifier_quote: string;
     alter_primary_key: boolean;
     // SQL generation capabilities (optional, default to '' / false when not present)

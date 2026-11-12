@@ -239,3 +239,287 @@ fn ssh_profile_create_and_update_keep_plaintext_secrets_private() {
         .unwrap()
         .contains("stored-password"));
 }
+
+fn uri_params(uri: Option<&str>) -> ConnectionParams {
+    ConnectionParams {
+        driver: "mongodb".to_string(),
+        host: Some("cluster.example.mongodb.net".to_string()),
+        port: Some(27017),
+        connection_uri: uri.map(str::to_string),
+        ..ConnectionParams::default()
+    }
+}
+
+const SRV_URI: &str = "mongodb+srv://u:p@cluster.example.mongodb.net/admin";
+
+/// SSH-enabled params for `driver` through the bastion `ssh_host`. Each test
+/// uses its own bastion so the shared tunnel cache does not leak between
+/// tests running in parallel.
+fn ssh_params(driver: &str, ssh_host: &str, uri: &str) -> ConnectionParams {
+    ConnectionParams {
+        driver: driver.to_string(),
+        connection_uri: Some(uri.to_string()),
+        ssh_enabled: Some(true),
+        ssh_host: Some(ssh_host.to_string()),
+        ssh_port: Some(22),
+        ssh_user: Some("user".to_string()),
+        ssh_password: Some("password".to_string()),
+        ..uri_params(None)
+    }
+}
+
+fn credentials() -> crate::ssh_socks5::Credentials {
+    crate::ssh_socks5::Credentials {
+        username: "tabularis-user".to_string(),
+        password: "tabularis-secret".to_string(),
+    }
+}
+
+fn cache(key: &str, tunnel: crate::ssh_tunnel::SshTunnel) {
+    crate::ssh_tunnel::get_tunnels()
+        .lock()
+        .unwrap()
+        .insert(key.to_string(), tunnel);
+}
+
+fn cached_port(key: &str) -> Option<u16> {
+    crate::ssh_tunnel::get_tunnels()
+        .lock()
+        .unwrap()
+        .get(key)
+        .map(|t| t.local_port)
+}
+
+fn forget(key: &str) {
+    crate::ssh_tunnel::get_tunnels().lock().unwrap().remove(key);
+}
+
+#[test]
+fn fixed_tunnel_rewrites_host_and_port() {
+    let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(40000, true, None);
+    let resolved = point_at_tunnel(&uri_params(None), &tunnel, false);
+
+    assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+    assert_eq!(resolved.port, Some(40000));
+    assert_eq!(resolved.socks5_proxy_host, None);
+    assert_eq!(resolved.socks5_proxy_port, None);
+}
+
+#[test]
+fn socks5_tunnel_leaves_host_and_port_and_sets_the_proxy_with_credentials() {
+    let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(40000, true, Some(credentials()));
+    let resolved = point_at_tunnel(&uri_params(Some(SRV_URI)), &tunnel, true);
+
+    assert_eq!(
+        resolved.host.as_deref(),
+        Some("cluster.example.mongodb.net")
+    );
+    assert_eq!(resolved.port, Some(27017));
+    assert_eq!(resolved.connection_uri.as_deref(), Some(SRV_URI));
+    assert_eq!(resolved.socks5_proxy_host.as_deref(), Some("127.0.0.1"));
+    assert_eq!(resolved.socks5_proxy_port, Some(40000));
+    assert_eq!(
+        resolved.socks5_proxy_username.as_deref(),
+        Some("tabularis-user")
+    );
+    assert_eq!(
+        resolved.socks5_proxy_password.as_deref(),
+        Some("tabularis-secret")
+    );
+}
+
+#[test]
+fn socks5_tunnel_without_credentials_sends_none() {
+    // System `ssh -D` cannot authenticate clients.
+    let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(40000, true, None);
+    let resolved = point_at_tunnel(&uri_params(Some(SRV_URI)), &tunnel, true);
+
+    assert_eq!(resolved.socks5_proxy_port, Some(40000));
+    assert_eq!(resolved.socks5_proxy_username, None);
+    assert_eq!(resolved.socks5_proxy_password, None);
+}
+
+#[test]
+fn socks5_proxy_fields_are_omitted_from_json_when_unset() {
+    let json = serde_json::to_value(uri_params(None)).unwrap();
+
+    for field in [
+        "socks5_proxy_host",
+        "socks5_proxy_port",
+        "socks5_proxy_username",
+        "socks5_proxy_password",
+    ] {
+        assert!(json.get(field).is_none(), "{field}");
+    }
+}
+
+#[test]
+fn socks5_proxy_capability_selects_the_dynamic_forward() {
+    let driver = "__test_socks5_capability_driver__";
+    let ssh_host = "socks5-capability.bastion.test";
+    let key = crate::ssh_tunnel::build_socks5_tunnel_key("user", ssh_host, 22);
+    cache(
+        &key,
+        crate::ssh_tunnel::SshTunnel::russh_for_test(41001, true, Some(credentials())),
+    );
+    crate::drivers::registry::set_socks5_proxy_driver(driver, true);
+
+    let resolved = resolve_ssh_params(&ssh_params(driver, ssh_host, SRV_URI), None);
+
+    crate::drivers::registry::set_socks5_proxy_driver(driver, false);
+    forget(&key);
+    let resolved = resolved.unwrap();
+    assert_eq!(resolved.socks5_proxy_port, Some(41001));
+    assert_eq!(
+        resolved.host.as_deref(),
+        Some("cluster.example.mongodb.net")
+    );
+}
+
+#[test]
+fn a_uri_without_the_capability_keeps_the_fixed_forward() {
+    let driver = "__test_uri_without_socks5_driver__";
+    let ssh_host = "fixed-forward.bastion.test";
+    let key = crate::ssh_tunnel::build_tunnel_key(
+        "user",
+        ssh_host,
+        22,
+        "cluster.example.mongodb.net",
+        27017,
+    );
+    cache(
+        &key,
+        crate::ssh_tunnel::SshTunnel::russh_for_test(41002, true, None),
+    );
+
+    let resolved = resolve_ssh_params(&ssh_params(driver, ssh_host, SRV_URI), None);
+
+    forget(&key);
+    let resolved = resolved.unwrap();
+    assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+    assert_eq!(resolved.port, Some(41002));
+    assert_eq!(resolved.socks5_proxy_host, None);
+}
+
+#[test]
+fn two_connections_through_one_bastion_share_the_socks5_tunnel() {
+    let driver = "__test_socks5_shared_driver__";
+    let ssh_host = "shared.bastion.test";
+    let key = crate::ssh_tunnel::build_socks5_tunnel_key("user", ssh_host, 22);
+    cache(
+        &key,
+        crate::ssh_tunnel::SshTunnel::russh_for_test(41003, true, Some(credentials())),
+    );
+    crate::drivers::registry::set_socks5_proxy_driver(driver, true);
+
+    let first = resolve_ssh_params(
+        &ssh_params(driver, ssh_host, "mongodb+srv://a:p@one.example.net/"),
+        None,
+    );
+    let second = resolve_ssh_params(
+        &ssh_params(driver, ssh_host, "mongodb://b:p@h1:27017,h2:27017/db"),
+        None,
+    );
+
+    crate::drivers::registry::set_socks5_proxy_driver(driver, false);
+    let still_cached = cached_port(&key);
+    forget(&key);
+    let (first, second) = (first.unwrap(), second.unwrap());
+    assert_eq!(first.socks5_proxy_port, Some(41003));
+    assert_eq!(second.socks5_proxy_port, Some(41003));
+    assert_eq!(first.socks5_proxy_password, second.socks5_proxy_password);
+    assert_eq!(still_cached, Some(41003));
+}
+
+#[test]
+fn a_dead_cached_tunnel_is_discarded_and_reopened() {
+    // The bastion is unreachable, so reopening fails; what matters is that
+    // the dead tunnel's port is not handed out again.
+    let driver = "__test_socks5_dead_tunnel_driver__";
+    let ssh_host = "127.0.0.1";
+    let mut params = ssh_params(driver, ssh_host, SRV_URI);
+    params.ssh_port = Some(1);
+    let key = crate::ssh_tunnel::build_socks5_tunnel_key("user", ssh_host, 1);
+    cache(
+        &key,
+        crate::ssh_tunnel::SshTunnel::russh_for_test(41004, false, Some(credentials())),
+    );
+    crate::drivers::registry::set_socks5_proxy_driver(driver, true);
+
+    let resolved = resolve_ssh_params(&params, None);
+
+    crate::drivers::registry::set_socks5_proxy_driver(driver, false);
+    let still_cached = cached_port(&key);
+    forget(&key);
+    assert!(resolved.is_err());
+    assert_eq!(still_cached, None);
+}
+
+#[test]
+fn live_tunnel_keeps_a_live_entry_and_drops_a_dead_one() {
+    let key = "test-live-tunnel-key";
+    cache(
+        key,
+        crate::ssh_tunnel::SshTunnel::russh_for_test(41005, true, None),
+    );
+    assert_eq!(live_tunnel(key).map(|t| t.local_port), Some(41005));
+
+    cache(
+        key,
+        crate::ssh_tunnel::SshTunnel::russh_for_test(41005, false, None),
+    );
+    assert!(live_tunnel(key).is_none());
+    assert_eq!(cached_port(key), None);
+}
+
+#[test]
+fn cache_tunnel_keeps_a_live_tunnel_opened_concurrently() {
+    let key = "test-cache-tunnel-race-key";
+    cache(
+        key,
+        crate::ssh_tunnel::SshTunnel::russh_for_test(41006, true, None),
+    );
+    let late = crate::ssh_tunnel::SshTunnel::russh_for_test(41007, true, None);
+
+    let used = cache_tunnel(key.to_string(), late.clone());
+
+    let cached = cached_port(key);
+    forget(key);
+    assert_eq!(used.local_port, 41006);
+    assert_eq!(cached, Some(41006));
+    assert!(!late.is_alive(), "the duplicate tunnel is stopped");
+}
+
+#[test]
+fn cache_tunnel_replaces_a_dead_entry() {
+    let key = "test-cache-tunnel-dead-key";
+    let dead = crate::ssh_tunnel::SshTunnel::russh_for_test(41008, false, None);
+    cache(key, dead);
+    let fresh = crate::ssh_tunnel::SshTunnel::russh_for_test(41009, true, None);
+
+    let used = cache_tunnel(key.to_string(), fresh);
+
+    let cached = cached_port(key);
+    forget(key);
+    assert_eq!(used.local_port, 41009);
+    assert_eq!(cached, Some(41009));
+}
+
+#[test]
+fn socks5_proxy_fields_sent_by_the_caller_are_discarded() {
+    let params = ConnectionParams {
+        socks5_proxy_host: Some("attacker.example".to_string()),
+        socks5_proxy_port: Some(1080),
+        socks5_proxy_username: Some("u".to_string()),
+        socks5_proxy_password: Some("p".to_string()),
+        ..uri_params(Some(SRV_URI))
+    };
+
+    let resolved = resolve_connection_transport(&params, None).unwrap();
+
+    assert_eq!(resolved.socks5_proxy_host, None);
+    assert_eq!(resolved.socks5_proxy_port, None);
+    assert_eq!(resolved.socks5_proxy_username, None);
+    assert_eq!(resolved.socks5_proxy_password, None);
+    assert_eq!(resolved.connection_uri.as_deref(), Some(SRV_URI));
+}
