@@ -385,6 +385,7 @@
     "noQueryHistory": "クエリ履歴はありません",
     "noHistorySearchResults": "検索に一致するクエリがありません",
     "searchHistory": "履歴を検索...",
+    "historySearchErrors": "エラーメッセージも検索",
     "historyOutcomeFilter": "結果で絞り込み",
     "historyOutcomeAny": "すべての結果",
     "historyOutcomeSucceeded": "成功",

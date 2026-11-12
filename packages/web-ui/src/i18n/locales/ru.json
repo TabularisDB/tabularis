@@ -385,6 +385,7 @@
     "noQueryHistory": "История запросов пуста",
     "noHistorySearchResults": "Запросы не найдены",
     "searchHistory": "Поиск в истории...",
+    "historySearchErrors": "Искать в сообщениях об ошибках",
     "historyOutcomeFilter": "Фильтр по результату",
     "historyOutcomeAny": "Любой результат",
     "historyOutcomeSucceeded": "Успешные",

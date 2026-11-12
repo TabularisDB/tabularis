@@ -372,6 +372,7 @@
     "noQueryHistory": "Kein Abfrageverlauf",
     "noHistorySearchResults": "Keine Abfragen entsprechen deiner Suche",
     "searchHistory": "Verlauf durchsuchen...",
+    "historySearchErrors": "Fehlermeldungen einbeziehen",
     "historyOutcomeFilter": "Nach Ergebnis filtern",
     "historyOutcomeAny": "Beliebiges Ergebnis",
     "historyOutcomeSucceeded": "Erfolgreich",

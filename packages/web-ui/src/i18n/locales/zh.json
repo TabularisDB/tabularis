@@ -371,6 +371,7 @@
     "noQueryHistory": "暂无查询历史",
     "noHistorySearchResults": "没有匹配的查询",
     "searchHistory": "搜索历史...",
+    "historySearchErrors": "包含错误信息",
     "historyOutcomeFilter": "按结果筛选",
     "historyOutcomeAny": "全部结果",
     "historyOutcomeSucceeded": "成功",

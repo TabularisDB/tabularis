@@ -385,6 +385,7 @@
     "noQueryHistory": "No query history",
     "noHistorySearchResults": "No queries match your search",
     "searchHistory": "Search history...",
+    "historySearchErrors": "Include error messages",
     "historyOutcomeFilter": "Filter by outcome",
     "historyOutcomeAny": "Any outcome",
     "historyOutcomeSucceeded": "Succeeded",
