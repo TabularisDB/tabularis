@@ -1,5 +1,10 @@
 import {describe, it, expect} from 'vitest';
-import {extractOutline, getUnnamedCellsWithContent} from '@/utils/notebookOutline';
+import {
+    extractOutline,
+    filterOutlineEntries,
+    getUnnamedCellsWithContent,
+    type OutlineEntry,
+} from '@/utils/notebookOutline';
 import type {NotebookCell} from '@/types/notebook';
 
 function makeCell(overrides: Partial<NotebookCell> = {}): NotebookCell {
@@ -148,6 +153,104 @@ describe('notebookOutline', () => {
 
         it('returns empty array for empty cells list', () => {
             expect(getUnnamedCellsWithContent([])).toEqual([]);
+        });
+    });
+
+    describe('filterOutlineEntries', () => {
+        const sampleEntries: OutlineEntry[] = [
+            {
+                level: 1,
+                text: 'Introduction',
+                cellId: 'cell-md-1',
+                cellIndex: 0,
+                cellType: 'markdown',
+            },
+            {
+                level: 2,
+                text: 'Monthly Revenue',
+                cellId: 'cell-md-1',
+                cellIndex: 0,
+                cellType: 'markdown',
+            },
+            {level: 1, text: 'SQL #2', cellId: 'cell-sql-2', cellIndex: 1, cellType: 'sql'},
+            {
+                level: 1,
+                text: 'Active Users Query',
+                cellId: 'cell-sql-3',
+                cellIndex: 2,
+                cellType: 'sql',
+            },
+            {level: 1, text: 'MD #4', cellId: 'cell-md-4', cellIndex: 3, cellType: 'markdown'},
+        ];
+
+        it('returns all entries unchanged when query is empty or whitespace only', () => {
+            expect(filterOutlineEntries(sampleEntries, '')).toEqual(sampleEntries);
+            expect(filterOutlineEntries(sampleEntries, '   ')).toEqual(sampleEntries);
+        });
+
+        it('filters by SQL cell names case-insensitively', () => {
+            const result = filterOutlineEntries(sampleEntries, 'active');
+            expect(result).toHaveLength(1);
+            expect(result[0]).toEqual({
+                level: 1,
+                text: 'Active Users Query',
+                cellId: 'cell-sql-3',
+                cellIndex: 2,
+                cellType: 'sql',
+            });
+        });
+
+        it('filters by Markdown headings case-insensitively', () => {
+            const result = filterOutlineEntries(sampleEntries, 'REVENUE');
+            expect(result).toHaveLength(1);
+            expect(result[0]).toEqual({
+                level: 2,
+                text: 'Monthly Revenue',
+                cellId: 'cell-md-1',
+                cellIndex: 0,
+                cellType: 'markdown',
+            });
+        });
+
+        it('filters by fallback labels for SQL and Markdown cells', () => {
+            const sqlFallback = filterOutlineEntries(sampleEntries, 'SQL #2');
+            expect(sqlFallback).toHaveLength(1);
+            expect(sqlFallback[0].cellId).toBe('cell-sql-2');
+
+            const mdFallback = filterOutlineEntries(sampleEntries, 'md #4');
+            expect(mdFallback).toHaveLength(1);
+            expect(mdFallback[0].cellId).toBe('cell-md-4');
+        });
+
+        it('trims leading and trailing whitespace from the search query', () => {
+            const result = filterOutlineEntries(sampleEntries, '   monthly   ');
+            expect(result).toHaveLength(1);
+            expect(result[0].text).toBe('Monthly Revenue');
+        });
+
+        it('returns an empty array when no entries match', () => {
+            expect(filterOutlineEntries(sampleEntries, 'nonexistent')).toEqual([]);
+        });
+
+        it('preserves original order, indentation level, and navigation target cell IDs', () => {
+            const multipleMatches: OutlineEntry[] = [
+                {level: 1, text: 'User Overview', cellId: 'c1', cellIndex: 0, cellType: 'markdown'},
+                {
+                    level: 3,
+                    text: 'Sub-section Users',
+                    cellId: 'c1',
+                    cellIndex: 0,
+                    cellType: 'markdown',
+                },
+                {level: 1, text: 'Fetch Users SQL', cellId: 'c2', cellIndex: 1, cellType: 'sql'},
+            ];
+            const result = filterOutlineEntries(multipleMatches, 'user');
+            expect(result).toHaveLength(3);
+            expect(result.map((e) => e.cellId)).toEqual(['c1', 'c1', 'c2']);
+            expect(result.map((e) => e.level)).toEqual([1, 3, 1]);
+            expect(result[0].cellIndex).toBe(0);
+            expect(result[1].cellIndex).toBe(0);
+            expect(result[2].cellIndex).toBe(1);
         });
     });
 });
