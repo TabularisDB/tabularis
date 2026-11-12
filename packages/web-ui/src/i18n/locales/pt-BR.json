@@ -267,6 +267,7 @@
     "failDeleteIndex": "Falha ao excluir índice: ",
     "modifyColumn": "Modificar Coluna",
     "copyName": "Copiar Nome",
+    "showColumnUsage": "Mostrar usos",
     "plainName": "Nome",
     "quotedName": "Nome entre aspas",
     "qualifiedName": "Nome qualificado",
@@ -3344,5 +3345,67 @@
     "unsupported": "Este driver não oferece consultas protegidas somente leitura.",
     "writeBlocked": "Esta conexão é somente leitura. Desative este modo nas configurações para permitir gravações.",
     "banner": "{{name}} — somente leitura"
+  },
+  "columnUsage": {
+    "title": "Usos da coluna",
+    "boundary": "Evidências dos metadados do banco e do histórico de consultas deste app. Não é uma linhagem completa: aplicações, scripts, outros schemas e outros bancos não são pesquisados.",
+    "scopeConnection": "Conexão",
+    "scopeDatabase": "Banco de dados",
+    "scopeSchema": "Schema",
+    "sources": "Fontes",
+    "source": {
+      "foreignKeys": "Chaves estrangeiras declaradas",
+      "views": "Definições de views",
+      "history": "Histórico de consultas"
+    },
+    "status": {
+      "pending": "Pesquisando…",
+      "complete": "Completo",
+      "partial": "Parcial: {{scanned}} de {{total}} lidos",
+      "unsupported": "Não suportado por este driver",
+      "permission-denied": "Permissão negada",
+      "failed": "Não foi possível ler",
+      "cancelled": "Interrompido"
+    },
+    "confidence": {
+      "confirmed": "Confirmados",
+      "parsed": "Referências analisadas",
+      "uncertain": "Incertos"
+    },
+    "confidenceHint": {
+      "confirmed": "Restrições de chave estrangeira declaradas no banco.",
+      "parsed": "SQL em que a tabela da coluna foi resolvida pelo nome ou alias.",
+      "uncertain": "Ocorrências que não puderam ser ligadas com certeza a esta tabela. Confira antes de confiar nelas."
+    },
+    "reason": {
+      "unresolved-qualifier": "O qualificador da tabela não pôde ser resolvido.",
+      "unqualified-schema": "O nome da tabela não tem schema, então pode ser uma tabela de outro schema.",
+      "several-tables": "A consulta lê várias tabelas que podem ter uma coluna com este nome.",
+      "derived-table": "Lida por meio de uma subconsulta ou CTE.",
+      "alias-conflict": "O mesmo alias nomeia tabelas diferentes.",
+      "wildcard": "Seleciona todas as colunas (*).",
+      "dynamic-sql": "Dentro de SQL dinâmico.",
+      "textual": "Não foi possível analisar o SQL; só os nomes coincidem."
+    },
+    "fkOutgoing": "Referencia {{object}}.{{column}}",
+    "fkIncoming": "Referenciada por {{object}}.{{column}}",
+    "viewTitle": "View {{view}}",
+    "historyTitle": "Consulta executada {{date}}",
+    "matchCount": "Referências neste SQL: {{count}}",
+    "open": "Abrir",
+    "openHistory": "Abrir no editor",
+    "openAria": "Abrir {{name}}",
+    "groupEmpty": "Nada encontrado.",
+    "none": "Nenhuma evidência encontrada.",
+    "noneIncomplete": "Nada encontrado no que pôde ser lido, mas algumas fontes estão incompletas: isso não significa que nada dependa da coluna.",
+    "incompleteNote": "Algumas fontes estão incompletas: a falta de evidências não significa que não haja dependências.",
+    "summaryTitle": "Usos de {{column}}",
+    "summaryDatabase": "Banco de dados: {{database}}",
+    "summaryNone": "Nenhuma evidência encontrada.",
+    "cancel": "Parar",
+    "rerun": "Pesquisar novamente",
+    "copySummary": "Copiar resumo",
+    "copied": "Resumo copiado, com valores literais ocultos.",
+    "copyFailed": "Não foi possível copiar o resumo."
   }
 }

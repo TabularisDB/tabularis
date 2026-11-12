@@ -295,6 +295,7 @@
     "failDeleteIndex": "Không xóa được chỉ mục: ",
     "modifyColumn": "Sửa cột",
     "copyName": "Sao chép tên",
+    "showColumnUsage": "Xem nơi sử dụng",
     "plainName": "Tên",
     "quotedName": "Tên có dấu nháy",
     "qualifiedName": "Tên đầy đủ",
@@ -3362,5 +3363,67 @@
     "installAndOpen": "Cài đặt và mở",
     "dropTitle": "Thả để mở như một bảng",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "columnUsage": {
+    "title": "Nơi sử dụng cột",
+    "boundary": "Bằng chứng từ siêu dữ liệu cơ sở dữ liệu và lịch sử truy vấn của ứng dụng này. Đây không phải dòng dữ liệu đầy đủ: ứng dụng, script, schema khác và cơ sở dữ liệu khác không được tìm.",
+    "scopeConnection": "Kết nối",
+    "scopeDatabase": "Cơ sở dữ liệu",
+    "scopeSchema": "Schema",
+    "sources": "Nguồn",
+    "source": {
+      "foreignKeys": "Khóa ngoại đã khai báo",
+      "views": "Định nghĩa view",
+      "history": "Lịch sử truy vấn"
+    },
+    "status": {
+      "pending": "Đang tìm…",
+      "complete": "Hoàn tất",
+      "partial": "Một phần: đã đọc {{scanned}} / {{total}}",
+      "unsupported": "Driver này không hỗ trợ",
+      "permission-denied": "Không có quyền",
+      "failed": "Không đọc được",
+      "cancelled": "Đã dừng"
+    },
+    "confidence": {
+      "confirmed": "Đã xác nhận",
+      "parsed": "Tham chiếu đã phân tích",
+      "uncertain": "Không chắc chắn"
+    },
+    "confidenceHint": {
+      "confirmed": "Ràng buộc khóa ngoại được khai báo trong cơ sở dữ liệu.",
+      "parsed": "SQL mà bảng của cột được xác định qua tên hoặc bí danh.",
+      "uncertain": "Các kết quả không thể gắn chắc chắn với bảng này. Hãy kiểm tra trước khi dựa vào chúng."
+    },
+    "reason": {
+      "unresolved-qualifier": "Không xác định được tiền tố bảng.",
+      "unqualified-schema": "Tên bảng không có schema nên có thể là bảng của schema khác.",
+      "several-tables": "Truy vấn đọc nhiều bảng có thể có cột cùng tên.",
+      "derived-table": "Được đọc qua truy vấn con hoặc CTE.",
+      "alias-conflict": "Cùng một bí danh chỉ các bảng khác nhau.",
+      "wildcard": "Chọn tất cả các cột (*).",
+      "dynamic-sql": "Nằm trong SQL động.",
+      "textual": "Không phân tích được SQL; chỉ trùng tên."
+    },
+    "fkOutgoing": "Tham chiếu {{object}}.{{column}}",
+    "fkIncoming": "Được tham chiếu bởi {{object}}.{{column}}",
+    "viewTitle": "View {{view}}",
+    "historyTitle": "Truy vấn chạy lúc {{date}}",
+    "matchCount": "Số tham chiếu trong SQL này: {{count}}",
+    "open": "Mở",
+    "openHistory": "Mở trong trình soạn thảo",
+    "openAria": "Mở {{name}}",
+    "groupEmpty": "Không tìm thấy.",
+    "none": "Không tìm thấy bằng chứng.",
+    "noneIncomplete": "Không tìm thấy gì trong phần đọc được, nhưng một số nguồn chưa đầy đủ: điều này không có nghĩa là không có gì phụ thuộc vào cột.",
+    "incompleteNote": "Một số nguồn chưa đầy đủ: thiếu bằng chứng không có nghĩa là không có phụ thuộc.",
+    "summaryTitle": "Nơi sử dụng {{column}}",
+    "summaryDatabase": "Cơ sở dữ liệu: {{database}}",
+    "summaryNone": "Không tìm thấy bằng chứng.",
+    "cancel": "Dừng",
+    "rerun": "Tìm lại",
+    "copySummary": "Sao chép tóm tắt",
+    "copied": "Đã sao chép tóm tắt, các giá trị literal được ẩn.",
+    "copyFailed": "Không sao chép được tóm tắt."
   }
 }

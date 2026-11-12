@@ -297,6 +297,7 @@
     "failDeleteIndex": "Hindi mabura ang index: ",
     "modifyColumn": "Baguhin ang Column",
     "copyName": "Kopyahin ang Pangalan",
+    "showColumnUsage": "Ipakita ang paggamit",
     "plainName": "Pangalan",
     "quotedName": "Pangalan na may panipi",
     "qualifiedName": "Kwalipikadong pangalan",
@@ -3309,5 +3310,67 @@
     "installAndOpen": "I-install at buksan",
     "dropTitle": "I-drop para buksan bilang table",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "columnUsage": {
+    "title": "Paggamit ng column",
+    "boundary": "Ebidensya mula sa metadata ng database at sa query history ng app na ito. Hindi ito kumpletong lineage: hindi hinahanap ang mga application, script, ibang schema at ibang database.",
+    "scopeConnection": "Koneksyon",
+    "scopeDatabase": "Database",
+    "scopeSchema": "Schema",
+    "sources": "Mga pinagmulan",
+    "source": {
+      "foreignKeys": "Mga ideklarang foreign key",
+      "views": "Mga definition ng view",
+      "history": "Query history"
+    },
+    "status": {
+      "pending": "Naghahanap…",
+      "complete": "Kumpleto",
+      "partial": "Bahagya: {{scanned}} sa {{total}} ang nabasa",
+      "unsupported": "Hindi suportado ng driver na ito",
+      "permission-denied": "Walang pahintulot",
+      "failed": "Hindi mabasa",
+      "cancelled": "Itinigil"
+    },
+    "confidence": {
+      "confirmed": "Kumpirmado",
+      "parsed": "Mga na-parse na reference",
+      "uncertain": "Hindi tiyak"
+    },
+    "confidenceHint": {
+      "confirmed": "Mga foreign key constraint na idineklara sa database.",
+      "parsed": "SQL kung saan natukoy ang table ng column sa pangalan o alias nito.",
+      "uncertain": "Mga tugma na hindi tiyak na kabilang sa table na ito. Suriin muna bago umasa sa mga ito."
+    },
+    "reason": {
+      "unresolved-qualifier": "Hindi matukoy ang qualifier ng table.",
+      "unqualified-schema": "Walang schema ang pangalan ng table, kaya maaaring table ito ng ibang schema.",
+      "several-tables": "Nagbabasa ang query ng ilang table na maaaring may column na ganito ang pangalan.",
+      "derived-table": "Binasa sa pamamagitan ng subquery o CTE.",
+      "alias-conflict": "Iisang alias ang tumutukoy sa magkakaibang table.",
+      "wildcard": "Pinipili ang lahat ng column (*).",
+      "dynamic-sql": "Nasa loob ng dynamic SQL.",
+      "textual": "Hindi ma-parse ang SQL; mga pangalan lang ang tugma."
+    },
+    "fkOutgoing": "Tumutukoy sa {{object}}.{{column}}",
+    "fkIncoming": "Tinutukoy ng {{object}}.{{column}}",
+    "viewTitle": "View {{view}}",
+    "historyTitle": "Query na pinatakbo {{date}}",
+    "matchCount": "Mga reference sa SQL na ito: {{count}}",
+    "open": "Buksan",
+    "openHistory": "Buksan sa editor",
+    "openAria": "Buksan ang {{name}}",
+    "groupEmpty": "Walang nahanap.",
+    "none": "Walang nahanap na ebidensya.",
+    "noneIncomplete": "Walang nahanap sa mga nabasa, pero hindi kumpleto ang ilang pinagmulan: hindi ibig sabihin nito na walang umaasa sa column.",
+    "incompleteNote": "Hindi kumpleto ang ilang pinagmulan: ang kawalan ng ebidensya ay hindi nangangahulugang walang dependency.",
+    "summaryTitle": "Paggamit ng {{column}}",
+    "summaryDatabase": "Database: {{database}}",
+    "summaryNone": "Walang nahanap na ebidensya.",
+    "cancel": "Itigil",
+    "rerun": "Maghanap ulit",
+    "copySummary": "Kopyahin ang buod",
+    "copied": "Nakopya ang buod, nakatago ang mga literal na value.",
+    "copyFailed": "Hindi makopya ang buod."
   }
 }

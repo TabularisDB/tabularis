@@ -297,6 +297,7 @@
     "failDeleteIndex": "Failed to delete index: ",
     "modifyColumn": "Modify Column",
     "copyName": "Copy Name",
+    "showColumnUsage": "Show Usage",
     "plainName": "Name",
     "quotedName": "Quoted name",
     "qualifiedName": "Qualified name",
@@ -3423,5 +3424,67 @@
     "installAndOpen": "Install and open",
     "dropTitle": "Drop to open as a table",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "columnUsage": {
+    "title": "Column usage",
+    "boundary": "Evidence from database metadata and this app's query history. It is not complete lineage: applications, scripts, other schemas and other databases are not searched.",
+    "scopeConnection": "Connection",
+    "scopeDatabase": "Database",
+    "scopeSchema": "Schema",
+    "sources": "Sources",
+    "source": {
+      "foreignKeys": "Declared foreign keys",
+      "views": "View definitions",
+      "history": "Query history"
+    },
+    "status": {
+      "pending": "Searching…",
+      "complete": "Complete",
+      "partial": "Partial: {{scanned}} of {{total}} read",
+      "unsupported": "Not supported by this driver",
+      "permission-denied": "Permission denied",
+      "failed": "Could not be read",
+      "cancelled": "Stopped"
+    },
+    "confidence": {
+      "confirmed": "Confirmed",
+      "parsed": "Parsed references",
+      "uncertain": "Uncertain"
+    },
+    "confidenceHint": {
+      "confirmed": "Foreign key constraints declared in the database.",
+      "parsed": "SQL where the column's table was resolved by its name or alias.",
+      "uncertain": "Matches that could not be tied to this table for sure. Check them before relying on them."
+    },
+    "reason": {
+      "unresolved-qualifier": "The table qualifier could not be resolved.",
+      "unqualified-schema": "The table name has no schema, so it may be a table of another schema.",
+      "several-tables": "The query reads several tables that may have a column with this name.",
+      "derived-table": "Read through a subquery or CTE.",
+      "alias-conflict": "The same alias names different tables.",
+      "wildcard": "Selects all columns (*).",
+      "dynamic-sql": "Inside dynamic SQL.",
+      "textual": "The SQL could not be parsed; only the names match."
+    },
+    "fkOutgoing": "References {{object}}.{{column}}",
+    "fkIncoming": "Referenced by {{object}}.{{column}}",
+    "viewTitle": "View {{view}}",
+    "historyTitle": "Query run {{date}}",
+    "matchCount": "References in this SQL: {{count}}",
+    "open": "Open",
+    "openHistory": "Open in editor",
+    "openAria": "Open {{name}}",
+    "groupEmpty": "None found.",
+    "none": "No evidence found.",
+    "noneIncomplete": "Nothing found in what could be read, but some sources are incomplete: this does not mean nothing depends on the column.",
+    "incompleteNote": "Some sources are incomplete: missing evidence does not mean there are no dependencies.",
+    "summaryTitle": "Usage of {{column}}",
+    "summaryDatabase": "Database: {{database}}",
+    "summaryNone": "No evidence found.",
+    "cancel": "Stop",
+    "rerun": "Search again",
+    "copySummary": "Copy summary",
+    "copied": "Summary copied, with literal values hidden.",
+    "copyFailed": "Could not copy the summary."
   }
 }

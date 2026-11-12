@@ -297,6 +297,7 @@
     "failDeleteIndex": "インデックスの削除に失敗しました: ",
     "modifyColumn": "カラムを変更",
     "copyName": "名前をコピー",
+    "showColumnUsage": "使用箇所を表示",
     "plainName": "名前",
     "quotedName": "引用符付きの名前",
     "qualifiedName": "スキーマ修飾名",
@@ -3308,5 +3309,67 @@
     "installAndOpen": "インストールして開く",
     "dropTitle": "ドロップしてテーブルとして開く",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "columnUsage": {
+    "title": "列の使用箇所",
+    "boundary": "データベースのメタデータとこのアプリのクエリ履歴から得た根拠です。完全なリネージではありません。アプリケーション、スクリプト、他のスキーマ、他のデータベースは検索されません。",
+    "scopeConnection": "接続",
+    "scopeDatabase": "データベース",
+    "scopeSchema": "スキーマ",
+    "sources": "ソース",
+    "source": {
+      "foreignKeys": "宣言された外部キー",
+      "views": "ビュー定義",
+      "history": "クエリ履歴"
+    },
+    "status": {
+      "pending": "検索中…",
+      "complete": "完了",
+      "partial": "一部: {{total}} 件中 {{scanned}} 件を読み込み",
+      "unsupported": "このドライバーでは未対応",
+      "permission-denied": "権限がありません",
+      "failed": "読み込めませんでした",
+      "cancelled": "停止しました"
+    },
+    "confidence": {
+      "confirmed": "確定",
+      "parsed": "解析された参照",
+      "uncertain": "不確実"
+    },
+    "confidenceHint": {
+      "confirmed": "データベースで宣言された外部キー制約です。",
+      "parsed": "列のテーブルが名前またはエイリアスで解決された SQL です。",
+      "uncertain": "このテーブルのものと断定できない一致です。利用前に確認してください。"
+    },
+    "reason": {
+      "unresolved-qualifier": "テーブル修飾子を解決できませんでした。",
+      "unqualified-schema": "テーブル名にスキーマがないため、別スキーマのテーブルの可能性があります。",
+      "several-tables": "この名前の列を持つ可能性のある複数のテーブルを読み込んでいます。",
+      "derived-table": "サブクエリまたは CTE 経由で読み込まれています。",
+      "alias-conflict": "同じエイリアスが異なるテーブルを指しています。",
+      "wildcard": "すべての列を選択しています (*)。",
+      "dynamic-sql": "動的 SQL の中にあります。",
+      "textual": "SQL を解析できませんでした。名前だけが一致しています。"
+    },
+    "fkOutgoing": "{{object}}.{{column}} を参照",
+    "fkIncoming": "{{object}}.{{column}} から参照",
+    "viewTitle": "ビュー {{view}}",
+    "historyTitle": "{{date}} に実行したクエリ",
+    "matchCount": "この SQL 内の参照数: {{count}}",
+    "open": "開く",
+    "openHistory": "エディターで開く",
+    "openAria": "{{name}} を開く",
+    "groupEmpty": "見つかりません。",
+    "none": "根拠は見つかりませんでした。",
+    "noneIncomplete": "読み込めた範囲では見つかりませんでしたが、一部のソースが不完全です。この列に依存するものがないとは限りません。",
+    "incompleteNote": "一部のソースが不完全です。根拠がないことは依存関係がないことを意味しません。",
+    "summaryTitle": "{{column}} の使用箇所",
+    "summaryDatabase": "データベース: {{database}}",
+    "summaryNone": "根拠は見つかりませんでした。",
+    "cancel": "停止",
+    "rerun": "再検索",
+    "copySummary": "概要をコピー",
+    "copied": "リテラル値を伏せて概要をコピーしました。",
+    "copyFailed": "概要をコピーできませんでした。"
   }
 }

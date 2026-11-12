@@ -1,0 +1,886 @@
+// Column usage evidence (#1407): finds where one table column is referenced in
+// SQL text (view definitions, query history) and says how sure each match is.
+// The lexing reuses the splitter's dialect rules, so quotes, comments and
+// dollar-quoted bodies follow the active driver's SQL dialect.
+
+import {optionsFor, type DialectInput, type DialectOptions} from './sqlSplitter';
+import {scanToken, type TokenizerState} from './sqlSplitter/tokenizer';
+import type {SavedQueryExcerpt} from './savedQuerySearch';
+
+/** The column being inspected. `schema` is absent on drivers without schemas. */
+export interface ColumnUsageTarget {
+    table: string;
+    column: string;
+    schema?: string;
+    database?: string;
+}
+
+export type ColumnUsageConfidence = 'confirmed' | 'parsed' | 'uncertain';
+
+/** Why a textual match could not be confirmed as a reference to the target column. */
+export type UncertainReason =
+    | 'unresolved-qualifier'
+    | 'unqualified-schema'
+    | 'several-tables'
+    | 'derived-table'
+    | 'alias-conflict'
+    | 'wildcard'
+    | 'dynamic-sql'
+    | 'textual';
+
+export interface SqlColumnMatch {
+    confidence: Exclude<ColumnUsageConfidence, 'confirmed'>;
+    reason?: UncertainReason;
+    /** String offsets of the matching token in the analysed SQL. */
+    start: number;
+    end: number;
+}
+
+export interface RelationRef {
+    name: string;
+    schema?: string;
+}
+
+export interface FindColumnReferencesOptions {
+    dialect?: DialectInput;
+    /**
+     * The schema that unqualified table names resolve to for this SQL (a
+     * view's own schema). Left out for query history, where the search path
+     * at run time is unknown.
+     */
+    defaultSchema?: string;
+    /** Column names of a table, when known; `undefined` when unknown. */
+    columnsOf?: (ref: RelationRef) => readonly string[] | undefined;
+}
+
+type LexKind = 'word' | 'quoted' | 'string' | 'number' | 'punct' | 'delimiter';
+
+interface LexToken {
+    kind: LexKind;
+    /** Identifier value (quotes removed) or the raw text. */
+    value: string;
+    start: number;
+    end: number;
+    /** Backtick-quoted identifiers compare without case, like MySQL does. */
+    caseInsensitive?: boolean;
+}
+
+const WORD_START = /[\p{L}_]/u;
+const WORD_CHAR = /[\p{L}\p{N}_$]/u;
+const DIGIT = /[0-9]/;
+const MAX_EXECUTABLE_DEPTH = 4;
+
+function identifierRule(source: string, position: number, options: DialectOptions) {
+    return options.quotes.find(
+        (rule) => rule.kind === 'identifier' && source.startsWith(rule.open, position),
+    );
+}
+
+function lexInto(
+    source: string,
+    offset: number,
+    options: DialectOptions,
+    tokens: LexToken[],
+    depth: number,
+): void {
+    const state: TokenizerState = {delimiter: ';', lineLeading: true};
+    let position = 0;
+    while (position < source.length) {
+        const ch = source[position];
+        // Words and numbers are read here: the splitter only returns them one
+        // character at a time.
+        if (
+            WORD_START.test(ch) ||
+            (DIGIT.test(ch) && !WORD_CHAR.test(source[position - 1] ?? ''))
+        ) {
+            const token = scanToken(source, position, options, state);
+            if (token && token.kind === 'data' && token.length === 1) {
+                let end = position + 1;
+                const isNumber = DIGIT.test(ch);
+                const pattern = isNumber ? /[0-9A-Za-z_.]/ : WORD_CHAR;
+                while (end < source.length && pattern.test(source[end])) end++;
+                const raw = source.slice(position, end);
+                if (!isNumber && /^[nxbe]$/i.test(raw) && source[end] === "'") {
+                    // N'..', X'..', B'..', E'..': the prefix belongs to the literal.
+                    const literal = scanToken(source, end, options, state);
+                    if (literal?.kind === 'string') {
+                        tokens.push({
+                            kind: 'string',
+                            value: source.slice(position, end + literal.length),
+                            start: offset + position,
+                            end: offset + end + literal.length,
+                        });
+                        state.lineLeading = false;
+                        position = end + literal.length;
+                        continue;
+                    }
+                }
+                tokens.push({
+                    kind: isNumber ? 'number' : 'word',
+                    value: raw,
+                    start: offset + position,
+                    end: offset + end,
+                });
+                state.lineLeading = false;
+                position = end;
+                continue;
+            }
+        }
+        const token = scanToken(source, position, options, state);
+        if (token === null) break;
+        const start = offset + position;
+        const end = start + token.length;
+        switch (token.kind) {
+            case 'string': {
+                const rule = identifierRule(source, position, options);
+                if (rule) {
+                    const inner = source.slice(
+                        position + rule.open.length,
+                        position + token.length - rule.close.length,
+                    );
+                    tokens.push({
+                        kind: 'quoted',
+                        value: rule.doubleClose
+                            ? inner.replaceAll(rule.close + rule.close, rule.close)
+                            : inner,
+                        start,
+                        end,
+                        caseInsensitive: rule.open === '`',
+                    });
+                } else {
+                    tokens.push({
+                        kind: 'string',
+                        value: source.slice(position, position + token.length),
+                        start,
+                        end,
+                    });
+                }
+                state.lineLeading = false;
+                break;
+            }
+            case 'data':
+                if (token.length > 1 && source.startsWith('/*!', position)) {
+                    // MySQL executable comment: its payload is real SQL.
+                    if (depth < MAX_EXECUTABLE_DEPTH) {
+                        const payload = source.slice(position + 3, position + token.length - 2);
+                        const version = /^\d*/.exec(payload)?.[0].length ?? 0;
+                        lexInto(
+                            payload.slice(version),
+                            start + 3 + version,
+                            options,
+                            tokens,
+                            depth + 1,
+                        );
+                    }
+                } else {
+                    tokens.push({
+                        kind: 'punct',
+                        value: source.slice(position, position + token.length),
+                        start,
+                        end,
+                    });
+                }
+                state.lineLeading = false;
+                break;
+            case 'delimiter':
+            case 'goDelimiter':
+            case 'slashDelimiter':
+                tokens.push({kind: 'delimiter', value: ';', start, end});
+                state.lineLeading = false;
+                break;
+            case 'setDelimiter':
+                if (token.value !== undefined) state.delimiter = token.value;
+                state.lineLeading = false;
+                break;
+            case 'eoln':
+                state.lineLeading = true;
+                break;
+            case 'lineComment':
+            case 'blockComment':
+                state.lineLeading = false;
+                break;
+            case 'whitespace':
+                break;
+        }
+        position += token.length;
+    }
+}
+
+function lex(sql: string, dialect: DialectInput): LexToken[] {
+    const tokens: LexToken[] = [];
+    lexInto(sql, 0, optionsFor(dialect), tokens, 0);
+    return tokens;
+}
+
+const isIdent = (token: LexToken | undefined): token is LexToken =>
+    token !== undefined && (token.kind === 'word' || token.kind === 'quoted');
+
+const keyword = (token: LexToken | undefined): string =>
+    token?.kind === 'word' ? token.value.toUpperCase() : '';
+
+/** Identifier comparison: unquoted and backtick names ignore case, quoted ones don't. */
+function identEquals(token: LexToken, name: string): boolean {
+    if (token.kind === 'quoted' && !token.caseInsensitive) return token.value === name;
+    return token.value.toLowerCase() === name.toLowerCase();
+}
+
+const namesEqual = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+
+// Words that end a FROM list or cannot be a table alias.
+const NOT_ALIAS = new Set([
+    'ON',
+    'USING',
+    'WHERE',
+    'GROUP',
+    'ORDER',
+    'HAVING',
+    'LIMIT',
+    'OFFSET',
+    'FETCH',
+    'UNION',
+    'INTERSECT',
+    'EXCEPT',
+    'MINUS',
+    'JOIN',
+    'INNER',
+    'LEFT',
+    'RIGHT',
+    'FULL',
+    'OUTER',
+    'CROSS',
+    'NATURAL',
+    'STRAIGHT_JOIN',
+    'SET',
+    'VALUES',
+    'VALUE',
+    'SELECT',
+    'RETURNING',
+    'WINDOW',
+    'FOR',
+    'LATERAL',
+    'TABLESAMPLE',
+    'QUALIFY',
+    'WITH',
+    'AS',
+    'PARTITION',
+    'DEFAULT',
+    'OUTPUT',
+    'WHEN',
+    'THEN',
+    'INTO',
+    'FROM',
+    'UPDATE',
+    'DELETE',
+    'INSERT',
+    'MERGE',
+    'APPLY',
+    'PIVOT',
+    'UNPIVOT',
+    'CONNECT',
+    'START',
+    'USE',
+    'IGNORE',
+    'FORCE',
+    'ONLY',
+    'AND',
+    'OR',
+    'NOT',
+    'IS',
+    'IN',
+]);
+
+// Words after which the next name is a relation.
+const RELATION_KEYWORDS = new Set(['FROM', 'JOIN', 'UPDATE', 'INTO', 'TABLE', 'STRAIGHT_JOIN']);
+
+// Words that end a comma-separated FROM (or UPDATE) list at their depth.
+const LIST_END = new Set([
+    'WHERE',
+    'GROUP',
+    'ORDER',
+    'HAVING',
+    'LIMIT',
+    'OFFSET',
+    'FETCH',
+    'UNION',
+    'INTERSECT',
+    'EXCEPT',
+    'MINUS',
+    'SET',
+    'VALUES',
+    'SELECT',
+    'RETURNING',
+    'WINDOW',
+    'ON',
+    'USING',
+    'QUALIFY',
+    'FOR',
+]);
+
+const DYNAMIC_SQL_WORDS = new Set(['EXECUTE', 'EXEC', 'PREPARE', 'SP_EXECUTESQL']);
+
+interface Binding {
+    /** Undefined for derived tables, table functions and CTEs. */
+    ref?: RelationRef;
+    /** The query level (see `computeScopes`) whose FROM list holds it. */
+    scope: number;
+}
+
+interface StatementModel {
+    tokens: LexToken[];
+    /** Query level of each token: 0 for the statement, one per subquery. */
+    scopes: number[];
+    /** Enclosing query level of each subquery level. */
+    parents: Map<number, number>;
+    /** alias (lower-cased) → bindings it was given in this statement. */
+    bindings: Map<string, Binding[]>;
+    relations: Binding[];
+    /** Token indexes that name relations or aliases, never columns. */
+    nameTokens: Set<number>;
+}
+
+function skipParens(tokens: LexToken[], open: number): number {
+    let depth = 0;
+    for (let i = open; i < tokens.length; i++) {
+        if (tokens[i].value === '(' && tokens[i].kind === 'punct') depth++;
+        else if (tokens[i].value === ')' && tokens[i].kind === 'punct') {
+            depth--;
+            if (depth === 0) return i;
+        }
+    }
+    return tokens.length - 1;
+}
+
+function collectCteNames(tokens: LexToken[]): Set<string> {
+    const names = new Set<string>();
+    for (let i = 0; i < tokens.length; i++) {
+        if (keyword(tokens[i]) !== 'WITH') continue;
+        let j = i + 1;
+        if (keyword(tokens[j]) === 'RECURSIVE') j++;
+        while (isIdent(tokens[j])) {
+            names.add(tokens[j].value.toLowerCase());
+            j++;
+            if (tokens[j]?.value === '(') j = skipParens(tokens, j) + 1;
+            if (keyword(tokens[j]) !== 'AS') break;
+            j++;
+            if (keyword(tokens[j]) === 'NOT') j++;
+            if (keyword(tokens[j]) === 'MATERIALIZED') j++;
+            if (tokens[j]?.value !== '(') break;
+            j = skipParens(tokens, j) + 1;
+            if (tokens[j]?.value !== ',') break;
+            j++;
+        }
+    }
+    return names;
+}
+
+// A parenthesis that opens with SELECT or WITH starts a new query level;
+// any other (function arguments, IN lists, column lists) stays in its level.
+function computeScopes(tokens: LexToken[]): {scopes: number[]; parents: Map<number, number>} {
+    const scopes: number[] = [];
+    const parents = new Map<number, number>();
+    const stack: number[] = [0];
+    let next = 1;
+    for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        if (token.kind === 'punct' && token.value === ')' && stack.length > 1) {
+            stack.pop();
+        }
+        scopes.push(stack[stack.length - 1]);
+        if (token.kind === 'punct' && token.value === '(') {
+            const first = keyword(tokens[i + 1]);
+            if (first === 'SELECT' || first === 'WITH') {
+                parents.set(next, stack[stack.length - 1]);
+                stack.push(next++);
+            } else {
+                stack.push(stack[stack.length - 1]);
+            }
+        }
+    }
+    return {scopes, parents};
+}
+
+function buildModel(tokens: LexToken[]): StatementModel {
+    const {scopes, parents} = computeScopes(tokens);
+    const model: StatementModel = {
+        tokens,
+        scopes,
+        parents,
+        bindings: new Map(),
+        relations: [],
+        nameTokens: new Set(),
+    };
+    const cteNames = collectCteNames(tokens);
+    const listDepths = new Set<number>();
+    let depth = 0;
+
+    const bind = (alias: string, binding: Binding) => {
+        const key = alias.toLowerCase();
+        const list = model.bindings.get(key) ?? [];
+        list.push(binding);
+        model.bindings.set(key, list);
+    };
+
+    // Derived tables: the index of their closing parenthesis. Their body is
+    // walked like the rest of the statement and the alias read after it.
+    const derivedCloses = new Set<number>();
+
+    const readAlias = (start: number, binding: Binding, defaultAlias?: string): number => {
+        let i = start;
+        if (keyword(tokens[i]) === 'AS') i++;
+        const aliasToken = tokens[i];
+        if (
+            isIdent(aliasToken) &&
+            !(aliasToken.kind === 'word' && NOT_ALIAS.has(keyword(aliasToken)))
+        ) {
+            model.nameTokens.add(i);
+            bind(aliasToken.value, binding);
+            i++;
+            // Column alias list: `AS t(a, b)`.
+            if (tokens[i]?.value === '(') {
+                const close = skipParens(tokens, i);
+                for (let k = i + 1; k < close; k++) model.nameTokens.add(k);
+                i = close + 1;
+            }
+            return i;
+        }
+        if (defaultAlias) bind(defaultAlias, binding);
+        return start;
+    };
+
+    // Reads one relation starting at `start`; returns the index after what it
+    // consumed. A derived table consumes nothing but its leading keywords.
+    const readRelation = (start: number, allowFunction: boolean): number => {
+        let i = start;
+        while (['LATERAL', 'ONLY', 'TABLE'].includes(keyword(tokens[i]))) i++;
+        let binding: Binding;
+        let defaultAlias: string | undefined;
+        if (tokens[i]?.value === '(') {
+            derivedCloses.add(skipParens(tokens, i));
+            model.relations.push({scope: scopes[i]});
+            return i;
+        } else if (isIdent(tokens[i])) {
+            const parts: LexToken[] = [tokens[i]];
+            model.nameTokens.add(i);
+            i++;
+            while (tokens[i]?.value === '.' && isIdent(tokens[i + 1]) && parts.length < 3) {
+                parts.push(tokens[i + 1]);
+                model.nameTokens.add(i + 1);
+                i += 2;
+            }
+            const name = parts[parts.length - 1].value;
+            const schema = parts.length > 1 ? parts[parts.length - 2].value : undefined;
+            defaultAlias = name;
+            if (allowFunction && tokens[i]?.value === '(') {
+                // Table function: its columns are not the table's.
+                i = skipParens(tokens, i) + 1;
+                binding = {scope: scopes[start]};
+            } else if (!schema && cteNames.has(name.toLowerCase())) {
+                binding = {scope: scopes[start]};
+            } else {
+                binding = {ref: schema ? {name, schema} : {name}, scope: scopes[start]};
+            }
+        } else {
+            return i;
+        }
+        // `INSERT INTO t (a, b)`: the list is t's columns, never an alias,
+        // since readAlias only takes an identifier.
+        i = readAlias(i, binding, defaultAlias);
+        model.relations.push(binding);
+        return i;
+    };
+
+    for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        if (token.kind === 'punct') {
+            if (token.value === '(') depth++;
+            else if (token.value === ')') {
+                listDepths.delete(depth);
+                depth = Math.max(0, depth - 1);
+                if (derivedCloses.has(i)) {
+                    const next = readAlias(i + 1, {scope: scopes[i]});
+                    if (next > i + 1) i = next - 1;
+                }
+            } else if (token.value === ',' && listDepths.has(depth)) {
+                const next = readRelation(i + 1, true);
+                if (next > i + 1) i = next - 1;
+            }
+            continue;
+        }
+        const word = keyword(token);
+        if (!word) continue;
+        if (LIST_END.has(word)) listDepths.delete(depth);
+        if (RELATION_KEYWORDS.has(word)) {
+            // `DELETE t FROM`, `INSERT INTO`, `UPDATE t SET` and `FROM a, b`.
+            if (word === 'TABLE' && keyword(tokens[i - 1]) !== 'LOCK') continue;
+            if (word === 'UPDATE' && ['KEY', 'FOR', 'DO'].includes(keyword(tokens[i - 1])))
+                continue;
+            if (word === 'FROM' && keyword(tokens[i - 1]) === 'DISTINCT') continue;
+            if (tokens[i + 1]?.value === '(' && word !== 'FROM' && word !== 'JOIN') continue;
+            if (word === 'FROM' || word === 'UPDATE') listDepths.add(depth);
+            const next = readRelation(i + 1, word === 'FROM' || word === 'JOIN');
+            if (next > i + 1) i = next - 1;
+        } else if (word === 'USING' && tokens[i + 1]?.value !== '(') {
+            // `DELETE FROM a USING b` (PostgreSQL) / `DELETE FROM a USING a JOIN b` (MySQL).
+            listDepths.add(depth);
+            const next = readRelation(i + 1, true);
+            if (next > i + 1) i = next - 1;
+        }
+    }
+    return model;
+}
+
+type TableMatch = 'match' | 'schema-unknown' | 'other-qualifier' | 'no';
+
+function matchRelation(
+    ref: RelationRef,
+    target: ColumnUsageTarget,
+    defaultSchema: string | undefined,
+): TableMatch {
+    if (!namesEqual(ref.name, target.table)) return 'no';
+    if (ref.schema !== undefined) {
+        if (target.schema !== undefined)
+            return namesEqual(ref.schema, target.schema) ? 'match' : 'no';
+        if (target.database !== undefined && namesEqual(ref.schema, target.database))
+            return 'match';
+        return 'other-qualifier';
+    }
+    if (target.schema === undefined) return 'match';
+    if (defaultSchema !== undefined && namesEqual(defaultSchema, target.schema)) return 'match';
+    return 'schema-unknown';
+}
+
+function splitStatementsByTokens(tokens: LexToken[]): LexToken[][] {
+    const statements: LexToken[][] = [];
+    let current: LexToken[] = [];
+    for (const token of tokens) {
+        if (token.kind === 'delimiter') {
+            if (current.length) statements.push(current);
+            current = [];
+        } else {
+            current.push(token);
+        }
+    }
+    if (current.length) statements.push(current);
+    return statements;
+}
+
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const wordBoundaryPattern = (name: string): RegExp =>
+    new RegExp(`(^|[^\\p{L}\\p{N}_$])${escapeRegExp(name)}(?![\\p{L}\\p{N}_$])`, 'iu');
+
+function analyseStatement(
+    tokens: LexToken[],
+    target: ColumnUsageTarget,
+    options: FindColumnReferencesOptions,
+): SqlColumnMatch[] {
+    const model = buildModel(tokens);
+    const matches: SqlColumnMatch[] = [];
+    const tableRelations = model.relations.filter((r) => r.ref);
+    const relationVerdicts = tableRelations.map((r) =>
+        matchRelation(r.ref!, target, options.defaultSchema),
+    );
+    const targetInStatement = relationVerdicts.some((v) => v !== 'no');
+    const targetNameMentioned = tokens.some((t) => isIdent(t) && identEquals(t, target.table));
+
+    const uncertain = (token: LexToken, reason: UncertainReason): SqlColumnMatch => ({
+        confidence: 'uncertain',
+        reason,
+        start: token.start,
+        end: token.end,
+    });
+
+    const resolveVerdict = (verdict: TableMatch): 'parsed' | UncertainReason | null => {
+        if (verdict === 'match') return 'parsed';
+        if (verdict === 'schema-unknown') return 'unqualified-schema';
+        if (verdict === 'other-qualifier') return 'unresolved-qualifier';
+        return null;
+    };
+
+    let wildcardSeen = false;
+    for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+
+        if (token.kind === 'punct' && token.value === '*' && !wildcardSeen) {
+            const prev = tokens[i - 1];
+            const bare =
+                keyword(prev) === 'SELECT' || keyword(prev) === 'DISTINCT' || prev?.value === ',';
+            if (bare && targetInStatement) {
+                wildcardSeen = true;
+                matches.push(uncertain(token, 'wildcard'));
+            } else if (prev?.value === '.' && isIdent(tokens[i - 2])) {
+                const bindings = model.bindings.get(tokens[i - 2].value.toLowerCase()) ?? [];
+                if (
+                    bindings.some(
+                        (b) =>
+                            b.ref &&
+                            resolveVerdict(matchRelation(b.ref, target, options.defaultSchema)),
+                    )
+                ) {
+                    wildcardSeen = true;
+                    matches.push(uncertain(token, 'wildcard'));
+                }
+            }
+            continue;
+        }
+
+        if (!isIdent(token) || model.nameTokens.has(i) || !identEquals(token, target.column))
+            continue;
+        const next = tokens[i + 1];
+        if (next?.value === '.') continue; // a qualifier, not a column
+        if (next?.value === '(' && token.kind === 'word') continue; // a function call
+        if (keyword(tokens[i - 1]) === 'AS') continue; // an output alias
+
+        if (tokens[i - 1]?.value === '.' && isIdent(tokens[i - 2])) {
+            const qualifier = tokens[i - 2];
+            const outer =
+                tokens[i - 3]?.value === '.' && isIdent(tokens[i - 4]) ? tokens[i - 4] : undefined;
+            if (outer) {
+                // schema.table.column
+                const verdict = resolveVerdict(
+                    matchRelation(
+                        {name: qualifier.value, schema: outer.value},
+                        target,
+                        options.defaultSchema,
+                    ),
+                );
+                if (verdict === 'parsed')
+                    matches.push({confidence: 'parsed', start: token.start, end: token.end});
+                else if (verdict) matches.push(uncertain(token, verdict));
+                continue;
+            }
+            const bindings = model.bindings.get(qualifier.value.toLowerCase());
+            if (!bindings) {
+                if (targetInStatement || identEquals(qualifier, target.table)) {
+                    matches.push(uncertain(token, 'unresolved-qualifier'));
+                }
+                continue;
+            }
+            const verdicts = bindings.map((b) =>
+                b.ref
+                    ? resolveVerdict(matchRelation(b.ref, target, options.defaultSchema))
+                    : 'derived-table',
+            );
+            const relevant = verdicts.filter((v): v is 'parsed' | UncertainReason => v !== null);
+            if (relevant.length === 0) continue;
+            if (bindings.length > 1 && new Set(verdicts).size > 1) {
+                matches.push(uncertain(token, 'alias-conflict'));
+            } else if (relevant[0] === 'derived-table') {
+                if (targetInStatement) matches.push(uncertain(token, 'derived-table'));
+            } else if (relevant[0] === 'parsed') {
+                matches.push({confidence: 'parsed', start: token.start, end: token.end});
+            } else {
+                matches.push(uncertain(token, relevant[0]));
+            }
+            continue;
+        }
+
+        // Unqualified column: it belongs to a table of its own query level, or
+        // (a correlated reference) of an enclosing level when no table of the
+        // inner levels has a column of that name.
+        const mayHaveColumn = (relation: Binding): 'yes' | 'unknown' | 'no' => {
+            if (!relation.ref) return 'unknown';
+            const columns = options.columnsOf?.(relation.ref);
+            if (!columns) return 'unknown';
+            return columns.some((c) => namesEqual(c, target.column)) ? 'yes' : 'no';
+        };
+        let scope: number | undefined = model.scopes[i];
+        let shadowed = false;
+        let decided = false;
+        while (scope !== undefined && !decided) {
+            const level = scope;
+            const candidates = model.relations.filter((r) => r.scope === level);
+            const verdicts = candidates.map((r) =>
+                r.ref ? matchRelation(r.ref, target, options.defaultSchema) : 'no',
+            );
+            const others = candidates.filter((_, k) => verdicts[k] === 'no').map(mayHaveColumn);
+            if (verdicts.some((v) => v !== 'no')) {
+                decided = true;
+                const best = verdicts.includes('match')
+                    ? 'parsed'
+                    : resolveVerdict(verdicts.find((v) => v !== 'no')!);
+                if (shadowed || others.some((o) => o !== 'no')) {
+                    matches.push(uncertain(token, 'several-tables'));
+                } else if (best === 'parsed') {
+                    matches.push({confidence: 'parsed', start: token.start, end: token.end});
+                } else if (best) {
+                    matches.push(uncertain(token, best));
+                }
+            } else if (others.includes('yes')) {
+                decided = true; // another table of this level owns the column
+            } else {
+                if (others.includes('unknown')) shadowed = true;
+                scope = model.parents.get(level);
+            }
+        }
+        if (!decided && model.relations.length === 0 && targetNameMentioned) {
+            matches.push(uncertain(token, 'textual'));
+        }
+    }
+
+    // Dynamic SQL: the column may only appear inside a string that is run.
+    if (tokens.some((t) => DYNAMIC_SQL_WORDS.has(keyword(t)))) {
+        const column = wordBoundaryPattern(target.column);
+        const table = wordBoundaryPattern(target.table);
+        for (const token of tokens) {
+            if (token.kind !== 'string' || !column.test(token.value)) continue;
+            if (targetNameMentioned || table.test(token.value)) {
+                matches.push(uncertain(token, 'dynamic-sql'));
+            }
+        }
+    }
+    return matches;
+}
+
+/**
+ * Every place in `sql` that may read or write `target`'s column, each marked
+ * `parsed` (the table is resolved through its name or alias) or `uncertain`
+ * (with the reason). A column of the same name on another table is never a
+ * match.
+ */
+export function findColumnReferences(
+    sql: string,
+    target: ColumnUsageTarget,
+    options: FindColumnReferencesOptions = {},
+): SqlColumnMatch[] {
+    if (!sql || !target.column || !target.table) return [];
+    return splitStatementsByTokens(lex(sql, options.dialect)).flatMap((tokens) =>
+        analyseStatement(tokens, target, options),
+    );
+}
+
+/** The strongest match first: parsed before uncertain, then by position. */
+export function strongestMatch(matches: readonly SqlColumnMatch[]): SqlColumnMatch | undefined {
+    return [...matches].sort(
+        (a, b) =>
+            (a.confidence === 'parsed' ? 0 : 1) - (b.confidence === 'parsed' ? 0 : 1) ||
+            a.start - b.start,
+    )[0];
+}
+
+interface RedactedSegment {
+    start: number;
+    end: number;
+    text: string;
+}
+
+// Every literal becomes a placeholder, and every stretch between tokens that
+// holds more than whitespace (a `--`, `#` or block comment, or text the lexer
+// skipped) becomes a single space: comments often carry ids, emails or notes.
+function redactedSegments(sql: string, dialect: DialectInput): RedactedSegment[] {
+    const segments: RedactedSegment[] = [];
+    let previousEnd = 0;
+    const gap = (end: number) => {
+        if (end > previousEnd && /\S/.test(sql.slice(previousEnd, end))) {
+            segments.push({start: previousEnd, end, text: ' '});
+        }
+    };
+    for (const token of lex(sql, dialect)) {
+        gap(token.start);
+        previousEnd = token.end;
+        if (token.kind === 'string')
+            segments.push({start: token.start, end: token.end, text: "'?'"});
+        else if (token.kind === 'number')
+            segments.push({start: token.start, end: token.end, text: '?'});
+    }
+    gap(sql.length);
+    return segments;
+}
+
+/** `sql` with every string and number literal replaced by a placeholder and comments kept out. */
+export function redactSqlLiterals(sql: string, dialect?: DialectInput): string {
+    const tokens = lex(sql, dialect);
+    let out = '';
+    let last: LexToken | undefined;
+    for (const token of tokens) {
+        if (last) {
+            const gap = sql.slice(last.end, token.start);
+            out += gap.length === 0 ? '' : /\n/.test(gap) && !/\S/.test(gap) ? '\n' : ' ';
+        }
+        if (token.kind === 'string') out += "'?'";
+        else if (token.kind === 'number') out += '?';
+        else out += sql.slice(token.start, token.end);
+        last = token;
+    }
+    return out;
+}
+
+/** A redacted one-line excerpt, split around the match like a saved-query search hit. */
+export interface UsageSnippet extends SavedQueryExcerpt {
+    /** The whole excerpt on one line, with `…` where it was cut. */
+    text: string;
+}
+
+/**
+ * A one-line excerpt of `sql` around `[start, end)`, with literals replaced
+ * by placeholders so values never leave the history or the view body.
+ */
+export function buildUsageSnippet(
+    sql: string,
+    start: number,
+    end: number,
+    dialect?: DialectInput,
+    context = 60,
+): UsageSnippet {
+    // Cut the window at whitespace so it never starts or ends inside a word.
+    let from = Math.max(0, start - context);
+    while (from > 0 && from < start && !/\s/.test(sql[from - 1])) from++;
+    let to = Math.min(sql.length, end + context);
+    while (to < sql.length && to > end && !/\s/.test(sql[to])) to--;
+    let text = '';
+    let highlightStart = -1;
+    let highlightEnd = -1;
+    let position = from;
+    const plain = (until: number) => {
+        if (until <= position) return;
+        if (highlightStart < 0 && start >= position && start < until) {
+            highlightStart = text.length + (start - position);
+        }
+        if (highlightEnd < 0 && end > position && end <= until) {
+            highlightEnd = text.length + (end - position);
+        }
+        text += sql.slice(position, until);
+        position = until;
+    };
+    for (const segment of redactedSegments(sql, dialect)) {
+        if (segment.end <= from || segment.start >= to) continue;
+        plain(Math.max(segment.start, from));
+        if (highlightStart < 0 && start < segment.end && end > segment.start) {
+            highlightStart = text.length;
+            highlightEnd = text.length + segment.text.length;
+        }
+        text += segment.text;
+        position = Math.min(segment.end, to);
+    }
+    plain(to);
+    if (highlightStart < 0) highlightStart = text.length;
+    if (highlightEnd < highlightStart) highlightEnd = highlightStart;
+
+    // Collapse whitespace runs while keeping the highlight aligned.
+    let collapsed = '';
+    let newStart = 0;
+    let newEnd = 0;
+    for (let i = 0; i <= text.length; i++) {
+        if (i === highlightStart) newStart = collapsed.length;
+        if (i === highlightEnd) newEnd = collapsed.length;
+        if (i === text.length) break;
+        if (/\s/.test(text[i])) {
+            if (collapsed.length > 0 && !collapsed.endsWith(' ')) collapsed += ' ';
+        } else {
+            collapsed += text[i];
+        }
+    }
+    const trimmed = collapsed.trimEnd();
+    const truncatedStart = from > 0;
+    const truncatedEnd = to < sql.length;
+    const matchStart = Math.min(newStart, trimmed.length);
+    const matchEnd = Math.min(newEnd, trimmed.length);
+    return {
+        text: (truncatedStart ? '… ' : '') + trimmed + (truncatedEnd ? ' …' : ''),
+        before: trimmed.slice(0, matchStart),
+        match: trimmed.slice(matchStart, matchEnd),
+        after: trimmed.slice(matchEnd),
+        truncatedStart,
+        truncatedEnd,
+    };
+}

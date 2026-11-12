@@ -267,6 +267,7 @@
     "failDeleteIndex": "인덱스 삭제에 실패했습니다: ",
     "modifyColumn": "컬럼 수정",
     "copyName": "이름 복사",
+    "showColumnUsage": "사용처 보기",
     "plainName": "이름",
     "quotedName": "따옴표로 묶은 이름",
     "qualifiedName": "스키마로 한정된 이름",
@@ -3243,5 +3244,67 @@
     "unsupported": "이 드라이버는 보호된 읽기 전용 쿼리를 지원하지 않습니다.",
     "writeBlocked": "이 연결은 읽기 전용입니다. 쓰기를 허용하려면 연결 설정에서 이 모드를 해제하세요.",
     "banner": "{{name}} — 읽기 전용"
+  },
+  "columnUsage": {
+    "title": "열 사용처",
+    "boundary": "데이터베이스 메타데이터와 이 앱의 쿼리 기록에서 찾은 근거입니다. 완전한 계보가 아닙니다. 애플리케이션, 스크립트, 다른 스키마와 다른 데이터베이스는 검색하지 않습니다.",
+    "scopeConnection": "연결",
+    "scopeDatabase": "데이터베이스",
+    "scopeSchema": "스키마",
+    "sources": "소스",
+    "source": {
+      "foreignKeys": "선언된 외래 키",
+      "views": "뷰 정의",
+      "history": "쿼리 기록"
+    },
+    "status": {
+      "pending": "검색 중…",
+      "complete": "완료",
+      "partial": "일부: {{total}}개 중 {{scanned}}개 읽음",
+      "unsupported": "이 드라이버에서 지원하지 않음",
+      "permission-denied": "권한 없음",
+      "failed": "읽을 수 없음",
+      "cancelled": "중지됨"
+    },
+    "confidence": {
+      "confirmed": "확인됨",
+      "parsed": "분석된 참조",
+      "uncertain": "불확실"
+    },
+    "confidenceHint": {
+      "confirmed": "데이터베이스에 선언된 외래 키 제약 조건입니다.",
+      "parsed": "열의 테이블이 이름이나 별칭으로 확인된 SQL입니다.",
+      "uncertain": "이 테이블과 확실히 연결할 수 없는 일치 항목입니다. 사용하기 전에 확인하세요."
+    },
+    "reason": {
+      "unresolved-qualifier": "테이블 한정자를 확인할 수 없습니다.",
+      "unqualified-schema": "테이블 이름에 스키마가 없어 다른 스키마의 테이블일 수 있습니다.",
+      "several-tables": "이 이름의 열을 가질 수 있는 여러 테이블을 읽는 쿼리입니다.",
+      "derived-table": "하위 쿼리나 CTE를 통해 읽습니다.",
+      "alias-conflict": "같은 별칭이 서로 다른 테이블을 가리킵니다.",
+      "wildcard": "모든 열을 선택합니다 (*).",
+      "dynamic-sql": "동적 SQL 안에 있습니다.",
+      "textual": "SQL을 분석할 수 없어 이름만 일치합니다."
+    },
+    "fkOutgoing": "{{object}}.{{column}} 참조",
+    "fkIncoming": "{{object}}.{{column}}에서 참조",
+    "viewTitle": "뷰 {{view}}",
+    "historyTitle": "{{date}}에 실행한 쿼리",
+    "matchCount": "이 SQL의 참조 수: {{count}}",
+    "open": "열기",
+    "openHistory": "편집기에서 열기",
+    "openAria": "{{name}} 열기",
+    "groupEmpty": "찾은 항목이 없습니다.",
+    "none": "근거를 찾지 못했습니다.",
+    "noneIncomplete": "읽을 수 있었던 범위에서는 찾지 못했지만 일부 소스가 불완전합니다. 이 열에 의존하는 것이 없다는 뜻은 아닙니다.",
+    "incompleteNote": "일부 소스가 불완전합니다. 근거가 없다고 해서 의존성이 없다는 뜻은 아닙니다.",
+    "summaryTitle": "{{column}} 사용처",
+    "summaryDatabase": "데이터베이스: {{database}}",
+    "summaryNone": "근거를 찾지 못했습니다.",
+    "cancel": "중지",
+    "rerun": "다시 검색",
+    "copySummary": "요약 복사",
+    "copied": "리터럴 값을 숨기고 요약을 복사했습니다.",
+    "copyFailed": "요약을 복사할 수 없습니다."
   }
 }

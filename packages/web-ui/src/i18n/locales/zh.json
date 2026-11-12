@@ -296,6 +296,7 @@
     "failDeleteIndex": "删除索引失败：",
     "modifyColumn": "修改列",
     "copyName": "复制名称",
+    "showColumnUsage": "查看用途",
     "plainName": "名称",
     "quotedName": "带引号的名称",
     "qualifiedName": "带模式限定的名称",
@@ -3229,5 +3230,67 @@
     "installAndOpen": "安装并打开",
     "dropTitle": "松开以作为表打开",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "columnUsage": {
+    "title": "列的用途",
+    "boundary": "来自数据库元数据和本应用查询历史的证据。这不是完整的数据血缘：不会搜索应用程序、脚本、其他模式和其他数据库。",
+    "scopeConnection": "连接",
+    "scopeDatabase": "数据库",
+    "scopeSchema": "模式",
+    "sources": "来源",
+    "source": {
+      "foreignKeys": "已声明的外键",
+      "views": "视图定义",
+      "history": "查询历史"
+    },
+    "status": {
+      "pending": "正在搜索…",
+      "complete": "完成",
+      "partial": "部分：已读取 {{scanned}} / {{total}}",
+      "unsupported": "此驱动不支持",
+      "permission-denied": "权限不足",
+      "failed": "无法读取",
+      "cancelled": "已停止"
+    },
+    "confidence": {
+      "confirmed": "已确认",
+      "parsed": "已解析的引用",
+      "uncertain": "不确定"
+    },
+    "confidenceHint": {
+      "confirmed": "数据库中声明的外键约束。",
+      "parsed": "通过名称或别名解析出该列所属表的 SQL。",
+      "uncertain": "无法确定属于此表的匹配。依赖它们之前请先核实。"
+    },
+    "reason": {
+      "unresolved-qualifier": "无法解析表限定符。",
+      "unqualified-schema": "表名没有模式，可能是其他模式中的表。",
+      "several-tables": "查询读取了多个可能包含同名列的表。",
+      "derived-table": "通过子查询或 CTE 读取。",
+      "alias-conflict": "同一别名指向不同的表。",
+      "wildcard": "选择了所有列 (*)。",
+      "dynamic-sql": "位于动态 SQL 中。",
+      "textual": "无法解析 SQL，仅名称匹配。"
+    },
+    "fkOutgoing": "引用 {{object}}.{{column}}",
+    "fkIncoming": "被 {{object}}.{{column}} 引用",
+    "viewTitle": "视图 {{view}}",
+    "historyTitle": "{{date}} 执行的查询",
+    "matchCount": "此 SQL 中的引用数：{{count}}",
+    "open": "打开",
+    "openHistory": "在编辑器中打开",
+    "openAria": "打开 {{name}}",
+    "groupEmpty": "未找到。",
+    "none": "未找到证据。",
+    "noneIncomplete": "在可读取的内容中未找到，但部分来源不完整：这并不表示没有任何内容依赖此列。",
+    "incompleteNote": "部分来源不完整：缺少证据并不表示没有依赖。",
+    "summaryTitle": "{{column}} 的用途",
+    "summaryDatabase": "数据库：{{database}}",
+    "summaryNone": "未找到证据。",
+    "cancel": "停止",
+    "rerun": "重新搜索",
+    "copySummary": "复制摘要",
+    "copied": "已复制摘要，字面值已隐藏。",
+    "copyFailed": "无法复制摘要。"
   }
 }
