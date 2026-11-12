@@ -2613,6 +2613,9 @@
     "expand": "JSON-Baum ein-/ausklappen",
     "openViewer": "JSON-Viewer öffnen"
   },
+  "textViewer": {
+    "wrapLines": "Zeilenumbruch"
+  },
   "rowEditor": {
     "title": "Zeile bearbeiten",
     "subtitle": "Zeile #{{row}}",

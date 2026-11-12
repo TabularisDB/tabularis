@@ -2566,6 +2566,9 @@
     "expand": "展开/收起 JSON 树",
     "openViewer": "打开 JSON 查看器"
   },
+  "textViewer": {
+    "wrapLines": "自动换行"
+  },
   "rowEditor": {
     "title": "编辑行",
     "subtitle": "行 #{{row}}",

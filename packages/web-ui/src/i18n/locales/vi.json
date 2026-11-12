@@ -2694,7 +2694,8 @@
     "sideBySide": "Cạnh nhau"
   },
   "textViewer": {
-    "save": "Lưu"
+    "save": "Lưu",
+    "wrapLines": "Tự động xuống dòng"
   },
   "rowEditor": {
     "title": "Sửa dòng",

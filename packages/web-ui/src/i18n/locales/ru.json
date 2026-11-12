@@ -2680,7 +2680,8 @@
     "sideBySide": "Рядом"
   },
   "textViewer": {
-    "save": "Сохранить"
+    "save": "Сохранить",
+    "wrapLines": "Перенос строк"
   },
   "rowEditor": {
     "title": "Изменить строку",

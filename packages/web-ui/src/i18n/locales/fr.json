@@ -2697,7 +2697,8 @@
     "sideBySide": "Côte à côte"
   },
   "textViewer": {
-    "save": "Enregistrer"
+    "save": "Enregistrer",
+    "wrapLines": "Retour à la ligne"
   },
   "rowEditor": {
     "title": "Modifier la ligne",
