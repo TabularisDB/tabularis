@@ -70,8 +70,17 @@ struct ResolvedDumpFormat {
     extension: String,
 }
 
-fn file_extension(value: &str) -> String {
-    value.trim().trim_start_matches('.').to_string()
+const MAX_NATIVE_BACKUP_EXTENSION_LEN: usize = 16;
+
+fn file_extension(value: &str) -> Result<String, String> {
+    let extension = value.trim().trim_start_matches('.');
+    if extension.is_empty()
+        || extension.len() > MAX_NATIVE_BACKUP_EXTENSION_LEN
+        || !extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
+    {
+        return Err("Plugin native backup extension is invalid".into());
+    }
+    Ok(extension.to_string())
 }
 
 fn resolve_dump_format(
@@ -94,16 +103,10 @@ fn resolve_dump_format(
                 .as_ref()
                 .filter(|native| native.format == requested)
         }) {
-            Some(native) => {
-                let extension = file_extension(&native.extension);
-                if extension.is_empty() {
-                    return Err("Plugin native backup is missing a file extension".into());
-                }
-                Ok(ResolvedDumpFormat {
-                    native: true,
-                    extension,
-                })
-            }
+            Some(native) => Ok(ResolvedDumpFormat {
+                native: true,
+                extension: file_extension(&native.extension)?,
+            }),
             None => Err("This driver does not support the requested native backup format".into()),
         },
     }

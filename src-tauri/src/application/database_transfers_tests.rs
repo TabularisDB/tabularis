@@ -1,8 +1,54 @@
 use super::*;
+use crate::drivers::driver_trait::NativeBackupCapability;
 use serde_json::json;
 use std::io::Cursor;
 use std::sync::Mutex as StdMutex;
 use std::time::Duration;
+
+#[test]
+fn native_backup_extension_rejects_path_components() {
+    assert_eq!(file_extension("bin").unwrap(), "bin");
+    assert_eq!(file_extension(".fbk").unwrap(), "fbk");
+    assert_eq!(file_extension("  SQLITE3 ").unwrap(), "SQLITE3");
+    for invalid in [
+        "",
+        ".",
+        "..",
+        "../x",
+        "a/b",
+        "a\\b",
+        "foo.bar",
+        "bin with space",
+        "thisextensionistoolong",
+    ] {
+        assert!(file_extension(invalid).is_err(), "{invalid}");
+    }
+}
+
+#[test]
+fn resolve_dump_format_rejects_unsafe_native_extension() {
+    let capabilities = DatabaseSqlCapabilities {
+        format: "sql".into(),
+        native_backup: Some(NativeBackupCapability {
+            format: "opaque".into(),
+            extension: "../evil".into(),
+            label: "Opaque backup".into(),
+            description: None,
+        }),
+        create_database: true,
+        requires_empty_target: true,
+        target_label: "Path".into(),
+    };
+    let options = DumpOptions {
+        format: Some("opaque".into()),
+        structure: true,
+        data: true,
+        tables: None,
+    };
+    assert!(resolve_dump_format(&options, Some(&capabilities))
+        .unwrap_err()
+        .contains("extension is invalid"));
+}
 
 #[tokio::test]
 async fn native_backup_negotiates_support_and_transfers_binary_without_sql_fallback() {

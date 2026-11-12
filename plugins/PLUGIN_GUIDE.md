@@ -2106,7 +2106,8 @@ all other errors stop the operation. Built-in drivers default to that path.
   action for this protocol.
   When the plugin can produce a native whole-file backup, set `native_backup`:
   - `format`: id the host echoes in `export_database_sql` `options.format`
-  - `extension`: file extension without a leading dot (for example `"fbk"`)
+  - `extension`: ASCII alphanumeric file extension, 1–16 characters, no leading
+    dot or path separators (for example `"fbk"`). The host rejects anything else.
   - `label`: dump-dialog option text (for example `"Complete Firebird backup (.fbk)"`)
   - `description`: optional help shown when that format is selected
   The host never infers a native format from the driver id. A plugin that omits

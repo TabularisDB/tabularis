@@ -3,6 +3,7 @@ import type {TabularisClient} from '@/api/client';
 import type {PlatformCapabilities} from '@/platform/capabilities';
 import {
     databaseImportFilters,
+    dumpSaveFilters,
     isNativeBackupFile,
     prepareDatabaseImportSource,
     runDatabaseDump,
@@ -147,6 +148,21 @@ describe('databaseTransfers', () => {
         expect(isNativeBackupFile('backup.sql', capabilities)).toBe(false);
         expect(databaseImportFilters(null)).toEqual([
             {name: 'SQL / Zip File', extensions: ['sql', 'zip']},
+        ]);
+        const unsafe = {
+            ...capabilities,
+            native_backup: {
+                format: 'opaque',
+                extension: '../evil',
+                label: 'Opaque backup (.bin)',
+            },
+        };
+        expect(databaseImportFilters(unsafe)).toEqual([
+            {name: 'SQL / Zip File', extensions: ['sql', 'zip']},
+        ]);
+        expect(isNativeBackupFile('backup.evil', unsafe)).toBe(false);
+        expect(dumpSaveFilters(unsafe.native_backup)).toEqual([
+            {name: 'SQL File', extensions: ['sql']},
         ]);
     });
 });

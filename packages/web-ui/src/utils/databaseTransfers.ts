@@ -10,28 +10,32 @@ import {saveGeneratedFile} from './connectionFiles';
 
 const DATABASE_IMPORT_PURPOSE = 'database-import';
 const DATABASE_JOB_DEADLINE_MS = 6 * 60 * 60 * 1_000;
+const NATIVE_BACKUP_EXTENSION = /^[A-Za-z0-9]{1,16}$/;
 
-export function nativeBackupExtension(native: NativeBackupCapability): string {
-    return native.extension.replace(/^\./, '');
+export function nativeBackupExtension(native: NativeBackupCapability): string | null {
+    const extension = native.extension.trim().replace(/^\.+/, '');
+    return NATIVE_BACKUP_EXTENSION.test(extension) ? extension : null;
 }
 
 export function isNativeBackupFile(
     fileName: string,
     capabilities: DatabaseSqlCapabilities | null | undefined,
 ): boolean {
-    const native = capabilities?.native_backup;
-    if (!native) return false;
-    return fileName.toLowerCase().endsWith(`.${nativeBackupExtension(native).toLowerCase()}`);
+    const extension = capabilities?.native_backup
+        ? nativeBackupExtension(capabilities.native_backup)
+        : null;
+    if (!extension) return false;
+    return fileName.toLowerCase().endsWith(`.${extension.toLowerCase()}`);
 }
 
 export function databaseImportFilters(
     capabilities: DatabaseSqlCapabilities | null | undefined,
 ): PlatformFileFilter[] {
     const native = capabilities?.native_backup;
-    if (!native) {
+    const extension = native ? nativeBackupExtension(native) : null;
+    if (!native || !extension) {
         return [{name: 'SQL / Zip File', extensions: ['sql', 'zip']}];
     }
-    const extension = nativeBackupExtension(native);
     return [
         {
             name: `SQL / Zip / ${native.label}`,
@@ -40,11 +44,14 @@ export function databaseImportFilters(
     ];
 }
 
-export function dumpSaveFilters(native: NativeBackupCapability | null | undefined): PlatformFileFilter[] {
-    if (!native) {
+export function dumpSaveFilters(
+    native: NativeBackupCapability | null | undefined,
+): PlatformFileFilter[] {
+    const extension = native ? nativeBackupExtension(native) : null;
+    if (!native || !extension) {
         return [{name: 'SQL File', extensions: ['sql']}];
     }
-    return [{name: native.label, extensions: [nativeBackupExtension(native)]}];
+    return [{name: native.label, extensions: [extension]}];
 }
 
 export type PreparedDatabaseImportSource = {filePath: string} | {uploadToken: string};
