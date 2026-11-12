@@ -1645,6 +1645,7 @@
       "chooseColumns": "Spalten auswählen…",
       "title": "Spalten",
       "shown": "{{visible}} von {{total}} sichtbar",
+      "showOnlyMatching": "Nur Treffer anzeigen",
       "showAll": "Alle einblenden",
       "lastVisible": "Mindestens eine Spalte bleibt sichtbar",
       "hiddenCount_one": "{{count}} ausgeblendet",

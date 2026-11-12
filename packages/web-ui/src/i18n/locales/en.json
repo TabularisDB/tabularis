@@ -1714,6 +1714,7 @@
       "chooseColumns": "Choose columns…",
       "title": "Columns",
       "shown": "{{visible}} of {{total}} shown",
+      "showOnlyMatching": "Show only matching",
       "showAll": "Show all",
       "lastVisible": "At least one column stays visible",
       "hiddenCount_one": "{{count}} hidden",

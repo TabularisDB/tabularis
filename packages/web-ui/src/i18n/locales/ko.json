@@ -1613,6 +1613,7 @@
       "chooseColumns": "표시할 컬럼 선택…",
       "title": "컬럼",
       "shown": "{{total}}개 중 {{visible}}개 표시",
+      "showOnlyMatching": "일치하는 열만 표시",
       "showAll": "모두 표시",
       "lastVisible": "컬럼은 최소 한 개 이상 표시됩니다",
       "hiddenCount_one": "{{count}}개 숨김",

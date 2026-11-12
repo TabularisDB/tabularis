@@ -1643,6 +1643,22 @@
         "useShownValue": "使用此值"
     },
     "dataGrid": {
+        "columnVisibility": {
+            "hideColumn": "隱藏欄位",
+            "hideColumns_one": "隱藏 {{count}} 個欄位",
+            "hideColumns_other": "隱藏 {{count}} 個欄位",
+            "showAllColumns": "顯示隱藏的欄位（{{count}}）",
+            "chooseColumns": "選擇欄位…",
+            "title": "欄位",
+            "shown": "已顯示 {{visible}} / {{total}} 個欄位",
+            "showOnlyMatching": "僅顯示相符欄位",
+            "showAll": "顯示全部",
+            "lastVisible": "至少保留一個可見欄位",
+            "hiddenCount_one": "已隱藏 {{count}} 個",
+            "hiddenCount_other": "已隱藏 {{count}} 個",
+            "hiddenLabel_one": "已隱藏 {{count}} 個欄位",
+            "hiddenLabel_other": "已隱藏 {{count}} 個欄位"
+        },
         "jumpToColumn": "跳轉到欄",
         "searchColumns": "搜尋欄",
         "noMatchingColumns": "找不到符合的欄",

@@ -1698,6 +1698,7 @@
       "chooseColumns": "Chọn cột…",
       "title": "Cột",
       "shown": "Đang hiện {{visible}}/{{total}}",
+      "showOnlyMatching": "Chỉ hiện cột khớp",
       "showAll": "Hiện tất cả",
       "lastVisible": "Luôn giữ ít nhất một cột hiển thị",
       "hiddenCount_one": "{{count}} đã ẩn",

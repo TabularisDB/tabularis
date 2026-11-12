@@ -1657,6 +1657,7 @@
       "chooseColumns": "表示するカラムを選択…",
       "title": "カラム",
       "shown": "{{total}} 個中 {{visible}} 個を表示",
+      "showOnlyMatching": "一致する列のみ表示",
       "showAll": "すべて表示",
       "lastVisible": "少なくとも 1 つのカラムは表示されたままです",
       "hiddenCount_one": "{{count}} 個非表示",

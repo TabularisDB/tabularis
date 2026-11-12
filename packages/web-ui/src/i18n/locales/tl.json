@@ -1676,6 +1676,7 @@
       "chooseColumns": "Pumili ng mga column…",
       "title": "Mga column",
       "shown": "{{visible}} sa {{total}} ang nakikita",
+      "showOnlyMatching": "Ipakita lang ang tumutugma",
       "showAll": "Ipakita lahat",
       "lastVisible": "May isang column na laging nakikita",
       "hiddenCount_one": "{{count}} nakatago",

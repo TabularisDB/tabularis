@@ -1620,6 +1620,7 @@
       "chooseColumns": "选择列…",
       "title": "列",
       "shown": "显示 {{visible}} / {{total}}",
+      "showOnlyMatching": "仅显示匹配列",
       "showAll": "全部显示",
       "lastVisible": "至少保留一列可见",
       "hiddenCount_one": "已隐藏 {{count}}",

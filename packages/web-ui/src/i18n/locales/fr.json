@@ -1684,6 +1684,7 @@
       "chooseColumns": "Choisir les colonnes…",
       "title": "Colonnes",
       "shown": "{{visible}} sur {{total}} affichées",
+      "showOnlyMatching": "Afficher les correspondances",
       "showAll": "Tout afficher",
       "lastVisible": "Au moins une colonne reste visible",
       "hiddenCount_one": "{{count}} masquée",
