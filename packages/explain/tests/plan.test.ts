@@ -481,6 +481,18 @@ describe('plan', () => {
             expect(analyzed.exclusiveTimeMs).toBe(3);
         });
 
+        it('should report how often the node ran, only with ANALYZE data', () => {
+            const node = makeNode({actual_rows: 25, actual_time_ms: 0.01, actual_loops: 331603});
+
+            expect(getExplainTableRow(node, true).actualLoops).toBe(331603);
+            expect(getExplainTableRow(node, false).actualLoops).toBeNull();
+        });
+
+        it('should keep a loop count of zero and leave a missing one empty', () => {
+            expect(getExplainTableRow(makeNode({actual_loops: 0}), true).actualLoops).toBe(0);
+            expect(getExplainTableRow(makeNode({actual_loops: null}), true).actualLoops).toBeNull();
+        });
+
         it('should take index and depth from metrics and fall back without them', () => {
             const child = makeNode({id: 'child'});
             const plan = makePlan({root: makeNode({id: 'root', children: [child]})});

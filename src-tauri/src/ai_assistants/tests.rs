@@ -32,6 +32,8 @@ fn validates_every_provider_as_data_and_rejects_executable_extensions() {
         "requesty",
         "minimax",
         "custom-openai",
+        "api-route",
+        "gemini",
         "opper",
         "runcrate",
     ] {
@@ -335,4 +337,85 @@ fn gemini_model_url_resources_are_encoded_without_changing_the_origin() {
     ] {
         assert!(recipe::request_url(template, "", &json!({"model":"evil.invalid"})).is_err());
     }
+}
+
+#[tokio::test]
+async fn builtin_upgrade_preserves_the_last_successful_account_catalog() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = crate::runtime::RuntimeContext::new(
+        std::sync::Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            temp.path().join("config"),
+            temp.path().join("data"),
+        )),
+        std::sync::Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        std::sync::Arc::new(NoSecrets),
+    );
+    std::fs::create_dir_all(runtime.paths.config_dir()).unwrap();
+    std::fs::write(runtime.paths.config_dir().join("config.json"), json!({"aiProvider":"api-route","aiModel":"saved-account-model","tabulariumRegistryUrl":"http://127.0.0.1:1"}).to_string()).unwrap();
+    let path = runtime.paths.config_dir().join("ai_models_cache.json");
+    let snapshot =
+        json!({"last_updated":123,"models":{"api-route":["saved-account-model"]},"fetched_at":{}})
+            .to_string();
+    std::fs::write(&path, &snapshot).unwrap();
+    migrate_legacy_providers(
+        &runtime,
+        &crate::credential_cache::CredentialCache::default(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(std::fs::read_to_string(path).unwrap(), snapshot);
+    let config = crate::application::persistence::load_config(&runtime);
+    assert_eq!(config.ai_provider.as_deref(), Some("api-route"));
+    assert_eq!(config.ai_model.as_deref(), Some("saved-account-model"));
+    let marker: Value = serde_json::from_slice(
+        &std::fs::read(
+            runtime
+                .paths
+                .config_dir()
+                .join("ai-assistant-migration-v1.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(marker["completed"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("api-route")));
+}
+
+#[tokio::test]
+async fn removing_an_assistant_preserves_other_providers_cached_catalogs() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = crate::runtime::RuntimeContext::new(
+        std::sync::Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            temp.path().join("config"),
+            temp.path().join("data"),
+        )),
+        std::sync::Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        std::sync::Arc::new(NoSecrets),
+    );
+    std::fs::create_dir_all(runtime.paths.config_dir()).unwrap();
+    let path = runtime.paths.config_dir().join("ai_models_cache.json");
+    std::fs::write(&path, json!({"last_updated":456,"models":{"gemini":["obsolete"],"openai":["account-only-model"]},"fetched_at":{"gemini":123,"openai":456}}).to_string()).unwrap();
+    let destination = destination(&runtime.paths.plugins_dir(), "gemini").unwrap();
+    let guard = crate::plugins::install_cancellation::begin("cache-uninstall-fixture").unwrap();
+    install::install_archive(
+        &destination,
+        "gemini",
+        "1.0.1",
+        &archive(&package("gemini"), None),
+        guard.cancellation(),
+    )
+    .unwrap();
+    crate::application::plugins::uninstall_plugin(&runtime, "gemini".into())
+        .await
+        .unwrap();
+    let remaining: Value = serde_json::from_slice(
+        &std::fs::read(path).expect("uninstall must retain other providers' cache"),
+    )
+    .unwrap();
+    assert_eq!(remaining["models"]["openai"], json!(["account-only-model"]));
+    assert_eq!(remaining["fetched_at"]["openai"], 456);
+    assert!(remaining["models"].get("gemini").is_none());
+    assert!(remaining["fetched_at"].get("gemini").is_none());
 }

@@ -94,16 +94,31 @@ pub(crate) async fn execute(
         }
         "list_models" => {
             let mut models = manifest.ai_assistant.default_models.clone();
+            let missing_key = manifest.ai_assistant.authentication == Authentication::ApiKey
+                && !manifest.ai_assistant.optional_api_key
+                && key.is_none_or(str::is_empty);
+            let mut attempted = false;
+            let mut succeeded = false;
+            let mut last_error = "AI assistant returned an invalid model catalog".to_string();
             for source in &manifest.ai_assistant.models.sources {
-                let Ok(value) =
-                    send(client, manifest, &source.request, variables, key, false).await
-                else {
+                if missing_key && source.request.authenticated {
                     continue;
-                };
+                }
+                attempted = true;
+                let value =
+                    match send(client, manifest, &source.request, variables, key, false).await {
+                        Ok(value) => value,
+                        Err(error) => {
+                            last_error = error;
+                            continue;
+                        }
+                    };
                 let Some(items) = value.pointer(&source.items_path).and_then(Value::as_array)
                 else {
+                    last_error = "AI assistant returned an invalid model catalog".into();
                     continue;
                 };
+                succeeded = true;
                 for item in items {
                     if source
                         .filters
@@ -125,7 +140,11 @@ pub(crate) async fn execute(
                     break;
                 }
             }
-            Ok(json!(models))
+            if attempted && !succeeded {
+                Err(last_error)
+            } else {
+                Ok(json!(models))
+            }
         }
         _ => Err("Unsupported AI assistant operation".into()),
     }

@@ -809,3 +809,28 @@ describe('connectionStringParser', () => {
         });
     });
 });
+
+describe('connection strings with a % that is not an escape', () => {
+    const params = (connectionString: string) => {
+        const result = parseConnectionString(connectionString);
+        if (!result.success) throw new Error(result.error);
+        return result.params;
+    };
+
+    it('keeps a pasted password, username or database as typed instead of throwing', () => {
+        expect(params('postgres://user:pa%ss@localhost:5432/db').password).toBe('pa%ss');
+        expect(params('postgres://us%er:pw@localhost/db').username).toBe('us%er');
+        expect(params('postgres://user:pw@localhost/50%off').database).toBe('50%off');
+    });
+
+    it('still decodes valid escapes', () => {
+        expect(params('postgres://user:p%40ss@localhost/my%20db')).toMatchObject({
+            password: 'p@ss',
+            database: 'my db',
+        });
+    });
+
+    it('keeps a local database path with a %', () => {
+        expect(params('sqlite:///tmp/50%.db').database).toBe('tmp/50%.db');
+    });
+});

@@ -93,6 +93,18 @@ describe('AiTab proxy configuration', () => {
         expect(screen.queryByPlaceholderText('127.0.0.1')).not.toBeInTheDocument();
         expect(updateSetting).toHaveBeenLastCalledWith('aiProviderProxies', {});
     });
+    it('retains the inline-completion opt-in from the shared AI settings', async () => {
+        render(
+            <MemoryRouter>
+                <AiTab />
+            </MemoryRouter>,
+        );
+        const toggle = await screen.findByRole('checkbox', {name: 'aiInline.enable'});
+        expect(toggle).not.toBeChecked();
+        fireEvent.click(toggle);
+        expect(updateSetting).toHaveBeenCalledWith('aiInlineCompletionEnabled', true);
+    });
+
     it('selects an installed provider without a hardcoded provider entry', async () => {
         providers.push({...providers[0], id: 'community-ai', name: 'Community AI'});
         render(

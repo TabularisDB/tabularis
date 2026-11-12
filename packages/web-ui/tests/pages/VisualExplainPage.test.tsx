@@ -33,9 +33,23 @@ vi.mock('lucide-react', () => ({
     Loader2: () => null,
     RefreshCw: () => null,
 }));
+const sessions = vi.hoisted(() => ({request: vi.fn()}));
+vi.mock('@/platform/visualExplainSessions', () => ({
+    requestVisualExplainSession: sessions.request,
+}));
 vi.mock('@/components/explain/VisualExplainView', () => ({
-    VisualExplainView: ({plan, error, selectedNodeId, aiEnabled}: VisualExplainViewProps) => (
-        <div data-testid="explain-view" data-ai-enabled={String(aiEnabled)}>
+    VisualExplainView: ({
+        plan,
+        error,
+        selectedNodeId,
+        aiEnabled,
+        viewMode,
+    }: VisualExplainViewProps) => (
+        <div
+            data-testid="explain-view"
+            data-ai-enabled={String(aiEnabled)}
+            data-view-mode={viewMode}
+        >
             <div data-testid="plan">{plan?.root.node_type}</div>
             <div data-testid="query">{plan?.original_query}</div>
             <div data-testid="selection">{selectedNodeId}</div>
@@ -78,6 +92,7 @@ describe('VisualExplainPage', () => {
     beforeEach(() => {
         mocks.search = '';
         mocks.browser = false;
+        sessions.request.mockReset();
         vi.mocked(invoke).mockReset();
         vi.mocked(openDialog).mockReset();
         vi.mocked(invoke).mockResolvedValue(null);
@@ -95,7 +110,7 @@ describe('VisualExplainPage', () => {
         'uses the embedded plan without invoking, compact=%s',
         async (compactMode) => {
             mocks.search = `${deepLink()}&file=%2Ftmp%2Fignored.json`;
-            const initialPlan = parseExplain(makeFile('embedded').content);
+            const initialPlan = await parseExplain(makeFile('embedded').content);
             renderPage({initialPlan, compactMode});
             await act(async () => {
                 await Promise.resolve();
@@ -132,7 +147,7 @@ describe('VisualExplainPage', () => {
 
     it('prefers a deep link over a file and preserves safe invoke options', async () => {
         mocks.search = `${deepLink('SELECT * FROM users')}&file=%2Ftmp%2Fignored.json&analyze=true&schema=private`;
-        const plan = parseExplain(makeFile('deep link').content);
+        const plan = await parseExplain(makeFile('deep link').content);
         vi.mocked(invoke).mockResolvedValue({kind: 'plan', plan});
         renderPage();
         await waitFor(() => expect(screen.getByTestId('plan')).toHaveTextContent('deep link'));
@@ -210,7 +225,7 @@ describe('VisualExplainPage', () => {
     it.each([{selection: null}, {selection: '   '}, {selection: ['/tmp/ignored.json']}])(
         'ignores a cancelled or invalid picker selection: $selection',
         async ({selection}) => {
-            const initialPlan = parseExplain(makeFile('existing').content);
+            const initialPlan = await parseExplain(makeFile('existing').content);
             renderPage({initialPlan});
             vi.mocked(openDialog).mockResolvedValue(selection);
             await act(async () => {
@@ -330,7 +345,10 @@ describe('VisualExplainPage', () => {
             await waitFor(() => expect(screen.getByTestId('plan')).toHaveTextContent('chosen'));
             await act(async () => {
                 if (outcome === 'resolve')
-                    old.resolve({kind: 'plan', plan: parseExplain(makeFile('obsolete').content)});
+                    old.resolve({
+                        kind: 'plan',
+                        plan: await parseExplain(makeFile('obsolete').content),
+                    });
                 else old.reject(new Error('obsolete explain failure'));
             });
             expect(screen.getByTestId('plan')).toHaveTextContent('chosen');
@@ -348,7 +366,7 @@ describe('VisualExplainPage', () => {
         mocks.search = deepLink('SELECT 2');
         vi.mocked(invoke).mockResolvedValue({
             kind: 'plan',
-            plan: parseExplain(makeFile('new deep link').content),
+            plan: await parseExplain(makeFile('new deep link').content),
         });
         rerender(
             <StrictMode>
@@ -367,7 +385,7 @@ describe('VisualExplainPage', () => {
         'discards a stale picker %s after a newer file selection',
         async (outcome) => {
             const old = createDeferred<string | null>();
-            const initialPlan = parseExplain(makeFile('initial').content);
+            const initialPlan = await parseExplain(makeFile('initial').content);
             renderPage({initialPlan});
             vi.mocked(openDialog)
                 .mockReturnValueOnce(old.promise)
@@ -429,4 +447,41 @@ describe('VisualExplainPage browser handoffs', () => {
             expect(screen.queryByRole('alert')).not.toBeInTheDocument();
         },
     );
+
+    describe('a plan handed over by another window', () => {
+        it('shows the plan with its view and selection, without running anything', async () => {
+            mocks.search = '?session=session-1';
+            const plan = parseExplain(makeFile('handed over').content);
+            sessions.request.mockResolvedValue({
+                plan,
+                viewMode: 'table',
+                selectedNodeId: 'chosen-node',
+                label: 'shop · shop',
+            });
+            renderPage();
+
+            await waitFor(() =>
+                expect(screen.getByTestId('plan')).toHaveTextContent('handed over'),
+            );
+            expect(sessions.request).toHaveBeenCalledWith(expect.anything(), 'session-1', 2000);
+            expect(screen.getByTestId('explain-view')).toHaveAttribute('data-view-mode', 'table');
+            expect(screen.getByTestId('selection')).toHaveTextContent('chosen-node');
+            expect(screen.getByText('shop · shop')).toBeInTheDocument();
+            expect(screen.queryByText('visualExplainPage.noFile')).toBeNull();
+            // Neither the query nor a pending CLI file is touched.
+            expect(invoke).not.toHaveBeenCalled();
+        });
+
+        it('says so when the window that held the plan no longer answers', async () => {
+            mocks.search = '?session=gone';
+            sessions.request.mockResolvedValue(null);
+            renderPage();
+
+            expect(await screen.findByRole('alert')).toHaveTextContent(
+                'visualExplainPage.sessionExpired',
+            );
+            expect(screen.queryByText('visualExplainPage.emptyHint')).toBeNull();
+            expect(invoke).not.toHaveBeenCalled();
+        });
+    });
 });

@@ -14,6 +14,8 @@ pub struct AssistantContract {
     #[serde(default)]
     pub optional_api_key: bool,
     #[serde(default)]
+    pub require_explicit_model: bool,
+    #[serde(default)]
     pub auto_select_priority: Option<u32>,
     #[serde(default = "authorization_header")]
     pub api_key_header: String,
@@ -237,6 +239,7 @@ pub const BUILTIN_IDS: &[&str] = &[
     "requesty",
     "minimax",
     "custom-openai",
+    "api-route",
 ];
 
 pub fn is_builtin(id: &str) -> bool {
@@ -259,6 +262,9 @@ fn builtin_manifest(id: &str) -> Option<Result<AssistantManifest, String>> {
         "minimax" => include_bytes!("../../../plugins/ai-assistants/packages/minimax/.tabularium"),
         "custom-openai" => {
             include_bytes!("../../../plugins/ai-assistants/packages/custom-openai/.tabularium")
+        }
+        "api-route" => {
+            include_bytes!("../../../plugins/ai-assistants/packages/api-route/.tabularium")
         }
         _ => return None,
     };

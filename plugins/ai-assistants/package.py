@@ -11,7 +11,7 @@ args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 for manifest in sorted((Path(__file__).parent / "packages").glob("*/.tabularium")):
     data = json.loads(manifest.read_text())
-    if data["id"] in {"openai", "anthropic", "ollama", "openrouter", "requesty", "minimax", "custom-openai"}:
+    if data["id"] in {"openai", "anthropic", "ollama", "openrouter", "requesty", "minimax", "custom-openai", "api-route"}:
         continue
     target = args.output / f"{data['id']}-{data['version']}-universal.zip"
     with ZipFile(target, "w", ZIP_DEFLATED) as archive:

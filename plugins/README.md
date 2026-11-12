@@ -148,7 +148,7 @@ To add your plugin to the official registry:
 
 ## Available Plugins
 
-The full list is maintained in [`registry.json`](./registry.json).
+There are 29 shipped driver plugins and 6 themes. Browse the current catalog on [tabularis.dev/plugins](https://tabularis.dev/plugins), backed by the [Tabularium registry](https://registry.tabularis.dev). The app also loads the legacy entries in [`registry.json`](./registry.json).
 
 ---
 

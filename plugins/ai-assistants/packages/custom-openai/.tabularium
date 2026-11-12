@@ -47,7 +47,8 @@
       ],
       "cache_seconds": 0
     },
-    "optional_api_key": true
+    "optional_api_key": true,
+    "require_explicit_model": true
   },
   "settings": [
     {

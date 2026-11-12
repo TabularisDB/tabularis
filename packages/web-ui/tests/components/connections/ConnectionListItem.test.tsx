@@ -103,7 +103,7 @@ describe('ConnectionListItem', () => {
         expect(list).toEqual(grid);
         expect(list).toEqual([
             'connections.active',
-            'postgresql',
+            'PostgreSQL',
             'connections.deprecated',
             'v2.0.0',
             'environment.short.production',

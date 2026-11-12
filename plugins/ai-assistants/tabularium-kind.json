@@ -8,7 +8,7 @@
   "publicPageEnabled": true,
   "publicPageCopy": {
     "hero": "Choose your AI assistant",
-    "intro": "Install the providers you use, configure credentials in Tabularis, and keep provider definitions up to date independently."
+    "intro": "Use the providers built into Tabularis, or install additional providers such as Gemini. Credentials and settings stay in the application; external packages can be updated independently."
   },
   "extensionsSchema": {
     "ai_assistant": {
@@ -22,10 +22,7 @@
         },
         "authentication": {
           "type": "string",
-          "enum": [
-            "api-key",
-            "none"
-          ]
+          "enum": ["api-key", "none"]
         },
         "api_key_env": {
           "type": "string",
@@ -57,10 +54,7 @@
         "generate": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "requests",
-            "response"
-          ],
+          "required": ["requests", "response"],
           "properties": {
             "requests": {
               "type": "array",
@@ -69,9 +63,7 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "url"
-                ],
+                "required": ["url"],
                 "properties": {
                   "url": {
                     "type": "string",
@@ -101,9 +93,7 @@
             "response": {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "path"
-              ],
+              "required": ["path"],
               "properties": {
                 "path": {
                   "type": "string",
@@ -112,9 +102,7 @@
                 "select": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "path"
-                  ],
+                  "required": ["path"],
                   "properties": {
                     "path": {
                       "type": "string",
@@ -150,9 +138,7 @@
         "models": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "sources"
-          ],
+          "required": ["sources"],
           "properties": {
             "sources": {
               "type": "array",
@@ -160,18 +146,12 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "request",
-                  "items_path",
-                  "id_path"
-                ],
+                "required": ["request", "items_path", "id_path"],
                 "properties": {
                   "request": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": [
-                      "url"
-                    ],
+                    "required": ["url"],
                     "properties": {
                       "url": {
                         "type": "string",
@@ -211,9 +191,7 @@
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": [
-                        "path"
-                      ],
+                      "required": ["path"],
                       "properties": {
                         "path": {
                           "type": "string",
@@ -256,16 +234,16 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 1000
+        },
+        "require_explicit_model": {
+          "type": "boolean",
+          "default": false,
+          "description": "Require a saved or explicitly selected model instead of choosing the first discovered model."
         }
       },
       "allOf": [
         {
-          "required": [
-            "api_version",
-            "authentication",
-            "generate",
-            "models"
-          ]
+          "required": ["api_version", "authentication", "generate", "models"]
         }
       ]
     },
@@ -275,11 +253,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "key",
-          "label",
-          "type"
-        ],
+        "required": ["key", "label", "type"],
         "properties": {
           "key": {
             "type": "string",
@@ -295,12 +269,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "string",
-              "number",
-              "boolean",
-              "select"
-            ]
+            "enum": ["string", "number", "boolean", "select"]
           },
           "default": {},
           "required": {
@@ -318,6 +287,6 @@
     }
   },
   "customExample": {
-    "json": "{\n  \"id\": \"runcrate\",\n  \"name\": \"Runcrate\",\n  \"version\": \"1.0.0\",\n  \"kind\": \"ai-assistant\",\n  \"description\": \"Runcrate AI assistant for Tabularis.\",\n  \"settings\": [],\n  \"ai_assistant\": {\n    \"api_version\": 1,\n    \"authentication\": \"api-key\",\n    \"api_key_env\": \"RUNCRATE_API_KEY\",\n    \"default_models\": [\n      \"deepseek-ai/DeepSeek-V4.1-Flash\",\n      \"zai-org/GLM-5.3-Flash\",\n      \"zai-org/GLM-5.3\",\n      \"Qwen/Qwen3.8-Flash\",\n      \"openai/gpt-oss-120b\",\n      \"moonshotai/Kimi-K2.6\"\n    ],\n    \"generate\": {\n      \"requests\": [\n        {\n          \"url\": \"https://api.runcrate.ai/v1\",\n          \"body\": {\n            \"model\": \"{{model}}\",\n            \"messages\": [\n              {\n                \"role\": \"system\",\n                \"content\": \"{{system_prompt}}\"\n              },\n              {\n                \"role\": \"user\",\n                \"content\": \"{{prompt}}\"\n              }\n            ],\n            \"temperature\": 0.0\n          },\n          \"append_path\": \"/chat/completions\"\n        }\n      ],\n      \"response\": {\n        \"path\": \"/choices/0/message/content\"\n      }\n    },\n    \"models\": {\n      \"sources\": [\n        {\n          \"request\": {\n            \"url\": \"https://api.runcrate.ai/v1\",\n            \"append_path\": \"/models\",\n            \"authenticated\": false\n          },\n          \"items_path\": \"/data\",\n          \"id_path\": \"/id\",\n          \"filters\": [\n            {\n              \"path\": \"/output_modalities\",\n              \"contains\": \"text\"\n            }\n          ]\n        }\n      ],\n      \"cache_seconds\": 86400\n    }\n  },\n  \"license\": \"Apache-2.0\"\n}\n"
+    "json": "{\n  \"id\": \"gemini\",\n  \"name\": \"Google Gemini\",\n  \"version\": \"1.0.1\",\n  \"kind\": \"ai-assistant\",\n  \"description\": \"Google Gemini assistant using the native generateContent API.\",\n  \"ai_assistant\": {\n    \"api_version\": 1,\n    \"authentication\": \"api-key\",\n    \"api_key_env\": \"GEMINI_API_KEY\",\n    \"api_key_header\": \"x-goog-api-key\",\n    \"api_key_prefix\": \"\",\n    \"default_models\": [\n      \"models/gemini-flash-latest\"\n    ],\n    \"generate\": {\n      \"requests\": [\n        {\n          \"url\": \"https://generativelanguage.googleapis.com/v1beta/{{model}}:generateContent\",\n          \"body\": {\n            \"systemInstruction\": {\n              \"parts\": [\n                {\n                  \"text\": \"{{system_prompt}}\"\n                }\n              ]\n            },\n            \"contents\": [\n              {\n                \"role\": \"user\",\n                \"parts\": [\n                  {\n                    \"text\": \"{{prompt}}\"\n                  }\n                ]\n              }\n            ]\n          }\n        }\n      ],\n      \"response\": {\n        \"path\": \"/candidates/0/content/parts\",\n        \"select\": {\n          \"path\": \"/thought\",\n          \"equals\": false,\n          \"missing_matches\": true\n        },\n        \"value_path\": \"/text\"\n      }\n    },\n    \"models\": {\n      \"sources\": [\n        {\n          \"request\": {\n            \"url\": \"https://generativelanguage.googleapis.com/v1beta/models\"\n          },\n          \"items_path\": \"/models\",\n          \"id_path\": \"/name\",\n          \"filters\": [\n            {\n              \"path\": \"/supportedGenerationMethods\",\n              \"contains\": \"generateContent\"\n            }\n          ]\n        }\n      ],\n      \"cache_seconds\": 86400\n    }\n  },\n  \"settings\": [],\n  \"license\": \"Apache-2.0\",\n  \"icon\": \"https://raw.githubusercontent.com/TabularisDB/tabularis-gemini-plugin/main/icon.svg\"\n}"
   }
 }

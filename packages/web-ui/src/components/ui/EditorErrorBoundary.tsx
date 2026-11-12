@@ -1,18 +1,73 @@
-import {Component} from 'react';
+import {Component, useState} from 'react';
 import type {ErrorInfo, ReactNode} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useNavigate} from 'react-router-dom';
-import {AlertTriangle, Home, RotateCcw, XCircle} from 'lucide-react';
+import {AlertTriangle, Bug, Check, Copy, Home, RotateCcw, XCircle} from 'lucide-react';
 import type {TFunction} from 'i18next';
 import {useEditor} from '@/hooks/useEditor';
+import {useCopyFeedback} from '@/hooks/useCopyFeedback';
+import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {
+    buildEditorCrashIssueUrl,
+    formatEditorCrashReport,
+    type CrashReportMode,
+    type EditorCrashReport,
+} from '@/utils/editorCrashReport';
+import {APP_VERSION} from '@/version';
 import {ROOT_COMMAND_SCOPE_ID} from '@/utils/commandScopeStore';
 import {CommandPaletteScopeBridge} from '@/components/layout/CommandPaletteScopeBridge';
+import {CrashAiAnalysis} from '@/components/ui/CrashAiAnalysis';
 
 interface InnerProps {
     t: TFunction;
     onBackToConnections: () => void;
     onCloseActiveTab: (() => void) | null;
+    mode: CrashReportMode;
+    openExternalUrl: (url: string) => Promise<void>;
     children: ReactNode;
+}
+
+const secondaryButtonClass =
+    'inline-flex items-center gap-1.5 px-3 py-1.5 bg-base hover:bg-elevated border border-default text-primary rounded-md text-sm font-medium transition-colors';
+
+interface CrashReportActionsProps {
+    t: TFunction;
+    report: EditorCrashReport;
+    openExternalUrl: (url: string) => Promise<void>;
+}
+
+function CrashReportActions({t, report, openExternalUrl}: CrashReportActionsProps) {
+    const {copied, copy} = useCopyFeedback();
+    const [copyFailed, setCopyFailed] = useState(false);
+
+    const copyReport = async () => {
+        setCopyFailed(!(await copy(formatEditorCrashReport(report))));
+    };
+
+    return (
+        <>
+            <button type="button" onClick={copyReport} className={secondaryButtonClass}>
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied
+                    ? t('editor.errorBoundary.reportCopied')
+                    : t('editor.errorBoundary.copyReport')}
+            </button>
+            <button
+                type="button"
+                onClick={() => void openExternalUrl(buildEditorCrashIssueUrl(report))}
+                className={secondaryButtonClass}
+            >
+                <Bug size={14} />
+                {t('editor.errorBoundary.createIssue')}
+            </button>
+            <CrashAiAnalysis t={t} report={report} buttonClassName={secondaryButtonClass} />
+            {copyFailed && (
+                <p role="status" className="basis-full text-xs text-accent-error">
+                    {t('editor.errorBoundary.copyFailed')}
+                </p>
+            )}
+        </>
+    );
 }
 
 interface InnerState {
@@ -53,8 +108,16 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
             return this.props.children;
         }
 
-        const {t, onBackToConnections, onCloseActiveTab} = this.props;
+        const {t, onBackToConnections, onCloseActiveTab, mode, openExternalUrl} = this.props;
         const details = [error.stack, componentStack].filter(Boolean).join('\n\n');
+        const report: EditorCrashReport = {
+            message: error.message || error.name,
+            stack: error.stack ?? null,
+            componentStack,
+            appVersion: APP_VERSION,
+            platform: navigator.platform,
+            mode,
+        };
 
         return (
             <>
@@ -106,7 +169,7 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
                                         <button
                                             type="button"
                                             onClick={this.closeActiveTabAndReset}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-base hover:bg-elevated border border-default text-primary rounded-md text-sm font-medium transition-colors"
+                                            className={secondaryButtonClass}
                                         >
                                             <XCircle size={14} />
                                             {t('editor.errorBoundary.closeCurrentTab')}
@@ -115,11 +178,16 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
                                     <button
                                         type="button"
                                         onClick={onBackToConnections}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-base hover:bg-elevated border border-default text-primary rounded-md text-sm font-medium transition-colors"
+                                        className={secondaryButtonClass}
                                     >
                                         <Home size={14} />
                                         {t('editor.errorBoundary.backToConnections')}
                                     </button>
+                                    <CrashReportActions
+                                        t={t}
+                                        report={report}
+                                        openExternalUrl={openExternalUrl}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -138,6 +206,7 @@ export function EditorErrorBoundary({children}: EditorErrorBoundaryProps) {
     const {t} = useTranslation();
     const navigate = useNavigate();
     const {activeTabId, closeTab} = useEditor();
+    const platform = usePlatformCapabilities();
 
     const onCloseActiveTab = activeTabId ? () => closeTab(activeTabId) : null;
 
@@ -146,6 +215,8 @@ export function EditorErrorBoundary({children}: EditorErrorBoundaryProps) {
             t={t}
             onBackToConnections={() => navigate('/connections')}
             onCloseActiveTab={onCloseActiveTab}
+            mode={platform.negotiation.environment === 'tauri' ? 'desktop' : 'web'}
+            openExternalUrl={(url) => platform.openExternalUrl(url)}
         >
             {children}
         </EditorErrorBoundaryInner>

@@ -103,6 +103,22 @@ Remote login attempts are rate-limited. Remote sessions receive database-only au
 
 See [Remote Web UI security and reverse-proxy deployment](./WEB_REMOTE_SECURITY.md) for Nginx, systemd, firewall, origin, audit, rate-limit, and verification examples. That guide is the normative remote threat model. For the official Docker image, Docker Compose, and the Helm chart, see [Running Tabularis Web in containers](./WEB_MODE_CONTAINERS.md).
 
+## Linking to a saved connection
+
+A browser can open a saved connection directly at:
+
+```text
+/connections/<connection-id>/editor
+```
+
+`<connection-id>` is the connection's stable id, the same one shown in the address bar while the editor is open. It is not the display name, so renaming a connection keeps old links working. Ids that contain characters outside letters, digits, `-`, `.`, `_` and `~` must be percent-encoded.
+
+The link only names a connection. It carries no password, token or other credential, and it grants nothing: opening it goes through the same authentication and authorization as clicking the connection in the list.
+
+- With `--auth password`, a signed-out visitor is sent to the login page and returns to the same connection after signing in. Only same-origin `/connections/<connection-id>/editor` paths are resumed; any other return target falls back to `/`.
+- With `--auth proxy`, the reverse proxy authenticates the request before Tabularis sees it, so the link opens once the proxy lets the browser through.
+- If the connection was deleted, is not visible to this server, or cannot connect, Tabularis returns to the connections list and shows why the link could not be opened.
+
 ## Data, configuration, and credential locations
 
 Desktop and Web modes use the same runtime paths. The process account and its home/XDG environment determine the locations:

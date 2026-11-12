@@ -42,7 +42,9 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
             alter_column: true,
             create_foreign_keys: true,
             supports_ssl: true,
+            query_timeout: true,
             sql_dialect: 'postgres',
+            read_only_queries: true,
         },
     },
     {
@@ -102,6 +104,7 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
             create_foreign_keys: true,
             supports_ssl: true,
             sql_dialect: 'mysql',
+            read_only_queries: true,
         },
     },
     {
@@ -129,6 +132,7 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
             alter_column: false,
             create_foreign_keys: false,
             sql_dialect: 'sqlite',
+            read_only_queries: true,
         },
     },
 ];

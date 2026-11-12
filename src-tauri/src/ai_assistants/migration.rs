@@ -11,6 +11,7 @@ const LEGACY: &[&str] = &[
     "minimax",
     "ollama",
     "custom-openai",
+    "api-route",
 ];
 
 #[derive(Default, Serialize, Deserialize)]
@@ -122,7 +123,6 @@ pub async fn migrate_legacy_providers(
             }
         }
         crate::application::persistence::merge_missing_plugin_settings(runtime, &id, settings)?;
-        crate::ai::clear_models_cache(runtime)?;
         migration.pending.remove(&id);
         migration.completed.insert(id);
         save(&path, &migration)?;

@@ -4,6 +4,119 @@ use std::io::Cursor;
 use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 
+#[tokio::test]
+async fn database_dump_uses_plugin_renderer_and_preserves_previous_file_on_failure() {
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let failure = Arc::new(AtomicBool::new(false));
+    let renderer_failure = failure.clone();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.id = format!("dump-renderer-{}", Uuid::new_v4());
+    manifest.is_builtin = false;
+    let params = ConnectionParams {
+        driver: manifest.id.clone(),
+        ..Default::default()
+    };
+    let drv = crate::plugins::driver::test_driver_with_manifest(manifest, move |request| {
+        match request.method.as_str() {
+            "get_tables" => Ok(json!([])),
+            "execute_query" => Ok(
+                json!({"columns":["payload"],"rows":[["BLOB:2:application/octet-stream:AP8="]],"affected_rows":0,"pagination":null}),
+            ),
+            "render_insert_statements" => {
+                assert_eq!(request.params["columns"], json!(["payload"]));
+                assert_eq!(
+                    request.params["rows"][0][0],
+                    "BLOB:2:application/octet-stream:AP8="
+                );
+                if renderer_failure.load(Ordering::SeqCst) {
+                    return Err("renderer failed".into());
+                }
+                Ok(json!(["INSERT INTO items (payload) VALUES (x'00ff')"]))
+            }
+            method => panic!("unexpected method {method}"),
+        }
+    });
+    crate::drivers::registry::register_driver(drv).await;
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            directory.path().into(),
+            directory.path().into(),
+        )),
+        Arc::new(RecordingEvents::default()),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let path = directory.path().join("dump.sql");
+    fs::write(&path, "previous backup").unwrap();
+    let options = DumpOptions {
+        structure: false,
+        data: true,
+        tables: Some(vec!["items".into()]),
+    };
+    write_dump(
+        &runtime,
+        None,
+        "test",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options,
+    )
+    .await
+    .unwrap();
+    let previous = fs::read_to_string(&path).unwrap();
+    assert!(previous.contains("INSERT INTO items (payload) VALUES (x'00ff');"));
+    assert!(!previous.contains("BLOB:"));
+    failure.store(true, Ordering::SeqCst);
+    let error = write_dump(
+        &runtime,
+        None,
+        "test",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options,
+    )
+    .await
+    .unwrap_err();
+    assert!(error.contains("renderer failed"), "{error}");
+    assert_eq!(fs::read_to_string(&path).unwrap(), previous);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
+async fn database_dump_retains_fallback_when_plugin_has_no_renderer() {
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.is_builtin = false;
+    let drv: Arc<dyn DatabaseDriver> = Arc::new(crate::plugins::driver::test_driver_with_manifest(
+        manifest,
+        |request| match request.method.as_str() {
+            "execute_query" => Ok(
+                json!({"columns":["value"],"rows":[["O'Reilly"],[null]],"affected_rows":0,"pagination":null}),
+            ),
+            "get_columns" => Ok(json!([])),
+            "render_insert_statements" => Err("Method not found (-32601)".into()),
+            method => panic!("unexpected method {method}"),
+        },
+    ));
+    let params = ConnectionParams::default();
+    let dialect = DumpDialect::from_capabilities("test", &drv.manifest().capabilities);
+    let path = directory.path().join("fallback.sql");
+    let mut writer = BufWriter::new(File::create(&path).unwrap());
+    export_table_data(&mut writer, &drv, &params, "test", &dialect, "items", None)
+        .await
+        .unwrap();
+    writer.flush().unwrap();
+    let sql = fs::read_to_string(path).unwrap();
+    assert!(sql.contains("O''Reilly"), "{sql}");
+    assert!(sql.contains("NULL"), "{sql}");
+}
+
 #[derive(Default)]
 struct RecordingEvents {
     scoped: StdMutex<Vec<(Uuid, String, serde_json::Value)>>,
@@ -165,6 +278,8 @@ fn column(name: &str, data_type: &str) -> TableColumn {
         numeric_precision: None,
         numeric_scale: None,
         full_type: None,
+        default_sql: None,
+        on_update: None,
     }
 }
 

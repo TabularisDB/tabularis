@@ -62,7 +62,7 @@ permissions:
 jobs:
   detect:
     name: Detect unpublished versions
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
     steps:
@@ -125,6 +125,7 @@ jobs:
     name: Publish ${{ matrix.package.name }}@${{ matrix.package.version }}
     needs: detect
     if: needs.detect.outputs.packages != '[]'
+    # npm provenance only supports GitHub-hosted runners.
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -139,7 +140,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -175,7 +176,7 @@ jobs:
     needs: [detect, publish]
     # Also after a partial failure: tag whatever did reach npm.
     if: ${{ !cancelled() && needs.detect.outputs.packages != '[]' && !inputs.dry_run }}
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write # push tags
       issues: write # relabel the release PR
@@ -233,7 +234,7 @@ jobs:
     # Runs after publish/tag so a just-merged release PR is already marked
     # tagged; otherwise release-please would refuse to open new release PRs.
     if: ${{ !cancelled() && !inputs.dry_run }}
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write # release branches
       pull-requests: write

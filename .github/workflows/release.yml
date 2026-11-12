@@ -19,7 +19,7 @@ on:
 
 jobs:
   meta:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       ref: ${{ steps.meta.outputs.ref }}
       tag: ${{ steps.meta.outputs.tag }}
@@ -71,7 +71,8 @@ jobs:
             const src = fs.readFileSync("packages/web-ui/src/data/changelog.ts", "utf8");
             const version = process.argv[1];
             const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const m = src.match(new RegExp(`"${escaped}":\\s*"([^"]+)"`));
+            const quote = "[\\x22\\x27]";
+            const m = src.match(new RegExp(`${quote}${escaped}${quote}:\\s*${quote}([^\\x22\\x27]+)${quote}`));
             if (m) process.stdout.write(m[1]);
           ' "$version")"
           {

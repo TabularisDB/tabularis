@@ -77,6 +77,7 @@ async fn every_provider_generates_through_the_same_declarative_http_runtime() {
         "requesty",
         "minimax",
         "custom-openai",
+        "api-route",
         "opper",
         "runcrate",
     ] {
@@ -280,4 +281,167 @@ async fn gemini_native_api_supports_model_resources_settings_and_filtered_discov
         "Count customers"
     );
     task.abort();
+}
+
+struct CacheSecrets;
+impl crate::runtime::secrets::RuntimeSecrets for CacheSecrets {
+    fn get(&self, _: &str) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        unreachable!()
+    }
+    fn delete(&self, _: &str) -> Result<(), String> {
+        unreachable!()
+    }
+}
+
+fn cache_provider(
+    runtime: &crate::runtime::RuntimeContext,
+    id: &str,
+    addr: std::net::SocketAddr,
+) -> AssistantManifest {
+    let mut value = tests::package("custom-openai");
+    value["id"] = json!(id);
+    value["ai_assistant"]["authentication"] = json!("none");
+    value["ai_assistant"]
+        .as_object_mut()
+        .unwrap()
+        .remove("api_key_env");
+    value["ai_assistant"]["direct"] = json!(true);
+    value["ai_assistant"]["models"]["cache_seconds"] = json!(86400);
+    value["ai_assistant"]["models"]["sources"][0]["request"]["url"] =
+        json!(format!("http://{addr}/v1"));
+    let dir = destination(&runtime.paths.plugins_dir(), id).unwrap();
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(".tabularium"), value.to_string()).unwrap();
+    parse_manifest(value.to_string().as_bytes()).unwrap()
+}
+
+fn cache_runtime(dir: &std::path::Path) -> crate::runtime::RuntimeContext {
+    let runtime = crate::runtime::RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            dir.join("config"),
+            dir.join("data"),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        Arc::new(CacheSecrets),
+    );
+    std::fs::create_dir_all(runtime.paths.config_dir()).unwrap();
+    runtime
+}
+
+fn cache_value(runtime: &crate::runtime::RuntimeContext) -> Value {
+    serde_json::from_slice(
+        &std::fs::read(runtime.paths.config_dir().join("ai_models_cache.json")).unwrap(),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn failed_discovery_retains_the_catalog_age_and_retries_when_service_recovers() {
+    for (status, response) in [
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            json!({"error":"temporary failure"}),
+        ),
+        (StatusCode::OK, json!({"unexpected":"not a catalog"})),
+    ] {
+        let (addr, state, server) = fixture(vec![
+            (status, response),
+            (StatusCode::OK, json!({"data":[{"id":"recovered"}]})),
+            (StatusCode::SERVICE_UNAVAILABLE, json!({})),
+            (StatusCode::OK, json!({"data":[]})),
+        ])
+        .await;
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = cache_runtime(temp.path());
+        let manifest = cache_provider(&runtime, "cache-recovery", addr);
+        let cache = crate::credential_cache::CredentialCache::default();
+        let path = runtime.paths.config_dir().join("ai_models_cache.json");
+        let initial = json!({"last_updated":123,"models":{"cache-recovery":["last-good"]},"fetched_at":{"cache-recovery":123}});
+        std::fs::write(&path, initial.to_string()).unwrap();
+        assert_eq!(
+            crate::ai::get_provider_models(&runtime, &cache, &manifest, false).await,
+            ["last-good"]
+        );
+        assert_eq!(
+            cache_value(&runtime),
+            initial,
+            "failure must not change the successful catalog or age"
+        );
+        assert_eq!(
+            crate::ai::get_provider_models(&runtime, &cache, &manifest, false).await,
+            ["recovered"]
+        );
+        let recovered = cache_value(&runtime);
+        assert_eq!(
+            crate::ai::get_provider_models(&runtime, &cache, &manifest, true).await,
+            ["recovered"]
+        );
+        assert_eq!(
+            cache_value(&runtime),
+            recovered,
+            "forced failure must retain the successful entry too"
+        );
+        assert!(
+            crate::ai::get_provider_models(&runtime, &cache, &manifest, true)
+                .await
+                .is_empty()
+        );
+        assert_eq!(
+            cache_value(&runtime)["models"]["cache-recovery"],
+            json!([]),
+            "an empty successful response is an intentional catalog change"
+        );
+        assert_eq!(state.captured.lock().unwrap().len(), 4);
+        server.abort();
+    }
+}
+
+#[tokio::test]
+async fn overlapping_discoveries_merge_into_the_latest_cache_instead_of_an_old_snapshot() {
+    use std::future::Future;
+    for (status, response, expected) in [
+        (
+            StatusCode::OK,
+            json!({"data":[{"id":"fresh-a"}]}),
+            "fresh-a",
+        ),
+        (StatusCode::SERVICE_UNAVAILABLE, json!({}), "old-a"),
+    ] {
+        let (addr_a, _, server_a) = fixture(vec![(status, response)]).await;
+        let (addr_b, _, server_b) =
+            fixture(vec![(StatusCode::OK, json!({"data":[{"id":"fresh-b"}]}))]).await;
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = cache_runtime(temp.path());
+        let a = cache_provider(&runtime, "cache-a", addr_a);
+        let b = cache_provider(&runtime, "cache-b", addr_b);
+        std::fs::write(runtime.paths.config_dir().join("ai_models_cache.json"), json!({"last_updated":123,"models":{"cache-a":["old-a"],"cache-b":["old-b"]},"fetched_at":{"cache-a":123,"cache-b":123}}).to_string()).unwrap();
+        let cache = crate::credential_cache::CredentialCache::default();
+        let mut pending = Box::pin(crate::ai::get_provider_models(&runtime, &cache, &a, false));
+        std::future::poll_fn(|cx| {
+            assert!(pending.as_mut().poll(cx).is_pending());
+            std::task::Poll::Ready(())
+        })
+        .await;
+        assert_eq!(
+            crate::ai::get_provider_models(&runtime, &cache, &b, false).await,
+            ["fresh-b"]
+        );
+        let intermediate = cache_value(&runtime);
+        assert_eq!(pending.await, [expected]);
+        let final_cache = cache_value(&runtime);
+        assert_eq!(final_cache["models"]["cache-a"], json!([expected]));
+        assert_eq!(final_cache["models"]["cache-b"], json!(["fresh-b"]));
+        assert_eq!(
+            final_cache["fetched_at"]["cache-b"],
+            intermediate["fetched_at"]["cache-b"]
+        );
+        if !status.is_success() {
+            assert_eq!(final_cache["fetched_at"]["cache-a"], 123);
+        }
+        server_a.abort();
+        server_b.abort();
+    }
 }

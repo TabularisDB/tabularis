@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis는 3종의 내장 데이터베이스 드라이버와 DuckDB, ClickHouse, Redis, Firestore를 포함한 26종의 출시된 플러그인을 갖춘 오픈소스 데스크톱 SQL 워크스페이스입니다. 내장 MCP 서버를 통해 Claude, Cursor, Devin(구 Windsurf)이 여러분이 이미 사용하는 앱에서 스키마를 읽고 쿼리를 실행할 수 있습니다.
+Tabularis는 3종의 내장 데이터베이스 드라이버와 DuckDB, ClickHouse, Redis, Firestore를 포함한 29종의 출시된 플러그인을 갖춘 오픈소스 데스크톱 SQL 워크스페이스입니다. 내장 MCP 서버를 통해 Claude, Cursor, Devin(구 Windsurf)이 여러분이 이미 사용하는 앱에서 스키마를 읽고 쿼리를 실행할 수 있습니다.
 
 <p align="center">
   <b><a href="https://tabularis.dev">웹사이트</a></b> ·
@@ -22,6 +22,7 @@ Tabularis는 3종의 내장 데이터베이스 드라이버와 DuckDB, ClickHous
   <img src="https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat" alt="Stars" />
   <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTabularisDB%2Ftabularis%2Fdownload-stats%2Fdownloads.json&amp;style=flat" alt="Downloads" />
   <img src="https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg" alt="Build & Release" />
+  <a href="https://www.blacksmith.sh/?utm_source=tabularis&amp;utm_medium=referral&amp;utm_campaign=sponsor"><img src="https://img.shields.io/badge/CI_powered_by-Blacksmith-0B1015?style=flat" height="20" alt="CI powered by Blacksmith" /></a>
   <a href="https://discord.com/invite/K2hmhfHRSt"><img src="https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://gitster.dev/repo/TabularisDB/tabularis"><img src="https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e" alt="Gitster" /></a>
   <br />
@@ -70,11 +71,11 @@ sudo snap install tabularis       # Linux
 
 또는 설치 프로그램을 직접 받으세요:
 
-- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_x64-setup.exe)
+- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_x64-setup.exe)
 
-- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_x64.dmg)
+- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_x64.dmg)
 
-- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis_0.30.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.30.0/tabularis-0.30.0-1.x86_64.rpm)
+- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis_0.32.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.32.0/tabularis-0.32.0-1.x86_64.rpm)
 
 앱 UI는 영어, 이탈리아어, 스페인어, 중국어(간체), 프랑스어, 독일어, 일본어, 러시아어, 한국어, 타갈로그어, 브라질 포르투갈어로 제공됩니다.
 
@@ -91,7 +92,7 @@ sudo snap install tabularis       # Linux
 | **모든 언어**로 작성 가능한 플러그인 (stdio 기반 JSON-RPC) |              ✅               |     Java/Eclipse 플러그인     | JavaScript 플러그인 |         ❌          |
 | **로컬 모델**(Ollama)을 사용하는 AI text-to-SQL            |              ✅               |  클라우드 기반 AI 어시스턴트  |         ❌          |         ❌          |
 | 인터랙티브 플랜 그래프가 있는 Visual EXPLAIN               |              ✅               |              ✅               |         ❌          |         ❌          |
-| 기본 제공 데이터베이스                                     | 내장 3종 + 드라이버 플러그인 26종 |          100종 이상           |      20종 이상      |       약 10종       |
+| 기본 제공 데이터베이스                                     | 내장 3종 + 드라이버 플러그인 29종 |          100종 이상           |      20종 이상      |       약 10종       |
 
 > [!NOTE]
 > 2026년 6월 기준 비교이며, 다른 도구의 기능은 이후 변경되었을 수 있습니다. 수십 종의 드라이버가 필요하다면 DBeaver를 사용하세요. tabularis는 소수의 데이터베이스를 제대로 지원하는 데 집중합니다.
@@ -117,14 +118,17 @@ PostgreSQL, MySQL/MariaDB, SQLite는 기본 내장되어 있습니다. 내장 Po
 | IBM Informix             | [tabularis-informix-plugin](https://github.com/danielnuld/tabularis-informix-plugin)            | HackerNews     | [tabularis-hackernews-plugin](https://github.com/TabularisDB/tabularis-hackernews-plugin)       |
 | Cassandra / ScyllaDB     | [tabularis-cassandra-plugin](https://github.com/TabularisDB/tabularis-cassandra-plugin)         | Harper         | [tabularis-harper-plugin](https://github.com/HarperFast/tabularis-harper-plugin)                |
 | PostgreSQL               | [tabularis-postgresql-plugin](https://github.com/TabularisDB/tabularis-postgresql-plugin)       | Trino          | [tabularis-trino-plugin](https://github.com/TabularisDB/tabularis-trino-plugin)                 |
+| Neon                     | [neon-plugin](https://github.com/TabularisDB/neon-plugin)                                       | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
+| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         |                |                                                                                                 |
 
 **바운티 보드에 등록됨**
 
 | 상태          | 데이터베이스                                                                 |
 | ------------- | ---------------------------------------------------------------------------- |
-| 개발 중          | Amazon Redshift, Etcd, Meilisearch, Snowflake, SQL Anywhere                                |
-| 계획됨           | TiDB                                                            |
-| 모집 중          | Firebird, SurrealDB                                      |
+| 개발 중           | Meilisearch                  |
+| 출시 예정          | Snowflake                    |
+| 계획됨            | Amazon Redshift, TiDB        |
+| 모집 중           | Etcd, Firebird, SQL Anywhere |
 
 > [!NOTE]
 > **출시됨** 상태의 드라이버는 [플러그인 레지스트리](https://tabularis.dev/plugins)에서 설치할 수 있습니다. 그 외 모든 것은 [바운티 보드](https://tabularis.dev/plugins/bounties)에 있습니다. 직접 맡거나, 후원하거나, [데이터베이스를 요청](https://github.com/TabularisDB/tabularis/discussions)하세요.

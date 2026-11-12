@@ -29,6 +29,25 @@ pub async fn migrate_ai_providers(app: AppHandle) -> Result<serde_json::Value, S
 }
 
 #[tauri::command]
+pub async fn complete_ai_inline(
+    app: AppHandle,
+    req: inline::InlineRequest,
+) -> Result<String, String> {
+    inline::complete(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        None,
+        req,
+    )
+    .await
+}
+
+#[tauri::command]
+pub fn cancel_ai_inline(app: AppHandle, request_id: String) -> Result<(), String> {
+    inline::cancel(&app.state::<RuntimeContext>(), None, request_id)
+}
+
+#[tauri::command]
 pub fn clear_ai_models_cache(app: AppHandle) -> Result<(), String> {
     clear_models_cache(&app.state::<RuntimeContext>())
 }
@@ -72,6 +91,19 @@ pub async fn analyze_ai_explain_plan(
     req: AiExplainRequest,
 ) -> Result<String, String> {
     analyze_explain_plan(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        req,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn analyze_ai_crash_report(
+    app: AppHandle,
+    req: AiExplainRequest,
+) -> Result<String, String> {
+    analyze_crash_report(
         &app.state::<RuntimeContext>(),
         &app.state::<std::sync::Arc<CredentialCache>>(),
         req,

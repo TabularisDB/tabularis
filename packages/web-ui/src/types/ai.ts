@@ -23,6 +23,7 @@ export interface AiAssistantManifest {
         authentication: 'api-key' | 'none';
         api_key_env?: string | null;
         optional_api_key?: boolean;
+        require_explicit_model?: boolean;
         auto_select_priority?: number | null;
         default_models: string[];
     };
@@ -39,6 +40,16 @@ export interface AiGenerateRequest {
     model: string;
     prompt: string;
     schema: string;
+}
+
+export interface AiInlineRequest {
+    requestId: string;
+    provider: string;
+    model: string;
+    prefix: string;
+    suffix: string;
+    schema: string;
+    dialect: string;
 }
 
 export interface AiExplainRequest {

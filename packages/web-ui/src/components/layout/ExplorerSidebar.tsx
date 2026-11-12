@@ -1,4 +1,4 @@
-import {useState, useEffect, useRef, useCallback} from 'react';
+import {useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import {copyTextToClipboard} from '@/utils/clipboard';
 import {useNavigate} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
@@ -39,12 +39,18 @@ import {
     Clock,
     Clipboard,
     BookOpen,
+    FolderTree,
     UsersRound,
     Folder,
     FolderOpen,
     FolderPlus,
     Pencil,
     FolderInput,
+    Pin,
+    PinOff,
+    History,
+    FileDown,
+    FileUp,
 } from 'lucide-react';
 import {bindPlatformConfirm} from '@/platform/dialogs';
 import {saveSqlFile} from '@/utils/sqlFileTransfer';
@@ -53,6 +59,7 @@ import {useAlert} from '@/hooks/useAlert';
 import {useToast} from '@/hooks/useToast';
 import {getSavedQueryCopyName} from '@/utils/savedQueryNames';
 import {getSavedQueryExportFileName} from '@/utils/sqlFile';
+import {formatSavedQueriesAsSql} from '@/utils/savedQueryExport';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
 import {useSettings} from '@/hooks/useSettings';
 import {useDatabase} from '@/hooks/useDatabase';
@@ -70,20 +77,27 @@ import type {NotebookMetadata} from '@/types/notebook';
 import {ContextMenu, type ContextMenuItem} from '@/components/ui/ContextMenu';
 import {SchemaModal} from '@/components/modals/SchemaModal';
 import {CreateTableModal} from '@/components/modals/CreateTableModal';
+import {CreateContainerModal} from '@/components/modals/CreateContainerModal';
 import {QueryModal} from '@/components/modals/QueryModal';
 import {SavedQueryFolderModal} from '@/components/modals/SavedQueryFolderModal';
 import {MoveSavedQueryModal} from '@/components/modals/MoveSavedQueryModal';
+import {SavedQueryHistoryModal} from '@/components/modals/SavedQueryHistoryModal';
 import {ModifyColumnModal} from '@/components/modals/ModifyColumnModal';
+import {SchemaObjectDetailsModal} from '@/components/modals/SchemaObjectDetailsModal';
+import type {SchemaObjectDetails} from '@/types/schemaObjectDetails';
 import {CreateIndexModal} from '@/components/modals/CreateIndexModal';
 import {CreateForeignKeyModal} from '@/components/modals/CreateForeignKeyModal';
 import {GenerateSQLModal} from '@/components/modals/GenerateSQLModal';
 import {DumpDatabaseModal} from '@/components/modals/DumpDatabaseModal';
 import {ImportDatabaseModal} from '@/components/modals/ImportDatabaseModal';
+import {ExportTableModal} from '@/components/modals/ExportTableModal';
+import {ImportTableModal} from '@/components/modals/ImportTableModal';
 import {ClipboardImportModal} from '@/components/modals/ClipboardImportModal';
 import {ViewEditorModal} from '@/components/modals/ViewEditorModal';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {RunRoutineModal} from '@/components/modals/RunRoutineModal';
+import {DebugRoutineModal} from '@/components/modals/DebugRoutineModal';
 import {Accordion} from './sidebar/Accordion';
 import {MetadataErrorIndicator} from './sidebar/MetadataErrorIndicator';
 import {SidebarTableItem} from './sidebar/SidebarTableItem';
@@ -99,7 +113,18 @@ import {SidebarDatabaseItem} from './sidebar/SidebarDatabaseItem';
 import {SidebarNestedDatabaseItem} from './sidebar/SidebarNestedDatabaseItem';
 import {SidebarTriggerItem} from './sidebar/SidebarTriggerItem';
 import {QueryHistorySection} from './sidebar/QueryHistorySection';
+import {SidebarPinnedGroup} from './sidebar/SidebarPinnedGroup';
+import {useExplorerPins} from '@/hooks/useExplorerPins';
+import {resolvePins, type PinnedObject} from '@/utils/explorerPins';
 import {NotebooksSection} from './sidebar/NotebooksSection';
+import {LinkedFoldersSection} from './sidebar/LinkedFoldersSection';
+import {
+    buildOpenLinkedFileIndex,
+    createLinkedFileTab,
+    findOpenLinkedFileTab,
+    getLinkedFolderErrorKey,
+    readLinkedSqlFile,
+} from '@/utils/linkedFolders';
 import {
     renameNotebook,
     deleteNotebook,
@@ -127,12 +152,24 @@ import {
     usesMultiDatabaseLayout,
     reconcileDatabaseSelection,
 } from '@/utils/database';
-import {supportsManageTables} from '@/utils/driverCapabilities';
+import {
+    supportsManageTables,
+    supportsTableExport,
+    supportsTableImport,
+} from '@/utils/driverCapabilities';
+import {
+    appendCreatedName,
+    selectionAfterCreate,
+    supportsCreateDatabase,
+    supportsCreateSchema,
+} from '@/utils/createContainer';
 import {newConsoleForDatabase} from '@/utils/newConsole';
 import {openEditor} from '@/utils/editorNavigation';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {useSecondaryWindows} from '@/hooks/useSecondaryWindows';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {useRegisterTableTransferCommands} from '@/hooks/useTableTransferCommands';
+import type {TableTransferCommands} from '@/utils/tableTransferCommands';
 import type {ChosenInputFile} from '@/platform/capabilities';
 import {
     DEFAULT_CREATE_TABLE_TARGET,
@@ -142,7 +179,7 @@ import {
     type CreateTableTarget,
 } from '@/utils/createTable';
 
-export type SidebarTab = 'structure' | 'favorites' | 'history' | 'notebooks';
+export type SidebarTab = 'structure' | 'favorites' | 'history' | 'notebooks' | 'sqlFiles';
 
 interface ExplorerSidebarProps {
     sidebarWidth: number;
@@ -191,6 +228,7 @@ export const ExplorerSidebar = ({
         refreshSchemaData,
         selectedSchemas,
         setSelectedSchemas,
+        refreshSchemas,
         needsSchemaSelection,
         selectedDatabases,
         setSelectedDatabases,
@@ -252,6 +290,8 @@ export const ExplorerSidebar = ({
         renameFolder,
         deleteFolder,
         moveQuery,
+        getQueryVersions,
+        restoreQueryVersion,
     } = useSavedQueries();
     const {
         entries: historyEntries,
@@ -265,6 +305,7 @@ export const ExplorerSidebar = ({
     } = useQueryHistory();
     const {showAlert} = useAlert();
     const {showToast} = useToast();
+    const {pinsFor, isPinned: isObjectPinned, togglePin} = useExplorerPins(activeConnectionId);
     const navigate = useNavigate();
     const objectNavigation = useDatabaseObjectNavigation(
         activeConnectionId,
@@ -286,6 +327,7 @@ export const ExplorerSidebar = ({
         label: string;
         data?: ContextMenuData;
     } | null>(null);
+    const [objectDetails, setObjectDetails] = useState<SchemaObjectDetails | null>(null);
     const [schemaModal, setSchemaModal] = useState<TableTarget | null>(null);
     const [runRoutineModal, setRunRoutineModal] = useState<{
         routine: RoutineInfo;
@@ -299,7 +341,15 @@ export const ExplorerSidebar = ({
         database?: string;
         identityArgs?: string | null;
     } | null>(null);
+    const [debugRoutine, setDebugRoutine] = useState<{
+        routine: RoutineInfo;
+        schema: string;
+        database: string;
+    } | null>(null);
     const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
+    const [createContainer, setCreateContainer] = useState<
+        {kind: 'database'} | {kind: 'schema'; database?: string; selected: string[]} | null
+    >(null);
     const [createTableTarget, setCreateTableTarget] = useState<CreateTableTarget>(
         DEFAULT_CREATE_TABLE_TARGET,
     );
@@ -335,7 +385,24 @@ export const ExplorerSidebar = ({
     const [folderModal, setFolderModal] = useState<{folder: SavedQueryFolder | null} | null>(null);
     const [folderDeleteConfirm, setFolderDeleteConfirm] = useState<SavedQueryFolder | null>(null);
     const [moveQueryTarget, setMoveQueryTarget] = useState<SavedQuery | null>(null);
+    const [historyQueryTarget, setHistoryQueryTarget] = useState<SavedQuery | null>(null);
     const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+
+    const exportSavedQueries = async (toExport: SavedQuery[], title: string) => {
+        if (toExport.length === 0) return;
+        try {
+            const saved = await saveSqlFile(platform, client, {
+                query: formatSavedQueriesAsSql(toExport, folders),
+                title,
+                saveAs: true,
+                filters: [{name: t('editor.sqlFileFilter'), extensions: ['sql', 'psql', 'pgsql']}],
+            });
+            if (!saved) return;
+            showToast(t('editor.sqlFileSaved'), {kind: 'success'});
+        } catch (error) {
+            showToast(`${t('common.error')}: ${toErrorMessage(error)}`, {kind: 'error'});
+        }
+    };
     const [tableFilter, setTableFilter] = useState('');
     const [favoritesFilter, setFavoritesFilter] = useState('');
     const [refreshingMatView, setRefreshingMatView] = useState<string | null>(null);
@@ -357,6 +424,18 @@ export const ExplorerSidebar = ({
         inputFile: ChosenInputFile;
         database: string;
         schema?: string;
+    } | null>(null);
+    const [exportTableModal, setExportTableModal] = useState<{
+        table: string;
+        schema?: string;
+        database?: string;
+    } | null>(null);
+    const [importTableModal, setImportTableModal] = useState<{
+        inputFile: ChosenInputFile;
+        database?: string;
+        schema?: string;
+        /** Picked from a database of the nested (schema-based multi-db) tree. */
+        nested: boolean;
     } | null>(null);
     const [pendingImport, setPendingImport] = useState<{
         inputFile: ChosenInputFile;
@@ -442,6 +521,35 @@ export const ExplorerSidebar = ({
         setSchemaVersion((v) => v + 1);
     };
 
+    const handleCreateContainerSuccess = async (name: string) => {
+        if (!createContainer || !activeConnectionId) return;
+        if (createContainer.kind === 'database') {
+            const allDatabasesMode = connectionDataMap[activeConnectionId]?.allDatabasesMode;
+            if (allDatabasesMode) {
+                await refreshDatabaseSelection(activeConnectionId, {notifyWhenUnchanged: false});
+            } else {
+                setSelectedDatabases(appendCreatedName(selectedDatabases, name));
+            }
+            return;
+        }
+
+        // Empty `selected` is the first-connect picker — do not persist a singleton.
+        const next = selectionAfterCreate(createContainer.selected, name);
+        if (createContainer.database) {
+            await loadNestedSchemas(createContainer.database, undefined, true);
+            if (next) {
+                await setSelectedSchemasForDatabase(createContainer.database, next);
+            }
+        } else {
+            await refreshSchemas();
+            if (next) {
+                await setSelectedSchemas(next);
+            } else {
+                setPendingSchemaSelection((prev) => new Set(prev).add(name));
+            }
+        }
+    };
+
     /**
      * Views and triggers share the same schema/database ambiguity as
      * create-table: a nested multi-db tab's modal carries a real `database`,
@@ -521,6 +629,31 @@ export const ExplorerSidebar = ({
         if (!activeConnectionId) return;
         openNotebook(activeConnectionId, nb.id, nb.title);
         navigate('/editor');
+    };
+
+    // A linked file already open (same canonical path) is focused, never re-read
+    // over its tab, so unsaved edits survive a second click.
+    const handleOpenLinkedFile = async (folderId: string, relativePath: string) => {
+        if (!activeConnectionId) {
+            showAlert(t('linkedFolders.needsConnection'), {kind: 'info'});
+            return;
+        }
+        try {
+            const file = await readLinkedSqlFile(client, folderId, relativePath);
+            const existing = findOpenLinkedFileTab(tabs, file.path);
+            if (existing) {
+                setActiveTabId(existing.id);
+            } else {
+                addTab(createLinkedFileTab(folderId, relativePath, file));
+            }
+            navigate('/editor');
+        } catch (error) {
+            const key = getLinkedFolderErrorKey(error);
+            showAlert(`${t('editor.openSqlFileError')}: ${key ? t(key) : String(error)}`, {
+                title: t('common.error'),
+                kind: 'error',
+            });
+        }
     };
 
     const handleRenameNotebook = async (notebookId: string, title: string) => {
@@ -866,7 +999,20 @@ export const ExplorerSidebar = ({
         }
     };
 
+    // "Import table from SQL": the file is validated against this connection
+    // before anything runs, so any .sql file can be picked here.
+    const handleImportTable = async (database?: string, schema?: string, nested = false) => {
+        const inputFile = await platform.chooseInputFile({
+            filters: [{name: 'SQL File', extensions: ['sql']}],
+        });
+        if (inputFile) {
+            setImportTableModal({inputFile, database, schema, nested});
+        }
+    };
+
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
+    const canCreateDatabase = supportsCreateDatabase(activeCapabilities);
+    const canCreateSchema = supportsCreateSchema(activeCapabilities);
     // The nested schema-based multi-db tree (Postgres) also has its own
     // per-database action icons (SidebarNestedDatabaseItem), same as the flat
     // multi-db case below — but the header actions dropdown's gate only ever
@@ -876,6 +1022,46 @@ export const ExplorerSidebar = ({
     // database the user actually has open. Confirmed live: clicking "View ER
     // Diagram" there opened a diagram with no schema and no tables.
     const isNestedMultiDb = isSchemaBasedMultiDb(activeCapabilities, selectedDatabases);
+
+    // Command palette entries (#709) for the selected sidebar node: export
+    // the selected table, import into its database (and schema). The nested
+    // multi-database tree keeps them in its own menus, since the selected
+    // table there does not say which database it belongs to.
+    const importTableRef = useRef(handleImportTable);
+    importTableRef.current = handleImportTable;
+    const tableTransferCommands = useMemo<TableTransferCommands>(() => {
+        if (!activeConnectionId || isNestedMultiDb) return {};
+        const database = isMultiDb ? (activeSchema ?? undefined) : activeDatabaseName || undefined;
+        const schema = isMultiDb ? undefined : (activeSchema ?? undefined);
+        if (isMultiDb && !database) return {};
+        const target = [database, schema].filter(Boolean).join('.');
+        return {
+            exportTable:
+                activeTable && supportsTableExport(activeCapabilities)
+                    ? {
+                          description: target ? `${target}.${activeTable}` : activeTable,
+                          run: () => setExportTableModal({table: activeTable, schema, database}),
+                      }
+                    : undefined,
+            importTable: supportsTableImport(activeCapabilities)
+                ? {
+                      description: target || undefined,
+                      run: () => {
+                          void importTableRef.current(database, schema);
+                      },
+                  }
+                : undefined,
+        };
+    }, [
+        activeCapabilities,
+        activeConnectionId,
+        activeDatabaseName,
+        activeSchema,
+        activeTable,
+        isMultiDb,
+        isNestedMultiDb,
+    ]);
+    useRegisterTableTransferCommands(activeConnectionId, tableTransferCommands);
 
     useEffect(() => {
         if (!activeTable) return;
@@ -900,6 +1086,147 @@ export const ExplorerSidebar = ({
         });
         return () => cancelAnimationFrame(rafId);
     }, [activeTable, activeSchema]);
+
+    const renderFlatTable = (table: (typeof tables)[number]) => (
+        <SidebarTableItem
+            key={table.name}
+            table={table}
+            activeTable={activeTable}
+            onTableClick={handleTableClick}
+            onTableDoubleClick={handleOpenTable}
+            onContextMenu={handleContextMenu}
+            connectionId={activeConnectionId!}
+            driver={activeDriver!}
+            capabilities={activeCapabilities}
+            canManage={supportsManageTables(activeCapabilities)}
+            onAddColumn={(t_name) =>
+                setModifyColumnModal({
+                    isOpen: true,
+                    tableName: t_name,
+                    column: null,
+                })
+            }
+            onEditColumn={(t_name, c) =>
+                setModifyColumnModal({
+                    isOpen: true,
+                    tableName: t_name,
+                    column: c,
+                })
+            }
+            onAddIndex={(t_name) =>
+                setCreateIndexModal({
+                    isOpen: true,
+                    tableName: t_name,
+                })
+            }
+            onDropIndex={async (t_name, name) => {
+                if (
+                    await ask(t('sidebar.deleteIndexConfirm', {name}), {
+                        title: t('sidebar.deleteIndex'),
+                        kind: 'warning',
+                    })
+                ) {
+                    try {
+                        await client.call('drop_index_action', {
+                            connectionId: activeConnectionId!,
+                            table: t_name,
+                            indexName: name,
+                        });
+                        setSchemaVersion((v) => v + 1);
+                    } catch (e) {
+                        showAlert(t('sidebar.failDeleteIndex') + toErrorMessage(e), {
+                            title: t('common.error'),
+                            kind: 'error',
+                        });
+                    }
+                }
+            }}
+            onAddForeignKey={(t_name) =>
+                setCreateForeignKeyModal({
+                    isOpen: true,
+                    tableName: t_name,
+                })
+            }
+            onDropForeignKey={async (t_name, name) => {
+                if (
+                    await ask(t('sidebar.deleteFkConfirm', {name}), {
+                        title: t('sidebar.deleteFk'),
+                        kind: 'warning',
+                    })
+                ) {
+                    try {
+                        await client.call('drop_foreign_key_action', {
+                            connectionId: activeConnectionId!,
+                            table: t_name,
+                            fkName: name,
+                        });
+                        setSchemaVersion((v) => v + 1);
+                    } catch (e) {
+                        showAlert(toErrorMessage(e), {
+                            title: t('common.error'),
+                            kind: 'error',
+                        });
+                    }
+                }
+            }}
+            schemaVersion={schemaVersion}
+        />
+    );
+
+    const renderFlatView = (view: (typeof views)[number]) => (
+        <SidebarViewItem
+            key={view.name}
+            view={view}
+            activeView={activeView}
+            onViewClick={handleViewClick}
+            onViewDoubleClick={handleOpenView}
+            onContextMenu={handleContextMenu}
+            connectionId={activeConnectionId!}
+            driver={activeDriver!}
+            capabilities={activeCapabilities}
+        />
+    );
+
+    // Flat layout (#1306): its items pass neither a schema nor a database, so its pins
+    // use that scope too. The same items render in the Pinned group and in their lists.
+    const renderFlatPinnedGroup = () => {
+        const byName = (object: {name: string}) => object.name;
+        const pinned = pinsFor(undefined, undefined);
+        const pinnedTables = resolvePins(
+            pinned,
+            'table',
+            fuzzyFilter(tables, tableFilter, byName),
+            byName,
+        );
+        const pinnedViews = resolvePins(
+            pinned,
+            'view',
+            fuzzyFilter(views, tableFilter, byName),
+            byName,
+        );
+        if (pinnedTables.length + pinnedViews.length === 0) return null;
+        return (
+            <SidebarPinnedGroup>
+                {pinnedTables.map((table) => renderFlatTable(table))}
+                {pinnedViews.map((view) => renderFlatView(view))}
+            </SidebarPinnedGroup>
+        );
+    };
+
+    // Pin / Unpin in the table and view context menus, scoped like the item's own data.
+    const pinMenuItem = (
+        object: PinnedObject,
+        database?: string | null,
+        schema?: string | null,
+    ) => {
+        const pinned = isObjectPinned(object, database, schema);
+        return {
+            label: pinned ? t('sidebar.unpin') : t('sidebar.pin'),
+            icon: pinned ? PinOff : Pin,
+            disabled: !activeConnectionId,
+            action: () => togglePin(object, database, schema),
+        };
+    };
 
     return (
         <>
@@ -997,6 +1324,24 @@ export const ExplorerSidebar = ({
                                                     />
                                                     <span>{t('dump.importDatabase')}</span>
                                                 </button>
+                                                {supportsTableImport(activeCapabilities) && (
+                                                    <button
+                                                        onClick={() => {
+                                                            handleImportTable(
+                                                                activeDatabaseName || undefined,
+                                                                activeSchema ?? undefined,
+                                                            );
+                                                            setIsActionsDropdownOpen(false);
+                                                        }}
+                                                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
+                                                    >
+                                                        <FileUp
+                                                            size={16}
+                                                            className="text-accent-success shrink-0"
+                                                        />
+                                                        <span>{t('tableTransfer.importMenu')}</span>
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => {
                                                         setDumpModal({
@@ -1071,6 +1416,21 @@ export const ExplorerSidebar = ({
                                     >
                                         <Upload size={16} />
                                     </button>
+                                    {supportsTableImport(activeCapabilities) && (
+                                        <button
+                                            onClick={() =>
+                                                handleImportTable(
+                                                    activeDatabaseName || undefined,
+                                                    activeSchema ?? undefined,
+                                                )
+                                            }
+                                            className="text-muted hover:text-accent-success transition-colors p-1 hover:bg-surface-secondary rounded"
+                                            title={t('tableTransfer.importMenu')}
+                                            aria-label={t('tableTransfer.importMenu')}
+                                        >
+                                            <FileUp size={16} />
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() =>
                                             setDumpModal({database: activeDatabaseName ?? ''})
@@ -1155,6 +1515,11 @@ export const ExplorerSidebar = ({
                             icon: BookOpen,
                             label: t('sidebar.notebooks.tab'),
                             count: notebookCount,
+                        },
+                        {
+                            id: 'sqlFiles' as const,
+                            icon: FolderTree,
+                            label: t('linkedFolders.tab'),
                         },
                     ].map((tab) => {
                         const isActive = sidebarTab === tab.id;
@@ -1305,6 +1670,9 @@ export const ExplorerSidebar = ({
                                     queries: SavedQuery[];
                                 }) => {
                                     const isCollapsed = collapsedFolders.has(folder.id);
+                                    const allFolderQueries = sorted.filter(
+                                        (q) => q.folder_id === folder.id,
+                                    );
                                     const FolderIcon = isCollapsed ? Folder : FolderOpen;
                                     const actionClass =
                                         'p-1 rounded text-muted hover:text-primary hover:bg-surface-hover opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus';
@@ -1346,6 +1714,23 @@ export const ExplorerSidebar = ({
                                                     <span className="text-[10px] text-muted shrink-0">
                                                         {folderQueries.length}
                                                     </span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    title={t('sidebar.exportFolder')}
+                                                    aria-label={`${t('sidebar.exportFolder')}: ${folder.name}`}
+                                                    disabled={allFolderQueries.length === 0}
+                                                    onClick={() =>
+                                                        void exportSavedQueries(
+                                                            allFolderQueries,
+                                                            getSavedQueryExportFileName(
+                                                                folder.name,
+                                                            ),
+                                                        )
+                                                    }
+                                                    className={`${actionClass} disabled:hidden`}
+                                                >
+                                                    <Download size={11} />
                                                 </button>
                                                 <button
                                                     type="button"
@@ -1419,6 +1804,21 @@ export const ExplorerSidebar = ({
                                                 className="p-1.5 rounded text-muted hover:text-primary hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
                                             >
                                                 <FolderPlus size={14} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                title={t('sidebar.exportAllQueries')}
+                                                aria-label={t('sidebar.exportAllQueries')}
+                                                disabled={queries.length === 0}
+                                                onClick={() =>
+                                                    void exportSavedQueries(
+                                                        sorted,
+                                                        'saved-queries.sql',
+                                                    )
+                                                }
+                                                className="p-1.5 rounded text-muted hover:text-primary hover:bg-surface-secondary disabled:opacity-40 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                                            >
+                                                <Download size={14} />
                                             </button>
                                         </div>
                                         {isSearching && (
@@ -1506,6 +1906,14 @@ export const ExplorerSidebar = ({
                         />
                     )}
 
+                    {/* SQL Files tab: explicitly linked local folders of scripts */}
+                    {sidebarTab === 'sqlFiles' && (
+                        <LinkedFoldersSection
+                            openFiles={buildOpenLinkedFileIndex(tabs)}
+                            onOpenFile={handleOpenLinkedFile}
+                        />
+                    )}
+
                     {/* Structure tab */}
                     {sidebarTab === 'structure' &&
                         (isLoadingTables || isLoadingSchemas ? (
@@ -1574,8 +1982,26 @@ export const ExplorerSidebar = ({
                                         {needsSchemaSelection ? (
                                             /* Schema picker (first connect, no saved preference) */
                                             <div className="px-3 py-2">
-                                                <div className="text-xs font-semibold uppercase text-muted tracking-wider mb-2">
-                                                    {t('sidebar.schemas')}
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="text-xs font-semibold uppercase text-muted tracking-wider">
+                                                        {t('sidebar.schemas')}
+                                                    </div>
+                                                    {canCreateSchema && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setCreateContainer({
+                                                                    kind: 'schema',
+                                                                    selected: selectedSchemas,
+                                                                })
+                                                            }
+                                                            className="p-1 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                            title={t('sidebar.newSchema')}
+                                                            aria-label={t('sidebar.newSchema')}
+                                                        >
+                                                            <Plus size={14} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <div className="text-xs text-secondary mb-2">
                                                     {t('sidebar.selectSchemasHint')}
@@ -1690,179 +2116,197 @@ export const ExplorerSidebar = ({
                                                         {t('sidebar.schemas')} (
                                                         {selectedSchemas.length}/{schemas.length})
                                                     </span>
-                                                    <div className="relative">
-                                                        <button
-                                                            onClick={() => {
-                                                                setPendingSchemaSelection(
-                                                                    new Set(selectedSchemas),
-                                                                );
-                                                                setIsSchemaFilterOpen(
-                                                                    !isSchemaFilterOpen,
-                                                                );
-                                                            }}
-                                                            className={`p-1 rounded transition-colors mr-1.5 ${
-                                                                selectedSchemas.length <
-                                                                schemas.length
-                                                                    ? 'text-accent bg-accent-primary/10'
-                                                                    : 'text-muted hover:text-secondary hover:bg-surface-secondary'
-                                                            }`}
-                                                            title={t('sidebar.editSchemas')}
-                                                        >
-                                                            <Settings2 size={14} />
-                                                        </button>
-                                                        {isSchemaFilterOpen && (
-                                                            <>
-                                                                <div
-                                                                    role="presentation"
-                                                                    className="fixed inset-0 z-40"
-                                                                    onClick={closeSchemaFilter}
-                                                                />
-                                                                <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[300px] flex flex-col">
-                                                                    <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
-                                                                        <span className="text-xs font-semibold text-secondary">
-                                                                            {t(
-                                                                                'sidebar.editSchemas',
-                                                                            )}
-                                                                        </span>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (
-                                                                                    pendingSchemaSelection.size ===
-                                                                                    schemas.length
-                                                                                ) {
-                                                                                    setPendingSchemaSelection(
-                                                                                        new Set(),
-                                                                                    );
-                                                                                } else {
-                                                                                    setPendingSchemaSelection(
-                                                                                        new Set(
-                                                                                            schemas,
-                                                                                        ),
-                                                                                    );
-                                                                                }
-                                                                            }}
-                                                                            className="text-xs text-accent hover:underline"
-                                                                        >
-                                                                            {pendingSchemaSelection.size ===
-                                                                            schemas.length
-                                                                                ? t(
-                                                                                      'sidebar.deselectAll',
-                                                                                  )
-                                                                                : t(
-                                                                                      'sidebar.selectAll',
-                                                                                  )}
-                                                                        </button>
-                                                                    </div>
-                                                                    <div className="overflow-y-auto py-1">
-                                                                        {schemas.map(
-                                                                            (schemaName) => {
-                                                                                const isSelected =
-                                                                                    pendingSchemaSelection.has(
-                                                                                        schemaName,
-                                                                                    );
-                                                                                return (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        key={
-                                                                                            schemaName
-                                                                                        }
-                                                                                        aria-pressed={
-                                                                                            isSelected
-                                                                                        }
-                                                                                        onClick={() => {
-                                                                                            const next =
-                                                                                                new Set(
-                                                                                                    pendingSchemaSelection,
-                                                                                                );
-                                                                                            if (
-                                                                                                isSelected
-                                                                                            ) {
-                                                                                                next.delete(
-                                                                                                    schemaName,
-                                                                                                );
-                                                                                            } else {
-                                                                                                next.add(
-                                                                                                    schemaName,
-                                                                                                );
-                                                                                            }
-                                                                                            setPendingSchemaSelection(
-                                                                                                next,
-                                                                                            );
-                                                                                        }}
-                                                                                        className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
-                                                                                            isSelected
-                                                                                                ? 'text-primary hover:bg-surface-secondary'
-                                                                                                : 'text-muted hover:bg-surface-secondary'
-                                                                                        }`}
-                                                                                    >
-                                                                                        <div
-                                                                                            className={`w-4 h-4 flex items-center justify-center shrink-0 ${
-                                                                                                isSelected
-                                                                                                    ? 'text-accent'
-                                                                                                    : 'text-muted'
-                                                                                            }`}
-                                                                                        >
-                                                                                            {isSelected ? (
-                                                                                                <CheckSquare
-                                                                                                    size={
-                                                                                                        14
-                                                                                                    }
-                                                                                                />
-                                                                                            ) : (
-                                                                                                <Square
-                                                                                                    size={
-                                                                                                        14
-                                                                                                    }
-                                                                                                />
-                                                                                            )}
-                                                                                        </div>
-                                                                                        <span className="text-sm truncate select-none">
-                                                                                            {
+                                                    <div className="flex items-center">
+                                                        {canCreateSchema && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setCreateContainer({
+                                                                        kind: 'schema',
+                                                                        selected: selectedSchemas,
+                                                                    })
+                                                                }
+                                                                className="p-1 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors mr-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                                title={t('sidebar.newSchema')}
+                                                                aria-label={t('sidebar.newSchema')}
+                                                            >
+                                                                <Plus size={14} />
+                                                            </button>
+                                                        )}
+                                                        <div className="relative">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setPendingSchemaSelection(
+                                                                        new Set(selectedSchemas),
+                                                                    );
+                                                                    setIsSchemaFilterOpen(
+                                                                        !isSchemaFilterOpen,
+                                                                    );
+                                                                }}
+                                                                className={`p-1 rounded transition-colors mr-1.5 ${
+                                                                    selectedSchemas.length <
+                                                                    schemas.length
+                                                                        ? 'text-accent bg-accent-primary/10'
+                                                                        : 'text-muted hover:text-secondary hover:bg-surface-secondary'
+                                                                }`}
+                                                                title={t('sidebar.editSchemas')}
+                                                            >
+                                                                <Settings2 size={14} />
+                                                            </button>
+                                                            {isSchemaFilterOpen && (
+                                                                <>
+                                                                    <div
+                                                                        role="presentation"
+                                                                        className="fixed inset-0 z-40"
+                                                                        onClick={closeSchemaFilter}
+                                                                    />
+                                                                    <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[300px] flex flex-col">
+                                                                        <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
+                                                                            <span className="text-xs font-semibold text-secondary">
+                                                                                {t(
+                                                                                    'sidebar.editSchemas',
+                                                                                )}
+                                                                            </span>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (
+                                                                                        pendingSchemaSelection.size ===
+                                                                                        schemas.length
+                                                                                    ) {
+                                                                                        setPendingSchemaSelection(
+                                                                                            new Set(),
+                                                                                        );
+                                                                                    } else {
+                                                                                        setPendingSchemaSelection(
+                                                                                            new Set(
+                                                                                                schemas,
+                                                                                            ),
+                                                                                        );
+                                                                                    }
+                                                                                }}
+                                                                                className="text-xs text-accent hover:underline"
+                                                                            >
+                                                                                {pendingSchemaSelection.size ===
+                                                                                schemas.length
+                                                                                    ? t(
+                                                                                          'sidebar.deselectAll',
+                                                                                      )
+                                                                                    : t(
+                                                                                          'sidebar.selectAll',
+                                                                                      )}
+                                                                            </button>
+                                                                        </div>
+                                                                        <div className="overflow-y-auto py-1">
+                                                                            {schemas.map(
+                                                                                (schemaName) => {
+                                                                                    const isSelected =
+                                                                                        pendingSchemaSelection.has(
+                                                                                            schemaName,
+                                                                                        );
+                                                                                    return (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            key={
                                                                                                 schemaName
                                                                                             }
-                                                                                        </span>
-                                                                                    </button>
-                                                                                );
-                                                                            },
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="px-3 pt-2 border-t border-default">
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (
+                                                                                            aria-pressed={
+                                                                                                isSelected
+                                                                                            }
+                                                                                            onClick={() => {
+                                                                                                const next =
+                                                                                                    new Set(
+                                                                                                        pendingSchemaSelection,
+                                                                                                    );
+                                                                                                if (
+                                                                                                    isSelected
+                                                                                                ) {
+                                                                                                    next.delete(
+                                                                                                        schemaName,
+                                                                                                    );
+                                                                                                } else {
+                                                                                                    next.add(
+                                                                                                        schemaName,
+                                                                                                    );
+                                                                                                }
+                                                                                                setPendingSchemaSelection(
+                                                                                                    next,
+                                                                                                );
+                                                                                            }}
+                                                                                            className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                                                                                                isSelected
+                                                                                                    ? 'text-primary hover:bg-surface-secondary'
+                                                                                                    : 'text-muted hover:bg-surface-secondary'
+                                                                                            }`}
+                                                                                        >
+                                                                                            <div
+                                                                                                className={`w-4 h-4 flex items-center justify-center shrink-0 ${
+                                                                                                    isSelected
+                                                                                                        ? 'text-accent'
+                                                                                                        : 'text-muted'
+                                                                                                }`}
+                                                                                            >
+                                                                                                {isSelected ? (
+                                                                                                    <CheckSquare
+                                                                                                        size={
+                                                                                                            14
+                                                                                                        }
+                                                                                                    />
+                                                                                                ) : (
+                                                                                                    <Square
+                                                                                                        size={
+                                                                                                            14
+                                                                                                        }
+                                                                                                    />
+                                                                                                )}
+                                                                                            </div>
+                                                                                            <span className="text-sm truncate select-none">
+                                                                                                {
+                                                                                                    schemaName
+                                                                                                }
+                                                                                            </span>
+                                                                                        </button>
+                                                                                    );
+                                                                                },
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="px-3 pt-2 border-t border-default">
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (
+                                                                                        pendingSchemaSelection.size >
+                                                                                        0
+                                                                                    ) {
+                                                                                        setSelectedSchemas(
+                                                                                            Array.from(
+                                                                                                pendingSchemaSelection,
+                                                                                            ),
+                                                                                        );
+                                                                                    }
+                                                                                    setIsSchemaFilterOpen(
+                                                                                        false,
+                                                                                    );
+                                                                                }}
+                                                                                disabled={
+                                                                                    pendingSchemaSelection.size ===
+                                                                                    0
+                                                                                }
+                                                                                className={`w-full flex items-center justify-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
                                                                                     pendingSchemaSelection.size >
                                                                                     0
-                                                                                ) {
-                                                                                    setSelectedSchemas(
-                                                                                        Array.from(
-                                                                                            pendingSchemaSelection,
-                                                                                        ),
-                                                                                    );
-                                                                                }
-                                                                                setIsSchemaFilterOpen(
-                                                                                    false,
-                                                                                );
-                                                                            }}
-                                                                            disabled={
-                                                                                pendingSchemaSelection.size ===
-                                                                                0
-                                                                            }
-                                                                            className={`w-full flex items-center justify-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
-                                                                                pendingSchemaSelection.size >
-                                                                                0
-                                                                                    ? 'bg-accent-primary text-inverse hover:bg-accent-primary/90'
-                                                                                    : 'bg-surface-secondary text-muted cursor-not-allowed'
-                                                                            }`}
-                                                                        >
-                                                                            <Check size={12} />
-                                                                            {t(
-                                                                                'sidebar.confirmSelection',
-                                                                            )}
-                                                                        </button>
+                                                                                        ? 'bg-accent-primary text-inverse hover:bg-accent-primary/90'
+                                                                                        : 'bg-surface-secondary text-muted cursor-not-allowed'
+                                                                                }`}
+                                                                            >
+                                                                                <Check size={12} />
+                                                                                {t(
+                                                                                    'sidebar.confirmSelection',
+                                                                                )}
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            </>
-                                                        )}
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 {selectedSchemas.map((schemaName) => (
@@ -2066,6 +2510,19 @@ export const ExplorerSidebar = ({
                                                 )
                                             </span>
                                             <div className="flex items-center gap-1">
+                                                {canCreateDatabase && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setCreateContainer({kind: 'database'})
+                                                        }
+                                                        className="p-1 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                        title={t('sidebar.newDatabase')}
+                                                        aria-label={t('sidebar.newDatabase')}
+                                                    >
+                                                        <Plus size={14} />
+                                                    </button>
+                                                )}
                                                 <div className="relative">
                                                     <button
                                                         onClick={async () => {
@@ -2531,6 +2988,19 @@ export const ExplorerSidebar = ({
                                                 {t('sidebar.databases')} ({selectedDatabases.length}
                                                 )
                                             </span>
+                                            {canCreateDatabase && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setCreateContainer({kind: 'database'})
+                                                    }
+                                                    className="p-1 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                                    title={t('sidebar.newDatabase')}
+                                                    aria-label={t('sidebar.newDatabase')}
+                                                >
+                                                    <Plus size={14} />
+                                                </button>
+                                            )}
                                         </div>
 
                                         <div className="px-3 pb-1.5">
@@ -2616,6 +3086,16 @@ export const ExplorerSidebar = ({
                                                     true
                                                         ? (database, schema) =>
                                                               handleImportDatabase(database, schema)
+                                                        : undefined
+                                                }
+                                                onImportTable={
+                                                    supportsTableImport(activeCapabilities)
+                                                        ? (database, schema) =>
+                                                              handleImportTable(
+                                                                  database,
+                                                                  schema,
+                                                                  true,
+                                                              )
                                                         : undefined
                                                 }
                                                 onViewERDiagram={handleViewNestedERDiagram}
@@ -2739,6 +3219,18 @@ export const ExplorerSidebar = ({
                                                         database,
                                                     })
                                                 }
+                                                onCreateSchema={
+                                                    canCreateSchema
+                                                        ? () =>
+                                                              setCreateContainer({
+                                                                  kind: 'schema',
+                                                                  database: dbName,
+                                                                  selected:
+                                                                      nestedDatabaseDataMap[dbName]
+                                                                          ?.selectedSchemas ?? [],
+                                                              })
+                                                        : undefined
+                                                }
                                                 showTriggers={activeCapabilities?.triggers === true}
                                             />
                                         ))}
@@ -2777,6 +3269,8 @@ export const ExplorerSidebar = ({
                                                 )}
                                             </span>
                                         </div>
+
+                                        {renderFlatPinnedGroup()}
 
                                         {/* Tables */}
                                         <Accordion
@@ -2844,162 +3338,9 @@ export const ExplorerSidebar = ({
                                                             </div>
                                                         ) : (
                                                             <div>
-                                                                {filteredTables.map((table) => (
-                                                                    <SidebarTableItem
-                                                                        key={table.name}
-                                                                        table={table}
-                                                                        activeTable={activeTable}
-                                                                        onTableClick={
-                                                                            handleTableClick
-                                                                        }
-                                                                        onTableDoubleClick={
-                                                                            handleOpenTable
-                                                                        }
-                                                                        onContextMenu={
-                                                                            handleContextMenu
-                                                                        }
-                                                                        connectionId={
-                                                                            activeConnectionId!
-                                                                        }
-                                                                        driver={activeDriver!}
-                                                                        capabilities={
-                                                                            activeCapabilities
-                                                                        }
-                                                                        canManage={supportsManageTables(
-                                                                            activeCapabilities,
-                                                                        )}
-                                                                        onAddColumn={(t_name) =>
-                                                                            setModifyColumnModal({
-                                                                                isOpen: true,
-                                                                                tableName: t_name,
-                                                                                column: null,
-                                                                            })
-                                                                        }
-                                                                        onEditColumn={(t_name, c) =>
-                                                                            setModifyColumnModal({
-                                                                                isOpen: true,
-                                                                                tableName: t_name,
-                                                                                column: c,
-                                                                            })
-                                                                        }
-                                                                        onAddIndex={(t_name) =>
-                                                                            setCreateIndexModal({
-                                                                                isOpen: true,
-                                                                                tableName: t_name,
-                                                                            })
-                                                                        }
-                                                                        onDropIndex={async (
-                                                                            t_name,
-                                                                            name,
-                                                                        ) => {
-                                                                            if (
-                                                                                await ask(
-                                                                                    t(
-                                                                                        'sidebar.deleteIndexConfirm',
-                                                                                        {name},
-                                                                                    ),
-                                                                                    {
-                                                                                        title: t(
-                                                                                            'sidebar.deleteIndex',
-                                                                                        ),
-                                                                                        kind: 'warning',
-                                                                                    },
-                                                                                )
-                                                                            ) {
-                                                                                try {
-                                                                                    await client.call(
-                                                                                        'drop_index_action',
-                                                                                        {
-                                                                                            connectionId:
-                                                                                                activeConnectionId!,
-                                                                                            table: t_name,
-                                                                                            indexName:
-                                                                                                name,
-                                                                                        },
-                                                                                    );
-                                                                                    setSchemaVersion(
-                                                                                        (v) =>
-                                                                                            v + 1,
-                                                                                    );
-                                                                                } catch (e) {
-                                                                                    showAlert(
-                                                                                        t(
-                                                                                            'sidebar.failDeleteIndex',
-                                                                                        ) +
-                                                                                            toErrorMessage(
-                                                                                                e,
-                                                                                            ),
-                                                                                        {
-                                                                                            title: t(
-                                                                                                'common.error',
-                                                                                            ),
-                                                                                            kind: 'error',
-                                                                                        },
-                                                                                    );
-                                                                                }
-                                                                            }
-                                                                        }}
-                                                                        onAddForeignKey={(t_name) =>
-                                                                            setCreateForeignKeyModal(
-                                                                                {
-                                                                                    isOpen: true,
-                                                                                    tableName:
-                                                                                        t_name,
-                                                                                },
-                                                                            )
-                                                                        }
-                                                                        onDropForeignKey={async (
-                                                                            t_name,
-                                                                            name,
-                                                                        ) => {
-                                                                            if (
-                                                                                await ask(
-                                                                                    t(
-                                                                                        'sidebar.deleteFkConfirm',
-                                                                                        {name},
-                                                                                    ),
-                                                                                    {
-                                                                                        title: t(
-                                                                                            'sidebar.deleteFk',
-                                                                                        ),
-                                                                                        kind: 'warning',
-                                                                                    },
-                                                                                )
-                                                                            ) {
-                                                                                try {
-                                                                                    await client.call(
-                                                                                        'drop_foreign_key_action',
-                                                                                        {
-                                                                                            connectionId:
-                                                                                                activeConnectionId!,
-                                                                                            table: t_name,
-                                                                                            fkName: name,
-                                                                                        },
-                                                                                    );
-                                                                                    setSchemaVersion(
-                                                                                        (v) =>
-                                                                                            v + 1,
-                                                                                    );
-                                                                                } catch (e) {
-                                                                                    showAlert(
-                                                                                        toErrorMessage(
-                                                                                            e,
-                                                                                        ),
-                                                                                        {
-                                                                                            title: t(
-                                                                                                'common.error',
-                                                                                            ),
-                                                                                            kind: 'error',
-                                                                                        },
-                                                                                    );
-                                                                                }
-                                                                            }
-                                                                        }}
-                                                                        schemaVersion={
-                                                                            schemaVersion
-                                                                        }
-                                                                    />
-                                                                ))}
+                                                                {filteredTables.map((table) =>
+                                                                    renderFlatTable(table),
+                                                                )}
                                                             </div>
                                                         )}
                                                     </>
@@ -3053,19 +3394,7 @@ export const ExplorerSidebar = ({
                                                     </div>
                                                 ) : (
                                                     <div>
-                                                        {views.map((view) => (
-                                                            <SidebarViewItem
-                                                                key={view.name}
-                                                                view={view}
-                                                                activeView={activeView}
-                                                                onViewClick={handleViewClick}
-                                                                onViewDoubleClick={handleOpenView}
-                                                                onContextMenu={handleContextMenu}
-                                                                connectionId={activeConnectionId!}
-                                                                driver={activeDriver!}
-                                                                capabilities={activeCapabilities}
-                                                            />
-                                                        ))}
+                                                        {views.map((view) => renderFlatView(view))}
                                                     </div>
                                                 )}
                                             </Accordion>
@@ -3366,6 +3695,11 @@ export const ExplorerSidebar = ({
                                               );
                                           },
                                       },
+                                      pinMenuItem(
+                                          {kind: 'table', name: contextMenu.id},
+                                          ctxDatabase,
+                                          ctxSchema,
+                                      ),
                                       {
                                           label: t('sidebar.newConsole'),
                                           icon: FileCode,
@@ -3458,6 +3792,20 @@ export const ExplorerSidebar = ({
                                                     setClipboardImportSchema(ctxSchema);
                                                     setIsClipboardImportOpen(true);
                                                 },
+                                            }
+                                          : null,
+                                      supportsTableExport(activeCapabilities)
+                                          ? {
+                                                label: t('tableTransfer.exportMenu'),
+                                                icon: FileDown,
+                                                disabled: !activeConnectionId,
+                                                action: () =>
+                                                    setExportTableModal({
+                                                        table: contextMenu.id,
+                                                        schema:
+                                                            ctxSchema ?? activeSchema ?? undefined,
+                                                        database: ctxDatabase,
+                                                    }),
                                             }
                                           : null,
                                       createCopyNameItem(contextMenu.id, ctxSchema),
@@ -3562,9 +3910,30 @@ export const ExplorerSidebar = ({
                             : contextMenu.type === 'index'
                               ? ([
                                     {
+                                        label: t('objectDetails.viewDetails'),
+                                        icon: FileText,
+                                        action: () => {
+                                            if (
+                                                contextMenu.data &&
+                                                'objectDetails' in contextMenu.data &&
+                                                contextMenu.data.objectDetails
+                                            ) {
+                                                setObjectDetails(contextMenu.data.objectDetails);
+                                            }
+                                        },
+                                    },
+                                    {
                                         label: t('sidebar.copyName'),
                                         icon: Copy,
-                                        action: () => navigator.clipboard.writeText(contextMenu.id),
+                                        action: async () => {
+                                            try {
+                                                await copyTextToClipboard(contextMenu.id);
+                                                showAlert(t('common.copied'), {kind: 'info'});
+                                            } catch (error) {
+                                                console.error('Failed to copy index name:', error);
+                                                showAlert(t('common.error'), {kind: 'error'});
+                                            }
+                                        },
                                     },
                                     supportsManageTables(activeCapabilities)
                                         ? {
@@ -3631,6 +4000,19 @@ export const ExplorerSidebar = ({
                                 ].filter(Boolean) as ContextMenuItem[])
                               : contextMenu.type === 'foreign_key'
                                 ? ([
+                                      {
+                                          label: t('objectDetails.viewDetails'),
+                                          icon: FileText,
+                                          action: () => {
+                                              if (
+                                                  contextMenu.data &&
+                                                  'objectDetails' in contextMenu.data &&
+                                                  contextMenu.data.objectDetails
+                                              ) {
+                                                  setObjectDetails(contextMenu.data.objectDetails);
+                                              }
+                                          },
+                                      },
                                       {
                                           label: t('sidebar.copyName'),
                                           icon: Copy,
@@ -3781,6 +4163,11 @@ export const ExplorerSidebar = ({
                                                         );
                                                     },
                                                 },
+                                                pinMenuItem(
+                                                    {kind: 'view', name: contextMenu.id},
+                                                    viewCtxDatabase,
+                                                    viewCtxSchema,
+                                                ),
                                                 {
                                                     label: t('sidebar.countRows'),
                                                     icon: Hash,
@@ -3896,6 +4283,11 @@ export const ExplorerSidebar = ({
                                                           );
                                                       },
                                                   },
+                                                  pinMenuItem(
+                                                      {kind: 'view', name: contextMenu.id},
+                                                      mvCtxDatabase,
+                                                      mvCtxSchema,
+                                                  ),
                                                   {
                                                       label: t('sidebar.countRows'),
                                                       icon: Hash,
@@ -3980,6 +4372,25 @@ export const ExplorerSidebar = ({
                                                 const canManageRoutines =
                                                     activeCapabilities?.routine_management === true;
                                                 return [
+                                                    activeCapabilities?.routine_debug === 1 &&
+                                                    !activeCapabilities.readonly &&
+                                                    routineData &&
+                                                    routineSchema &&
+                                                    (routineDatabase || activeDatabaseName)
+                                                        ? {
+                                                              label: t('routineDebug.title'),
+                                                              icon: Play,
+                                                              action: () =>
+                                                                  setDebugRoutine({
+                                                                      routine: routineData,
+                                                                      schema: routineSchema,
+                                                                      database:
+                                                                          routineDatabase ||
+                                                                          activeDatabaseName ||
+                                                                          '',
+                                                                  }),
+                                                          }
+                                                        : null,
                                                     canManageRoutines
                                                         ? {
                                                               label: t('routines.menuRun'),
@@ -4316,6 +4727,20 @@ export const ExplorerSidebar = ({
                                                           action: () =>
                                                               handleImportDatabase(contextMenu.id),
                                                       },
+                                                      ...(supportsTableImport(activeCapabilities)
+                                                          ? [
+                                                                {
+                                                                    label: t(
+                                                                        'tableTransfer.importMenu',
+                                                                    ),
+                                                                    icon: FileUp,
+                                                                    action: () =>
+                                                                        handleImportTable(
+                                                                            contextMenu.id,
+                                                                        ),
+                                                                },
+                                                            ]
+                                                          : []),
                                                       {
                                                           label: t('dump.dumpDatabase'),
                                                           icon: Download,
@@ -4643,6 +5068,20 @@ export const ExplorerSidebar = ({
                                                             },
                                                         },
                                                         {
+                                                            label: t('sidebar.versionHistory'),
+                                                            icon: History,
+                                                            action: () => {
+                                                                if (
+                                                                    contextMenu.data &&
+                                                                    'sql' in contextMenu.data
+                                                                ) {
+                                                                    setHistoryQueryTarget(
+                                                                        contextMenu.data as SavedQuery,
+                                                                    );
+                                                                }
+                                                            },
+                                                        },
+                                                        {
                                                             label: t('sidebar.moveToFolder'),
                                                             icon: FolderInput,
                                                             action: () => {
@@ -4688,6 +5127,18 @@ export const ExplorerSidebar = ({
                     database={
                         createTableTarget.kind === 'nested' ? createTableTarget.database : undefined
                     }
+                />
+            )}
+
+            {createContainer && (
+                <CreateContainerModal
+                    isOpen
+                    kind={createContainer.kind}
+                    database={
+                        createContainer.kind === 'schema' ? createContainer.database : undefined
+                    }
+                    onClose={() => setCreateContainer(null)}
+                    onSuccess={handleCreateContainerSuccess}
                 />
             )}
 
@@ -4750,6 +5201,13 @@ export const ExplorerSidebar = ({
                 />
             )}
 
+            {objectDetails && (
+                <SchemaObjectDetailsModal
+                    isOpen={true}
+                    onClose={() => setObjectDetails(null)}
+                    details={objectDetails}
+                />
+            )}
             {createIndexModal.isOpen && activeConnectionId && (
                 <CreateIndexModal
                     isOpen={createIndexModal.isOpen}
@@ -4831,6 +5289,45 @@ export const ExplorerSidebar = ({
                 />
             )}
 
+            {exportTableModal && activeConnectionId && (
+                <ExportTableModal
+                    isOpen={true}
+                    onClose={() => setExportTableModal(null)}
+                    connectionId={activeConnectionId}
+                    table={exportTableModal.table}
+                    schema={exportTableModal.schema}
+                    database={exportTableModal.database}
+                />
+            )}
+
+            {importTableModal && activeConnectionId && (
+                <ImportTableModal
+                    isOpen={true}
+                    onClose={() => setImportTableModal(null)}
+                    connectionId={activeConnectionId}
+                    connectionName={activeConnectionName || activeConnectionId}
+                    inputFile={importTableModal.inputFile}
+                    database={importTableModal.database}
+                    schema={importTableModal.schema}
+                    schemaEditable={activeCapabilities?.schemas === true}
+                    onSuccess={(result, schema, database) => {
+                        if (importTableModal.nested && database) {
+                            refreshNestedSchemaData(database, schema ?? 'public');
+                            setActiveTable(result.table, schema);
+                        } else if (isMultiDb && database) {
+                            refreshDatabaseData(database);
+                            setActiveTable(result.table, database);
+                        } else if (schema && activeCapabilities?.schemas === true) {
+                            refreshSchemaData(schema);
+                            setActiveTable(result.table, schema);
+                        } else {
+                            if (refreshTables) refreshTables();
+                            setActiveTable(result.table, schema);
+                        }
+                    }}
+                />
+            )}
+
             {viewEditorModal.isOpen && activeConnectionId && (
                 <ViewEditorModal
                     isOpen={viewEditorModal.isOpen}
@@ -4890,6 +5387,14 @@ export const ExplorerSidebar = ({
                 query={moveQueryTarget}
                 folders={folders}
                 onMove={moveQuery}
+            />
+
+            <SavedQueryHistoryModal
+                isOpen={historyQueryTarget !== null}
+                onClose={() => setHistoryQueryTarget(null)}
+                query={historyQueryTarget}
+                loadVersions={getQueryVersions}
+                onRestore={restoreQueryVersion}
             />
 
             <ConfirmModal
@@ -4969,6 +5474,14 @@ export const ExplorerSidebar = ({
             />
 
             {/* Run routine with parameters */}
+            {debugRoutine && activeConnectionId && (
+                <DebugRoutineModal
+                    key={`${activeConnectionId}:${debugRoutine.routine.name}:${debugRoutine.routine.identity_args ?? ''}`}
+                    connectionId={activeConnectionId}
+                    {...debugRoutine}
+                    onClose={() => setDebugRoutine(null)}
+                />
+            )}
             {runRoutineModal && activeConnectionId && (
                 <RunRoutineModal
                     isOpen={true}

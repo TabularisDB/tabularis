@@ -1,9 +1,13 @@
 # Declarative AI assistants
 
-OpenAI, Anthropic, OpenRouter, Requesty, MiniMax, Ollama and OpenAI Compatible
+OpenAI, Anthropic, OpenRouter, Requesty, MiniMax, Ollama, OpenAI Compatible and API Route
 are **built into Tabularis**. Their definitions and icons are embedded in the
 application binary; they remain available without a registry or an initial
 download. ChatGPT account login remains built in as well.
+
+API Route and OpenAI Compatible require an explicitly selected or saved model.
+Their definitions set `require_explicit_model: true`; discovery alone never picks
+the first account model on the backend.
 
 Additional providers are independent `ai-assistant` packages. **Gemini** is the
 first external example, maintained in
@@ -84,7 +88,7 @@ remain host-owned. HTTP errors do not expose response bodies or credential URLs.
 python3 plugins/ai-assistants/package.py --output /tmp/tabularis-ai-packages
 ```
 
-The packager skips the seven built-in definitions. External ZIPs include their
+The packager skips the eight built-in definitions. External ZIPs include their
 manifest, license and optional icon. The release tag matches manifest `version`;
 register the ZIP as `universal`. No platform binary is needed.
 
@@ -93,7 +97,7 @@ schema and public catalogue page, as described in
 [Tabularium #35](https://github.com/TabularisDB/tabularium/pull/35).
 Set the **actual first supporting runtime version** before a production listing;
 a development version is not evidence of old-client compatibility. There is no
-requirement to publish replacement packages for the seven built-in providers.
+requirement to publish replacement packages for the eight built-in providers.
 
 ## Existing settings
 

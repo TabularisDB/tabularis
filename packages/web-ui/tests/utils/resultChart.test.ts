@@ -12,11 +12,16 @@ import {
     getSeriesDash,
     getSeriesSlots,
     truncateChartLabel,
+    ROW_NUMBER,
     buildDefaultResultChartConfig,
+    buildRowNumberFormatters,
+    chartSeriesKey,
+    getChartColumnLabels,
     classifyResultColumns,
     getChartUnavailableReason,
     getChartValueColumns,
     getIsolatedPoints,
+    getSoleValueColumn,
     getResultChartScope,
     isNumericValue,
     isTemporalValue,
@@ -24,9 +29,9 @@ import {
     setChartLabelColumn,
     shapeResultChartData,
     toggleChartValueColumn,
+    type ResultChartConfig,
 } from '@/utils/resultChart';
 import type {QueryResult} from '@/types/editor';
-import type {CellChartConfig} from '@/types/notebook';
 
 function makeResult(
     columns: string[],
@@ -157,8 +162,28 @@ describe('resultChart', () => {
     });
 
     describe('getChartValueColumns', () => {
-        it('returns only numeric columns', () => {
-            expect(getChartValueColumns(sales)).toEqual(['id', 'revenue', 'cost']);
+        it('returns the indexes of numeric columns', () => {
+            expect(getChartValueColumns(sales)).toEqual([0, 2, 3]);
+        });
+    });
+
+    describe('getChartColumnLabels', () => {
+        it('keeps unique names and numbers repeated ones from the second copy on', () => {
+            expect(getChartColumnLabels(['id', 'name', 'id', 'total', 'id'])).toEqual([
+                'id',
+                'name',
+                'id (2)',
+                'total',
+                'id (3)',
+            ]);
+            expect(getChartColumnLabels(sales.columns)).toEqual(sales.columns);
+        });
+    });
+
+    describe('chartSeriesKey', () => {
+        it('gives each column index its own key, apart from the label key', () => {
+            expect(chartSeriesKey(0)).not.toBe(chartSeriesKey(1));
+            expect(chartSeriesKey(0)).not.toBe('label');
         });
     });
 
@@ -176,22 +201,51 @@ describe('resultChart', () => {
         it('returns null for chartable results', () => {
             expect(getChartUnavailableReason(sales)).toBeNull();
         });
+
+        it('reports a single value with nothing to plot it against', () => {
+            // SELECT COUNT(*) AS n FROM t
+            expect(getChartUnavailableReason(makeResult(['n'], [[42]]))).toBe('singleValue');
+            // An all-NULL column can't serve as X either.
+            expect(getChartUnavailableReason(makeResult(['n', 'note'], [[42, null]]))).toBe(
+                'singleValue',
+            );
+        });
+
+        it('charts a single row when another column can go on X', () => {
+            expect(getChartUnavailableReason(makeResult(['region', 'n'], [['North', 4]]))).toBe(
+                null,
+            );
+            expect(getChartUnavailableReason(makeResult(['a', 'b'], [[1, 2]]))).toBeNull();
+        });
+
+        it('charts a single numeric column once there are several rows', () => {
+            expect(getChartUnavailableReason(makeResult(['n'], [[1], [2]]))).toBeNull();
+        });
+    });
+
+    describe('getSoleValueColumn', () => {
+        it('returns the only numeric column, or null when there are several', () => {
+            expect(getSoleValueColumn(makeResult(['region', 'n'], [['North', 4]]))).toBe(1);
+            expect(getSoleValueColumn(sales)).toBeNull();
+        });
     });
 
     describe('buildDefaultResultChartConfig', () => {
         it('uses the first text column as X with a bar chart, skipping id columns for Y', () => {
             expect(buildDefaultResultChartConfig(sales)).toEqual({
                 type: 'bar',
-                labelColumn: 'region',
-                valueColumns: ['revenue'],
+                labelIndex: 1,
+                valueIndices: [2],
+                columns: sales.columns,
             });
         });
 
         it('prefers a date-like X column and starts as a line chart', () => {
             expect(buildDefaultResultChartConfig(monthly)).toEqual({
                 type: 'line',
-                labelColumn: 'month',
-                valueColumns: ['orders'],
+                labelIndex: 0,
+                valueIndices: [1],
+                columns: monthly.columns,
             });
         });
 
@@ -203,34 +257,58 @@ describe('resultChart', () => {
                     [2024, 20],
                 ],
             );
-            expect(buildDefaultResultChartConfig(result)).toEqual({
+            expect(buildDefaultResultChartConfig(result)).toMatchObject({
                 type: 'bar',
-                labelColumn: 'year',
-                valueColumns: ['total'],
+                labelIndex: 0,
+                valueIndices: [1],
             });
         });
 
         it('falls back to an id column when it is the only numeric column', () => {
             const result = makeResult(['user_id', 'name'], [[7, 'Ada']]);
+            expect(buildDefaultResultChartConfig(result)).toMatchObject({
+                labelIndex: 1,
+                valueIndices: [0],
+            });
+        });
+
+        it('plots a single numeric column by row number', () => {
+            const result = makeResult(['amount'], [[5], [8], [3]]);
             expect(buildDefaultResultChartConfig(result)).toEqual({
                 type: 'bar',
-                labelColumn: 'name',
-                valueColumns: ['user_id'],
+                labelIndex: ROW_NUMBER,
+                valueIndices: [0],
+                columns: result.columns,
+            });
+        });
+
+        it('skips all-NULL columns when picking X', () => {
+            const result = makeResult(
+                ['note', 'a', 'b'],
+                [
+                    [null, 1, 2],
+                    [null, 3, 4],
+                ],
+            );
+            expect(buildDefaultResultChartConfig(result)).toMatchObject({
+                labelIndex: 1,
+                valueIndices: [2],
             });
         });
 
         it('returns null when there is nothing to plot', () => {
             expect(buildDefaultResultChartConfig(makeResult(['a'], []))).toBeNull();
-            expect(buildDefaultResultChartConfig(makeResult(['only'], [[1], [2]]))).toBeNull();
+            expect(buildDefaultResultChartConfig(makeResult(['n'], [[42]]))).toBeNull();
             expect(buildDefaultResultChartConfig(makeResult(['name'], [['Ada']]))).toBeNull();
         });
     });
 
     describe('reconcileResultChartConfig', () => {
-        const stored: CellChartConfig = {
+        const stored: ResultChartConfig = {
             type: 'line',
-            labelColumn: 'region',
-            valueColumns: ['revenue', 'cost'],
+            labelIndex: 1,
+            valueIndices: [2, 3],
+            columns: sales.columns,
         };
 
         it('builds defaults when nothing is stored', () => {
@@ -241,28 +319,47 @@ describe('resultChart', () => {
 
         it('returns the same object when it still fits the result', () => {
             expect(reconcileResultChartConfig(stored, sales)).toBe(stored);
+            // A re-run returns a new but equal column list.
+            expect(
+                reconcileResultChartConfig(stored, {...sales, columns: [...sales.columns]}),
+            ).toBe(stored);
+        });
+
+        it('follows columns that moved', () => {
+            const changed = makeResult(['cost', 'region', 'revenue'], [[1, 'North', 2]]);
+            expect(reconcileResultChartConfig(stored, changed)).toEqual({
+                type: 'line',
+                labelIndex: 1,
+                valueIndices: [2, 0],
+                columns: changed.columns,
+            });
         });
 
         it('drops value columns that disappeared', () => {
             const changed = makeResult(['region', 'revenue'], [['North', 1]]);
             expect(reconcileResultChartConfig(stored, changed)).toEqual({
                 type: 'line',
-                labelColumn: 'region',
-                valueColumns: ['revenue'],
+                labelIndex: 0,
+                valueIndices: [1],
+                columns: changed.columns,
             });
         });
 
         it('drops value columns that are no longer numeric', () => {
-            const changed = makeResult(['region', 'revenue', 'cost'], [['North', 1, 'n/a']]);
-            expect(reconcileResultChartConfig(stored, changed)?.valueColumns).toEqual(['revenue']);
+            const changed = makeResult(
+                ['id', 'region', 'revenue', 'cost'],
+                [[1, 'North', 1, 'n/a']],
+            );
+            expect(reconcileResultChartConfig(stored, changed)?.valueIndices).toEqual([2]);
         });
 
         it('picks a new Y column when none of the stored ones remain', () => {
             const changed = makeResult(['region', 'profit'], [['North', 5]]);
             expect(reconcileResultChartConfig(stored, changed)).toEqual({
                 type: 'line',
-                labelColumn: 'region',
-                valueColumns: ['profit'],
+                labelIndex: 0,
+                valueIndices: [1],
+                columns: changed.columns,
             });
         });
 
@@ -270,73 +367,153 @@ describe('resultChart', () => {
             const changed = makeResult(['country', 'revenue'], [['IT', 5]]);
             expect(reconcileResultChartConfig(stored, changed)).toEqual({
                 type: 'line',
-                labelColumn: 'country',
-                valueColumns: ['revenue'],
+                labelIndex: 0,
+                valueIndices: [1],
+                columns: changed.columns,
             });
         });
 
-        it('maps chart types that results do not offer to bar', () => {
-            const pie: CellChartConfig = {...stored, type: 'pie'};
-            expect(reconcileResultChartConfig(pie, sales)?.type).toBe('bar');
+        it('tells repeated column names apart when columns move', () => {
+            const joined = makeResult(['id', 'name', 'id'], [[1, 'Ada', 10]]);
+            const config: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: 1,
+                valueIndices: [2],
+                columns: joined.columns,
+            };
+            // The second "id" is still the second "id" after a column is added in front.
+            const moved = makeResult(['n', 'id', 'name', 'id'], [[0, 1, 'Ada', 10]]);
+            expect(reconcileResultChartConfig(config, moved)).toMatchObject({
+                labelIndex: 2,
+                valueIndices: [3],
+            });
+        });
+
+        it('starts over instead of plotting nothing when X holds the only numeric column', () => {
+            const result = makeResult(['region', 'revenue'], [['North', 1]]);
+            const stuck: ResultChartConfig = {
+                type: 'line',
+                labelIndex: 1,
+                valueIndices: [],
+                columns: result.columns,
+            };
+            expect(reconcileResultChartConfig(stuck, result)).toEqual({
+                type: 'line',
+                labelIndex: 0,
+                valueIndices: [1],
+                columns: result.columns,
+            });
+
+            const single = makeResult(['amount'], [[5], [8]]);
+            expect(
+                reconcileResultChartConfig({...stuck, labelIndex: 0, columns: ['amount']}, single),
+            ).toMatchObject({labelIndex: ROW_NUMBER, valueIndices: [0]});
+        });
+
+        it('keeps plotting by row number when columns move', () => {
+            const byRow: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: ROW_NUMBER,
+                valueIndices: [2],
+                columns: sales.columns,
+            };
+            const moved = makeResult(['revenue', 'region'], [[1, 'North']]);
+            expect(reconcileResultChartConfig(byRow, moved)).toMatchObject({
+                labelIndex: ROW_NUMBER,
+                valueIndices: [0],
+            });
         });
 
         it('returns null for results that cannot be charted', () => {
             expect(reconcileResultChartConfig(stored, makeResult(['a'], []))).toBeNull();
+            expect(reconcileResultChartConfig(stored, makeResult(['n'], [[42]]))).toBeNull();
         });
     });
 
     describe('toggleChartValueColumn', () => {
-        const config: CellChartConfig = {
+        const config: ResultChartConfig = {
             type: 'bar',
-            labelColumn: 'region',
-            valueColumns: ['revenue'],
+            labelIndex: 1,
+            valueIndices: [2],
+            columns: sales.columns,
         };
 
         it('adds and removes columns', () => {
-            const added = toggleChartValueColumn(config, 'cost');
-            expect(added.valueColumns).toEqual(['revenue', 'cost']);
-            expect(toggleChartValueColumn(added, 'revenue').valueColumns).toEqual(['cost']);
+            const added = toggleChartValueColumn(config, 3);
+            expect(added.valueIndices).toEqual([2, 3]);
+            expect(toggleChartValueColumn(added, 2).valueIndices).toEqual([3]);
         });
 
         it('never removes the last column', () => {
-            expect(toggleChartValueColumn(config, 'revenue')).toBe(config);
+            expect(toggleChartValueColumn(config, 2)).toBe(config);
         });
 
         it('never goes past the series limit', () => {
-            const full: CellChartConfig = {
+            const full: ResultChartConfig = {
                 ...config,
-                valueColumns: Array.from({length: MAX_CHART_SERIES}, (_, i) => `c${i}`),
+                valueIndices: Array.from({length: MAX_CHART_SERIES}, (_, i) => i + 10),
             };
-            expect(toggleChartValueColumn(full, 'extra')).toBe(full);
-            expect(toggleChartValueColumn(config, 'cost', 1)).toBe(config);
+            expect(toggleChartValueColumn(full, 99)).toBe(full);
+            expect(toggleChartValueColumn(config, 3, 1)).toBe(config);
         });
     });
 
     describe('setChartLabelColumn', () => {
         it('removes the new X column from Y and keeps the rest', () => {
-            const config: CellChartConfig = {
+            const config: ResultChartConfig = {
                 type: 'bar',
-                labelColumn: 'region',
-                valueColumns: ['revenue', 'cost'],
+                labelIndex: 1,
+                valueIndices: [2, 3],
+                columns: sales.columns,
             };
-            expect(setChartLabelColumn(config, 'revenue', sales)).toEqual({
+            expect(setChartLabelColumn(config, 2, sales)).toEqual({
                 type: 'bar',
-                labelColumn: 'revenue',
-                valueColumns: ['cost'],
+                labelIndex: 2,
+                valueIndices: [3],
+                columns: sales.columns,
             });
         });
 
         it('picks another Y column when X takes the only one', () => {
-            const config: CellChartConfig = {
+            const config: ResultChartConfig = {
                 type: 'bar',
-                labelColumn: 'region',
-                valueColumns: ['revenue'],
+                labelIndex: 1,
+                valueIndices: [2],
+                columns: sales.columns,
             };
-            expect(setChartLabelColumn(config, 'revenue', sales)).toEqual({
+            expect(setChartLabelColumn(config, 2, sales)).toEqual({
                 type: 'bar',
-                labelColumn: 'revenue',
-                valueColumns: ['cost'],
+                labelIndex: 2,
+                valueIndices: [3],
+                columns: sales.columns,
             });
+        });
+
+        it('switches X to the row number and keeps every Y column', () => {
+            const config: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: 1,
+                valueIndices: [2, 3],
+                columns: sales.columns,
+            };
+            expect(setChartLabelColumn(config, ROW_NUMBER, sales)).toEqual({
+                ...config,
+                labelIndex: ROW_NUMBER,
+            });
+        });
+
+        it('picks the second of two columns with the same name', () => {
+            const joined = makeResult(
+                ['id', 'id', 'total'],
+                [
+                    [1, 10, 5],
+                    [2, 20, 6],
+                ],
+            );
+            const config = buildDefaultResultChartConfig(joined)!;
+            const next = setChartLabelColumn(config, 1, joined);
+            expect(next.labelIndex).toBe(1);
+            expect(shapeResultChartData(joined, next).map((p) => p.label)).toEqual(['10', '20']);
         });
     });
 
@@ -370,42 +547,85 @@ describe('resultChart', () => {
     });
 
     describe('shapeResultChartData', () => {
+        const key = chartSeriesKey;
+
         it('maps rows to labelled points and converts numeric strings', () => {
-            const config: CellChartConfig = {
+            const config: ResultChartConfig = {
                 type: 'line',
-                labelColumn: 'month',
-                valueColumns: ['revenue'],
+                labelIndex: 0,
+                valueIndices: [2],
+                columns: monthly.columns,
             };
             expect(shapeResultChartData(monthly, config)).toEqual([
-                {label: '2024-01-01', revenue: 1200.5},
-                {label: '2024-02-01', revenue: 1350},
-                {label: '2024-03-01', revenue: 990.1},
+                {label: '2024-01-01', [key(2)]: 1200.5},
+                {label: '2024-02-01', [key(2)]: 1350},
+                {label: '2024-03-01', [key(2)]: 990.1},
             ]);
         });
 
         it('plots several Y columns per point', () => {
-            const config: CellChartConfig = {
+            const config: ResultChartConfig = {
                 type: 'bar',
-                labelColumn: 'region',
-                valueColumns: ['revenue', 'cost'],
+                labelIndex: 1,
+                valueIndices: [2, 3],
+                columns: sales.columns,
             };
             expect(shapeResultChartData(sales, config)[1]).toEqual({
                 label: 'South',
-                revenue: 200,
-                cost: 80,
+                [key(2)]: 200,
+                [key(3)]: 80,
             });
         });
 
+        it('keeps the values of columns that share a name apart', () => {
+            const joined = makeResult(['name', 'total', 'total'], [['Ada', 1, 2]]);
+            const config: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: 0,
+                valueIndices: [1, 2],
+                columns: joined.columns,
+            };
+            expect(shapeResultChartData(joined, config)).toEqual([
+                {label: 'Ada', [key(1)]: 1, [key(2)]: 2},
+            ]);
+        });
+
+        it('labels points with their row number', () => {
+            const config: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: ROW_NUMBER,
+                valueIndices: [2],
+                columns: sales.columns,
+            };
+            expect(shapeResultChartData(sales, config)).toEqual([
+                {label: '1', [key(2)]: 100},
+                {label: '2', [key(2)]: 200},
+                {label: '3', [key(2)]: 150},
+            ]);
+        });
+
+        it('keeps a column named "label" apart from the X label', () => {
+            const result = makeResult(['name', 'label'], [['Ada', 3]]);
+            const config: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: 0,
+                valueIndices: [1],
+                columns: result.columns,
+            };
+            expect(shapeResultChartData(result, config)).toEqual([{label: 'Ada', [key(1)]: 3}]);
+        });
+
         it('keeps NULLs as missing values instead of plotting 0', () => {
-            const config: CellChartConfig = {
+            const config: ResultChartConfig = {
                 type: 'line',
-                labelColumn: 'month',
-                valueColumns: ['orders', 'revenue'],
+                labelIndex: 0,
+                valueIndices: [1, 2],
+                columns: monthly.columns,
             };
             expect(shapeResultChartData(monthly, config)[2]).toEqual({
                 label: '2024-03-01',
-                orders: null,
-                revenue: 990.1,
+                [key(1)]: null,
+                [key(2)]: 990.1,
             });
         });
 
@@ -421,12 +641,13 @@ describe('resultChart', () => {
                     ['2024-06', BigInt(9)],
                 ],
             );
-            const config: CellChartConfig = {
+            const config: ResultChartConfig = {
                 type: 'line',
-                labelColumn: 'month',
-                valueColumns: ['signups'],
+                labelIndex: 0,
+                valueIndices: [1],
+                columns: sparse.columns,
             };
-            expect(shapeResultChartData(sparse, config).map((p) => p.signups)).toEqual([
+            expect(shapeResultChartData(sparse, config).map((p) => p[key(1)])).toEqual([
                 5,
                 null,
                 0,
@@ -437,27 +658,25 @@ describe('resultChart', () => {
         });
 
         it('returns no points when the columns are gone', () => {
-            const config: CellChartConfig = {
+            const config: ResultChartConfig = {
                 type: 'bar',
-                labelColumn: 'missing',
-                valueColumns: ['revenue'],
+                labelIndex: 9,
+                valueIndices: [2],
+                columns: sales.columns,
             };
             expect(shapeResultChartData(sales, config)).toEqual([]);
             expect(
-                shapeResultChartData(sales, {
-                    ...config,
-                    labelColumn: 'region',
-                    valueColumns: ['x'],
-                }),
+                shapeResultChartData(sales, {...config, labelIndex: 1, valueIndices: [9]}),
             ).toEqual([]);
         });
 
         it('caps the number of points', () => {
             const rows = Array.from({length: MAX_CHART_POINTS + 5}, (_, i) => [`r${i}`, i]);
-            const config: CellChartConfig = {
+            const config: ResultChartConfig = {
                 type: 'bar',
-                labelColumn: 'a',
-                valueColumns: ['b'],
+                labelIndex: 0,
+                valueIndices: [1],
+                columns: ['a', 'b'],
             };
             const data = shapeResultChartData(makeResult(['a', 'b'], rows), config);
             expect(data).toHaveLength(MAX_CHART_POINTS);
@@ -483,12 +702,16 @@ describe('resultChart', () => {
 
     describe('getSeriesSlots', () => {
         it('assigns slots by column, id-like columns last, skipping X', () => {
-            expect(getSeriesSlots(sales, 'region')).toEqual({
-                revenue: 0,
-                cost: 1,
-                id: 2,
-            });
-            expect(getSeriesSlots(sales, 'revenue')).toEqual({cost: 0, id: 1});
+            // sales: id 0, region 1, revenue 2, cost 3
+            expect([...getSeriesSlots(sales, 1)]).toEqual([
+                [2, 0],
+                [3, 1],
+                [0, 2],
+            ]);
+            expect([...getSeriesSlots(sales, 2)]).toEqual([
+                [3, 0],
+                [0, 1],
+            ]);
         });
     });
 
@@ -598,6 +821,14 @@ describe('resultChart', () => {
         it('leaves unparseable labels unchanged', () => {
             const f = buildTemporalFormatters(['2024-01-05'], 'en');
             expect(f.tick('n/a')).toBe('n/a');
+        });
+    });
+
+    describe('buildRowNumberFormatters', () => {
+        it('groups digits on ticks and names the row in the tooltip', () => {
+            const f = buildRowNumberFormatters('de', (row) => `Zeile ${row}`);
+            expect(f.tick('1204')).toBe('1.204');
+            expect(f.full('1204')).toBe('Zeile 1.204');
         });
     });
 

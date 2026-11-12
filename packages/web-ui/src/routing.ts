@@ -1,4 +1,4 @@
-export const WEB_UI_BASE_PATH = '/';
+export const WEB_UI_BASE_PATH = import.meta.env.BASE_URL;
 
 export const BROWSER_ROUTES = {
     root: '/',
@@ -16,6 +16,13 @@ export const BROWSER_ROUTES = {
 } as const;
 
 export const BROWSER_ROUTE_PATHS = Object.values(BROWSER_ROUTES);
+
+/** Navigation state read by the connections page. */
+export interface ConnectionsRouteState {
+    readonly openNew?: boolean;
+    /** Why a `/connections/:connectionId/editor` link could not be opened. */
+    readonly connectionLinkError?: string;
+}
 
 export interface SchemaDiagramRouteParams {
     readonly connectionId: string;
@@ -58,6 +65,11 @@ export function buildVisualExplainRoute(connectionId: string, query: string): st
     return `${BROWSER_ROUTES.visualExplain}?connection=${encodeURIComponent(
         connectionId,
     )}&query=${base64UrlEncode(query)}`;
+}
+
+/** A plan handed over by another window, see platform/visualExplainSessions. */
+export function buildVisualExplainSessionRoute(sessionId: string): string {
+    return `${BROWSER_ROUTES.visualExplain}?session=${encodeURIComponent(sessionId)}`;
 }
 
 export function buildRouteWindowLabel(prefix: string, ...parts: string[]): string {

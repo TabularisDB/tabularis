@@ -39,9 +39,14 @@ pub enum AiCommand {
     GetModels {
         force_refresh: bool,
     },
+    CompleteInline(crate::ai::inline::InlineRequest),
+    CancelInline {
+        request_id: String,
+    },
     GenerateQuery(AiGenerateRequest),
     ExplainQuery(AiExplainRequest),
     AnalyzeExplainPlan(AiExplainRequest),
+    AnalyzeCrashReport(AiExplainRequest),
     GenerateCellName(AiCellNameRequest),
     GenerateTabRename(AiTabRenameRequest),
     SuggestTableName(AiSuggestTableNameRequest),
@@ -111,6 +116,14 @@ pub async fn execute(
         AiCommand::GetModels { force_refresh } => {
             json(crate::ai::get_models(runtime, &state.credential_cache, force_refresh).await?)
         }
+        AiCommand::CompleteInline(request) => json(
+            crate::ai::inline::complete(runtime, &state.credential_cache, web_session_id, request)
+                .await?,
+        ),
+        AiCommand::CancelInline { request_id } => {
+            crate::ai::inline::cancel(runtime, web_session_id, request_id)?;
+            Ok(Value::Null)
+        }
         AiCommand::GenerateQuery(request) => {
             json(crate::ai::generate_query(runtime, &state.credential_cache, request).await?)
         }
@@ -119,6 +132,9 @@ pub async fn execute(
         }
         AiCommand::AnalyzeExplainPlan(request) => {
             json(crate::ai::analyze_explain_plan(runtime, &state.credential_cache, request).await?)
+        }
+        AiCommand::AnalyzeCrashReport(request) => {
+            json(crate::ai::analyze_crash_report(runtime, &state.credential_cache, request).await?)
         }
         AiCommand::GenerateCellName(request) => {
             json(crate::ai::generate_cellname(runtime, &state.credential_cache, request).await?)
@@ -431,22 +447,11 @@ fn key_account(provider: &str) -> String {
 }
 
 fn environment_key(runtime: &RuntimeContext, provider: &str) -> Option<String> {
-    let variable = match provider {
-        "openai" => "OPENAI_API_KEY",
-        "anthropic" => "ANTHROPIC_API_KEY",
-        "openrouter" => "OPENROUTER_API_KEY",
-        "custom-openai" => "CUSTOM_OPENAI_API_KEY",
-        "minimax" => "MINIMAX_API_KEY",
-        "requesty" => "REQUESTY_API_KEY",
-        _ => {
-            let manifest =
-                crate::ai_assistants::read_manifest(&runtime.paths.plugins_dir(), provider).ok()?;
-            return std::env::var(manifest.ai_assistant.api_key_env?)
-                .ok()
-                .filter(|key| !key.is_empty());
-        }
-    };
-    std::env::var(variable).ok().filter(|key| !key.is_empty())
+    let manifest =
+        crate::ai_assistants::read_manifest(&runtime.paths.plugins_dir(), provider).ok()?;
+    std::env::var(manifest.ai_assistant.api_key_env?)
+        .ok()
+        .filter(|key| !key.is_empty())
 }
 
 fn missing_key_error(provider: &str) -> String {

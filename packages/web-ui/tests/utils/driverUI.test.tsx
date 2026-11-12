@@ -1,6 +1,12 @@
 import {describe, it, expect, vi} from 'vitest';
 import {render, screen, waitFor} from '@testing-library/react';
-import {getConnectionAccent, getConnectionIcon, getDriverIcon, isUrlIcon} from '@/utils/driverUI';
+import {
+    getConnectionAccent,
+    getConnectionIcon,
+    getDriverIcon,
+    getPluginDriverDisplayName,
+    isUrlIcon,
+} from '@/utils/driverUI';
 import type {PluginManifest} from '@/types/plugins';
 import type {SavedConnection} from '@/contexts/DatabaseContext';
 
@@ -175,5 +181,32 @@ describe('getConnectionIcon', () => {
         } as SavedConnection;
         // Smoke test: should not throw; icons are mocked to null in test env
         expect(() => render(<>{getConnectionIcon(c, manifest('database'), 16)}</>)).not.toThrow();
+    });
+});
+
+describe('getPluginDriverDisplayName', () => {
+    const driver = (fields: Partial<PluginManifest>) =>
+        ({id: 'surrealdb', name: 'SurrealDB', ...fields}) as PluginManifest;
+
+    it("returns a plugin's declared display name", () => {
+        expect(getPluginDriverDisplayName(driver({}))).toBe('SurrealDB');
+        expect(getPluginDriverDisplayName(driver({is_builtin: false, name: ' SQLite JDBC '}))).toBe(
+            'SQLite JDBC',
+        );
+    });
+
+    it('returns null for a legacy manifest whose name is its id', () => {
+        expect(getPluginDriverDisplayName(driver({id: 'duckdb', name: 'duckdb'}))).toBeNull();
+    });
+
+    it('returns null for a blank name, a built-in driver or no manifest', () => {
+        expect(getPluginDriverDisplayName(driver({name: '  '}))).toBeNull();
+        expect(
+            getPluginDriverDisplayName(
+                driver({id: 'postgres', name: 'PostgreSQL', is_builtin: true}),
+            ),
+        ).toBeNull();
+        expect(getPluginDriverDisplayName(undefined)).toBeNull();
+        expect(getPluginDriverDisplayName(null)).toBeNull();
     });
 });

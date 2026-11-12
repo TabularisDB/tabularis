@@ -1,5 +1,26 @@
 use super::*;
 
+#[cfg(unix)]
+#[tokio::test]
+async fn aborted_before_dispatch_does_not_reach_the_plugin() {
+    let dir = tempfile::tempdir().unwrap();
+    let (process, log) = silent_recording_plugin(dir.path()).await;
+    {
+        let mut call = Box::pin(process.send_request(
+            "execute_query",
+            json!({"query":"UPDATE items SET n=1"}),
+            None,
+        ));
+        assert!(futures::poll!(call.as_mut()).is_pending());
+    }
+    let lines = wait_for_lines(&log, 1, Duration::from_millis(300)).await;
+    process.shutdown().await;
+    assert!(
+        lines.is_empty(),
+        "aborted queued work must not be sent: {lines:?}"
+    );
+}
+
 /// Spawns a plugin that never answers and records every stdin line in a file.
 /// fd 3 keeps the stdout pipe open, otherwise the host sees EOF and treats
 /// the plugin as exited.

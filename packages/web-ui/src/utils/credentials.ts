@@ -27,6 +27,10 @@ interface ConnectionParams {
     extra?: Record<string, string>;
     /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
     pooler_mode?: string;
+    /** Seconds to wait for a new connection; unset keeps the driver default. */
+    connect_timeout_secs?: number;
+    /** Seconds a statement may run before it is cancelled on the server; unset or 0 means no limit. */
+    query_timeout_secs?: number;
 }
 
 export interface SavedConnectionWithCredentials {

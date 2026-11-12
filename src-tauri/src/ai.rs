@@ -1,9 +1,13 @@
 use crate::credential_cache::CredentialCache;
 use crate::runtime::RuntimeContext;
+
+pub mod inline;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -44,7 +48,7 @@ pub struct AiSuggestTableNameRequest {
     pub sample_rows: Vec<Vec<String>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Default, Serialize, Deserialize, Debug)]
 struct AiModelsCache {
     last_updated: u64,
     models: HashMap<String, Vec<String>>,
@@ -52,11 +56,20 @@ struct AiModelsCache {
     fetched_at: HashMap<String, u64>,
 }
 
+static MODEL_CACHE_LOCK: Mutex<()> = Mutex::new(());
+
 fn get_cache_path(runtime: &RuntimeContext) -> std::path::PathBuf {
     runtime.paths.config_dir().join("ai_models_cache.json")
 }
 
 fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
+    let _guard = MODEL_CACHE_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    load_cache_unlocked(runtime)
+}
+
+fn load_cache_unlocked(runtime: &RuntimeContext) -> Option<AiModelsCache> {
     let path = get_cache_path(runtime);
     if path.exists() {
         let content = fs::read_to_string(path).ok()?;
@@ -66,32 +79,60 @@ fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
     }
 }
 
-fn save_cache(
-    runtime: &RuntimeContext,
-    models: &HashMap<String, Vec<String>>,
-    fetched_at: HashMap<String, u64>,
-) {
-    let path = get_cache_path(runtime);
+fn save_cache(runtime: &RuntimeContext, provider: &str, models: &[String]) {
+    // Network work has finished: merge only this provider into the latest cache.
+    let _guard = MODEL_CACHE_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
 
-    let cache = AiModelsCache {
-        last_updated: timestamp,
-        models: models.clone(),
-        fetched_at,
-    };
-
-    if let Ok(content) = serde_json::to_string(&cache) {
-        let _ = fs::create_dir_all(runtime.paths.config_dir());
-        let _ = fs::write(path, content);
+    let mut cache = load_cache_unlocked(runtime).unwrap_or_default();
+    cache.last_updated = timestamp;
+    cache.models.insert(provider.to_string(), models.to_vec());
+    cache.fetched_at.insert(provider.to_string(), timestamp);
+    if let Err(error) = persist_cache(runtime, &cache) {
+        log::warn!("Failed to persist AI model cache: {error}");
     }
+}
+
+fn persist_cache(runtime: &RuntimeContext, cache: &AiModelsCache) -> Result<(), String> {
+    fs::create_dir_all(runtime.paths.config_dir()).map_err(|error| error.to_string())?;
+    let mut file = tempfile::NamedTempFile::new_in(runtime.paths.config_dir())
+        .map_err(|error| error.to_string())?;
+    file.write_all(&serde_json::to_vec(cache).map_err(|error| error.to_string())?)
+        .map_err(|error| error.to_string())?;
+    file.persist(get_cache_path(runtime))
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+pub(crate) fn invalidate_provider_models_cache(
+    runtime: &RuntimeContext,
+    provider: &str,
+) -> Result<(), String> {
+    let _guard = MODEL_CACHE_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let Some(mut cache) = load_cache_unlocked(runtime) else {
+        return Ok(());
+    };
+    let had_models = cache.models.remove(provider).is_some();
+    let had_timestamp = cache.fetched_at.remove(provider).is_some();
+    if had_models || had_timestamp {
+        persist_cache(runtime, &cache)?;
+    }
+    Ok(())
 }
 
 // --- Fetchers ---
 
 pub fn clear_models_cache(runtime: &RuntimeContext) -> Result<(), String> {
+    let _guard = MODEL_CACHE_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     let path = get_cache_path(runtime);
     if path.exists() {
         fs::remove_file(path).map_err(|e| e.to_string())?;
@@ -104,50 +145,64 @@ pub async fn get_models(
     cache: &CredentialCache,
     force_refresh: bool,
 ) -> Result<HashMap<String, Vec<String>>, String> {
-    let installed = crate::ai_assistants::list_installed(&runtime.paths.plugins_dir());
-    let previous = if force_refresh {
-        None
-    } else {
-        load_cache(runtime)
-    };
+    let mut models = HashMap::new();
+    for manifest in crate::ai_assistants::list_installed(&runtime.paths.plugins_dir()) {
+        let available = get_provider_models(runtime, cache, &manifest, force_refresh).await;
+        models.insert(manifest.id, available);
+    }
+    Ok(models)
+}
+
+pub(crate) async fn get_provider_models(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    manifest: &crate::ai_assistants::AssistantManifest,
+    force_refresh: bool,
+) -> Vec<String> {
+    // A forced refresh bypasses freshness, not the last successful fallback.
+    let previous = load_cache(runtime);
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    let mut models = HashMap::new();
-    let mut fetched_at = HashMap::new();
-    for manifest in installed {
-        let fetched = previous
+    let fetched = previous
+        .as_ref()
+        .and_then(|entry| entry.fetched_at.get(&manifest.id).copied())
+        .unwrap_or(0);
+    if !force_refresh
+        && manifest.ai_assistant.models.cache_seconds > 0
+        && now.saturating_sub(fetched) < manifest.ai_assistant.models.cache_seconds
+    {
+        if let Some(cached) = previous
             .as_ref()
-            .and_then(|entry| entry.fetched_at.get(&manifest.id).copied())
-            .unwrap_or(0);
-        let cached = previous
-            .as_ref()
-            .filter(|_| {
-                manifest.ai_assistant.models.cache_seconds > 0
-                    && now.saturating_sub(fetched) < manifest.ai_assistant.models.cache_seconds
-            })
-            .and_then(|entry| entry.models.get(&manifest.id));
-        if let Some(cached) = cached {
-            fetched_at.insert(manifest.id.clone(), fetched);
-            models.insert(manifest.id, cached.clone());
-            continue;
+            .and_then(|entry| entry.models.get(&manifest.id))
+        {
+            return cached.clone();
         }
-        let available = crate::ai_assistants::call(
-            runtime,
-            cache,
-            &manifest.id,
-            "list_models",
-            serde_json::Value::Null,
-        )
-        .await
-        .and_then(|value| serde_json::from_value::<Vec<String>>(value).map_err(|e| e.to_string()))
-        .unwrap_or(manifest.ai_assistant.default_models);
-        fetched_at.insert(manifest.id.clone(), now);
-        models.insert(manifest.id, available);
     }
-    save_cache(runtime, &models, fetched_at);
-    Ok(models)
+    let refreshed = crate::ai_assistants::call(
+        runtime,
+        cache,
+        &manifest.id,
+        "list_models",
+        serde_json::Value::Null,
+    )
+    .await
+    .and_then(|value| {
+        serde_json::from_value::<Vec<String>>(value).map_err(|error| error.to_string())
+    });
+    match refreshed {
+        Ok(available) => {
+            save_cache(runtime, &manifest.id, &available);
+            available
+        }
+        Err(error) => {
+            log::warn!("AI model discovery failed for {}: {error}", manifest.id);
+            load_cache(runtime)
+                .and_then(|mut latest| latest.models.remove(&manifest.id))
+                .unwrap_or_else(|| manifest.ai_assistant.default_models.clone())
+        }
+    }
 }
 
 async fn resolve_model(
@@ -187,6 +242,13 @@ async fn resolve_model(
         .and_then(|models| models.first())
     {
         return Ok(model.clone());
+    }
+    let manifest = crate::ai_assistants::read_manifest(&runtime.paths.plugins_dir(), provider)?;
+    if manifest.ai_assistant.require_explicit_model {
+        return Err(format!(
+            "Select a model for {} in Settings > AI.",
+            manifest.name
+        ));
     }
     get_models(runtime,cache,false).await?.get(provider).and_then(|models| models.first()).cloned()
         .ok_or_else(|| format!("No models available for AI provider '{provider}'. Check its installation and settings."))
@@ -310,6 +372,53 @@ pub async fn analyze_explain_plan(
     result
 }
 
+const CRASH_ANALYSIS_SYSTEM_PROMPT: &str = "You help users of Tabularis, a desktop and web database client, after its SQL editor crashed. \
+The user message is a crash report with the error message, stack traces, app version, platform and mode (desktop or web). \
+Secrets in it were replaced with [redacted]. Do not ask for them. \
+Reply in {{LANGUAGE}}. Keep formatting minimal: short paragraphs, a numbered list for the steps, no headings. \
+First explain in two or three sentences what most likely went wrong. \
+Then list up to five concrete recovery steps the user can try, such as retrying, closing the tab, reloading or restarting the app, or updating Tabularis. \
+If the report points to a bug in Tabularis, say so and suggest reporting it.";
+
+fn crash_analysis_system_prompt(language: &str) -> String {
+    CRASH_ANALYSIS_SYSTEM_PROMPT.replace("{{LANGUAGE}}", language)
+}
+
+pub async fn analyze_crash_report(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    mut req: AiExplainRequest,
+) -> Result<String, String> {
+    log::info!(
+        "Analyzing editor crash report using AI provider: {}",
+        req.provider
+    );
+
+    req.model = resolve_model(runtime, cache, &req.provider, &req.model).await?;
+
+    let gen_req = AiGenerateRequest {
+        provider: req.provider.clone(),
+        model: req.model.clone(),
+        prompt: req.query.clone(),
+        schema: String::new(),
+    };
+
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &gen_req,
+        &crash_analysis_system_prompt(&req.language),
+    )
+    .await;
+
+    match &result {
+        Ok(_) => log::info!("Crash report analysis generated using {}", req.model),
+        Err(e) => log::error!("Crash report analysis failed: {}", e),
+    }
+
+    result
+}
+
 async fn generate_with_simple_prompt(
     runtime: &RuntimeContext,
     cache: &CredentialCache,
@@ -427,3 +536,24 @@ pub async fn generate_tab_name(
     )
     .await
 }
+
+fn clean_response(text: &str) -> String {
+    let text = text.trim();
+    if text.starts_with("```") {
+        let mut lines = text.lines();
+        lines.next(); // Skip first line
+        let mut result = Vec::new();
+        for line in lines {
+            if line.trim() == "```" {
+                break;
+            }
+            result.push(line);
+        }
+        return result.join("\n").trim().to_string();
+    }
+    text.to_string()
+}
+
+#[cfg(test)]
+#[path = "ai/model_cache_tests.rs"]
+mod model_cache_tests;

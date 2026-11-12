@@ -1,3 +1,4 @@
+import {execFileSync} from 'node:child_process';
 import {existsSync, readFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -41,7 +42,11 @@ describe('web UI workspace', () => {
             expect(existsSync(join(webUiRoot, ownedPath)), ownedPath).toBe(true);
         }
         for (const movedPath of ['index.html', 'public', 'src']) {
-            expect(existsSync(join(repositoryRoot, movedPath)), movedPath).toBe(false);
+            const trackedFiles = execFileSync('git', ['ls-files', '--', movedPath], {
+                cwd: repositoryRoot,
+                encoding: 'utf8',
+            });
+            expect(trackedFiles.trim(), movedPath).toBe('');
         }
     });
 
@@ -58,7 +63,7 @@ describe('web UI workspace', () => {
 
         expect(tauriConfig.build.frontendDist).toBe('../packages/web-ui/dist');
         expect(tauriConfig.build.devUrl).toBe('http://localhost:5173');
-        expect(tauriConfig.build.beforeDevCommand).toBe('pnpm dev');
-        expect(tauriConfig.build.beforeBuildCommand).toBe('pnpm build');
+        expect(tauriConfig.build.beforeDevCommand).toBe('pnpm build:plugin-guest && pnpm dev');
+        expect(tauriConfig.build.beforeBuildCommand).toBe('pnpm build:plugin-guest && pnpm build');
     });
 });

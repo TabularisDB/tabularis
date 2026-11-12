@@ -16,15 +16,20 @@ pub mod tabularis;
 pub mod types;
 
 mod beekeeper;
-mod dbeaver;
 mod datagrip;
+mod dbeaver;
+mod heidisql;
+mod mysql_workbench;
+mod navicat;
 mod sequelace;
 mod tableplus;
 
 #[cfg(test)]
 mod importer_tests;
 
-pub use types::{ImportEnvelope, ImportedConnection, ImportedCredentials, ImportedSsh, ImportedSsl};
+pub use types::{
+    ImportEnvelope, ImportedConnection, ImportedCredentials, ImportedSsh, ImportedSsl,
+};
 
 /// Errors surfaced while importing from a foreign app.
 #[derive(Debug, Clone)]
@@ -102,6 +107,9 @@ pub fn all_importers() -> Vec<Box<dyn ForeignAppImporter>> {
         Box::new(tableplus::TablePlusImporter::default()),
         Box::new(datagrip::DataGripImporter::default()),
         Box::new(sequelace::SequelAceImporter::default()),
+        Box::new(heidisql::HeidiSqlImporter::default()),
+        Box::new(mysql_workbench::MySqlWorkbenchImporter::default()),
+        Box::new(navicat::NavicatImporter::default()),
     ]
 }
 

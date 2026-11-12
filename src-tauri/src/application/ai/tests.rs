@@ -52,6 +52,53 @@ fn fixture() -> (tempfile::TempDir, RuntimeContext, ApplicationState) {
 }
 
 #[tokio::test]
+async fn inline_completion_requires_persisted_opt_in_and_supports_early_cancellation() {
+    let (_temp, runtime, state) = fixture();
+    let request = || {
+        serde_json::from_value(serde_json::json!({
+            "requestId": "inline-application-test", "provider": "ollama", "model": "local",
+            "prefix": "SELECT ", "suffix": "", "schema": "users", "dialect": "postgres"
+        }))
+        .unwrap()
+    };
+    assert!(
+        execute(&runtime, &state, None, AiCommand::CompleteInline(request()))
+            .await
+            .unwrap_err()
+            .contains("disabled")
+    );
+    crate::application::persistence::save_config(
+        &runtime,
+        crate::config::AppConfig {
+            ai_enabled: Some(true),
+            ai_inline_completion_enabled: Some(true),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        crate::application::persistence::load_config(&runtime).ai_inline_completion_enabled,
+        Some(true)
+    );
+    execute(
+        &runtime,
+        &state,
+        None,
+        AiCommand::CancelInline {
+            request_id: "inline-application-test".into(),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(
+        execute(&runtime, &state, None, AiCommand::CompleteInline(request()))
+            .await
+            .unwrap_err()
+            .contains("cancelled")
+    );
+}
+
+#[tokio::test]
 async fn provider_keys_are_write_only_across_the_application_contract() {
     let (_temp, runtime, state) = fixture();
 

@@ -18,6 +18,7 @@ import {
     FolderPlus,
     Folder,
     Download,
+    FileSpreadsheet,
     FolderInput,
     FolderTree,
     ChevronDown,
@@ -55,7 +56,8 @@ import {useCreateSqliteDatabase} from '@/hooks/useCreateSqliteDatabase';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {saveGeneratedFile} from '@/utils/connectionFiles';
-import {buildEditorRoute} from '@/routing';
+import {requestOpenDataFiles} from '@/utils/dataFiles';
+import {buildEditorRoute, type ConnectionsRouteState} from '@/routing';
 import {
     useBuiltinPostgresMigration,
     type MigrationOutcome,
@@ -67,17 +69,17 @@ import {buildPluginIssueUrl, resolvePluginRepoUrl} from '@/utils/pluginIssueRepo
 import {APP_VERSION} from '@/version';
 
 const NewConnectionModal = lazy(() =>
-    import('@/components/modals/NewConnectionModal').then((m) => ({
+    import('../components/modals/NewConnectionModal').then((m) => ({
         default: m.NewConnectionModal,
     })),
 );
 const ImportFromAppModal = lazy(() =>
-    import('@/components/modals/ImportFromAppModal').then((m) => ({
+    import('../components/modals/ImportFromAppModal').then((m) => ({
         default: m.ImportFromAppModal,
     })),
 );
 const MigrationChecklistModal = lazy(() =>
-    import('@/components/modals/MigrationChecklistModal').then((m) => ({
+    import('../components/modals/MigrationChecklistModal').then((m) => ({
         default: m.MigrationChecklistModal,
     })),
 );
@@ -139,7 +141,12 @@ export const Connections = () => {
     };
     const [editingConnection, setEditingConnection] = useState<SavedConnection | null>(null);
     const connections = contextConnections as SavedConnection[];
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(() => {
+        const linkError = (location.state as ConnectionsRouteState | null)?.connectionLinkError;
+        return linkError === undefined
+            ? null
+            : `${t('connections.linkUnavailable')}\n\nError: ${linkError}`;
+    });
     const [connectingId, setConnectingId] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -522,6 +529,7 @@ export const Connections = () => {
             });
             await saveGeneratedFile(client, platform, generated);
         } catch (e) {
+            if (String(e).includes('SECRET_EXPORT_CANCELLED')) return;
             console.error('Export failed:', e);
             setError(toErrorMessage(e));
         }
@@ -671,7 +679,7 @@ export const Connections = () => {
     };
 
     useEffect(() => {
-        if ((location.state as {openNew?: boolean} | null)?.openNew) {
+        if ((location.state as ConnectionsRouteState | null)?.openNew) {
             setEditingConnection(null);
             setIsModalOpen(true);
         }
@@ -1267,6 +1275,19 @@ export const Connections = () => {
                                             {t('connections.newSqliteDatabase.menuLabel')}
                                         </span>
                                     </button>
+                                    <button
+                                        onClick={() => {
+                                            setIsImportMenuOpen(false);
+                                            requestOpenDataFiles();
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
+                                    >
+                                        <FileSpreadsheet
+                                            size={15}
+                                            className="shrink-0 text-accent"
+                                        />
+                                        <span className="flex-1">{t('dataFiles.openMenu')}</span>
+                                    </button>
                                     <div className="h-px bg-default mx-2" />
                                     <button
                                         onClick={() => {
@@ -1391,6 +1412,13 @@ export const Connections = () => {
                                     <Database size={14} />
                                 )}
                                 {t('connections.newSqliteDatabase.menuLabel')}
+                            </button>
+                            <button
+                                onClick={() => requestOpenDataFiles()}
+                                className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
+                            >
+                                <FileSpreadsheet size={14} />
+                                {t('dataFiles.openMenu')}
                             </button>
                             <button
                                 onClick={() => setIsImportAppModalOpen(true)}

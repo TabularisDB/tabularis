@@ -15,7 +15,12 @@ import {
     resolveTabPageSize,
 } from '@/utils/editor';
 import {shouldShowStatementSuccess} from '@/utils/resultPresentation';
-import {formatRowsForCopy, copyTextToClipboard} from '@/utils/clipboard';
+import {
+    formatRowsForCopy,
+    copyTextToClipboard,
+    sqlUpdateBlocker,
+    type CopyFormat,
+} from '@/utils/clipboard';
 import {onActivationKey, isTypingTarget} from '@/utils/keyboardEvents';
 import {
     formatResultForExport,
@@ -99,6 +104,8 @@ import {
     BookOpen,
     UsersRound,
     Pencil,
+    Pin,
+    PinOff,
     Hash,
     Loader2,
     Copy,
@@ -115,9 +122,14 @@ import {TableToolbar} from '@/components/ui/TableToolbar';
 import {DataGrid, type DataGridCommandTarget} from '@/components/ui/DataGrid';
 import {MultiResultPanel} from '@/components/ui/MultiResultPanel';
 import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
+import {PageIndicator} from '@/components/ui/PageIndicator';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
-import {ResultChart} from '@/components/ui/ResultChart';
+import {LazyResultChart} from '@/components/ui/LazyResultChart';
+import {totalPageCount} from '@/utils/pagination';
+import {batchSnapshotLimit, isSnapshotResult, snapshotPage} from '@/utils/batchSnapshot';
 import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
+import {TransposeIcon} from '@/components/icons/TransposeIcon';
+import {HiddenColumnsIndicator} from '@/components/ui/HiddenColumnsIndicator';
 import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
@@ -159,6 +171,7 @@ import {extractQueryParams, interpolateQueryParams} from '@/utils/queryParameter
 import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
 import {useTimingLabels} from '@/hooks/useTimingLabels';
 import {useResultChartState} from '@/hooks/useResultChartState';
+import {useHiddenColumns} from '@/hooks/useHiddenColumns';
 import {notifyQueryFinished} from '@/utils/queryNotification';
 import {
     buildSyncPayload,
@@ -179,9 +192,11 @@ import type {
     ResultsSessionSnapshot,
 } from '@/platform/secondaryWindowSessions';
 import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
+import {inlineSchema, inlineTables} from '@/utils/aiInlineCompletion';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import {UserManagementView} from '@/components/users/UserManagementView';
 import {useSqlAutocompleteRegistration} from '@/hooks/useSqlAutocompleteRegistration';
+import {useSqlDiagnosticsOptions} from '@/hooks/useSqlDiagnosticsOptions';
 import {createNotebook, renameNotebook} from '@/utils/notebookStore';
 import type {OnMount, Monaco} from '@monaco-editor/react';
 import {useAlert} from '@/hooks/useAlert';
@@ -197,6 +212,15 @@ import {useConnectionLayoutContext} from '@/hooks/useConnectionLayoutContext';
 import {useKeybindings} from '@/hooks/useKeybindings';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {openSqlFile, saveSqlFile} from '@/utils/sqlFileTransfer';
+import {
+    getLinkedFileConflict,
+    getLinkedFolderErrorKey,
+    readLinkedSqlFile,
+    savedLinkedFileTab,
+    writeLinkedSqlFile,
+    type LinkedFileConflictKind,
+} from '@/utils/linkedFolders';
+import {LinkedFileConflictModal} from '@/components/modals/LinkedFileConflictModal';
 import {useSecondaryWindows} from '@/hooks/useSecondaryWindows';
 import type {
     BatchStatementResult,
@@ -227,7 +251,8 @@ import {
     type PluginColumnStatsFetcher,
 } from '@/utils/columnStats';
 import {getNextSortClause} from '@/utils/tableToolbar';
-import {getAdjacentTabGap} from '@/utils/tabDnd';
+import {clampTabGap, getAdjacentTabGap} from '@/utils/tabDnd';
+import {getBulkClosedTabIds} from '@/utils/tabPins';
 import {
     createSqlFileTab,
     getSqlFileName,
@@ -243,12 +268,16 @@ import clsx from 'clsx';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {createRequestId} from '@/api/errors';
 import {downloadGeneratedFile, downloadTextFile} from '@/utils/fileDownloads';
+import {useUiState} from '@/hooks/useUiState';
+import {UI_STATE_KEYS} from '@/utils/uiStateStore';
+import {DEFAULT_EDITOR_PANEL_HEIGHT, resolveEditorPanelHeight} from '@/utils/editorPanelHeight';
 
 const LOADED_ROWS_EXPORT_MIME_TYPES: Record<ResultExportFormat, string> = {
     csv: 'text/csv',
     json: 'application/json',
     ndjson: 'application/x-ndjson',
     markdown: 'text/markdown',
+    'sql-insert': 'application/sql',
     html: 'text/html',
 };
 
@@ -299,6 +328,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         selectedDatabases,
         activeConnectionName,
         activeDatabaseName,
+        tables,
+        schemaDataMap,
+        databaseDataMap,
+        nestedDatabaseDataMap,
     } = useDatabase();
     const {allDrivers} = useDrivers();
     const {explorerConnectionId} = useConnectionLayoutContext();
@@ -311,6 +344,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         activeTabId,
         updateTab,
         reorderTab,
+        setTabPinned,
         updateResultEntry: patchResultEntry,
         addTab,
         setActiveTabId,
@@ -501,8 +535,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [showNewRowModal, setShowNewRowModal] = useState(false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
-    const [editorHeight, setEditorHeight] = useState(300);
-    const editorHeightRef = useRef(300);
+    // Saved across restarts and shared by every editor pane (see utils/editorPanelHeight).
+    const [storedEditorHeight, setEditorHeight] = useUiState<unknown>(
+        UI_STATE_KEYS.editorPanelHeight,
+        DEFAULT_EDITOR_PANEL_HEIGHT,
+    );
+    const editorHeight = resolveEditorPanelHeight(storedEditorHeight, window.innerHeight);
+    const editorHeightRef = useRef(editorHeight);
     // Root of this editor instance: the resize logic must stay scoped to it,
     // in split view every pane mounts its own Editor
     const editorRootRef = useRef<HTMLDivElement>(null);
@@ -591,13 +630,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [explainSelectableQueries, setExplainSelectableQueries] = useState<
         {query: string; index: number}[]
     >([]);
-    const [isEditingPage, setIsEditingPage] = useState(false);
-    const [tempPage, setTempPage] = useState('1');
     const [isCountLoading, setIsCountLoading] = useState(false);
     const [applyToAll, setApplyToAll] = useState(false);
-    const [copyFormat, setCopyFormat] = useState<'csv' | 'json' | 'sql-insert' | 'markdown'>(
-        settings.copyFormat ?? 'csv',
-    );
+    const [copyFormat, setCopyFormat] = useState<CopyFormat>(settings.copyFormat ?? 'csv');
     const [csvDelimiter, setCsvDelimiter] = useState(settings.csvDelimiter ?? ',');
     const [csvIncludeHeaders, setCsvIncludeHeaders] = useState(settings.csvIncludeHeaders ?? true);
 
@@ -612,6 +647,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         !!activeTab && !isTableTab && (activeTab.result?.columns.length ?? 0) > 0;
     const resultChart = useResultChartState(resultChartEnabled ? activeTab.id : null);
     const showResultChart = resultChartEnabled && resultChart.view === 'chart';
+    // Columns hidden in the active tab's grid (#1299).
+    const resultHiddenColumns = useHiddenColumns(
+        activeTab?.id ?? null,
+        activeTab?.result?.columns ?? [],
+    );
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
     const tabStripId = useId();
     // Full name behind a truncated tab title (tooltip and accessible name).
@@ -658,8 +698,53 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [],
     );
 
+    const [linkedConflict, setLinkedConflict] = useState<{
+        tabId: string;
+        kind: LinkedFileConflictKind;
+    } | null>(null);
+    const [isResolvingLinkedConflict, setIsResolvingLinkedConflict] = useState(false);
+
+    // Linked files are written only while the disk copy still matches what the
+    // tab last read or wrote; otherwise the conflict dialog decides.
+    const saveLinkedSqlFile = useCallback(
+        async (tab: Tab, overwrite: boolean) => {
+            const link = tab.sourceFileLink;
+            if (!link) return;
+            const savedQuery = tab.query;
+            try {
+                const saved = await writeLinkedSqlFile(client, link, savedQuery, overwrite);
+                updateTab(tab.id, (currentTab) =>
+                    savedLinkedFileTab(
+                        currentTab.sourceFileLink ?? link,
+                        saved,
+                        savedQuery,
+                        currentTab.query,
+                    ),
+                );
+                setLinkedConflict(null);
+                showToast(t('editor.sqlFileSaved'), {kind: 'success'});
+            } catch (error) {
+                const kind = getLinkedFileConflict(error);
+                if (kind) {
+                    setLinkedConflict({tabId: tab.id, kind});
+                    return;
+                }
+                const key = getLinkedFolderErrorKey(error);
+                showAlert(`${t('editor.saveSqlFileError')}: ${key ? t(key) : String(error)}`, {
+                    title: t('common.error'),
+                    kind: 'error',
+                });
+            }
+        },
+        [client, showAlert, showToast, t, updateTab],
+    );
+
     const handleSaveSqlFile = useCallback(
         async (tab: Tab, saveAs = false) => {
+            if (tab.sourceFileLink && !saveAs) {
+                await saveLinkedSqlFile(tab, false);
+                return;
+            }
             try {
                 const savedQuery = tab.query;
                 const saved = await saveSqlFile(platform, client, {
@@ -677,9 +762,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 if (!saved) return;
                 if (saved.kind === 'path') {
                     updateTab(tab.id, (currentTab) =>
-                        savedSqlFileTab(saved.path, savedQuery, currentTab.query),
+                        // Save As detaches the tab from the linked folder.
+                        ({
+                            ...savedSqlFileTab(saved.path, savedQuery, currentTab.query),
+                            sourceFileLink: undefined,
+                        }),
                     );
                 }
+                setLinkedConflict(null);
                 showToast(t('editor.sqlFileSaved'), {kind: 'success'});
             } catch (error) {
                 showAlert(`${t('editor.saveSqlFileError')}: ${String(error)}`, {
@@ -688,7 +778,44 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 });
             }
         },
-        [client, platform, showAlert, showToast, t, updateTab],
+        [client, platform, saveLinkedSqlFile, showAlert, showToast, t, updateTab],
+    );
+
+    const linkedConflictTab = linkedConflict
+        ? tabs.find((tab) => tab.id === linkedConflict.tabId)
+        : undefined;
+
+    const resolveLinkedConflict = useCallback(
+        async (action: 'overwrite' | 'reload') => {
+            const tab = linkedConflictTab;
+            const link = tab?.sourceFileLink;
+            if (!tab || !link) return;
+            setIsResolvingLinkedConflict(true);
+            try {
+                if (action === 'overwrite') {
+                    await saveLinkedSqlFile(tab, true);
+                    return;
+                }
+                const file = await readLinkedSqlFile(client, link.folderId, link.relativePath);
+                updateTab(tab.id, {
+                    query: file.content,
+                    sourceFilePath: file.path,
+                    sourceFileContent: file.content,
+                    sourceFileDirty: false,
+                    sourceFileLink: {...link, version: file.version},
+                });
+                setLinkedConflict(null);
+            } catch (error) {
+                const key = getLinkedFolderErrorKey(error);
+                showAlert(`${t('editor.openSqlFileError')}: ${key ? t(key) : String(error)}`, {
+                    title: t('common.error'),
+                    kind: 'error',
+                });
+            } finally {
+                setIsResolvingLinkedConflict(false);
+            }
+        },
+        [client, linkedConflictTab, saveLinkedSqlFile, showAlert, t, updateTab],
     );
 
     const isEditorOpen = !isTableTab && (activeTab?.isEditorOpen ?? activeTab?.type !== 'table');
@@ -888,21 +1015,32 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         stopTabAutoScroll();
     }, [stopTabAutoScroll]);
 
+    // Pixel offset of the insertion line for a gap: the left edge of the tab after it,
+    // or the right edge of the last tab.
+    const tabGapLeft = useCallback((gap: number): number => {
+        const tabEls = Array.from(
+            tabScrollRef.current?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [],
+        );
+        const next = tabEls[gap];
+        if (next) return next.offsetLeft;
+        const last = tabEls.at(-1);
+        return last ? last.offsetLeft + last.offsetWidth : 0;
+    }, []);
+
     const handleTabDragOver = useCallback(
         (index: number) => (e: React.DragEvent<HTMLDivElement>) => {
             if (!dragTabId) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            // Left half of the tab drops before it, right half drops after it.
-            const target = e.currentTarget;
-            const rect = target.getBoundingClientRect();
+            // Left half of the tab drops before it, right half drops after it. Pinned
+            // tabs stay before unpinned ones, so the gap is kept in the dragged tab's group.
+            const rect = e.currentTarget.getBoundingClientRect();
             const after = e.clientX > rect.left + rect.width / 2;
-            setDropPos(after ? index + 1 : index);
-            setDropIndicatorLeft(
-                after ? target.offsetLeft + target.offsetWidth : target.offsetLeft,
-            );
+            const gap = clampTabGap(tabs, dragTabId, after ? index + 1 : index);
+            setDropPos(gap);
+            setDropIndicatorLeft(tabGapLeft(gap));
         },
-        [dragTabId],
+        [dragTabId, tabs, tabGapLeft],
     );
 
     // Drive edge auto-scroll from the scroll container, and fall back to
@@ -923,12 +1061,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 autoScrollRafRef.current = requestAnimationFrame(stepTabAutoScroll);
             }
             if (e.target === container) {
-                const lastTab = container.children[tabs.length - 1] as HTMLElement | undefined;
-                setDropPos(tabs.length);
-                setDropIndicatorLeft(lastTab ? lastTab.offsetLeft + lastTab.offsetWidth : 0);
+                const gap = clampTabGap(tabs, dragTabId, tabs.length);
+                setDropPos(gap);
+                setDropIndicatorLeft(tabGapLeft(gap));
             }
         },
-        [dragTabId, tabs.length, stepTabAutoScroll],
+        [dragTabId, tabs, stepTabAutoScroll, tabGapLeft],
     );
 
     const handleTabsDrop = useCallback(
@@ -1074,9 +1212,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [clearEntryScrollTops, closeTab, requestTabClosure],
     );
 
+    // Bulk close actions leave pinned tabs open, so only the tabs they close are
+    // checked for unsaved changes.
     const handleCloseOtherTabs = useCallback(
         (tabId: string) => {
-            const tabIds = tabsRef.current.filter((tab) => tab.id !== tabId).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'others', tabId);
             requestTabClosure(tabIds, () => closeOtherTabs(tabId));
         },
         [closeOtherTabs, requestTabClosure],
@@ -1084,8 +1224,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const handleCloseTabsToRight = useCallback(
         (tabId: string) => {
-            const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
-            const tabIds = index < 0 ? [] : tabsRef.current.slice(index + 1).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'right', tabId);
             requestTabClosure(tabIds, () => closeTabsToRight(tabId));
         },
         [closeTabsToRight, requestTabClosure],
@@ -1093,18 +1232,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const handleCloseTabsToLeft = useCallback(
         (tabId: string) => {
-            const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
-            const tabIds = index < 0 ? [] : tabsRef.current.slice(0, index).map((tab) => tab.id);
+            const tabIds = getBulkClosedTabIds(tabsRef.current, 'left', tabId);
             requestTabClosure(tabIds, () => closeTabsToLeft(tabId));
         },
         [closeTabsToLeft, requestTabClosure],
     );
 
     const handleCloseAllTabs = useCallback(() => {
-        requestTabClosure(
-            tabsRef.current.map((tab) => tab.id),
-            closeAllTabs,
-        );
+        requestTabClosure(getBulkClosedTabIds(tabsRef.current, 'all'), closeAllTabs);
     }, [closeAllTabs, requestTabClosure]);
 
     const cancelPendingTabClosure = useCallback(() => {
@@ -1774,8 +1909,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                         historyDb,
                     );
                 }
+                const snapshot = pageSize && isSnapshotResult(res) ? res : undefined;
                 patchResultEntry(targetTabId, entry.id, {
-                    result: res,
+                    result: snapshot && pageSize ? snapshotPage(snapshot, 1, pageSize) : res,
+                    snapshot,
                     executionTime: execTime,
                     isLoading: false,
                     activeTable: tableName,
@@ -1805,7 +1942,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {
                         connectionId: activeConnectionId,
                         queries: entries.map((e) => e.query),
-                        limit: pageSize,
+                        // Capture a snapshot per statement: later pages are cut from
+                        // it, since re-running a statement after the batch would see
+                        // different session state (#205).
+                        limit: batchSnapshotLimit(pageSize),
                         page: 1,
                         batchId,
                         // The tab is the session: a transaction it leaves open keeps
@@ -1982,6 +2122,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const schema = currentTab?.schema ?? activeSchema;
 
             scrollTopByEntryKeyRef.current.delete(`${targetTabId}:${entryId}`);
+
+            // Run All results page through the rows captured during the batch.
+            if (entry.snapshot && currentTab?.results) {
+                const pageResult = snapshotPage(entry.snapshot, pageNum, pageSize ?? 0);
+                updateTab(targetTabId, {
+                    results: updateResultEntry(currentTab.results, entryId, {
+                        result: pageResult,
+                        page: pageResult.pagination?.page ?? 1,
+                    }),
+                });
+                return;
+            }
 
             // Mark this entry as loading
             if (currentTab?.results) {
@@ -2228,6 +2380,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             tableName: string | null,
             sessionId: string,
             database?: string | null,
+            pkColumns?: string[] | null,
         ): Promise<CopiedRows | null> => {
             const columns = result?.columns ?? [];
             if (!activeConnectionId || columns.length === 0 || !query.trim()) {
@@ -2262,8 +2415,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 csvDelimiter,
                 tableName,
                 driver: activeCapabilities,
+                nullLabel: settings.copyNullLabel ?? 'null',
+                pkColumns,
             });
-            return {text, count: rows.length};
+            const asInsert =
+                copyFormat === 'sql-update' && sqlUpdateBlocker(fetchedColumns, pkColumns) !== null;
+            return {text, count: rows.length, ...(asInsert ? {asInsert} : {})};
         },
         [
             client,
@@ -2272,6 +2429,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             copyFormat,
             csvDelimiter,
             csvIncludeHeaders,
+            settings.copyNullLabel,
         ],
     );
 
@@ -2305,6 +2463,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     tab.activeTable,
                     tab.id,
                     tab.database,
+                    tab.pkColumns,
                 );
             if (tab.type !== 'table') return fetch();
 
@@ -2337,6 +2496,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 entry.activeTable,
                 tab.id,
                 tab.database,
+                entry.pkColumns,
             );
         },
         [activeSchema, fetchAllRows],
@@ -2348,9 +2508,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 const copied = await rows;
                 if (!copied) return;
                 await copyTextToClipboard(copied.text);
-                showToast(t('dataGrid.copiedRows', {count: copied.count}), {
-                    kind: 'success',
-                });
+                showToast(
+                    t(copied.asInsert ? 'dataGrid.copiedAsInsertNoKey' : 'dataGrid.copiedRows', {
+                        count: copied.count,
+                    }),
+                    {kind: 'success'},
+                );
             } catch (e) {
                 showAlert(t('common.error') + ': ' + e, {
                     title: t('common.error'),
@@ -4562,6 +4725,56 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         enabled: !isNotebookTab && !isUsersTab,
     });
 
+    const sqlDiagnostics = useSqlDiagnosticsOptions(activeConnectionId, {
+        schema: activeTab?.schema ?? activeSchema,
+        database: activeTab?.database,
+        enabled: !isNotebookTab && !isUsersTab,
+    });
+
+    const inlineCompletion = useMemo(() => {
+        if (
+            !settings.aiEnabled ||
+            !settings.aiInlineCompletionEnabled ||
+            !activeConnectionId ||
+            !activeTab
+        )
+            return undefined;
+        const schema = activeTab.schema ?? activeSchema;
+        const database = activeTab.database ?? activeDatabaseName;
+        // Only use already-loaded metadata for this tab's exact namespace.
+        const cached = inlineTables(
+            {
+                tables,
+                schemaDataMap,
+                databaseDataMap,
+                nestedDatabaseDataMap,
+                activeCapabilities,
+                activeSchema,
+                activeDatabaseName,
+            },
+            schema,
+            database,
+        );
+        return {
+            key: JSON.stringify([activeConnectionId, activeTab.id, database, schema]),
+            schema: inlineSchema(cached),
+            dialect: activeDialect.dialect ?? 'generic',
+        };
+    }, [
+        settings.aiEnabled,
+        settings.aiInlineCompletionEnabled,
+        activeConnectionId,
+        activeTab,
+        activeSchema,
+        activeDatabaseName,
+        activeCapabilities,
+        activeDialect.dialect,
+        nestedDatabaseDataMap,
+        schemaDataMap,
+        databaseDataMap,
+        tables,
+    ]);
+
     // E2E: expose a submit-changes hook for tauri-wd tests. The WDIO
     // element.click() on the Submit button doesn't reliably trigger React's
     // onClick in WKWebView, so the test calls this directly. This mirrors
@@ -4623,6 +4836,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const startResize = () => {
         isDragging.current = true;
+        editorHeightRef.current = editorHeight;
+        // `editorHeight` is clamped to the current window: only a real drag may
+        // save, or a plain click would overwrite a height saved on a larger screen.
+        let didResize = false;
         document.body.style.cursor = 'row-resize';
         const activeEditor = activeTab ? editorsRef.current[activeTab.id] : undefined;
 
@@ -4648,6 +4865,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             const newHeight = e.clientY - panelTop;
             if (newHeight > 100 && newHeight < maxHeight) {
                 editorHeightRef.current = newHeight;
+                didResize = true;
                 if (rafRef.current) cancelAnimationFrame(rafRef.current);
                 rafRef.current = requestAnimationFrame(() => {
                     panels.forEach((el) => {
@@ -4662,7 +4880,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             document.body.style.cursor = '';
             overlay.remove();
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            setEditorHeight(editorHeightRef.current);
+            if (didResize) setEditorHeight(editorHeightRef.current);
             requestAnimationFrame(() => activeEditor?.layout());
             document.removeEventListener('mousemove', handleResize);
             document.removeEventListener('mouseup', stopResize);
@@ -4757,6 +4975,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         if (format === 'ndjson') {
             if (!activeExportResult) return;
             await handleExportLoadedRows(activeExportResult, 'ndjson');
+            return;
+        }
+
+        // SQL INSERT serialises client-side from the loaded rows, like NDJSON:
+        // the backend exporter does not know the format.
+        if (format === 'sql-insert') {
+            if (!activeExportResult) return;
+            await handleExportLoadedRows(activeExportResult, 'sql-insert');
             return;
         }
 
@@ -4987,6 +5213,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     {tabs.map((tab, index) => (
                         <div
                             key={tab.id}
+                            data-tab-id={tab.id}
                             draggable
                             onDragStart={(e) => handleTabDragStart(e, tab.id)}
                             onDragEnd={handleTabDragEnd}
@@ -4997,6 +5224,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                             aria-label={tabFullTitle(tab)}
                             aria-describedby={
                                 [
+                                    tab.pinned ? `${tabStripId}-pinned-${tab.id}` : null,
                                     tab.sourceFileDirty ? `${tabStripId}-dirty-${tab.id}` : null,
                                     transactionTabIds.has(tab.id)
                                         ? `${tabStripId}-transaction-${tab.id}`
@@ -5139,6 +5367,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             {t('editor.transactionOpen')}
                                         </span>
                                     )}
+                                </span>
+                            )}
+                            {tab.pinned && (
+                                // The tab's aria-label replaces its text, so the pinned state
+                                // reaches screen readers as a description instead.
+                                <span className="flex shrink-0 text-muted">
+                                    <Pin size={11} aria-hidden="true" />
+                                    <span id={`${tabStripId}-pinned-${tab.id}`} className="sr-only">
+                                        {t('editor.pinnedTab')}
+                                    </span>
                                 </span>
                             )}
                             <button
@@ -5671,6 +5909,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 initialValue={tab.query}
                                 dialect={activeDialect}
                                 foldPreview
+                                cursorStatus
+                                diagnostics={isActive ? sqlDiagnostics : undefined}
+                                inlineCompletion={isActive ? inlineCompletion : undefined}
                                 onChange={(val) => {
                                     // Debounced Monaco edits can arrive after this tab becomes
                                     // inactive. The callback belongs to the tab's stable id;
@@ -6030,6 +6271,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 )}
                                             </span>
 
+                                            {!showResultChart && (
+                                                <HiddenColumnsIndicator
+                                                    columns={activeTab.result.columns}
+                                                    hidden={resultHiddenColumns.hidden}
+                                                    onChange={resultHiddenColumns.setHidden}
+                                                />
+                                            )}
+
                                             {activeTab.result.pagination?.has_more && (
                                                 <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0">
                                                     {t('editor.autoPaginated')}
@@ -6037,9 +6286,36 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             )}
                                         </div>
 
+                                        {/* Shown for every grid result, not only table results, so
+                                            a transposed tab can always switch back. */}
+                                        {!showResultChart && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    updateTab(activeTab.id, {
+                                                        transposed: !activeTab.transposed,
+                                                    })
+                                                }
+                                                aria-pressed={!!activeTab.transposed}
+                                                aria-label={t('dataGrid.transpose')}
+                                                title={
+                                                    activeTab.transposed
+                                                        ? t('dataGrid.untranspose')
+                                                        : t('dataGrid.transpose')
+                                                }
+                                                className={`ml-auto flex items-center justify-center w-6 h-6 rounded shrink-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                                                    activeTab.transposed
+                                                        ? 'text-accent bg-accent-primary/15'
+                                                        : 'text-secondary hover:text-primary hover:bg-surface-secondary'
+                                                }`}
+                                            >
+                                                <TransposeIcon size={14} />
+                                            </button>
+                                        )}
+
                                         {resultChartEnabled && (
                                             <ResultViewToggle
-                                                className="ml-auto"
+                                                className={showResultChart ? 'ml-auto' : undefined}
                                                 view={resultChart.view}
                                                 onChange={resultChart.setView}
                                             />
@@ -6071,7 +6347,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                             }
                                                             onClick={() => runQuery(undefined, 1)}
                                                             className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="First Page"
+                                                            title={t('pagination.firstPage')}
+                                                            aria-label={t('pagination.firstPage')}
                                                         >
                                                             <ChevronsLeft size={14} />
                                                         </button>
@@ -6088,108 +6365,27 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Previous Page"
+                                                            title={t('pagination.previousPage')}
+                                                            aria-label={t(
+                                                                'pagination.previousPage',
+                                                            )}
                                                         >
                                                             <ChevronLeft size={14} />
                                                         </button>
 
-                                                        {isEditingPage ? (
-                                                            <div
-                                                                className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap"
-                                                                title={t('editor.jumpToPage')}
-                                                            >
-                                                                <input
-                                                                    autoCorrect="off"
-                                                                    autoCapitalize="off"
-                                                                    autoComplete="off"
-                                                                    spellCheck={false}
-                                                                    autoFocus
-                                                                    type="text"
-                                                                    className="w-full bg-transparent text-center focus:outline-none text-primary p-0 m-0 border-none h-full"
-                                                                    value={tempPage}
-                                                                    onChange={(e) =>
-                                                                        setTempPage(e.target.value)
-                                                                    }
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') {
-                                                                            const newPage =
-                                                                                parseInt(tempPage);
-                                                                            const totalRows =
-                                                                                activeTab.result!
-                                                                                    .pagination!
-                                                                                    .total_rows;
-                                                                            if (
-                                                                                !isNaN(newPage) &&
-                                                                                newPage >= 1
-                                                                            ) {
-                                                                                if (
-                                                                                    totalRows ===
-                                                                                        null ||
-                                                                                    newPage <=
-                                                                                        Math.ceil(
-                                                                                            totalRows /
-                                                                                                activeTab
-                                                                                                    .result!
-                                                                                                    .pagination!
-                                                                                                    .page_size,
-                                                                                        )
-                                                                                ) {
-                                                                                    runQuery(
-                                                                                        undefined,
-                                                                                        newPage,
-                                                                                    );
-                                                                                }
-                                                                            }
-                                                                            setIsEditingPage(false);
-                                                                        } else if (
-                                                                            e.key === 'Escape'
-                                                                        ) {
-                                                                            setIsEditingPage(false);
-                                                                        }
-                                                                        e.stopPropagation();
-                                                                    }}
-                                                                    onBlur={() =>
-                                                                        setIsEditingPage(false)
-                                                                    }
-                                                                />
-                                                            </div>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
-                                                                onClick={() => {
-                                                                    setIsEditingPage(true);
-                                                                    setTempPage(
-                                                                        String(
-                                                                            activeTab.result!
-                                                                                .pagination!.page,
-                                                                        ),
-                                                                    );
-                                                                }}
-                                                                title={t('editor.jumpToPage')}
-                                                            >
-                                                                {activeTab.result.pagination
-                                                                    .total_rows !== null
-                                                                    ? t('editor.pageOf', {
-                                                                          current:
-                                                                              activeTab.result
-                                                                                  .pagination.page,
-                                                                          total: Math.ceil(
-                                                                              activeTab.result
-                                                                                  .pagination
-                                                                                  .total_rows /
-                                                                                  activeTab.result
-                                                                                      .pagination
-                                                                                      .page_size,
-                                                                          ),
-                                                                      })
-                                                                    : t('editor.page', {
-                                                                          current:
-                                                                              activeTab.result
-                                                                                  .pagination.page,
-                                                                      })}
-                                                            </button>
-                                                        )}
+                                                        <PageIndicator
+                                                            page={activeTab.result.pagination.page}
+                                                            totalPages={totalPageCount(
+                                                                activeTab.result.pagination
+                                                                    .total_rows,
+                                                                activeTab.result.pagination
+                                                                    .page_size,
+                                                            )}
+                                                            disabled={!!activeTab.isLoading}
+                                                            onPageChange={(nextPage) =>
+                                                                runQuery(undefined, nextPage)
+                                                            }
+                                                        />
 
                                                         {activeTab.result.pagination.total_rows ===
                                                         null ? (
@@ -6232,7 +6428,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Next Page"
+                                                            title={t('pagination.nextPage')}
+                                                            aria-label={t('pagination.nextPage')}
                                                         >
                                                             <ChevronRight size={14} />
                                                         </button>
@@ -6256,7 +6453,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                                 )
                                                             }
                                                             className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                                                            title="Last Page"
+                                                            title={t('pagination.lastPage')}
+                                                            aria-label={t('pagination.lastPage')}
                                                         >
                                                             <ChevronsRight size={14} />
                                                         </button>
@@ -6305,13 +6503,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 <select
                                                     value={copyFormat}
                                                     onChange={(e) =>
-                                                        setCopyFormat(
-                                                            e.target.value as
-                                                                | 'csv'
-                                                                | 'json'
-                                                                | 'sql-insert'
-                                                                | 'markdown',
-                                                        )
+                                                        setCopyFormat(e.target.value as CopyFormat)
                                                     }
                                                     className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
                                                     title={t('settings.copyFormat')}
@@ -6320,6 +6512,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                     <option value="csv">CSV</option>
                                                     <option value="json">JSON</option>
                                                     <option value="sql-insert">SQL INSERT</option>
+                                                    <option value="sql-update">SQL UPDATE</option>
                                                     <option value="markdown">Markdown</option>
                                                 </select>
                                                 {copyFormat === 'csv' && (
@@ -6475,7 +6668,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
                                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                                     {showResultChart && activeTab.result ? (
-                                        <ResultChart
+                                        <LazyResultChart
                                             result={activeTab.result}
                                             config={resultChart.config}
                                             onConfigChange={resultChart.setConfig}
@@ -6535,6 +6728,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 copyFormat={copyFormat}
                                                 csvDelimiter={csvDelimiter}
                                                 csvIncludeHeaders={csvIncludeHeaders}
+                                                transposed={!!activeTab.transposed}
+                                                conditionalFormatting={activeTab.type === 'table'}
                                                 sortClause={activeTab.sortClause}
                                                 onSort={
                                                     activeTab.type === 'table' &&
@@ -6561,6 +6756,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                                 canRedo={canRedoGrid(activeTab.gridHistory)}
                                                 onBeginBatchEdit={handleBeginBatchEdit}
                                                 onEndBatchEdit={handleEndBatchEdit}
+                                                hiddenColumns={resultHiddenColumns.hidden}
+                                                onHiddenColumnsChange={
+                                                    resultHiddenColumns.setHidden
+                                                }
                                             />
                                         </div>
                                     )}
@@ -6786,6 +6985,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                           },
                                       ]
                                     : []),
+                                ...(contextTab
+                                    ? [
+                                          {
+                                              label: contextTab.pinned
+                                                  ? t('editor.unpinTab')
+                                                  : t('editor.pinTab'),
+                                              icon: contextTab.pinned ? PinOff : Pin,
+                                              action: () =>
+                                                  setTabPinned(contextTab.id, !contextTab.pinned),
+                                          },
+                                      ]
+                                    : []),
                                 {
                                     label: t('editor.reopenClosedTab'),
                                     icon: Undo2,
@@ -6865,6 +7076,20 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 warningMessage={exportState.warningMessage}
                 onCancel={cancelExport}
                 onClose={closeExportModal}
+            />
+            <LinkedFileConflictModal
+                isOpen={linkedConflict !== null && linkedConflictTab !== undefined}
+                kind={linkedConflict?.kind ?? 'modified'}
+                fileName={linkedConflictTab?.title ?? ''}
+                busy={isResolvingLinkedConflict}
+                onClose={() => setLinkedConflict(null)}
+                onOverwrite={() => void resolveLinkedConflict('overwrite')}
+                onReload={() => void resolveLinkedConflict('reload')}
+                onSaveAs={() => {
+                    const tab = linkedConflictTab;
+                    setLinkedConflict(null);
+                    if (tab) void handleSaveSqlFile(tab, true);
+                }}
             />
             <QueryParamsModal
                 isOpen={queryParamsModal.isOpen}

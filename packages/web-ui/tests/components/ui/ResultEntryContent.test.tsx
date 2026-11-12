@@ -144,7 +144,7 @@ describe('ResultEntryContent grid/chart toggle', () => {
         ).not.toBeInTheDocument();
     });
 
-    it('starts on the grid and switches between grid and chart', () => {
+    it('starts on the grid and switches between grid and chart', async () => {
         render(<ResultEntryContent entry={makeEntry('e-1')} {...gridProps} allowChart />);
         expect(gridButton()).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByTestId('mock-data-grid')).toBeInTheDocument();
@@ -152,7 +152,7 @@ describe('ResultEntryContent grid/chart toggle', () => {
         fireEvent.click(chartButton());
         expect(chartButton()).toHaveAttribute('aria-pressed', 'true');
         expect(screen.queryByTestId('mock-data-grid')).not.toBeInTheDocument();
-        expect(screen.getByTestId('mock-bar-chart')).toBeInTheDocument();
+        expect(await screen.findByTestId('mock-bar-chart')).toBeInTheDocument();
         // The status bar (row count) stays visible in chart view.
         expect(screen.getByText(/editor\.rowsRetrieved/)).toBeInTheDocument();
 
@@ -161,7 +161,7 @@ describe('ResultEntryContent grid/chart toggle', () => {
         expect(screen.queryByTestId('mock-bar-chart')).not.toBeInTheDocument();
     });
 
-    it('keeps the view per entry', () => {
+    it('keeps the view per entry', async () => {
         const {rerender} = render(
             <ResultEntryContent entry={makeEntry('e-a')} {...gridProps} allowChart />,
         );
@@ -171,6 +171,6 @@ describe('ResultEntryContent grid/chart toggle', () => {
         expect(screen.getByTestId('mock-data-grid')).toBeInTheDocument();
 
         rerender(<ResultEntryContent entry={makeEntry('e-a')} {...gridProps} allowChart />);
-        expect(screen.getByTestId('mock-bar-chart')).toBeInTheDocument();
+        expect(await screen.findByTestId('mock-bar-chart')).toBeInTheDocument();
     });
 });

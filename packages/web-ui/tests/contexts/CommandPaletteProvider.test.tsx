@@ -199,6 +199,7 @@ describe('CommandPaletteProvider', () => {
             'table.count-rows',
             'app.open-settings',
             'app.open-connections',
+            'app.open-data-file',
             'connection.new-console',
             'editor.toggle-word-wrap',
         ]);

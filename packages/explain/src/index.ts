@@ -105,3 +105,33 @@ export {
     getExplainDriverLegend,
     getExplainTableRows,
 } from './plan';
+
+export type {ExplainTableColumnId} from './tableColumns';
+export {
+    EXPLAIN_TABLE_COLUMNS,
+    EXPLAIN_TABLE_ANALYZE_COLUMNS,
+    isDefaultExplainTableColumnOrder,
+    moveExplainTableColumn,
+    normalizeExplainTableColumnOrder,
+    shiftExplainTableColumn,
+} from './tableColumns';
+
+export type {
+    ExplainNodeDetailEntry,
+    ExplainNodeDetailSection,
+    FormatExplainNodeDetailsOptions,
+} from './nodeDetails';
+export {getExplainNodeDetailSections, formatExplainNodeDetails} from './nodeDetails';
+export type {
+    ExplainSnapshotContext,
+    ExplainSnapshot,
+    NodeMetricDelta,
+    NodeComparison,
+    PlanComparisonResult,
+} from './planComparison';
+export {
+    checkEngineCompatibility,
+    calculateMetricDelta,
+    alignPlanNodes,
+    comparePlanSnapshots,
+} from './planComparison';

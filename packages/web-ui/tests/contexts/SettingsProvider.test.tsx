@@ -161,6 +161,38 @@ describe('SettingsProvider', () => {
         );
     });
 
+    it.each([true, false])(
+        'persists the minimap value %s without changing other settings',
+        async (enabled) => {
+            let persisted: Partial<Settings> = {language: 'en', editorFontSize: 18};
+            vi.mocked(invoke).mockImplementation(async (command, args) => {
+                if (command === 'get_config') return persisted;
+                if (command === 'save_config') {
+                    persisted = {...persisted, ...(args as {config: Partial<Settings>}).config};
+                }
+                return undefined;
+            });
+            const wrapper = ({children}: {children: React.ReactNode}) =>
+                React.createElement(SettingsProvider, null, children);
+            const first = renderHook(() => useSettings(), {wrapper});
+            await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+            expect(first.result.current.settings.editorMinimap).toBe(false);
+            await act(async () => {
+                await first.result.current.updateSetting('editorMinimap', enabled);
+            });
+            expect(invoke).toHaveBeenCalledWith('save_config', {config: {editorMinimap: enabled}});
+            await act(async () => {
+                await first.result.current.updateSetting('fontSize', 16);
+            });
+            first.unmount();
+            const second = renderHook(() => useSettings(), {wrapper});
+            await waitFor(() => expect(second.result.current.isLoading).toBe(false));
+            expect(second.result.current.settings.editorMinimap).toBe(enabled);
+            expect(second.result.current.settings.editorFontSize).toBe(18);
+            expect(second.result.current.settings.fontSize).toBe(16);
+        },
+    );
+
     it('should provide default settings when backend is empty', async () => {
         const wrapper = ({children}: {children: React.ReactNode}) =>
             React.createElement(SettingsProvider, null, children);

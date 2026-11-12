@@ -137,6 +137,11 @@ pub enum ConnectionCommand {
     CreateSqliteDatabase {
         path: String,
     },
+    OpenDataFile {
+        source: crate::application::data_files::DataFileSource,
+        /// Name for the workspace connection when this call creates it.
+        workspace_name: String,
+    },
 }
 
 pub async fn execute(
@@ -354,6 +359,10 @@ pub async fn execute_for_session(
         ConnectionCommand::CreateSqliteDatabase { path } => {
             json(create_sqlite_database(runtime, state, path).await?)
         }
+        ConnectionCommand::OpenDataFile {
+            source,
+            workspace_name,
+        } => json(open_data_file(runtime, state, source, workspace_name).await?),
     }
 }
 
@@ -384,6 +393,7 @@ pub(crate) fn resolve_saved_connection_params(
     let driver_id = saved.params.driver.clone();
     let plugin_secrets = load_plugin_secrets(runtime, &saved);
     let mut params = saved.params;
+    super::read_only::prepare_params(&mut params);
     restore_secrets_for_connect(runtime, connection_id, &mut params)?;
     params.extra.extend(plugin_secrets);
     params.connection_id = Some(connection_id.to_string());
@@ -896,6 +906,50 @@ async fn create_sqlite_database(
     })
 }
 
+/// Opens a data file as a table and returns the connection that holds it. The
+/// workspace connection is saved the first time a driver opens a file and
+/// reused afterwards.
+async fn open_data_file(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    source: crate::application::data_files::DataFileSource,
+    workspace_name: String,
+) -> Result<crate::application::data_files::OpenedDataFile, String> {
+    use crate::application::data_files;
+
+    let prepared = data_files::open(runtime, source).await?;
+    let driver = prepared.params.driver.clone();
+    let existing = load_file(runtime)?
+        .connections
+        .into_iter()
+        .find(|connection| data_files::is_same_workspace(&connection.params, &prepared.params));
+    let connection_id = match existing {
+        Some(connection) => connection.id,
+        None => {
+            let name = workspace_name.trim();
+            if name.is_empty() {
+                return Err("The data file workspace needs a name".to_string());
+            }
+            save_connection(
+                runtime,
+                state,
+                name.to_string(),
+                prepared.params,
+                PluginSecretChanges::default(),
+                None,
+                None,
+            )?
+            .id
+        }
+    };
+    Ok(data_files::OpenedDataFile {
+        connection_id,
+        driver,
+        table: prepared.table,
+        format: prepared.format.to_string(),
+    })
+}
+
 /// Drops cached plugin connection metadata for both the old and the new driver
 /// of an edited connection, and tells the frontend when any was dropped.
 async fn invalidate_connection_metadata(
@@ -1404,6 +1458,7 @@ pub async fn disconnect_connection(
     connection_id: &str,
 ) -> Result<(), String> {
     super::query_sessions::release_connection(runtime, session_id, connection_id).await;
+    super::routine_debug::release(session_id, Some(connection_id)).await;
     let still_owned = if let (Some(state), Some(session_id)) = (state, session_id) {
         let mut sessions = state
             .web_active_connections
@@ -1446,6 +1501,7 @@ fn prepare_connection_request(
     runtime: &RuntimeContext,
     request: &mut TestConnectionRequest,
 ) -> Result<(), String> {
+    super::read_only::prepare_params(&mut request.params);
     let iam_auth = request.params.use_iam_auth.unwrap_or(false);
     let mut stored_plugin_secrets = std::collections::HashMap::new();
     let saved = match request.connection_id.as_deref() {
@@ -1602,7 +1658,7 @@ async fn test_connection(
             )
         })?;
     let db_target = match (expanded.host.as_deref(), expanded.port) {
-        (Some(host), Some(port)) => format!("{host}:{port}"),
+        (Some(host), Some(port)) => display_host_port(host, port),
         (Some(host), None) => host.to_string(),
         _ => expanded.database.to_string(),
     };
@@ -1615,6 +1671,7 @@ async fn test_connection(
         Some(db_target),
     );
     let capabilities = &driver.manifest().capabilities;
+    super::read_only::validate_support(&resolved, capabilities)?;
     if capabilities.file_based
         && crate::fs_path::requires_existing_database_file(
             capabilities.in_memory,
@@ -1657,6 +1714,43 @@ async fn test_connection(
         None,
     );
     Ok("Connection successful!".to_string())
+}
+
+/// `host:port` for the connection test log. A host that is a URL
+/// (`ws://127.0.0.1:8010`) or already names a port (`db:5433`, `[::1]:5433`)
+/// is shown as typed, and a bare IPv6 address is bracketed so its colons stay
+/// apart from the port. Matches `formatHostPort` in the web UI.
+fn display_host_port(host: &str, port: u16) -> String {
+    if has_url_scheme(host) || names_port(host) {
+        host.to_string()
+    } else if !host.starts_with('[') && host.matches(':').count() > 1 {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+fn has_url_scheme(host: &str) -> bool {
+    host.split_once("://").is_some_and(|(scheme, _)| {
+        let mut chars = scheme.chars();
+        chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+            && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+    })
+}
+
+/// `name:port` or `[ipv6]:port`.
+fn names_port(host: &str) -> bool {
+    let Some((name, port)) = host.rsplit_once(':') else {
+        return false;
+    };
+    let is_port = !port.is_empty() && port.bytes().all(|byte| byte.is_ascii_digit());
+    let is_name = match name.strip_prefix('[') {
+        Some(bracketed) => bracketed
+            .strip_suffix(']')
+            .is_some_and(|address| !address.contains(']')),
+        None => !name.is_empty() && !name.contains([':', '[', ']']),
+    };
+    is_port && is_name
 }
 
 fn emit_test_progress(
