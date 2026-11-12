@@ -1683,6 +1683,7 @@
       "chooseColumns": "Scegli colonne…",
       "title": "Colonne",
       "shown": "{{visible}} di {{total}} visibili",
+      "showOnlyMatching": "Mostra solo corrispondenze",
       "showAll": "Mostra tutte",
       "lastVisible": "Almeno una colonna resta visibile",
       "hiddenCount_one": "{{count}} nascosta",

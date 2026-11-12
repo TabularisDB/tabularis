@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import {calculateContextMenuPosition} from '@/utils/contextMenu';
 import {
     filterColumnsByName,
+    getVisibleColumnIndices,
     hideColumns,
     NO_HIDDEN_COLUMNS,
     showColumns,
@@ -121,6 +122,18 @@ export const ColumnVisibilityPopover = ({
 
     const matches = useMemo(() => filterColumnsByName(columns, query), [columns, query]);
 
+    const showOnlyMatching = () => {
+        if (!query.trim() || matches.length === 0) return;
+        const matching = new Set(matches.map(({index}) => index));
+        onChange(
+            hideColumns(
+                columns.length,
+                NO_HIDDEN_COLUMNS,
+                getVisibleColumnIndices(columns.length, matching),
+            ),
+        );
+    };
+
     const toggle = (index: number) => {
         const next = hidden.has(index)
             ? showColumns(hidden, [index])
@@ -233,7 +246,20 @@ export const ColumnVisibilityPopover = ({
                     )}
                 </div>
 
-                <div className="flex items-center justify-end px-3 py-2 border-t border-default/60 bg-base/40 rounded-b-lg">
+                <div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-default/60 bg-base/40 rounded-b-lg">
+                    {query.trim() !== '' && (
+                        <button
+                            type="button"
+                            onClick={showOnlyMatching}
+                            disabled={matches.length === 0}
+                            className={clsx(
+                                'px-2.5 py-1 rounded text-xs font-medium border transition-colors bg-accent-primary/15 border-accent-primary/25 text-accent hover:bg-accent-primary/25 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent-primary/15',
+                                FOCUS_RING,
+                            )}
+                        >
+                            {t('dataGrid.columnVisibility.showOnlyMatching')}
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => onChange(NO_HIDDEN_COLUMNS)}

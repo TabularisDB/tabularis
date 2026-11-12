@@ -1648,6 +1648,7 @@
       "chooseColumns": "Elegir columnas…",
       "title": "Columnas",
       "shown": "{{visible}} de {{total}} visibles",
+      "showOnlyMatching": "Mostrar solo coincidencias",
       "showAll": "Mostrar todas",
       "lastVisible": "Al menos una columna sigue visible",
       "hiddenCount_one": "{{count}} oculta",

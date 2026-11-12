@@ -1618,6 +1618,9 @@
         "useShownValue": "使用此值"
     },
     "dataGrid": {
+        "columnVisibility": {
+            "showOnlyMatching": "僅顯示相符欄位"
+        },
         "jumpToColumn": "跳轉到欄",
         "searchColumns": "搜尋欄",
         "noMatchingColumns": "找不到符合的欄",
