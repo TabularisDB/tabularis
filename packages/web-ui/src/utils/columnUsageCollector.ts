@@ -168,6 +168,15 @@ export function sortEvidence(evidence: readonly ColumnUsageEvidence[]): ColumnUs
         .map(({item}) => item);
 }
 
+// How often the history scan yields: every this many entries, or sooner
+// when one stretch of matching has run this long.
+const YIELD_EVERY_ENTRIES = 100;
+const YIELD_EVERY_MS = 16;
+
+const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
 /**
  * Reads every source in turn, one lookup at a time, and stops between
  * lookups once `signal` aborts: what is left is marked cancelled.
@@ -357,8 +366,17 @@ export async function collectColumnUsage(
             .sort((a, b) => b.executedAt.localeCompare(a.executedAt));
         let scanned = 0;
         let truncated = inScope.length > limits.maxHistoryEntries;
+        let sinceYield = 0;
+        let lastYield = now();
         for (const entry of inScope.slice(0, limits.maxHistoryEntries)) {
-            if (scanned % 200 === 0 && cancelled()) {
+            // The scan is synchronous: hand the event loop back now and then so
+            // a Stop click (the abort) and rendering can run before we go on.
+            if (++sinceYield >= YIELD_EVERY_ENTRIES || now() - lastYield >= YIELD_EVERY_MS) {
+                await yieldToEventLoop();
+                sinceYield = 0;
+                lastYield = now();
+            }
+            if (cancelled()) {
                 result.sources.history = {status: 'cancelled', scanned, total: inScope.length};
                 return cancelRest();
             }
@@ -390,6 +408,33 @@ export async function collectColumnUsage(
     }
 
     return result;
+}
+
+/**
+ * `result` (or an empty one) with every source still pending marked failed
+ * with `error`: for a collection that threw instead of finishing, so the
+ * panel never stays on "searching".
+ */
+export function failPendingSources(
+    result: ColumnUsageResult | null,
+    error: unknown,
+): ColumnUsageResult {
+    const message = toErrorMessage(error);
+    const base: ColumnUsageResult = result ?? {
+        sources: {
+            foreignKeys: {status: 'pending', scanned: 0, total: null},
+            views: {status: 'pending', scanned: 0, total: null},
+            history: {status: 'pending', scanned: 0, total: null},
+        },
+        evidence: [],
+    };
+    const sources = {...base.sources};
+    for (const key of Object.keys(sources) as UsageSourceKind[]) {
+        if (sources[key].status === 'pending') {
+            sources[key] = {...sources[key], status: 'failed', message};
+        }
+    }
+    return {sources, evidence: base.evidence};
 }
 
 /** True when every source finished reading all it had. */

@@ -17,6 +17,11 @@ const ordersNoSchema: ColumnUsageTarget = {
     column: 'customer_id',
 };
 
+const mysql = (sql: string, options = {}) =>
+    findColumnReferences(sql, ordersNoSchema, {dialect: 'mysql', ...options}).map((m) =>
+        m.reason ? `${m.confidence}:${m.reason}` : m.confidence,
+    );
+
 const summary = (sql: string, target: ColumnUsageTarget, options = {}) =>
     findColumnReferences(sql, target, {dialect: 'postgres', ...options}).map((m) =>
         m.reason ? `${m.confidence}:${m.reason}` : m.confidence,
@@ -255,13 +260,6 @@ describe('columnUsage', () => {
             expect(summary('SELECT c.clé_client FROM commandes c', target)).toEqual(['parsed']);
             expect(summary('SELECT c.clé_client2 FROM commandes c', target)).toEqual([]);
         });
-    });
-
-    describe('review findings', () => {
-        const mysql = (sql: string, options = {}) =>
-            findColumnReferences(sql, ordersNoSchema, {dialect: 'mysql', ...options}).map((m) =>
-                m.reason ? `${m.confidence}:${m.reason}` : m.confidence,
-            );
 
         it('reads the tables of a parenthesised join, as MySQL stores view bodies', () => {
             expect(
@@ -289,23 +287,6 @@ describe('columnUsage', () => {
                 'uncertain:several-tables',
             ]);
             expect(summary('SELECT customer_id FROM (VALUES (1)) v', ordersNoSchema)).toEqual([]);
-        });
-
-        it('redacts numbers written after a dollar sign in every dialect', () => {
-            for (const dialect of ['mssql', 'mysql', 'sqlite', 'postgres', undefined] as const) {
-                const sql =
-                    'SELECT customer_id FROM orders WHERE total > $100.50 AND card = $4111111111111111 OR x = $1';
-                const redacted = redactSqlLiterals(sql, dialect);
-                expect(redacted).not.toMatch(/[0-9]/);
-                const start = sql.indexOf('customer_id');
-                const snippet = buildUsageSnippet(sql, start, start + 11, dialect);
-                expect(snippet.text).not.toMatch(/[0-9]/);
-                expect(snippet.match).toBe('customer_id');
-            }
-            expect(redactSqlLiterals('SELECT a$1, t$x FROM t', 'mysql')).toBe(
-                'SELECT a$1, t$x FROM t',
-            );
-            expect(redactSqlLiterals('SELECT $tag$4111$tag$', 'postgres')).toBe("SELECT '?'");
         });
 
         it('only reports a * that expands the target table in its own query', () => {
@@ -512,6 +493,22 @@ describe('columnUsage', () => {
             expect(redactSqlLiterals("SELECT t1.c2 FROM t1 WHERE n = N'é'", 'mssql')).toBe(
                 "SELECT t1.c2 FROM t1 WHERE n = '?'",
             );
+        });
+        it('redacts numbers written after a dollar sign in every dialect', () => {
+            for (const dialect of ['mssql', 'mysql', 'sqlite', 'postgres', undefined] as const) {
+                const sql =
+                    'SELECT customer_id FROM orders WHERE total > $100.50 AND card = $4111111111111111 OR x = $1';
+                const redacted = redactSqlLiterals(sql, dialect);
+                expect(redacted).not.toMatch(/[0-9]/);
+                const start = sql.indexOf('customer_id');
+                const snippet = buildUsageSnippet(sql, start, start + 11, dialect);
+                expect(snippet.text).not.toMatch(/[0-9]/);
+                expect(snippet.match).toBe('customer_id');
+            }
+            expect(redactSqlLiterals('SELECT a$1, t$x FROM t', 'mysql')).toBe(
+                'SELECT a$1, t$x FROM t',
+            );
+            expect(redactSqlLiterals('SELECT $tag$4111$tag$', 'postgres')).toBe("SELECT '?'");
         });
     });
 

@@ -2,6 +2,7 @@ import {describe, expect, it, vi} from 'vitest';
 import {
     classifyLookupError,
     collectColumnUsage,
+    failPendingSources,
     formatColumnUsageSummary,
     formatUsageTarget,
     isUsageComplete,
@@ -240,6 +241,52 @@ describe('columnUsageCollector', () => {
             expect(result.sources.views.status).toBe('cancelled');
             expect(result.sources.history.status).toBe('cancelled');
             expect(getHistory).not.toHaveBeenCalled();
+        });
+
+        it('lets an abort during the history scan stop it', async () => {
+            const controller = new AbortController();
+            const entries = Array.from({length: 1500}, (_, k) =>
+                history(
+                    `h${k}`,
+                    'SELECT o.customer_id FROM public.orders o',
+                    `2026-11-01T00:${String(k % 60).padStart(2, '0')}:00Z`,
+                ),
+            );
+            const result = await collectColumnUsage(
+                lookups({
+                    getHistory: async () => {
+                        // A timer, like a Stop click, only runs once the scan yields.
+                        setTimeout(() => controller.abort(), 0);
+                        return entries;
+                    },
+                }),
+                {target, dialect: 'postgres', viewsSupported: true, signal: controller.signal},
+            );
+            expect(result.sources.history.status).toBe('cancelled');
+            expect(result.sources.history.scanned).toBeLessThan(entries.length);
+            expect(result.sources.history.total).toBe(entries.length);
+        });
+
+        it('marks what was still pending as failed when the collection throws', () => {
+            const partial: ColumnUsageResult = {
+                sources: {
+                    foreignKeys: {status: 'complete', scanned: 2, total: 2},
+                    views: {status: 'pending', scanned: 0, total: null},
+                    history: {status: 'pending', scanned: 0, total: null},
+                },
+                evidence: [],
+            };
+            const failed = failPendingSources(partial, new Error('parser broke'));
+            expect(failed.sources.foreignKeys).toEqual(partial.sources.foreignKeys);
+            expect(failed.sources.views).toMatchObject({status: 'failed', message: 'parser broke'});
+            expect(failed.sources.history.status).toBe('failed');
+            expect(isUsageComplete(failed)).toBe(false);
+            const fromNothing = failPendingSources(null, 'boom');
+            expect(Object.values(fromNothing.sources).map((source) => source.status)).toEqual([
+                'failed',
+                'failed',
+                'failed',
+            ]);
         });
 
         it('reports progress after each source', async () => {

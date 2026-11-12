@@ -24,6 +24,7 @@ import {openEditor} from '@/utils/editorNavigation';
 import {resolveSqlSyntax} from '@/utils/sqlSyntax';
 import {
     collectColumnUsage,
+    failPendingSources,
     formatColumnUsageSummary,
     formatUsageTarget,
     isUsageComplete,
@@ -128,9 +129,17 @@ export const ColumnUsageModal = ({
             onProgress: (progress) => {
                 if (controllerRef.current === controller) setResult(progress);
             },
-        }).then((final) => {
-            if (controllerRef.current === controller) setResult(final);
-        });
+        })
+            .then((final) => {
+                if (controllerRef.current === controller) setResult(final);
+            })
+            .catch((error: unknown) => {
+                // An unexpected throw (lookup errors are handled inside):
+                // never leave the panel searching with Stop on screen.
+                if (controllerRef.current === controller) {
+                    setResult((current) => failPendingSources(current, error));
+                }
+            });
         return () => controller.abort();
     }, [
         client,
@@ -447,6 +456,7 @@ export const ColumnUsageModal = ({
                         <button
                             type="button"
                             onClick={onClose}
+                            autoFocus
                             className={`px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium ${focusRing}`}
                         >
                             {t('common.close')}
