@@ -15,10 +15,13 @@ import {
     Zap,
     History,
     Network,
+    Copy,
 } from 'lucide-react';
 import type {NotebookCellType} from '@/types/notebook';
 import {CellNameAiButton} from './CellNameAiButton';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
+import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {useToast} from '@/hooks/useToast';
 
 interface NotebookCellHeaderProps {
     cellType: NotebookCellType;
@@ -74,11 +77,13 @@ function ActionButton({
     onClick,
     disabled,
     title,
+    ariaLabel,
     children,
 }: {
     onClick: () => void;
     disabled?: boolean;
     title: string;
+    ariaLabel?: string;
     children: React.ReactNode;
 }) {
     return (
@@ -87,7 +92,8 @@ function ActionButton({
             onClick={onClick}
             disabled={disabled}
             title={title}
-            className="p-1 text-muted hover:text-primary hover:bg-surface-secondary rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label={ariaLabel}
+            className="p-1 text-muted hover:text-primary hover:bg-surface-secondary rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
             {children}
         </button>
@@ -138,6 +144,19 @@ export function NotebookCellHeader({
     const queryPlanToggleLabel = t(
         isQueryPlanVisible ? 'editor.notebook.hideQueryPlan' : 'editor.notebook.toggleQueryPlan',
     );
+    const platform = usePlatformCapabilities();
+    const {showToast} = useToast();
+
+    const copySource = useCallback(async () => {
+        if (!cellContent) return;
+
+        try {
+            await platform.writeClipboard(cellContent);
+            showToast(t('editor.notebook.copiedSource'), {kind: 'success'});
+        } catch {
+            showToast(t('editor.notebook.copySourceFailed'), {kind: 'error'});
+        }
+    }, [cellContent, platform, showToast, t]);
 
     const updateDbDropdownPosition = useCallback(() => {
         if (dbButtonRef.current) {
@@ -361,6 +380,15 @@ export function NotebookCellHeader({
                         {isPreview ? <Pencil size={14} /> : <Eye size={14} />}
                     </ActionButton>
                 )}
+
+                <ActionButton
+                    onClick={() => void copySource()}
+                    disabled={!cellContent}
+                    title={t('editor.notebook.copySource')}
+                    ariaLabel={t('editor.notebook.copySource')}
+                >
+                    <Copy size={14} />
+                </ActionButton>
 
                 <ActionButton
                     onClick={onMoveUp}
