@@ -156,6 +156,7 @@ async fn native_backup_negotiates_support_and_transfers_binary_without_sql_fallb
 
 #[tokio::test]
 async fn database_sql_plugin_transfers_whole_files_without_metadata_or_sql_splitting() {
+    let _registry_guard = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
     use crate::drivers::sqlite::SqliteDriver;
     let directory = tempfile::tempdir().unwrap();
     let failure = Arc::new(AtomicBool::new(false));
@@ -258,6 +259,7 @@ async fn database_sql_plugin_transfers_whole_files_without_metadata_or_sql_split
 
 #[tokio::test]
 async fn database_creation_never_falls_through_to_the_generic_importer() {
+    let _registry_guard = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
     use crate::drivers::sqlite::SqliteDriver;
     let directory = tempfile::tempdir().unwrap();
     let mut manifest = SqliteDriver::new().manifest().clone();
@@ -301,6 +303,7 @@ async fn database_creation_never_falls_through_to_the_generic_importer() {
 
 #[tokio::test]
 async fn database_dump_uses_plugin_renderer_and_preserves_previous_file_on_failure() {
+    let _registry_guard = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
     use crate::drivers::sqlite::SqliteDriver;
     let directory = tempfile::tempdir().unwrap();
     let failure = Arc::new(AtomicBool::new(false));

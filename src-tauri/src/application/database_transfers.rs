@@ -73,6 +73,13 @@ struct ResolvedDumpFormat {
 
 const MAX_NATIVE_BACKUP_EXTENSION_LEN: usize = 16;
 
+fn is_sql_dump_request(options: &DumpOptions) -> bool {
+    matches!(
+        options.format.as_deref().map(str::trim),
+        None | Some("") | Some("sql")
+    )
+}
+
 fn file_extension(value: &str) -> Result<String, String> {
     let extension = value.trim().trim_start_matches('.');
     if extension.is_empty()
@@ -368,16 +375,14 @@ async fn dump_database_job(
     if let Some(database) = database.as_ref().filter(|database| !database.is_empty()) {
         params.database = crate::models::DatabaseSelection::Single(database.clone());
     }
-    let resolved = match options.format.as_deref().map(str::trim) {
-        None | Some("") | Some("sql") => ResolvedDumpFormat {
+    let resolved = if is_sql_dump_request(&options) {
+        ResolvedDumpFormat {
             native: false,
             extension: "sql".into(),
-        },
-        Some(_) => {
-            let capabilities =
-                database_sql_capabilities(runtime, session_id, &connection_id).await?;
-            resolve_dump_format(&options, capabilities.as_ref())?
         }
+    } else {
+        let capabilities = database_sql_capabilities(runtime, session_id, &connection_id).await?;
+        resolve_dump_format(&options, capabilities.as_ref())?
     };
     let extension = resolved.extension.as_str();
     let mime_type = if resolved.native {
@@ -595,8 +600,15 @@ async fn write_dump(
     let drv = crate::drivers::registry::get_driver(driver)
         .await
         .ok_or_else(|| format!("Driver {driver} unavailable"))?;
-    let capabilities = drv.get_database_sql_capabilities(params).await?;
-    let resolved = resolve_dump_format(options, capabilities.as_ref())?;
+    let resolved = if is_sql_dump_request(options) {
+        ResolvedDumpFormat {
+            native: false,
+            extension: "sql".into(),
+        }
+    } else {
+        let capabilities = drv.get_database_sql_capabilities(params).await?;
+        resolve_dump_format(options, capabilities.as_ref())?
+    };
     let native_backup = resolved.native;
     if let Some(result) = drv
         .export_database_sql(
