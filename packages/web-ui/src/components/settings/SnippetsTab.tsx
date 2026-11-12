@@ -19,7 +19,7 @@ import {
     type SqlDialectScope,
     normalizeDriverToDialect,
 } from '@/utils/sqlSnippets';
-import {Plus, Trash2, Edit2, Code2, AlertCircle, Check} from 'lucide-react';
+import {Plus, Trash2, Edit2, Copy, Code2, AlertCircle, Check} from 'lucide-react';
 import clsx from 'clsx';
 import DOMPurify from 'dompurify';
 import {ensureMonaco} from '@/utils/monaco';
@@ -135,6 +135,17 @@ export function SnippetsTab() {
         setDescription(snippet.description || '');
         setDialect(snippet.dialect || 'all');
         setFormError(null);
+    };
+
+    const handleDuplicate = (snippet: SqlSnippet) => {
+        setEditingSnippet(null);
+        setName(snippet.name);
+        setPrefix(snippet.prefix);
+        setBody(snippet.body);
+        setDescription(snippet.description || '');
+        setDialect(snippet.dialect || 'all');
+        setFormError(null);
+        setIsCreating(true);
     };
 
     const handleCancel = () => {
@@ -431,6 +442,15 @@ export function SnippetsTab() {
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => handleDuplicate(snippet)}
+                                    className="p-1.5 rounded-lg text-secondary hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                    title={t('settings.snippets.duplicate', 'Duplicate')}
+                                    aria-label={t('settings.snippets.duplicate', 'Duplicate')}
+                                >
+                                    <Copy size={14} />
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => handleStartEdit(snippet)}
