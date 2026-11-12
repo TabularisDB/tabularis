@@ -19,7 +19,7 @@ fn reply(result: Result<Value, PluginCallError>) -> RpcDriver {
     let (sender, mut receiver) = mpsc::channel(1);
     Arc::get_mut(&mut driver.process).unwrap().sender = sender;
     tokio::spawn(async move {
-        if let Some(PluginCommand::Call(_, response)) = receiver.recv().await {
+        if let Some(PluginCommand::Call(_, response, _)) = receiver.recv().await {
             let _ = response.send(result);
         }
     });

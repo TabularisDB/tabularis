@@ -7,6 +7,7 @@ use std::time::Duration;
 use sqlx::pool::PoolConnection;
 use sqlx::{Connection as _, Executor as _, MySql, MySqlConnection, Pool, Row as _};
 
+use crate::drivers::driver_trait::QueryChunkSink;
 use crate::models::{ConnectionParams, QueryResult};
 
 use super::{exec_on_mysql_conn, TextProto};
@@ -69,9 +70,10 @@ impl InFlight {
         limit: Option<u32>,
         page: u32,
         text: TextProto,
+        stream: Option<&mut QueryChunkSink<'_>>,
     ) -> Result<Result<QueryResult, String>, String> {
         let killer = self.killer.clone();
-        let run = exec_on_mysql_conn(self.conn(), query, limit, page, text);
+        let run = exec_on_mysql_conn(self.conn(), query, limit, page, text, stream);
         let Some(timeout) = crate::pool_manager::query_timeout(params) else {
             return Ok(run.await);
         };

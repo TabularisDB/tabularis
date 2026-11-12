@@ -355,6 +355,7 @@ enum QueryRpcCommand {
     ReleaseSession,
     Execute,
     PluginReadOnly,
+    Stream,
     ExecuteBatch,
     Count,
     Explain,
@@ -2484,6 +2485,7 @@ impl QueryRpcCommand {
             "release_query_session" => Self::ReleaseSession,
             "execute_query" => Self::Execute,
             "execute_plugin_read_only_query" => Self::PluginReadOnly,
+            "stream_query" => Self::Stream,
             "execute_query_batch" => Self::ExecuteBatch,
             "count_query" => Self::Count,
             "explain_query_plan" => Self::Explain,
@@ -3420,6 +3422,16 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
                 connection_id: request.connection_id,
                 query: request.query,
                 schema: request.schema,
+            }
+        }
+        QueryRpcCommand::Stream => {
+            let request: ExecuteQueryRequest = decode_payload(body)?;
+            QueryCommand::Stream {
+                connection_id: request.connection_id,
+                query: request.query,
+                schema: request.schema,
+                query_session_id: request.session_id,
+                database: request.database,
             }
         }
         QueryRpcCommand::ExecuteBatch => {

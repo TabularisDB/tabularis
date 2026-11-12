@@ -670,6 +670,20 @@ async fn exec_on_sqlite_conn(
     limit: Option<u32>,
     page: u32,
 ) -> Result<QueryResult, String> {
+    let mut collected = crate::drivers::common::CollectedRows::default();
+    let meta = fetch_on_sqlite_conn(conn, query, limit, page, &mut collected.sink()).await?;
+    Ok(collected.into_result(meta))
+}
+
+/// Runs one statement and hands its rows to `sink`. The returned result
+/// carries everything but the columns and rows.
+async fn fetch_on_sqlite_conn(
+    conn: &mut sqlx::SqliteConnection,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
+) -> Result<QueryResult, String> {
     // INSERT/UPDATE/DELETE/DDL go through `execute()` so we report the
     // real `rows_affected`.
     if !crate::drivers::common::returns_result_set(query) {
@@ -704,7 +718,7 @@ async fn exec_on_sqlite_conn(
             page,
             page_size: l,
             total_rows: None,
-            has_more: false, // will be updated after streaming
+            has_more: false, // set once the rows are collected
         });
 
         manual_limit = None;
@@ -717,8 +731,7 @@ async fn exec_on_sqlite_conn(
     let mut server_time_ms: Option<f64> = None;
     let mut rows_stream = sqlx::query(&final_query).fetch(&mut *conn);
 
-    let mut columns: Vec<String> = Vec::new();
-    let mut json_rows = Vec::new();
+    let mut out = crate::drivers::common::RowBatcher::new(sink);
     let mut truncated = false;
 
     use futures::stream::StreamExt;
@@ -729,12 +742,12 @@ async fn exec_on_sqlite_conn(
         }
         match result {
             Ok(row) => {
-                if columns.is_empty() {
-                    columns = row.columns().iter().map(|c| c.name().to_string()).collect();
+                if out.rows == 0 {
+                    out.columns(row.columns().iter().map(|c| c.name().to_string()).collect());
                 }
 
                 if let Some(l) = manual_limit {
-                    if json_rows.len() >= l as usize {
+                    if out.rows >= l as usize {
                         truncated = true;
                         break;
                     }
@@ -745,28 +758,19 @@ async fn exec_on_sqlite_conn(
                     let val = extract_value(&row, i, None);
                     json_row.push(val);
                 }
-                json_rows.push(json_row);
+                out.push(json_row);
             }
             Err(e) => return Err(e.to_string()),
         }
     }
+    out.flush();
 
     let (server_time, fetch_time) =
         crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
 
-    // Apply LIMIT +1 result: if we got page_size+1 rows, has_more=true
-    if let Some(ref mut p) = pagination {
-        let has_more = json_rows.len() > p.page_size as usize;
-        if has_more {
-            json_rows.truncate(p.page_size as usize);
-        }
-        p.has_more = has_more;
-        truncated = has_more;
-    }
-
     Ok(QueryResult {
-        columns,
-        rows: json_rows,
+        columns: vec![],
+        rows: vec![],
         affected_rows: 0,
         truncated,
         pagination,
@@ -787,6 +791,46 @@ pub async fn execute_query(
     exec_on_sqlite_conn(&mut *conn, query, limit, page).await
 }
 
+pub async fn execute_query_stream(
+    params: &ConnectionParams,
+    query: &str,
+    sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
+) -> Result<crate::drivers::driver_trait::StreamSummary, String> {
+    let pool = get_sqlite_pool(params).await?;
+    let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    stream_on_sqlite_conn(&mut conn, query, sink).await
+}
+
+async fn stream_on_sqlite_conn(
+    conn: &mut sqlx::SqliteConnection,
+    query: &str,
+    sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
+) -> Result<crate::drivers::driver_trait::StreamSummary, String> {
+    use crate::drivers::driver_trait::{QueryChunk, StreamSummary};
+    let mut named = false;
+    let meta = fetch_on_sqlite_conn(conn, query, None, 1, &mut |chunk| {
+        named |= matches!(chunk, QueryChunk::Columns(_));
+        sink(chunk)
+    })
+    .await?;
+    if !named {
+        // The fetch loop names the columns from the first row.
+        let columns = if crate::drivers::common::returns_result_set(query) {
+            use sqlx::{Executor as _, Statement as _};
+            let statement = conn.prepare(query).await.map_err(|e| e.to_string())?;
+            statement
+                .columns()
+                .iter()
+                .map(|c| c.name().to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        sink(QueryChunk::Columns(columns));
+    }
+    Ok(StreamSummary::of(&meta, false))
+}
+
 /// Runs one statement with `PRAGMA query_only` on, inside a transaction that
 /// is always rolled back, so SQLite rejects any write the statement attempts.
 ///
@@ -798,6 +842,28 @@ pub async fn execute_read_only_query(
     limit: Option<u32>,
     page: u32,
 ) -> Result<QueryResult, String> {
+    let mut guard = begin_read_only(params).await?;
+    let outcome = exec_on_sqlite_conn(guard.conn(), query, limit, page).await;
+    end_read_only(guard, params).await;
+    outcome
+}
+
+/// `execute_read_only_query` without a row limit, with the rows handed to
+/// `sink` in batches as they arrive.
+pub async fn execute_read_only_query_stream(
+    params: &ConnectionParams,
+    query: &str,
+    sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
+) -> Result<crate::drivers::driver_trait::StreamSummary, String> {
+    let mut guard = begin_read_only(params).await?;
+    let outcome = stream_on_sqlite_conn(guard.conn(), query, sink).await;
+    end_read_only(guard, params).await;
+    outcome
+}
+
+type ReadOnlyConn = crate::drivers::common::DetachOnDrop<sqlx::Sqlite>;
+
+async fn begin_read_only(params: &ConnectionParams) -> Result<ReadOnlyConn, String> {
     use sqlx::Executor as _;
     let pool = get_sqlite_pool(params).await?;
     let mut guard =
@@ -807,7 +873,11 @@ pub async fn execute_read_only_query(
         .execute(sqlx::raw_sql("PRAGMA query_only = ON; BEGIN"))
         .await
         .map_err(|e| e.to_string())?;
-    let outcome = exec_on_sqlite_conn(guard.conn(), query, limit, page).await;
+    Ok(guard)
+}
+
+async fn end_read_only(mut guard: ReadOnlyConn, params: &ConnectionParams) {
+    use sqlx::Executor as _;
     let cleanup = if params.read_only {
         "ROLLBACK"
     } else {
@@ -817,7 +887,6 @@ pub async fn execute_read_only_query(
         Ok(_) => guard.release(),
         Err(e) => log::warn!("SQLite: resetting after a read-only query failed: {e}"),
     }
-    outcome
 }
 
 /// Runs a sequence of statements on a single pooled connection so
@@ -1096,6 +1165,7 @@ impl SqliteDriver {
                     explain: true,
                     readonly: false,
                     read_only_queries: true,
+                    streaming_results: false,
                     table_export: None,
                     table_import: None,
                     triggers: true,
@@ -1356,6 +1426,17 @@ impl DatabaseDriver for SqliteDriver {
         execute_query(params, query, limit, page).await
     }
 
+    async fn execute_query_stream(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        _schema: Option<&str>,
+        _session_id: Option<&str>,
+        sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
+    ) -> Result<crate::drivers::driver_trait::StreamSummary, String> {
+        execute_query_stream(params, query, sink).await
+    }
+
     async fn execute_read_only_query(
         &self,
         params: &crate::models::ConnectionParams,
@@ -1365,6 +1446,16 @@ impl DatabaseDriver for SqliteDriver {
         _schema: Option<&str>,
     ) -> Result<crate::models::QueryResult, String> {
         execute_read_only_query(params, query, limit, page).await
+    }
+
+    async fn execute_read_only_query_stream(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        _schema: Option<&str>,
+        sink: &mut crate::drivers::driver_trait::QueryChunkSink<'_>,
+    ) -> Result<crate::drivers::driver_trait::StreamSummary, String> {
+        execute_read_only_query_stream(params, query, sink).await
     }
 
     async fn execute_batch(

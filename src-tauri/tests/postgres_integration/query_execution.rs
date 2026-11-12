@@ -240,3 +240,30 @@ async fn test_pinned_session_rejects_database_mismatch() {
     .await
     .expect("ROLLBACK should succeed");
 }
+
+#[tokio::test]
+#[ignore]
+async fn a_postgres_query_returning_1200_rows_streams_columns_first_then_a_500_row_batch_then_the_remaining_700_rows(
+) {
+    use tabularis_lib::drivers::driver_trait::QueryChunk;
+    require_pg!();
+    let params = pg_params();
+    let query = "SELECT x, 'row ' || x AS label FROM generate_series(1, 1200) AS x";
+
+    let mut chunks = Vec::new();
+    postgres::execute_query_stream(&params, query, None, None, &mut |chunk| chunks.push(chunk))
+        .await
+        .expect("execute_query_stream should succeed");
+    let expected = postgres::execute_query(&params, query, None, 1, None)
+        .await
+        .expect("execute_query should succeed");
+
+    let [QueryChunk::Columns(columns), QueryChunk::Rows(first), QueryChunk::Rows(rest)] =
+        chunks.as_slice()
+    else {
+        panic!("unexpected chunks: {chunks:?}");
+    };
+    assert_eq!(columns, &expected.columns);
+    assert_eq!((first.len(), rest.len()), (500, 700));
+    assert_eq!([first.as_slice(), rest.as_slice()].concat(), expected.rows);
+}

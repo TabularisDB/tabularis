@@ -87,6 +87,8 @@ export interface DriverCapabilities {
     readonly?: boolean;
     /** Implements the protected execute_read_only_query RPC. Defaults to false. */
     read_only_queries?: boolean;
+    /** Implements the execute_query_stream RPC: rows arrive as query_rows notifications. Defaults to false. */
+    streaming_results?: boolean;
     /** Offers "Export table to SQL" on table nodes. Defaults to true; non-SQL plugins set false. */
     table_export?: boolean;
     /** Offers "Import table from SQL" on database and schema nodes. Defaults to true; ignored (off) when readonly. */

@@ -16,6 +16,7 @@ mod column_ddl_tests;
 #[cfg(test)]
 mod tests;
 
+use crate::drivers::driver_trait::{QueryChunk, QueryChunkSink, StreamSummary};
 use crate::models::{
     ConnectionParams, ForeignKey, Index, Pagination, QueryResult, RoutineInfo, RoutineParameter,
     TableColumn, TableInfo, TriggerInfo, ViewInfo,
@@ -1125,11 +1126,42 @@ async fn acquire_pg_client(
 /// `execute_query` so `execute_batch` can reuse it while keeping a single
 /// physical connection open for session-state continuity (`BEGIN`/`COMMIT`,
 /// `SET LOCAL`, `CREATE TEMP TABLE`, `LASTVAL()`, `PREPARE`/`EXECUTE`).
+///
+/// With a `stream` sink the rows go to it and the returned result has none;
+/// otherwise they are collected into the result.
 async fn exec_on_pg_client(
     client: &tokio_postgres::Client,
     query: &str,
     limit: Option<u32>,
     page: u32,
+    stream: Option<&mut QueryChunkSink<'_>>,
+) -> Result<QueryResult, String> {
+    let Some(sink) = stream else {
+        let mut collected = crate::drivers::common::CollectedRows::default();
+        let meta = fetch_on_pg_client(client, query, limit, page, &mut collected.sink()).await?;
+        return Ok(collected.into_result(meta));
+    };
+    let mut named = false;
+    let meta = fetch_on_pg_client(client, query, limit, page, &mut |chunk| {
+        named |= matches!(chunk, QueryChunk::Columns(_));
+        sink(chunk)
+    })
+    .await?;
+    if !named {
+        // The fetch loop names the columns from the first row.
+        sink(QueryChunk::Columns(meta.columns.clone()));
+    }
+    Ok(meta)
+}
+
+/// Runs one statement and hands its rows to `sink`. The returned result has
+/// no rows, and its columns are the statement's even when no row came back.
+async fn fetch_on_pg_client(
+    client: &tokio_postgres::Client,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    sink: &mut QueryChunkSink<'_>,
 ) -> Result<QueryResult, String> {
     // Non-result-set statements (INSERT/UPDATE/DELETE/DDL) go through
     // `client.execute()` so we can return the real affected-row count.
@@ -1155,11 +1187,17 @@ async fn exec_on_pg_client(
     let mut manual_limit = limit;
     let mut truncated = false;
 
-    let (final_query, pagination_meta) = if is_select && limit.is_some() {
+    let (final_query, pagination) = if is_select && limit.is_some() {
         let l = limit.unwrap();
         let data_query = crate::drivers::common::build_paginated_query(query, l, page);
         manual_limit = None;
-        (data_query, Some((l, page)))
+        let pagination = Pagination {
+            page,
+            page_size: l,
+            total_rows: None,
+            has_more: false, // set once the rows are collected
+        };
+        (data_query, Some(pagination))
     } else {
         (query.to_string(), None)
     };
@@ -1167,14 +1205,18 @@ async fn exec_on_pg_client(
     let start_instant = std::time::Instant::now();
     let mut server_time_ms: Option<f64> = None;
 
+    // `query_raw` prepares a `&str` the same way; preparing here keeps the columns.
+    let statement = client
+        .prepare(&final_query)
+        .await
+        .map_err(|e| format_pg_error(&e))?;
     let pg_params: Vec<i32> = vec![];
     let mut rows_stream = std::pin::pin!(client
-        .query_raw(&final_query, &pg_params)
+        .query_raw(&statement, &pg_params)
         .await
         .map_err(|e| format_pg_error(&e))?);
 
-    let mut columns: Vec<String> = Vec::new();
-    let mut json_rows = Vec::new();
+    let mut out = crate::drivers::common::RowBatcher::new(sink);
 
     use futures::stream::StreamExt;
 
@@ -1184,12 +1226,12 @@ async fn exec_on_pg_client(
         }
         match result {
             Ok(row) => {
-                if columns.is_empty() {
-                    columns = row.columns().iter().map(|c| c.name().to_string()).collect();
+                if out.rows == 0 {
+                    out.columns(row.columns().iter().map(|c| c.name().to_string()).collect());
                 }
 
                 if let Some(l) = manual_limit {
-                    if json_rows.len() >= l as usize {
+                    if out.rows >= l as usize {
                         truncated = true;
                         break;
                     }
@@ -1200,34 +1242,23 @@ async fn exec_on_pg_client(
                     let val = extract_value(&row, i, None);
                     json_row.push(val);
                 }
-                json_rows.push(json_row);
+                out.push(json_row);
             }
             Err(e) => return Err(format_pg_error(&e)),
         }
     }
+    out.flush();
 
     let (server_time, fetch_time) =
         crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
 
-    let pagination = if let Some((page_size, p)) = pagination_meta {
-        let has_more = json_rows.len() > page_size as usize;
-        if has_more {
-            json_rows.truncate(page_size as usize);
-        }
-        truncated = has_more;
-        Some(Pagination {
-            page: p,
-            page_size,
-            total_rows: None,
-            has_more,
-        })
-    } else {
-        None
-    };
-
     Ok(QueryResult {
-        columns,
-        rows: json_rows,
+        columns: statement
+            .columns()
+            .iter()
+            .map(|c| c.name().to_string())
+            .collect(),
+        rows: vec![],
         affected_rows: 0,
         truncated,
         pagination,
@@ -1262,13 +1293,36 @@ pub async fn execute_read_only_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
+    run_read_only(params, query, limit, page, schema, None).await
+}
+
+/// `execute_read_only_query` without a row limit, with the rows handed to
+/// `sink` in batches as they arrive.
+pub async fn execute_read_only_query_stream(
+    params: &ConnectionParams,
+    query: &str,
+    schema: Option<&str>,
+    sink: &mut QueryChunkSink<'_>,
+) -> Result<StreamSummary, String> {
+    let result = run_read_only(params, query, None, 1, schema, Some(sink)).await?;
+    Ok(StreamSummary::of(&result, false))
+}
+
+async fn run_read_only(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    stream: Option<&mut QueryChunkSink<'_>>,
+) -> Result<QueryResult, String> {
     let mut in_flight = InFlight::new(acquire_pg_client(params, schema).await?, params);
     let client = in_flight.client.as_ref().expect("set above");
     client
         .batch_execute("BEGIN READ ONLY")
         .await
         .map_err(|e| format_pg_error(&e))?;
-    let outcome = exec_within_query_timeout(client, params, query, limit, page).await?;
+    let outcome = exec_within_query_timeout(client, params, query, limit, page, stream).await?;
     match client.batch_execute("ROLLBACK").await {
         // Back to the pool only once the transaction is closed.
         Ok(()) => drop(in_flight.client.take()),
@@ -1294,9 +1348,37 @@ pub async fn execute_query_in_session(
     schema: Option<&str>,
     session_id: Option<&str>,
 ) -> Result<(QueryResult, bool), String> {
+    run_in_session(params, query, limit, page, schema, session_id, None).await
+}
+
+/// `execute_query_in_session` without a row limit, with the rows handed to
+/// `sink` in batches as they arrive.
+pub async fn execute_query_stream(
+    params: &ConnectionParams,
+    query: &str,
+    schema: Option<&str>,
+    session_id: Option<&str>,
+    sink: &mut QueryChunkSink<'_>,
+) -> Result<StreamSummary, String> {
+    let (result, in_transaction) =
+        run_in_session(params, query, None, 1, schema, session_id, Some(sink)).await?;
+    Ok(StreamSummary::of(&result, in_transaction))
+}
+
+async fn run_in_session(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    session_id: Option<&str>,
+    stream: Option<&mut QueryChunkSink<'_>>,
+) -> Result<(QueryResult, bool), String> {
     let queries = [query.to_string()];
-    let (mut results, in_transaction) =
-        execute_batch_in_session(params, &queries, limit, page, schema, session_id, None).await?;
+    let (mut results, in_transaction) = run_batch_in_session(
+        params, &queries, limit, page, schema, session_id, None, stream,
+    )
+    .await?;
 
     let statement = results
         .pop()
@@ -1348,6 +1430,30 @@ pub async fn execute_batch_in_session(
     session_id: Option<&str>,
     on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
 ) -> Result<(Vec<crate::models::BatchStatementResult>, bool), String> {
+    run_batch_in_session(
+        params,
+        queries,
+        limit,
+        page,
+        schema,
+        session_id,
+        on_progress,
+        None,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_batch_in_session(
+    params: &ConnectionParams,
+    queries: &[String],
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    session_id: Option<&str>,
+    on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
+    mut stream: Option<&mut QueryChunkSink<'_>>,
+) -> Result<(Vec<crate::models::BatchStatementResult>, bool), String> {
     // Held for the whole run, so an overlapping run from the same tab waits its turn.
     let mut slot = match session_id {
         Some(id) => Some(session::lock(id).await),
@@ -1375,7 +1481,9 @@ pub async fn execute_batch_in_session(
     let mut results = Vec::with_capacity(queries.len());
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
-        let outcome = exec_within_query_timeout(client, params, q, limit, page).await?;
+        let outcome =
+            exec_within_query_timeout(client, params, q, limit, page, stream.as_deref_mut())
+                .await?;
         in_transaction = crate::drivers::common::transaction_effect(q)
             .in_transaction_after(outcome.is_ok(), in_transaction);
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
@@ -1451,8 +1559,9 @@ async fn exec_within_query_timeout(
     query: &str,
     limit: Option<u32>,
     page: u32,
+    stream: Option<&mut QueryChunkSink<'_>>,
 ) -> Result<Result<QueryResult, String>, String> {
-    let run = exec_on_pg_client(client, query, limit, page);
+    let run = exec_on_pg_client(client, query, limit, page, stream);
     let Some(timeout) = crate::pool_manager::query_timeout(params) else {
         return Ok(run.await);
     };
@@ -2351,6 +2460,7 @@ impl PostgresDriver {
                     explain: true,
                     readonly: false,
                     read_only_queries: true,
+                    streaming_results: false,
                     table_export: None,
                     table_import: None,
                     triggers: true,
@@ -2783,6 +2893,27 @@ impl DatabaseDriver for PostgresDriver {
         session_id: Option<&str>,
     ) -> Result<(crate::models::QueryResult, bool), String> {
         execute_query_in_session(params, query, limit, page, schema, session_id).await
+    }
+
+    async fn execute_query_stream(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        schema: Option<&str>,
+        session_id: Option<&str>,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<StreamSummary, String> {
+        execute_query_stream(params, query, schema, session_id, sink).await
+    }
+
+    async fn execute_read_only_query_stream(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        schema: Option<&str>,
+        sink: &mut QueryChunkSink<'_>,
+    ) -> Result<StreamSummary, String> {
+        execute_read_only_query_stream(params, query, schema, sink).await
     }
 
     async fn execute_read_only_query(

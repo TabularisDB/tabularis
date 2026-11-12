@@ -1,6 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
-import {renderHook, waitFor, act} from '@testing-library/react';
+import {renderHook, waitFor, act, render, screen, fireEvent} from '@testing-library/react';
 import {SettingsProvider} from '@/contexts/SettingsProvider';
+import {GeneralTab} from '@/components/settings/GeneralTab';
 import {useSettings} from '@/hooks/useSettings';
 import {invoke} from '@tauri-apps/api/core';
 import {listen, type EventCallback} from '@tauri-apps/api/event';
@@ -592,6 +593,37 @@ describe('SettingsProvider', () => {
 
         expect(result.current.settings.aiProvider).toBe('openai');
         expect(result.current.settings.aiModel).toBe('gpt-4');
+    });
+
+    it('setting the page size to 0 in Settings stores 0 and does not reset it to 500', async () => {
+        let persisted: Partial<Settings> = {language: 'en', resultPageSize: 500};
+        vi.mocked(invoke).mockImplementation(async (command, request) => {
+            if (command === 'get_config') return persisted;
+            if (command === 'save_config')
+                persisted = {...persisted, ...(request as {config: Partial<Settings>}).config};
+            return undefined;
+        });
+        const pageSizeInput = async () => {
+            let row: HTMLElement | null = await screen.findByText('settings.pageSize');
+            while (row && !row.querySelector('input')) row = row.parentElement;
+            return row!.querySelector('input')!;
+        };
+        const settingsPage = () =>
+            render(
+                <SettingsProvider>
+                    <GeneralTab />
+                </SettingsProvider>,
+            );
+
+        const first = settingsPage();
+        await waitFor(async () => expect(await pageSizeInput()).toHaveValue(500));
+        fireEvent.change(await pageSizeInput(), {target: {value: '0'}});
+        await waitFor(() => expect(persisted.resultPageSize).toBe(0));
+        first.unmount();
+
+        settingsPage();
+        await waitFor(async () => expect(await pageSizeInput()).toHaveValue(0));
+        expect(persisted.resultPageSize).toBe(0);
     });
 
     it('should update settings and persist to backend', async () => {

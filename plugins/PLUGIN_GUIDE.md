@@ -174,6 +174,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
 | `read_only_queries` | bool | Implements the optional database-enforced `execute_read_only_query` RPC, allowing users to enable read-only mode per connection. Defaults to `false`. See [Optional protected read-only queries](#optional-protected-read-only-queries). |
+| `streaming_results` | bool | Implements the optional `execute_query_stream` RPC. The plugin sends rows as `query_rows` notifications, so the grid shows the first rows before the query completes. Defaults to `false`. See [Optional streamed results](#optional-streamed-results). |
 | `table_export` | bool | Offers **Export table to SQL...** on table nodes. Defaults to `true`; set `false` for non-SQL plugins. See [Table Export and Import](#table-export-and-import). |
 | `table_import` | bool | Offers **Import table from SQL...** on database and schema nodes. Defaults to `true`; set `false` for non-SQL plugins. Always off when `readonly` is `true`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
@@ -242,6 +243,64 @@ connection-local state is not shared between these calls. Visual EXPLAIN is
 unavailable because its separate RPC has no protected execution contract; raw
 EXPLAIN statements can use the protected query RPC. Existing `readonly` drivers
 continue using their normal execution method and need no new RPC.
+
+### Optional streamed results
+
+A plugin can send the rows of a query in batches. The grid then shows the first
+rows before the query completes. To use this, declare
+`capabilities.streaming_results: true` and implement the `execute_query_stream`
+JSON-RPC method. The default is `false`. Without the flag, the host calls
+`execute_query` and gets the whole result in one response.
+
+The request has the same params as `execute_query`, without `limit` and `page`.
+The host wants all rows:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "execute_query_stream",
+  "params": {
+    "params": {"driver": "example", "database": "analytics"},
+    "query": "SELECT id, name FROM items",
+    "schema": null,
+    "session_id": "tab-1"
+  }
+}
+```
+
+The plugin answers in this sequence:
+
+1. For each batch of rows, write a `query_rows` notification. A notification
+   has no top-level `id`. Put the request id in `params.request_id`.
+2. Put `columns` on the first notification of each result set. A notification
+   with `columns` starts a new result set. Its `rows` can be empty.
+3. After the last batch, write the usual response. It has no rows.
+
+```json
+{"jsonrpc": "2.0", "method": "query_rows", "params": {"request_id": 7, "columns": ["id", "name"], "rows": [[1, "a"], [2, "b"]]}}
+{"jsonrpc": "2.0", "method": "query_rows", "params": {"request_id": 7, "rows": [[3, "c"]]}}
+{"jsonrpc": "2.0", "id": 7, "result": {"affected_rows": 0, "server_time_ms": 4.2, "fetch_time_ms": 1.1, "in_transaction": false}}
+```
+
+All fields of the result are optional. `in_transaction` has the same meaning as
+for a session-aware `execute_query`. To report a failed statement in a session,
+use the same `{"error": "...", "in_transaction": true}` result as
+`execute_query`. Send a batch when you have about 500 rows for the first one,
+and about 10,000 rows for the next ones.
+
+The host ignores a `query_rows` notification with an unknown `request_id`.
+When the user stops the query, the host stops reading the rows and sends the
+[cancel notification](#cancel-notification-optional) for the request. Stop the
+query and continue to read `stdin`. Rows that you send after the cancel have no
+effect.
+
+A plugin that declares `read_only_queries` too must also implement
+`execute_read_only_query_stream`. It has the params of `execute_read_only_query`
+without `limit` and `page`, and it answers in the same sequence. An error from
+this method never falls back to `execute_query_stream`.
+
+Older hosts ignore the flag and call `execute_query`. Keep that method.
 
 ### Declare `sql_dialect` (or `sql_syntax`)
 

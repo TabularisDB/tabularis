@@ -98,3 +98,41 @@ async fn test_read_only_query_does_not_leak_into_the_pool() {
             .expect("drop probe table");
     }
 }
+
+#[tokio::test]
+#[ignore]
+async fn a_write_statement_on_a_read_only_postgres_connection_is_rejected_before_any_row_is_sent() {
+    use tabularis_lib::drivers::driver_trait::QueryChunk;
+    use tabularis_lib::models::ConnectionParams;
+    require_pg!();
+    postgres::execute_query(
+        &pg_params(),
+        "CREATE SEQUENCE IF NOT EXISTS ro_stream_seq",
+        None,
+        1,
+        None,
+    )
+    .await
+    .expect("create sequence");
+    let read_only = ConnectionParams {
+        read_only: true,
+        ..pg_params()
+    };
+    // The driver's read-only transaction alone, then with the protected pool too.
+    for params in [pg_params(), read_only] {
+        let mut chunks: Vec<QueryChunk> = Vec::new();
+        let outcome = postgres::execute_read_only_query_stream(
+            &params,
+            "SELECT x, nextval('ro_stream_seq') FROM generate_series(1, 1200) AS x",
+            None,
+            &mut |chunk| chunks.push(chunk),
+        )
+        .await;
+        let error = outcome.expect_err("nextval must be rejected");
+        assert!(error.contains("read-only transaction"), "{error}");
+        assert!(chunks.is_empty(), "sent before the rejection: {chunks:?}");
+    }
+    postgres::execute_query(&pg_params(), "DROP SEQUENCE ro_stream_seq", None, 1, None)
+        .await
+        .expect("drop sequence");
+}

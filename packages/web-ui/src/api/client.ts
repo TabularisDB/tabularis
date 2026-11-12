@@ -8,6 +8,7 @@ import type {
 } from './contract';
 import type {EventName, EventPayload, EventSubscriber, Unsubscribe} from './events';
 import type {FileTransferMetadata, FileUploadRequest} from './fileTransfers';
+import type {QueryChunk, StreamedQuery, StreamQueryRequest} from './queryStream';
 
 export interface TabularisTransport extends TypedCommandCaller, EventSubscriber {
     uploadFile?(request: FileUploadRequest): Promise<FileTransferMetadata>;
@@ -19,6 +20,11 @@ export interface TabularisTransport extends TypedCommandCaller, EventSubscriber 
     readUploadedBlob?(token: string): Promise<Blob>;
     consumeBlobDownload?(token: string): Promise<Blob>;
     readPluginAsset?(pluginId: string, assetPath: string): Promise<string>;
+    streamQuery?(
+        request: StreamQueryRequest,
+        onChunk: (chunk: QueryChunk) => void,
+        options?: CommandCallOptions,
+    ): Promise<StreamedQuery>;
     emit<K extends EventName>(event: K, payload: EventPayload<K>): Promise<void>;
 }
 
@@ -123,6 +129,19 @@ export class TabularisClient implements TabularisTransport {
             );
         }
         return this.transport.readPluginAsset(pluginId, assetPath);
+    }
+
+    streamQuery(
+        request: StreamQueryRequest,
+        onChunk: (chunk: QueryChunk) => void,
+        options?: CommandCallOptions,
+    ): Promise<StreamedQuery> {
+        if (!this.transport.streamQuery) {
+            return Promise.reject(
+                new Error('The active transport does not support streamed query results'),
+            );
+        }
+        return this.transport.streamQuery(request, onChunk, options);
     }
 
     subscribe<K extends EventName>(
