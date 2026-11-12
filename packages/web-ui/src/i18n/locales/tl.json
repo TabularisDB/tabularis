@@ -666,6 +666,8 @@
       "title": "Mga SQL Snippet",
       "subtitle": "Tukuyin ang magagamit muling mga template ng SQL na may mga trigger prefix at tab-stop placeholder para sa Monaco autocomplete.",
       "add": "Bagong Snippet",
+      "exportJson": "I-export ang JSON",
+      "exportFailed": "Hindi na-export ang mga snippet.",
       "createTitle": "Gumawa ng Snippet",
       "editTitle": "I-edit ang Snippet",
       "nameLabel": "Pangalan ng Snippet",

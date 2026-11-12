@@ -657,6 +657,8 @@
       "title": "Đoạn mã SQL",
       "subtitle": "Xác định các mẫu SQL có thể tái sử dụng với tiền tố kích hoạt và vị trí tab để tự động hoàn thành trong Monaco.",
       "add": "Đoạn mã mới",
+      "exportJson": "Xuất JSON",
+      "exportFailed": "Không thể xuất các đoạn mã.",
       "createTitle": "Tạo đoạn mã",
       "editTitle": "Chỉnh sửa đoạn mã",
       "nameLabel": "Tên đoạn mã",

@@ -664,6 +664,8 @@
             "title": "SQL 代碼片段",
             "subtitle": "定義可重複使用的 SQL 範本，具有觸發前綴和定位點佔位符，適用於 Monaco 自動完成。",
             "add": "新增代碼片段",
+            "exportJson": "匯出 JSON",
+            "exportFailed": "無法匯出程式碼片段。",
             "createTitle": "建立代碼片段",
             "editTitle": "編輯代碼片段",
             "nameLabel": "代碼片段名稱",

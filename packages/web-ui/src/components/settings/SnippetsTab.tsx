@@ -5,12 +5,15 @@ import {MonacoEditor} from '@/components/ui/LazyMonaco';
 import {Select} from '@/components/ui/Select';
 import {useEditorTheme} from '@/hooks/useEditorTheme';
 import {useDrivers} from '@/hooks/useDrivers';
+import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {useAlert} from '@/hooks/useAlert';
 import type {PluginManifest} from '@/types/plugins';
 import {loadMonacoTheme} from '@/themes/themeUtils';
 import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {useTranslation} from 'react-i18next';
 import {
     loadSqlSnippets,
+    serializeSqlSnippets,
     upsertSqlSnippet,
     deleteSqlSnippet,
     validateSnippetPrefix,
@@ -19,7 +22,7 @@ import {
     type SqlDialectScope,
     normalizeDriverToDialect,
 } from '@/utils/sqlSnippets';
-import {Plus, Trash2, Edit2, Code2, AlertCircle, Check} from 'lucide-react';
+import {Plus, Trash2, Edit2, Download, Code2, AlertCircle, Check} from 'lucide-react';
 import clsx from 'clsx';
 import DOMPurify from 'dompurify';
 import {ensureMonaco} from '@/utils/monaco';
@@ -70,6 +73,9 @@ export function SnippetsTab() {
     const {t} = useTranslation();
     const editorTheme = useEditorTheme();
     const {drivers} = useDrivers();
+    const {downloadFile} = usePlatformCapabilities();
+    const {showAlert} = useAlert();
+    const [isExporting, setIsExporting] = useState(false);
     const monacoRef = useRef<typeof Monaco | null>(null);
 
     useEffect(() => {
@@ -203,6 +209,26 @@ export function SnippetsTab() {
         refresh();
     };
 
+    const handleExport = async () => {
+        if (snippets.length === 0 || isExporting) return;
+        setIsExporting(true);
+        try {
+            await downloadFile({
+                fileName: 'tabularis-snippets.json',
+                contents: new TextEncoder().encode(serializeSqlSnippets(snippets)),
+                mimeType: 'application/json',
+                title: t('settings.snippets.exportJson', 'Export JSON'),
+                filters: [{name: 'JSON', extensions: ['json']}],
+            });
+        } catch {
+            showAlert(t('settings.snippets.exportFailed', 'Failed to export snippets.'), {
+                kind: 'error',
+            });
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     return (
         <div className="flex flex-col gap-6 max-w-4xl">
             <div className="flex items-center justify-between">
@@ -217,16 +243,27 @@ export function SnippetsTab() {
                         )}
                     </p>
                 </div>
-                {!isCreating && !editingSnippet && (
+                <div className="flex items-center gap-2 shrink-0">
                     <button
                         type="button"
-                        onClick={handleStartCreate}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-primary hover:bg-accent-primary/90 text-inverse font-medium text-xs transition-colors shadow-sm"
+                        onClick={handleExport}
+                        disabled={snippets.length === 0 || isExporting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-secondary text-secondary border border-default text-xs disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                     >
-                        <Plus size={14} />
-                        {t('settings.snippets.add', 'New Snippet')}
+                        <Download size={14} aria-hidden="true" />
+                        {t('settings.snippets.exportJson', 'Export JSON')}
                     </button>
-                )}
+                    {!isCreating && !editingSnippet && (
+                        <button
+                            type="button"
+                            onClick={handleStartCreate}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-primary hover:bg-accent-primary/90 text-inverse font-medium text-xs transition-colors shadow-sm"
+                        >
+                            <Plus size={14} />
+                            {t('settings.snippets.add', 'New Snippet')}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Create / Edit Form */}

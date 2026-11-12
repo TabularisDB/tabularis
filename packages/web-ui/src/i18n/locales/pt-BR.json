@@ -630,6 +630,8 @@
       "title": "Snippets SQL",
       "subtitle": "Defina modelos SQL reutilizáveis com prefixos de disparo e marcadores de posição de tabulação para o preenchimento automático do Monaco.",
       "add": "Novo snippet",
+      "exportJson": "Exportar JSON",
+      "exportFailed": "Falha ao exportar os snippets.",
       "createTitle": "Criar snippet",
       "editTitle": "Editar snippet",
       "nameLabel": "Nome do snippet",

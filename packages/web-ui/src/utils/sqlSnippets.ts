@@ -22,6 +22,26 @@ export interface SqlSnippetsStorage {
 export const SQL_SNIPPETS_STORAGE_KEY = 'tabularis.sql_snippets.v1';
 export const CURRENT_STORAGE_VERSION = 1;
 
+/** Serializes the saved library without unrelated application or runtime fields. */
+export function serializeSqlSnippets(snippets: readonly SqlSnippet[]): string {
+    const payload: SqlSnippetsStorage = {
+        version: CURRENT_STORAGE_VERSION,
+        snippets: snippets.map(
+            ({id, name, prefix, body, description, dialect, createdAt, updatedAt}) => ({
+                id,
+                name,
+                prefix,
+                body,
+                description,
+                dialect,
+                createdAt,
+                updatedAt,
+            }),
+        ),
+    };
+    return JSON.stringify(payload, null, 2);
+}
+
 /**
  * Built-in default snippets to provide out-of-the-box productivity.
  */
