@@ -9,6 +9,7 @@ import {parseAuthor, type PluginKind} from '@/utils/plugins';
 import {CARD_RESTING_CLASS} from '@/utils/connections';
 import {formatCount, stripTrailingSlash, THEME_TILE_COLOR} from '@/utils/pluginPresentation';
 import {RegistryDriverIcon} from '@/components/RegistryDriverIcon';
+import {AiProviderIcon} from '@/components/icons/AiProviderIcon';
 import {Chip} from '@/components/ui/Chip';
 import {CompactCard, CompactCardHeader, CompactCardFooter} from '@/components/ui/CompactCard';
 import {PluginKindChip} from './PluginKindChip';
@@ -94,12 +95,18 @@ export function PluginCard({
         getDriverIcon(manifest, 20)
     );
     const icon =
-        (!isTheme && manifest?.icon) || !iconUrl ? (
+        kind === 'ai-assistant' ? (
+            <AiProviderIcon src={iconUrl} size={28} />
+        ) : (!isTheme && manifest?.icon) || !iconUrl ? (
             fallbackIcon
         ) : (
             <RegistryDriverIcon key={iconUrl} src={iconUrl} size={20} fallback={fallbackIcon} />
         );
-    const iconColor = isTheme ? THEME_TILE_COLOR : getDriverColor(manifest);
+    const iconColor = isTheme
+        ? THEME_TILE_COLOR
+        : kind === 'ai-assistant'
+          ? 'var(--bg-base)'
+          : getDriverColor(manifest);
     const updateLabel = t(
         isTheme
             ? 'update.badges.themeUpdate'

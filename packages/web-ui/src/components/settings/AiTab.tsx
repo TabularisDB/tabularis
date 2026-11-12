@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback, useId, useMemo} from 'react';
+import {useState, useEffect, useCallback, useId, useMemo, useRef} from 'react';
 import {useTranslation, Trans} from 'react-i18next';
 import {Link} from 'react-router-dom';
 import {useAiProviders} from '@/hooks/useAiProviders';
@@ -38,12 +38,17 @@ import {
     type ProxyOverride,
 } from '@/types/proxy';
 import {OpenAIIcon} from '@/components/icons/ClientIcons';
+import {AiProviderIcon} from '@/components/icons/AiProviderIcon';
 
 export function AiTab() {
     const {t} = useTranslation();
     const client = useTabularisClient();
     const platform = usePlatformCapabilities();
     const {settings, updateSetting} = useSettings();
+    const activeProvider = useRef(settings.aiProvider);
+    useEffect(() => {
+        activeProvider.current = settings.aiProvider;
+    }, [settings.aiProvider]);
     const {showAlert} = useAlert();
     const {
         providers,
@@ -62,7 +67,7 @@ export function AiTab() {
                       {
                           id: 'chatgpt',
                           label: 'ChatGPT',
-                          icon: <OpenAIIcon size={18} />,
+                          icon: <OpenAIIcon size={26} />,
                           authentication: 'account',
                       },
                   ]
@@ -70,11 +75,7 @@ export function AiTab() {
             ...providers.map((provider) => ({
                 id: provider.id,
                 label: provider.name,
-                icon: provider.icon ? (
-                    <img src={provider.icon} alt="" className="h-5 w-5" />
-                ) : (
-                    <Sparkles size={18} />
-                ),
+                icon: <AiProviderIcon src={provider.icon} size={26} />,
                 builtin: provider.builtin,
                 authentication: provider.ai_assistant.authentication,
             })),
@@ -295,6 +296,11 @@ export function AiTab() {
                         })}
                     </p>
                 )}
+                {!settings.aiProvider && (
+                    <p role="status" className="text-sm text-muted">
+                        {t('settings.ai.selectProviderFirst')}
+                    </p>
+                )}
             </div>
 
             <fieldset
@@ -334,7 +340,7 @@ export function AiTab() {
                                             : 'bg-elevated border-default text-secondary hover:border-strong hover:bg-surface-secondary hover:text-primary',
                                     )}
                                 >
-                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-secondary">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-default bg-base text-primary">
                                         {p.icon}
                                     </span>
                                     <span className="min-w-0 flex-1">
@@ -368,18 +374,41 @@ export function AiTab() {
                         })}
                     </div>
                 </SettingSection>
+            </fieldset>
 
-                <AiProviderCatalog
-                    installedIds={providers.map((provider) => provider.id)}
-                    onInstalled={async (id) => {
-                        await refreshProviders();
+            <AiProviderCatalog
+                installedProviders={providers}
+                onInstalled={async (id) => {
+                    await refreshProviders();
+                    await updateSetting('aiModel', '');
+                    await updateSetting('aiProvider', id);
+                    if (!settings.aiEnabled) await updateSetting('aiEnabled', true);
+                    setKeyInput('');
+                    setEditingKey(false);
+                }}
+                onRemoved={async (id) => {
+                    if (activeProvider.current === id) {
+                        await updateSetting('aiEnabled', false);
                         await updateSetting('aiModel', '');
-                        await updateSetting('aiProvider', id);
+                        await updateSetting('aiProvider', '');
                         setKeyInput('');
                         setEditingKey(false);
-                    }}
-                />
+                        showAlert(t('settings.ai.activeProviderRemoved'), {
+                            title: t('common.success'),
+                            kind: 'info',
+                        });
+                    }
+                    await refreshProviders();
+                }}
+            />
 
+            <fieldset
+                disabled={!settings.aiEnabled}
+                className={clsx(
+                    'min-w-0 transition-opacity',
+                    !settings.aiEnabled && 'opacity-50 pointer-events-none',
+                )}
+            >
                 {/* Provider configuration */}
                 {settings.aiProvider && (settings.aiProvider === 'chatgpt' || selectedProvider) && (
                     <SettingSection
