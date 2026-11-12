@@ -57,6 +57,16 @@ describe('sqlSnippets utils', () => {
             expect(snippetPrefixConflicts(snippets, 'orders', 'all', 'all')).toBe(false);
         });
 
+        it('treats persisted snippets without a dialect as global for prefix collisions', () => {
+            saveSqlSnippets([snippet({id: 'legacy', prefix: 'Orders_Copy'})]);
+            const saved = loadSqlSnippets();
+
+            expect(snippetPrefixConflicts(saved, 'orders_copy', 'postgres')).toBe(true);
+            expect(snippetPrefixConflicts(saved, 'orders_copy', 'driver:oracle')).toBe(true);
+            expect(snippetPrefixConflicts(saved, 'orders_copy', 'postgres', 'legacy')).toBe(false);
+            expect(getSnippetCopyPrefix('orders', 'postgres', saved)).toBe('orders_copy_2');
+        });
+
         it('allocates unique copy names and prefixes', () => {
             expect(getSnippetCopyName('Active orders', [])).toBe('Active orders (copy)');
             expect(

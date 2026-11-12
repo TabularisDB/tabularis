@@ -318,6 +318,38 @@ describe('SnippetsTab', () => {
         expect(loadSqlSnippets()).toEqual([source]);
     });
 
+    it('rejects a scoped prefix that overlaps a persisted global snippet without a dialect', () => {
+        saveSqlSnippets([
+            {
+                id: 'legacy',
+                name: 'Legacy global',
+                prefix: 'orders',
+                body: 'SELECT 1;',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'scoped',
+                name: 'Scoped orders',
+                prefix: 'pgorders',
+                body: 'SELECT 2;',
+                dialect: 'postgres',
+                createdAt: '',
+                updatedAt: '',
+            },
+        ]);
+        render(<SnippetsTab />);
+
+        fireEvent.click(screen.getAllByRole('button', {name: 'Edit'})[1]);
+        fireEvent.change(screen.getByLabelText(/Trigger Prefix/), {target: {value: 'ORDERS'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Save'}));
+
+        expect(screen.getByText(/A snippet with this prefix already exists/)).toBeInTheDocument();
+        expect(loadSqlSnippets().find((snippet) => snippet.id === 'scoped')?.prefix).toBe(
+            'pgorders',
+        );
+    });
+
     it('cancels a duplicate without changing storage or retaining the source id', () => {
         render(<SnippetsTab />);
         const source = loadSqlSnippets()[0];
