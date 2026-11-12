@@ -1,12 +1,24 @@
 import {useEffect, useId, useRef, useState} from 'react';
 import type {editor} from 'monaco-editor';
 import {useTranslation} from 'react-i18next';
-import {Loader2} from 'lucide-react';
+import {Loader2, X, Zap} from 'lucide-react';
 import {Modal} from '@/components/ui/Modal';
 import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {useDatabase} from '@/hooks/useDatabase';
+import {quoteTableRef} from '@/utils/identifiers';
+import type {DriverCapabilities} from '@/types/plugins';
 import type {TriggerEditorModalProps} from './TriggerEditorModal';
+
+function defaultPluginTriggerSql(
+    tableName?: string,
+    schema?: string,
+    capabilities?: DriverCapabilities | null,
+): string {
+    if (!tableName) return '';
+    const table = quoteTableRef(tableName, capabilities ?? 'generic', schema ?? null);
+    return `CREATE TRIGGER name\nON ${table}\n`;
+}
 
 /** The driver supplies complete SQL; PSQL bodies stay one statement on save. */
 export const PluginTriggerSqlEditor = ({
@@ -17,6 +29,7 @@ export const PluginTriggerSqlEditor = ({
     tableName,
     schema,
     database,
+    capabilities,
     isNewTrigger = false,
     onSuccess,
 }: TriggerEditorModalProps) => {
@@ -26,10 +39,19 @@ export const PluginTriggerSqlEditor = ({
     const editorRef = useRef<Pick<editor.IStandaloneCodeEditor, 'getValue'> | null>(null);
     const {activeSchema} = useDatabase();
     const resolvedSchema = schema ?? activeSchema ?? undefined;
-    const [sql, setSql] = useState('');
+    const [sql, setSql] = useState(() =>
+        isNewTrigger ? defaultPluginTriggerSql(tableName, resolvedSchema, capabilities) : '',
+    );
     const [loading, setLoading] = useState(!isNewTrigger);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!isOpen || !isNewTrigger) return;
+        setSql(defaultPluginTriggerSql(tableName, resolvedSchema, capabilities));
+        setError(null);
+        setLoading(false);
+    }, [capabilities, isNewTrigger, isOpen, resolvedSchema, tableName]);
 
     useEffect(() => {
         if (!isOpen || isNewTrigger) return;
@@ -98,14 +120,38 @@ export const PluginTriggerSqlEditor = ({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
-                className="bg-elevated border border-strong rounded-xl shadow-2xl w-[800px] max-w-[95vw] flex flex-col"
+                className="bg-elevated border border-strong rounded-xl shadow-2xl w-[800px] max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col"
             >
-                <h2 id={titleId} className="p-4 border-b border-default text-primary font-semibold">
-                    {isNewTrigger
-                        ? t('triggers.create')
-                        : `${t('triggers.save')}: ${triggerName ?? ''}`}
-                </h2>
-                <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between p-4 border-b border-default bg-base">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-accent-warning/15 rounded-lg">
+                            <Zap size={20} className="text-accent-warning" />
+                        </div>
+                        <div>
+                            <h2 id={titleId} className="text-lg font-semibold text-primary">
+                                {isNewTrigger
+                                    ? t('triggers.createTrigger')
+                                    : t('triggers.editTrigger')}
+                            </h2>
+                            <p className="text-xs text-secondary">
+                                {isNewTrigger
+                                    ? t('triggers.createSubtitle')
+                                    : t('triggers.editSubtitle', {name: triggerName ?? ''})}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        aria-label={t('common.close')}
+                        onClick={() => {
+                            if (!saving) onClose();
+                        }}
+                        className="text-secondary hover:text-primary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4 overflow-y-auto flex-1">
                     <p className="text-sm text-muted">
                         {t(
                             'triggers.nativeSqlHelp',

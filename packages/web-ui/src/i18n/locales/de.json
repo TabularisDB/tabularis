@@ -2504,8 +2504,6 @@
   "dump": {
     "format": "Sicherungsformat",
     "sqlFormat": "SQL-Skript (.sql)",
-    "firebirdFormat": "Vollständige Firebird-Sicherung (.fbk)",
-    "nativeBackupDescription": "Enthält die gesamte Datenbank, Arrays und Objektbesitzer. Die Wiederherstellung benötigt einen neuen Datenbankpfad. Externe Tabellen werden zu normalen Tabellen; Quelldateien von Datenbankspiegeln werden nicht neu angelegt.",
     "emptyTargetRequired": "In eine neue oder leere Datenbank wiederherstellen. Bestehende Datenbanken werden niemals überschrieben.",
     "createDatabase": "Neue Datenbank erstellen",
     "serverDatabasePath": "Datenbankpfad oder Alias auf dem Datenbankserver",

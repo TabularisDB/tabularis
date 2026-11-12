@@ -9,7 +9,7 @@ import {validateDumpOptions, toggleTableSelection, selectAllTables} from '@/util
 import {formatElapsedTime} from '@/utils/formatTime';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
-import {runDatabaseDump} from '@/utils/databaseTransfers';
+import {nativeBackupExtension, runDatabaseDump} from '@/utils/databaseTransfers';
 import type {EventPayload} from '@/api/events';
 import type {DatabaseSqlCapabilities} from '@/types/plugins';
 
@@ -50,8 +50,9 @@ export const DumpDatabaseModal = ({
     const {showAlert} = useAlert();
     const [includeStructure, setIncludeStructure] = useState(true);
     const [sqlCapabilities, setSqlCapabilities] = useState<DatabaseSqlCapabilities | null>(null);
-    const [format, setFormat] = useState<'sql' | 'firebird'>('sql');
-    const nativeBackup = sqlCapabilities?.native_backup === true && format === 'firebird';
+    const [format, setFormat] = useState('sql');
+    const nativeBackupSpec = sqlCapabilities?.native_backup ?? null;
+    const nativeBackup = nativeBackupSpec != null && format === nativeBackupSpec.format;
     const [includeData, setIncludeData] = useState(true);
     const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set(tables));
     const [isExporting, setIsExporting] = useState(false);
@@ -204,7 +205,9 @@ export const DumpDatabaseModal = ({
                 {
                     connectionId,
                     options: {
-                        ...(nativeBackup ? {format: 'firebird' as const} : {}),
+                        ...(nativeBackup && nativeBackupSpec
+                            ? {format: nativeBackupSpec.format}
+                            : {}),
                         structure: nativeBackup || includeStructure,
                         data: nativeBackup || includeData,
                         ...(nativeBackup ? {} : {tables: Array.from(selectedTables)}),
@@ -212,7 +215,8 @@ export const DumpDatabaseModal = ({
                     ...(activeSchema ? {schema: activeSchema} : {}),
                     ...databaseParam,
                 },
-                `${databaseName}_dump_${new Date().toISOString().slice(0, 10)}.${nativeBackup ? 'fbk' : 'sql'}`,
+                `${databaseName}_dump_${new Date().toISOString().slice(0, 10)}.${nativeBackup && nativeBackupSpec ? nativeBackupExtension(nativeBackupSpec) : 'sql'}`,
+                nativeBackup ? nativeBackupSpec : null,
             );
 
             if (saved) {
@@ -258,35 +262,26 @@ export const DumpDatabaseModal = ({
                 </div>
 
                 <div className="p-4 flex-1 overflow-y-auto flex flex-col gap-4">
-                    {sqlCapabilities?.native_backup && (
+                    {nativeBackupSpec && (
                         <label className="flex flex-col gap-2 text-sm">
                             {t('dump.format', 'Backup format')}
                             <select
                                 value={format}
                                 disabled={isExporting}
-                                onChange={(event) =>
-                                    setFormat(
-                                        event.target.value === 'firebird' ? 'firebird' : 'sql',
-                                    )
-                                }
-                                className="bg-surface-secondary border border-default rounded px-3 py-2 text-primary"
+                                onChange={(event) => setFormat(event.target.value)}
+                                className="bg-surface-secondary border border-default rounded px-3 py-2 text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                             >
                                 <option value="sql">
                                     {t('dump.sqlFormat', 'SQL script (.sql)')}
                                 </option>
-                                <option value="firebird">
-                                    {t('dump.firebirdFormat', 'Complete Firebird backup (.fbk)')}
+                                <option value={nativeBackupSpec.format}>
+                                    {nativeBackupSpec.label}
                                 </option>
                             </select>
                         </label>
                     )}
-                    {nativeBackup && (
-                        <p className="text-sm text-muted">
-                            {t(
-                                'dump.nativeBackupDescription',
-                                'Includes the entire database, arrays and object owners. Restore requires a new database path. External-table data becomes ordinary tables; source shadow files are not recreated.',
-                            )}
-                        </p>
+                    {nativeBackup && nativeBackupSpec.description && (
+                        <p className="text-sm text-muted">{nativeBackupSpec.description}</p>
                     )}
                     {/* Options */}
                     {!nativeBackup && (
@@ -297,7 +292,7 @@ export const DumpDatabaseModal = ({
                                         type="checkbox"
                                         checked={includeStructure}
                                         onChange={(e) => setIncludeStructure(e.target.checked)}
-                                        className="rounded border-default bg-base focus:ring-focus w-4 h-4"
+                                        className="rounded border-default bg-base focus:ring-focus w-4 h-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                         disabled={isExporting}
                                     />
                                     <span>{t('dump.includeStructure')}</span>
@@ -307,7 +302,7 @@ export const DumpDatabaseModal = ({
                                         type="checkbox"
                                         checked={includeData}
                                         onChange={(e) => setIncludeData(e.target.checked)}
-                                        className="rounded border-default bg-base focus:ring-focus w-4 h-4"
+                                        className="rounded border-default bg-base focus:ring-focus w-4 h-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                         disabled={isExporting}
                                     />
                                     <span>{t('dump.includeData')}</span>

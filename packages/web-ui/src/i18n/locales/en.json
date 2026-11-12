@@ -2610,8 +2610,6 @@
   "dump": {
     "format": "Backup format",
     "sqlFormat": "SQL script (.sql)",
-    "firebirdFormat": "Complete Firebird backup (.fbk)",
-    "nativeBackupDescription": "Includes the entire database, arrays and object owners. Restore requires a new database path. External-table data becomes ordinary tables; source shadow files are not recreated.",
     "emptyTargetRequired": "Restore into a new or empty database. Existing databases are never overwritten.",
     "createDatabase": "Create a new database",
     "serverDatabasePath": "Database path or alias on the database server",

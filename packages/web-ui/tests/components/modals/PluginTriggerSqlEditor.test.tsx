@@ -112,4 +112,10 @@ describe('plugin trigger SQL editor', () => {
         await waitFor(() => expect(props.onClose).toHaveBeenCalledOnce());
         expect(mocks.call).toHaveBeenCalledOnce();
     });
+
+    it('seeds a new trigger statement with the selected table name', async () => {
+        mocks.call.mockResolvedValue(undefined);
+        render(<TriggerEditorModal {...props} isNewTrigger />);
+        expect(screen.getByRole('textbox')).toHaveValue('CREATE TRIGGER name\nON "DATA"\n');
+    });
 });

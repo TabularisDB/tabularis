@@ -2565,8 +2565,6 @@
   "dump": {
     "format": "Formato di backup",
     "sqlFormat": "Script SQL (.sql)",
-    "firebirdFormat": "Backup completo Firebird (.fbk)",
-    "nativeBackupDescription": "Include l’intero database, array e proprietari degli oggetti. Il ripristino richiede un nuovo percorso. Le tabelle esterne diventano tabelle normali; i file shadow originali non vengono ricreati.",
     "emptyTargetRequired": "Ripristina in un database nuovo o vuoto. I database esistenti non vengono mai sovrascritti.",
     "createDatabase": "Crea un nuovo database",
     "serverDatabasePath": "Percorso o alias del database sul server",

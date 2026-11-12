@@ -2576,8 +2576,6 @@
   "dump": {
     "format": "Định dạng sao lưu",
     "sqlFormat": "Tập lệnh SQL (.sql)",
-    "firebirdFormat": "Bản sao lưu Firebird đầy đủ (.fbk)",
-    "nativeBackupDescription": "Bao gồm toàn bộ cơ sở dữ liệu, mảng và chủ sở hữu đối tượng. Khôi phục cần đường dẫn cơ sở dữ liệu mới. Bảng ngoài trở thành bảng thông thường; không tạo lại các tệp shadow gốc.",
     "emptyTargetRequired": "Khôi phục vào cơ sở dữ liệu mới hoặc trống. Cơ sở dữ liệu hiện có không bao giờ bị ghi đè.",
     "createDatabase": "Tạo cơ sở dữ liệu mới",
     "serverDatabasePath": "Đường dẫn hoặc bí danh cơ sở dữ liệu trên máy chủ",

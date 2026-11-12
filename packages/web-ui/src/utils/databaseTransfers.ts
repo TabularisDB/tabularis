@@ -1,10 +1,51 @@
 import type {TabularisClient} from '@/api/client';
 import type {DatabaseDumpRequest} from '@/api/contract';
-import type {ChosenInputFile, PlatformCapabilities} from '@/platform/capabilities';
+import type {
+    ChosenInputFile,
+    PlatformCapabilities,
+    PlatformFileFilter,
+} from '@/platform/capabilities';
+import type {DatabaseSqlCapabilities, NativeBackupCapability} from '@/types/plugins';
 import {saveGeneratedFile} from './connectionFiles';
 
 const DATABASE_IMPORT_PURPOSE = 'database-import';
 const DATABASE_JOB_DEADLINE_MS = 6 * 60 * 60 * 1_000;
+
+export function nativeBackupExtension(native: NativeBackupCapability): string {
+    return native.extension.replace(/^\./, '');
+}
+
+export function isNativeBackupFile(
+    fileName: string,
+    capabilities: DatabaseSqlCapabilities | null | undefined,
+): boolean {
+    const native = capabilities?.native_backup;
+    if (!native) return false;
+    return fileName.toLowerCase().endsWith(`.${nativeBackupExtension(native).toLowerCase()}`);
+}
+
+export function databaseImportFilters(
+    capabilities: DatabaseSqlCapabilities | null | undefined,
+): PlatformFileFilter[] {
+    const native = capabilities?.native_backup;
+    if (!native) {
+        return [{name: 'SQL / Zip File', extensions: ['sql', 'zip']}];
+    }
+    const extension = nativeBackupExtension(native);
+    return [
+        {
+            name: `SQL / Zip / ${native.label}`,
+            extensions: ['sql', 'zip', extension],
+        },
+    ];
+}
+
+export function dumpSaveFilters(native: NativeBackupCapability | null | undefined): PlatformFileFilter[] {
+    if (!native) {
+        return [{name: 'SQL File', extensions: ['sql']}];
+    }
+    return [{name: native.label, extensions: [nativeBackupExtension(native)]}];
+}
 
 export type PreparedDatabaseImportSource = {filePath: string} | {uploadToken: string};
 
@@ -30,15 +71,13 @@ export async function runDatabaseDump(
     platform: PlatformCapabilities,
     request: DatabaseDumpRequest,
     suggestedName: string,
+    nativeFormat?: NativeBackupCapability | null,
 ): Promise<boolean> {
     let commandRequest = request;
     if (platform.negotiation.environment === 'tauri') {
         const target = await platform.chooseSaveTarget({
             suggestedName,
-            filters:
-                request.options.format === 'firebird'
-                    ? [{name: 'Firebird Backup', extensions: ['fbk']}]
-                    : [{name: 'SQL File', extensions: ['sql']}],
+            filters: dumpSaveFilters(nativeFormat),
         });
         if (!target) return false;
         commandRequest = {...request, filePath: target.reference};

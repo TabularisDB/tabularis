@@ -13,9 +13,9 @@ pub mod config;
 pub mod connection_appearance;
 pub mod connection_import_commands;
 pub mod connection_window;
+pub mod data_files;
 #[cfg(test)]
 mod connection_window_tests;
-pub mod data_files;
 pub mod database_backup;
 pub mod dump_commands;
 #[cfg(feature = "e2e-testing")]

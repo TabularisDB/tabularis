@@ -6,7 +6,7 @@ import {useDatabase} from '@/hooks/useDatabase';
 
 const mocks = vi.hoisted(() => ({
     call: vi.fn().mockResolvedValue(null),
-    chooseSaveTarget: vi.fn().mockResolvedValue({reference: '/tmp/backup.fbk'}),
+    chooseSaveTarget: vi.fn().mockResolvedValue({reference: '/tmp/backup.bin'}),
 }));
 vi.mock('lucide-react', (importOriginal) => importOriginal());
 
@@ -41,7 +41,12 @@ describe('DumpDatabaseModal', () => {
             command === 'get_database_sql_capabilities'
                 ? {
                       format: 'sql',
-                      native_backup: true,
+                      native_backup: {
+                          format: 'opaque',
+                          extension: 'bin',
+                          label: 'Opaque backup (.bin)',
+                          description: 'Whole-file plugin backup',
+                      },
                       create_database: true,
                       requires_empty_target: true,
                       target_label: 'Path',
@@ -53,25 +58,28 @@ describe('DumpDatabaseModal', () => {
             <DumpDatabaseModal
                 isOpen
                 onClose={vi.fn()}
-                connectionId="firebird"
+                connectionId="plugin"
                 databaseName="example"
                 tables={['ONE_TABLE']}
             />,
         );
-        fireEvent.change(await screen.findByRole('combobox'), {target: {value: 'firebird'}});
+        fireEvent.change(await screen.findByRole('combobox'), {target: {value: 'opaque'}});
         expect(screen.queryByRole('checkbox')).toBeNull();
+        expect(screen.getByText('Whole-file plugin backup')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: /export/i}));
         await waitFor(() =>
             expect(mocks.call).toHaveBeenCalledWith(
                 'dump_database',
                 expect.objectContaining({
-                    options: {format: 'firebird', structure: true, data: true},
+                    options: {format: 'opaque', structure: true, data: true},
                 }),
                 expect.any(Object),
             ),
         );
         expect(mocks.chooseSaveTarget).toHaveBeenCalledWith(
-            expect.objectContaining({filters: [{name: 'Firebird Backup', extensions: ['fbk']}]}),
+            expect.objectContaining({
+                filters: [{name: 'Opaque backup (.bin)', extensions: ['bin']}],
+            }),
         );
     });
 

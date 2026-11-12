@@ -2550,8 +2550,6 @@
   "dump": {
     "format": "バックアップ形式",
     "sqlFormat": "SQLスクリプト (.sql)",
-    "firebirdFormat": "Firebird完全バックアップ (.fbk)",
-    "nativeBackupDescription": "配列とオブジェクト所有者を含むデータベース全体を保存します。復元には新しいデータベースパスが必要です。外部テーブルは通常のテーブルになり、元のシャドウファイルは再作成されません。",
     "emptyTargetRequired": "新規または空のデータベースに復元します。既存のデータベースは上書きされません。",
     "createDatabase": "新しいデータベースを作成",
     "serverDatabasePath": "データベースサーバー上のパスまたはエイリアス",

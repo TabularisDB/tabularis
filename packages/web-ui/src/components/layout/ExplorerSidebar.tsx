@@ -95,6 +95,8 @@ import {ImportTableModal} from '@/components/modals/ImportTableModal';
 import {ClipboardImportModal} from '@/components/modals/ClipboardImportModal';
 import {ViewEditorModal} from '@/components/modals/ViewEditorModal';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
+import type {DatabaseSqlCapabilities} from '@/types/plugins';
+import {databaseImportFilters} from '@/utils/databaseTransfers';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {RunRoutineModal} from '@/components/modals/RunRoutineModal';
 import {DebugRoutineModal} from '@/components/modals/DebugRoutineModal';
@@ -986,16 +988,41 @@ export const ExplorerSidebar = ({
                   })
             : undefined;
 
+    const sqlCapabilitiesCacheRef = useRef<{
+        connectionId: string;
+        capabilities: DatabaseSqlCapabilities | null;
+    } | null>(null);
+    useEffect(() => {
+        if (!activeConnectionId) {
+            sqlCapabilitiesCacheRef.current = null;
+            return;
+        }
+        const connectionId = activeConnectionId;
+        let cancelled = false;
+        void Promise.resolve()
+            .then(() => client.call('get_database_sql_capabilities', {connectionId}))
+            .then((capabilities) => {
+                if (!cancelled) {
+                    sqlCapabilitiesCacheRef.current = {connectionId, capabilities};
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    sqlCapabilitiesCacheRef.current = {connectionId, capabilities: null};
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeConnectionId, client]);
+
     const handleImportDatabase = async (database?: string, schema?: string) => {
-        const capabilities = activeConnectionId
-            ? await client
-                  .call('get_database_sql_capabilities', {connectionId: activeConnectionId})
-                  .catch(() => null)
-            : null;
+        const cached =
+            sqlCapabilitiesCacheRef.current?.connectionId === activeConnectionId
+                ? sqlCapabilitiesCacheRef.current.capabilities
+                : null;
         const inputFile = await platform.chooseInputFile({
-            filters: capabilities?.native_backup
-                ? [{name: 'SQL / Zip / Firebird Backup', extensions: ['sql', 'zip', 'fbk']}]
-                : [{name: 'SQL / Zip File', extensions: ['sql', 'zip']}],
+            filters: databaseImportFilters(cached),
         });
         if (inputFile) {
             setPendingImport({

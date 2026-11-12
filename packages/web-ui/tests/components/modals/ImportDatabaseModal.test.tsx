@@ -50,10 +50,14 @@ const props = () => ({
 });
 
 describe('ImportDatabaseModal cancellation', () => {
-    it('requires a new destination for a native Firebird backup', async () => {
+    it('requires a new destination for a native backup file', async () => {
         mocks.capabilities = {
             format: 'sql',
-            native_backup: true,
+            native_backup: {
+                format: 'opaque',
+                extension: 'bin',
+                label: 'Opaque backup (.bin)',
+            },
             create_database: true,
             requires_empty_target: true,
             target_label: 'Path',
@@ -62,12 +66,13 @@ describe('ImportDatabaseModal cancellation', () => {
         render(
             <ImportDatabaseModal
                 {...props()}
-                inputFile={{reference: 'native-file', name: 'backup.fbk'}}
+                inputFile={{reference: 'native-file', name: 'backup.bin'}}
             />,
         );
         await act(async () => {});
         expect(screen.getByRole('checkbox')).toBeChecked();
         expect(screen.getByRole('checkbox')).toBeDisabled();
+        expect(screen.getByText('Path')).toBeInTheDocument();
         expect(screen.getByRole('button', {name: 'dump.startRestore'})).toBeDisabled();
         fireEvent.change(screen.getByRole('textbox'), {target: {value: '/server/new.fdb'}});
         fireEvent.click(screen.getByRole('button', {name: 'dump.startRestore'}));
@@ -102,6 +107,8 @@ describe('ImportDatabaseModal cancellation', () => {
         render(<ImportDatabaseModal {...props()} />);
         await act(async () => {});
         expect(mocks.call).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('checkbox'));
+        expect(screen.getByText('Server database')).toBeInTheDocument();
         expect(screen.getByRole('button', {name: 'dump.startRestore'})).toBeDisabled();
         fireEvent.change(screen.getByRole('textbox'), {target: {value: '/server/new.fdb'}});
         fireEvent.click(screen.getByRole('button', {name: 'dump.startRestore'}));
@@ -127,7 +134,7 @@ describe('ImportDatabaseModal cancellation', () => {
         mocks.platform.negotiation.environment = 'tauri';
         render(<ImportDatabaseModal {...props()} />);
         await act(async () => {});
-        fireEvent.click(screen.getByRole('checkbox'));
+        expect(screen.getByRole('checkbox')).not.toBeChecked();
         fireEvent.click(screen.getByRole('button', {name: 'dump.startRestore'}));
         await act(async () => {});
         expect(mocks.call).toHaveBeenCalledWith(

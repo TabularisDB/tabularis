@@ -1,8 +1,16 @@
 import type {Dialect} from '@/utils/sqlSplitter';
 
+/** Plugin-declared native whole-file backup. The host echoes `format`. */
+export interface NativeBackupCapability {
+    format: string;
+    extension: string;
+    label: string;
+    description?: string;
+}
+
 export interface DatabaseSqlCapabilities {
     format: string;
-    native_backup?: boolean;
+    native_backup?: NativeBackupCapability | null;
     create_database: boolean;
     requires_empty_target: boolean;
     target_label: string;

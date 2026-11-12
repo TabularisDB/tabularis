@@ -454,7 +454,8 @@ export interface BackupRunResult {
 }
 
 export interface DumpOptions {
-    format?: 'sql' | 'firebird';
+    /** `"sql"` (default) or the plugin's `native_backup.format` id. */
+    format?: string;
     structure: boolean;
     data: boolean;
     tables?: string[] | null;

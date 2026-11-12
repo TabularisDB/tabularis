@@ -19,6 +19,7 @@ import {
     normalizeSelection,
     parseTriggerDefinition,
     resolveTriggerDialect,
+    usesCompleteTriggerSqlEditor,
     splitSqlStatements,
     type TriggerDialect,
     type TriggerEvent,
@@ -775,10 +776,9 @@ const DialectTriggerEditor = ({
 };
 
 export const TriggerEditorModal = (props: TriggerEditorModalProps) =>
-    resolveTriggerDialect({driver: props.driver, capabilities: props.capabilities}) === null &&
-    props.capabilities?.triggers ? (
+    usesCompleteTriggerSqlEditor({driver: props.driver, capabilities: props.capabilities}) ? (
         <PluginTriggerSqlEditor
-            key={`${props.connectionId}:${props.database ?? ''}:${props.triggerName ?? ''}:${props.isNewTrigger}`}
+            key={`${props.connectionId}:${props.database ?? ''}:${props.tableName ?? ''}:${props.triggerName ?? ''}:${props.isNewTrigger}`}
             {...props}
         />
     ) : (

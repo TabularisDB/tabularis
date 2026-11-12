@@ -9,6 +9,7 @@ import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {
     DATABASE_TRANSFER_DEADLINE_MS,
+    isNativeBackupFile,
     prepareDatabaseImportSource,
 } from '@/utils/databaseTransfers';
 import type {ChosenInputFile} from '@/platform/capabilities';
@@ -49,8 +50,8 @@ export const ImportDatabaseModal = ({
     const {showAlert} = useAlert();
     const [isImporting, setIsImporting] = useState(false);
     const [sqlCapabilities, setSqlCapabilities] = useState<DatabaseSqlCapabilities | null>();
-    const [createDatabase, setCreateDatabase] = useState(true);
-    const nativeBackup = sqlCapabilities?.native_backup === true && /\.fbk$/i.test(inputFile.name);
+    const [createDatabase, setCreateDatabase] = useState(false);
+    const nativeBackup = isNativeBackupFile(inputFile.name, sqlCapabilities);
     const createNewDatabase = nativeBackup || createDatabase;
     const [newDatabase, setNewDatabase] = useState('');
     const [progress, setProgress] = useState<EventPayload<'import_progress'> | null>(null);
@@ -149,6 +150,8 @@ export const ImportDatabaseModal = ({
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setIsImporting(false);
             setSqlCapabilities(undefined);
+            setCreateDatabase(false);
+            setNewDatabase('');
             setProgress(null);
             setError(null);
             setSuccess(false);
@@ -292,16 +295,18 @@ export const ImportDatabaseModal = ({
                                         onChange={(event) =>
                                             setCreateDatabase(event.target.checked)
                                         }
+                                        className="rounded border-default bg-base focus:ring-focus w-4 h-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                     />
                                     {t('dump.createDatabase', 'Create a new database')}
                                 </label>
                             )}
                             {sqlCapabilities.create_database && createNewDatabase && (
                                 <label className="flex flex-col gap-1 text-sm">
-                                    {t(
-                                        'dump.serverDatabasePath',
-                                        'Database path or alias on the database server',
-                                    )}
+                                    {sqlCapabilities.target_label.trim() ||
+                                        t(
+                                            'dump.serverDatabasePath',
+                                            'Database path or alias on the database server',
+                                        )}
                                     <input
                                         value={newDatabase}
                                         onChange={(event) => setNewDatabase(event.target.value)}

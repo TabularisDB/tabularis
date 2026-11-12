@@ -21,11 +21,19 @@ async fn native_backup_negotiates_support_and_transfers_binary_without_sql_fallb
     let binary = [0, 2, 4, 255, 128, 0];
     let drv = crate::plugins::driver::test_driver_with_manifest(manifest, move |request| {
         match request.method.as_str() {
-            "get_database_sql_capabilities" => Ok(
-                json!({"format":"sql","native_backup":advertised.load(Ordering::SeqCst),"create_database":true,"requires_empty_target":true,"target_label":"Path"}),
-            ),
+            "get_database_sql_capabilities" => Ok(json!({
+                "format":"sql",
+                "native_backup": advertised.load(Ordering::SeqCst).then_some(json!({
+                    "format":"opaque",
+                    "extension":"bin",
+                    "label":"Opaque backup (.bin)"
+                })),
+                "create_database":true,
+                "requires_empty_target":true,
+                "target_label":"Path"
+            })),
             "export_database_sql" => {
-                assert_eq!(request.params["options"]["format"], "firebird");
+                assert_eq!(request.params["options"]["format"], "opaque");
                 fs::write(request.params["file_path"].as_str().unwrap(), binary).unwrap();
                 Ok(json!({"rows":0,"tables":0}))
             }
@@ -51,7 +59,7 @@ async fn native_backup_negotiates_support_and_transfers_binary_without_sql_fallb
     );
     let path = directory.path().join("opaque-file.tmp");
     let options = DumpOptions {
-        format: Some("firebird".into()),
+        format: Some("opaque".into()),
         structure: true,
         data: true,
         tables: None,

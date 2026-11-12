@@ -12,12 +12,23 @@ use crate::models::{
     RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
 
+/// Plugin-declared native whole-file backup. The host echoes `format` and
+/// takes the file extension and UI labels from the plugin.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct NativeBackupCapability {
+    pub format: String,
+    pub extension: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// Optional whole-database SQL protocol. Other drivers keep the host transfer path.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DatabaseSqlCapabilities {
     pub format: String,
-    #[serde(default)]
-    pub native_backup: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_backup: Option<NativeBackupCapability>,
     pub create_database: bool,
     pub requires_empty_target: bool,
     pub target_label: String,

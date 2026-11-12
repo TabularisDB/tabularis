@@ -2575,8 +2575,6 @@
     "dump": {
     "format": "備份格式",
     "sqlFormat": "SQL 指令碼 (.sql)",
-    "firebirdFormat": "完整 Firebird 備份 (.fbk)",
-    "nativeBackupDescription": "包含整個資料庫、陣列和物件擁有者。還原需要新的資料庫路徑。外部資料表將轉為一般資料表；不會重新建立來源影子檔案。",
     "emptyTargetRequired": "還原至新的或空的資料庫。絕不會覆寫現有資料庫。",
     "createDatabase": "建立新資料庫",
     "serverDatabasePath": "資料庫伺服器上的資料庫路徑或別名",

@@ -1,7 +1,7 @@
 use super::connection_files::GeneratedFile;
 use super::file_transfers::{ClaimedUpload, FileTransferStore};
 use crate::commands::{register_abort_handle, unregister_abort_handle, AbortHandleMap};
-use crate::drivers::driver_trait::DatabaseDriver;
+use crate::drivers::driver_trait::{DatabaseDriver, DatabaseSqlCapabilities};
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::dump_utils::DumpDialect;
 use crate::models::{ConnectionParams, Pagination, TableColumn};
@@ -64,6 +64,50 @@ pub enum DatabaseTransferCommand {
 }
 
 pub use crate::drivers::driver_trait::DatabaseSqlExportOptions as DumpOptions;
+
+struct ResolvedDumpFormat {
+    native: bool,
+    extension: String,
+}
+
+fn file_extension(value: &str) -> String {
+    value.trim().trim_start_matches('.').to_string()
+}
+
+fn resolve_dump_format(
+    options: &DumpOptions,
+    capabilities: Option<&DatabaseSqlCapabilities>,
+) -> Result<ResolvedDumpFormat, String> {
+    match options
+        .format
+        .as_deref()
+        .map(str::trim)
+        .filter(|format| !format.is_empty())
+    {
+        None | Some("sql") => Ok(ResolvedDumpFormat {
+            native: false,
+            extension: "sql".into(),
+        }),
+        Some(requested) => match capabilities.and_then(|capabilities| {
+            capabilities
+                .native_backup
+                .as_ref()
+                .filter(|native| native.format == requested)
+        }) {
+            Some(native) => {
+                let extension = file_extension(&native.extension);
+                if extension.is_empty() {
+                    return Err("Plugin native backup is missing a file extension".into());
+                }
+                Ok(ResolvedDumpFormat {
+                    native: true,
+                    extension,
+                })
+            }
+            None => Err("This driver does not support the requested native backup format".into()),
+        },
+    }
+}
 
 #[derive(Default)]
 pub struct DumpCancellationState {
@@ -320,9 +364,19 @@ async fn dump_database_job(
     if let Some(database) = database.as_ref().filter(|database| !database.is_empty()) {
         params.database = crate::models::DatabaseSelection::Single(database.clone());
     }
-    let native_backup = options.format.as_deref() == Some("firebird");
-    let extension = if native_backup { "fbk" } else { "sql" };
-    let mime_type = if native_backup {
+    let resolved = match options.format.as_deref().map(str::trim) {
+        None | Some("") | Some("sql") => ResolvedDumpFormat {
+            native: false,
+            extension: "sql".into(),
+        },
+        Some(_) => {
+            let capabilities =
+                database_sql_capabilities(runtime, session_id, &connection_id).await?;
+            resolve_dump_format(&options, capabilities.as_ref())?
+        }
+    };
+    let extension = resolved.extension.as_str();
+    let mime_type = if resolved.native {
         "application/octet-stream"
     } else {
         SQL_MIME_TYPE
@@ -522,13 +576,6 @@ async fn write_dump(
     schema: Option<&str>,
     options: &DumpOptions,
 ) -> Result<(), String> {
-    if options
-        .format
-        .as_deref()
-        .is_some_and(|format| !matches!(format, "sql" | "firebird"))
-    {
-        return Err("Unknown database backup format".into());
-    }
     let pending = file_path.with_file_name(format!(".tabularis-dump-{}.tmp", Uuid::new_v4()));
     let mut open = fs::OpenOptions::new();
     open.write(true).create_new(true);
@@ -544,15 +591,9 @@ async fn write_dump(
     let drv = crate::drivers::registry::get_driver(driver)
         .await
         .ok_or_else(|| format!("Driver {driver} unavailable"))?;
-    let native_backup = options.format.as_deref() == Some("firebird");
-    if native_backup
-        && !drv
-            .get_database_sql_capabilities(params)
-            .await?
-            .is_some_and(|capabilities| capabilities.native_backup)
-    {
-        return Err("This driver does not support native Firebird backups".into());
-    }
+    let capabilities = drv.get_database_sql_capabilities(params).await?;
+    let resolved = resolve_dump_format(options, capabilities.as_ref())?;
+    let native_backup = resolved.native;
     if let Some(result) = drv
         .export_database_sql(
             params,
