@@ -5,6 +5,10 @@ use std::sync::RwLock;
 
 use std::collections::HashMap;
 
+#[cfg(test)]
+#[path = "config/whitespace_tests.rs"]
+mod whitespace_tests;
+
 fn default_true() -> bool {
     true
 }
@@ -173,6 +177,8 @@ pub struct AppConfig {
     pub editor_tab_size: Option<u32>,
     pub editor_word_wrap: Option<bool>,
     pub editor_minimap: Option<bool>,
+    /// Ordinary space/tab markers: "none", "selection" (default), or "all".
+    pub editor_render_whitespace: Option<String>,
     /// Highlight hidden Unicode and look-alike characters in the SQL editor.
     pub editor_highlight_invisible_characters: Option<bool>,
     pub editor_show_line_numbers: Option<bool>,

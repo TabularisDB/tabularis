@@ -183,6 +183,38 @@ describe('SettingsProvider', () => {
         },
     );
 
+    it.each(['none', 'selection', 'all'] as const)(
+        'persists whitespace mode %s across settings reloads',
+        async (mode) => {
+            let persisted: Partial<Settings> = {
+                language: 'en',
+                editorHighlightInvisibleCharacters: false,
+            };
+            vi.mocked(invoke).mockImplementation(async (command, args) => {
+                if (command === 'get_config') return persisted;
+                if (command === 'save_config')
+                    persisted = {...persisted, ...(args as {config: Partial<Settings>}).config};
+                return undefined;
+            });
+            const wrapper = ({children}: {children: React.ReactNode}) =>
+                React.createElement(SettingsProvider, null, children);
+            const first = renderHook(() => useSettings(), {wrapper});
+            await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+            expect(first.result.current.settings.editorRenderWhitespace).toBe('selection');
+            await act(async () => {
+                await first.result.current.updateSetting('editorRenderWhitespace', mode);
+            });
+            expect(invoke).toHaveBeenCalledWith('save_config', {
+                config: {editorRenderWhitespace: mode},
+            });
+            first.unmount();
+            const second = renderHook(() => useSettings(), {wrapper});
+            await waitFor(() => expect(second.result.current.isLoading).toBe(false));
+            expect(second.result.current.settings.editorRenderWhitespace).toBe(mode);
+            expect(second.result.current.settings.editorHighlightInvisibleCharacters).toBe(false);
+        },
+    );
+
     it('should provide default settings when backend is empty', async () => {
         const wrapper = ({children}: {children: React.ReactNode}) =>
             React.createElement(SettingsProvider, null, children);

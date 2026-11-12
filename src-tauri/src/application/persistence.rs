@@ -293,6 +293,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         default_sort_direction,
         plugin_shutdown_grace_seconds,
         editor_highlight_invisible_characters,
+        editor_render_whitespace,
         autocomplete_keyword_case,
         sql_diagnostics_enabled,
         theme,
