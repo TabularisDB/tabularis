@@ -191,14 +191,62 @@ describe('SnippetsTab', () => {
         },
     );
 
-    it('distinguishes an empty library from no matching snippets', () => {
+    it('keeps all-scopes after a vanished filter even when that scope is created again', () => {
+        const snippets: SqlSnippet[] = [
+            {
+                id: 'generic',
+                name: 'Generic orders',
+                prefix: 'ord',
+                body: 'SELECT 1;',
+                dialect: 'all',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'pg',
+                name: 'Postgres orders',
+                prefix: 'pg',
+                body: 'SELECT 2;',
+                dialect: 'postgres',
+                createdAt: '',
+                updatedAt: '',
+            },
+        ];
+        saveSqlSnippets(snippets);
+        render(<SnippetsTab />);
+        const scope = screen.getByRole('button', {name: 'Filter by scope'});
+        fireEvent.click(scope);
+        fireEvent.click(screen.getByText('PostgreSQL', {selector: 'button span'}));
+        expect(screen.queryByText('Generic orders')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: 'Delete'}));
+        expect(scope).toHaveTextContent('All scopes');
+        expect(screen.getByText('Generic orders')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', {name: /New Snippet/i}));
+        fireEvent.change(screen.getByPlaceholderText(/e.g. Select Active Orders/i), {
+            target: {value: 'Postgres again'},
+        });
+        fireEvent.change(screen.getByPlaceholderText(/e.g. selorders/i), {
+            target: {value: 'pg2'},
+        });
+        fireEvent.change(screen.getByRole('textbox', {name: 'Snippet Body'}), {
+            target: {value: 'SELECT 3;'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'Dialect Scope'}));
+        fireEvent.click(screen.getByText('PostgreSQL'));
+        fireEvent.click(screen.getByRole('button', {name: /Save/i}));
+        expect(scope).toHaveTextContent('All scopes');
+        expect(screen.getByText('Generic orders')).toBeInTheDocument();
+        expect(screen.getByText('Postgres again')).toBeInTheDocument();
+    });
+
+    it('hides search and scope filters when the library is empty', () => {
         saveSqlSnippets([]);
         render(<SnippetsTab />);
-        fireEvent.change(screen.getByRole('searchbox'), {target: {value: 'orders'}});
         expect(screen.getByText('No SQL snippets configured yet.')).toBeInTheDocument();
+        expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'Filter by scope'})).not.toBeInTheDocument();
         expect(screen.queryByText('No matching snippets.')).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', {name: 'Filter by scope'}));
-        expect(screen.queryByText('Generic (all dialects)')).not.toBeInTheDocument();
     });
 
     it('renders snippet list and default items', () => {
