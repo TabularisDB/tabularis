@@ -110,6 +110,12 @@ describe('formatDurationMs', () => {
     it('uses minutes+seconds above 1 minute', () => {
         expect(formatDurationMs(125_000)).toBe('2m 5s');
     });
+
+    it('carries seconds that round up to 60 into the minutes', () => {
+        expect(formatDurationMs(119_600)).toBe('2m 0s');
+        expect(formatDurationMs(179_999)).toBe('3m 0s');
+        expect(formatDurationMs(119_400)).toBe('1m 59s');
+    });
 });
 
 // Pin the timezone to Asia/Tokyo (UTC+9) so we can assert exact local-time
