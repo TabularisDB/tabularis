@@ -2610,6 +2610,7 @@
     "failGetDefinition": "Failed to get definition: "
   },
   "triggers": {
+    "nativeSqlHelp": "Enter a complete trigger statement in the database SQL dialect. Existing triggers are saved without dropping them first.",
     "createTrigger": "Create Trigger",
     "editTrigger": "Edit Trigger",
     "createSubtitle": "Create a new database trigger",
@@ -2741,6 +2742,12 @@
     }
   },
   "dump": {
+    "format": "Backup format",
+    "sqlFormat": "SQL script (.sql)",
+    "emptyTargetRequired": "Restore into a new or empty database. Existing databases are never overwritten.",
+    "createDatabase": "Create a new database",
+    "serverDatabasePath": "Database path or alias on the database server",
+    "startRestore": "Restore database",
     "title": "Dump Database",
     "dumpDatabase": "Dump Database",
     "importDatabase": "Run SQL File...",

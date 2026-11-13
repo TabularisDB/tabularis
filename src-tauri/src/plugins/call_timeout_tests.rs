@@ -1,6 +1,26 @@
 use super::*;
 use crate::config::PluginConfig;
 
+#[test]
+fn database_transfers_remove_only_the_implicit_limit() {
+    let settings = CallTimeoutSettings::from_config(&AppConfig::default());
+    assert_eq!(settings.resolve_with_default("firebird", 0), None);
+    assert_eq!(settings.resolve("firebird"), Some(Duration::from_secs(120)));
+    let settings = CallTimeoutSettings::from_config(&config_with(
+        Some(600),
+        &[("firebird", Some(900)), ("unlimited", Some(0))],
+    ));
+    assert_eq!(
+        settings.resolve_with_default("firebird", 0),
+        Some(Duration::from_secs(900))
+    );
+    assert_eq!(
+        settings.resolve_with_default("other", 0),
+        Some(Duration::from_secs(600))
+    );
+    assert_eq!(settings.resolve_with_default("unlimited", 0), None);
+}
+
 fn config_with(global: Option<u32>, overrides: &[(&str, Option<u32>)]) -> AppConfig {
     let plugins = overrides
         .iter()

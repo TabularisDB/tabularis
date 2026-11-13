@@ -1,10 +1,71 @@
 import type {TabularisClient} from '@/api/client';
 import type {DatabaseDumpRequest} from '@/api/contract';
-import type {ChosenInputFile, PlatformCapabilities} from '@/platform/capabilities';
+import type {
+    ChosenInputFile,
+    PlatformCapabilities,
+    PlatformFileFilter,
+} from '@/platform/capabilities';
+import type {DatabaseSqlCapabilities, NativeBackupCapability} from '@/types/plugins';
 import {saveGeneratedFile} from './connectionFiles';
 
 const DATABASE_IMPORT_PURPOSE = 'database-import';
 const DATABASE_JOB_DEADLINE_MS = 6 * 60 * 60 * 1_000;
+const NATIVE_BACKUP_EXTENSION = /^[A-Za-z0-9]{1,16}$/;
+
+export function nativeBackupExtension(native: NativeBackupCapability): string | null {
+    const extension = native.extension.trim().replace(/^\.+/, '');
+    return NATIVE_BACKUP_EXTENSION.test(extension) ? extension : null;
+}
+
+export function declaredNativeBackup(
+    capabilities: DatabaseSqlCapabilities | null | undefined,
+): NativeBackupCapability | null {
+    const native = capabilities?.native_backup;
+    if (!native || typeof native !== 'object') {
+        return null;
+    }
+    return nativeBackupExtension(native) ? native : null;
+}
+
+export function isNativeBackupFile(
+    fileName: string,
+    capabilities: DatabaseSqlCapabilities | null | undefined,
+): boolean {
+    const native = declaredNativeBackup(capabilities);
+    if (!native) return false;
+    const extension = nativeBackupExtension(native);
+    if (!extension) return false;
+    return fileName.toLowerCase().endsWith(`.${extension.toLowerCase()}`);
+}
+
+export function databaseImportFilters(
+    capabilities: DatabaseSqlCapabilities | null | undefined,
+): PlatformFileFilter[] {
+    const native = declaredNativeBackup(capabilities);
+    const extension = native ? nativeBackupExtension(native) : null;
+    if (!native || !extension) {
+        return [{name: 'SQL / Zip File', extensions: ['sql', 'zip']}];
+    }
+    return [
+        {
+            name: `SQL / Zip / ${native.label}`,
+            extensions: ['sql', 'zip', extension],
+        },
+    ];
+}
+
+export function dumpSaveFilters(
+    native: NativeBackupCapability | null | undefined,
+): PlatformFileFilter[] {
+    if (!native || typeof native !== 'object') {
+        return [{name: 'SQL File', extensions: ['sql']}];
+    }
+    const extension = nativeBackupExtension(native);
+    if (!extension) {
+        return [{name: 'SQL File', extensions: ['sql']}];
+    }
+    return [{name: native.label, extensions: [extension]}];
+}
 
 export type PreparedDatabaseImportSource = {filePath: string} | {uploadToken: string};
 
@@ -30,12 +91,13 @@ export async function runDatabaseDump(
     platform: PlatformCapabilities,
     request: DatabaseDumpRequest,
     suggestedName: string,
+    nativeFormat?: NativeBackupCapability | null,
 ): Promise<boolean> {
     let commandRequest = request;
     if (platform.negotiation.environment === 'tauri') {
         const target = await platform.chooseSaveTarget({
             suggestedName,
-            filters: [{name: 'SQL File', extensions: ['sql']}],
+            filters: dumpSaveFilters(nativeFormat),
         });
         if (!target) return false;
         commandRequest = {...request, filePath: target.reference};

@@ -2636,6 +2636,12 @@
     }
   },
   "dump": {
+    "format": "Sicherungsformat",
+    "sqlFormat": "SQL-Skript (.sql)",
+    "emptyTargetRequired": "In eine neue oder leere Datenbank wiederherstellen. Bestehende Datenbanken werden niemals überschrieben.",
+    "createDatabase": "Neue Datenbank erstellen",
+    "serverDatabasePath": "Datenbankpfad oder Alias auf dem Datenbankserver",
+    "startRestore": "Datenbank wiederherstellen",
     "title": "Datenbank sichern",
     "dumpDatabase": "Datenbank sichern",
     "importDatabase": "SQL-Datei ausführen...",
@@ -3242,6 +3248,7 @@
     }
   },
   "triggers":{
+    "nativeSqlHelp": "Vollständige Trigger-Anweisung im SQL-Dialekt der Datenbank eingeben. Bestehende Trigger werden beim Speichern nicht vorher gelöscht.",
     "originalRestored": "Der ursprüngliche Trigger wurde wiederhergestellt.",
     "restoreFailed": "Die Wiederherstellung des ursprünglichen Triggers ist ebenfalls fehlgeschlagen: ",
     "singleEventHint": "Diese Datenbank erlaubt nur ein Ereignis pro Trigger.",

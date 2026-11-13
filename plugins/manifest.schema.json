@@ -97,7 +97,7 @@
         "triggers": {
           "type": "boolean",
           "default": false,
-          "description": "true if the driver supports trigger metadata and trigger management RPCs."
+          "description": "true if the driver supports trigger metadata and trigger management RPCs. Generic dialects use a complete-SQL editor and save through create_trigger without dropping first."
         },
         "file_based": {
           "type": "boolean",
@@ -439,7 +439,7 @@
         "table_export": {
           "type": "boolean",
           "default": true,
-          "description": "Offers Export table to SQL on table nodes. Set false for non-SQL plugins."
+          "description": "Offers Export table to SQL on table nodes. Set false for non-SQL plugins. Whole-database SQL transfers are negotiated separately through get_database_sql_capabilities."
         },
         "table_import": {
           "type": "boolean",

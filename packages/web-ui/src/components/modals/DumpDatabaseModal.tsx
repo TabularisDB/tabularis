@@ -9,8 +9,13 @@ import {validateDumpOptions, toggleTableSelection, selectAllTables} from '@/util
 import {formatElapsedTime} from '@/utils/formatTime';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
-import {runDatabaseDump} from '@/utils/databaseTransfers';
+import {
+    declaredNativeBackup,
+    nativeBackupExtension,
+    runDatabaseDump,
+} from '@/utils/databaseTransfers';
 import type {EventPayload} from '@/api/events';
+import type {DatabaseSqlCapabilities} from '@/types/plugins';
 
 interface DumpDatabaseModalProps {
     isOpen: boolean;
@@ -48,12 +53,32 @@ export const DumpDatabaseModal = ({
     } = useDatabase();
     const {showAlert} = useAlert();
     const [includeStructure, setIncludeStructure] = useState(true);
+    const [sqlCapabilities, setSqlCapabilities] = useState<DatabaseSqlCapabilities | null>(null);
+    const [format, setFormat] = useState('sql');
+    const nativeBackupSpec = declaredNativeBackup(sqlCapabilities);
+    const nativeBackup = nativeBackupSpec != null && format === nativeBackupSpec.format;
     const [includeData, setIncludeData] = useState(true);
     const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set(tables));
     const [isExporting, setIsExporting] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0); // in seconds
     const [startTime, setStartTime] = useState<number | null>(null);
     const [progress, setProgress] = useState<EventPayload<'dump_progress'> | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        let cancelled = false;
+        void client
+            .call('get_database_sql_capabilities', {connectionId})
+            .then((capabilities) => {
+                if (!cancelled) setSqlCapabilities(capabilities);
+            })
+            .catch(() => {
+                if (!cancelled) setSqlCapabilities(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [client, connectionId, isOpen]);
 
     const isMultiDb = isMultiDatabaseCapable(activeCapabilities);
     // Schema-based multi-db mode (PostgreSQL nested tree): both a schema and a
@@ -161,7 +186,7 @@ export const DumpDatabaseModal = ({
     const handleExport = async () => {
         const validation = validateDumpOptions(includeStructure, includeData, selectedTables);
 
-        if (!validation.isValid && validation.errorKey) {
+        if (!nativeBackup && !validation.isValid && validation.errorKey) {
             showAlert(t(validation.errorKey), {kind: 'error'});
             return;
         }
@@ -177,6 +202,10 @@ export const DumpDatabaseModal = ({
                 : isMultiDb && databaseName
                   ? {database: databaseName}
                   : {};
+            const dumpExtension =
+                nativeBackup && nativeBackupSpec
+                    ? (nativeBackupExtension(nativeBackupSpec) ?? 'sql')
+                    : 'sql';
 
             const saved = await runDatabaseDump(
                 client,
@@ -184,14 +213,18 @@ export const DumpDatabaseModal = ({
                 {
                     connectionId,
                     options: {
-                        structure: includeStructure,
-                        data: includeData,
-                        tables: Array.from(selectedTables),
+                        ...(nativeBackup && nativeBackupSpec
+                            ? {format: nativeBackupSpec.format}
+                            : {}),
+                        structure: nativeBackup || includeStructure,
+                        data: nativeBackup || includeData,
+                        ...(nativeBackup ? {} : {tables: Array.from(selectedTables)}),
                     },
                     ...(activeSchema ? {schema: activeSchema} : {}),
                     ...databaseParam,
                 },
-                `${databaseName}_dump_${new Date().toISOString().slice(0, 10)}.sql`,
+                `${databaseName}_dump_${new Date().toISOString().slice(0, 10)}.${dumpExtension}`,
+                nativeBackup ? nativeBackupSpec : null,
             );
 
             if (saved) {
@@ -237,86 +270,112 @@ export const DumpDatabaseModal = ({
                 </div>
 
                 <div className="p-4 flex-1 overflow-y-auto flex flex-col gap-4">
-                    {/* Options */}
-                    <div className="flex gap-6 p-3 bg-surface-secondary rounded border border-default">
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                checked={includeStructure}
-                                onChange={(e) => setIncludeStructure(e.target.checked)}
-                                className="rounded border-default bg-base focus:ring-focus w-4 h-4"
+                    {nativeBackupSpec && (
+                        <label className="flex flex-col gap-2 text-sm">
+                            {t('dump.format', 'Backup format')}
+                            <select
+                                value={format}
                                 disabled={isExporting}
-                            />
-                            <span>{t('dump.includeStructure')}</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                checked={includeData}
-                                onChange={(e) => setIncludeData(e.target.checked)}
-                                className="rounded border-default bg-base focus:ring-focus w-4 h-4"
-                                disabled={isExporting}
-                            />
-                            <span>{t('dump.includeData')}</span>
-                        </label>
-                    </div>
-
-                    {/* Table Selection */}
-                    <div className="flex-1 flex flex-col border border-default rounded overflow-hidden max-h-[400px]">
-                        <div className="p-2 bg-surface-secondary border-b border-default flex justify-between items-center shrink-0">
-                            <span className="text-xs font-semibold uppercase text-muted">
-                                {t('dump.selectTables')} ({selectedTables.size}/
-                                {effectiveTables.length})
-                            </span>
-                            <button
-                                onClick={handleSelectAll}
-                                className="text-xs text-accent hover:underline"
-                                disabled={isExporting || tablesLoading}
+                                onChange={(event) => setFormat(event.target.value)}
+                                className="bg-surface-secondary border border-default rounded px-3 py-2 text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                             >
-                                {selectedTables.size === effectiveTables.length
-                                    ? t('dump.deselectAll')
-                                    : t('dump.selectAll')}
-                            </button>
-                        </div>
-                        <div className="overflow-y-auto p-2 grid grid-cols-2 gap-2">
-                            {tablesLoading && effectiveTables.length === 0 ? (
-                                <div className="col-span-2 flex items-center justify-center gap-2 p-4 text-muted text-sm">
-                                    <Loader2 size={16} className="animate-spin" />
-                                </div>
-                            ) : (
-                                effectiveTables.map((table) => {
-                                    const isSelected = selectedTables.has(table);
-                                    return (
-                                        <button
-                                            key={table}
-                                            type="button"
-                                            aria-pressed={isSelected}
-                                            disabled={isExporting}
-                                            onClick={() => !isExporting && handleToggleTable(table)}
-                                            className={`w-full text-left flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${isSelected ? 'bg-accent-primary/10 border-accent-primary/50' : 'hover:bg-surface-secondary border-transparent'} ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                        >
-                                            <div
-                                                className={`w-4 h-4 flex items-center justify-center ${isSelected ? 'text-accent' : 'text-muted'}`}
-                                            >
-                                                {isSelected ? (
-                                                    <CheckSquare size={16} />
-                                                ) : (
-                                                    <Square size={16} />
-                                                )}
-                                            </div>
-                                            <span
-                                                className="truncate text-sm select-none"
-                                                title={table}
-                                            >
-                                                {table}
-                                            </span>
-                                        </button>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
+                                <option value="sql">
+                                    {t('dump.sqlFormat', 'SQL script (.sql)')}
+                                </option>
+                                <option value={nativeBackupSpec.format}>
+                                    {nativeBackupSpec.label}
+                                </option>
+                            </select>
+                        </label>
+                    )}
+                    {nativeBackup && nativeBackupSpec.description && (
+                        <p className="text-sm text-muted">{nativeBackupSpec.description}</p>
+                    )}
+                    {/* Options */}
+                    {!nativeBackup && (
+                        <>
+                            <div className="flex gap-6 p-3 bg-surface-secondary rounded border border-default">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={includeStructure}
+                                        onChange={(e) => setIncludeStructure(e.target.checked)}
+                                        className="rounded border-default bg-base focus:ring-focus w-4 h-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                        disabled={isExporting}
+                                    />
+                                    <span>{t('dump.includeStructure')}</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={includeData}
+                                        onChange={(e) => setIncludeData(e.target.checked)}
+                                        className="rounded border-default bg-base focus:ring-focus w-4 h-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                        disabled={isExporting}
+                                    />
+                                    <span>{t('dump.includeData')}</span>
+                                </label>
+                            </div>
 
+                            {/* Table Selection */}
+                            <div className="flex-1 flex flex-col border border-default rounded overflow-hidden max-h-[400px]">
+                                <div className="p-2 bg-surface-secondary border-b border-default flex justify-between items-center shrink-0">
+                                    <span className="text-xs font-semibold uppercase text-muted">
+                                        {t('dump.selectTables')} ({selectedTables.size}/
+                                        {effectiveTables.length})
+                                    </span>
+                                    <button
+                                        onClick={handleSelectAll}
+                                        className="text-xs text-accent hover:underline"
+                                        disabled={isExporting || tablesLoading}
+                                    >
+                                        {selectedTables.size === effectiveTables.length
+                                            ? t('dump.deselectAll')
+                                            : t('dump.selectAll')}
+                                    </button>
+                                </div>
+                                <div className="overflow-y-auto p-2 grid grid-cols-2 gap-2">
+                                    {tablesLoading && effectiveTables.length === 0 ? (
+                                        <div className="col-span-2 flex items-center justify-center gap-2 p-4 text-muted text-sm">
+                                            <Loader2 size={16} className="animate-spin" />
+                                        </div>
+                                    ) : (
+                                        effectiveTables.map((table) => {
+                                            const isSelected = selectedTables.has(table);
+                                            return (
+                                                <button
+                                                    key={table}
+                                                    type="button"
+                                                    aria-pressed={isSelected}
+                                                    disabled={isExporting}
+                                                    onClick={() =>
+                                                        !isExporting && handleToggleTable(table)
+                                                    }
+                                                    className={`w-full text-left flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${isSelected ? 'bg-accent-primary/10 border-accent-primary/50' : 'hover:bg-surface-secondary border-transparent'} ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                >
+                                                    <div
+                                                        className={`w-4 h-4 flex items-center justify-center ${isSelected ? 'text-accent' : 'text-muted'}`}
+                                                    >
+                                                        {isSelected ? (
+                                                            <CheckSquare size={16} />
+                                                        ) : (
+                                                            <Square size={16} />
+                                                        )}
+                                                    </div>
+                                                    <span
+                                                        className="truncate text-sm select-none"
+                                                        title={table}
+                                                    >
+                                                        {table}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    )}
                     {isExporting && progress && (
                         <div className="space-y-2">
                             <div className="w-full bg-surface-secondary rounded-full h-2 overflow-hidden border border-default">
@@ -326,8 +385,13 @@ export const DumpDatabaseModal = ({
                                 />
                             </div>
                             <div className="text-center text-xs text-muted">
-                                {progress.current_operation} ({progress.tables_processed}/
-                                {progress.total_tables})
+                                {progress.current_operation}
+                                {!nativeBackup && (
+                                    <>
+                                        {' '}
+                                        ({progress.tables_processed}/{progress.total_tables})
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}

@@ -1311,6 +1311,7 @@
     "notifyLongQueriesThresholdDesc": "仅通知运行时间不短于此值的查询。"
   },
   "triggers":{
+    "nativeSqlHelp": "请输入符合数据库 SQL 方言的完整触发器语句。保存现有触发器时不会先将其删除。",
     "originalRestored": "已恢复原始触发器。",
     "restoreFailed": "恢复原始触发器也失败了：",
     "singleEventHint": "此数据库每个触发器仅允许一个事件。",
@@ -2584,6 +2585,12 @@
     }
   },
   "dump": {
+    "format": "备份格式",
+    "sqlFormat": "SQL 脚本 (.sql)",
+    "emptyTargetRequired": "恢复到新的或空的数据库。绝不会覆盖现有数据库。",
+    "createDatabase": "创建新数据库",
+    "serverDatabasePath": "数据库服务器上的数据库路径或别名",
+    "startRestore": "恢复数据库",
     "title": "导出数据库",
     "dumpDatabase": "导出数据库",
     "importDatabase": "运行 SQL 文件...",

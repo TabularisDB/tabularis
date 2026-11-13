@@ -638,6 +638,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             theme_commands::export_theme,
             // Dump & Import
             dump_commands::dump_database,
+            dump_commands::get_database_sql_capabilities,
             dump_commands::cancel_dump,
             dump_commands::import_database,
             dump_commands::cancel_import,

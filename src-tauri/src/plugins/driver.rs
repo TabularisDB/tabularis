@@ -10,7 +10,10 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::{mpsc, oneshot, OnceCell};
 
-use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
+use crate::drivers::driver_trait::{
+    BatchProgressFn, DatabaseDriver, DatabaseSqlCapabilities, DatabaseSqlExportOptions,
+    DatabaseSqlExportResult, DatabaseSqlImportResult, PluginManifest,
+};
 use crate::models::{
     AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
     DatabaseSelection, DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index,
@@ -510,7 +513,12 @@ impl PluginProcess {
                 })
                 .await;
         }
-        let timeout = crate::plugins::call_timeout::for_plugin(&self.plugin_id);
+        let timeout = match method {
+            "export_database_sql" | "import_database_sql" => {
+                crate::plugins::call_timeout::for_database_transfer(&self.plugin_id)
+            }
+            _ => crate::plugins::call_timeout::for_plugin(&self.plugin_id),
+        };
         self.send_request(method, params, timeout).await
     }
 
@@ -1919,6 +1927,51 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    /// Optional whole-file transfers; missing methods retain the host implementation.
+    async fn get_database_sql_capabilities(
+        &self,
+        params: &ConnectionParams,
+    ) -> Result<Option<DatabaseSqlCapabilities>, String> {
+        match self
+            .process
+            .call_detailed(
+                "get_database_sql_capabilities",
+                json!({"params": self.with_primary_database(params)}),
+            )
+            .await
+        {
+            Ok(value) => serde_json::from_value(value).map_err(|error| error.to_string()),
+            Err(error) if is_method_not_found(&error) => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    async fn export_database_sql(
+        &self,
+        params: &ConnectionParams,
+        file_path: &str,
+        options: &DatabaseSqlExportOptions,
+    ) -> Result<Option<DatabaseSqlExportResult>, String> {
+        match self.process.call_detailed("export_database_sql", json!({"params": self.with_primary_database(params), "file_path": file_path, "options": options})).await {
+            Ok(value) => serde_json::from_value(value).map_err(|error| error.to_string()),
+            Err(error) if is_method_not_found(&error) => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    async fn import_database_sql(
+        &self,
+        params: &ConnectionParams,
+        file_path: &str,
+        create_database: bool,
+    ) -> Result<Option<DatabaseSqlImportResult>, String> {
+        match self.process.call_detailed("import_database_sql", json!({"params": self.with_primary_database(params), "file_path": file_path, "create_database": create_database})).await {
+            Ok(value) => serde_json::from_value(value).map_err(|error| error.to_string()),
+            Err(error) if is_method_not_found(&error) => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
     /// Optional RPC method (#709): the table's approximate row count, for
     /// the export dialog. A plugin without it (-32601) shows none.
     async fn get_approximate_row_count(
@@ -2453,6 +2506,74 @@ pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver 
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn database_sql_methods_fall_back_only_for_missing_methods_or_null() {
+        use super::*;
+        for code in [-32601, -32000] {
+            let driver = test_driver_detailed(move |_| {
+                Err(PluginCallError::Remote(crate::plugins::rpc::JsonRpcError {
+                    code,
+                    message: "localized failure".into(),
+                }))
+            });
+            let params = test_connection_params();
+            assert_eq!(
+                driver.get_database_sql_capabilities(&params).await.is_ok(),
+                code == -32601
+            );
+            assert_eq!(
+                driver
+                    .export_database_sql(
+                        &params,
+                        "owned.tmp",
+                        &DatabaseSqlExportOptions {
+                            format: None,
+                            structure: true,
+                            data: true,
+                            tables: None
+                        }
+                    )
+                    .await
+                    .is_ok(),
+                code == -32601
+            );
+            assert_eq!(
+                driver
+                    .import_database_sql(&params, "owned.sql", true)
+                    .await
+                    .is_ok(),
+                code == -32601
+            );
+        }
+        let driver = test_driver_result(|_| Ok(Value::Null));
+        assert!(driver
+            .get_database_sql_capabilities(&test_connection_params())
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn database_sql_capabilities_ignore_legacy_native_backup_boolean() {
+        use super::*;
+        let driver = test_driver_result(|_| {
+            Ok(json!({
+                "format": "sql",
+                "native_backup": true,
+                "create_database": true,
+                "requires_empty_target": true,
+                "target_label": "Path"
+            }))
+        });
+        let capabilities = driver
+            .get_database_sql_capabilities(&test_connection_params())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(capabilities.native_backup.is_none());
+        assert_eq!(capabilities.format, "sql");
+    }
+
     #[tokio::test]
     async fn syncing_settings_keeps_the_process_available() {
         use super::*;

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::any::AnyConnectOptions;
 use sqlx::{AnyConnection, Connection};
 use std::str::FromStr;
@@ -11,6 +11,74 @@ use crate::models::{
     DbUserInfo, ExplainQueryOutput, ForeignKey, Index, QueryResult, RoutineCallArg, RoutineInfo,
     RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
+
+/// Plugin-declared native whole-file backup. The host echoes `format` and
+/// takes the file extension and UI labels from the plugin.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct NativeBackupCapability {
+    pub format: String,
+    pub extension: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// Published plugins used `native_backup: true`. Treat that as omitted rather
+/// than failing the whole capabilities call; native dump needs the object.
+fn deserialize_native_backup<'de, D>(
+    deserializer: D,
+) -> Result<Option<NativeBackupCapability>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum NativeBackupField {
+        Flag(bool),
+        Spec(NativeBackupCapability),
+    }
+    Ok(
+        match Option::<NativeBackupField>::deserialize(deserializer)? {
+            None | Some(NativeBackupField::Flag(_)) => None,
+            Some(NativeBackupField::Spec(spec)) => Some(spec),
+        },
+    )
+}
+
+/// Optional whole-database SQL protocol. Other drivers keep the host transfer path.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DatabaseSqlCapabilities {
+    pub format: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_native_backup",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub native_backup: Option<NativeBackupCapability>,
+    pub create_database: bool,
+    pub requires_empty_target: bool,
+    pub target_label: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DatabaseSqlExportOptions {
+    #[serde(default)]
+    pub format: Option<String>,
+    pub structure: bool,
+    pub data: bool,
+    pub tables: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DatabaseSqlExportResult {
+    pub rows: u64,
+    pub tables: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DatabaseSqlImportResult {
+    pub statements: usize,
+}
 
 /// Callback invoked the moment each statement in a batch finishes, with the
 /// statement's zero-based index and its outcome. Drivers call this — when one
@@ -1197,6 +1265,32 @@ pub trait DatabaseDriver: Send + Sync {
         _table: &str,
         _schema: Option<&str>,
     ) -> Result<Option<u64>, String> {
+        Ok(None)
+    }
+
+    /// Optional whole-file transfers; missing methods retain the host implementation.
+    async fn get_database_sql_capabilities(
+        &self,
+        _params: &ConnectionParams,
+    ) -> Result<Option<DatabaseSqlCapabilities>, String> {
+        Ok(None)
+    }
+
+    async fn export_database_sql(
+        &self,
+        _params: &ConnectionParams,
+        _file_path: &str,
+        _options: &DatabaseSqlExportOptions,
+    ) -> Result<Option<DatabaseSqlExportResult>, String> {
+        Ok(None)
+    }
+
+    async fn import_database_sql(
+        &self,
+        _params: &ConnectionParams,
+        _file_path: &str,
+        _create_database: bool,
+    ) -> Result<Option<DatabaseSqlImportResult>, String> {
         Ok(None)
     }
 

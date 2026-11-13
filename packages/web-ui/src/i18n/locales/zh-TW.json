@@ -2589,6 +2589,7 @@
         "failGetDefinition": "取得定義失敗："
     },
     "triggers": {
+    "nativeSqlHelp": "請輸入符合資料庫 SQL 方言的完整觸發程序陳述式。儲存現有觸發程序時不會先將其刪除。",
         "createTrigger": "建立觸發器",
         "editTrigger": "編輯觸發器",
         "createSubtitle": "建立新的資料庫觸發器",
@@ -2720,6 +2721,12 @@
         }
     },
     "dump": {
+    "format": "備份格式",
+    "sqlFormat": "SQL 指令碼 (.sql)",
+    "emptyTargetRequired": "還原至新的或空的資料庫。絕不會覆寫現有資料庫。",
+    "createDatabase": "建立新資料庫",
+    "serverDatabasePath": "資料庫伺服器上的資料庫路徑或別名",
+    "startRestore": "還原資料庫",
         "title": "匯出資料庫",
         "dumpDatabase": "匯出資料庫",
         "importDatabase": "執行 SQL 檔案...",

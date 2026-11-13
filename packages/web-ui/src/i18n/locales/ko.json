@@ -2506,6 +2506,7 @@
     "failGetDefinition": "정의를 가져오지 못했습니다: "
   },
   "triggers": {
+    "nativeSqlHelp": "데이터베이스의 SQL 방언으로 완전한 트리거 구문을 입력하세요. 기존 트리거는 먼저 삭제하지 않고 저장됩니다.",
     "createTrigger": "트리거 생성",
     "editTrigger": "트리거 편집",
     "createSubtitle": "새 데이터베이스 트리거를 만듭니다",
@@ -2637,6 +2638,12 @@
     }
   },
   "dump": {
+    "format": "백업 형식",
+    "sqlFormat": "SQL 스크립트 (.sql)",
+    "emptyTargetRequired": "새 데이터베이스 또는 빈 데이터베이스로 복원합니다. 기존 데이터베이스는 덮어쓰지 않습니다.",
+    "createDatabase": "새 데이터베이스 만들기",
+    "serverDatabasePath": "데이터베이스 서버의 경로 또는 별칭",
+    "startRestore": "데이터베이스 복원",
     "title": "데이터베이스 덤프",
     "dumpDatabase": "데이터베이스 덤프",
     "importDatabase": "SQL 파일 실행...",
