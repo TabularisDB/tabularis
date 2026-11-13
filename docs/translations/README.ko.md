@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis는 3종의 내장 데이터베이스 드라이버와 DuckDB, ClickHouse, Redis, Firestore를 포함한 29종의 출시된 플러그인을 갖춘 오픈소스 데스크톱 SQL 워크스페이스입니다. 내장 MCP 서버를 통해 Claude, Cursor, Devin(구 Windsurf)이 여러분이 이미 사용하는 앱에서 스키마를 읽고 쿼리를 실행할 수 있습니다.
+Tabularis는 3종의 내장 데이터베이스 드라이버와 DuckDB, ClickHouse, Redis, Firestore를 포함한 30종의 출시된 플러그인을 갖춘 오픈소스 데스크톱 SQL 워크스페이스입니다. 내장 MCP 서버를 통해 Claude, Cursor, Devin(구 Windsurf)이 여러분이 이미 사용하는 앱에서 스키마를 읽고 쿼리를 실행할 수 있습니다.
 
 <p align="center">
   <b><a href="https://tabularis.dev">웹사이트</a></b> ·
@@ -92,14 +92,14 @@ sudo snap install tabularis       # Linux
 | **모든 언어**로 작성 가능한 플러그인 (stdio 기반 JSON-RPC) |              ✅               |     Java/Eclipse 플러그인     | JavaScript 플러그인 |         ❌          |
 | **로컬 모델**(Ollama)을 사용하는 AI text-to-SQL            |              ✅               |  클라우드 기반 AI 어시스턴트  |         ❌          |         ❌          |
 | 인터랙티브 플랜 그래프가 있는 Visual EXPLAIN               |              ✅               |              ✅               |         ❌          |         ❌          |
-| 기본 제공 데이터베이스                                     | 내장 3종 + 드라이버 플러그인 29종 |          100종 이상           |      20종 이상      |       약 10종       |
+| 기본 제공 데이터베이스                                     | 내장 3종 + 드라이버 플러그인 30종 |          100종 이상           |      20종 이상      |       약 10종       |
 
 > [!NOTE]
 > 2026년 6월 기준 비교이며, 다른 도구의 기능은 이후 변경되었을 수 있습니다. 수십 종의 드라이버가 필요하다면 DBeaver를 사용하세요. tabularis는 소수의 데이터베이스를 제대로 지원하는 데 집중합니다.
 
 ### 데이터베이스 지원
 
-PostgreSQL, MySQL/MariaDB, SQLite는 기본 내장되어 있습니다. 내장 PostgreSQL 드라이버는 더 이상 권장되지 않으며, Tabularis가 자동으로 설치하는 [PostgreSQL 플러그인](https://github.com/TabularisDB/tabularis-postgresql-plugin)으로 대체됩니다. 그 외 모든 것은 플러그인입니다. 웹사이트의 [드라이버 및 플러그인 커버리지](https://tabularis.dev/#driver-coverage)를 반영한 현재 상태는 다음과 같습니다:
+PostgreSQL, MySQL/MariaDB, SQLite는 기본 내장되어 있습니다. 내장 PostgreSQL 드라이버는 더 이상 권장되지 않으며, Tabularis가 자동으로 설치하는 [PostgreSQL 플러그인](https://github.com/TabularisDB/tabularis-postgresql-plugin)으로 대체됩니다. 그 외 모든 것은 플러그인입니다. 웹사이트의 [드라이버 및 플러그인 커버리지](https://tabularis.dev/plugins/drivers)를 반영한 현재 상태는 다음과 같습니다:
 
 **출시됨**
 
@@ -118,17 +118,17 @@ PostgreSQL, MySQL/MariaDB, SQLite는 기본 내장되어 있습니다. 내장 Po
 | IBM Informix             | [tabularis-informix-plugin](https://github.com/danielnuld/tabularis-informix-plugin)            | HackerNews     | [tabularis-hackernews-plugin](https://github.com/TabularisDB/tabularis-hackernews-plugin)       |
 | Cassandra / ScyllaDB     | [tabularis-cassandra-plugin](https://github.com/TabularisDB/tabularis-cassandra-plugin)         | Harper         | [tabularis-harper-plugin](https://github.com/HarperFast/tabularis-harper-plugin)                |
 | PostgreSQL               | [tabularis-postgresql-plugin](https://github.com/TabularisDB/tabularis-postgresql-plugin)       | Trino          | [tabularis-trino-plugin](https://github.com/TabularisDB/tabularis-trino-plugin)                 |
-| Neon                     | [neon-plugin](https://github.com/TabularisDB/neon-plugin)                                       | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
-| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         |                |                                                                                                 |
+| Meilisearch              | [meilisearch-tabularis](https://github.com/NewtTheWolf/meilisearch-tabularis)                   | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
+| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         | Firebird       | [tabularis-firebird-plugin](https://github.com/TabularisDB/tabularis-firebird-plugin)           |
 
 **바운티 보드에 등록됨**
 
 | 상태          | 데이터베이스                                                                 |
 | ------------- | ---------------------------------------------------------------------------- |
-| 개발 중           | Meilisearch                  |
+| 개발 중           | InfluxDB                     |
 | 출시 예정          | Snowflake                    |
 | 계획됨            | Amazon Redshift, TiDB        |
-| 모집 중           | Etcd, Firebird, SQL Anywhere |
+| 모집 중           | Etcd, SQL Anywhere |
 
 > [!NOTE]
 > **출시됨** 상태의 드라이버는 [플러그인 레지스트리](https://tabularis.dev/plugins)에서 설치할 수 있습니다. 그 외 모든 것은 [바운티 보드](https://tabularis.dev/plugins/bounties)에 있습니다. 직접 맡거나, 후원하거나, [데이터베이스를 요청](https://github.com/TabularisDB/tabularis/discussions)하세요.

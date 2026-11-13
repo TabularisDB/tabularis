@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis é um workspace SQL de desktop, de código aberto, com 3 drivers de banco de dados integrados e 29 plugins disponíveis, incluindo DuckDB, ClickHouse, Redis e Firestore. Seu servidor MCP integrado permite que Claude, Cursor e Devin (antigo Windsurf) leiam seu esquema e executem consultas no mesmo aplicativo que você já usa.
+Tabularis é um workspace SQL de desktop, de código aberto, com 3 drivers de banco de dados integrados e 30 plugins disponíveis, incluindo DuckDB, ClickHouse, Redis e Firestore. Seu servidor MCP integrado permite que Claude, Cursor e Devin (antigo Windsurf) leiam seu esquema e executem consultas no mesmo aplicativo que você já usa.
 
 <p align="center">
   <b><a href="https://tabularis.dev">Site</a></b> ·
@@ -92,14 +92,14 @@ A interface do aplicativo está disponível em inglês, italiano, espanhol, chin
 | Plugins em **qualquer linguagem** (JSON-RPC via stdio)                    |                 ✅                 |       Plugins Java/Eclipse        | Plugins JavaScript |          ❌           |
 | IA text-to-SQL com **modelos locais** (Ollama)                            |                 ✅                 |     Assistente de IA na nuvem     |         ❌         |          ❌           |
 | EXPLAIN Visual com gráficos de plano interativos                          |                 ✅                 |                ✅                 |         ❌         |          ❌           |
-| Bancos de dados prontos para uso                                          | 3 integrados + 29 plugins de drivers |               100+                |        20+         |          ~10          |
+| Bancos de dados prontos para uso                                          | 3 integrados + 30 plugins de drivers |               100+                |        20+         |          ~10          |
 
 > [!NOTE]
 > Comparação de junho de 2026; os recursos de outras ferramentas podem ter mudado desde então. Se você precisa de dezenas de drivers, use o DBeaver. O Tabularis foca em fazer bem um número menor de bancos de dados.
 
 ### Suporte a bancos de dados
 
-PostgreSQL, MySQL/MariaDB e SQLite já vêm integrados. O driver PostgreSQL integrado está obsoleto em favor do [plugin PostgreSQL](https://github.com/TabularisDB/tabularis-postgresql-plugin), que o Tabularis instala automaticamente. Todo o resto é um plugin. A cobertura atual espelha a [cobertura de drivers e plugins](https://tabularis.dev/#driver-coverage) no site:
+PostgreSQL, MySQL/MariaDB e SQLite já vêm integrados. O driver PostgreSQL integrado está obsoleto em favor do [plugin PostgreSQL](https://github.com/TabularisDB/tabularis-postgresql-plugin), que o Tabularis instala automaticamente. Todo o resto é um plugin. A cobertura atual espelha a [cobertura de drivers e plugins](https://tabularis.dev/plugins/drivers) no site:
 
 **Disponíveis**
 
@@ -118,17 +118,17 @@ PostgreSQL, MySQL/MariaDB e SQLite já vêm integrados. O driver PostgreSQL inte
 | IBM Informix             | [tabularis-informix-plugin](https://github.com/danielnuld/tabularis-informix-plugin)            | HackerNews     | [tabularis-hackernews-plugin](https://github.com/TabularisDB/tabularis-hackernews-plugin)       |
 | Cassandra / ScyllaDB     | [tabularis-cassandra-plugin](https://github.com/TabularisDB/tabularis-cassandra-plugin)         | Harper         | [tabularis-harper-plugin](https://github.com/HarperFast/tabularis-harper-plugin)                |
 | PostgreSQL               | [tabularis-postgresql-plugin](https://github.com/TabularisDB/tabularis-postgresql-plugin)       | Trino          | [tabularis-trino-plugin](https://github.com/TabularisDB/tabularis-trino-plugin)                 |
-| Neon                     | [neon-plugin](https://github.com/TabularisDB/neon-plugin)                                       | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
-| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         |                |                                                                                                 |
+| Meilisearch              | [meilisearch-tabularis](https://github.com/NewtTheWolf/meilisearch-tabularis)                   | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
+| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         | Firebird       | [tabularis-firebird-plugin](https://github.com/TabularisDB/tabularis-firebird-plugin)           |
 
 **No quadro de recompensas**
 
 | Status       | Bancos de dados                                                              |
 | ------------ | ---------------------------------------------------------------------------- |
-| Em andamento   | Meilisearch                  |
+| Em andamento   | InfluxDB                     |
 | Em breve       | Snowflake                    |
 | Planejado      | Amazon Redshift, TiDB        |
-| Aberto         | Etcd, Firebird, SQL Anywhere |
+| Aberto         | Etcd, SQL Anywhere |
 
 > [!NOTE]
 > Os drivers **disponíveis** podem ser instalados a partir do [registro de plugins](https://tabularis.dev/plugins). Todo o resto está no [quadro de recompensas](https://tabularis.dev/plugins/bounties): reivindique um, patrocine um ou [solicite um banco de dados](https://github.com/TabularisDB/tabularis/discussions).
