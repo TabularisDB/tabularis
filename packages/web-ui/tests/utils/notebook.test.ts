@@ -337,6 +337,15 @@ describe('notebook utils', () => {
             });
         });
 
+        it('copies the KPI configuration without sharing it', () => {
+            const source = ranSqlCell({kpiConfig: {column: 'total', label: 'Total', decimals: 2}});
+            const copy = duplicateCell(source);
+            expect(copy.kpiConfig).toEqual(source.kpiConfig);
+            expect(copy.kpiConfig).not.toBe(source.kpiConfig);
+            if (copy.kpiConfig) copy.kpiConfig.label = 'changed';
+            expect(source.kpiConfig?.label).toBe('Total');
+        });
+
         it.each([null, undefined])('keeps a %s chart configuration as is', (chartConfig) => {
             expect(duplicateCell(ranSqlCell({chartConfig})).chartConfig).toBe(chartConfig);
         });
