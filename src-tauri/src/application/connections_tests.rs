@@ -916,6 +916,30 @@ async fn deleting_a_connection_removes_its_secrets_and_history() {
 }
 
 #[tokio::test]
+async fn deleting_a_connection_removes_its_schema_notes() {
+    use super::super::schema_notes;
+    let (_temp, runtime, state, _secrets) = fixture_with_secrets();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Documented".into(),
+        connection_params("secret"),
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
+    let config_dir = runtime.paths.config_dir();
+    schema_notes::set_note(config_dir, &saved.id, None, None, "Shop".into()).unwrap();
+    let path = schema_notes::notes_path(config_dir, &saved.id).unwrap();
+    assert!(path.exists());
+
+    delete_connection(&runtime, &state, &saved.id).unwrap();
+
+    assert!(!path.exists());
+}
+
+#[tokio::test]
 async fn deleting_a_group_cleans_up_every_connection_in_it() {
     let (_temp, runtime, state, secrets) = fixture_with_secrets();
     let group = execute(

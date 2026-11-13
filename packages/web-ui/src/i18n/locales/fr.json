@@ -3579,6 +3579,9 @@
     "save": "Enregistrer",
     "saved": "Notes enregistrées.",
     "imported": "Notes importées depuis {{name}}.",
-    "saveBeforeImport": "Enregistrez vos modifications avant d'importer."
+    "saveBeforeImport": "Enregistrez vos modifications avant d'importer.",
+    "saveBeforeExport": "Enregistrez vos modifications avant d'exporter.",
+    "discardTitle": "Abandonner les notes non enregistrées ?",
+    "discardMessage": "Vos modifications des notes n'ont pas été enregistrées. Fermer maintenant les supprimera."
   }
 }

@@ -3440,6 +3440,9 @@
     "save": "保存",
     "saved": "备注已保存。",
     "imported": "已从 {{name}} 导入备注。",
-    "saveBeforeImport": "导入前请先保存更改。"
+    "saveBeforeImport": "导入前请先保存更改。",
+    "saveBeforeExport": "导出前请先保存更改。",
+    "discardTitle": "放弃未保存的备注？",
+    "discardMessage": "备注的更改尚未保存。现在关闭将丢失这些更改。"
   }
 }

@@ -3636,6 +3636,9 @@
     "save": "Save",
     "saved": "Notes saved.",
     "imported": "Imported notes from {{name}}.",
-    "saveBeforeImport": "Save your changes before importing."
+    "saveBeforeImport": "Save your changes before importing.",
+    "saveBeforeExport": "Save your changes before exporting.",
+    "discardTitle": "Discard unsaved notes?",
+    "discardMessage": "Your changes to the notes have not been saved. Closing now discards them."
   }
 }

@@ -3437,6 +3437,9 @@
     "save": "Guardar",
     "saved": "Notas guardadas.",
     "imported": "Notas importadas desde {{name}}.",
-    "saveBeforeImport": "Guarda tus cambios antes de importar."
+    "saveBeforeImport": "Guarda tus cambios antes de importar.",
+    "saveBeforeExport": "Guarda tus cambios antes de exportar.",
+    "discardTitle": "¿Descartar las notas sin guardar?",
+    "discardMessage": "Los cambios en las notas no se han guardado. Si cierras ahora, se perderán."
   }
 }

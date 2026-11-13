@@ -3522,6 +3522,9 @@
     "save": "I-save",
     "saved": "Na-save ang mga tala.",
     "imported": "Na-import ang mga tala mula sa {{name}}.",
-    "saveBeforeImport": "I-save muna ang mga pagbabago bago mag-import."
+    "saveBeforeImport": "I-save muna ang mga pagbabago bago mag-import.",
+    "saveBeforeExport": "I-save muna ang mga pagbabago bago mag-export.",
+    "discardTitle": "Itapon ang mga talang hindi pa naka-save?",
+    "discardMessage": "Hindi pa naka-save ang mga pagbabago sa mga tala. Mawawala ang mga ito kapag isinara ngayon."
   }
 }

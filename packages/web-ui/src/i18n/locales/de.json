@@ -3503,6 +3503,9 @@
     "save": "Speichern",
     "saved": "Notizen gespeichert.",
     "imported": "Notizen aus {{name}} importiert.",
-    "saveBeforeImport": "Speichere deine Änderungen vor dem Import."
+    "saveBeforeImport": "Speichere deine Änderungen vor dem Import.",
+    "saveBeforeExport": "Speichere deine Änderungen vor dem Export.",
+    "discardTitle": "Ungespeicherte Notizen verwerfen?",
+    "discardMessage": "Deine Änderungen an den Notizen wurden nicht gespeichert. Wenn du jetzt schließt, gehen sie verloren."
   }
 }

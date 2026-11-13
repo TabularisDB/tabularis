@@ -3524,6 +3524,9 @@
     "save": "保存",
     "saved": "メモを保存しました。",
     "imported": "{{name}} からメモをインポートしました。",
-    "saveBeforeImport": "インポートする前に変更を保存してください。"
+    "saveBeforeImport": "インポートする前に変更を保存してください。",
+    "saveBeforeExport": "エクスポートする前に変更を保存してください。",
+    "discardTitle": "保存していないメモを破棄しますか？",
+    "discardMessage": "メモの変更は保存されていません。今閉じると変更は失われます。"
   }
 }

@@ -3665,6 +3665,9 @@
         "save": "儲存",
         "saved": "備註已儲存。",
         "imported": "已從 {{name}} 匯入備註。",
-        "saveBeforeImport": "匯入前請先儲存變更。"
+        "saveBeforeImport": "匯入前請先儲存變更。",
+        "saveBeforeExport": "匯出前請先儲存變更。",
+        "discardTitle": "捨棄未儲存的備註？",
+        "discardMessage": "備註的變更尚未儲存。現在關閉將會遺失這些變更。"
     }
 }

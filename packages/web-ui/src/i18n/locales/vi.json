@@ -3575,6 +3575,9 @@
     "save": "Lưu",
     "saved": "Đã lưu ghi chú.",
     "imported": "Đã nhập ghi chú từ {{name}}.",
-    "saveBeforeImport": "Hãy lưu thay đổi trước khi nhập."
+    "saveBeforeImport": "Hãy lưu thay đổi trước khi nhập.",
+    "saveBeforeExport": "Hãy lưu thay đổi trước khi xuất.",
+    "discardTitle": "Bỏ các ghi chú chưa lưu?",
+    "discardMessage": "Các thay đổi trong ghi chú chưa được lưu. Đóng bây giờ sẽ mất các thay đổi đó."
   }
 }
