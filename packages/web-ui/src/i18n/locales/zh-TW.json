@@ -3566,6 +3566,22 @@
         "choose": "選取指令碼並檢視差異後，才能將其包含在提交中。",
         "message": "提交訊息"
   },
+  "linkedFolderSearch": {
+    "title": "在 {{name}} 中搜尋",
+    "buttonLabel": "搜尋資料夾",
+    "inputPlaceholder": "搜尋 SQL 檔案…",
+    "clearInput": "清除搜尋",
+    "matchCase": "區分大小寫",
+    "matchesSummary": "在 {{files}} 個檔案中找到 {{count}} 處相符",
+    "skippedFiles": "略過 {{count}} 個檔案",
+    "truncatedWarning": "結果已限制為前 200 處相符",
+    "typeToSearch": "輸入文字以在此資料夾的 SQL 檔案中搜尋",
+    "noMatchesTitle": "找不到相符項目",
+    "noMatchesMessage": "在此資料夾中找不到「{{query}}」。",
+    "resultsListLabel": "搜尋結果",
+    "openInEditor": "在編輯器中開啟",
+    "selectToPreview": "從清單中選取一項以預覽"
+  },
     "aiInline": {
         "title": "AI 行內補全",
         "enable": "輸入時建議 SQL",

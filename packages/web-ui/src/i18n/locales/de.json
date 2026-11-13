@@ -3404,6 +3404,22 @@
     "choose": "Wähle ein Skript und prüfe den Diff, bevor du es aufnimmst.",
     "message": "Commit-Nachricht"
   },
+  "linkedFolderSearch": {
+    "title": "In {{name}} suchen",
+    "buttonLabel": "Ordner durchsuchen",
+    "inputPlaceholder": "SQL-Dateien durchsuchen…",
+    "clearInput": "Suche löschen",
+    "matchCase": "Groß-/Kleinschreibung",
+    "matchesSummary": "{{count}} Treffer in {{files}} Dateien",
+    "skippedFiles": "{{count}} übersprungen",
+    "truncatedWarning": "Ergebnisse auf 200 Treffer begrenzt",
+    "typeToSearch": "Suchbegriff für SQL-Dateien in diesem Ordner eingeben",
+    "noMatchesTitle": "Keine Treffer gefunden",
+    "noMatchesMessage": "Keine Vorkommen von „{{query}}“ in diesem Ordner gefunden.",
+    "resultsListLabel": "Suchergebnisse",
+    "openInEditor": "Im Editor öffnen",
+    "selectToPreview": "Wählen Sie einen Treffer für die Vorschau aus"
+  },
   "aiInline": {
     "title": "KI-Inline-Vervollständigung",
     "enable": "SQL-Vorschläge beim Tippen",

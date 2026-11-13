@@ -3537,6 +3537,22 @@
     "choose": "Select a script to review its diff before including it.",
     "message": "Commit message"
   },
+  "linkedFolderSearch": {
+    "title": "Search in {{name}}",
+    "buttonLabel": "Search folder",
+    "inputPlaceholder": "Search SQL files…",
+    "clearInput": "Clear search",
+    "matchCase": "Match case",
+    "matchesSummary": "{{count}} matches in {{files}} files",
+    "skippedFiles": "{{count}} skipped",
+    "truncatedWarning": "Results capped at 200 matches",
+    "typeToSearch": "Type to search across SQL files in this folder",
+    "noMatchesTitle": "No matches found",
+    "noMatchesMessage": "No occurrences of \"{{query}}\" found in this folder.",
+    "resultsListLabel": "Search results",
+    "openInEditor": "Open in Editor",
+    "selectToPreview": "Select a match from the list to preview"
+  },
   "aiInline": {
     "title": "AI inline completion",
     "enable": "Suggest SQL while typing",

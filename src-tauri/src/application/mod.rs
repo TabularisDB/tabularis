@@ -12,6 +12,7 @@ pub mod generic_exports;
 pub mod host_settings;
 pub mod managed_policy;
 pub mod linked_folder_git;
+pub mod linked_folder_search;
 pub mod linked_folders;
 pub mod mcp_host;
 pub mod metadata;

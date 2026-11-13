@@ -3341,6 +3341,22 @@
     "choose": "选择脚本并查看差异后，才能将其包含在提交中。",
     "message": "提交消息"
   },
+  "linkedFolderSearch": {
+    "title": "在 {{name}} 中搜索",
+    "buttonLabel": "搜索文件夹",
+    "inputPlaceholder": "搜索 SQL 文件…",
+    "clearInput": "清除搜索",
+    "matchCase": "区分大小写",
+    "matchesSummary": "在 {{files}} 个文件中找到 {{count}} 处匹配",
+    "skippedFiles": "跳过 {{count}} 个文件",
+    "truncatedWarning": "结果已截断至前 200 处匹配",
+    "typeToSearch": "输入内容以在此文件夹的 SQL 文件中搜索",
+    "noMatchesTitle": "未找到匹配项",
+    "noMatchesMessage": "在此文件夹中未找到 \"{{query}}\"。",
+    "resultsListLabel": "搜索结果",
+    "openInEditor": "在编辑器中打开",
+    "selectToPreview": "从列表中选择一项以预览"
+  },
   "aiInline": {
     "title": "AI 行内补全",
     "enable": "输入时建议 SQL",

@@ -3442,6 +3442,22 @@
     "choose": "Выберите скрипт и проверьте различия перед включением в коммит.",
     "message": "Сообщение коммита"
   },
+  "linkedFolderSearch": {
+    "title": "Поиск в {{name}}",
+    "buttonLabel": "Поиск по папке",
+    "inputPlaceholder": "Поиск по SQL-файлам…",
+    "clearInput": "Очистить поиск",
+    "matchCase": "Учитывать регистр",
+    "matchesSummary": "Совпадений: {{count}} в {{files}} файлах",
+    "skippedFiles": "Пропущено: {{count}}",
+    "truncatedWarning": "Показаны первые 200 совпадений",
+    "typeToSearch": "Введите запрос для поиска по SQL-файлам этой папки",
+    "noMatchesTitle": "Совпадений не найдено",
+    "noMatchesMessage": "По запросу «{{query}}» ничего не найдено в этой папке.",
+    "resultsListLabel": "Результаты поиска",
+    "openInEditor": "Открыть в редакторе",
+    "selectToPreview": "Выберите совпадение из списка для предпросмотра"
+  },
   "aiInline": {
     "title": "Встроенное ИИ-дополнение",
     "enable": "Предлагать SQL при вводе",

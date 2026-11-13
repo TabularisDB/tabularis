@@ -1,4 +1,5 @@
 use crate::application::linked_folder_git::{self, GitCommit, GitReview, GitStatus, ReviewedFile};
+use crate::application::linked_folder_search::{self, LinkedFolderSearchResult};
 use crate::application::linked_folders::{
     self, LinkedDirectoryListing, LinkedFileContent, LinkedFileSaved, LinkedFolder,
     LinkedFolderStatus,
@@ -126,6 +127,20 @@ pub async fn write_linked_sql_file<R: Runtime>(
             expected_version.as_deref(),
             overwrite,
         )
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn search_linked_folder<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    query: String,
+    case_sensitive: bool,
+) -> Result<LinkedFolderSearchResult, String> {
+    let store = store(&app);
+    blocking(move || {
+        linked_folder_search::search_linked_folder(&store, &id, &query, case_sensitive)
     })
     .await
 }

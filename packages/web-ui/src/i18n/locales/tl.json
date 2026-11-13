@@ -3423,6 +3423,22 @@
     "choose": "Pumili ng script at suriin ang mga pagkakaiba bago ito isama.",
     "message": "Mensahe ng commit"
   },
+  "linkedFolderSearch": {
+    "title": "Maghanap sa {{name}}",
+    "buttonLabel": "Maghanap sa folder",
+    "inputPlaceholder": "Maghanap sa mga SQL file…",
+    "clearInput": "I-clear ang paghahanap",
+    "matchCase": "Itugma ang case",
+    "matchesSummary": "{{count}} tugma sa {{files}} mga file",
+    "skippedFiles": "{{count}} nilaktawan",
+    "truncatedWarning": "Nililimitahan ang mga resulta sa 200 tugma",
+    "typeToSearch": "Mag-type para maghanap sa mga SQL file sa folder na ito",
+    "noMatchesTitle": "Walang nahanap na tugma",
+    "noMatchesMessage": "Walang natagpuang \"{{query}}\" sa folder na ito.",
+    "resultsListLabel": "Mga resulta ng paghahanap",
+    "openInEditor": "Buksan sa Editor",
+    "selectToPreview": "Pumili ng tugma sa listahan upang i-preview"
+  },
   "aiInline": {
     "title": "AI inline completion",
     "enable": "Magmungkahi ng SQL habang nagta-type",
