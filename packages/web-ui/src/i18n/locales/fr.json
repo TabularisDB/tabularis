@@ -3557,6 +3557,7 @@
     "fkIncoming": "Référencée par {{object}}.{{column}}",
     "viewTitle": "Vue {{view}}",
     "historyTitle": "Requête exécutée {{date}}",
+    "failedRun": "Exécution échouée",
     "matchCount": "Références dans ce SQL : {{count}}",
     "open": "Ouvrir",
     "openHistory": "Ouvrir dans l'éditeur",

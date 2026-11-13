@@ -58,7 +58,11 @@ export interface ColumnUsageEvidence {
     /** Foreign keys: the column on the other side. */
     relatedColumn?: string;
     constraintName?: string;
-    historyEntry?: Pick<QueryHistoryEntry, 'id' | 'sql' | 'executedAt' | 'database'>;
+    /** History: the run, including whether it failed and the error it gave. */
+    historyEntry?: Pick<
+        QueryHistoryEntry,
+        'id' | 'sql' | 'executedAt' | 'database' | 'status' | 'error'
+    >;
     /** How many references the SQL holds (views and history). */
     matchCount?: number;
     snippet?: UsageSnippet;
@@ -413,6 +417,8 @@ export async function collectColumnUsage(
                         sql: entry.sql,
                         executedAt: entry.executedAt,
                         database: entry.database,
+                        status: entry.status,
+                        error: entry.error,
                     },
                     ...found,
                 });
@@ -462,6 +468,11 @@ export function isUsageComplete(result: ColumnUsageResult): boolean {
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 /** The qualified name shown for the target, e.g. `public.orders.customer_id`. */
+/** Whether the evidence comes from a history entry whose run failed. */
+export function isFailedRun(item: ColumnUsageEvidence): boolean {
+    return item.historyEntry?.status === 'error';
+}
+
 export function formatUsageTarget(target: ColumnUsageTarget): string {
     return [target.schema, target.table, target.column].filter(Boolean).join('.');
 }
@@ -499,6 +510,8 @@ export function formatColumnUsageSummary(
             subject = t('columnUsage.viewTitle', {view: item.objectName});
         } else {
             subject = t('columnUsage.historyTitle', {date: item.historyEntry?.executedAt ?? ''});
+            // The error text is left out like the raw SQL: it often quotes values.
+            if (isFailedRun(item)) subject += ` (${t('columnUsage.failedRun')})`;
         }
         lines.push(`- [${confidence}] ${subject}${reason}`);
         if (item.snippet) lines.push(`    ${item.snippet.text}`);

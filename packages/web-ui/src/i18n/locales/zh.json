@@ -3418,6 +3418,7 @@
     "fkIncoming": "被 {{object}}.{{column}} 引用",
     "viewTitle": "视图 {{view}}",
     "historyTitle": "{{date}} 执行的查询",
+    "failedRun": "执行失败",
     "matchCount": "此 SQL 中的引用数：{{count}}",
     "open": "打开",
     "openHistory": "在编辑器中打开",

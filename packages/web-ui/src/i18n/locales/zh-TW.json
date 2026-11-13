@@ -3643,6 +3643,7 @@
         "fkIncoming": "被 {{object}}.{{column}} 參照",
         "viewTitle": "檢視 {{view}}",
         "historyTitle": "{{date}} 執行的查詢",
+        "failedRun": "執行失敗",
         "matchCount": "此 SQL 中的參照數：{{count}}",
         "open": "開啟",
         "openHistory": "在編輯器中開啟",

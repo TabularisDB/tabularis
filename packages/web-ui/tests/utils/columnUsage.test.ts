@@ -199,6 +199,54 @@ describe('columnUsage', () => {
             expect(summary(correlated, ordersNoSchema, {columnsOf: owned})).toEqual([]);
         });
 
+        it('checks each side of UNION, INTERSECT and EXCEPT against its own tables', () => {
+            const union =
+                'SELECT customer_id FROM public.orders UNION SELECT customer_id FROM public.archive';
+            expect(summary(union, ordersPublic)).toEqual(['parsed']);
+            expect(summary(union.replace('UNION', 'UNION ALL'), ordersPublic)).toEqual(['parsed']);
+            expect(summary(union.replace('UNION', 'INTERSECT'), ordersPublic)).toEqual(['parsed']);
+            expect(summary(union.replace('UNION', 'EXCEPT'), ordersPublic)).toEqual(['parsed']);
+            const reversed =
+                'SELECT customer_id FROM public.archive UNION SELECT customer_id FROM public.orders';
+            expect(summary(reversed, ordersPublic)).toEqual(['parsed']);
+            const both =
+                'SELECT customer_id FROM public.orders UNION SELECT customer_id FROM public.orders o';
+            expect(summary(both, ordersPublic)).toEqual(['parsed', 'parsed']);
+            // A join inside one side still makes that side ambiguous.
+            const joined =
+                'SELECT customer_id FROM public.orders, public.refunds UNION SELECT customer_id FROM public.archive';
+            expect(summary(joined, ordersPublic)).toEqual(['uncertain:several-tables']);
+            // Inside a subquery and inside a derived table, with or without
+            // parentheses around each side; `d.customer_id` stays a derived-table read.
+            const nested =
+                'SELECT name FROM customers WHERE id IN (SELECT customer_id FROM public.orders UNION SELECT customer_id FROM public.archive)';
+            expect(summary(nested, ordersPublic)).toEqual(['parsed']);
+            const derived =
+                'SELECT d.customer_id FROM (SELECT customer_id FROM public.orders UNION SELECT customer_id FROM public.archive) d';
+            expect(summary(derived, ordersPublic)).toEqual(['uncertain:derived-table', 'parsed']);
+            const wrapped =
+                'SELECT d.customer_id FROM ((SELECT customer_id FROM public.orders) UNION (SELECT customer_id FROM public.archive)) d';
+            expect(summary(wrapped, ordersPublic)).toEqual(['uncertain:derived-table', 'parsed']);
+            // A join group in parentheses is still read as one.
+            const group =
+                'SELECT o.customer_id FROM ((public.orders o JOIN public.archive a ON a.id = o.id))';
+            expect(summary(group, ordersPublic)).toEqual(['parsed']);
+            // A correlated reference from the second side still reaches the outer query.
+            const correlated =
+                'SELECT id FROM public.orders o WHERE EXISTS (SELECT 1 FROM public.archive UNION SELECT 1 FROM public.refunds r WHERE r.cid = customer_id)';
+            const refunds = (ref: RelationRef) =>
+                ref.name === 'refunds' || ref.name === 'archive' ? ['id', 'cid'] : undefined;
+            expect(summary(correlated, ordersPublic, {columnsOf: refunds})).toEqual(['parsed']);
+            // Oracle's MINUS splits the same way.
+            expect(
+                findColumnReferences(
+                    'SELECT customer_id FROM shop.orders MINUS SELECT customer_id FROM shop.archive',
+                    {schema: 'SHOP', table: 'ORDERS', column: 'CUSTOMER_ID'},
+                    {dialect: 'oracle'},
+                ).map((m) => m.confidence),
+            ).toEqual(['parsed']);
+        });
+
         it('analyses every statement of a script on its own', () => {
             const sql = 'SELECT customer_id FROM orders; SELECT customer_id FROM customers;';
             expect(summary(sql, ordersNoSchema)).toEqual(['parsed']);

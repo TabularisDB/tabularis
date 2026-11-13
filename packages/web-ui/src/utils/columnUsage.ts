@@ -518,6 +518,8 @@ function isCteAt(ctes: CteDefinition[], name: string, index: number): boolean {
 
 // A parenthesis that opens with SELECT or WITH starts a new query level;
 // any other (function arguments, IN lists, column lists) stays in its level.
+// A UNION / INTERSECT / EXCEPT of a level starts a sibling level for the
+// query after it, with the same parent, so each side has its own tables.
 function computeScopes(tokens: LexToken[]): {
     scopes: number[];
     parents: Map<number, number>;
@@ -526,23 +528,32 @@ function computeScopes(tokens: LexToken[]): {
     const scopes: number[] = [];
     const parents = new Map<number, number>();
     const opens = new Map<number, number>();
-    const stack: number[] = [0];
+    // Each frame: its query level, and whether it is that level's own
+    // frame (the statement or a SELECT/WITH parenthesis).
+    const stack: {level: number; own: boolean}[] = [{level: 0, own: true}];
     let next = 1;
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
         if (token.kind === 'punct' && token.value === ')' && stack.length > 1) {
             stack.pop();
         }
-        scopes.push(stack[stack.length - 1]);
+        const top = stack[stack.length - 1];
+        scopes.push(top.level);
         if (token.kind === 'punct' && token.value === '(') {
             const first = keyword(tokens[i + 1]);
             if (first === 'SELECT' || first === 'WITH') {
-                parents.set(next, stack[stack.length - 1]);
+                parents.set(next, top.level);
                 opens.set(next, i);
-                stack.push(next++);
+                stack.push({level: next++, own: true});
             } else {
-                stack.push(stack[stack.length - 1]);
+                stack.push({level: top.level, own: false});
             }
+        } else if (top.own && SET_OPERATORS.has(keyword(token))) {
+            const parent = parents.get(top.level);
+            if (parent !== undefined) parents.set(next, parent);
+            const open = opens.get(top.level);
+            if (open !== undefined) opens.set(next, open);
+            stack[stack.length - 1] = {level: next++, own: true};
         }
     }
     return {scopes, parents, opens};
@@ -610,13 +621,15 @@ function buildModel(tokens: LexToken[], rule: IdentifierRules): StatementModel {
         if (tokens[i]?.value === '(') {
             const first = tokens[i + 1];
             const close = skipParens(tokens, i);
-            // `((SELECT ...)) d` is one derived table in extra parentheses.
-            const wrapsOneParen =
-                tokens[i + 1]?.value === '(' &&
+            // `((SELECT ...)) d` is one derived table in extra parentheses, and
+            // `((SELECT ...) UNION (SELECT ...)) d` one made of a set operation.
+            const innerClose = tokens[i + 1]?.value === '(' ? skipParens(tokens, i + 1) : undefined;
+            const wrapsQuery =
+                innerClose !== undefined &&
                 ['SELECT', 'WITH', 'VALUES'].includes(keyword(tokens[i + 2])) &&
-                skipParens(tokens, i + 1) === close - 1;
+                (innerClose === close - 1 || SET_OPERATORS.has(keyword(tokens[innerClose + 1])));
             if (
-                (isIdent(first) || (tokens[i + 1]?.value === '(' && !wrapsOneParen)) &&
+                (isIdent(first) || (tokens[i + 1]?.value === '(' && !wrapsQuery)) &&
                 !['SELECT', 'WITH', 'VALUES', 'TABLE'].includes(keyword(first))
             ) {
                 joinGroups.add(i);

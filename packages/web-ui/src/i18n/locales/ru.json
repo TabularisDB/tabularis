@@ -3519,6 +3519,7 @@
     "fkIncoming": "На него ссылается {{object}}.{{column}}",
     "viewTitle": "Представление {{view}}",
     "historyTitle": "Запрос выполнен {{date}}",
+    "failedRun": "Неудачный запуск",
     "matchCount": "Ссылок в этом SQL: {{count}}",
     "open": "Открыть",
     "openHistory": "Открыть в редакторе",

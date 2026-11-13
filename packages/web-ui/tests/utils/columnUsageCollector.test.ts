@@ -5,6 +5,7 @@ import {
     failPendingSources,
     formatColumnUsageSummary,
     formatUsageTarget,
+    isFailedRun,
     isUsageComplete,
     sortEvidence,
     type ColumnUsageLookups,
@@ -556,6 +557,39 @@ describe('columnUsageCollector', () => {
             expect(h1?.snippet?.text).toBe("SELECT customer_id FROM orders WHERE email = '?'");
         });
 
+        it('keeps whether a history run failed, and its error, on the evidence', async () => {
+            const failed: QueryHistoryEntry = {
+                ...history(
+                    'f1',
+                    'SELECT o.customer_id FROM public.orders o',
+                    '2026-11-08T10:00:00Z',
+                ),
+                status: 'error',
+                error: 'column o.customer_id does not exist',
+            };
+            const ok = history(
+                's1',
+                'SELECT o.customer_id FROM public.orders o',
+                '2026-11-09T10:00:00Z',
+            );
+            const result = await collectColumnUsage(
+                lookups({getHistory: async () => [failed, ok]}),
+                {target, dialect: 'postgres', viewsSupported: true},
+            );
+            const byId = (id: string) => result.evidence.find((e) => e.historyEntry?.id === id)!;
+            expect(byId('f1').historyEntry).toMatchObject({
+                status: 'error',
+                error: 'column o.customer_id does not exist',
+            });
+            expect(byId('f1').confidence).toBe('parsed');
+            expect(isFailedRun(byId('f1'))).toBe(true);
+            expect(byId('s1').historyEntry).toMatchObject({status: 'success', error: null});
+            expect(isFailedRun(byId('s1'))).toBe(false);
+            expect(result.evidence.filter((e) => e.source !== 'history').some(isFailedRun)).toBe(
+                false,
+            );
+        });
+
         it('reports views as unsupported when the driver has no views', async () => {
             const getViews = vi.fn();
             const result = await collectColumnUsage(lookups({getViews}), {
@@ -812,6 +846,33 @@ describe('columnUsageCollector', () => {
             );
             expect(mysqlResult.evidence.some((e) => e.historyEntry?.id === 'm1')).toBe(true);
             expect(mysqlText).not.toMatch(/4111|card/);
+        });
+
+        it('marks failed runs without copying their error text', async () => {
+            const failed: QueryHistoryEntry = {
+                ...history(
+                    'f1',
+                    'SELECT o.customer_id FROM public.orders o',
+                    '2026-11-08T10:00:00Z',
+                ),
+                status: 'error',
+                error: 'duplicate key value (email)=(a@b.com)',
+            };
+            const ok = history(
+                's1',
+                'SELECT o.customer_id FROM public.orders o',
+                '2026-11-09T10:00:00Z',
+            );
+            const result = await collectColumnUsage(
+                lookups({getHistory: async () => [failed, ok]}),
+                {target, dialect: 'postgres', viewsSupported: true},
+            );
+            const lines = formatColumnUsageSummary(target, result, t).split('\n');
+            const runLine = (date: string) =>
+                lines.find((line) => line.includes(`columnUsage.historyTitle{"date":"${date}"}`));
+            expect(runLine('2026-11-08T10:00:00Z')).toContain('(columnUsage.failedRun)');
+            expect(runLine('2026-11-09T10:00:00Z')).not.toContain('columnUsage.failedRun');
+            expect(lines.join('\n')).not.toMatch(/duplicate|a@b\.com/);
         });
 
         it('says when nothing was found and the search was incomplete', () => {

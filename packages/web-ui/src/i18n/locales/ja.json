@@ -3502,6 +3502,7 @@
     "fkIncoming": "{{object}}.{{column}} から参照",
     "viewTitle": "ビュー {{view}}",
     "historyTitle": "{{date}} に実行したクエリ",
+    "failedRun": "失敗した実行",
     "matchCount": "この SQL 内の参照数: {{count}}",
     "open": "開く",
     "openHistory": "エディターで開く",
