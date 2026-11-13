@@ -168,12 +168,31 @@ function parseMarkdown(text: string): string[][] {
         .split('\n')
         .filter((l) => l.trim().startsWith('|'))
         .filter((l) => !l.match(/^\s*\|[\s\-:|]+\|\s*$/))
-        .map((l) =>
-            l
-                .split('|')
-                .slice(1, -1)
-                .map((c) => c.trim()),
-        );
+        .map(splitMarkdownRow);
+}
+
+/**
+ * Splits a Markdown table row into trimmed cells the way GFM does: a backslash
+ * escapes the next character, so `\|` is a pipe inside the cell (Copy as Markdown
+ * writes `a|b` as `a\|b`) and only an unescaped `|` separates cells.
+ */
+function splitMarkdownRow(line: string): string[] {
+    const pieces: string[] = [];
+    let cell = '';
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '\\' && i + 1 < line.length) {
+            cell += line[i + 1] === '|' ? '|' : ch + line[i + 1];
+            i++;
+        } else if (ch === '|') {
+            pieces.push(cell);
+            cell = '';
+        } else {
+            cell += ch;
+        }
+    }
+    pieces.push(cell);
+    return pieces.slice(1, -1).map((c) => c.trim());
 }
 
 function sanitizeColumnName(name: string, index: number): string {

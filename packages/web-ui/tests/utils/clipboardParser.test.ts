@@ -1,4 +1,5 @@
 import {describe, it, expect} from 'vitest';
+import {rowsToMarkdown} from '@/utils/clipboard';
 import {parseClipboardText, reParseWithHeaderOption} from '@/utils/clipboardParser';
 
 describe('detectFormat', () => {
@@ -121,6 +122,27 @@ describe('Markdown table parsing', () => {
         expect(result.headers).toEqual(['id', 'name', 'city']);
         expect(result.rows).toHaveLength(2);
         expect(result.rows[0]).toEqual(['1', 'Alice', 'Rome']);
+    });
+
+    it('keeps an escaped pipe inside its cell, as Copy as Markdown writes it', () => {
+        const md = rowsToMarkdown(
+            [
+                ['a|b', 'x'],
+                ['|', 'y'],
+            ],
+            ['col1', 'col2'],
+        );
+        const result = parseClipboardText(md);
+        expect(result.headers).toEqual(['col1', 'col2']);
+        expect(result.rows).toEqual([
+            ['a|b', 'x'],
+            ['|', 'y'],
+        ]);
+    });
+
+    it('splits at a pipe that follows an escaped backslash', () => {
+        const result = parseClipboardText('| a | b |\n|---|---|\n| x\\\\| y |');
+        expect(result.rows).toEqual([['x\\\\', 'y']]);
     });
 });
 
