@@ -385,6 +385,7 @@
     "noQueryHistory": "Walang kasaysayan ng query",
     "noHistorySearchResults": "Walang query na tumugma sa iyong paghahanap",
     "searchHistory": "Maghanap sa kasaysayan...",
+    "historySearchErrors": "Isama ang mga mensahe ng error",
     "historyOutcomeFilter": "I-filter ayon sa resulta",
     "historyOutcomeAny": "Anumang resulta",
     "historyOutcomeSucceeded": "Matagumpay",
@@ -668,6 +669,12 @@
       "add": "Bagong Snippet",
       "exportJson": "I-export ang JSON",
       "exportFailed": "Hindi na-export ang mga snippet: {{error}}",
+      "duplicate": "I-duplicate",
+      "search": "Maghanap ng mga snippet",
+      "filterScope": "I-filter ayon sa saklaw",
+      "allScopes": "Lahat ng saklaw",
+      "genericScope": "Pangkalahatan (lahat ng dialect)",
+      "noMatches": "Walang tumutugmang snippet.",
       "createTitle": "Gumawa ng Snippet",
       "editTitle": "I-edit ang Snippet",
       "nameLabel": "Pangalan ng Snippet",
@@ -837,6 +844,11 @@
     "appearance_editorWordWrapDesc": "I-wrap ang mahahabang linya sa editor sa halip na mag-scroll nang pahiga.",
     "appearance_editorMinimap": "Ipakita ang Minimap",
     "appearance_editorMinimapDesc": "Magpakita ng maliit na pangkalahatang-ideya ng mga SQL script para sa mabilis na pag-navigate.",
+    "appearance_editorRenderWhitespace": "Ipakita ang mga space at tab",
+    "appearance_editorRenderWhitespaceDesc": "Ipakita ang karaniwang whitespace nang hindi binabago ang SQL text.",
+    "appearance_whitespaceNone": "Wala",
+    "appearance_whitespaceSelection": "Napili",
+    "appearance_whitespaceAll": "Lahat",
     "appearance_editorHighlightInvisibleCharacters": "Ipakita ang mga nakatagong character",
     "appearance_editorHighlightInvisibleCharactersDesc": "Markahan ang mga nakatagong Unicode at magkahawig na character sa SQL.",
     "appearance_editorShowLineNumbers": "Ipakita ang mga Line Number",
@@ -965,7 +977,24 @@
       "customOpenaiModelDesc": "Ilagay ang pangalan ng model na ibinibigay ng iyong OpenAI-compatible service.",
       "customOpenaiModelHelp": "Ilagay ang eksaktong pangalan ng model para sa iyong OpenAI-compatible provider.",
       "promptResetSuccess": "Na-reset ang prompt sa default",
-      "apiKeySaved": "Matagumpay na na-save ang API key"
+      "apiKeySaved": "Matagumpay na na-save ang API key",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Subukan muli ang pag-setup",
+      "pluginMigration": "Ibinabalik ang mga setting ng iyong AI provider: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Mag-install o mag-alis ng mga external AI provider nang hindi umaalis sa mga setting na ito.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "Alisin ang {{provider}}",
+      "removingProvider": "Inaalis ang provider…",
+      "noExternalProviders": "Walang available na external provider.",
+      "activeProviderRemoved": "Inalis ang aktibong provider. Na-disable ang AI. I-enable ang AI at pumili ng ibang provider para magpatuloy."
     },
     "updates": "Mga Update",
     "openSourceLibraries": "Mga Open Source Library",
@@ -1156,7 +1185,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Mga Keyboard Shortcut",
@@ -1653,6 +1684,7 @@
       "chooseColumns": "Pumili ng mga column…",
       "title": "Mga column",
       "shown": "{{visible}} sa {{total}} ang nakikita",
+      "showOnlyMatching": "Ipakita lang ang tumutugma",
       "showAll": "Ipakita lahat",
       "lastVisible": "May isang column na laging nakikita",
       "hiddenCount_one": "{{count}} nakatago",
@@ -1967,10 +1999,11 @@
     "transactionOpenHint": "Bukas ang transaction — hawak ng tab na ito ang koneksyon nito hanggang sa COMMIT o ROLLBACK",
     "exporting": "Nag-e-export...",
     "rowsProcessed": "Mga Row na Naproseso",
+    "exportScope": "Mga row na ie-export",
+    "exportScopeAll": "Lahat ng row",
+    "exportScopeLoaded": "Kasalukuyang resulta",
     "exportLoadedRowsWarning": "{{loaded}} lang na na-load na row ang na-export mula sa kabuuang {{total}} row. Mag-page sa resulta o magpatakbo ng mas makitid na query bago mag-export kung kailangan mo ng mas maraming row.",
     "exportLoadedRowsWarningUnknownTotal": "{{loaded}} lang na na-load na row ang na-export. Mas marami ang row ng resulta kaysa sa na-load. Mag-page sa resulta o magpatakbo ng mas makitid na query bago mag-export kung kailangan mo ng mas maraming row.",
-    "exportLoadedHtml": "I-export ang mga na-load na row bilang HTML…",
-    "exportLoadedNdjson": "I-export ang mga na-load na row bilang NDJSON…",
     "queryParameters": "Mga Parameter ng Query",
     "formatSql": "I-format ang SQL",
     "selectCurrentStatement": "Piliin ang kasalukuyang statement",
@@ -2177,6 +2210,10 @@
       "runAllTooltip": "I-execute ang lahat ng SQL cell mula taas hanggang baba",
       "runCell": "Patakbuhin ang Cell",
       "deleteCell": "Burahin ang Cell",
+      "copySource": "Kopyahin ang source",
+      "copiedSource": "Nakopya ang source sa clipboard",
+      "copySourceFailed": "Hindi makopya ang source ng cell sa clipboard.",
+      "duplicateCellToEnd": "I-duplicate sa dulo",
       "moveCellUp": "Ilipat Pataas",
       "moveCellDown": "Ilipat Pababa",
       "export": "I-export ang Notebook",
@@ -2689,7 +2726,8 @@
     "sideBySide": "Magkatabi"
   },
   "textViewer": {
-    "save": "I-save"
+    "save": "I-save",
+    "wrapLines": "I-wrap ang mga linya"
   },
   "rowEditor": {
     "title": "I-edit ang Row",

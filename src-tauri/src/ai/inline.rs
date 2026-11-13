@@ -167,8 +167,7 @@ pub async fn complete(
     let (_guard, registration) =
         REQUESTS.register(key(runtime, owner, request.request_id.clone())?)?;
     let generate = async {
-        let port = app_config.ai_ollama_port.unwrap_or(11434);
-        let model = resolve_model(&request.provider, &request.model, &app_config, port).await?;
+        let model = resolve_model(runtime, cache, &request.provider, &request.model).await?;
         let generate = AiGenerateRequest {
             provider: request.provider,
             model,
@@ -176,8 +175,7 @@ pub async fn complete(
             schema: String::new(),
         };
         // shortcut: output tokens use shared provider defaults until the dispatcher exposes a budget.
-        let response =
-            dispatch_provider(runtime, cache, &app_config, &generate, SYSTEM_PROMPT, port).await?;
+        let response = dispatch_provider(runtime, cache, &generate, SYSTEM_PROMPT).await?;
         completion(&response)
     };
     tokio::time::timeout(

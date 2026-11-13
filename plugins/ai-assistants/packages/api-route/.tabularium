@@ -1,0 +1,55 @@
+{
+  "id": "api-route",
+  "name": "API Route",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "API Route assistant for Tabularis.",
+  "settings": [],
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "api_key_env": "API_ROUTE_API_KEY",
+    "default_models": [],
+    "require_explicit_model": true,
+    "generate": {
+      "requests": [
+        {
+          "url": "https://global.api-route.com/v1",
+          "append_path": "/chat/completions",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0
+          }
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://global.api-route.com/v1",
+            "append_path": "/models"
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        }
+      ],
+      "cache_seconds": 0
+    }
+  },
+  "license": "Apache-2.0",
+  "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzI1NjNlYiIvPjxnIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0iTTE2IDEydjhNOCAyMGgxNiIvPjxyZWN0IHg9IjEyIiB5PSI1IiB3aWR0aD0iOCIgaGVpZ2h0PSI3IiByeD0iMSIvPjxyZWN0IHg9IjQiIHk9IjIwIiB3aWR0aD0iOCIgaGVpZ2h0PSI3IiByeD0iMSIvPjxyZWN0IHg9IjIwIiB5PSIyMCIgd2lkdGg9IjgiIGhlaWdodD0iNyIgcng9IjEiLz48L2c+PC9zdmc+"
+}

@@ -5,6 +5,38 @@ use crate::runtime::secrets::KeyringRuntimeSecrets;
 use std::sync::Arc;
 
 #[test]
+fn editor_whitespace_survives_partial_updates_and_config_reload() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = runtime(temp.path());
+    save_config(&runtime, AppConfig::default()).unwrap();
+    assert!(load_config(&runtime).editor_render_whitespace.is_none());
+
+    for mode in ["none", "selection", "all"] {
+        save_config(
+            &runtime,
+            AppConfig {
+                editor_render_whitespace: Some(mode.to_string()),
+                editor_highlight_invisible_characters: Some(false),
+                ..AppConfig::default()
+            },
+        )
+        .unwrap();
+        save_config(
+            &runtime,
+            AppConfig {
+                font_size: Some(16),
+                ..AppConfig::default()
+            },
+        )
+        .unwrap();
+        let reloaded = load_config(&runtime);
+        assert_eq!(reloaded.editor_render_whitespace.as_deref(), Some(mode));
+        assert_eq!(reloaded.editor_highlight_invisible_characters, Some(false));
+        assert_eq!(reloaded.font_size, Some(16));
+    }
+}
+
+#[test]
 fn editor_minimap_survives_partial_updates_and_config_reload() {
     let temp = tempfile::tempdir().unwrap();
     let runtime = runtime(temp.path());

@@ -19,6 +19,22 @@ export interface SqlSnippetsStorage {
     snippets: SqlSnippet[];
 }
 
+/** Filters only the management list; stored snippets and completion rules stay unchanged. */
+export function filterSqlSnippets(
+    snippets: readonly SqlSnippet[],
+    query: string,
+    scope: string,
+): SqlSnippet[] {
+    const needle = query.trim().toLocaleLowerCase();
+    return snippets.filter(
+        (snippet) =>
+            (scope === '' || (snippet.dialect ?? 'all') === scope) &&
+            [snippet.name, snippet.prefix, snippet.description ?? ''].some((value) =>
+                value.toLocaleLowerCase().includes(needle),
+            ),
+    );
+}
+
 export const SQL_SNIPPETS_STORAGE_KEY = 'tabularis.sql_snippets.v1';
 export const CURRENT_STORAGE_VERSION = 1;
 
@@ -103,6 +119,52 @@ export function validateSnippetPrefix(prefix: string): {valid: boolean; reason?:
         };
     }
     return {valid: true};
+}
+
+function dialectScope(dialect: SqlDialectScope | undefined): SqlDialectScope {
+    return dialect || 'all';
+}
+
+/** True when `prefix` collides with another snippet in an overlapping dialect scope. */
+export function snippetPrefixConflicts(
+    snippets: readonly SqlSnippet[],
+    prefix: string,
+    dialect: SqlDialectScope | undefined,
+    excludeId?: string,
+): boolean {
+    const normalized = prefix.toLowerCase();
+    const scope = dialectScope(dialect);
+    return snippets.some((snippet) => {
+        const existingScope = dialectScope(snippet.dialect);
+        return (
+            snippet.id !== excludeId &&
+            snippet.prefix.toLowerCase() === normalized &&
+            (existingScope === scope || existingScope === 'all' || scope === 'all')
+        );
+    });
+}
+
+/** Unused display name for a duplicated snippet: "X (copy)", then "X (copy 2)". */
+export function getSnippetCopyName(name: string, snippets: readonly SqlSnippet[]): string {
+    const existing = new Set(snippets.map((snippet) => snippet.name));
+    const first = `${name} (copy)`;
+    if (!existing.has(first)) return first;
+    let number = 2;
+    while (existing.has(`${name} (copy ${number})`)) number++;
+    return `${name} (copy ${number})`;
+}
+
+/** Unused trigger prefix for a duplicated snippet: `prefix_copy`, then `prefix_copy_2`. */
+export function getSnippetCopyPrefix(
+    prefix: string,
+    dialect: SqlDialectScope | undefined,
+    snippets: readonly SqlSnippet[],
+): string {
+    const base = `${prefix}_copy`;
+    if (!snippetPrefixConflicts(snippets, base, dialect)) return base;
+    let number = 2;
+    while (snippetPrefixConflicts(snippets, `${prefix}_copy_${number}`, dialect)) number++;
+    return `${prefix}_copy_${number}`;
 }
 
 /**

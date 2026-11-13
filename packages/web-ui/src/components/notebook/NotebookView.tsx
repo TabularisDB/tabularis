@@ -13,6 +13,7 @@ import type {
 import {
     updateCellInCells,
     addCellToCells,
+    duplicateCellToEnd,
     removeCellFromCells,
     clearCellOutputs,
     hasCellOutputs,
@@ -297,19 +298,27 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         requestAnimationFrame(() => tryFocus(0));
     }, []);
 
-    const addCell = useCallback(
-        (type: NotebookCellType, afterIndex?: number): string => {
-            const newCells = addCellToCells(cellsRef.current, type, afterIndex);
-            const insertAt = afterIndex !== undefined ? afterIndex + 1 : newCells.length - 1;
-            const newCellId = newCells[insertAt].id;
+    /** Commit cells that contain the new cell `newCellId`, then scroll to and focus it. */
+    const insertCells = useCallback(
+        (newCells: NotebookCell[], newCellId: string) => {
             flushSync(() => updateNotebook(newCells));
             cellRefsMap.current
                 .get(newCellId)
                 ?.scrollIntoView({behavior: 'smooth', block: 'start'});
             focusCell(newCellId);
-            return newCellId;
         },
         [updateNotebook, focusCell],
+    );
+
+    const addCell = useCallback(
+        (type: NotebookCellType, afterIndex?: number): string => {
+            const newCells = addCellToCells(cellsRef.current, type, afterIndex);
+            const insertAt = afterIndex !== undefined ? afterIndex + 1 : newCells.length - 1;
+            const newCellId = newCells[insertAt].id;
+            insertCells(newCells, newCellId);
+            return newCellId;
+        },
+        [insertCells],
     );
 
     const deleteCell = useCallback(
@@ -790,6 +799,17 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const isExecuting = isRunningAll || cells.some((c) => c.isLoading);
     const canClearOutputs = !isExecuting && hasCellOutputs(cells);
 
+    // Append a document-only copy of a cell; never while anything is executing.
+    const duplicateCell = useCallback(
+        (cellId: string) => {
+            if (isExecuting) return;
+            const newCells = duplicateCellToEnd(cellsRef.current, cellId);
+            if (newCells === cellsRef.current) return;
+            insertCells(newCells, newCells[newCells.length - 1].id);
+        },
+        [isExecuting, insertCells],
+    );
+
     const clearOutputs = useCallback(() => {
         setIsClearOutputsConfirmOpen(false);
         if (isExecuting) return;
@@ -955,6 +975,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                                     );
                             }}
                             onRun={() => runCell(cell.id)}
+                            onDuplicate={() => duplicateCell(cell.id)}
+                            canDuplicate={!isExecuting}
                             connectionId={connectionId}
                             explainQuery={
                                 cell.type === 'sql' && cell.isQueryPlanVisible

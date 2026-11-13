@@ -549,7 +549,7 @@ export interface TableImportResult {
 export interface QueryExportRequest extends ConnectionIdRequest {
     sessionId?: string;
     query: string;
-    format: 'csv' | 'json' | 'markdown';
+    format: 'csv' | 'json' | 'ndjson' | 'markdown' | 'html';
     csvDelimiter?: string;
     database?: string;
     /** Desktop-only save path. Browser requests omit this and receive a download. */
@@ -1181,6 +1181,12 @@ export interface CommandMap {
     delete_ai_key: CommandDefinition<{provider: string}, void, 'sensitive'>;
     check_ai_key: CommandDefinition<{provider: string}, boolean, 'sensitive'>;
     check_ai_key_status: CommandDefinition<{provider: string}, AiKeyStatus, 'sensitive'>;
+    get_ai_providers: CommandDefinition<
+        undefined,
+        import('@/types/ai').AiProviderCatalog,
+        'sensitive'
+    >;
+    migrate_ai_providers: CommandDefinition<undefined, void, 'local-admin'>;
     get_ai_models: CommandDefinition<
         {forceRefresh?: boolean} | undefined,
         AiProviderModels,

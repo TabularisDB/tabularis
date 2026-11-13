@@ -385,6 +385,7 @@
     "noQueryHistory": "История запросов пуста",
     "noHistorySearchResults": "Запросы не найдены",
     "searchHistory": "Поиск в истории...",
+    "historySearchErrors": "Искать в сообщениях об ошибках",
     "historyOutcomeFilter": "Фильтр по результату",
     "historyOutcomeAny": "Любой результат",
     "historyOutcomeSucceeded": "Успешные",
@@ -645,6 +646,12 @@
       "add": "Новый сниппет",
       "exportJson": "Экспорт JSON",
       "exportFailed": "Не удалось экспортировать сниппеты: {{error}}",
+      "duplicate": "Дублировать",
+      "search": "Поиск сниппетов",
+      "filterScope": "Фильтр по области",
+      "allScopes": "Все области",
+      "genericScope": "Общие (все диалекты)",
+      "noMatches": "Подходящих сниппетов нет.",
       "createTitle": "Создать сниппет",
       "editTitle": "Редактировать сниппет",
       "nameLabel": "Название сниппета",
@@ -802,6 +809,11 @@
     "appearance_editorWordWrapDesc": "Переносить длинные строки в редакторе вместо горизонтальной прокрутки.",
     "appearance_editorMinimap": "Показывать мини-карту",
     "appearance_editorMinimapDesc": "Показывает уменьшенный обзор SQL-скриптов для быстрой навигации.",
+    "appearance_editorRenderWhitespace": "Показывать пробелы и табуляцию",
+    "appearance_editorRenderWhitespaceDesc": "Показывать обычные пробелы и табуляцию без изменения текста SQL.",
+    "appearance_whitespaceNone": "Нет",
+    "appearance_whitespaceSelection": "Выделение",
+    "appearance_whitespaceAll": "Все",
     "appearance_editorHighlightInvisibleCharacters": "Показывать невидимые символы",
     "appearance_editorHighlightInvisibleCharactersDesc": "Выделять скрытые символы Unicode и похожие символы в SQL.",
     "appearance_editorShowLineNumbers": "Показывать номера строк",
@@ -927,7 +939,24 @@
       "customOpenaiModelDesc": "Введите название модели, предоставляемой OpenAI-совместимым сервисом.",
       "customOpenaiModelHelp": "Укажите точное название модели вашего OpenAI-совместимого провайдера.",
       "promptResetSuccess": "Промпт сброшен к значению по умолчанию",
-      "apiKeySaved": "API-ключ надёжно сохранён"
+      "apiKeySaved": "API-ключ надёжно сохранён",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Повторить настройку",
+      "pluginMigration": "Восстановление настроек поставщиков ИИ: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Устанавливайте или удаляйте внешних поставщиков ИИ прямо в этих настройках.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "Удалить {{provider}}",
+      "removingProvider": "Удаление поставщика…",
+      "noExternalProviders": "Нет доступных внешних поставщиков.",
+      "activeProviderRemoved": "Активный поставщик удалён. ИИ отключён. Включите ИИ и выберите другого поставщика, чтобы продолжить."
     },
     "updates": "Обновления",
     "openSourceLibraries": "Библиотеки с открытым исходным кодом",
@@ -1118,7 +1147,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Горячие клавиши",
@@ -1625,6 +1656,7 @@
       "chooseColumns": "Выбрать столбцы…",
       "title": "Столбцы",
       "shown": "Показано {{visible}} из {{total}}",
+      "showOnlyMatching": "Показать только совпадения",
       "showAll": "Показать все",
       "lastVisible": "Хотя бы один столбец остаётся видимым",
       "hiddenCount_one": "Скрыто: {{count}}",
@@ -1950,10 +1982,11 @@
     "transactionOpenHint": "Транзакция открыта — эта вкладка удерживает своё соединение до COMMIT или ROLLBACK",
     "exporting": "Экспорт...",
     "rowsProcessed": "Обработано строк",
+    "exportScope": "Строки для экспорта",
+    "exportScopeAll": "Все строки",
+    "exportScopeLoaded": "Текущие результаты",
     "exportLoadedRowsWarning": "Экспортированы только {{loaded}} загруженных строк из {{total}} строк. Если нужны дополнительные строки, пролистайте результат или выполните более узкий запрос перед экспортом.",
     "exportLoadedRowsWarningUnknownTotal": "Экспортированы только {{loaded}} загруженных строк. В результате строк больше, чем загружено. Если нужны дополнительные строки, пролистайте результат или выполните более узкий запрос перед экспортом.",
-    "exportLoadedHtml": "Экспортировать загруженные строки как HTML…",
-    "exportLoadedNdjson": "Экспортировать загруженные строки как NDJSON…",
     "queryParameters": "Параметры запроса",
     "formatSql": "Форматировать SQL",
     "selectCurrentStatement": "Выбрать текущий оператор",
@@ -2160,6 +2193,10 @@
       "runAllTooltip": "Выполнить все SQL-ячейки сверху вниз",
       "runCell": "Запустить ячейку",
       "deleteCell": "Удалить ячейку",
+      "copySource": "Копировать исходный код",
+      "copiedSource": "Исходный код скопирован в буфер обмена",
+      "copySourceFailed": "Не удалось скопировать исходный код ячейки в буфер обмена.",
+      "duplicateCellToEnd": "Дублировать в конец",
       "moveCellUp": "Переместить вверх",
       "moveCellDown": "Переместить вниз",
       "export": "Экспортировать ноутбук",
@@ -2682,7 +2719,8 @@
     "sideBySide": "Рядом"
   },
   "textViewer": {
-    "save": "Сохранить"
+    "save": "Сохранить",
+    "wrapLines": "Перенос строк"
   },
   "rowEditor": {
     "title": "Изменить строку",

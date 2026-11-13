@@ -19,7 +19,8 @@ export type AiProvider =
     | 'api-route'
     | 'ollama'
     | 'custom-openai'
-    | 'minimax';
+    | 'minimax'
+    | (string & {});
 export type ERDiagramLayout = 'LR' | 'TB';
 export type WindowDecorationsMode = 'automatic' | 'alwaysShow' | 'alwaysHide';
 
@@ -113,6 +114,8 @@ export interface Settings {
     editorTabSize?: number;
     editorWordWrap?: boolean;
     editorMinimap?: boolean;
+    /** Render ordinary spaces and tabs. Default: selection. */
+    editorRenderWhitespace?: 'none' | 'selection' | 'all';
     /** Highlight invisible Unicode and look-alike characters in SQL. Default: true. */
     editorHighlightInvisibleCharacters?: boolean;
     editorShowLineNumbers?: boolean;
@@ -271,6 +274,7 @@ export const DEFAULT_SETTINGS: Settings = {
     editorWordWrap: true,
     editorMinimap: false,
     editorHighlightInvisibleCharacters: true,
+    editorRenderWhitespace: 'selection',
     editorShowLineNumbers: true,
     editorAcceptSuggestionOnEnter: true,
     runStatementUnderCursor: true,

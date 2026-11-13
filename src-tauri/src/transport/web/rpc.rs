@@ -234,6 +234,8 @@ enum PluginRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum AiRpcCommand {
+    GetProviders,
+    MigrateProviders,
     SetKey,
     DeleteKey,
     CheckKey,
@@ -2112,7 +2114,9 @@ impl RpcCommand {
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Ai(command) => CommandMetadata {
-                authorization: if command == AiRpcCommand::GetSchemaContext {
+                authorization: if command == AiRpcCommand::MigrateProviders {
+                    AuthorizationLevel::LocalAdmin
+                } else if command == AiRpcCommand::GetSchemaContext {
                     AuthorizationLevel::Database
                 } else {
                     AuthorizationLevel::Sensitive
@@ -2276,6 +2280,8 @@ impl PluginRpcCommand {
 impl AiRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "get_ai_providers" => Self::GetProviders,
+            "migrate_ai_providers" => Self::MigrateProviders,
             "set_ai_key" => Self::SetKey,
             "delete_ai_key" => Self::DeleteKey,
             "check_ai_key" => Self::CheckKey,
@@ -2653,6 +2659,14 @@ impl ConnectionRpcCommand {
 
 fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, String> {
     Ok(match command {
+        AiRpcCommand::GetProviders => {
+            decode_payload::<Option<Value>>(body)?;
+            AiCommand::GetProviders
+        }
+        AiRpcCommand::MigrateProviders => {
+            decode_payload::<Option<Value>>(body)?;
+            AiCommand::MigrateProviders
+        }
         AiRpcCommand::SetKey => {
             let request: SetAiKeyRequest = decode_payload(body)?;
             AiCommand::SetKey {

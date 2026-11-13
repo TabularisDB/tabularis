@@ -32,6 +32,13 @@ export interface ForeignKey {
     column_name: string;
     ref_table: string;
     ref_column: string;
+    /**
+     * Schema of the referenced table, reported by drivers with schemas
+     * (PostgreSQL). It can differ from the source table's schema, so resolve
+     * it with `getReferencedSchema` instead of reusing the source schema.
+     * Absent means "same schema as the source table".
+     */
+    ref_schema?: string | null;
     on_delete?: string | null;
     on_update?: string | null;
     /**

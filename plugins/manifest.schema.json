@@ -135,6 +135,11 @@
           "items": { "type": "string" },
           "description": "Additional URI schemes handled by this driver, such as jdbc."
         },
+        "socks5_proxy": {
+          "type": "boolean",
+          "default": false,
+          "description": "true when the driver sends its connections through the SOCKS5 proxy in socks5_proxy_host/socks5_proxy_port (with socks5_proxy_username/socks5_proxy_password when set). With SSH enabled, the host opens a dynamic forward (ssh -D) and leaves host, port and connection_uri unchanged instead of rewriting them to a fixed forward. Defaults to false."
+        },
         "connectionString": {
           "type": "boolean",
           "default": true,

@@ -1,0 +1,86 @@
+{
+  "id": "minimax",
+  "name": "MiniMax",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "MiniMax AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "MiniMax-M3",
+      "MiniMax-M2.7",
+      "MiniMax-M2.7-highspeed"
+    ],
+    "api_key_env": "MINIMAX_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://api.minimax.io/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.1
+          },
+          "append_path": "/chat/completions"
+        },
+        {
+          "url": "https://api.minimaxi.com/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.1
+          },
+          "append_path": "/chat/completions"
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://api.minimax.io/v1",
+            "append_path": "/models"
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        },
+        {
+          "request": {
+            "url": "https://api.minimaxi.com/v1",
+            "append_path": "/models"
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        }
+      ],
+      "cache_seconds": 0,
+      "fallback": true
+    },
+    "auto_select_priority": 40
+  },
+  "settings": [],
+  "license": "Apache-2.0",
+  "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJtaW5pbWF4IiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iI2Y1MmM2YiIgLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiNmZjcwNDUiIC8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0idXJsKCNtaW5pbWF4KSIgLz48c3ZnIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzE4MWUyNSIgeD0iNCIgeT0iNCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0Ij48cGF0aCBkPSJNMTYuMjc4IDJjMS4xNTYgMCAyLjA5My45MjcgMi4wOTMgMi4wN3YxMi41MDFhLjc0Ljc0IDAgMDAuNzQ0LjcwOS43NC43NCAwIDAwLjc0My0uNzA5VjkuMDk5YTIuMDYgMi4wNiAwIDAxMi4wNzEtMi4wNDlBMi4wNiAyLjA2IDAgMDEyNCA5LjF2Ni41NjFhLjY0OS42NDkgMCAwMS0uNjUyLjY0NS42NDkuNjQ5IDAgMDEtLjY1My0uNjQ1VjkuMWEuNzYyLjc2MiAwIDAwLS43NjYtLjc1OC43NjIuNzYyIDAgMDAtLjc2Ni43NTh2Ny40NzJhMi4wMzcgMi4wMzcgMCAwMS0yLjA0OCAyLjAyNiAyLjAzNyAyLjAzNyAwIDAxLTIuMDQ4LTIuMDI2di0xMi41YS43ODUuNzg1IDAgMDAtLjc4OC0uNzUzLjc4NS43ODUgMCAwMC0uNzg5Ljc1MmwtLjAwMSAxNS45MDRBMi4wMzcgMi4wMzcgMCAwMTEzLjQ0MSAyMmEyLjAzNyAyLjAzNyAwIDAxLTIuMDQ4LTIuMDI2VjE4LjA0YzAtLjM1Ni4yOTItLjY0NS42NTItLjY0NS4zNiAwIC42NTIuMjg5LjY1Mi42NDV2MS45MzRjMCAuMjYzLjE0Mi41MDYuMzcyLjYzOC4yMy4xMzEuNTE0LjEzMS43NDQgMGEuNzM0LjczNCAwIDAwLjM3Mi0uNjM4VjQuMDdjMC0xLjE0My45MzctMi4wNyAyLjA5My0yLjA3em0tNS42NzQgMGMxLjE1NiAwIDIuMDkzLjkyNyAyLjA5MyAyLjA3djExLjUyM2EuNjQ4LjY0OCAwIDAxLS42NTIuNjQ1LjY0OC42NDggMCAwMS0uNjUyLS42NDVWNC4wN2EuNzg1Ljc4NSAwIDAwLS43ODktLjc4Ljc4NS43ODUgMCAwMC0uNzg5Ljc4djE0LjAxM2EyLjA2IDIuMDYgMCAwMS0yLjA3IDIuMDQ4IDIuMDYgMi4wNiAwIDAxLTIuMDcxLTIuMDQ4VjkuMWEuNzYyLjc2MiAwIDAwLS43NjYtLjc1OC43NjIuNzYyIDAgMDAtLjc2Ni43NTh2My44YTIuMDYgMi4wNiAwIDAxLTIuMDcxIDIuMDQ5QTIuMDYgMi4wNiAwIDAxMCAxMi45di0xLjM3OGMwLS4zNTcuMjkyLS42NDYuNjUyLS42NDYuMzYgMCAuNjUzLjI5LjY1My42NDZWMTIuOWMwIC40MTguMzQzLjc1Ny43NjYuNzU3cy43NjYtLjMzOS43NjYtLjc1N1Y5LjA5OWEyLjA2IDIuMDYgMCAwMTIuMDctMi4wNDggMi4wNiAyLjA2IDAgMDEyLjA3MSAyLjA0OHY4Ljk4NGMwIC40MTkuMzQzLjc1OC43NjcuNzU4LjQyMyAwIC43NjYtLjMzOS43NjYtLjc1OFY0LjA3YzAtMS4xNDMuOTM3LTIuMDcgMi4wOTMtMi4wN3oiIC8+PC9zdmc+PC9zdmc+Cg=="
+}

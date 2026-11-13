@@ -355,6 +355,7 @@
     "noQueryHistory": "쿼리 기록이 없습니다",
     "noHistorySearchResults": "검색과 일치하는 쿼리가 없습니다",
     "searchHistory": "기록 검색...",
+    "historySearchErrors": "오류 메시지 포함",
     "historyOutcomeFilter": "결과로 필터",
     "historyOutcomeAny": "모든 결과",
     "historyOutcomeSucceeded": "성공",
@@ -606,6 +607,12 @@
       "add": "새 스니펫",
       "exportJson": "JSON 내보내기",
       "exportFailed": "스니펫을 내보내지 못했습니다: {{error}}",
+      "duplicate": "복제",
+      "search": "스니펫 검색",
+      "filterScope": "범위별 필터",
+      "allScopes": "모든 범위",
+      "genericScope": "일반 (모든 방언)",
+      "noMatches": "일치하는 스니펫이 없습니다.",
       "createTitle": "스니펫 생성",
       "editTitle": "스니펫 편집",
       "nameLabel": "스니펫 이름",
@@ -775,6 +782,11 @@
     "appearance_editorWordWrapDesc": "에디터에서 가로 스크롤 대신 긴 줄을 자동으로 줄바꿈합니다.",
     "appearance_editorMinimap": "미니맵 표시",
     "appearance_editorMinimapDesc": "빠르게 이동할 수 있도록 SQL 스크립트의 축소 보기를 표시합니다.",
+    "appearance_editorRenderWhitespace": "공백 및 탭 표시",
+    "appearance_editorRenderWhitespaceDesc": "SQL 텍스트를 변경하지 않고 일반 공백 문자를 표시합니다.",
+    "appearance_whitespaceNone": "없음",
+    "appearance_whitespaceSelection": "선택 영역",
+    "appearance_whitespaceAll": "모두",
     "appearance_editorHighlightInvisibleCharacters": "보이지 않는 문자 표시",
     "appearance_editorHighlightInvisibleCharactersDesc": "SQL에서 숨겨진 유니코드 문자와 비슷하게 보이는 문자를 표시합니다.",
     "appearance_editorShowLineNumbers": "줄 번호 표시",
@@ -903,7 +915,24 @@
       "customOpenaiModelDesc": "OpenAI 호환 서비스가 제공하는 모델 이름을 입력하세요.",
       "customOpenaiModelHelp": "사용 중인 OpenAI 호환 제공자의 정확한 모델 이름을 입력하세요.",
       "promptResetSuccess": "프롬프트가 기본값으로 재설정되었습니다",
-      "apiKeySaved": "API 키가 안전하게 저장되었습니다"
+      "apiKeySaved": "API 키가 안전하게 저장되었습니다",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "설정 다시 시도",
+      "pluginMigration": "AI 제공업체 설정을 복원하는 중: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "이 설정에서 외부 AI 제공자를 설치하거나 제거할 수 있습니다.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "{{provider}} 제거",
+      "removingProvider": "제공자 제거 중…",
+      "noExternalProviders": "사용 가능한 외부 제공자가 없습니다.",
+      "activeProviderRemoved": "활성 제공자가 제거되어 AI가 비활성화되었습니다. 계속하려면 AI를 활성화하고 다른 제공자를 선택하세요."
     },
     "updates": "업데이트",
     "openSourceLibraries": "오픈소스 라이브러리",
@@ -1094,7 +1123,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "키보드 단축키",
@@ -1590,6 +1621,7 @@
       "chooseColumns": "표시할 컬럼 선택…",
       "title": "컬럼",
       "shown": "{{total}}개 중 {{visible}}개 표시",
+      "showOnlyMatching": "일치하는 열만 표시",
       "showAll": "모두 표시",
       "lastVisible": "컬럼은 최소 한 개 이상 표시됩니다",
       "hiddenCount_one": "{{count}}개 숨김",
@@ -1904,10 +1936,11 @@
     "transactionOpenHint": "트랜잭션 열림 — 이 탭은 COMMIT 또는 ROLLBACK 할 때까지 연결을 유지합니다",
     "exporting": "내보내는 중...",
     "rowsProcessed": "처리된 행",
+    "exportScope": "내보낼 행",
+    "exportScopeAll": "모든 행",
+    "exportScopeLoaded": "현재 결과",
     "exportLoadedRowsWarning": "총 {{total}}개 행 중 로드된 {{loaded}}개 행만 내보냈습니다. 더 많은 행이 필요하면 결과 페이지를 넘기거나 더 좁은 쿼리를 실행한 뒤 내보내세요.",
     "exportLoadedRowsWarningUnknownTotal": "로드된 {{loaded}}개 행만 내보냈습니다. 결과에는 로드된 행보다 더 많은 행이 있습니다. 더 많은 행이 필요하면 결과 페이지를 넘기거나 더 좁은 쿼리를 실행한 뒤 내보내세요.",
-    "exportLoadedHtml": "로드된 행을 HTML로 내보내기…",
-    "exportLoadedNdjson": "로드된 행을 NDJSON으로 내보내기…",
     "queryParameters": "쿼리 매개변수",
     "formatSql": "SQL 포맷",
     "selectCurrentStatement": "현재 문 선택",
@@ -2114,6 +2147,10 @@
       "runAllTooltip": "모든 SQL 셀을 위에서 아래로 실행",
       "runCell": "셀 실행",
       "deleteCell": "셀 삭제",
+      "copySource": "소스 복사",
+      "copiedSource": "소스를 클립보드에 복사했습니다",
+      "copySourceFailed": "셀 소스를 클립보드에 복사할 수 없습니다.",
+      "duplicateCellToEnd": "끝에 복제",
       "moveCellUp": "위로 이동",
       "moveCellDown": "아래로 이동",
       "export": "노트북 내보내기",
@@ -2626,7 +2663,8 @@
     "sideBySide": "나란히 보기"
   },
   "textViewer": {
-    "save": "저장"
+    "save": "저장",
+    "wrapLines": "줄 바꿈"
   },
   "rowEditor": {
     "title": "행 편집",

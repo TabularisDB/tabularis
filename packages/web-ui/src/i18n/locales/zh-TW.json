@@ -389,6 +389,7 @@
         "noQueryHistory": "暫無查詢歷史",
         "noHistorySearchResults": "沒有符合的查詢",
         "searchHistory": "搜尋歷史...",
+        "historySearchErrors": "包含錯誤訊息",
         "historyOutcomeFilter": "按結果篩選",
         "historyOutcomeAny": "全部結果",
         "historyOutcomeSucceeded": "成功",
@@ -666,6 +667,12 @@
             "add": "新增代碼片段",
             "exportJson": "匯出 JSON",
             "exportFailed": "無法匯出代碼片段：{{error}}",
+            "duplicate": "建立副本",
+            "search": "搜尋代碼片段",
+            "filterScope": "依範圍篩選",
+            "allScopes": "所有範圍",
+            "genericScope": "通用（所有方言）",
+            "noMatches": "找不到相符的代碼片段。",
             "createTitle": "建立代碼片段",
             "editTitle": "編輯代碼片段",
             "nameLabel": "代碼片段名稱",
@@ -841,6 +848,11 @@
         "appearance_editorWordWrapDesc": "在編輯器中將過長的行自動換行，而不是水平捲動。",
         "appearance_editorMinimap": "顯示縮圖",
         "appearance_editorMinimapDesc": "顯示 SQL 指令碼的縮小概覽，方便快速導覽。",
+        "appearance_editorRenderWhitespace": "顯示空格與定位字元",
+        "appearance_editorRenderWhitespaceDesc": "顯示一般空白字元標記，不變更 SQL 文字。",
+        "appearance_whitespaceNone": "無",
+        "appearance_whitespaceSelection": "選取範圍",
+        "appearance_whitespaceAll": "全部",
         "appearance_editorHighlightInvisibleCharacters": "顯示不可見字元",
         "appearance_editorHighlightInvisibleCharactersDesc": "突出顯示 SQL 中隱藏的 Unicode 字元和形似字元。",
         "appearance_editorShowLineNumbers": "顯示行號",
@@ -991,7 +1003,24 @@
             "customOpenaiModelDesc": "輸入您的 OpenAI 相容服務提供的模型名稱。",
             "customOpenaiModelHelp": "輸入您的 OpenAI 相容提供者的確切模型名稱。",
             "promptResetSuccess": "提示詞已重設為預設值",
-            "apiKeySaved": "API 金鑰已安全儲存"
+            "apiKeySaved": "API 金鑰已安全儲存",
+            "manageProviders": "瀏覽 AI 供應商",
+            "retryMigration": "重試還原",
+            "pluginMigration": "正在還原 AI 供應商設定：{{providers}}。",
+            "providerMissing": "尚未安裝 {{provider}}。請從外掛中心安裝，以繼續使用已儲存的設定。",
+            "availableProviders": "可用的供應商",
+            "installProviderHelp": "直接在此設定頁面安裝或移除外部 AI 供應商。",
+            "installAndUse": "安裝並使用",
+            "installAndUseProvider": "安裝並使用 {{provider}}",
+            "installingProvider": "正在安裝供應商…",
+            "providerRegistryOffline": "無法連線至供應商登錄庫。已安裝的供應商仍可使用。",
+            "allProvidersInstalled": "已安裝所有可用的供應商。",
+            "providerRequiresUpdate": "此供應商需要相容的應用程式版本或平台。",
+            "builtinProvider": "內建",
+            "removeProvider": "移除 {{provider}}",
+            "removingProvider": "正在移除供應商…",
+            "noExternalProviders": "沒有可用的外部供應商。",
+            "activeProviderRemoved": "目前使用的供應商已移除。AI 已停用。請啟用 AI 並選擇其他供應商以繼續。"
         },
         "updates": "更新",
         "openSourceLibraries": "開源庫",
@@ -1186,7 +1215,9 @@
                 }
             },
             "poweredBy": "技術支援：",
-            "openHomepage": "開啟主頁"
+            "openHomepage": "開啟主頁",
+            "kindAiAssistant": "AI 助理",
+            "kindAiAssistants": "AI 助理"
         },
         "shortcuts": {
             "title": "鍵盤快速鍵",
@@ -1620,6 +1651,22 @@
         "useShownValue": "使用此值"
     },
     "dataGrid": {
+        "columnVisibility": {
+            "hideColumn": "隱藏欄位",
+            "hideColumns_one": "隱藏 {{count}} 個欄位",
+            "hideColumns_other": "隱藏 {{count}} 個欄位",
+            "showAllColumns": "顯示隱藏的欄位（{{count}}）",
+            "chooseColumns": "選擇欄位…",
+            "title": "欄位",
+            "shown": "已顯示 {{visible}} / {{total}} 個欄位",
+            "showOnlyMatching": "僅顯示相符欄位",
+            "showAll": "顯示全部",
+            "lastVisible": "至少保留一個可見欄位",
+            "hiddenCount_one": "已隱藏 {{count}} 個",
+            "hiddenCount_other": "已隱藏 {{count}} 個",
+            "hiddenLabel_one": "已隱藏 {{count}} 個欄位",
+            "hiddenLabel_other": "已隱藏 {{count}} 個欄位"
+        },
         "jumpToColumn": "跳轉到欄",
         "searchColumns": "搜尋欄",
         "noMatchingColumns": "找不到符合的欄",
@@ -2182,6 +2229,10 @@
             "runAllTooltip": "從上到下執行所有 SQL 儲存格",
             "runCell": "執行儲存格",
             "deleteCell": "刪除儲存格",
+            "copySource": "複製原始碼",
+            "copiedSource": "原始碼已複製到剪貼簿",
+            "copySourceFailed": "無法將儲存格原始碼複製到剪貼簿。",
+            "duplicateCellToEnd": "複製到末尾",
             "moveCellUp": "上移",
             "moveCellDown": "下移",
             "export": "匯出筆記本",
@@ -2651,7 +2702,8 @@
         "sideBySide": "並排"
     },
     "textViewer": {
-        "save": "儲存"
+        "save": "儲存",
+        "wrapLines": "自動換行"
     },
     "rowEditor": {
         "title": "編輯列",

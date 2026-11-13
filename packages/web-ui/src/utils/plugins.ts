@@ -47,7 +47,7 @@ export function versionGte(versionA: string, versionB: string): boolean {
 }
 
 /** Registry kind buckets offered by the Plugin Center's kind filter. */
-export type PluginKind = 'driver' | 'theme';
+export type PluginKind = 'driver' | 'theme' | 'ai-assistant';
 export type PluginKindFilter = 'all' | PluginKind;
 
 /**
@@ -55,7 +55,7 @@ export type PluginKindFilter = 'all' | PluginKind;
  * registry classifies it; an absent kind is the legacy rule for a driver.
  */
 export function pluginKind(plugin: {kind?: string | null}): PluginKind {
-    return plugin.kind === 'theme' ? 'theme' : 'driver';
+    return plugin.kind === 'theme' || plugin.kind === 'ai-assistant' ? plugin.kind : 'driver';
 }
 
 export function matchesPluginKind(
@@ -67,5 +67,5 @@ export function matchesPluginKind(
 
 /** Narrows a URL query value to a kind filter; anything else means "all". */
 export function parsePluginKindFilter(value: string | null): PluginKindFilter {
-    return value === 'driver' || value === 'theme' ? value : 'all';
+    return value === 'driver' || value === 'theme' || value === 'ai-assistant' ? value : 'all';
 }

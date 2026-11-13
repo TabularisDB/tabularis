@@ -294,6 +294,7 @@ pub async fn get_foreign_keys(
             column_name: r.try_get("column_name").unwrap_or_default(),
             ref_table: r.try_get("foreign_table_name").unwrap_or_default(),
             ref_column: r.try_get("foreign_column_name").unwrap_or_default(),
+            ref_schema: r.try_get("foreign_schema_name").ok(),
             on_update: r.try_get("update_rule").ok(),
             on_delete: r.try_get("delete_rule").ok(),
             // WITH ORDINALITY yields the position within conkey/confkey — the
@@ -493,6 +494,7 @@ pub async fn get_all_foreign_keys_batch(
             column_name: row.try_get("column_name").unwrap_or_default(),
             ref_table: row.try_get("foreign_table_name").unwrap_or_default(),
             ref_column: row.try_get("foreign_column_name").unwrap_or_default(),
+            ref_schema: row.try_get("foreign_schema_name").ok(),
             on_update: row.try_get("update_rule").ok(),
             on_delete: row.try_get("delete_rule").ok(),
             seq_in_fk: row
@@ -2331,6 +2333,7 @@ impl PostgresDriver {
                     connection_string_examples: Vec::new(),
                     connection_uri: false,
                     connection_uri_schemes: Vec::new(),
+                    socks5_proxy: false,
                     identifier_quote: "\"".into(),
                     alter_primary_key: true,
                     auto_increment_keyword: String::new(),

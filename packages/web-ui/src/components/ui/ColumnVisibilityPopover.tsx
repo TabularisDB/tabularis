@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import {calculateContextMenuPosition} from '@/utils/contextMenu';
 import {
     filterColumnsByName,
+    getVisibleColumnIndices,
     hideColumns,
     NO_HIDDEN_COLUMNS,
     showColumns,
@@ -18,6 +19,8 @@ const SEARCH_MIN_COLUMNS = 8;
 
 const FOCUS_RING =
     'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+const FOOTER_BUTTON =
+    'px-2.5 py-1 rounded text-xs font-medium border whitespace-nowrap transition-colors bg-accent-primary/15 border-accent-primary/25 text-accent hover:bg-accent-primary/25 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent-primary/15';
 
 export interface ColumnVisibilityPopoverProps {
     /** Id of the dialog, for the trigger's `aria-controls`. */
@@ -120,6 +123,14 @@ export const ColumnVisibilityPopover = ({
     };
 
     const matches = useMemo(() => filterColumnsByName(columns, query), [columns, query]);
+
+    const showOnlyMatching = () => {
+        if (!query.trim() || matches.length === 0) return;
+        const matching = new Set(matches.map(({index}) => index));
+        // matching is the visible set; the helper's hidden argument inverts it.
+        const nonMatching = getVisibleColumnIndices(columns.length, matching);
+        onChange(hideColumns(columns.length, NO_HIDDEN_COLUMNS, nonMatching));
+    };
 
     const toggle = (index: number) => {
         const next = hidden.has(index)
@@ -233,15 +244,22 @@ export const ColumnVisibilityPopover = ({
                     )}
                 </div>
 
-                <div className="flex items-center justify-end px-3 py-2 border-t border-default/60 bg-base/40 rounded-b-lg">
+                <div className="flex flex-wrap items-center justify-end gap-2 px-3 py-2 border-t border-default/60 bg-base/40 rounded-b-lg">
+                    {query.trim() !== '' && (
+                        <button
+                            type="button"
+                            onClick={showOnlyMatching}
+                            disabled={matches.length === 0}
+                            className={clsx(FOOTER_BUTTON, FOCUS_RING)}
+                        >
+                            {t('dataGrid.columnVisibility.showOnlyMatching')}
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => onChange(NO_HIDDEN_COLUMNS)}
                         disabled={hidden.size === 0}
-                        className={clsx(
-                            'px-2.5 py-1 rounded text-xs font-medium border transition-colors bg-accent-primary/15 border-accent-primary/25 text-accent hover:bg-accent-primary/25 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent-primary/15',
-                            FOCUS_RING,
-                        )}
+                        className={clsx(FOOTER_BUTTON, FOCUS_RING)}
                     >
                         {t('dataGrid.columnVisibility.showAll')}
                     </button>

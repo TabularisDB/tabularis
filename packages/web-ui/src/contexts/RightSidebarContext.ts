@@ -13,6 +13,7 @@ export interface RowEditorPanelData {
     columns: Array<{
         name: string;
         type?: string;
+        booleanType?: string;
         characterMaximumLength?: number;
         isGenerated?: boolean;
     }>;
