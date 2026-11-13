@@ -69,11 +69,13 @@ fn editor_minimap_survives_partial_updates_and_config_reload() {
 }
 
 fn runtime(root: &Path) -> RuntimeContext {
+    // Theme storage refuses any path that passes through a symlink, and macOS
+    // keeps temporary files under /var, a symlink to /private/var.
+    let root = root.to_path_buf();
+    #[cfg(unix)]
+    let root = root.canonicalize().unwrap();
     RuntimeContext::new(
-        Arc::new(FixedRuntimePaths::new(
-            root.to_path_buf(),
-            root.to_path_buf(),
-        )),
+        Arc::new(FixedRuntimePaths::new(root.clone(), root)),
         Arc::new(NoopRuntimeEvents),
         Arc::new(KeyringRuntimeSecrets),
     )
