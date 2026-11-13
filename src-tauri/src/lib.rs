@@ -260,6 +260,23 @@ pub fn run() {
         return;
     }
 
+    #[cfg(feature = "native")]
+    if let Some(cli::Command::Native) = &args.command {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+        let application = rt
+            .block_on(runtime::bootstrap::bootstrap_application(
+                runtime::RuntimeContext::new(
+                    std::sync::Arc::new(runtime::paths::FixedRuntimePaths::system()),
+                    std::sync::Arc::new(runtime::events::NoopRuntimeEvents),
+                    std::sync::Arc::new(runtime::secrets::KeyringRuntimeSecrets),
+                ),
+                runtime::bootstrap::BootstrapOptions::default(),
+            ))
+            .expect("Failed to bootstrap Tabularis services");
+        transport::native::run(application.context);
+        return;
+    }
+
     if args.mcp {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(mcp::run_mcp_server());
