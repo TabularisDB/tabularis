@@ -32,6 +32,7 @@ import {
     downloadNotebookSql,
 } from '@/utils/notebookTransfer';
 import {isTypingTarget} from '@/utils/keyboardEvents';
+import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 import {
     getExecutableCells,
     createRunAllResult,
@@ -554,6 +555,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     }, [runCell, stopOnError]);
 
     const handleExport = useCallback(async () => {
+        // Export what the editors show, including a keystroke still held back.
+        flushPendingEditorChanges();
         try {
             const downloaded = await downloadNotebook(platform, tab.title, {
                 cells: cellsRef.current,
@@ -574,6 +577,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     }, [params, platform, showAlert, stopOnError, t, tab.title]);
 
     const handleExportHtml = useCallback(async () => {
+        // Export what the editors show, including a keystroke still held back.
+        flushPendingEditorChanges();
         try {
             const downloaded = await downloadNotebookHtml(platform, tab.title, {
                 cells: cellsRef.current,
@@ -594,6 +599,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     }, [params, platform, showAlert, stopOnError, t, tab.title]);
 
     const handleExportSql = useCallback(async () => {
+        // Export what the editors show, including a keystroke still held back.
+        flushPendingEditorChanges();
         try {
             const outcome = await downloadNotebookSql(platform, tab.title, {
                 cells: cellsRef.current,
@@ -614,6 +621,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     }, [platform, showAlert, t, tab.title]);
 
     const handleExportMarkdown = useCallback(async () => {
+        // Export what the editors show, including a keystroke still held back.
+        flushPendingEditorChanges();
         try {
             const outcome = await downloadNotebookMarkdown(platform, tab.title, {
                 cells: cellsRef.current,

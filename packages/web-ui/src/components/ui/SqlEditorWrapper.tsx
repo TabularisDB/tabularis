@@ -25,6 +25,7 @@ import {formatSql} from '@/utils/sqlFormat';
 import {toSqlList} from '@/utils/editor';
 import {getSqlInvisibleCharacterEdits} from '@/utils/sqlInvisibleCharacters';
 import {isTextCompositionKeyEvent} from '@/utils/keyboardEvents';
+import {registerPendingEditorFlush} from '@/utils/pendingEditorChanges';
 import type {RunContext} from '@/utils/runTarget';
 import {registerSqlFoldingProvider, setSqlFoldingDialect} from '@/utils/sqlFolding';
 import {installSqlFoldPreview} from '@/utils/sqlFoldPreview';
@@ -137,6 +138,8 @@ const SqlEditorInternal = ({
 }: SqlEditorWrapperProps & {editorKey: string}) => {
     const platform = usePlatformCapabilities();
     const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Emits the change the debounce is holding back, if any.
+    const pendingChangeRef = useRef<(() => void) | null>(null);
     const {t} = useTranslation();
     const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
     const monacoRef = useRef<typeof Monaco | null>(null);
@@ -187,6 +190,7 @@ const SqlEditorInternal = ({
             if (updateTimeoutRef.current) {
                 clearTimeout(updateTimeoutRef.current);
             }
+            pendingChangeRef.current = null;
             foldPreviewRef.current?.dispose();
             foldPreviewRef.current = null;
             for (const listener of cursorStatusListenersRef.current) listener.dispose();
@@ -224,6 +228,7 @@ const SqlEditorInternal = ({
                 clearTimeout(updateTimeoutRef.current);
                 updateTimeoutRef.current = null;
             }
+            pendingChangeRef.current = null;
             pendingEchoes.length = 0;
             const position = editor.getPosition();
             const selections = editor.getSelections();
@@ -283,15 +288,32 @@ const SqlEditorInternal = ({
                 clearTimeout(updateTimeoutRef.current);
             }
 
-            updateTimeoutRef.current = setTimeout(() => {
+            const emit = () => {
                 updateTimeoutRef.current = null;
+                pendingChangeRef.current = null;
                 const pendingEchoes = pendingEchoesRef.current;
                 pendingEchoes.push(newValue);
                 if (pendingEchoes.length > MAX_PENDING_ECHOES) pendingEchoes.shift();
                 onChange(newValue);
-            }, 300);
+            };
+            pendingChangeRef.current = emit;
+            updateTimeoutRef.current = setTimeout(emit, 300);
         },
         [onChange],
+    );
+
+    // Lets exports read the text on screen instead of waiting for the debounce.
+    useEffect(
+        () =>
+            registerPendingEditorFlush(() => {
+                const emit = pendingChangeRef.current;
+                if (!emit) return;
+                if (updateTimeoutRef.current) {
+                    clearTimeout(updateTimeoutRef.current);
+                }
+                emit();
+            }),
+        [],
     );
 
     const handleBeforeMount: BeforeMount = (monaco) => {
