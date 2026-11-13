@@ -1009,6 +1009,8 @@
     "connectionHealthCheck": "Verbindungszustandsprüfung",
     "pingInterval": "Ping-Intervall",
     "pingIntervalDesc": "Wie oft geprüft werden soll, ob aktive Verbindungen noch erreichbar sind. Setze 0, um die Prüfung zu deaktivieren.",
+    "autoReconnect": "Automatisch neu verbinden",
+    "autoReconnectDesc": "Wenn eine Verbindung die Integritätsprüfung nicht besteht, wird vor dem Schließen einmal versucht, neu zu verbinden. Unterbrochene Abfragen werden nie erneut ausgeführt, offene Transaktionen werden zurückgesetzt.",
     "seconds": "Sekunden",
     "entries": "Einträge",
     "queryHistory": "Abfrageverlauf",
@@ -2456,7 +2458,10 @@
   },
   "healthCheck": {
     "title": "Verbindung verloren",
-    "connectionLost": "Eine Datenbankverbindung wurde verloren"
+    "connectionLost": "Eine Datenbankverbindung wurde verloren",
+    "reconnecting": "Verbindung verloren. Neu verbinden…",
+    "reconnected": "Verbindung wiederhergestellt.",
+    "reconnectedSessionsReset": "Verbindung wiederhergestellt. Offene Abfragesitzungen wurden zurückgesetzt und nicht festgeschriebene Transaktionen zurückgerollt."
   },
   "erDiagram": {
     "title": "ER-Diagramm",

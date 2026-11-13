@@ -1015,6 +1015,8 @@
     "connectionHealthCheck": "Verificação de Saúde da Conexão",
     "pingInterval": "Intervalo de Ping",
     "pingIntervalDesc": "Com que frequência verificar se as conexões ativas ainda estão vivas. Defina como 0 para desativar.",
+    "autoReconnect": "Reconectar automaticamente",
+    "autoReconnectDesc": "Quando uma conexão falha na verificação de integridade, tenta reconectar uma vez antes de fechá-la. Consultas interrompidas nunca são executadas novamente, e transações abertas são revertidas.",
     "seconds": "segundos",
     "entries": "entradas",
     "queryHistory": "Histórico de Consultas",
@@ -2467,7 +2469,10 @@
   },
   "healthCheck": {
     "title": "Conexão Perdida",
-    "connectionLost": "Uma conexão de banco de dados foi perdida"
+    "connectionLost": "Uma conexão de banco de dados foi perdida",
+    "reconnecting": "Conexão perdida. Reconectando…",
+    "reconnected": "Conexão restabelecida.",
+    "reconnectedSessionsReset": "Conexão restabelecida. As sessões de consulta abertas foram redefinidas e qualquer transação não confirmada foi revertida."
   },
   "erDiagram": {
     "title": "Diagrama ER",

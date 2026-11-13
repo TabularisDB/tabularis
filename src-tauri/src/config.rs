@@ -208,6 +208,9 @@ pub struct AppConfig {
     pub sql_diagnostics_enabled: Option<bool>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
+    /// Try one reconnect before dropping a connection that failed its health
+    /// check. Default: false.
+    pub auto_reconnect: Option<bool>,
     /// Maximum number of query history entries per connection. Default: 500.
     pub query_history_max_entries: Option<u32>,
     /// Whether to show the welcome screen on startup. Default: true (first launch).

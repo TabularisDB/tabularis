@@ -1042,6 +1042,8 @@
     "connectionHealthCheck": "Connection Health Check",
     "pingInterval": "Ping Interval",
     "pingIntervalDesc": "Gaano kadalas i-check kung buhay pa ang mga aktibong koneksyon. Itakda sa 0 para i-disable.",
+    "autoReconnect": "Awtomatikong muling kumonekta",
+    "autoReconnectDesc": "Kapag pumalya ang isang koneksyon sa health check, susubukan itong ikonekta muli nang isang beses bago isara. Hindi kailanman muling pinapatakbo ang mga naantalang query, at ibinabalik (rollback) ang mga bukas na transaksyon.",
     "seconds": "segundo",
     "entries": "entry",
     "queryHistory": "Query History",
@@ -2486,7 +2488,10 @@
   },
   "healthCheck": {
     "title": "Nawala ang Koneksyon",
-    "connectionLost": "Nawala ang isang database connection"
+    "connectionLost": "Nawala ang isang database connection",
+    "reconnecting": "Nawala ang koneksyon. Muling kumokonekta…",
+    "reconnected": "Naibalik ang koneksyon.",
+    "reconnectedSessionsReset": "Naibalik ang koneksyon. Na-reset ang mga bukas na query session at na-rollback ang anumang hindi pa na-commit na transaksyon."
   },
   "erDiagram": {
     "title": "ER Diagram",

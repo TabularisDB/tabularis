@@ -1074,6 +1074,8 @@
     "connectionHealthCheck": "Connection Health Check",
     "pingInterval": "Ping Interval",
     "pingIntervalDesc": "How often to check if active connections are still alive. Set to 0 to disable.",
+    "autoReconnect": "Reconnect automatically",
+    "autoReconnectDesc": "When a connection fails its health check, try once to reconnect before closing it. Interrupted queries are never re-run, and open transactions are rolled back.",
     "seconds": "seconds",
     "entries": "entries",
     "queryHistory": "Query History",
@@ -2527,7 +2529,10 @@
   },
   "healthCheck": {
     "title": "Connection Lost",
-    "connectionLost": "A database connection was lost"
+    "connectionLost": "A database connection was lost",
+    "reconnecting": "Connection lost. Reconnecting…",
+    "reconnected": "Connection restored.",
+    "reconnectedSessionsReset": "Connection restored. Open query sessions were reset and any uncommitted transaction was rolled back."
   },
   "erDiagram": {
     "title": "ER Diagram",

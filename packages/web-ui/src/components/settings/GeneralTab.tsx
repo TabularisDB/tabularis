@@ -279,6 +279,16 @@ export function GeneralTab() {
                         fallback={DEFAULT_SETTINGS.pingInterval ?? 30}
                     />
                 </SettingRow>
+
+                <SettingRow
+                    label={t('settings.autoReconnect')}
+                    description={t('settings.autoReconnectDesc')}
+                >
+                    <SettingToggle
+                        checked={settings.autoReconnect === true}
+                        onChange={(v) => updateSetting('autoReconnect', v)}
+                    />
+                </SettingRow>
             </SettingSection>
 
             <SettingSection title={t('settings.queryHistory')}>

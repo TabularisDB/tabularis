@@ -1072,6 +1072,8 @@
         "connectionHealthCheck": "連線健康檢查",
         "pingInterval": "Ping 間隔",
         "pingIntervalDesc": "檢查使用中的連線是否仍然有效的頻率。設定為 0 可停用。",
+        "autoReconnect": "自動重新連線",
+        "autoReconnectDesc": "連線未通過健康檢查時，在關閉前嘗試重新連線一次。中斷的查詢絕不會重新執行，開啟中的交易會被回滾。",
         "seconds": "秒",
         "entries": "條目",
         "queryHistory": "查詢歷史",
@@ -2506,7 +2508,10 @@
     },
     "healthCheck": {
         "title": "連線中斷",
-        "connectionLost": "資料庫連線已中斷"
+        "connectionLost": "資料庫連線已中斷",
+        "reconnecting": "連線中斷，正在重新連線…",
+        "reconnected": "連線已恢復。",
+        "reconnectedSessionsReset": "連線已恢復。開啟中的查詢工作階段已重設，未提交的交易已回滾。"
     },
     "erDiagram": {
         "title": "ER 圖",

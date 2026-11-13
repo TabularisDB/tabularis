@@ -1525,13 +1525,13 @@ pub(crate) async fn release_connection_sessions<R: Runtime>(
     app: &AppHandle<R>,
     connection_id: &str,
     _params: Option<&ConnectionParams>,
-) {
+) -> usize {
     crate::application::query_sessions::release_connection(
         &app.state::<crate::runtime::RuntimeContext>(),
         None,
         connection_id,
     )
-    .await;
+    .await
 }
 
 #[tauri::command]

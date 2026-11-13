@@ -1069,6 +1069,8 @@
     "connectionHealthCheck": "Controllo Connessione",
     "pingInterval": "Intervallo di Ping",
     "pingIntervalDesc": "Frequenza con cui verificare se le connessioni attive sono ancora raggiungibili. Imposta 0 per disabilitare.",
+    "autoReconnect": "Riconnetti automaticamente",
+    "autoReconnectDesc": "Quando una connessione non supera il controllo di stato, prova a riconnetterla una volta prima di chiuderla. Le query interrotte non vengono mai rieseguite e le transazioni aperte vengono annullate.",
     "seconds": "secondi",
     "entries": "voci",
     "queryHistory": "Cronologia Query",
@@ -2516,7 +2518,10 @@
   },
   "healthCheck": {
     "title": "Connessione Persa",
-    "connectionLost": "Una connessione al database è stata persa"
+    "connectionLost": "Una connessione al database è stata persa",
+    "reconnecting": "Connessione persa. Riconnessione…",
+    "reconnected": "Connessione ripristinata.",
+    "reconnectedSessionsReset": "Connessione ripristinata. Le sessioni di query aperte sono state reimpostate e ogni transazione non confermata è stata annullata."
   },
   "erDiagram": {
     "title": "Diagramma ER",

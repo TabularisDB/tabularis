@@ -109,17 +109,21 @@ fn take_matching(owner: Option<Uuid>, connection_id: Option<&str>) -> Vec<(Strin
         .collect()
 }
 
+/// Returns how many tab sessions were released.
 pub async fn release_connection(
     runtime: &RuntimeContext,
     owner: Option<Uuid>,
     connection_id: &str,
-) {
-    for (key, session) in take_matching(owner, Some(connection_id)) {
+) -> usize {
+    let released = take_matching(owner, Some(connection_id));
+    let count = released.len();
+    for (key, session) in released {
         emit_state(runtime, owner, &session.tab_id, false);
         tokio::spawn(async move {
             session.driver.release_session(&key).await;
         });
     }
+    count
 }
 
 pub fn clear_owner(owner: Uuid) {

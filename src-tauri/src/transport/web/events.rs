@@ -218,6 +218,7 @@ impl WebEventBus {
         match event {
             "connection-test-progress"
             | "connection-health-failed"
+            | "connection-lifecycle"
             | "connections:active-changed"
             | "database-dropped"
             | "batch-statement-complete"

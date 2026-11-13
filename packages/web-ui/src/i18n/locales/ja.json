@@ -1023,6 +1023,8 @@
     "connectionHealthCheck": "接続ヘルスチェック",
     "pingInterval": "Ping 間隔",
     "pingIntervalDesc": "アクティブな接続の生存確認を行う間隔です。0 にすると無効になります。",
+    "autoReconnect": "自動的に再接続",
+    "autoReconnectDesc": "接続がヘルスチェックに失敗した場合、閉じる前に一度だけ再接続を試みます。中断されたクエリは再実行されず、開いているトランザクションはロールバックされます。",
     "seconds": "秒",
     "entries": "件",
     "queryHistory": "クエリ履歴",
@@ -2467,7 +2469,10 @@
   },
   "healthCheck": {
     "title": "接続が失われました",
-    "connectionLost": "データベース接続が失われました"
+    "connectionLost": "データベース接続が失われました",
+    "reconnecting": "接続が失われました。再接続しています…",
+    "reconnected": "接続が復旧しました。",
+    "reconnectedSessionsReset": "接続が復旧しました。開いていたクエリセッションはリセットされ、未コミットのトランザクションはロールバックされました。"
   },
   "erDiagram": {
     "title": "ER 図",
