@@ -110,9 +110,15 @@ describe('schemaNotes', () => {
             ).toEqual([{name: 'status', found: true}]);
         });
 
-        it('shows documented columns when metadata is unavailable', () => {
+        it('marks documented columns as missing when the table has none of them', () => {
             expect(columnsWithNotes(state, {table: 'logs'}, [])).toEqual([
                 {name: 'level', found: false},
+            ]);
+        });
+
+        it('keeps documented columns as unknown, not missing, when metadata is unavailable', () => {
+            expect(columnsWithNotes(state, {table: 'logs'}, null)).toEqual([
+                {name: 'level', found: null},
             ]);
         });
     });

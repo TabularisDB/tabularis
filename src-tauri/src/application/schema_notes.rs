@@ -9,8 +9,13 @@ use crate::schema_notes::{self, SchemaNoteTarget, StoredSchemaNotes};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 const SCHEMA_NOTES_DIR: &str = "schema_notes";
+
+/// Serializes read-change-write cycles, so two overlapping saves in this
+/// process (two windows, or two web tabs) cannot drop each other's change.
+static UPDATE_LOCK: Mutex<()> = Mutex::new(());
 
 pub fn notes_path(config_dir: &Path, connection_id: &str) -> Result<PathBuf, String> {
     validate_storage_key(connection_id)?;
@@ -45,6 +50,9 @@ fn update(
     connection_id: &str,
     change: impl FnOnce(&mut StoredSchemaNotes) -> Result<(), String>,
 ) -> Result<StoredSchemaNotes, String> {
+    let _guard = UPDATE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut stored = load(config_dir, connection_id)?;
     change(&mut stored)?;
     let path = notes_path(config_dir, connection_id)?;

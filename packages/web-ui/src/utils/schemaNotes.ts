@@ -103,18 +103,20 @@ export function groupNotesByDomain(state: SchemaNotesState): DomainGroup[] {
 export function columnsWithNotes(
     state: SchemaNotesState,
     table: SchemaNoteTarget,
-    loadedColumns: readonly string[],
-): {name: string; found: boolean}[] {
-    const loaded = new Set(loadedColumns);
+    loadedColumns: readonly string[] | null,
+): {name: string; found: boolean | null}[] {
+    const loaded = new Set(loadedColumns ?? []);
     const tableKey = noteKey(noteTarget(table));
-    const missing = state.notes
+    const unmatched = state.notes
         .filter((note) => note.column && !loaded.has(note.column))
         .filter((note) => noteKey(noteTarget(note)) === tableKey)
         .map((note) => note.column as string)
         .sort((left, right) => left.localeCompare(right));
+    // When the columns could not be loaded, a noted column is unknown, not missing.
+    const found = loadedColumns === null ? null : false;
     return [
-        ...loadedColumns.map((name) => ({name, found: true})),
-        ...missing.map((name) => ({name, found: false})),
+        ...(loadedColumns ?? []).map((name) => ({name, found: true as boolean | null})),
+        ...unmatched.map((name) => ({name, found})),
     ];
 }
 

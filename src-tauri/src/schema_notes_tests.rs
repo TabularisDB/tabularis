@@ -317,3 +317,52 @@ fn prompt_is_empty_without_relevant_notes_and_bounded_with_many() {
     assert!(prompt.len() <= MAX_PROMPT_NOTES_CHARS + 64);
     assert!(prompt.ends_with("more notes (not shown)"));
 }
+
+#[test]
+fn prompt_without_a_requested_schema_leaves_out_schema_qualified_notes() {
+    let mut notes = SchemaNotes::default();
+    upsert_note(
+        &mut notes,
+        target(Some("sales"), "orders", None),
+        None,
+        "sales orders".into(),
+    )
+    .unwrap();
+    upsert_note(
+        &mut notes,
+        target(Some("public"), "orders", Some("status")),
+        None,
+        "public status".into(),
+    )
+    .unwrap();
+    upsert_note(
+        &mut notes,
+        target(None, "orders", None),
+        None,
+        "unqualified".into(),
+    )
+    .unwrap();
+    let tables = ["orders".to_string()];
+
+    let prompt = format_for_prompt(&notes, &tables, None, None);
+    assert!(prompt.contains("unqualified"));
+    assert!(!prompt.contains("sales orders"));
+    assert!(!prompt.contains("public status"));
+
+    let prompt = format_for_prompt(&notes, &tables, None, Some("sales"));
+    assert!(prompt.contains("sales orders"));
+    assert!(!prompt.contains("public status"));
+}
+
+#[test]
+fn prompt_without_a_requested_database_leaves_out_database_qualified_notes() {
+    let mut notes = SchemaNotes::default();
+    let mut qualified = target(None, "orders", None);
+    qualified.database = Some("shop".into());
+    upsert_note(&mut notes, qualified, None, "shop orders".into()).unwrap();
+    let tables = ["orders".to_string()];
+
+    assert_eq!(format_for_prompt(&notes, &tables, None, None), "");
+    assert!(format_for_prompt(&notes, &tables, Some("shop"), None).contains("shop orders"));
+    assert_eq!(format_for_prompt(&notes, &tables, Some("crm"), None), "");
+}

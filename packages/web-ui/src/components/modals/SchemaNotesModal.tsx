@@ -35,7 +35,8 @@ interface Draft {
 
 interface TableMetadata {
     key: string;
-    columns: TableColumn[];
+    /** null when the columns could not be loaded. */
+    columns: TableColumn[] | null;
     tableComment: string | null;
     tableFound: boolean | null;
     error: string | null;
@@ -114,13 +115,15 @@ export const SchemaNotesModal = ({
                     : undefined;
             setMetadata({
                 key: currentKey,
-                columns: columns.status === 'fulfilled' ? columns.value : [],
+                columns: columns.status === 'fulfilled' ? columns.value : null,
                 tableComment: table?.comment ?? null,
                 tableFound: tables.status === 'fulfilled' ? Boolean(table) : null,
                 error:
-                    columns.status === 'rejected' && tables.status === 'rejected'
+                    columns.status === 'rejected'
                         ? String(columns.reason)
-                        : null,
+                        : tables.status === 'rejected'
+                          ? String(tables.reason)
+                          : null,
             });
         });
         return () => {
@@ -136,7 +139,7 @@ export const SchemaNotesModal = ({
                 ? columnsWithNotes(
                       notes,
                       current,
-                      currentMetadata.columns.map((column) => column.name),
+                      currentMetadata.columns?.map((column) => column.name) ?? null,
                   )
                 : [],
         [current, currentMetadata, notes],
@@ -467,7 +470,7 @@ export const SchemaNotesModal = ({
                                     )}
                                     {columns.map(({name, found}, index) => {
                                         const columnTarget = noteTarget(current, name);
-                                        const column = currentMetadata?.columns.find(
+                                        const column = currentMetadata?.columns?.find(
                                             (entry) => entry.name === name,
                                         );
                                         const id = `${fieldId}-column-${index}`;
@@ -488,7 +491,7 @@ export const SchemaNotesModal = ({
                                                             {formatColumnType(column)}
                                                         </span>
                                                     )}
-                                                    {!found && (
+                                                    {found === false && (
                                                         <span className="text-xs text-accent-warning">
                                                             {t('schemaNotes.columnNotFound')}
                                                         </span>
