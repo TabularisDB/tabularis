@@ -1,6 +1,8 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import {
     validateSnippetPrefix,
+    serializeSqlSnippets,
+    CURRENT_STORAGE_VERSION,
     filterSqlSnippets,
     validateSnippetBody,
     snippetPrefixConflicts,
@@ -30,6 +32,39 @@ function snippet(partial: Partial<SqlSnippet> & Pick<SqlSnippet, 'id' | 'prefix'
 }
 
 describe('sqlSnippets utils', () => {
+    describe('serializeSqlSnippets', () => {
+        it('preserves saved fields, Unicode and literal placeholders while excluding extra fields', () => {
+            const snippet = {
+                ...DEFAULT_SQL_SNIPPETS[0],
+                name: '訂單 – Grüße',
+                body: 'SELECT ${1:列}, $2;\n\t\\${escaped} $0',
+                description: '多行\ntext',
+                dialect: 'driver:offline' as const,
+                connection: {password: 'secret'},
+                parameterValues: {id: 42},
+            };
+            const before = JSON.stringify(snippet);
+            const {connection: _connection, parameterValues: _parameters, ...savedFields} = snippet;
+            expect(JSON.parse(serializeSqlSnippets([snippet]))).toEqual({
+                version: CURRENT_STORAGE_VERSION,
+                snippets: [savedFields],
+            });
+            expect(JSON.stringify(snippet)).toBe(before);
+            expect(serializeSqlSnippets([snippet])).not.toContain('secret');
+        });
+
+        it('serializes empty libraries and configured default templates in order', () => {
+            expect(JSON.parse(serializeSqlSnippets([]))).toEqual({
+                version: CURRENT_STORAGE_VERSION,
+                snippets: [],
+            });
+            expect(JSON.parse(serializeSqlSnippets(DEFAULT_SQL_SNIPPETS))).toEqual({
+                version: CURRENT_STORAGE_VERSION,
+                snippets: DEFAULT_SQL_SNIPPETS,
+            });
+        });
+    });
+
     describe('filterSqlSnippets', () => {
         const snippets = [
             {

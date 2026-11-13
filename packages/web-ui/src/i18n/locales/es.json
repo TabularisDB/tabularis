@@ -674,6 +674,8 @@
       "title": "Fragmentos SQL",
       "subtitle": "Defina plantillas SQL reutilizables con prefijos de activación y marcadores de posición para el autocompletado de Monaco.",
       "add": "Nuevo fragmento",
+      "exportJson": "Exportar JSON",
+      "exportFailed": "No se pudieron exportar los fragmentos: {{error}}",
       "duplicate": "Duplicar",
       "search": "Buscar fragmentos",
       "filterScope": "Filtrar por ámbito",

@@ -681,6 +681,8 @@
       "title": "Snippet SQL",
       "subtitle": "Definisci modelli SQL riutilizzabili con prefissi di attivazione e segnaposto tab-stop per il completamento automatico di Monaco.",
       "add": "Nuovo snippet",
+      "exportJson": "Esporta JSON",
+      "exportFailed": "Impossibile esportare gli snippet: {{error}}",
       "duplicate": "Duplica",
       "search": "Cerca snippet",
       "filterScope": "Filtra per ambito",

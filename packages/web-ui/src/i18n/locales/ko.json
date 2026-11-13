@@ -605,6 +605,8 @@
       "title": "SQL 스니펫",
       "subtitle": "Monaco 자동 완성을 위해 트리거 접두사와 탭 스톱 자리 표시자가 포함된 재사용 가능한 SQL 템플릿을 정의합니다.",
       "add": "새 스니펫",
+      "exportJson": "JSON 내보내기",
+      "exportFailed": "스니펫을 내보내지 못했습니다: {{error}}",
       "duplicate": "복제",
       "search": "스니펫 검색",
       "filterScope": "범위별 필터",

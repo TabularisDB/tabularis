@@ -1,18 +1,49 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {SnippetsTab} from '@/components/settings/SnippetsTab';
-import {loadSqlSnippets, saveSqlSnippets, type SqlSnippet} from '@/utils/sqlSnippets';
+import type {DownloadFileRequest} from '@/platform/capabilities';
+import {
+    loadSqlSnippets,
+    saveSqlSnippets,
+    CURRENT_STORAGE_VERSION,
+    type SqlSnippet,
+} from '@/utils/sqlSnippets';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key: string, defaultValue?: string) => defaultValue || key,
+        t: (key: string, defaultValueOrOptions?: string | Record<string, unknown>) => {
+            if (typeof defaultValueOrOptions === 'string' || defaultValueOrOptions == null) {
+                return defaultValueOrOptions || key;
+            }
+            let result =
+                typeof defaultValueOrOptions.defaultValue === 'string'
+                    ? defaultValueOrOptions.defaultValue
+                    : key;
+            for (const [name, value] of Object.entries(defaultValueOrOptions)) {
+                if (name === 'defaultValue') continue;
+                result = result.replaceAll(`{{${name}}}`, String(value));
+            }
+            return result;
+        },
     }),
 }));
 
 const mocks = vi.hoisted(() => ({
     colorize: vi.fn(async (sql: string) => `<span>${sql}</span>`),
     theme: {id: 'test'},
+    downloadFile: vi.fn(),
+    showAlert: vi.fn(),
 }));
+vi.mock('@/hooks/usePlatformCapabilities', () => {
+    const platform = {
+        operations: mocks.downloadFile,
+        downloadFile(request: DownloadFileRequest) {
+            return this.operations(request);
+        },
+    };
+    return {usePlatformCapabilities: () => platform};
+});
+vi.mock('@/hooks/useAlert', () => ({useAlert: () => ({showAlert: mocks.showAlert})}));
 vi.mock('@/hooks/useEditorTheme', () => ({useEditorTheme: () => mocks.theme}));
 vi.mock('@/hooks/useDrivers', () => ({
     useDrivers: () => ({
@@ -61,7 +92,71 @@ describe('SnippetsTab', () => {
     beforeEach(() => {
         localStorage.clear();
         vi.clearAllMocks();
+        mocks.downloadFile.mockReset().mockResolvedValue(true);
     });
+
+    it('exports the complete saved library as UTF-8 JSON without an unsaved draft or unrelated storage', async () => {
+        const library = loadSqlSnippets();
+        library[0] = {
+            ...library[0],
+            name: '訂單 – Grüße',
+            body: 'SELECT ${1:列};\n\t\\${escaped} $0',
+        };
+        saveSqlSnippets(library);
+        render(<SnippetsTab />);
+        const saved = loadSqlSnippets();
+        localStorage.setItem('connections', JSON.stringify({password: 'do-not-export'}));
+        const before = {...localStorage};
+        fireEvent.click(screen.getAllByRole('button', {name: 'Edit'})[0]);
+        fireEvent.change(screen.getByLabelText('Snippet Name'), {target: {value: 'Unsaved draft'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Export JSON'}));
+        await waitFor(() => expect(mocks.downloadFile).toHaveBeenCalledOnce());
+        const request = mocks.downloadFile.mock.calls[0][0];
+        expect(request).toMatchObject({
+            fileName: 'tabularis-snippets.json',
+            mimeType: 'application/json',
+            filters: [{name: 'JSON', extensions: ['json']}],
+        });
+        expect(JSON.parse(new TextDecoder().decode(request.contents))).toEqual({
+            version: CURRENT_STORAGE_VERSION,
+            snippets: saved,
+        });
+        expect({...localStorage}).toEqual(before);
+        expect(screen.getByLabelText('Snippet Name')).toHaveValue('Unsaved draft');
+    });
+
+    it('disables export for an empty library', () => {
+        saveSqlSnippets([]);
+        render(<SnippetsTab />);
+        const button = screen.getByRole('button', {name: 'Export JSON'});
+        expect(button).toBeDisabled();
+        fireEvent.click(button);
+        expect(mocks.downloadFile).not.toHaveBeenCalled();
+    });
+
+    it.each(['cancel', 'failure'])(
+        'leaves storage untouched on export %s and permits retry',
+        async (outcome) => {
+            if (outcome === 'cancel') mocks.downloadFile.mockResolvedValueOnce(false);
+            else mocks.downloadFile.mockRejectedValueOnce(new Error('write failed'));
+            render(<SnippetsTab />);
+            const before = {...localStorage};
+            const button = screen.getByRole('button', {name: 'Export JSON'});
+            fireEvent.click(button);
+            await waitFor(() => expect(button).toBeEnabled());
+            if (outcome === 'failure')
+                expect(mocks.showAlert).toHaveBeenCalledWith(
+                    'Failed to export snippets: write failed',
+                    {
+                        kind: 'error',
+                    },
+                );
+            else expect(mocks.showAlert).not.toHaveBeenCalled();
+            expect({...localStorage}).toEqual(before);
+            fireEvent.click(button);
+            await waitFor(() => expect(mocks.downloadFile).toHaveBeenCalledTimes(2));
+        },
+    );
 
     it('combines search and stored scopes while preserving an unsaved edit and storage', () => {
         const snippets: SqlSnippet[] = [

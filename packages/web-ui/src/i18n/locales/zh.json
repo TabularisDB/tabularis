@@ -649,6 +649,8 @@
       "title": "SQL 代码片段",
       "subtitle": "定义可复用的 SQL 模板，包含触发前缀和制表位占位符，适用于 Monaco 自动完成。",
       "add": "新建代码片段",
+      "exportJson": "导出 JSON",
+      "exportFailed": "无法导出代码片段：{{error}}",
       "duplicate": "创建副本",
       "search": "搜索代码片段",
       "filterScope": "按范围筛选",

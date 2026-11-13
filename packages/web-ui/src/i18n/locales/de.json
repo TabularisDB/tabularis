@@ -649,6 +649,8 @@
       "title": "SQL-Snippets",
       "subtitle": "Definieren Sie wiederverwendbare SQL-Vorlagen mit Auslösepräfixen und Tab-Stopp-Platzhaltern für die Monaco-Autovervollständigung.",
       "add": "Neues Snippet",
+      "exportJson": "JSON exportieren",
+      "exportFailed": "Snippets konnten nicht exportiert werden: {{error}}",
       "duplicate": "Duplizieren",
       "search": "Snippets suchen",
       "filterScope": "Nach Geltungsbereich filtern",
