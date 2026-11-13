@@ -13,7 +13,8 @@ export interface GroupHeaderProps {
     editGroupName: string;
     isRenameCancelledRef: RefObject<boolean>;
     onToggleCollapse: () => void;
-    onOpenContextMenu: (x: number, y: number, groupId: string) => void;
+    /** Omitted when the session cannot change groups. */
+    onOpenContextMenu?: (x: number, y: number, groupId: string) => void;
     setEditGroupName: (name: string) => void;
     setEditingGroupId: (id: string | null) => void;
     onRenameConfirm: (groupId: string) => void;
@@ -61,7 +62,7 @@ export const GroupHeader = ({
         onKeyDown={onActivationKey(onToggleCollapse)}
         onContextMenu={(e) => {
             e.preventDefault();
-            onOpenContextMenu(e.clientX, e.clientY, group.id);
+            onOpenContextMenu?.(e.clientX, e.clientY, group.id);
         }}
     >
         {(dropPosition === 'before' || dropPosition === 'after') && (
@@ -132,14 +133,16 @@ export const GroupHeader = ({
                 <Plus size={12} className="text-accent-warning" />
             </button>
         )}
-        <button
-            onClick={(e) => {
-                e.stopPropagation();
-                onOpenContextMenu(e.clientX, e.clientY, group.id);
-            }}
-            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-secondary transition-all"
-        >
-            <MoreVertical size={12} className="text-muted" />
-        </button>
+        {onOpenContextMenu && (
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenContextMenu(e.clientX, e.clientY, group.id);
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-secondary transition-all"
+            >
+                <MoreVertical size={12} className="text-muted" />
+            </button>
+        )}
     </div>
 );

@@ -2953,6 +2953,12 @@
       }
     }
   },
+  "managed": {
+    "denied": "Esta conexão é gerenciada por um administrador e não pode ser alterada aqui.",
+    "noConnections": "Ainda não há conexões disponíveis. Peça ao seu administrador para fornecer uma.",
+    "notice": "Um administrador gerencia as conexões deste servidor. Você pode abri-las e executar consultas, mas não pode adicionar, editar, excluir, importar, exportar nem testar conexões.",
+    "noticeTitle": "Conexões gerenciadas"
+  },
   "groups": {
     "title": "Grupos",
     "newGroup": "Novo Grupo",

@@ -46,6 +46,8 @@ import {
 import {fuzzyFilter} from '@/utils/fuzzy';
 import {useOpenConnectionInNewWindow} from '@/hooks/useOpenConnectionInNewWindow';
 import {useConnectionTags} from '@/hooks/useConnectionTags';
+import {useConnectionCapabilities} from '@/hooks/useConnectionCapabilities';
+import {ManagedConnectionsNotice} from '@/components/connections/ManagedConnectionsNotice';
 import {GroupHeader} from '@/components/connections/GroupHeader';
 import {ConnectionCard} from '@/components/connections/ConnectionCard';
 import {ConnectionListItem} from '@/components/connections/ConnectionListItem';
@@ -90,6 +92,9 @@ export const Connections = () => {
     const {t} = useTranslation();
     const client = useTabularisClient();
     const platform = usePlatformCapabilities();
+    const caps = useConnectionCapabilities();
+    // Bulk selection only exists to export, move or delete.
+    const canSelect = caps.canExport || caps.canEditOrganization || caps.canDelete;
     const {settings, isLoading: isSettingsLoading} = useSettings();
     const navigate = useNavigate();
     const location = useLocation();
@@ -516,7 +521,9 @@ export const Connections = () => {
             }
             return next;
         });
-        await toggleGroupCollapsed(groupId);
+        // Collapsing is stored with the shared groups, so a session that cannot
+        // change them keeps the state in this view only.
+        if (caps.canEditOrganization) await toggleGroupCollapsed(groupId);
     };
 
     const handleExport = async (mode: ExportMode, password?: string) => {
@@ -885,17 +892,22 @@ export const Connections = () => {
         onDuplicate: () => handleDuplicate(conn.id),
         onDelete: () => handleDelete(conn.id),
         onContextMenu: (e: React.MouseEvent<HTMLDivElement>) => handleConnContextMenu(e, conn),
-        onMouseDown: (e: React.MouseEvent<HTMLDivElement>) =>
-            handleConnectionMouseDown(e, conn.id, conn.group_id),
+        // Dragging moves a connection between groups, which is organization.
+        onMouseDown: caps.canEditOrganization
+            ? (e: React.MouseEvent<HTMLDivElement>) =>
+                  handleConnectionMouseDown(e, conn.id, conn.group_id)
+            : undefined,
         selected: selectedIds.has(conn.id),
         dropPosition: connectionDrop?.id === conn.id ? connectionDrop.position : null,
         dropAxis: connectionDrop?.axis ?? 'y',
         selectionActive: selectedIds.size > 0,
-        onToggleSelect: () => toggleSelect(conn.id),
-        onMigrate: () => {
-            const direction = migrationDirectionForDriver(conn.params.driver, allDrivers);
-            if (direction) handleMigrate(conn, direction);
-        },
+        onToggleSelect: canSelect ? () => toggleSelect(conn.id) : undefined,
+        onMigrate: caps.canUpdate
+            ? () => {
+                  const direction = migrationDirectionForDriver(conn.params.driver, allDrivers);
+                  if (direction) handleMigrate(conn, direction);
+              }
+            : undefined,
     });
 
     const handleConnectionMouseDown = (
@@ -1044,15 +1056,18 @@ export const Connections = () => {
         editGroupName,
         isRenameCancelledRef,
         onToggleCollapse: () => void handleToggleGroupCollapsed(group.id),
-        onOpenContextMenu: (x: number, y: number, groupId: string) =>
-            setGroupContextMenu({x, y, groupId}),
+        onOpenContextMenu: caps.canEditOrganization
+            ? (x: number, y: number, groupId: string) => setGroupContextMenu({x, y, groupId})
+            : undefined,
         setEditGroupName,
         setEditingGroupId,
         onRenameConfirm: handleRenameGroup,
-        onGripMouseDown: (e: React.MouseEvent) => handleGripMouseDown(e, group.id),
+        onGripMouseDown: caps.canEditOrganization
+            ? (e: React.MouseEvent) => handleGripMouseDown(e, group.id)
+            : undefined,
         isDragOver: dragOverGroupId === group.id,
         dropPosition: groupDrop?.id === group.id ? groupDrop.position : null,
-        onCreateSubgroup: startInlineSubgroupInput,
+        onCreateSubgroup: caps.canEditOrganization ? startInlineSubgroupInput : undefined,
     });
 
     const renderGroupTree = (
@@ -1219,95 +1234,111 @@ export const Connections = () => {
                     </div>
                 </div>
 
-                <div className="relative flex items-stretch shadow-lg shadow-accent-primary/20 rounded-xl">
-                    <button
-                        onClick={() => {
-                            setEditingConnection(null);
-                            setIsModalOpen(true);
-                        }}
-                        className="flex items-center gap-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse pl-4 pr-3.5 py-2.5 rounded-l-xl font-semibold text-sm transition-colors duration-150"
-                    >
-                        <Plus size={15} />
-                        {t('connections.addConnection')}
-                    </button>
-                    <button
-                        ref={importMenuBtnRef}
-                        onClick={toggleImportMenu}
-                        className="flex items-center bg-accent-primary hover:bg-accent-primary/90 text-inverse px-2 rounded-r-xl border-l border-inverse/20 transition-colors duration-150"
-                        title={t('connections.addConnection')}
-                        aria-haspopup="menu"
-                        aria-expanded={isImportMenuOpen}
-                    >
-                        <ChevronDown
-                            size={15}
-                            className={clsx(
-                                'transition-transform',
-                                isImportMenuOpen && 'rotate-180',
-                            )}
-                        />
-                    </button>
-                    {isImportMenuOpen &&
-                        createPortal(
-                            <>
-                                <div
-                                    role="presentation"
-                                    className="fixed inset-0 z-[200]"
-                                    onClick={closeImportMenu}
-                                />
-                                <div
-                                    style={{top: importMenuPos.top, right: importMenuPos.right}}
-                                    className="fixed z-[201] w-60 bg-elevated border border-strong rounded-xl shadow-2xl py-1 overflow-hidden"
-                                >
-                                    <button
-                                        onClick={() => void handleCreateSqliteDatabase()}
-                                        disabled={isCreatingSqliteDatabase}
-                                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
+                {caps.canCreate && (
+                    <div className="relative flex items-stretch shadow-lg shadow-accent-primary/20 rounded-xl">
+                        <button
+                            onClick={() => {
+                                setEditingConnection(null);
+                                setIsModalOpen(true);
+                            }}
+                            className="flex items-center gap-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse pl-4 pr-3.5 py-2.5 rounded-l-xl font-semibold text-sm transition-colors duration-150"
+                        >
+                            <Plus size={15} />
+                            {t('connections.addConnection')}
+                        </button>
+                        <button
+                            ref={importMenuBtnRef}
+                            onClick={toggleImportMenu}
+                            className="flex items-center bg-accent-primary hover:bg-accent-primary/90 text-inverse px-2 rounded-r-xl border-l border-inverse/20 transition-colors duration-150"
+                            title={t('connections.addConnection')}
+                            aria-haspopup="menu"
+                            aria-expanded={isImportMenuOpen}
+                        >
+                            <ChevronDown
+                                size={15}
+                                className={clsx(
+                                    'transition-transform',
+                                    isImportMenuOpen && 'rotate-180',
+                                )}
+                            />
+                        </button>
+                        {isImportMenuOpen &&
+                            createPortal(
+                                <>
+                                    <div
+                                        role="presentation"
+                                        className="fixed inset-0 z-[200]"
+                                        onClick={closeImportMenu}
+                                    />
+                                    <div
+                                        style={{top: importMenuPos.top, right: importMenuPos.right}}
+                                        className="fixed z-[201] w-60 bg-elevated border border-strong rounded-xl shadow-2xl py-1 overflow-hidden"
                                     >
-                                        {isCreatingSqliteDatabase ? (
-                                            <Loader2
+                                        <button
+                                            onClick={() => void handleCreateSqliteDatabase()}
+                                            disabled={isCreatingSqliteDatabase}
+                                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
+                                        >
+                                            {isCreatingSqliteDatabase ? (
+                                                <Loader2
+                                                    size={15}
+                                                    className="shrink-0 text-accent animate-spin"
+                                                />
+                                            ) : (
+                                                <Database
+                                                    size={15}
+                                                    className="shrink-0 text-accent"
+                                                />
+                                            )}
+                                            <span className="flex-1">
+                                                {t('connections.newSqliteDatabase.menuLabel')}
+                                            </span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setIsImportMenuOpen(false);
+                                                requestOpenDataFiles();
+                                            }}
+                                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
+                                        >
+                                            <FileSpreadsheet
                                                 size={15}
-                                                className="shrink-0 text-accent animate-spin"
+                                                className="shrink-0 text-accent"
                                             />
-                                        ) : (
-                                            <Database size={15} className="shrink-0 text-accent" />
+                                            <span className="flex-1">
+                                                {t('dataFiles.openMenu')}
+                                            </span>
+                                        </button>
+                                        {caps.canImport && (
+                                            <>
+                                                <div className="h-px bg-default mx-2" />
+                                                <button
+                                                    onClick={() => {
+                                                        setIsImportMenuOpen(false);
+                                                        setIsImportAppModalOpen(true);
+                                                    }}
+                                                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
+                                                >
+                                                    <FolderInput
+                                                        size={15}
+                                                        className="shrink-0 text-accent"
+                                                    />
+                                                    <span className="flex-1">
+                                                        {t('connections.importFromApp.menuLabel')}
+                                                    </span>
+                                                    <BetaBadge />
+                                                </button>
+                                            </>
                                         )}
-                                        <span className="flex-1">
-                                            {t('connections.newSqliteDatabase.menuLabel')}
-                                        </span>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setIsImportMenuOpen(false);
-                                            requestOpenDataFiles();
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
-                                    >
-                                        <FileSpreadsheet
-                                            size={15}
-                                            className="shrink-0 text-accent"
-                                        />
-                                        <span className="flex-1">{t('dataFiles.openMenu')}</span>
-                                    </button>
-                                    <div className="h-px bg-default mx-2" />
-                                    <button
-                                        onClick={() => {
-                                            setIsImportMenuOpen(false);
-                                            setIsImportAppModalOpen(true);
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
-                                    >
-                                        <FolderInput size={15} className="shrink-0 text-accent" />
-                                        <span className="flex-1">
-                                            {t('connections.importFromApp.menuLabel')}
-                                        </span>
-                                        <BetaBadge />
-                                    </button>
-                                </div>
-                            </>,
-                            document.body,
-                        )}
-                </div>
+                                    </div>
+                                </>,
+                                document.body,
+                            )}
+                    </div>
+                )}
             </div>
+
+            {caps.managed && <ManagedConnectionsNotice />}
 
             {/* ── Error banner ──────────────────────────────────────────────────── */}
             {error && (
@@ -1334,33 +1365,39 @@ export const Connections = () => {
                         {t('connections.selectedCount', {count: selectedIds.size})}
                     </span>
                     <div className="flex-1" />
-                    <button
-                        onClick={() => {
-                            setExportSelectionOnly(true);
-                            setIsExportModalOpen(true);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-accent hover:border-accent-primary/50 transition-colors"
-                    >
-                        <Download size={14} />
-                        {t('connections.exportSelected')}
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            const r = e.currentTarget.getBoundingClientRect();
-                            setBulkMoveMenu({x: r.left, y: r.bottom + 4});
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-accent-warning hover:border-accent-warning/50 transition-colors"
-                    >
-                        <FolderInput size={14} />
-                        {t('connections.moveSelected')}
-                    </button>
-                    <button
-                        onClick={handleBulkDelete}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-error/10 border border-accent-error/30 text-sm text-accent-error hover:bg-accent-error/20 transition-colors"
-                    >
-                        <Trash2 size={14} />
-                        {t('connections.deleteSelected')}
-                    </button>
+                    {caps.canExport && (
+                        <button
+                            onClick={() => {
+                                setExportSelectionOnly(true);
+                                setIsExportModalOpen(true);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-accent hover:border-accent-primary/50 transition-colors"
+                        >
+                            <Download size={14} />
+                            {t('connections.exportSelected')}
+                        </button>
+                    )}
+                    {caps.canEditOrganization && (
+                        <button
+                            onClick={(e) => {
+                                const r = e.currentTarget.getBoundingClientRect();
+                                setBulkMoveMenu({x: r.left, y: r.bottom + 4});
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-accent-warning hover:border-accent-warning/50 transition-colors"
+                        >
+                            <FolderInput size={14} />
+                            {t('connections.moveSelected')}
+                        </button>
+                    )}
+                    {caps.canDelete && (
+                        <button
+                            onClick={handleBulkDelete}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-error/10 border border-accent-error/30 text-sm text-accent-error hover:bg-accent-error/20 transition-colors"
+                        >
+                            <Trash2 size={14} />
+                            {t('connections.deleteSelected')}
+                        </button>
+                    )}
                     <button
                         onClick={clearSelection}
                         className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-secondary transition-colors"
@@ -1388,46 +1425,54 @@ export const Connections = () => {
                             {t('connections.noConnections')}
                         </p>
                         <p className="text-sm text-muted mb-6 max-w-xs leading-relaxed">
-                            {t('connections.noConnectionsHint')}
+                            {caps.canCreate
+                                ? t('connections.noConnectionsHint')
+                                : t('managed.noConnections')}
                         </p>
                         <div className="flex flex-wrap items-center justify-center gap-2.5">
-                            <button
-                                onClick={() => {
-                                    setEditingConnection(null);
-                                    setIsModalOpen(true);
-                                }}
-                                className="flex items-center gap-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-accent-primary/20 hover:-translate-y-px"
-                            >
-                                <Plus size={14} />
-                                {t('connections.createFirst')}
-                            </button>
-                            <button
-                                onClick={() => void handleCreateSqliteDatabase()}
-                                disabled={isCreatingSqliteDatabase}
-                                className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
-                            >
-                                {isCreatingSqliteDatabase ? (
-                                    <Loader2 size={14} className="animate-spin" />
-                                ) : (
-                                    <Database size={14} />
-                                )}
-                                {t('connections.newSqliteDatabase.menuLabel')}
-                            </button>
-                            <button
-                                onClick={() => requestOpenDataFiles()}
-                                className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
-                            >
-                                <FileSpreadsheet size={14} />
-                                {t('dataFiles.openMenu')}
-                            </button>
-                            <button
-                                onClick={() => setIsImportAppModalOpen(true)}
-                                className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
-                            >
-                                <FolderInput size={14} />
-                                {t('connections.importFromApp.menuLabel')}
-                                <BetaBadge />
-                            </button>
+                            {caps.canCreate && (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            setEditingConnection(null);
+                                            setIsModalOpen(true);
+                                        }}
+                                        className="flex items-center gap-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-accent-primary/20 hover:-translate-y-px"
+                                    >
+                                        <Plus size={14} />
+                                        {t('connections.createFirst')}
+                                    </button>
+                                    <button
+                                        onClick={() => void handleCreateSqliteDatabase()}
+                                        disabled={isCreatingSqliteDatabase}
+                                        className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
+                                    >
+                                        {isCreatingSqliteDatabase ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                            <Database size={14} />
+                                        )}
+                                        {t('connections.newSqliteDatabase.menuLabel')}
+                                    </button>
+                                    <button
+                                        onClick={() => requestOpenDataFiles()}
+                                        className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
+                                    >
+                                        <FileSpreadsheet size={14} />
+                                        {t('dataFiles.openMenu')}
+                                    </button>
+                                </>
+                            )}
+                            {caps.canImport && (
+                                <button
+                                    onClick={() => setIsImportAppModalOpen(true)}
+                                    className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
+                                >
+                                    <FolderInput size={14} />
+                                    {t('connections.importFromApp.menuLabel')}
+                                    <BetaBadge />
+                                </button>
+                            )}
                         </div>
                     </div>
                 ) : (
@@ -1461,7 +1506,7 @@ export const Connections = () => {
                             </div>
 
                             {/* New Group button or input */}
-                            {isCreatingGroup ? (
+                            {!caps.canEditOrganization ? null : isCreatingGroup ? (
                                 <div className="flex items-center gap-2 shrink-0">
                                     <input
                                         autoCorrect="off"
@@ -1513,18 +1558,20 @@ export const Connections = () => {
                             )}
 
                             {/* Export button (import lives in the New Connection dropup) */}
-                            <div className="flex items-center gap-1.5 px-1 py-1 bg-elevated border border-strong rounded-xl shrink-0">
-                                <button
-                                    onClick={() => {
-                                        setExportSelectionOnly(false);
-                                        setIsExportModalOpen(true);
-                                    }}
-                                    className="p-1.5 rounded-lg text-muted hover:text-accent hover:bg-accent-primary/10 transition-all duration-150"
-                                    title={t('connections.export')}
-                                >
-                                    <Download size={14} />
-                                </button>
-                            </div>
+                            {caps.canExport && (
+                                <div className="flex items-center gap-1.5 px-1 py-1 bg-elevated border border-strong rounded-xl shrink-0">
+                                    <button
+                                        onClick={() => {
+                                            setExportSelectionOnly(false);
+                                            setIsExportModalOpen(true);
+                                        }}
+                                        className="p-1.5 rounded-lg text-muted hover:text-accent hover:bg-accent-primary/10 transition-all duration-150"
+                                        title={t('connections.export')}
+                                    >
+                                        <Download size={14} />
+                                    </button>
+                                </div>
+                            )}
 
                             {/* View toggle */}
                             <div className="flex items-center gap-0.5 bg-elevated border border-strong rounded-xl p-1 shrink-0">
@@ -1774,7 +1821,7 @@ export const Connections = () => {
                                 // driver — always available, even after the banner is
                                 // dismissed. Uses the same confirm flow as the card button.
                                 ...(() => {
-                                    if (!conn) return [];
+                                    if (!conn || !caps.canUpdate) return [];
                                     const direction = migrationDirectionForDriver(
                                         conn.params.driver,
                                         allDrivers,
@@ -1792,7 +1839,7 @@ export const Connections = () => {
                                         },
                                     ];
                                 })(),
-                                ...(hasAvailableGroups
+                                ...(caps.canEditOrganization && hasAvailableGroups
                                     ? [
                                           {separator: true as const},
                                           {
@@ -1811,7 +1858,7 @@ export const Connections = () => {
                                           },
                                       ]
                                     : []),
-                                ...(isInGroup
+                                ...(caps.canEditOrganization && isInGroup
                                     ? [
                                           {separator: true as const},
                                           {

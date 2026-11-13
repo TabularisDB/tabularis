@@ -156,6 +156,18 @@ pub async fn test_connection<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn open_saved_connection<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::OpenSavedConnection { connection_id },
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn list_databases<R: Runtime>(
     app: AppHandle<R>,
     request: TestConnectionRequest,

@@ -134,6 +134,11 @@ pub enum ConnectionCommand {
     ListDatabases {
         request: TestConnectionRequest,
     },
+    /// Validates a saved connection by id with its stored parameters. Unlike
+    /// `TestConnection` it accepts no caller-supplied parameters.
+    OpenSavedConnection {
+        connection_id: String,
+    },
     CreateSqliteDatabase {
         path: String,
     },
@@ -356,6 +361,9 @@ pub async fn execute_for_session(
         ConnectionCommand::ListDatabases { request } => {
             json(list_databases(runtime, session_id, request).await?)
         }
+        ConnectionCommand::OpenSavedConnection { connection_id } => {
+            json(open_saved_connection(runtime, session_id, connection_id).await?)
+        }
         ConnectionCommand::CreateSqliteDatabase { path } => {
             json(create_sqlite_database(runtime, state, path).await?)
         }
@@ -400,6 +408,47 @@ pub(crate) fn resolve_saved_connection_params(
     let params =
         crate::application::tunnels::resolve_connection_params(runtime, &params, session_id)?;
     Ok((driver_id, params))
+}
+
+/// Every credential value the instance holds for its saved connections and SSH
+/// profiles, for scrubbing error text and events bound for a browser. Keychain
+/// read failures are skipped: a secret that cannot be read cannot be leaked by
+/// this process either.
+pub fn collect_secret_values(runtime: &RuntimeContext) -> Result<Vec<String>, String> {
+    let file = load_file(runtime)?;
+    let mut values = Vec::new();
+    for connection in &file.connections {
+        let plugin_secrets = load_plugin_secrets(runtime, connection);
+        let mut params = connection.params.clone();
+        let _ = restore_secrets(runtime, &connection.id, &mut params);
+        values.extend(
+            [
+                params.password,
+                params.connection_uri,
+                params.ssh_password,
+                params.ssh_key_passphrase,
+                params.socks5_proxy_password,
+                params
+                    .proxy
+                    .and_then(|proxy| proxy.endpoint)
+                    .and_then(|endpoint| endpoint.password),
+            ]
+            .into_iter()
+            .flatten(),
+        );
+        values.extend(plugin_secrets.into_values());
+    }
+    if let Ok(profiles) = crate::application::tunnels::get_ssh_connections(runtime, true) {
+        for profile in profiles {
+            values.extend(
+                [profile.password, profile.key_passphrase]
+                    .into_iter()
+                    .flatten(),
+            );
+        }
+    }
+    values.retain(|value| !value.is_empty());
+    Ok(values)
 }
 
 pub fn store_icon_upload(
@@ -494,6 +543,16 @@ fn redact_connection(mut connection: SavedConnection) -> SavedConnection {
     connection.params.ssh_password = None;
     connection.params.ssh_key_passphrase = None;
     connection.params.connection_id = None;
+    connection.params.socks5_proxy_username = None;
+    connection.params.socks5_proxy_password = None;
+    if let Some(endpoint) = connection
+        .params
+        .proxy
+        .as_mut()
+        .and_then(|proxy| proxy.endpoint.as_mut())
+    {
+        endpoint.password = None;
+    }
     connection
 }
 
@@ -1555,6 +1614,25 @@ async fn list_databases(
         .await
         .ok_or_else(|| format!("Driver not found: {}", resolved.driver))?;
     driver.get_databases(&resolved).await
+}
+
+async fn open_saved_connection(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: String,
+) -> Result<String, String> {
+    let saved = find_connection(&load_file(runtime)?, &connection_id)?;
+    test_connection(
+        runtime,
+        session_id,
+        TestConnectionRequest {
+            params: saved.params,
+            connection_id: Some(connection_id),
+            plugin_secret_changes: std::collections::HashMap::new(),
+            progress_id: None,
+        },
+    )
+    .await
 }
 
 async fn test_connection(

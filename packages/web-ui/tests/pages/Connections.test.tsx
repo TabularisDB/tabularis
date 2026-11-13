@@ -3,6 +3,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {Connections} from '@/pages/Connections';
 import {invoke} from '@tauri-apps/api/core';
 import type {ConnectionGroup, SavedConnection} from '@/contexts/DatabaseContext';
+import {STANDALONE_CONNECTION_CAPABILITIES, type ConnectionCapabilities} from '@/api/session';
 
 const mocks = vi.hoisted(() => ({
     connect: vi.fn(),
@@ -20,7 +21,11 @@ const mocks = vi.hoisted(() => ({
     settings: {autoConnectLastConnection: false},
     isSettingsLoading: false,
     locationState: null as unknown,
+    capabilities: null as unknown as ConnectionCapabilities,
+    toggleGroupCollapsed: vi.fn(),
 }));
+
+mocks.capabilities = STANDALONE_CONNECTION_CAPABILITIES;
 
 vi.mock('lucide-react', async (importOriginal) => ({
     ...(await importOriginal<typeof import('lucide-react')>()),
@@ -66,7 +71,7 @@ vi.mock('@/hooks/useDatabase', () => ({
         moveConnectionToGroup: mocks.moveConnectionToGroup,
         reorderConnectionsInGroup: mocks.reorderConnectionsInGroup,
         reorderGroups: mocks.reorderGroups,
-        toggleGroupCollapsed: vi.fn(),
+        toggleGroupCollapsed: mocks.toggleGroupCollapsed,
         loadConnections: mocks.loadConnections,
         connections: mocks.connections,
     }),
@@ -101,6 +106,10 @@ vi.mock('@/hooks/usePluginRegistry', () => ({
 
 vi.mock('@/hooks/useSettings', () => ({
     useSettings: () => ({settings: mocks.settings, isLoading: mocks.isSettingsLoading}),
+}));
+
+vi.mock('@/hooks/useConnectionCapabilities', () => ({
+    useConnectionCapabilities: () => mocks.capabilities,
 }));
 
 vi.mock('@/hooks/useConnectionTags', () => ({
@@ -442,5 +451,202 @@ describe('Connections link errors', () => {
         render(<Connections />);
 
         expect(screen.queryByText('connections.linkUnavailable')).not.toBeInTheDocument();
+    });
+});
+
+describe('Connections in managed mode', () => {
+    const card = (id: string) =>
+        document.querySelector(`[data-connection-id="${id}"]`) as HTMLElement | null;
+    const managedConnection = (id: string, group_id?: string) =>
+        ({
+            id,
+            name: id,
+            group_id,
+            params: {driver: 'sqlite', database: `/tmp/${id}.db`},
+        }) as SavedConnection;
+    const managed: ConnectionCapabilities = {
+        ...STANDALONE_CONNECTION_CAPABILITIES,
+        managed: true,
+        canCreate: false,
+        canUpdate: false,
+        canDelete: false,
+        canDuplicate: false,
+        canImport: false,
+        canExport: false,
+        canTest: false,
+        canEditBranding: false,
+        canEditOrganization: false,
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.settings.autoConnectLastConnection = false;
+        mocks.isSettingsLoading = false;
+        mocks.connections = [managedConnection('a'), managedConnection('b', 'g1')];
+        mocks.connectionGroups = [
+            {id: 'g1', name: 'Group', collapsed: false, sort_order: 0, parent_id: null},
+        ] as ConnectionGroup[];
+        mocks.capabilities = managed;
+        mocks.drivers = [
+            {
+                id: 'sqlite',
+                name: 'SQLite',
+                capabilities: {
+                    schemas: false,
+                    views: true,
+                    routines: false,
+                    file_based: true,
+                    folder_based: false,
+                    identifier_quote: '"',
+                    alter_primary_key: false,
+                },
+            },
+        ] as unknown as never[];
+    });
+
+    afterEach(() => {
+        mocks.capabilities = STANDALONE_CONNECTION_CAPABILITIES;
+        mocks.connections = [];
+        mocks.connectionGroups = [];
+        mocks.drivers = [];
+    });
+
+    it('explains that the connections are managed and hides every management action', () => {
+        render(<Connections />);
+
+        expect(screen.getByTestId('managed-connections-notice')).toBeInTheDocument();
+        expect(screen.queryByText('connections.addConnection')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('connections.addConnection')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('groups.newGroup')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('connections.export')).not.toBeInTheDocument();
+        for (const title of ['connections.edit', 'connections.clone', 'connections.delete']) {
+            expect(screen.queryByTitle(title)).not.toBeInTheDocument();
+        }
+    });
+
+    it('keeps the connections usable', () => {
+        render(<Connections />);
+
+        expect(card('a')).toBeInTheDocument();
+        expect(card('b')).toBeInTheDocument();
+        expect(screen.getAllByTitle('connections.connect')).toHaveLength(2);
+    });
+
+    it('offers no bulk selection when nothing can be done with a selection', () => {
+        render(<Connections />);
+
+        expect(card('a')?.querySelector('[aria-pressed]')).toBeNull();
+    });
+
+    it('offers bulk selection when a selection can be exported, moved or deleted', () => {
+        mocks.capabilities = {...managed, canExport: true};
+        render(<Connections />);
+
+        expect(card('a')?.querySelector('[aria-pressed]')).not.toBeNull();
+    });
+
+    describe('dragging a connection onto another', () => {
+        const originalElementFromPoint = document.elementFromPoint;
+        const drag = () => {
+            const target = card('b')!;
+            target.getBoundingClientRect = () =>
+                ({top: 0, bottom: 80, left: 0, right: 60, height: 80, width: 60}) as DOMRect;
+            document.elementFromPoint = vi.fn(() => target);
+            fireEvent.mouseDown(card('a')!, {button: 0, clientX: 0, clientY: 0});
+            fireEvent.mouseMove(document, {clientX: 40, clientY: 40});
+            fireEvent.mouseUp(document, {clientX: 40, clientY: 40});
+        };
+
+        afterEach(() => {
+            document.elementFromPoint = originalElementFromPoint;
+        });
+
+        it('does nothing when the session cannot change groups', () => {
+            render(<Connections />);
+
+            drag();
+
+            expect(screen.queryByTestId('connection-drop-after')).not.toBeInTheDocument();
+            expect(mocks.moveConnectionToGroup).not.toHaveBeenCalled();
+            expect(mocks.reorderConnectionsInGroup).not.toHaveBeenCalled();
+        });
+
+        it('moves it when the session may change groups', async () => {
+            mocks.capabilities = {...managed, canEditOrganization: true};
+            render(<Connections />);
+
+            drag();
+
+            await waitFor(() =>
+                expect(
+                    mocks.moveConnectionToGroup.mock.calls.length +
+                        mocks.reorderConnectionsInGroup.mock.calls.length,
+                ).toBeGreaterThan(0),
+            );
+        });
+    });
+
+    it('shows the group without rename, subfolder or menu actions', () => {
+        render(<Connections />);
+
+        expect(screen.getByText('Group')).toBeInTheDocument();
+        expect(screen.queryByTitle('Add subfolder')).not.toBeInTheDocument();
+        fireEvent.contextMenu(screen.getByText('Group'));
+        expect(screen.queryByText('groups.rename')).not.toBeInTheDocument();
+        expect(screen.queryByText('groups.delete')).not.toBeInTheDocument();
+    });
+
+    it('collapses a group in this view without saving it to the shared groups', () => {
+        render(<Connections />);
+        expect(card('b')).not.toBeNull();
+
+        fireEvent.click(screen.getByText('Group'));
+
+        expect(card('b')).toBeNull();
+        expect(mocks.toggleGroupCollapsed).not.toHaveBeenCalled();
+    });
+
+    it('saves a collapsed group when the session may change groups', async () => {
+        mocks.capabilities = {...managed, canEditOrganization: true};
+        render(<Connections />);
+
+        fireEvent.click(screen.getByText('Group'));
+
+        await waitFor(() => expect(mocks.toggleGroupCollapsed).toHaveBeenCalledWith('g1'));
+    });
+
+    it('shows a managed empty state without a way to create a connection', () => {
+        mocks.connections = [];
+        render(<Connections />);
+
+        expect(screen.getByText('managed.noConnections')).toBeInTheDocument();
+        expect(screen.queryByText('connections.createFirst')).not.toBeInTheDocument();
+        expect(screen.queryByText('connections.importFromApp.menuLabel')).not.toBeInTheDocument();
+        expect(
+            screen.queryByText('connections.newSqliteDatabase.menuLabel'),
+        ).not.toBeInTheDocument();
+    });
+
+    it('lets an operator allow organization on its own', () => {
+        mocks.capabilities = {...managed, canEditOrganization: true};
+        render(<Connections />);
+
+        expect(screen.getByTitle('groups.newGroup')).toBeInTheDocument();
+        expect(screen.queryByTitle('connections.export')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('connections.addConnection')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('connections.delete')).not.toBeInTheDocument();
+    });
+
+    it('is unchanged outside managed mode', () => {
+        mocks.capabilities = STANDALONE_CONNECTION_CAPABILITIES;
+        render(<Connections />);
+
+        expect(screen.queryByTestId('managed-connections-notice')).not.toBeInTheDocument();
+        expect(screen.getByTitle('connections.addConnection')).toBeInTheDocument();
+        expect(screen.getByTitle('groups.newGroup')).toBeInTheDocument();
+        expect(screen.getByTitle('connections.export')).toBeInTheDocument();
+        expect(card('a')?.querySelector('[aria-pressed]')).not.toBeNull();
+        expect(screen.getAllByTitle('connections.edit')).toHaveLength(2);
+        expect(screen.getAllByTitle('connections.delete')).toHaveLength(2);
     });
 });

@@ -892,6 +892,7 @@ export interface CommandMap {
     sync_plugin_settings: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
 
     test_connection: CommandDefinition<{request: TestConnectionRequest}, string, 'database'>;
+    open_saved_connection: CommandDefinition<ConnectionIdRequest, string, 'database'>;
     disconnect_connection: CommandDefinition<ConnectionIdRequest, void, 'database'>;
 
     export_connections_file: CommandDefinition<

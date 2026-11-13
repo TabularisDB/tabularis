@@ -1,5 +1,9 @@
-import {describe, it, expect} from 'vitest';
-import {toErrorMessage, splitErrorDetails} from '@/utils/errors';
+import {describe, it, expect, beforeAll} from 'vitest';
+import i18n from 'i18next';
+import en from '@/i18n/locales/en.json';
+import de from '@/i18n/locales/de.json';
+import {toErrorMessage, splitErrorDetails, isManagedConnectionDenied} from '@/utils/errors';
+import {TabularisClientError} from '@/api/errors';
 
 describe('toErrorMessage', () => {
     it('returns strings unchanged', () => {
@@ -49,5 +53,55 @@ describe('splitErrorDetails', () => {
         const {summary, details} = splitErrorDetails(`Headline\n\nError: ${detail}`);
         expect(summary).toBe('Headline');
         expect(details).toBe(detail);
+    });
+});
+
+describe('managed connection denials', () => {
+    beforeAll(async () => {
+        await i18n.init({
+            lng: 'en',
+            fallbackLng: 'en',
+            resources: {en: {translation: en}, de: {translation: de}},
+        });
+    });
+
+    const denial = (message: string) =>
+        new TabularisClientError({
+            code: 'managed_connection_denied',
+            message,
+            details: {action: 'delete'},
+            requestId: 'request-1',
+        });
+
+    it('recognises the denial by its code, not its text', () => {
+        expect(isManagedConnectionDenied(denial('anything at all'))).toBe(true);
+        expect(isManagedConnectionDenied({code: 'managed_connection_denied'})).toBe(true);
+        expect(isManagedConnectionDenied(new Error('managed_connection_denied'))).toBe(false);
+        expect(
+            isManagedConnectionDenied(
+                new TabularisClientError({
+                    code: 'FORBIDDEN',
+                    message: 'This connection is managed by an administrator',
+                    details: null,
+                    requestId: 'r',
+                }),
+            ),
+        ).toBe(false);
+        expect(isManagedConnectionDenied(null)).toBe(false);
+        expect(isManagedConnectionDenied('managed_connection_denied')).toBe(false);
+    });
+
+    it('shows the translated message instead of the server text', async () => {
+        const error = denial('server wording that must not be shown');
+
+        expect(toErrorMessage(error)).toBe(en.managed.denied);
+        await i18n.changeLanguage('de');
+        expect(toErrorMessage(error)).toBe(de.managed.denied);
+        expect(toErrorMessage(error)).not.toContain('server wording');
+        await i18n.changeLanguage('en');
+    });
+
+    it('leaves every other error untouched', () => {
+        expect(toErrorMessage(new Error('boom'))).toBe('boom');
     });
 });

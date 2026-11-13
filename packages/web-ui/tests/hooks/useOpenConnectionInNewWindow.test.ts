@@ -53,9 +53,10 @@ describe('useOpenConnectionInNewWindow', () => {
 
         await result.current('conn-1', 'My DB');
 
-        expect(invokeMock).toHaveBeenCalledWith('test_connection', {
-            request: {params: conn.params, connection_id: 'conn-1'},
+        expect(invokeMock).toHaveBeenCalledWith('open_saved_connection', {
+            connectionId: 'conn-1',
         });
+        expect(invokeMock).not.toHaveBeenCalledWith('test_connection', expect.anything());
         expect(openConnectionRouteMock).toHaveBeenCalledWith({
             connectionId: 'conn-1',
             title: 'My DB',
@@ -70,7 +71,7 @@ describe('useOpenConnectionInNewWindow', () => {
         isConnectionOpenMock.mockReturnValue(false);
         invokeMock.mockImplementation((cmd: string) => {
             if (cmd === 'get_connections') return Promise.resolve([conn]);
-            if (cmd === 'test_connection') return Promise.reject(new Error('bad creds'));
+            if (cmd === 'open_saved_connection') return Promise.reject(new Error('bad creds'));
             return Promise.resolve(undefined);
         });
         const {result} = renderHook(() => useOpenConnectionInNewWindow());
@@ -86,7 +87,7 @@ describe('useOpenConnectionInNewWindow', () => {
 
         await result.current('conn-1', 'My DB');
 
-        expect(invokeMock).not.toHaveBeenCalledWith('test_connection', expect.anything());
+        expect(invokeMock).not.toHaveBeenCalledWith('open_saved_connection', expect.anything());
         expect(openConnectionRouteMock).toHaveBeenCalledWith({
             connectionId: 'conn-1',
             title: 'My DB',

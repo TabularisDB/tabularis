@@ -14,8 +14,10 @@ use crate::application::{
     productivity::ProductivityCommand,
     queries::QueryCommand,
     records::RecordCommand,
+    secret_redaction::SecretRedactor,
     tunnels::TunnelCommand,
     ApplicationApi, ApplicationError, ApplicationRequestContext, AuthorizationLevel,
+    ManagedConnectionPolicy, PolicyDenial,
 };
 use crate::models::{
     ColumnDefinition, ConnectionAppearance, ConnectionParams, K8sConnectionInput, RoutineCallArg,
@@ -36,6 +38,9 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 #[path = "rpc_connection_policy.rs"]
 mod connection_policy;
+
+#[path = "rpc_managed_policy.rs"]
+mod managed_policy;
 
 #[path = "rpc_host_commands.rs"]
 mod host_commands;
@@ -146,6 +151,9 @@ impl RpcConcurrency {
 pub(crate) struct RpcAccessPolicy {
     pub mcp_host_configuration: bool,
     pub server_file_browser_roots: Arc<[PathBuf]>,
+    pub connection_policy: ManagedConnectionPolicy,
+    /// Scrubs credentials from error text in managed mode.
+    pub secret_redactor: SecretRedactor,
 }
 
 impl Default for RpcAccessPolicy {
@@ -153,6 +161,8 @@ impl Default for RpcAccessPolicy {
         Self {
             mcp_host_configuration: false,
             server_file_browser_roots: Arc::default(),
+            connection_policy: ManagedConnectionPolicy::standalone(),
+            secret_redactor: SecretRedactor::default(),
         }
     }
 }
@@ -497,6 +507,7 @@ enum ConnectionRpcCommand {
     DisconnectConnection,
     TestConnection,
     ListDatabases,
+    OpenSavedConnection,
 }
 
 #[derive(Clone, Copy)]
@@ -1584,6 +1595,12 @@ impl RpcDispatcher {
             );
         }
 
+        if let Err(denial) =
+            managed_policy::authorize(&self.access_policy.connection_policy, command)
+        {
+            return managed_denial(denial, request_id.0);
+        }
+
         if !body.is_empty() && !has_json_content_type(headers) {
             return failure(
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
@@ -1660,6 +1677,7 @@ impl RpcDispatcher {
             authorization: granted_authorization,
             session_id,
         };
+        let scrub_context = context.clone();
         let invocation = self.invoke(command, context, &body, granted_authorization);
         match tokio::time::timeout(deadline, invocation).await {
             Ok(Ok(data)) => success(data),
@@ -1677,13 +1695,16 @@ impl RpcDispatcher {
                 None,
                 request_id.0,
             ),
-            Ok(Err(InvocationError::Application(error))) => failure(
-                metadata.application_error_status,
-                metadata.application_error_code,
-                error.message,
-                error.details,
-                request_id.0,
-            ),
+            Ok(Err(InvocationError::Application(error))) => {
+                let error = self.scrub_error(scrub_context, error).await;
+                failure(
+                    metadata.application_error_status,
+                    metadata.application_error_code,
+                    error.message,
+                    error.details,
+                    request_id.0,
+                )
+            }
             Err(_) => failure(
                 StatusCode::GATEWAY_TIMEOUT,
                 "DEADLINE_EXCEEDED",
@@ -1692,6 +1713,27 @@ impl RpcDispatcher {
                 request_id.0,
             ),
         }
+    }
+
+    /// In managed mode a driver or tunnel error must not carry a stored
+    /// credential to the browser. Refreshes the known secrets first, because
+    /// the administrator may have rotated them since the last error.
+    async fn scrub_error(
+        &self,
+        context: ApplicationRequestContext,
+        mut error: ApplicationError,
+    ) -> ApplicationError {
+        if !self.access_policy.connection_policy.is_managed_only() {
+            return error;
+        }
+        if let Ok(values) = self.application.connection_secret_values(context).await {
+            self.access_policy.secret_redactor.replace(values);
+        }
+        error.message = self.access_policy.secret_redactor.redact(&error.message);
+        if let Some(details) = error.details.as_mut() {
+            self.access_policy.secret_redactor.redact_value(details);
+        }
+        error
     }
 
     async fn invoke(
@@ -2688,6 +2730,7 @@ impl ConnectionRpcCommand {
             "disconnect_connection" => Self::DisconnectConnection,
             "test_connection" => Self::TestConnection,
             "list_databases" => Self::ListDatabases,
+            "open_saved_connection" => Self::OpenSavedConnection,
             _ => return None,
         })
     }
@@ -4452,6 +4495,12 @@ fn decode_connection_command(
                 request: request.request,
             }
         }
+        ConnectionRpcCommand::OpenSavedConnection => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ConnectionCommand::OpenSavedConnection {
+                connection_id: request.connection_id,
+            }
+        }
     })
 }
 
@@ -4551,6 +4600,17 @@ fn success(data: Value) -> Response {
         .into_response()
 }
 
+/// The envelope every managed-mode denial uses, including the upload endpoints.
+pub(crate) fn managed_denial(denial: PolicyDenial, request_id: String) -> Response {
+    failure(
+        StatusCode::FORBIDDEN,
+        denial.code(),
+        "This connection is managed by an administrator and cannot be changed here".to_string(),
+        Some(serde_json::json!({ "action": denial.action.as_str() })),
+        request_id,
+    )
+}
+
 fn failure(
     status: StatusCode,
     code: &'static str,
@@ -4577,6 +4637,10 @@ fn failure(
 #[cfg(test)]
 #[path = "rpc_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "rpc_managed_tests.rs"]
+mod managed_tests;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

@@ -14,6 +14,8 @@ import {UpdateBadge} from '@/components/ui/UpdateBadge';
 import {usePluginRegistry} from '@/hooks/usePluginRegistry';
 import {useUpdate} from '@/hooks/useUpdate';
 import type {RegistryPluginWithStatus} from '@/types/plugins';
+import {ConnectionCapabilitiesContext} from '@/contexts/ConnectionCapabilitiesContext';
+import {STANDALONE_CONNECTION_CAPABILITIES} from '@/api/session';
 
 const i18n = createInstance();
 await i18n.init({
@@ -124,19 +126,21 @@ function SettingsLink() {
     );
 }
 
-function renderApp(path = '/settings') {
+function renderApp(path = '/settings', capabilities = STANDALONE_CONNECTION_CAPABILITIES) {
     return render(
         <StrictMode>
-            <ToastProvider>
-                <MemoryRouter initialEntries={[path]}>
-                    <PluginUpdateToast />
-                    <SettingsLink />
-                    <Routes>
-                        <Route path="/connections" element={<div>Connections</div>} />
-                        <Route path="/settings" element={<Settings />} />
-                    </Routes>
-                </MemoryRouter>
-            </ToastProvider>
+            <ConnectionCapabilitiesContext.Provider value={capabilities}>
+                <ToastProvider>
+                    <MemoryRouter initialEntries={[path]}>
+                        <PluginUpdateToast />
+                        <SettingsLink />
+                        <Routes>
+                            <Route path="/connections" element={<div>Connections</div>} />
+                            <Route path="/settings" element={<Settings />} />
+                        </Routes>
+                    </MemoryRouter>
+                </ToastProvider>
+            </ConnectionCapabilitiesContext.Provider>
         </StrictMode>,
     );
 }
@@ -318,5 +322,61 @@ describe('update navigation', () => {
                 '1 aggiornamento plugin disponibile',
             ),
         );
+    });
+});
+
+describe('managed connections', () => {
+    const managed = {...STANDALONE_CONNECTION_CAPABILITIES, managed: true};
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(usePluginRegistry).mockReturnValue({
+            plugins: [],
+            updates: [],
+            loading: false,
+            error: null,
+            refresh: vi.fn(),
+        });
+        vi.mocked(useUpdate).mockReturnValue({
+            updateInfo: null,
+            availableUpdate: null,
+            isChecking: false,
+            isDownloading: false,
+            downloadProgress: 0,
+            checkForUpdates: vi.fn(),
+            downloadAndInstall: vi.fn(),
+            dismissUpdate: vi.fn(),
+            error: null,
+            isUpToDate: true,
+            installationSource: null,
+        });
+    });
+
+    it('offers the tunnel and backup tabs outside managed mode', () => {
+        renderApp('/settings');
+
+        expect(screen.getByRole('button', {name: 'Connessioni SSH'})).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Backup'})).toBeInTheDocument();
+    });
+
+    it('hides the tunnel and backup tabs, which would retarget or export connections', () => {
+        renderApp('/settings', managed);
+
+        expect(screen.queryByRole('button', {name: 'Connessioni SSH'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'Backup'})).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'MySQL'})).toBeInTheDocument();
+    });
+
+    it('does not open a hidden tab from its URL', () => {
+        renderApp('/settings?tab=ssh', managed);
+
+        expect(screen.queryByText('SshTab')).not.toBeInTheDocument();
+        expect(screen.getByText('GeneralTab')).toBeInTheDocument();
+    });
+
+    it('still opens the tab from its URL outside managed mode', () => {
+        renderApp('/settings?tab=ssh');
+
+        expect(screen.getByText('SshTab')).toBeInTheDocument();
     });
 });

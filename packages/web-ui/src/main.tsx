@@ -20,6 +20,7 @@ import {TabularisClientProvider} from '@/contexts/TabularisClientProvider';
 import {TauriPlatformCapabilities} from '@/platform/tauriCapabilities';
 import {BrowserPlatformCapabilities} from '@/platform/browserCapabilities';
 import {PlatformCapabilitiesProvider} from '@/contexts/PlatformCapabilitiesProvider';
+import {ConnectionCapabilitiesProvider} from '@/contexts/ConnectionCapabilitiesProvider';
 import {detectPlatformEnvironment} from '@/platform/environment';
 import {toErrorMessage} from '@/utils/errors';
 import {BrowserCapabilityFallbacks} from '@/components/ui/BrowserCapabilityFallbacks';
@@ -48,26 +49,28 @@ async function startApplication() {
                 <TabularisClientProvider client={tabularisClient}>
                     <UiStateProvider>
                         <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
-                            <UpdateProvider session={session}>
-                                <ThemeProvider>
-                                    <SettingsProvider>
-                                        <ToastProvider>
-                                            <BrowserCapabilityFallbacks />
-                                            <DatabaseProvider>
-                                                <SavedQueriesProvider>
-                                                    <QueryHistoryProvider>
-                                                        <EditorProvider>
-                                                            <ProductionGuardProvider>
-                                                                <App />
-                                                            </ProductionGuardProvider>
-                                                        </EditorProvider>
-                                                    </QueryHistoryProvider>
-                                                </SavedQueriesProvider>
-                                            </DatabaseProvider>
-                                        </ToastProvider>
-                                    </SettingsProvider>
-                                </ThemeProvider>
-                            </UpdateProvider>
+                            <ConnectionCapabilitiesProvider session={session}>
+                                <UpdateProvider session={session}>
+                                    <ThemeProvider>
+                                        <SettingsProvider>
+                                            <ToastProvider>
+                                                <BrowserCapabilityFallbacks />
+                                                <DatabaseProvider>
+                                                    <SavedQueriesProvider>
+                                                        <QueryHistoryProvider>
+                                                            <EditorProvider>
+                                                                <ProductionGuardProvider>
+                                                                    <App />
+                                                                </ProductionGuardProvider>
+                                                            </EditorProvider>
+                                                        </QueryHistoryProvider>
+                                                    </SavedQueriesProvider>
+                                                </DatabaseProvider>
+                                            </ToastProvider>
+                                        </SettingsProvider>
+                                    </ThemeProvider>
+                                </UpdateProvider>
+                            </ConnectionCapabilitiesProvider>
                         </PlatformCapabilitiesProvider>
                     </UiStateProvider>
                 </TabularisClientProvider>

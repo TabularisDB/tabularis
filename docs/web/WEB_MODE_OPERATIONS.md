@@ -25,7 +25,7 @@ The Web-specific options are:
 | `--trusted-proxy` | Proxy source CIDR allowed to supply `X-Forwarded-For`; repeat as needed. Empty by default. |
 | `--allowed-origin` | Allowed HTTPS (or loopback HTTP) browser origin. Repeat the option for additional origins; the public URL must be included. |
 | `--allow-high-risk` | Give remote sessions `local-admin` authority. Without it, remote sessions are restricted to database operations. Do not enable it for shared deployments. |
-| `--connection-mode` | `standalone` (default) or `managed-only`. In `managed-only` mode every connection on the instance is supplied by an administrator and every authenticated user shares all of them; run a separate instance per group of users. Enforcement is not active yet. See [WEB_MANAGED_MODE.md](WEB_MANAGED_MODE.md). |
+| `--connection-mode` | `standalone` (default) or `managed-only`. In `managed-only` mode every connection on the instance is supplied by an administrator and every authenticated user shares all of them; run a separate instance per group of users. Requires `--auth` and cannot be combined with `--allow-high-risk`. See [WEB_MANAGED_MODE.md](WEB_MANAGED_MODE.md). |
 | `--managed-allow-branding` | In `managed-only` mode, let users change connection appearance and icons. Denied by default. Requires `--connection-mode`. |
 | `--managed-allow-organization` | In `managed-only` mode, let users change connection groups and tags. Denied by default. Requires `--connection-mode`. |
 | `--server-file-browser-root` | Allow the Web UI to browse one server directory. Repeat it to expose additional roots. Paths outside these roots remain inaccessible; remote sessions also require `--allow-high-risk`. |
