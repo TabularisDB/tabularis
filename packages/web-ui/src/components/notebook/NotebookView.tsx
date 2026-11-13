@@ -33,10 +33,13 @@ import {
 import {isTypingTarget} from '@/utils/keyboardEvents';
 import {
     getExecutableCells,
+    getDisabledCells,
+    findDisabledPrerequisites,
     createRunAllResult,
     addSuccess,
     addFailure,
     addSkipped,
+    addBlocked,
 } from '@/utils/notebookRunAll';
 import {
     resolveQueryVariables,
@@ -342,7 +345,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const runCellInner = useCallback(
         async (cellId: string) => {
             const cell = cellsRef.current.find((c) => c.id === cellId);
-            if (!cell || cell.type !== 'sql' || !cell.content.trim()) return;
+            // A disabled cell never runs, whichever way it is asked to.
+            if (!cell || cell.type !== 'sql' || !cell.content.trim() || cell.isDisabled) return;
 
             updateCell(cellId, {isLoading: true, error: undefined, result: null});
 
@@ -363,12 +367,33 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 sql = paramResult.sql;
             }
 
+            // Block before anything runs when a prerequisite, direct or through cells
+            // that would have to run first, is disabled.
+            const disabledDeps = findDisabledPrerequisites(sql, cellsRef.current, (source) =>
+                params.length > 0 ? resolveParams(source, params).sql : source,
+            );
+            if (disabledDeps.length > 0) {
+                updateCell(cellId, {
+                    error: t('editor.notebook.blockedByDisabled', {
+                        refs: disabledDeps.map((i) => `{{cell_${i + 1}}}`).join(', '),
+                    }),
+                    isLoading: false,
+                    result: null,
+                });
+                return;
+            }
+
             // Lazy-execute unresolved cell dependencies
             const unresolvedDeps = findUnresolvedDependencies(sql, cellsRef.current);
             if (unresolvedDeps.length > 0) {
                 for (const depIndex of unresolvedDeps) {
                     const depCell = cellsRef.current[depIndex];
-                    if (depCell && depCell.type === 'sql' && depCell.content.trim()) {
+                    if (
+                        depCell &&
+                        depCell.type === 'sql' &&
+                        depCell.content.trim() &&
+                        !depCell.isDisabled
+                    ) {
                         await runCellRef.current(depCell.id);
                         // Check if dependency failed
                         const updated = cellsRef.current[depIndex];
@@ -465,6 +490,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             params,
             variableOptions,
             guardQueryExecution,
+            t,
         ],
     );
 
@@ -499,9 +525,77 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         setIsRunningAll(true);
         setRunAllResult(null);
 
+        const prepare = (source: string) =>
+            params.length > 0 ? resolveParams(source, params).sql : source;
         const executable = getExecutableCells(cellsRef.current);
+        const disabledCount = getDisabledCells(cellsRef.current).length;
         let result = createRunAllResult();
-        result = {...result, total: executable.length};
+        result = {...result, total: executable.length + disabledCount};
+        // Disabled cells are not run: they are counted as skipped.
+        if (disabledCount > 0) result = addSkipped(result, disabledCount);
+
+        type Outcome =
+            | {kind: 'skipped'}
+            | {kind: 'blocked'; disabledCells: Array<{cellId: string; cellIndex: number}>}
+            | {kind: 'ran'};
+
+        // Re-read the cell right before it starts: it may have been disabled
+        // while earlier cells ran, or its prerequisites may have been.
+        const startCell = (cellId: string): {outcome: Outcome; run: Promise<void>} => {
+            const current = cellsRef.current.find((c) => c.id === cellId);
+            if (!current || current.isDisabled) {
+                return {outcome: {kind: 'skipped'}, run: Promise.resolve()};
+            }
+            const disabledDeps = findDisabledPrerequisites(
+                prepare(current.content.trim()),
+                cellsRef.current,
+                prepare,
+            );
+            // runCell marks a blocked cell with the reason without executing it.
+            const run = runCell(cellId);
+            if (disabledDeps.length > 0) {
+                return {
+                    outcome: {
+                        kind: 'blocked',
+                        disabledCells: disabledDeps.map((i) => ({
+                            cellId: cellsRef.current[i]?.id ?? '',
+                            cellIndex: i,
+                        })),
+                    },
+                    run,
+                };
+            }
+            return {outcome: {kind: 'ran'}, run};
+        };
+
+        const record = (
+            current: RunAllResult,
+            outcome: Outcome,
+            cellId: string,
+            index: number,
+            rejected = false,
+        ): {result: RunAllResult; failed: boolean} => {
+            if (outcome.kind === 'skipped') return {result: addSkipped(current, 1), failed: false};
+            if (outcome.kind === 'blocked') {
+                return {
+                    result: addBlocked(current, cellId, index, outcome.disabledCells),
+                    failed: false,
+                };
+            }
+            const updatedCell = cellsRef.current.find((c) => c.id === cellId);
+            if (updatedCell?.error || rejected) {
+                return {
+                    result: addFailure(
+                        current,
+                        cellId,
+                        index,
+                        updatedCell?.error ?? 'Execution failed',
+                    ),
+                    failed: true,
+                };
+            }
+            return {result: addSuccess(current), failed: false};
+        };
 
         // Split into parallel and sequential groups
         const parallelCells = executable.filter(({cell}) => cell.isParallel);
@@ -509,48 +603,40 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
         // Run parallel cells concurrently
         if (parallelCells.length > 0) {
-            const parallelResults = await Promise.allSettled(
-                parallelCells.map(({cell}) => runCell(cell.id)),
-            );
+            const started = parallelCells.map(({cell}) => startCell(cell.id));
+            const parallelResults = await Promise.allSettled(started.map(({run}) => run));
             for (let i = 0; i < parallelCells.length; i++) {
                 const {cell, index} = parallelCells[i];
-                const updatedCell = cellsRef.current.find((c) => c.id === cell.id);
-                if (updatedCell?.error || parallelResults[i].status === 'rejected') {
-                    result = addFailure(
-                        result,
-                        cell.id,
-                        index,
-                        updatedCell?.error ?? 'Execution failed',
-                    );
-                } else {
-                    result = addSuccess(result);
-                }
+                result = record(
+                    result,
+                    started[i].outcome,
+                    cell.id,
+                    index,
+                    parallelResults[i].status === 'rejected',
+                ).result;
             }
         }
 
         // Run sequential cells one by one
         for (let i = 0; i < sequentialCells.length; i++) {
             const {cell, index} = sequentialCells[i];
-            await runCell(cell.id);
+            const {outcome, run} = startCell(cell.id);
+            await run;
 
-            const updatedCell = cellsRef.current.find((c) => c.id === cell.id);
-            if (updatedCell?.error) {
-                result = addFailure(result, cell.id, index, updatedCell.error);
-                if (stopOnError) {
-                    const remaining = sequentialCells.length - i - 1;
-                    if (remaining > 0) {
-                        result = addSkipped(result, remaining);
-                    }
-                    break;
+            const recorded = record(result, outcome, cell.id, index);
+            result = recorded.result;
+            if (recorded.failed && stopOnError) {
+                const remaining = sequentialCells.length - i - 1;
+                if (remaining > 0) {
+                    result = addSkipped(result, remaining);
                 }
-            } else {
-                result = addSuccess(result);
+                break;
             }
         }
 
         setRunAllResult(result);
         setIsRunningAll(false);
-    }, [runCell, stopOnError]);
+    }, [params, runCell, stopOnError]);
 
     const handleExport = useCallback(async () => {
         try {
@@ -979,7 +1065,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                             canDuplicate={!isExecuting}
                             connectionId={connectionId}
                             explainQuery={
-                                cell.type === 'sql' && cell.isQueryPlanVisible
+                                cell.type === 'sql' && cell.isQueryPlanVisible && !cell.isDisabled
                                     ? resolveQueryVariables(
                                           resolveParams(cell.content.trim(), params).sql,
                                           cells,

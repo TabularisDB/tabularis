@@ -118,6 +118,7 @@ export interface ResolvedQuery {
 /**
  * Find cell indices that need to be executed before the given SQL can run.
  * Returns indices of referenced cells that have no result (or have errors).
+ * Disabled cells are left out: they must not run until re-enabled.
  * Returns them in sorted order (lowest index first) for sequential execution.
  */
 export function findUnresolvedDependencies(sql: string, cells: NotebookCell[]): number[] {
@@ -126,7 +127,8 @@ export function findUnresolvedDependencies(sql: string, cells: NotebookCell[]): 
     for (const ref of refs) {
         const targetCell = cells[ref.cellIndex];
         if (!targetCell || targetCell.type !== 'sql' || !targetCell.result || targetCell.error) {
-            if (targetCell && targetCell.type === 'sql') {
+            // A disabled cell is never executed on behalf of a consumer.
+            if (targetCell && targetCell.type === 'sql' && !targetCell.isDisabled) {
                 indices.add(ref.cellIndex);
             }
         }
@@ -197,9 +199,11 @@ export function resolveQueryVariables(
         (match: string, number: string) => {
             const cellIndex = Number(number) - 1;
             const targetCell = cells[cellIndex];
+            // A disabled cell's cached output is not current: never substitute it.
             if (
                 !targetCell ||
                 targetCell.type !== 'sql' ||
+                targetCell.isDisabled ||
                 !targetCell.result ||
                 targetCell.error
             ) {
