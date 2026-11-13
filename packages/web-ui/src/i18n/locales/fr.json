@@ -297,6 +297,7 @@
     "failDeleteIndex": "Échec de suppression de l’index : ",
     "modifyColumn": "Modifier la colonne",
     "copyName": "Copier le nom",
+    "showColumnUsage": "Afficher les usages",
     "plainName": "Nom",
     "quotedName": "Nom entre guillemets",
     "qualifiedName": "Nom qualifié",
@@ -3474,5 +3475,68 @@
     "installAndOpen": "Installer et ouvrir",
     "dropTitle": "Déposez pour ouvrir comme une table",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "columnUsage": {
+    "title": "Usages de la colonne",
+    "boundary": "Indices issus des métadonnées de la base et de l'historique des requêtes de cette application. Ce n'est pas un lignage complet : les applications, scripts, autres schémas et autres bases ne sont pas parcourus.",
+    "scopeConnection": "Connexion",
+    "scopeDatabase": "Base de données",
+    "scopeSchema": "Schéma",
+    "sources": "Sources",
+    "source": {
+      "foreignKeys": "Clés étrangères déclarées",
+      "views": "Définitions des vues",
+      "history": "Historique des requêtes"
+    },
+    "status": {
+      "pending": "Recherche…",
+      "complete": "Complet",
+      "partial": "Partiel : {{scanned}} sur {{total}} lus",
+      "unsupported": "Non pris en charge par ce pilote",
+      "permission-denied": "Permission refusée",
+      "failed": "Lecture impossible",
+      "cancelled": "Arrêté"
+    },
+    "confidence": {
+      "confirmed": "Confirmés",
+      "parsed": "Références analysées",
+      "uncertain": "Incertains"
+    },
+    "confidenceHint": {
+      "confirmed": "Contraintes de clé étrangère déclarées dans la base.",
+      "parsed": "SQL où la table de la colonne a été résolue par son nom ou son alias.",
+      "uncertain": "Correspondances qui n'ont pas pu être rattachées avec certitude à cette table. Vérifiez-les avant de vous y fier."
+    },
+    "reason": {
+      "unresolved-qualifier": "Le qualificatif de table n'a pas pu être résolu.",
+      "unqualified-schema": "Le nom de table n'a pas de schéma : il peut s'agir d'une table d'un autre schéma.",
+      "several-tables": "La requête lit plusieurs tables qui peuvent avoir une colonne de ce nom.",
+      "derived-table": "Lue via une sous-requête ou une CTE.",
+      "alias-conflict": "Le même alias désigne des tables différentes.",
+      "wildcard": "Sélectionne toutes les colonnes (*).",
+      "dynamic-sql": "Dans du SQL dynamique.",
+      "name-case": "Le nom diffère par la casse ; qu'il s'agisse de cette table ou colonne dépend des paramètres du serveur.",
+      "textual": "Le SQL n'a pas pu être analysé ; seuls les noms correspondent."
+    },
+    "fkOutgoing": "Référence {{object}}.{{column}}",
+    "fkIncoming": "Référencée par {{object}}.{{column}}",
+    "viewTitle": "Vue {{view}}",
+    "historyTitle": "Requête exécutée {{date}}",
+    "matchCount": "Références dans ce SQL : {{count}}",
+    "open": "Ouvrir",
+    "openHistory": "Ouvrir dans l'éditeur",
+    "openAria": "Ouvrir {{name}}",
+    "groupEmpty": "Aucun résultat.",
+    "none": "Aucun indice trouvé.",
+    "noneIncomplete": "Rien trouvé dans ce qui a pu être lu, mais certaines sources sont incomplètes : cela ne signifie pas que rien ne dépend de la colonne.",
+    "incompleteNote": "Certaines sources sont incomplètes : l'absence d'indices ne signifie pas l'absence de dépendances.",
+    "summaryTitle": "Usages de {{column}}",
+    "summaryDatabase": "Base de données : {{database}}",
+    "summaryNone": "Aucun indice trouvé.",
+    "cancel": "Arrêter",
+    "rerun": "Relancer la recherche",
+    "copySummary": "Copier le résumé",
+    "copied": "Résumé copié, valeurs littérales masquées.",
+    "copyFailed": "Impossible de copier le résumé."
   }
 }

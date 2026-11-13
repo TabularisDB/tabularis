@@ -301,6 +301,7 @@
         "failDeleteIndex": "刪除索引失敗：",
         "modifyColumn": "修改欄",
         "copyName": "複製名稱",
+        "showColumnUsage": "檢視用途",
         "plainName": "名稱",
         "quotedName": "帶引號的名稱",
         "qualifiedName": "帶模式限定的名稱",
@@ -3560,5 +3561,68 @@
         "installAndOpen": "安裝並開啟",
         "dropTitle": "放開以當作資料表開啟",
         "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+    },
+    "columnUsage": {
+        "title": "欄位的用途",
+        "boundary": "來自資料庫中繼資料與本應用程式查詢紀錄的證據。這不是完整的資料血緣：不會搜尋應用程式、指令碼、其他結構描述與其他資料庫。",
+        "scopeConnection": "連線",
+        "scopeDatabase": "資料庫",
+        "scopeSchema": "結構描述",
+        "sources": "來源",
+        "source": {
+            "foreignKeys": "已宣告的外鍵",
+            "views": "檢視定義",
+            "history": "查詢紀錄"
+        },
+        "status": {
+            "pending": "搜尋中…",
+            "complete": "完成",
+            "partial": "部分：已讀取 {{scanned}} / {{total}}",
+            "unsupported": "此驅動程式不支援",
+            "permission-denied": "權限不足",
+            "failed": "無法讀取",
+            "cancelled": "已停止"
+        },
+        "confidence": {
+            "confirmed": "已確認",
+            "parsed": "已解析的參照",
+            "uncertain": "不確定"
+        },
+        "confidenceHint": {
+            "confirmed": "資料庫中宣告的外鍵條件約束。",
+            "parsed": "透過名稱或別名解析出此欄位所屬資料表的 SQL。",
+            "uncertain": "無法確定屬於此資料表的符合項目。依賴之前請先確認。"
+        },
+        "reason": {
+            "unresolved-qualifier": "無法解析資料表限定詞。",
+            "unqualified-schema": "資料表名稱沒有結構描述，可能是其他結構描述的資料表。",
+            "several-tables": "查詢讀取了多個可能含有同名欄位的資料表。",
+            "derived-table": "透過子查詢或 CTE 讀取。",
+            "alias-conflict": "同一別名指向不同的資料表。",
+            "wildcard": "選取所有欄位 (*)。",
+            "dynamic-sql": "位於動態 SQL 中。",
+            "name-case": "名稱的大小寫不同；是否為此資料表或欄位取決於伺服器的設定。",
+            "textual": "無法解析 SQL，僅名稱相符。"
+        },
+        "fkOutgoing": "參照 {{object}}.{{column}}",
+        "fkIncoming": "被 {{object}}.{{column}} 參照",
+        "viewTitle": "檢視 {{view}}",
+        "historyTitle": "{{date}} 執行的查詢",
+        "matchCount": "此 SQL 中的參照數：{{count}}",
+        "open": "開啟",
+        "openHistory": "在編輯器中開啟",
+        "openAria": "開啟 {{name}}",
+        "groupEmpty": "找不到。",
+        "none": "找不到證據。",
+        "noneIncomplete": "在可讀取的內容中找不到，但部分來源不完整：這不代表沒有任何內容依賴此欄位。",
+        "incompleteNote": "部分來源不完整：缺少證據不代表沒有相依性。",
+        "summaryTitle": "{{column}} 的用途",
+        "summaryDatabase": "資料庫：{{database}}",
+        "summaryNone": "找不到證據。",
+        "cancel": "停止",
+        "rerun": "重新搜尋",
+        "copySummary": "複製摘要",
+        "copied": "已複製摘要，常值已隱藏。",
+        "copyFailed": "無法複製摘要。"
     }
 }

@@ -304,6 +304,7 @@
     "failDeleteIndex": "Eliminazione indice fallita: ",
     "modifyColumn": "Modifica colonna",
     "copyName": "Copia nome",
+    "showColumnUsage": "Mostra utilizzi",
     "plainName": "Nome",
     "quotedName": "Nome tra virgolette",
     "qualifiedName": "Nome qualificato",
@@ -3431,5 +3432,68 @@
     "installAndOpen": "Installa e apri",
     "dropTitle": "Rilascia per aprire come tabella",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "columnUsage": {
+    "title": "Utilizzi della colonna",
+    "boundary": "Evidenze dai metadati del database e dalla cronologia delle query di questa app. Non è una lineage completa: applicazioni, script, altri schemi e altri database non vengono cercati.",
+    "scopeConnection": "Connessione",
+    "scopeDatabase": "Database",
+    "scopeSchema": "Schema",
+    "sources": "Fonti",
+    "source": {
+      "foreignKeys": "Chiavi esterne dichiarate",
+      "views": "Definizioni delle viste",
+      "history": "Cronologia query"
+    },
+    "status": {
+      "pending": "Ricerca in corso…",
+      "complete": "Completo",
+      "partial": "Parziale: {{scanned}} di {{total}} letti",
+      "unsupported": "Non supportato da questo driver",
+      "permission-denied": "Permesso negato",
+      "failed": "Impossibile leggere",
+      "cancelled": "Interrotto"
+    },
+    "confidence": {
+      "confirmed": "Confermati",
+      "parsed": "Riferimenti analizzati",
+      "uncertain": "Incerti"
+    },
+    "confidenceHint": {
+      "confirmed": "Vincoli di chiave esterna dichiarati nel database.",
+      "parsed": "SQL in cui la tabella della colonna è stata risolta tramite nome o alias.",
+      "uncertain": "Corrispondenze non attribuibili con certezza a questa tabella. Verificale prima di farci affidamento."
+    },
+    "reason": {
+      "unresolved-qualifier": "Il qualificatore della tabella non è stato risolto.",
+      "unqualified-schema": "Il nome della tabella non ha schema, quindi potrebbe essere una tabella di un altro schema.",
+      "several-tables": "La query legge più tabelle che potrebbero avere una colonna con questo nome.",
+      "derived-table": "Letta tramite una subquery o una CTE.",
+      "alias-conflict": "Lo stesso alias indica tabelle diverse.",
+      "wildcard": "Seleziona tutte le colonne (*).",
+      "dynamic-sql": "All'interno di SQL dinamico.",
+      "name-case": "Il nome differisce per maiuscole e minuscole; se sia questa tabella o colonna dipende dalle impostazioni del server.",
+      "textual": "Impossibile analizzare l'SQL; corrispondono solo i nomi."
+    },
+    "fkOutgoing": "Fa riferimento a {{object}}.{{column}}",
+    "fkIncoming": "Referenziata da {{object}}.{{column}}",
+    "viewTitle": "Vista {{view}}",
+    "historyTitle": "Query eseguita {{date}}",
+    "matchCount": "Riferimenti in questo SQL: {{count}}",
+    "open": "Apri",
+    "openHistory": "Apri nell'editor",
+    "openAria": "Apri {{name}}",
+    "groupEmpty": "Nessuno trovato.",
+    "none": "Nessuna evidenza trovata.",
+    "noneIncomplete": "Nulla trovato in ciò che è stato possibile leggere, ma alcune fonti sono incomplete: non significa che nulla dipenda dalla colonna.",
+    "incompleteNote": "Alcune fonti sono incomplete: l'assenza di evidenze non significa che non ci siano dipendenze.",
+    "summaryTitle": "Utilizzi di {{column}}",
+    "summaryDatabase": "Database: {{database}}",
+    "summaryNone": "Nessuna evidenza trovata.",
+    "cancel": "Interrompi",
+    "rerun": "Cerca di nuovo",
+    "copySummary": "Copia riepilogo",
+    "copied": "Riepilogo copiato, con i valori letterali nascosti.",
+    "copyFailed": "Impossibile copiare il riepilogo."
   }
 }

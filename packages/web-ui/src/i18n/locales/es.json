@@ -297,6 +297,7 @@
     "failDeleteIndex": "Error al eliminar el índice: ",
     "modifyColumn": "Modificar Columna",
     "copyName": "Copiar Nombre",
+    "showColumnUsage": "Mostrar usos",
     "plainName": "Nombre",
     "quotedName": "Nombre entre comillas",
     "qualifiedName": "Nombre calificado",
@@ -3332,5 +3333,68 @@
     "installAndOpen": "Instalar y abrir",
     "dropTitle": "Suelta para abrir como tabla",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "columnUsage": {
+    "title": "Usos de la columna",
+    "boundary": "Evidencias de los metadatos de la base de datos y del historial de consultas de esta app. No es un linaje completo: no se buscan aplicaciones, scripts, otros esquemas ni otras bases de datos.",
+    "scopeConnection": "Conexión",
+    "scopeDatabase": "Base de datos",
+    "scopeSchema": "Esquema",
+    "sources": "Fuentes",
+    "source": {
+      "foreignKeys": "Claves foráneas declaradas",
+      "views": "Definiciones de vistas",
+      "history": "Historial de consultas"
+    },
+    "status": {
+      "pending": "Buscando…",
+      "complete": "Completo",
+      "partial": "Parcial: {{scanned}} de {{total}} leídos",
+      "unsupported": "No compatible con este driver",
+      "permission-denied": "Permiso denegado",
+      "failed": "No se pudo leer",
+      "cancelled": "Detenido"
+    },
+    "confidence": {
+      "confirmed": "Confirmados",
+      "parsed": "Referencias analizadas",
+      "uncertain": "Inciertos"
+    },
+    "confidenceHint": {
+      "confirmed": "Restricciones de clave foránea declaradas en la base de datos.",
+      "parsed": "SQL donde la tabla de la columna se resolvió por su nombre o alias.",
+      "uncertain": "Coincidencias que no se pudieron atribuir con certeza a esta tabla. Revísalas antes de fiarte de ellas."
+    },
+    "reason": {
+      "unresolved-qualifier": "No se pudo resolver el calificador de la tabla.",
+      "unqualified-schema": "El nombre de la tabla no tiene esquema, así que puede ser una tabla de otro esquema.",
+      "several-tables": "La consulta lee varias tablas que pueden tener una columna con este nombre.",
+      "derived-table": "Leída a través de una subconsulta o CTE.",
+      "alias-conflict": "El mismo alias nombra tablas distintas.",
+      "wildcard": "Selecciona todas las columnas (*).",
+      "dynamic-sql": "Dentro de SQL dinámico.",
+      "name-case": "El nombre difiere en mayúsculas y minúsculas; que sea esta tabla o columna depende de la configuración del servidor.",
+      "textual": "No se pudo analizar el SQL; solo coinciden los nombres."
+    },
+    "fkOutgoing": "Hace referencia a {{object}}.{{column}}",
+    "fkIncoming": "Referenciada por {{object}}.{{column}}",
+    "viewTitle": "Vista {{view}}",
+    "historyTitle": "Consulta ejecutada {{date}}",
+    "matchCount": "Referencias en este SQL: {{count}}",
+    "open": "Abrir",
+    "openHistory": "Abrir en el editor",
+    "openAria": "Abrir {{name}}",
+    "groupEmpty": "No se encontró nada.",
+    "none": "No se encontraron evidencias.",
+    "noneIncomplete": "No se encontró nada en lo que se pudo leer, pero algunas fuentes están incompletas: no significa que nada dependa de la columna.",
+    "incompleteNote": "Algunas fuentes están incompletas: la falta de evidencias no significa que no haya dependencias.",
+    "summaryTitle": "Usos de {{column}}",
+    "summaryDatabase": "Base de datos: {{database}}",
+    "summaryNone": "No se encontraron evidencias.",
+    "cancel": "Detener",
+    "rerun": "Buscar de nuevo",
+    "copySummary": "Copiar resumen",
+    "copied": "Resumen copiado, con los valores literales ocultos.",
+    "copyFailed": "No se pudo copiar el resumen."
   }
 }

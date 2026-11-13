@@ -297,6 +297,7 @@
     "failDeleteIndex": "Löschen des Index fehlgeschlagen: ",
     "modifyColumn": "Spalte ändern",
     "copyName": "Namen kopieren",
+    "showColumnUsage": "Verwendung anzeigen",
     "plainName": "Name",
     "quotedName": "Name in Anführungszeichen",
     "qualifiedName": "Qualifizierter Name",
@@ -3398,5 +3399,68 @@
     "installAndOpen": "Installieren und öffnen",
     "dropTitle": "Ablegen, um als Tabelle zu öffnen",
     "dropHint": "CSV, TSV, JSON, NDJSON, Parquet"
+  },
+  "columnUsage": {
+    "title": "Verwendung der Spalte",
+    "boundary": "Hinweise aus den Datenbank-Metadaten und dem Abfrageverlauf dieser App. Das ist keine vollständige Lineage: Anwendungen, Skripte, andere Schemas und andere Datenbanken werden nicht durchsucht.",
+    "scopeConnection": "Verbindung",
+    "scopeDatabase": "Datenbank",
+    "scopeSchema": "Schema",
+    "sources": "Quellen",
+    "source": {
+      "foreignKeys": "Deklarierte Fremdschlüssel",
+      "views": "View-Definitionen",
+      "history": "Abfrageverlauf"
+    },
+    "status": {
+      "pending": "Suche läuft…",
+      "complete": "Vollständig",
+      "partial": "Teilweise: {{scanned}} von {{total}} gelesen",
+      "unsupported": "Von diesem Treiber nicht unterstützt",
+      "permission-denied": "Zugriff verweigert",
+      "failed": "Konnte nicht gelesen werden",
+      "cancelled": "Angehalten"
+    },
+    "confidence": {
+      "confirmed": "Bestätigt",
+      "parsed": "Erkannte Verweise",
+      "uncertain": "Unsicher"
+    },
+    "confidenceHint": {
+      "confirmed": "In der Datenbank deklarierte Fremdschlüssel.",
+      "parsed": "SQL, in dem die Tabelle der Spalte über ihren Namen oder Alias aufgelöst wurde.",
+      "uncertain": "Treffer, die nicht sicher dieser Tabelle zugeordnet werden konnten. Bitte vor Verwendung prüfen."
+    },
+    "reason": {
+      "unresolved-qualifier": "Der Tabellenqualifizierer konnte nicht aufgelöst werden.",
+      "unqualified-schema": "Der Tabellenname hat kein Schema und kann eine Tabelle eines anderen Schemas sein.",
+      "several-tables": "Die Abfrage liest mehrere Tabellen, die eine Spalte dieses Namens haben können.",
+      "derived-table": "Über eine Unterabfrage oder CTE gelesen.",
+      "alias-conflict": "Derselbe Alias steht für verschiedene Tabellen.",
+      "wildcard": "Wählt alle Spalten aus (*).",
+      "dynamic-sql": "Innerhalb von dynamischem SQL.",
+      "name-case": "Der Name unterscheidet sich in der Groß-/Kleinschreibung; ob es diese Tabelle oder Spalte ist, hängt von den Servereinstellungen ab.",
+      "textual": "Das SQL konnte nicht analysiert werden; nur die Namen stimmen überein."
+    },
+    "fkOutgoing": "Verweist auf {{object}}.{{column}}",
+    "fkIncoming": "Referenziert von {{object}}.{{column}}",
+    "viewTitle": "View {{view}}",
+    "historyTitle": "Abfrage ausgeführt {{date}}",
+    "matchCount": "Verweise in diesem SQL: {{count}}",
+    "open": "Öffnen",
+    "openHistory": "Im Editor öffnen",
+    "openAria": "{{name}} öffnen",
+    "groupEmpty": "Nichts gefunden.",
+    "none": "Keine Hinweise gefunden.",
+    "noneIncomplete": "In den lesbaren Quellen wurde nichts gefunden, aber einige Quellen sind unvollständig: Das heißt nicht, dass nichts von der Spalte abhängt.",
+    "incompleteNote": "Einige Quellen sind unvollständig: Fehlende Hinweise bedeuten nicht, dass es keine Abhängigkeiten gibt.",
+    "summaryTitle": "Verwendung von {{column}}",
+    "summaryDatabase": "Datenbank: {{database}}",
+    "summaryNone": "Keine Hinweise gefunden.",
+    "cancel": "Anhalten",
+    "rerun": "Erneut suchen",
+    "copySummary": "Zusammenfassung kopieren",
+    "copied": "Zusammenfassung kopiert, Literalwerte ausgeblendet.",
+    "copyFailed": "Zusammenfassung konnte nicht kopiert werden."
   }
 }
