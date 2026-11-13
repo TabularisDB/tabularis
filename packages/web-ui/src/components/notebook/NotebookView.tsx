@@ -83,6 +83,9 @@ import {NotebookOutline} from './NotebookOutline';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 
+/** 'skipped': the cell was disabled before its query was sent, so nothing ran. */
+type CellRunOutcome = 'skipped' | undefined;
+
 interface NotebookViewProps {
     tab: Tab;
     updateTab: (id: string, partial: Partial<Tab>) => void;
@@ -134,7 +137,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const autoScrollSpeedRef = useRef(0);
     const autoScrollRafRef = useRef<number | null>(null);
     const notebookIdRef = useRef(tab.notebookId);
-    const runCellRef = useRef<(cellId: string) => Promise<void>>(async () => {});
+    const runCellRef = useRef<(cellId: string) => Promise<CellRunOutcome>>(async () => undefined);
 
     // Undo/redo history (autosave means edits are otherwise irreversible).
     const notebookRef = useRef<NotebookState | null>(notebook);
@@ -343,10 +346,19 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     );
 
     const runCellInner = useCallback(
-        async (cellId: string) => {
+        async (cellId: string): Promise<CellRunOutcome> => {
             const cell = cellsRef.current.find((c) => c.id === cellId);
             // A disabled cell never runs, whichever way it is asked to.
-            if (!cell || cell.type !== 'sql' || !cell.content.trim() || cell.isDisabled) return;
+            if (cell?.isDisabled) return 'skipped';
+            if (!cell || cell.type !== 'sql' || !cell.content.trim()) return;
+
+            // The cell can be disabled while it waits (dependencies, the query
+            // guard's confirmation): look again before every step that can send SQL.
+            const disabledMeanwhile = () => {
+                if (!cellsRef.current.find((c) => c.id === cellId)?.isDisabled) return false;
+                updateCell(cellId, {isLoading: false});
+                return true;
+            };
 
             updateCell(cellId, {isLoading: true, error: undefined, result: null});
 
@@ -395,6 +407,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                         !depCell.isDisabled
                     ) {
                         await runCellRef.current(depCell.id);
+                        if (disabledMeanwhile()) return 'skipped';
                         // Check if dependency failed
                         const updated = cellsRef.current[depIndex];
                         if (updated?.error) {
@@ -428,7 +441,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 return;
             }
 
+            if (disabledMeanwhile()) return 'skipped';
             const mayRun = await guardQueryExecution(resolvedSql);
+            if (disabledMeanwhile()) return 'skipped';
             if (!mayRun) {
                 updateCell(cellId, {isLoading: false});
                 return;
@@ -500,13 +515,13 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const runningCellsRef = useRef(0);
 
     const runCell = useCallback(
-        async (cellId: string) => {
+        async (cellId: string): Promise<CellRunOutcome> => {
             runningCellsRef.current += 1;
             if (runningCellsRef.current === 1) {
                 updateTab(tab.id, {isLoading: true});
             }
             try {
-                await runCellInner(cellId);
+                return await runCellInner(cellId);
             } finally {
                 runningCellsRef.current -= 1;
                 if (runningCellsRef.current === 0) {
@@ -541,10 +556,10 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
         // Re-read the cell right before it starts: it may have been disabled
         // while earlier cells ran, or its prerequisites may have been.
-        const startCell = (cellId: string): {outcome: Outcome; run: Promise<void>} => {
+        const startCell = (cellId: string): {outcome: Outcome; run: Promise<CellRunOutcome>} => {
             const current = cellsRef.current.find((c) => c.id === cellId);
             if (!current || current.isDisabled) {
-                return {outcome: {kind: 'skipped'}, run: Promise.resolve()};
+                return {outcome: {kind: 'skipped'}, run: Promise.resolve('skipped')};
             }
             const disabledDeps = findDisabledPrerequisites(
                 prepare(current.content.trim()),
@@ -573,9 +588,15 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             outcome: Outcome,
             cellId: string,
             index: number,
-            rejected = false,
+            ran: PromiseSettledResult<CellRunOutcome>,
         ): {result: RunAllResult; failed: boolean} => {
-            if (outcome.kind === 'skipped') return {result: addSkipped(current, 1), failed: false};
+            // Also skipped: disabled after it started but before its query was sent.
+            if (
+                outcome.kind === 'skipped' ||
+                (ran.status === 'fulfilled' && ran.value === 'skipped')
+            ) {
+                return {result: addSkipped(current, 1), failed: false};
+            }
             if (outcome.kind === 'blocked') {
                 return {
                     result: addBlocked(current, cellId, index, outcome.disabledCells),
@@ -583,7 +604,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 };
             }
             const updatedCell = cellsRef.current.find((c) => c.id === cellId);
-            if (updatedCell?.error || rejected) {
+            if (updatedCell?.error || ran.status === 'rejected') {
                 return {
                     result: addFailure(
                         current,
@@ -612,7 +633,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     started[i].outcome,
                     cell.id,
                     index,
-                    parallelResults[i].status === 'rejected',
+                    parallelResults[i],
                 ).result;
             }
         }
@@ -621,9 +642,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         for (let i = 0; i < sequentialCells.length; i++) {
             const {cell, index} = sequentialCells[i];
             const {outcome, run} = startCell(cell.id);
-            await run;
+            const [ran] = await Promise.allSettled([run]);
 
-            const recorded = record(result, outcome, cell.id, index);
+            const recorded = record(result, outcome, cell.id, index, ran);
             result = recorded.result;
             if (recorded.failed && stopOnError) {
                 const remaining = sequentialCells.length - i - 1;

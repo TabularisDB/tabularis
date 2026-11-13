@@ -1239,6 +1239,111 @@ describe('NotebookView', () => {
             expect(summary()).toMatchObject({total: 2, succeeded: 1, skipped: 1});
         });
 
+        it('does not send a consumer disabled while its lazy dependency runs', async () => {
+            let finish: (value: QueryResult) => void = () => {};
+            mockInvoke.mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            renderNotebook({
+                cells: [sqlCell('dep', 'SELECT 1'), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+            await click('Run use');
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled use'}));
+            expect(savedCell('use').isDisabled).toBe(true);
+
+            await act(async () => {
+                finish(sourceResult);
+            });
+            await waitFor(() => expect(savedCell('use').isLoading).toBe(false));
+            await settle();
+            expect(mockInvoke.mock.calls).toEqual([
+                [
+                    'execute_query',
+                    {connectionId, query: 'SELECT 1', schema: 'tab_schema', limit: 37, page: 1},
+                ],
+            ]);
+            expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith('SELECT 1');
+            expect(savedCell('dep').result).toEqual(sourceResult);
+            expect(savedCell('use')).toMatchObject({isDisabled: true, isLoading: false});
+            expect(savedCell('use').error).toBeUndefined();
+        });
+
+        it('does not send a cell disabled while the query guard waits for confirmation', async () => {
+            let confirm: (value: boolean) => void = () => {};
+            fixtures.guardQuery.mockReturnValueOnce(
+                new Promise<boolean>((resolve) => {
+                    confirm = resolve;
+                }),
+            );
+            renderNotebook({cells: [sqlCell('base', 'DELETE FROM t')]});
+            await click('Run base');
+            await waitFor(() => expect(fixtures.guardQuery).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled base'}));
+            await act(async () => {
+                confirm(true);
+            });
+            await waitFor(() => expect(savedCell('base').isLoading).toBe(false));
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(savedCell('base')).toMatchObject({isDisabled: true});
+            expect(savedCell('base').error).toBeUndefined();
+        });
+
+        it('Run All skips a consumer disabled while the parallel cells run', async () => {
+            let finish: (value: QueryResult) => void = () => {};
+            mockInvoke.mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            // The dependency is parallel, so it runs before the sequential consumer starts.
+            renderNotebook({
+                cells: [
+                    sqlCell('use', 'SELECT * FROM {{cell_2}}'),
+                    sqlCell('dep', 'SELECT 1', {isParallel: true}),
+                ],
+            });
+            // Run All starts the parallel dependency first; hold it, then disable the consumer.
+            await click('Run All');
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled use'}));
+            await act(async () => {
+                finish(sourceResult);
+            });
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke).toHaveBeenCalledTimes(1);
+            expect(summary()).toMatchObject({total: 2, succeeded: 1, failed: 0, skipped: 1});
+        });
+
+        it('Run All skips a sequential consumer disabled during its own lazy dependency run', async () => {
+            let finish: (value: QueryResult) => void = () => {};
+            // 'dep' fails first in Run All, so 'use' has to run it again lazily.
+            mockInvoke.mockRejectedValueOnce(new Error('first attempt failed')).mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            renderNotebook({
+                cells: [sqlCell('dep', 'SELECT 1'), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+            await click('Run All');
+            // Second call: the consumer's lazy re-run of its dependency.
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled use'}));
+            await act(async () => {
+                finish(sourceResult);
+            });
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke).toHaveBeenCalledTimes(2);
+            expect(mockInvoke.mock.calls.every(([, args]) => args?.query === 'SELECT 1')).toBe(
+                true,
+            );
+            expect(summary()).toMatchObject({total: 2, failed: 1, skipped: 1, succeeded: 0});
+            expect(savedCell('use')).toMatchObject({isDisabled: true, isLoading: false});
+        });
+
         it('prepares no query plan for a disabled cell', () => {
             renderNotebook({
                 cells: [sqlCell('off', 'SELECT 1', {isDisabled: true, isQueryPlanVisible: true})],
