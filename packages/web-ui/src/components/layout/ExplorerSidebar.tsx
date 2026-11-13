@@ -4911,7 +4911,6 @@ export const ExplorerSidebar = ({
                                                 })()
                                               : contextMenu.type === 'database'
                                                 ? [
-                                                      ...databaseOperationItems(contextMenu.id),
                                                       {
                                                           label: t('sidebar.newConsole'),
                                                           icon: FileCode,
@@ -4982,6 +4981,7 @@ export const ExplorerSidebar = ({
                                                           action: () =>
                                                               refreshDatabaseData(contextMenu.id),
                                                       },
+                                                      ...databaseOperationItems(contextMenu.id),
                                                   ]
                                                 : contextMenu.type === 'history'
                                                   ? (() => {
