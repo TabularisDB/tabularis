@@ -19,6 +19,7 @@ import {
     PlaySquare,
     Hash,
     FileText,
+    NotebookPen,
     Copy,
     ClipboardList,
     Loader2,
@@ -77,6 +78,7 @@ import type {QueryHistoryEntry} from '@/types/queryHistory';
 import type {NotebookMetadata} from '@/types/notebook';
 import {ContextMenu, type ContextMenuItem} from '@/components/ui/ContextMenu';
 import {SchemaModal} from '@/components/modals/SchemaModal';
+import {SchemaNotesModal} from '@/components/modals/SchemaNotesModal';
 import {CreateTableModal} from '@/components/modals/CreateTableModal';
 import {CreateContainerModal} from '@/components/modals/CreateContainerModal';
 import {QueryModal} from '@/components/modals/QueryModal';
@@ -335,6 +337,7 @@ export const ExplorerSidebar = ({
     } | null>(null);
     const [objectDetails, setObjectDetails] = useState<SchemaObjectDetails | null>(null);
     const [schemaModal, setSchemaModal] = useState<TableTarget | null>(null);
+    const [schemaNotesModal, setSchemaNotesModal] = useState<TableTarget | null>(null);
     const [runRoutineModal, setRunRoutineModal] = useState<{
         routine: RoutineInfo;
         schema?: string;
@@ -3780,6 +3783,20 @@ export const ExplorerSidebar = ({
                                               });
                                           },
                                       },
+                                      {
+                                          label: t('sidebar.schemaNotes'),
+                                          icon: NotebookPen,
+                                          disabled: !activeConnectionId,
+                                          action: () => {
+                                              if (!activeConnectionId) return;
+                                              setSchemaNotesModal({
+                                                  connectionId: activeConnectionId,
+                                                  tableName: contextMenu.id,
+                                                  schema: ctxSchema ?? activeSchema ?? undefined,
+                                                  database: ctxDatabase,
+                                              });
+                                          },
+                                      },
                                       activeCapabilities?.no_connection_required !== true
                                           ? {
                                                 label: t('sidebar.viewERDiagram'),
@@ -5176,6 +5193,15 @@ export const ExplorerSidebar = ({
                     isOpen={true}
                     target={schemaModal}
                     onClose={() => setSchemaModal(null)}
+                />
+            )}
+
+            {schemaNotesModal && (
+                <SchemaNotesModal
+                    isOpen={true}
+                    target={schemaNotesModal}
+                    connectionName={activeConnectionName || schemaNotesModal.connectionId}
+                    onClose={() => setSchemaNotesModal(null)}
                 />
             )}
 
