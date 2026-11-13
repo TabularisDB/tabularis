@@ -1,3 +1,4 @@
+import {fromMarkdown} from 'mdast-util-from-markdown';
 import type {NotebookCell} from '@/types/notebook';
 
 const BACKTICK_RUNS = /`+/g;
@@ -15,35 +16,33 @@ export function chooseCodeFence(source: string): string {
     return '`'.repeat(Math.max(MIN_FENCE_LENGTH, longest + 1));
 }
 
-// CommonMark fences: 3+ backticks or tildes, indented at most 3 spaces. A
-// backtick opener's info string cannot contain a backtick; a closer has none.
-const FENCE_OPENER = /^( {0,3})(`{3,}|~{3,})(.*)$/;
-const FENCE_CLOSER = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+// A line that opens a fenced code block: 3+ backticks or tildes, indented at
+// most 3 spaces.
+const FENCE_OPENER = /^( {0,3})(`{3,}|~{3,})/;
 const LINE_BREAK = /\r\n|\r|\n/;
+// A paragraph appended to a cell to see whether the cell swallows what follows.
+const PROBE = 'tabularis-markdown-export-probe';
 
 /**
- * Returns the line that closes a code block still open at the end of
- * `markdown` (its fence, indented like the opening one so it stays in the
- * same list item), or `null` when every fenced block it opens is closed. In
- * the notebook each Markdown cell renders on its own, so an open block ends
- * with its cell; in one document it would swallow the cells that follow.
+ * Returns the fence that closes a code block still open at the end of
+ * `markdown`, or `null` when nothing in it would swallow the content that
+ * follows. In the notebook each Markdown cell renders on its own, so an open
+ * block ends with its cell; in one document it would swallow the next cells.
+ *
+ * The cell is parsed with a probe paragraph after it, so fence-like lines
+ * inside HTML blocks, closed blocks and blocks ended by their list item are
+ * left alone: only a fenced block that takes in the probe is closed, with the
+ * fence and indentation of its opening line.
  */
 export function findUnclosedFence(markdown: string): string | null {
-    let open: {indent: string; fence: string} | null = null;
-    for (const line of markdown.split(LINE_BREAK)) {
-        if (open === null) {
-            const opener = FENCE_OPENER.exec(line);
-            if (opener && !(opener[2][0] === '`' && opener[3].includes('`'))) {
-                open = {indent: opener[1], fence: opener[2]};
-            }
-        } else {
-            const closer = FENCE_CLOSER.exec(line);
-            if (closer && closer[1][0] === open.fence[0] && closer[1].length >= open.fence.length) {
-                open = null;
-            }
-        }
+    const root = fromMarkdown(`${withTrailingLineBreak(markdown)}\n${PROBE}\n`);
+    const last = root.children[root.children.length - 1];
+    if (last?.type !== 'code' || !last.position || !last.value.includes(PROBE)) {
+        return null;
     }
-    return open ? `${open.indent}${open.fence}` : null;
+    const openingLine = markdown.split(LINE_BREAK)[last.position.start.line - 1] ?? '';
+    const opener = FENCE_OPENER.exec(openingLine);
+    return opener ? `${opener[1]}${opener[2]}` : null;
 }
 
 function withTrailingLineBreak(text: string): string {

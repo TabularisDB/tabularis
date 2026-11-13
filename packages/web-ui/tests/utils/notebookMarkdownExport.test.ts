@@ -1,3 +1,4 @@
+import {fromMarkdown} from 'mdast-util-from-markdown';
 import {describe, expect, it} from 'vitest';
 import type {NotebookCell} from '@/types/notebook';
 import {
@@ -160,11 +161,38 @@ describe('notebookMarkdownExport', () => {
 
         it('closes an open block with its own fence and indentation', () => {
             expect(
+                exportNotebookToMarkdown([markdown('a', '  ~~~~\n  code'), markdown('b', 'After')]),
+            ).toBe('  ~~~~\n  code\n  ~~~~\n\nAfter\n');
+        });
+
+        it.each([
+            ['an HTML comment', '<!--\n```sql\nSELECT 1\n-->'],
+            ['an HTML pre block', '<pre>\n```\ntext\n</pre>'],
+            ['a list item ended by a paragraph', '- a\n\n  ```\n  code\n\nplain para'],
+            ['a list item ended by the next cell', '- step\n\n  ```\n  code'],
+            ['a sub-list nested 4 spaces deep', '- a\n  - b\n\n    ```\n    code'],
+            ['a block quote', '> ```\n> code'],
+        ])('adds no fence for a fence-like line inside %s', (_label, notes) => {
+            const out =
                 exportNotebookToMarkdown([
-                    markdown('a', '- step\n\n  ~~~~\n  code'),
-                    markdown('b', 'After'),
-                ]),
-            ).toBe('- step\n\n  ~~~~\n  code\n  ~~~~\n\nAfter\n');
+                    markdown('a', notes),
+                    markdown('b', '## Next'),
+                    sql('c', 'SELECT 2'),
+                ]) ?? '';
+            expect(out).toBe(`${notes}\n\n## Next\n\n\`\`\`sql\nSELECT 2\n\`\`\`\n`);
+            const lastTwo = fromMarkdown(out).children.slice(-2);
+            expect(lastTwo.map((node) => node.type)).toEqual(['heading', 'code']);
+        });
+
+        it('renders the cells after an open block as their own blocks', () => {
+            const out =
+                exportNotebookToMarkdown([
+                    markdown('a', 'Notes\n\n~~~\ncode'),
+                    markdown('b', '## Next'),
+                    sql('c', 'SELECT 2'),
+                ]) ?? '';
+            const lastTwo = fromMarkdown(out).children.slice(-2);
+            expect(lastTwo.map((node) => node.type)).toEqual(['heading', 'code']);
         });
 
         it('leaves Markdown cells with closed or no code blocks unchanged', () => {
@@ -198,7 +226,10 @@ describe('notebookMarkdownExport', () => {
             ['a closed tilde block', '~~~\ncode\n~~~', null],
             ['an open backtick block', 'Notes\n```sql\nSELECT 1', '```'],
             ['an open tilde block', '~~~~\ncode', '~~~~'],
-            ['an indented open block', '- item\n\n   ```\n   code', '   ```'],
+            ['an indented open block', '   ```\n   code', '   ```'],
+            ['a list item block the next content ends', '- item\n\n  ```\n  code', null],
+            ['an HTML comment', '<!--\n```\nx\n-->', null],
+            ['an HTML pre block', '<pre>\n```\nx\n</pre>', null],
             ['a shorter closer', '`````\n```\ncode', '`````'],
             ['the other fence character', '```\n~~~\ncode', '```'],
             ['a closer with an info string', '```\ncode\n```sql', '```'],
