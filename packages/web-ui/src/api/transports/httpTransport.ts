@@ -22,7 +22,7 @@ import {
     type Unsubscribe,
 } from '@/api/events';
 import type {FileTransferMetadata, FileUploadRequest} from '@/api/fileTransfers';
-import type {SessionNegotiation} from '@/api/session';
+import {MANAGED_CONNECTION_DENIED_CODE, type SessionNegotiation} from '@/api/session';
 
 const EXPECTED_API_VERSION = 'v1';
 const OPEN = 1;
@@ -162,6 +162,7 @@ export class HttpTransport implements TabularisTransport {
         }
         const responseRequestId = response.headers.get('x-request-id') ?? requestId;
         await this.checkSessionResponse(response, session, responseRequestId);
+        await throwManagedDenial(response, responseRequestId);
         if (!response.ok) {
             throw clientError(
                 response.status === 413 ? 'UPLOAD_TOO_LARGE' : 'UPLOAD_FAILED',
@@ -299,6 +300,7 @@ export class HttpTransport implements TabularisTransport {
         }
         const responseRequestId = response.headers.get('x-request-id') ?? requestId;
         await this.checkSessionResponse(response, session, responseRequestId);
+        await throwManagedDenial(response, responseRequestId);
         if (!response.ok) {
             throw clientError(
                 'ICON_UPLOAD_FAILED',
@@ -912,6 +914,25 @@ function normalizeBaseUrl(baseUrl: string): string {
     return url.toString();
 }
 
+/** Upload endpoints share the RPC error envelope for managed-mode denials. */
+async function throwManagedDenial(response: Response, requestId: RequestId): Promise<void> {
+    if (response.status !== 403) return;
+    let body: unknown;
+    try {
+        body = await response.clone().json();
+    } catch {
+        return;
+    }
+    if (isRpcResponse(body) && !body.ok && body.error.code === MANAGED_CONNECTION_DENIED_CODE) {
+        throw clientError(
+            body.error.code,
+            body.error.message,
+            body.error.requestId || requestId,
+            body.error.details,
+        );
+    }
+}
+
 async function readJson(response: Response, requestId: RequestId): Promise<unknown> {
     try {
         return await response.json();
@@ -999,6 +1020,7 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
         typeof capabilities.pluginAssets === 'boolean' &&
         typeof capabilities.mcpHostConfiguration === 'boolean' &&
         capabilities.nativeUpdater === false &&
+        (value.connections === undefined || isConnectionCapabilities(value.connections)) &&
         typeof queryPolicy.maxRowsPerPage === 'number' &&
         Number.isSafeInteger(queryPolicy.maxRowsPerPage) &&
         queryPolicy.maxRowsPerPage > 0 &&
@@ -1007,6 +1029,22 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
         queryPolicy.maxResponseBytes > 0 &&
         typeof queryPolicy.streaming === 'boolean'
     );
+}
+
+function isConnectionCapabilities(value: unknown): boolean {
+    if (!isRecord(value)) return false;
+    return [
+        'managed',
+        'canCreate',
+        'canUpdate',
+        'canDelete',
+        'canDuplicate',
+        'canImport',
+        'canExport',
+        'canTest',
+        'canEditBranding',
+        'canEditOrganization',
+    ].every((key) => typeof value[key] === 'boolean');
 }
 
 function isAuthorizationLevel(value: unknown): boolean {

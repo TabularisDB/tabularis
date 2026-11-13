@@ -1209,3 +1209,108 @@ async fn opening_data_files_saves_one_workspace_connection_and_reuses_it() {
 
     crate::drivers::registry::unregister_driver("data-file-workspace-test").await;
 }
+
+#[test]
+fn collected_secrets_cover_keychain_inline_plugin_and_ssh_profile_values() {
+    let (_temp, runtime, state) = fixture();
+    let mut params = connection_params("keychain-db-secret");
+    params.driver = "test-plugin".to_string();
+    params.connection_uri = Some("pg://user:uri-secret@host/db".to_string());
+    let changes = HashMap::from([("token".to_string(), Some("plugin-secret".to_string()))]);
+    save_connection(
+        &runtime,
+        &state,
+        "Secrets".into(),
+        params,
+        changes,
+        None,
+        None,
+    )
+    .unwrap();
+
+    let values = collect_secret_values(&runtime).unwrap();
+    assert!(values.contains(&"keychain-db-secret".to_string()));
+    assert!(values.contains(&"plugin-secret".to_string()));
+    assert!(values.iter().all(|value| !value.is_empty()));
+}
+
+#[test]
+fn redacted_connections_drop_every_credential_field() {
+    let mut params = connection_params("db-secret");
+    params.connection_uri = Some("uri-secret".to_string());
+    params.ssh_password = Some("ssh-secret".to_string());
+    params.ssh_key_passphrase = Some("passphrase-secret".to_string());
+    params.socks5_proxy_username = Some("socks-user".to_string());
+    params.socks5_proxy_password = Some("socks-secret".to_string());
+    params.proxy = Some(crate::proxy::ProxyOverride {
+        mode: crate::proxy::ProxyMode::Custom,
+        endpoint: Some(crate::proxy::ProxyEndpoint {
+            protocol: Default::default(),
+            host: "proxy.internal".to_string(),
+            port: 3128,
+            username: Some("proxy-user".to_string()),
+            password: Some("proxy-secret".to_string()),
+        }),
+    });
+    let connection = SavedConnection {
+        id: "c".into(),
+        name: "c".into(),
+        params,
+        plugin_secret_keys: Vec::new(),
+        group_id: None,
+        sort_order: None,
+        detect_json_in_text_columns: None,
+        appearance: None,
+        tag_ids: None,
+        environment: None,
+        managed: true,
+    };
+
+    let json = serde_json::to_string(&redact_connection(connection)).unwrap();
+    for secret in [
+        "db-secret",
+        "uri-secret",
+        "ssh-secret",
+        "passphrase-secret",
+        "socks-secret",
+        "proxy-secret",
+    ] {
+        assert!(!json.contains(secret), "{secret} leaked");
+    }
+}
+
+#[test]
+fn updating_and_duplicating_never_clear_or_copy_the_managed_marker() {
+    let (_temp, runtime, state) = fixture();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Marked".into(),
+        connection_params("db-secret"),
+        HashMap::new(),
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(!saved.managed);
+
+    let mut file = load_file(&runtime).unwrap();
+    file.connections[0].managed = true;
+    save_file(&runtime, &state, &file).unwrap();
+
+    let updated = update_connection(
+        &runtime,
+        &state,
+        saved.id.clone(),
+        "Renamed".into(),
+        connection_params("db-secret"),
+        HashMap::new(),
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(updated.managed);
+
+    let duplicate = duplicate_connection(&runtime, &state, &saved.id).unwrap();
+    assert!(!duplicate.managed);
+}

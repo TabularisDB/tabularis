@@ -2884,6 +2884,12 @@
       }
     }
   },
+  "managed": {
+    "denied": "This connection is managed by an administrator and cannot be changed here.",
+    "noConnections": "No connections are available yet. Ask your administrator to provide one.",
+    "notice": "An administrator manages the connections on this server. You can open them and run queries, but you cannot add, edit, delete, import, export or test connections.",
+    "noticeTitle": "Managed connections"
+  },
   "groups": {
     "title": "Groups",
     "newGroup": "New Group",

@@ -1,7 +1,7 @@
 use super::{
     ai, connection_files, connections, database_objects, database_transfers, generic_exports,
     host_settings, mcp_host, metadata, notebooks, operations, persistence, plugins, productivity,
-    queries, records, themes, tunnels, ui_state, ManagedConnectionPolicy,
+    queries, records, themes, tunnels, ui_state,
 };
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
@@ -74,6 +74,16 @@ pub trait ApplicationApi: Send + Sync {
             .into_iter()
             .find(|connection| connection.id == connection_id)
             .map(|connection| connection.params))
+    }
+
+    /// Credential values the instance holds, used only to scrub text sent to
+    /// browsers in managed mode. Implementations without stored credentials
+    /// return none.
+    async fn connection_secret_values(
+        &self,
+        _context: ApplicationRequestContext,
+    ) -> Result<Vec<String>, ApplicationError> {
+        Ok(Vec::new())
     }
 
     async fn cancel_query(
@@ -201,25 +211,11 @@ pub trait ApplicationApi: Send + Sync {
 pub struct RuntimeApplicationApi {
     runtime: RuntimeContext,
     state: Arc<ApplicationState>,
-    connection_policy: ManagedConnectionPolicy,
 }
 
 impl RuntimeApplicationApi {
     pub fn new(runtime: RuntimeContext, state: Arc<ApplicationState>) -> Self {
-        Self {
-            runtime,
-            state,
-            connection_policy: ManagedConnectionPolicy::standalone(),
-        }
-    }
-
-    pub fn with_connection_policy(mut self, policy: ManagedConnectionPolicy) -> Self {
-        self.connection_policy = policy;
-        self
-    }
-
-    pub fn connection_policy(&self) -> &ManagedConnectionPolicy {
-        &self.connection_policy
+        Self { runtime, state }
     }
 }
 
@@ -264,6 +260,19 @@ impl ApplicationApi for RuntimeApplicationApi {
         tokio::task::spawn_blocking(move || connections::load_redacted_connections(&path))
             .await
             .map_err(|error| ApplicationError::new(format!("Failed to load connections: {error}")))?
+            .map_err(ApplicationError::new)
+    }
+
+    async fn connection_secret_values(
+        &self,
+        _context: ApplicationRequestContext,
+    ) -> Result<Vec<String>, ApplicationError> {
+        let runtime = self.runtime.clone();
+        tokio::task::spawn_blocking(move || connections::collect_secret_values(&runtime))
+            .await
+            .map_err(|error| {
+                ApplicationError::new(format!("Failed to collect connection secrets: {error}"))
+            })?
             .map_err(ApplicationError::new)
     }
 

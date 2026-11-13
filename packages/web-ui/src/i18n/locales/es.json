@@ -453,6 +453,12 @@
     "databaseListUpToDate": "La lista de bases de datos está actualizada",
     "allDatabasesRefreshed": "Bases de datos actualizadas: {{names}}"
   },
+  "managed": {
+    "denied": "Esta conexión la gestiona un administrador y no se puede modificar aquí.",
+    "noConnections": "Todavía no hay conexiones disponibles. Pide a tu administrador que proporcione una.",
+    "notice": "Un administrador gestiona las conexiones de este servidor. Puedes abrirlas y ejecutar consultas, pero no puedes añadir, editar, eliminar, importar, exportar ni probar conexiones.",
+    "noticeTitle": "Conexiones administradas"
+  },
   "groups": {
     "title": "Grupos",
     "newGroup": "Nuevo grupo",

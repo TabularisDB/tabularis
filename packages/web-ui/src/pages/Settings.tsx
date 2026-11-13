@@ -39,6 +39,7 @@ import {SnippetsTab} from '@/components/settings/SnippetsTab';
 import {PluginSettingsPage} from '@/components/settings/PluginSettingsPage';
 import {useDrivers} from '@/hooks/useDrivers';
 import {useSettings} from '@/hooks/useSettings';
+import {useConnectionCapabilities} from '@/hooks/useConnectionCapabilities';
 import {useAvailableUpdates} from '@/hooks/useAvailableUpdates';
 import {UpdateBadge} from '@/components/ui/UpdateBadge';
 import {UpdateTooltip} from '@/components/ui/UpdateTooltip';
@@ -89,6 +90,9 @@ const TAB_ITEMS: Array<{
     {id: 'info', icon: Info, labelKey: 'settings.info'},
 ];
 
+/** Tunnel profiles and connection backups choose where connections go and what leaves the server. */
+const MANAGED_HIDDEN_TABS: ReadonlySet<SettingsTab> = new Set(['ssh', 'backup']);
+
 const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
     general: GeneralTab,
     network: NetworkTab,
@@ -113,11 +117,13 @@ export const Settings = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const {allDrivers, installedPlugins, refresh: refreshDrivers} = useDrivers();
     const {settings} = useSettings();
+    const {managed} = useConnectionCapabilities();
+    const tabItems = TAB_ITEMS.filter(({id}) => !(managed && MANAGED_HIDDEN_TABS.has(id)));
     const activeExternalDrivers =
         settings.activeExternalDrivers ?? installedPlugins.map((p) => p.id);
     const tabParam = searchParams.get('tab');
     const requestedTab: SettingsTab =
-        tabParam && (TAB_ITEMS.some(({id}) => id === tabParam) || tabParam.startsWith('plugin:'))
+        tabParam && (tabItems.some(({id}) => id === tabParam) || tabParam.startsWith('plugin:'))
             ? (tabParam as SettingsTab)
             : 'general';
     const setRequestedTab = (tab: SettingsTab) => {
@@ -205,7 +211,7 @@ export const Settings = () => {
             {/* Sidebar */}
             <nav className="w-52 flex flex-col border-r border-default bg-elevated shrink-0">
                 <div className="flex-1 py-2 px-2 overflow-y-auto space-y-0.5">
-                    {TAB_ITEMS.map(({id, icon: Icon, labelKey}) => (
+                    {tabItems.map(({id, icon: Icon, labelKey}) => (
                         <div key={id} className="space-y-1">
                             <UpdateTooltip
                                 className="flex"

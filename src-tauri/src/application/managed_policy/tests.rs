@@ -157,3 +157,38 @@ fn marker_round_trips_and_is_omitted_when_false() {
     let json = serde_json::to_value(&connection).unwrap();
     assert!(json.get("managed").is_none());
 }
+
+#[test]
+fn standalone_capabilities_allow_everything() {
+    let capabilities = ManagedConnectionPolicy::standalone().capabilities();
+    assert!(!capabilities.managed);
+    assert!(capabilities.can_create && capabilities.can_update && capabilities.can_delete);
+    assert!(capabilities.can_duplicate && capabilities.can_import && capabilities.can_export);
+    assert!(capabilities.can_test);
+    assert!(capabilities.can_edit_branding && capabilities.can_edit_organization);
+}
+
+#[test]
+fn managed_only_capabilities_follow_the_switches() {
+    let capabilities = ManagedConnectionPolicy::managed_only().capabilities();
+    assert!(capabilities.managed);
+    assert!(!capabilities.can_create && !capabilities.can_update && !capabilities.can_delete);
+    assert!(!capabilities.can_duplicate && !capabilities.can_import && !capabilities.can_export);
+    assert!(!capabilities.can_test);
+    assert!(!capabilities.can_edit_branding && !capabilities.can_edit_organization);
+
+    let capabilities = ManagedConnectionPolicy::managed_only()
+        .with_organization_allowed(true)
+        .capabilities();
+    assert!(capabilities.can_edit_organization && !capabilities.can_edit_branding);
+    assert!(!capabilities.can_create);
+}
+
+#[test]
+fn capabilities_serialize_in_camel_case() {
+    let json =
+        serde_json::to_value(ManagedConnectionPolicy::managed_only().capabilities()).unwrap();
+    assert_eq!(json["managed"], true);
+    assert_eq!(json["canEditBranding"], false);
+    assert_eq!(json["canTest"], false);
+}

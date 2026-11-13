@@ -170,6 +170,8 @@ pub fn apply(
         };
         new_conn.group_id = group_id;
         new_conn.sort_order = None;
+        // The marker comes from the instance, never from the imported file.
+        new_conn.managed = false;
         if let Some(secrets) = payload.plugin_secrets.get(&source_connection_id) {
             out.plugin_secrets
                 .insert(new_conn.id.clone(), secrets.clone());
@@ -329,6 +331,17 @@ mod tests {
         // Both the group and its ancestor are carried over verbatim.
         let ids: Vec<&str> = out.groups.iter().map(|g| g.id.as_str()).collect();
         assert!(ids.contains(&"A1") && ids.contains(&"A"));
+    }
+
+    #[test]
+    fn apply_never_carries_an_incoming_managed_marker() {
+        let mut connection = conn("c1", "Prod", "h", "app", None);
+        connection.managed = true;
+        let p = payload(vec![], vec![connection]);
+        let out = apply(&p, &[res(0, "import")], &[]);
+
+        assert_eq!(out.connections.len(), 1);
+        assert!(!out.connections[0].managed);
     }
 
     #[test]

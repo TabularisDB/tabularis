@@ -2849,6 +2849,12 @@
       }
     }
   },
+  "managed": {
+    "denied": "Kết nối này do quản trị viên quản lý và không thể thay đổi tại đây.",
+    "noConnections": "Chưa có kết nối nào. Hãy nhờ quản trị viên cung cấp một kết nối.",
+    "notice": "Quản trị viên quản lý các kết nối trên máy chủ này. Bạn có thể mở chúng và chạy truy vấn, nhưng không thể thêm, sửa, xóa, nhập, xuất hoặc kiểm tra kết nối.",
+    "noticeTitle": "Kết nối được quản lý"
+  },
   "groups": {
     "title": "Nhóm",
     "newGroup": "Nhóm mới",

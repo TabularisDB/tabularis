@@ -223,13 +223,10 @@ pub fn run() {
                 application.context.clone(),
                 application_state.clone(),
             );
-            let application_api = std::sync::Arc::new(
-                application::RuntimeApplicationApi::new(
-                    application.context,
-                    application_state.clone(),
-                )
-                .with_connection_policy(web_args.connection_policy()),
-            );
+            let application_api = std::sync::Arc::new(application::RuntimeApplicationApi::new(
+                application.context,
+                application_state.clone(),
+            ));
 
             let server_result =
                 transport::web::server::run(transport::web::server::WebServerOptions {
@@ -244,6 +241,7 @@ pub fn run() {
                     public_url: web_args.public_url.clone(),
                     allowed_origins: web_args.allowed_origins.clone(),
                     allow_high_risk: web_args.allow_high_risk,
+                    connection_policy: web_args.connection_policy(),
                     server_file_browser_roots: web_args.server_file_browser_roots.clone(),
                     application: application_api,
                     events: web_events,

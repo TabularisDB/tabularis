@@ -2770,6 +2770,12 @@
       }
     }
   },
+  "managed": {
+    "denied": "Diese Verbindung wird von einem Administrator verwaltet und kann hier nicht geändert werden.",
+    "noConnections": "Noch keine Verbindungen verfügbar. Bitte deinen Administrator, eine bereitzustellen.",
+    "notice": "Ein Administrator verwaltet die Verbindungen auf diesem Server. Du kannst sie öffnen und Abfragen ausführen, aber keine Verbindungen hinzufügen, bearbeiten, löschen, importieren, exportieren oder testen.",
+    "noticeTitle": "Verwaltete Verbindungen"
+  },
   "groups": {
     "title": "Gruppen",
     "newGroup": "Neue Gruppe",

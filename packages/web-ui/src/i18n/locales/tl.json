@@ -2843,6 +2843,12 @@
       }
     }
   },
+  "managed": {
+    "denied": "Ang koneksyong ito ay pinamamahalaan ng isang administrator at hindi mababago rito.",
+    "noConnections": "Wala pang available na koneksyon. Humingi sa iyong administrator na magbigay ng isa.",
+    "notice": "Isang administrator ang namamahala sa mga koneksyon sa server na ito. Maaari mo silang buksan at magpatakbo ng mga query, ngunit hindi ka makakapagdagdag, makakapag-edit, makakapagtanggal, makakapag-import, makakapag-export o makakapag-test ng mga koneksyon.",
+    "noticeTitle": "Mga pinamamahalaang koneksyon"
+  },
   "groups": {
     "title": "Mga Grupo",
     "newGroup": "Bagong Grupo",

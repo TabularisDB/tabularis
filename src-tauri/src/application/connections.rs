@@ -402,6 +402,47 @@ pub(crate) fn resolve_saved_connection_params(
     Ok((driver_id, params))
 }
 
+/// Every credential value the instance holds for its saved connections and SSH
+/// profiles, for scrubbing error text and events bound for a browser. Keychain
+/// read failures are skipped: a secret that cannot be read cannot be leaked by
+/// this process either.
+pub fn collect_secret_values(runtime: &RuntimeContext) -> Result<Vec<String>, String> {
+    let file = load_file(runtime)?;
+    let mut values = Vec::new();
+    for connection in &file.connections {
+        let plugin_secrets = load_plugin_secrets(runtime, connection);
+        let mut params = connection.params.clone();
+        let _ = restore_secrets(runtime, &connection.id, &mut params);
+        values.extend(
+            [
+                params.password,
+                params.connection_uri,
+                params.ssh_password,
+                params.ssh_key_passphrase,
+                params.socks5_proxy_password,
+                params
+                    .proxy
+                    .and_then(|proxy| proxy.endpoint)
+                    .and_then(|endpoint| endpoint.password),
+            ]
+            .into_iter()
+            .flatten(),
+        );
+        values.extend(plugin_secrets.into_values());
+    }
+    if let Ok(profiles) = crate::application::tunnels::get_ssh_connections(runtime, true) {
+        for profile in profiles {
+            values.extend(
+                [profile.password, profile.key_passphrase]
+                    .into_iter()
+                    .flatten(),
+            );
+        }
+    }
+    values.retain(|value| !value.is_empty());
+    Ok(values)
+}
+
 pub fn store_icon_upload(
     data_dir: &Path,
     session_id: Uuid,
@@ -494,6 +535,16 @@ fn redact_connection(mut connection: SavedConnection) -> SavedConnection {
     connection.params.ssh_password = None;
     connection.params.ssh_key_passphrase = None;
     connection.params.connection_id = None;
+    connection.params.socks5_proxy_username = None;
+    connection.params.socks5_proxy_password = None;
+    if let Some(endpoint) = connection
+        .params
+        .proxy
+        .as_mut()
+        .and_then(|proxy| proxy.endpoint.as_mut())
+    {
+        endpoint.password = None;
+    }
     connection
 }
 

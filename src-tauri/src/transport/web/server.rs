@@ -7,11 +7,12 @@ use super::contract::SessionNegotiation;
 use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
 use super::login_page::{login_page_csp, render_login_page};
 use super::login_target::{login_return_target, LOGIN_TARGET_PARAM};
-use super::rpc::{RequestId, RpcAccessPolicy, RpcDispatcher};
+use super::rpc::{managed_denial, RequestId, RpcAccessPolicy, RpcDispatcher};
 use crate::application::file_transfers::{
     FileTransferStore, TransferReader, UploadError, MAX_FILE_TRANSFER_BYTES,
 };
 use crate::application::{ApplicationApi, AuthorizationLevel};
+use crate::application::{ConnectionAction, ManagedConnectionPolicy};
 use crate::cli::WebAuthMode;
 use axum::body::{Body, Bytes};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -70,6 +71,7 @@ pub struct WebServerOptions {
     pub public_url: Option<String>,
     pub allowed_origins: Vec<String>,
     pub allow_high_risk: bool,
+    pub connection_policy: ManagedConnectionPolicy,
     pub server_file_browser_roots: Vec<PathBuf>,
     pub application: Arc<dyn ApplicationApi>,
     pub events: WebEventBus,
@@ -85,6 +87,7 @@ struct WebServerState {
     plugins_dir: PathBuf,
     mcp_host_configuration: bool,
     server_file_browser: bool,
+    connection_policy: ManagedConnectionPolicy,
 }
 
 #[derive(Deserialize)]
@@ -108,6 +111,7 @@ struct BlobUploadResponse {
 }
 
 pub async fn run(options: WebServerOptions) -> Result<(), String> {
+    validate_connection_policy(&options)?;
     let server_file_browser_roots =
         super::server_files::canonicalize_roots(&options.server_file_browser_roots)?;
     let listener = TcpListener::bind((options.host.as_str(), options.port))
@@ -184,7 +188,13 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
     }
     drop(launch_url);
 
-    serve_with_events(
+    let secret_refresh = options.connection_policy.is_managed_only().then(|| {
+        spawn_secret_refresh(
+            options.application.clone(),
+            options.events.redactor().clone(),
+        )
+    });
+    let result = serve_with_policy(
         listener,
         options.web_root,
         options.data_dir,
@@ -193,10 +203,73 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
         options.application,
         options.events,
         server_file_browser_roots,
+        options.connection_policy,
         shutdown_signal(),
     )
     .await
-    .map_err(|error| format!("Web UI server failed: {error}"))
+    .map_err(|error| format!("Web UI server failed: {error}"));
+    if let Some(task) = secret_refresh {
+        task.abort();
+    }
+    result
+}
+
+/// Managed mode is only meaningful where the browser user is not the machine
+/// owner: local-administrator authority would let a session read files, run
+/// host commands and edit settings, which defeats an administrator-supplied
+/// connection set.
+fn validate_connection_policy(options: &WebServerOptions) -> Result<(), String> {
+    if !options.connection_policy.is_managed_only() {
+        return Ok(());
+    }
+    if options.auth.is_none() {
+        return Err(
+            "--connection-mode managed-only requires remote authentication (--auth)".to_string(),
+        );
+    }
+    if options.allow_high_risk {
+        return Err(
+            "--connection-mode managed-only cannot be combined with --allow-high-risk".to_string(),
+        );
+    }
+    Ok(())
+}
+
+const SECRET_REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Reloads the instance's credentials into the redactor.
+pub(crate) async fn refresh_secrets(
+    application: &dyn ApplicationApi,
+    redactor: &crate::application::secret_redaction::SecretRedactor,
+) {
+    let context = crate::application::ApplicationRequestContext {
+        request_id: "secret-refresh".to_string(),
+        deadline: std::time::Instant::now() + SECRET_REFRESH_INTERVAL,
+        cancellation_id: None,
+        authorization: AuthorizationLevel::Session,
+        session_id: None,
+    };
+    match application.connection_secret_values(context).await {
+        Ok(values) => redactor.replace(values),
+        Err(error) => log::warn!("Failed to refresh managed credentials: {}", error.message),
+    }
+}
+
+/// Keeps the event redactor aware of the instance's current credentials,
+/// including ones an administrator rotates while the server runs. The first
+/// tick fires at once, so the redactor is filled before the first request.
+fn spawn_secret_refresh(
+    application: Arc<dyn ApplicationApi>,
+    redactor: crate::application::secret_redaction::SecretRedactor,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(SECRET_REFRESH_INTERVAL);
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            refresh_secrets(application.as_ref(), &redactor).await;
+        }
+    })
 }
 
 fn remote_authentication(auth_mode: WebAuthMode) -> Result<RemoteAuthentication, String> {
@@ -236,6 +309,7 @@ where
     .await
 }
 
+#[cfg(test)]
 pub(crate) async fn serve_with_events<F>(
     listener: TcpListener,
     web_root: PathBuf,
@@ -250,6 +324,36 @@ pub(crate) async fn serve_with_events<F>(
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    serve_with_policy(
+        listener,
+        web_root,
+        data_dir,
+        plugins_dir,
+        security,
+        application,
+        events,
+        server_file_browser_roots,
+        ManagedConnectionPolicy::standalone(),
+        shutdown,
+    )
+    .await
+}
+
+pub(crate) async fn serve_with_policy<F>(
+    listener: TcpListener,
+    web_root: PathBuf,
+    data_dir: PathBuf,
+    plugins_dir: PathBuf,
+    security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
+    events: WebEventBus,
+    server_file_browser_roots: Arc<[PathBuf]>,
+    connection_policy: ManagedConnectionPolicy,
+    shutdown: F,
+) -> std::io::Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
     let (router, state) = router(
         web_root,
         data_dir,
@@ -258,6 +362,7 @@ where
         application,
         events,
         server_file_browser_roots,
+        connection_policy,
     );
     // Keep reclamation owned by the server future, including cancellation and shutdown.
     tokio::select! {
@@ -291,6 +396,7 @@ fn router(
     application: Arc<dyn ApplicationApi>,
     events: WebEventBus,
     server_file_browser_roots: Arc<[PathBuf]>,
+    connection_policy: ManagedConnectionPolicy,
 ) -> (Router, WebServerState) {
     let index = web_root.join("index.html");
     let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
@@ -305,6 +411,8 @@ fn router(
             RpcAccessPolicy {
                 mcp_host_configuration,
                 server_file_browser_roots,
+                connection_policy,
+                secret_redactor: events.redactor().clone(),
             },
         ),
         events,
@@ -313,6 +421,7 @@ fn router(
         plugins_dir,
         mcp_host_configuration,
         server_file_browser,
+        connection_policy,
     };
 
     let standard_routes = Router::new()
@@ -515,7 +624,8 @@ async fn session(
             .with_server_file_browser(
                 state.server_file_browser
                     && session.authorization() == AuthorizationLevel::LocalAdmin,
-            ),
+            )
+            .with_connection_policy(&state.connection_policy),
         ),
     )
 }
@@ -574,8 +684,15 @@ async fn rpc(
 async fn upload_connection_icon(
     State(state): State<WebServerState>,
     Extension(session): Extension<AuthenticatedSession>,
+    Extension(request_id): Extension<RequestId>,
     body: Bytes,
 ) -> Response {
+    if let Err(denial) = state
+        .connection_policy
+        .authorize(ConnectionAction::EditBranding, false)
+    {
+        return managed_denial(denial, request_id.0);
+    }
     match crate::application::connections::store_icon_upload(
         &state.data_dir,
         session.event_scope(),
@@ -599,6 +716,7 @@ async fn upload_connection_icon(
 async fn upload_file(
     State(state): State<WebServerState>,
     Extension(session): Extension<AuthenticatedSession>,
+    Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
     body: Body,
 ) -> Response {
@@ -607,6 +725,14 @@ async fn upload_file(
             "A file transfer purpose is required".to_string(),
         ));
     };
+    if purpose == crate::application::connection_files::CONNECTION_IMPORT_PURPOSE {
+        if let Err(denial) = state
+            .connection_policy
+            .authorize(ConnectionAction::Import, false)
+        {
+            return managed_denial(denial, request_id.0);
+        }
+    }
     let Some(encoded_name) = header_text(&headers, FILE_NAME_HEADER_NAME) else {
         return upload_error_response(UploadError::Failed("A file name is required".to_string()));
     };

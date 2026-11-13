@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Stable machine-readable code carried by every policy denial.
@@ -33,6 +34,23 @@ pub enum ConnectionAction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PolicyDenial {
     pub action: ConnectionAction,
+}
+
+impl ConnectionAction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Use => "use",
+            Self::Create => "create",
+            Self::Update => "update",
+            Self::Delete => "delete",
+            Self::Duplicate => "duplicate",
+            Self::Import => "import",
+            Self::Export => "export",
+            Self::TestWithParams => "test_with_params",
+            Self::EditBranding => "edit_branding",
+            Self::EditOrganization => "edit_organization",
+        }
+    }
 }
 
 impl PolicyDenial {
@@ -116,6 +134,41 @@ impl ManagedConnectionPolicy {
             Ok(())
         } else {
             Err(PolicyDenial { action })
+        }
+    }
+}
+
+/// What a browser session may do, derived from the policy so the frontend
+/// never has to infer it. The backend still enforces every one of these.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionCapabilities {
+    pub managed: bool,
+    pub can_create: bool,
+    pub can_update: bool,
+    pub can_delete: bool,
+    pub can_duplicate: bool,
+    pub can_import: bool,
+    pub can_export: bool,
+    pub can_test: bool,
+    pub can_edit_branding: bool,
+    pub can_edit_organization: bool,
+}
+
+impl ManagedConnectionPolicy {
+    pub fn capabilities(&self) -> ConnectionCapabilities {
+        let allows = |action| self.authorize(action, false).is_ok();
+        ConnectionCapabilities {
+            managed: self.is_managed_only(),
+            can_create: allows(ConnectionAction::Create),
+            can_update: allows(ConnectionAction::Update),
+            can_delete: allows(ConnectionAction::Delete),
+            can_duplicate: allows(ConnectionAction::Duplicate),
+            can_import: allows(ConnectionAction::Import),
+            can_export: allows(ConnectionAction::Export),
+            can_test: allows(ConnectionAction::TestWithParams),
+            can_edit_branding: allows(ConnectionAction::EditBranding),
+            can_edit_organization: allows(ConnectionAction::EditOrganization),
         }
     }
 }

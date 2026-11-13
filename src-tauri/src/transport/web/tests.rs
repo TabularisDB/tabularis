@@ -868,6 +868,7 @@ async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
         public_url: None,
         allowed_origins: Vec::new(),
         allow_high_risk: false,
+        connection_policy: crate::application::ManagedConnectionPolicy::standalone(),
         server_file_browser_roots: Vec::new(),
         application: test_application(temp.path()),
         events: WebEventBus::default(),
