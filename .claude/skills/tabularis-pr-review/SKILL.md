@@ -30,6 +30,7 @@ Read `.rules/*.md` for every changed file's domain before forming opinions. The 
 - **`rust.md`** — pure helpers extracted + unit-tested; `mod.rs` stays orchestration-only; public APIs re-exported on refactor.
 - **`general.md`** — English-only comments; new user-facing strings need i18n keys in `packages/web-ui/src/i18n/locales/*`.
 - **`plugins.md`** — what happens on a plugin driver? Look for `driver === "<id>"` checks, SQL helpers called without `activeCapabilities`, frontend SQL (`LIMIT`, `COUNT(DISTINCT)`, casts) shown to every dialect, and slot contexts that pass capabilities instead of the driver id.
+- **`datagrid.md`** — does a grid change still work transposed? Look for scrolling, focus or sticky code that assumes records are rows (`rowVirtualizer`, `tr[data-row-index]`), loops over `columns` instead of `visibleColIndices`, and geometry changes with no `transposed` test.
 
 ### 3. Verify the PR's claims — don't take them on faith
 For each factual assertion in the description, prove it:

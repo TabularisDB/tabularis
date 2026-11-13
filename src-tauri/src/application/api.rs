@@ -1,7 +1,7 @@
 use super::{
     ai, connection_files, connections, database_objects, database_transfers, generic_exports,
     host_settings, mcp_host, metadata, notebooks, operations, persistence, plugins, productivity,
-    queries, records, themes, tunnels, ui_state,
+    queries, records, themes, tunnels, ui_state, ManagedConnectionPolicy,
 };
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
@@ -201,11 +201,25 @@ pub trait ApplicationApi: Send + Sync {
 pub struct RuntimeApplicationApi {
     runtime: RuntimeContext,
     state: Arc<ApplicationState>,
+    connection_policy: ManagedConnectionPolicy,
 }
 
 impl RuntimeApplicationApi {
     pub fn new(runtime: RuntimeContext, state: Arc<ApplicationState>) -> Self {
-        Self { runtime, state }
+        Self {
+            runtime,
+            state,
+            connection_policy: ManagedConnectionPolicy::standalone(),
+        }
+    }
+
+    pub fn with_connection_policy(mut self, policy: ManagedConnectionPolicy) -> Self {
+        self.connection_policy = policy;
+        self
+    }
+
+    pub fn connection_policy(&self) -> &ManagedConnectionPolicy {
+        &self.connection_policy
     }
 }
 
@@ -215,6 +229,7 @@ impl ApplicationApi for RuntimeApplicationApi {
         self.state.import_envelope_cache.clear_session(session_id);
         queries::cancel_session_queries(&self.state.query_cancellation, session_id);
         super::query_sessions::clear_owner(session_id);
+        crate::async_rt::spawn(super::routine_debug::release(Some(session_id), None));
         database_transfers::cancel_session_jobs(&self.state.dump_cancellation, session_id);
         generic_exports::cancel_session_exports(&self.state.export_cancellation, session_id);
         self.state

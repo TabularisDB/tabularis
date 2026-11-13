@@ -370,10 +370,7 @@ pub fn read(path: &Path) -> Result<Option<VaultFile>, String> {
     let file: VaultFile = serde_json::from_str(&content)
         .map_err(|e| format!("The shared vault file is not a valid vault: {e}"))?;
     if file.format != VAULT_FORMAT {
-        return Err(format!(
-            "Unrecognized shared vault format: {}",
-            file.format
-        ));
+        return Err(format!("Unrecognized shared vault format: {}", file.format));
     }
     if file.version > VAULT_VERSION {
         return Err(format!(
@@ -477,10 +474,7 @@ impl VaultLock {
                 Err(e) => return Err(format!("Cannot lock the shared vault: {e}")),
             }
         }
-        Err(
-            "The shared vault is locked by another team member. Try again in a moment."
-                .to_string(),
-        )
+        Err("The shared vault is locked by another team member. Try again in a moment.".to_string())
     }
 }
 

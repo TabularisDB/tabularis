@@ -3,6 +3,7 @@ import {
     applyKeywordCase,
     clearAutocompleteCache,
     findOpenIdentifierQuote,
+    getTableColumns,
     needsKeywordCaseRetrigger,
     registerSqlAutocomplete as registerSqlAutocompleteImpl,
     resolveKeywordCase,
@@ -118,6 +119,62 @@ describe('autocomplete', () => {
             clearAutocompleteCache('conn1');
             // No error should be thrown
             expect(true).toBe(true);
+        });
+    });
+
+    describe('getTableColumns', () => {
+        const column = (name: string) => ({name, data_type: 'int4'});
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        it('serves a cached list and keys it by database', async () => {
+            vi.mocked(invoke).mockResolvedValue([column('id')]);
+            await getTableColumns(autocompleteClient, 'c1', 't', 'public', 'db1');
+            await getTableColumns(autocompleteClient, 'c1', 't', 'public', 'db1');
+            expect(invoke).toHaveBeenCalledTimes(1);
+            expect(invoke).toHaveBeenCalledWith('get_columns', {
+                connectionId: 'c1',
+                tableName: 't',
+                schema: 'public',
+                database: 'db1',
+            });
+
+            await getTableColumns(autocompleteClient, 'c1', 't', 'public', 'db2');
+            expect(invoke).toHaveBeenCalledTimes(2);
+        });
+
+        it('re-reads an entry older than maxAgeMs and refreshes the cache', async () => {
+            vi.useFakeTimers();
+            vi.mocked(invoke).mockResolvedValueOnce([column('id')]);
+            await getTableColumns(autocompleteClient, 'c1', 't', 'public');
+
+            vi.advanceTimersByTime(6_000);
+            vi.mocked(invoke).mockResolvedValueOnce([column('id'), column('extra')]);
+            const fresh = await getTableColumns(
+                autocompleteClient,
+                'c1',
+                't',
+                'public',
+                null,
+                5_000,
+            );
+            expect(fresh.map((c) => c.label)).toEqual(['id', 'extra']);
+
+            // Callers without a bound see the refreshed entry.
+            const cached = await getTableColumns(autocompleteClient, 'c1', 't', 'public');
+            expect(cached.map((c) => c.label)).toEqual(['id', 'extra']);
+            expect(invoke).toHaveBeenCalledTimes(2);
+        });
+
+        it('accepts an entry younger than maxAgeMs', async () => {
+            vi.useFakeTimers();
+            vi.mocked(invoke).mockResolvedValue([column('id')]);
+            await getTableColumns(autocompleteClient, 'c1', 't', 'public');
+            vi.advanceTimersByTime(1_000);
+            await getTableColumns(autocompleteClient, 'c1', 't', 'public', null, 5_000);
+            expect(invoke).toHaveBeenCalledTimes(1);
         });
     });
 

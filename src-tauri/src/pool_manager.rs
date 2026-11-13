@@ -1,6 +1,8 @@
 use crate::models::ConnectionParams;
 use crate::sqlite_database::expand_sqlite_filename;
-use deadpool_postgres::{Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool};
+use deadpool_postgres::{
+    Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool,
+};
 use once_cell::sync::Lazy;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{verify_server_cert_signed_by_trust_anchor, WebPkiServerVerifier};
@@ -13,7 +15,9 @@ use rustls::DigitallySignedStruct;
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
 use sha2::{Digest, Sha256};
-use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite};
+use sqlx::{
+    sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -87,6 +91,54 @@ fn mysql_numeric_setting(key: &str, default: u64) -> u64 {
                 .or_else(|| value.as_str().and_then(|item| item.parse::<u64>().ok()))
         })
         .unwrap_or(default)
+}
+
+/// The per-connection connect timeout, or None when unset or 0.
+pub(crate) fn connect_timeout(params: &ConnectionParams) -> Option<Duration> {
+    params
+        .connect_timeout_secs
+        .filter(|secs| *secs > 0)
+        .map(|secs| Duration::from_secs(secs.into()))
+}
+
+/// The per-connection query timeout, or None when unset or 0.
+pub(crate) fn query_timeout(params: &ConnectionParams) -> Option<Duration> {
+    params
+        .query_timeout_secs
+        .filter(|secs| *secs > 0)
+        .map(|secs| Duration::from_secs(secs.into()))
+}
+
+/// Runs a connection attempt, failing once the connection's connect timeout
+/// passes. Without one, the attempt runs unbounded as before.
+pub(crate) async fn with_connect_timeout<T>(
+    params: &ConnectionParams,
+    attempt: impl std::future::Future<Output = Result<T, String>>,
+) -> Result<T, String> {
+    match connect_timeout(params) {
+        Some(timeout) => tokio::time::timeout(timeout, attempt)
+            .await
+            .map_err(|_| format!("Connection timed out after {} s", timeout.as_secs()))?,
+        None => attempt.await,
+    }
+}
+
+/// The limit for one run of the PostgreSQL startup script: the connection's
+/// connect timeout, else the default 30 s.
+pub(crate) fn postgres_startup_script_timeout(params: &ConnectionParams) -> Duration {
+    connect_timeout(params)
+        .unwrap_or_else(|| Duration::from_millis(POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS))
+}
+
+/// The MySQL connect timeout: the connection's own value, else the global
+/// `connectTimeout` setting.
+pub(crate) fn mysql_connect_timeout(params: &ConnectionParams) -> Duration {
+    connect_timeout(params).unwrap_or_else(|| {
+        Duration::from_millis(mysql_numeric_setting(
+            "connectTimeout",
+            DEFAULT_MYSQL_CONNECT_TIMEOUT_MS,
+        ))
+    })
 }
 
 fn postgres_setting_value(key: &str) -> Option<serde_json::Value> {
@@ -278,16 +330,30 @@ pub(crate) fn build_connection_key(
         base_key
     };
 
+    // A protected connection must never borrow an ordinary physical session.
+    // Writable connections retain their existing keys.
+    let key = if params.read_only {
+        format!("read_only:{key}")
+    } else {
+        key
+    };
+
     // Fold the startup script into the key so editing it forces a fresh pool
     // (whose new connections run the new script) instead of silently reusing
     // the cached pool keyed only by connection_id. Hashed to keep the key
     // bounded; only present when a script is set, so script-free connections
     // keep their existing keys.
-    match startup_script(params) {
+    let key = match startup_script(params) {
         Some(script) => {
             let digest = Sha256::digest(script.as_bytes());
             format!("{key}:startup:{digest:x}")
         }
+        None => key,
+    };
+
+    // Same for the connect timeout: the pool applies it when it is built.
+    match connect_timeout(params) {
+        Some(timeout) => format!("{key}:connect_timeout:{}", timeout.as_secs()),
         None => key,
     }
 }
@@ -461,6 +527,7 @@ async fn build_and_connect_mysql_pool(
     script: Option<&str>,
 ) -> Result<Pool<MySql>, String> {
     let options = build_mysql_options(params, override_db)?;
+    let script = if params.read_only { None } else { script };
 
     // Validate the startup script up front so a broken script fails fast with a
     // clearly attributed error (see `run_mysql_startup_script`). This uses the
@@ -478,12 +545,18 @@ async fn build_and_connect_mysql_pool(
     }
 
     let mut pool_options = sqlx::mysql::MySqlPoolOptions::new().max_connections(10);
-    if let Some(script) = script {
-        let script = script.to_owned();
+    if params.read_only || script.is_some() {
+        let read_only = params.read_only;
+        let script = script.map(str::to_owned);
         pool_options = pool_options.after_connect(move |conn, _meta| {
             let script = script.clone();
             Box::pin(async move {
-                conn.execute(script.as_str()).await?;
+                if read_only {
+                    conn.execute("SET SESSION TRANSACTION READ ONLY").await?;
+                }
+                if let Some(script) = script {
+                    conn.execute(script.as_str()).await?;
+                }
                 Ok(())
             })
         });
@@ -514,6 +587,12 @@ pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> Result
         .port(params.port.unwrap_or(5432))
         .host(params.host.as_deref().unwrap_or_default())
         .dbname(&format!("{}", params.database));
+    if let Some(timeout) = connect_timeout(params) {
+        cfg.connect_timeout(timeout);
+    }
+    if params.read_only {
+        cfg.options("-c default_transaction_read_only=on");
+    }
 
     // Unset leaves tokio_postgres's default (`Prefer`). A set but unknown
     // mode is a connection error rather than that default.
@@ -835,13 +914,22 @@ impl ServerCertVerifier for VerifyCaCertVerifier {
 }
 
 fn build_sqlite_connectoptions(params: &ConnectionParams) -> SqliteConnectOptions {
-    SqliteConnectOptions::new().filename(expand_sqlite_filename(params.database.primary()))
+    let options =
+        SqliteConnectOptions::new().filename(expand_sqlite_filename(params.database.primary()));
+    if params.read_only {
+        options.read_only(true).pragma("query_only", "ON")
+    } else {
+        options
+    }
 }
 
 /// Return the connection's startup script if it is set and not blank.
 /// Whitespace-only scripts are treated as absent so the per-connection
 /// hook is skipped entirely rather than issuing an empty query.
 fn startup_script(params: &ConnectionParams) -> Option<String> {
+    if params.read_only {
+        return None;
+    }
     params
         .startup_script
         .as_ref()
@@ -850,11 +938,22 @@ fn startup_script(params: &ConnectionParams) -> Option<String> {
         .map(str::to_owned)
 }
 
+#[cfg(test)]
+#[path = "pool_manager/read_only_tests.rs"]
+mod read_only_tests;
+
 /// Format a startup-script execution failure so the surfaced error clearly
 /// names the startup script as the cause, instead of reading like a bad host
 /// or wrong credentials.
 fn startup_script_error(err: impl std::fmt::Display) -> String {
     format!("Startup script failed: {err}")
+}
+
+fn startup_script_timeout_error(timeout: Duration) -> String {
+    format!(
+        "Timed out running PostgreSQL startup script after {} ms",
+        timeout.as_millis()
+    )
 }
 
 /// Validate the startup script on a throwaway connection so a broken script
@@ -911,8 +1010,7 @@ async fn run_postgres_startup_script(
     tls: MakeRustlsConnect,
     script: &str,
 ) -> Result<(), String> {
-    let (mut client, connection) =
-        cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
+    let (mut client, connection) = cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
     // tokio_postgres needs the connection future polled on its own task.
     let driver = tokio::spawn(async move {
         let _ = connection.await;
@@ -983,10 +1081,7 @@ async fn get_mysql_pool_for_database_with_id(
     // trust store is used; a process-level rustls CryptoProvider is not
     // required here. The Postgres deadpool path still installs one in
     // build_postgres_configurations via the same helper.
-    let connect_timeout = Duration::from_millis(mysql_numeric_setting(
-        "connectTimeout",
-        DEFAULT_MYSQL_CONNECT_TIMEOUT_MS,
-    ));
+    let connect_timeout = mysql_connect_timeout(params);
     let script = startup_script(params);
 
     let pool = match build_and_connect_mysql_pool(
@@ -1076,30 +1171,40 @@ pub async fn get_postgres_pool_with_id(
     })?;
 
     if let Some(script) = startup_script(params) {
-        let timeout = Duration::from_millis(POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS);
+        let timeout = postgres_startup_script_timeout(params);
         tokio::time::timeout(
             timeout,
             run_postgres_startup_script(&cfg, tls_connector.clone(), &script),
         )
         .await
-        .map_err(|_| {
-            format!(
-                "Timed out running PostgreSQL startup script after {} ms",
-                timeout.as_millis()
-            )
-        })??;
+        .map_err(|_| startup_script_timeout_error(timeout))??;
     }
 
     let mut builder =
         PgPool::builder(PgPoolManager::new(cfg, tls_connector)).max_size(postgres_pool_max_size());
+    // The config's connect_timeout only bounds the TCP connect; this also
+    // bounds TLS and authentication. deadpool runs post_create hooks after
+    // this timeout, so the hook below bounds the startup script separately.
+    let script_timeout = connect_timeout(params);
+    if let Some(timeout) = script_timeout {
+        builder = builder
+            .runtime(deadpool_postgres::Runtime::Tokio1)
+            .create_timeout(Some(timeout));
+    }
     if let Some(script) = startup_script(params) {
         builder = builder.post_create(PgHook::async_fn(move |client, _metrics| {
             let script = script.clone();
             Box::pin(async move {
-                client
-                    .batch_execute(&script)
-                    .await
-                    .map_err(|e| PgHookError::message(startup_script_error(format_error_chain(&e))))?;
+                let run = client.batch_execute(&script);
+                let outcome = match script_timeout {
+                    Some(timeout) => tokio::time::timeout(timeout, run)
+                        .await
+                        .map_err(|_| PgHookError::message(startup_script_timeout_error(timeout)))?,
+                    None => run.await,
+                };
+                outcome.map_err(|e| {
+                    PgHookError::message(startup_script_error(format_error_chain(&e)))
+                })?;
                 Ok(())
             })
         }));
@@ -1293,7 +1398,7 @@ pub(crate) fn connection_pool_prefix(driver: &str, connection_id: &str) -> Strin
     format!("{driver}:conn:{connection_id}:")
 }
 
-/// Remove and return every map entry whose key starts with `prefix`. The pools
+/// Remove every matching entry, including the isolated `read_only:` namespace. The pools
 /// are collected under a short-lived write lock and closed by the caller after
 /// the lock is released, so closing N pools never blocks other pool access.
 pub(crate) fn remove_pools_with_prefix<P>(
@@ -1302,7 +1407,11 @@ pub(crate) fn remove_pools_with_prefix<P>(
 ) -> Vec<(String, P)> {
     let keys: Vec<String> = pools
         .keys()
-        .filter(|k| k.starts_with(prefix))
+        .filter(|k| {
+            k.strip_prefix("read_only:")
+                .unwrap_or(k)
+                .starts_with(prefix)
+        })
         .cloned()
         .collect();
     keys.into_iter()

@@ -101,10 +101,7 @@ pub fn single_db_before_multi_transition(
     if previous.is_multi() || !new.is_multi() {
         return None;
     }
-    previous
-        .as_vec()
-        .into_iter()
-        .find(|s| !s.trim().is_empty())
+    previous.as_vec().into_iter().find(|s| !s.trim().is_empty())
 }
 
 impl std::fmt::Display for DatabaseSelection {
@@ -185,6 +182,13 @@ pub struct SshTestParams {
 #[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq, Eq)]
 pub struct ConnectionParams {
     pub driver: String,
+    /// User-selected connection policy. Missing in older saved connections.
+    #[serde(
+        default,
+        alias = "readOnly",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub read_only: bool,
     pub host: Option<String>,
     pub port: Option<u16>,
     pub username: Option<String>,
@@ -206,6 +210,12 @@ pub struct ConnectionParams {
     )]
     pub connection_uri_in_keychain: Option<bool>,
     pub database: DatabaseSelection,
+    /// Database a plugin driver gets as `database` while the connection selects
+    /// none ("All databases"). Typed on the connection modal's Databases tab
+    /// by flat multi-database plugins that declare `connection_fields.database`,
+    /// such as the `namespace/database` a SurrealDB user signs in to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_database: Option<String>,
     pub ssl_mode: Option<String>,
     pub ssl_ca: Option<String>,
     pub ssl_cert: Option<String>,
@@ -292,6 +302,17 @@ pub struct ConnectionParams {
     /// connections.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pooler_mode: Option<String>, // "transaction" | "session" | None
+    /// Seconds to wait for a new connection before failing. None or 0 keeps the
+    /// driver default (the global MySQL `connectTimeout` setting, no limit on
+    /// PostgreSQL). Forwarded to driver plugins as part of `params`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connect_timeout_secs: Option<u32>,
+    /// Seconds a statement may run before it is cancelled on the server. None
+    /// or 0 means no limit. The built-in PostgreSQL driver applies it to each
+    /// statement run through `execute_query`. Driver plugins receive it in
+    /// `params` and may honor it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_timeout_secs: Option<u32>,
     /// Opaque, plugin-specific connection fields. The host does not interpret
     /// these — they are persisted verbatim and forwarded to the driver plugin
     /// as part of `params`, so plugins can carry custom connection settings
@@ -307,6 +328,21 @@ pub struct ConnectionParams {
         skip_serializing_if = "crate::proxy::types::skip_optional_proxy_override"
     )]
     pub proxy: Option<crate::proxy::ProxyOverride>,
+    /// Local SOCKS5 proxy the host opened through the SSH tunnel for a
+    /// driver with the `socks5_proxy` capability. Set at runtime only, by
+    /// tunnel resolution, which clears any value a caller sent; the driver
+    /// routes every endpoint through it (e.g. all nodes of a
+    /// `mongodb+srv://` cluster).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_host: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_port: Option<u16>,
+    /// RFC 1929 credentials the local SOCKS5 proxy requires. Generated per
+    /// tunnel; absent when the listener cannot authenticate (system `ssh -D`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_password: Option<String>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
@@ -356,6 +392,11 @@ pub struct SavedConnection {
     /// write-confirmation warning and the visual identity in the UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
+    /// Set on connections provisioned by an administrator. A missing value
+    /// reads as `false`. The Web instance policy decides what the marker
+    /// protects: managed-only mode protects every connection regardless of it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub managed: bool,
 }
 
 /// A user-defined colored label. Tags are purely organizational: a
@@ -500,6 +541,16 @@ pub struct TableColumn {
     /// `data_type`, which keeps the base name other code matches on (#1277).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub full_type: Option<String>,
+    /// The column default as SQL that can go after `DEFAULT` in DDL as is
+    /// (`'new'`, `CURRENT_TIMESTAMP`, `(uuid())`). `default_value` is what the
+    /// server reports, which for MySQL is raw text (`new`), so the column
+    /// editor uses this one to restate the default on ALTER (#271).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_sql: Option<String>,
+    /// `ON UPDATE` expression of the column (MySQL `CURRENT_TIMESTAMP`), so
+    /// an ALTER that restates the column keeps it (#271).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -508,6 +559,12 @@ pub struct ForeignKey {
     pub column_name: String,
     pub ref_table: String,
     pub ref_column: String,
+    /// Schema of the referenced table, for drivers with schemas (PostgreSQL).
+    /// The referenced table can live in another schema than the source table,
+    /// so callers must not qualify `ref_table` with the source schema when this
+    /// is set. `None` means "same schema as the source table".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ref_schema: Option<String>,
     pub on_delete: Option<String>,
     pub on_update: Option<String>,
     /// 1-based position of this column within its (possibly composite) foreign
@@ -690,8 +747,8 @@ pub struct ViewInfo {
 pub struct TriggerInfo {
     pub name: String,
     pub table_name: String,
-    pub event: String,   // e.g. "INSERT", "UPDATE", "DELETE", "INSERT OR UPDATE"
-    pub timing: String,  // "BEFORE", "AFTER", "INSTEAD OF"
+    pub event: String,  // e.g. "INSERT", "UPDATE", "DELETE", "INSERT OR UPDATE"
+    pub timing: String, // "BEFORE", "AFTER", "INSTEAD OF"
     pub definition: Option<String>,
 }
 
@@ -742,6 +799,10 @@ pub struct ColumnDefinition {
     /// omitted from the payload when unset so legacy request shapes hold.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
+    /// `ON UPDATE` expression to keep when a column is restated (MySQL
+    /// `CHANGE` / `MODIFY`). Omitted from the payload when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -769,7 +830,9 @@ mod appearance_tests {
 
     #[test]
     fn icon_override_pack_roundtrip() {
-        let v = IconOverride::Pack { id: "server".into() };
+        let v = IconOverride::Pack {
+            id: "server".into(),
+        };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"pack","id":"server"}"#);
         let back: IconOverride = serde_json::from_str(&s).unwrap();
@@ -778,7 +841,9 @@ mod appearance_tests {
 
     #[test]
     fn icon_override_emoji_roundtrip() {
-        let v = IconOverride::Emoji { value: "🐘".into() };
+        let v = IconOverride::Emoji {
+            value: "🐘".into()
+        };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"emoji","value":"🐘"}"#);
         let back: IconOverride = serde_json::from_str(&s).unwrap();
@@ -787,7 +852,9 @@ mod appearance_tests {
 
     #[test]
     fn icon_override_image_roundtrip() {
-        let v = IconOverride::Image { path: "connection-icons/abc.png".into() };
+        let v = IconOverride::Image {
+            path: "connection-icons/abc.png".into(),
+        };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"image","path":"connection-icons/abc.png"}"#);
         let back: IconOverride = serde_json::from_str(&s).unwrap();
@@ -803,7 +870,10 @@ mod appearance_tests {
 
     #[test]
     fn connection_appearance_with_only_color_serializes_compactly() {
-        let a = ConnectionAppearance { icon: None, accent_color: Some("#ff0000".into()) };
+        let a = ConnectionAppearance {
+            icon: None,
+            accent_color: Some("#ff0000".into()),
+        };
         let s = serde_json::to_string(&a).unwrap();
         assert_eq!(s, r##"{"accentColor":"#ff0000"}"##);
     }

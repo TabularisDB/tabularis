@@ -100,11 +100,43 @@ export interface ConnectionParams {
     startup_script?: string;
     /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
     pooler_mode?: string;
+    /** Seconds to wait for a new connection; unset keeps the driver default. */
+    connect_timeout_secs?: number;
+    /** Seconds a statement may run before it is cancelled on the server; unset or 0 means no limit. */
+    query_timeout_secs?: number;
     /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
      * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
     extra?: Record<string, string>;
     /** Optional proxy override for this connection. */
     proxy?: ProxyOverride;
+}
+
+/** Upper bound for `connect_timeout_secs`; the backend reads it as a u32. */
+export const MAX_CONNECT_TIMEOUT_SECS = 3600;
+
+/** Upper bound for `query_timeout_secs`: one day. */
+export const MAX_QUERY_TIMEOUT_SECS = 86400;
+
+/**
+ * Parse a seconds field into whole seconds in [0, max]. Empty or non-numeric
+ * input (including overflow such as `1e999`) returns undefined, which leaves
+ * the setting unset.
+ */
+function parseWholeSecs(raw: string, max: number): number | undefined {
+    if (raw.trim() === '') return undefined;
+    const secs = Number(raw);
+    if (!Number.isFinite(secs)) return undefined;
+    return Math.min(max, Math.max(0, Math.floor(secs)));
+}
+
+/** Parse the connect timeout field. Unset keeps the driver default. */
+export function parseConnectTimeoutSecs(raw: string): number | undefined {
+    return parseWholeSecs(raw, MAX_CONNECT_TIMEOUT_SECS);
+}
+
+/** Parse the query timeout field. Unset or 0 means no limit. */
+export function parseQueryTimeoutSecs(raw: string): number | undefined {
+    return parseWholeSecs(raw, MAX_QUERY_TIMEOUT_SECS);
 }
 
 /**
@@ -305,12 +337,34 @@ export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string 
     }
 }
 
+const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
+// `name:port` or `[ipv6]:port`
+const HOST_WITH_PORT_RE = /^(?:\[[^\]]*\]|[^:[\]]+):\d+$/;
+
+/**
+ * Format a host and port for display as `host:port`.
+ * A host that is a URL (`ws://127.0.0.1:8010`) or already names a port
+ * (`db:5433`, `[::1]:5433`) is shown as typed, and a bare IPv6 address is
+ * bracketed so its colons stay apart from the port.
+ * @param host - Host as entered in the connection form
+ * @param port - Port, or nothing to show the host alone
+ * @returns Display string
+ */
+export function formatHostPort(host: string, port: number | null | undefined): string {
+    if (port == null || URL_SCHEME_RE.test(host) || HOST_WITH_PORT_RE.test(host)) {
+        return host;
+    }
+    const isBareIpv6 = !host.startsWith('[') && host.split(':').length > 2;
+    return `${isBareIpv6 ? `[${host}]` : host}:${port}`;
+}
+
 /**
  * Build the subtitle shown below a connection name (host:port · db or file path).
  *
  * `labels` carries the translated strings the subtitle may need: the
  * "all databases" label (multi-db connection with no explicit selection)
- * and the "{{n}} databases" counter. Untranslated fallbacks apply when
+ * and the "{{n}} databases" counter for two or more selected databases (a
+ * single selected one is shown by name). Untranslated fallbacks apply when
  * omitted.
  *
  * "All databases" is detected with `hasOptedIntoDatabaseSelection`, the same
@@ -330,12 +384,13 @@ export function connectionSubtitle(
     const selection = Array.isArray(db) ? db : typeof db === 'string' ? db.trim() : '';
     const isAllDatabases =
         selection.length === 0 && hasOptedIntoDatabaseSelection(capabilities, selection);
-    const dbStr = isAllDatabases
-        ? (labels?.allDatabases ?? 'All databases')
-        : Array.isArray(db)
-          ? (labels?.databaseCount?.(db.length) ?? `${db.length} databases`)
-          : db;
-    return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
+    let dbStr: string;
+    if (isAllDatabases) dbStr = labels?.allDatabases ?? 'All databases';
+    else if (!Array.isArray(db)) dbStr = db;
+    // A single selected database is named, as when it is stored as a string.
+    else if (db.length === 1) dbStr = db[0];
+    else dbStr = labels?.databaseCount?.(db.length) ?? `${db.length} databases`;
+    return `${formatHostPort(conn.params.host ?? 'localhost', conn.params.port)}  ·  ${dbStr}`;
 }
 
 /**

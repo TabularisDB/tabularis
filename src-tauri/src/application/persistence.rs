@@ -173,6 +173,26 @@ pub fn save_config(runtime: &RuntimeContext, update: AppConfig) -> Result<AppCon
     Ok(saved)
 }
 
+/// Seed migrated plugin fields under the same lock as ordinary config writes.
+/// Existing values and unrelated plugins always win over migration defaults.
+pub fn merge_missing_plugin_settings(
+    runtime: &RuntimeContext,
+    plugin_id: &str,
+    defaults: HashMap<String, Value>,
+) -> Result<AppConfig, String> {
+    update_config(runtime, |config| {
+        let settings = &mut config
+            .plugins
+            .get_or_insert_with(HashMap::new)
+            .entry(plugin_id.to_string())
+            .or_default()
+            .settings;
+        for (key, value) in defaults {
+            settings.entry(key).or_insert(value);
+        }
+    })
+}
+
 pub fn set_selected_schemas(
     runtime: &RuntimeContext,
     connection_id: String,
@@ -293,7 +313,9 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         default_sort_direction,
         plugin_shutdown_grace_seconds,
         editor_highlight_invisible_characters,
+        editor_render_whitespace,
         autocomplete_keyword_case,
+        sql_diagnostics_enabled,
         theme,
         follow_system_theme,
         light_theme_id,
@@ -305,6 +327,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         result_color_by_type,
         result_type_colors,
         ai_enabled,
+        ai_inline_completion_enabled,
         ai_provider,
         ai_model,
         ai_custom_models,
@@ -319,6 +342,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         schema_preferences,
         selected_schemas,
         max_blob_size,
+        null_display,
         copy_format,
         csv_delimiter,
         csv_include_headers,
@@ -335,6 +359,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         editor_line_height,
         editor_tab_size,
         editor_word_wrap,
+        editor_minimap,
         editor_show_line_numbers,
         editor_accept_suggestion_on_enter,
         run_statement_under_cursor,

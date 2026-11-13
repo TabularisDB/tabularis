@@ -14,6 +14,7 @@ Adhere to the rules defined in the [rules directory](./.rules/):
 - [Design Token Rules](./.rules/design.md) (Theme tokens for colors, radii and fonts; see also [DESIGN.md](./docs/DESIGN.md))
 - [Accessibility Rules](./.rules/accessibility.md) (jsx-a11y lint, keyboard access, dialogs, focus)
 - [Plugin Driver Rules](./.rules/plugins.md) (capabilities over driver ids, dialect-aware SQL, plugin contract)
+- [Data Grid Rules](./.rules/datagrid.md) (logical cell addresses, geometry in both the normal and transposed layouts)
 
 When reviewing pull requests, follow [REVIEW.md](./REVIEW.md).
 
@@ -50,7 +51,7 @@ Shared logic lives in `src-tauri/src/application/` (and plain modules), so the a
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **tabularis** (10537 symbols, 25156 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **tabularis** (24869 symbols, 59001 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 

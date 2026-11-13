@@ -1,13 +1,18 @@
-import {fireEvent, render, screen, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {useState, type ComponentProps} from 'react';
-import {describe, expect, it, vi} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {QueryHistorySection} from '@/components/layout/sidebar/QueryHistorySection';
 import type {QueryHistoryEntry} from '@/types/queryHistory';
+
+const {downloadFile} = vi.hoisted(() => ({downloadFile: vi.fn()}));
+vi.mock('@/hooks/usePlatformCapabilities', () => ({
+    usePlatformCapabilities: () => ({downloadFile}),
+}));
 
 vi.mock('lucide-react', async (importOriginal) => await importOriginal());
 
 vi.mock('@/hooks/useSettings', () => ({
-    useSettings: () => ({settings: {displayTimezone: 'UTC'}}),
+    useSettings: () => ({settings: {displayTimezone: 'Asia/Tokyo'}}),
 }));
 vi.mock('@/components/ui/SqlHighlight', () => ({
     SqlHighlight: ({sql}: {sql: string}) => <pre>{sql}</pre>,
@@ -329,5 +334,285 @@ describe('QueryHistorySection custom date fields', () => {
         expect(fromField).toHaveTextContent('sidebar.historyDateFrom');
         expect(toField).toHaveTextContent('sidebar.historyDateTo');
         expect(fromField).not.toBe(toField);
+    });
+});
+
+describe('QueryHistorySection export', () => {
+    beforeEach(() => {
+        downloadFile.mockReset().mockResolvedValue(true);
+    });
+
+    it('downloads only matching entries in the order displayed by date groups', async () => {
+        const entries = [
+            {...entry, id: 'old', sql: 'SELECT old', executedAt: '2020-01-01T12:00:00Z'},
+            {...entry, id: 'other-db', sql: 'SELECT excluded', database: 'other'},
+            {...entry, id: 'new', sql: 'SELECT new', executedAt: new Date().toISOString()},
+            {...entry, id: 'not-matching', sql: 'DELETE FROM users'},
+        ];
+        renderSection(entries);
+        fireEvent.change(databaseSelect(), {target: {value: 'db:main'}});
+        fireEvent.change(screen.getByPlaceholderText('sidebar.searchHistory'), {
+            target: {value: 'SELECT'},
+        });
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+
+        expect(downloadFile).toHaveBeenCalledTimes(1);
+        const request = downloadFile.mock.calls[0][0];
+        expect(request.fileName).toBe('query-history.sql');
+        expect(request.mimeType).toBe('application/sql');
+        const contents = new TextDecoder().decode(request.contents);
+        expect(contents).toContain('-- 2020-01-01 21:00:00 · success · 12 ms');
+        expect(contents).toContain('SELECT new;');
+        expect(contents).toContain('SELECT old;');
+        expect(contents.indexOf('SELECT new;')).toBeLessThan(contents.indexOf('SELECT old;'));
+        expect(contents).not.toContain('SELECT excluded');
+        expect(contents).not.toContain('DELETE FROM users');
+    });
+
+    it('disables export when filters leave no visible entries', () => {
+        renderSection([entry]);
+        fireEvent.change(screen.getByPlaceholderText('sidebar.searchHistory'), {
+            target: {value: 'no match'},
+        });
+        expect(screen.getByRole('button', {name: 'sidebar.exportHistory'})).toBeDisabled();
+        expect(downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed download and allows retrying', async () => {
+        downloadFile.mockRejectedValueOnce(new Error('Disk full'));
+        renderSection([entry]);
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+        expect(screen.getByRole('alert')).toHaveTextContent('sidebar.exportHistoryError');
+        expect(screen.getByRole('alert')).toHaveTextContent('Disk full');
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(downloadFile).toHaveBeenCalledTimes(2);
+    });
+
+    it('blocks another export while saving and treats cancellation as normal', async () => {
+        let finish: (saved: boolean) => void = () => {};
+        downloadFile.mockReturnValueOnce(
+            new Promise<boolean>((resolve) => {
+                finish = resolve;
+            }),
+        );
+        renderSection([entry]);
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        expect(screen.getByRole('button', {name: 'sidebar.exportHistory'})).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        expect(downloadFile).toHaveBeenCalledTimes(1);
+        await act(async () => {
+            finish(false);
+        });
+        expect(screen.getByRole('button', {name: 'sidebar.exportHistory'})).toBeEnabled();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+});
+
+const minDurationInput = () =>
+    screen.getByLabelText('sidebar.historyMinDurationFilter') as HTMLInputElement;
+const clearFiltersButton = () => screen.getByRole('button', {name: 'sidebar.historyClearFilters'});
+
+function timedEntry(id: string, executionTimeMs: number | null): QueryHistoryEntry {
+    return {...makeEntry(id, 'main'), executionTimeMs};
+}
+
+const TIMED = [
+    timedEntry('zero', 0),
+    timedEntry('fast', 10),
+    timedEntry('slow', 1500),
+    timedEntry('unknown', null),
+];
+
+describe('QueryHistorySection minimum duration filter (#1397)', () => {
+    it('shows every entry and no counter until a threshold is typed', () => {
+        renderSection(TIMED);
+
+        expect(minDurationInput().value).toBe('');
+        expect(minDurationInput()).toHaveAttribute('aria-invalid', 'false');
+        expect(visibleIds()).toEqual(['zero', 'fast', 'slow', 'unknown']);
+        expect(screen.queryByText(/ \/ /)).not.toBeInTheDocument();
+    });
+
+    it('keeps entries at or above the threshold and shows the filtered counter', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '10'}});
+
+        expect(visibleIds()).toEqual(['fast', 'slow']);
+        expect(screen.getByText('2 / 4')).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('treats zero as a threshold that hides entries without a duration', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '0'}});
+
+        expect(visibleIds()).toEqual(['zero', 'fast', 'slow']);
+        expect(screen.getByText('3 / 4')).toBeInTheDocument();
+    });
+
+    it('explains a negative threshold and matches nothing', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '-5'}});
+
+        expect(screen.getByRole('alert')).toHaveTextContent('sidebar.historyMinDurationNegative');
+        expect(minDurationInput()).toHaveAttribute('aria-invalid', 'true');
+        expect(visibleIds()).toEqual([]);
+        expect(screen.getByText('0 / 4')).toBeInTheDocument();
+    });
+
+    it('explains a nonnumeric threshold and keeps what was typed', () => {
+        renderSection(TIMED);
+
+        fireEvent.change(minDurationInput(), {target: {value: '5 seconds'}});
+
+        // The text stays so the user can see and fix it, unlike a number input
+        // that would silently drop it.
+        expect(minDurationInput().value).toBe('5 seconds');
+        expect(screen.getByRole('alert')).toHaveTextContent('sidebar.historyMinDurationInvalid');
+        expect(visibleIds()).toEqual([]);
+
+        fireEvent.change(minDurationInput(), {target: {value: '5'}});
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(visibleIds()).toEqual(['fast', 'slow']);
+    });
+
+    it('combines with the outcome filter and clears with the other filters', () => {
+        renderSection([...TIMED, {...timedEntry('slow-failure', 3000), status: 'error'}]);
+
+        fireEvent.change(minDurationInput(), {target: {value: '1000'}});
+        fireEvent.change(screen.getByRole('combobox', {name: 'sidebar.historyOutcomeFilter'}), {
+            target: {value: 'failed'},
+        });
+        expect(visibleIds()).toEqual(['slow-failure']);
+        expect(screen.getByText('1 / 5')).toBeInTheDocument();
+
+        fireEvent.click(clearFiltersButton());
+
+        expect(minDurationInput().value).toBe('');
+        expect(visibleIds()).toEqual(['zero', 'fast', 'slow', 'unknown', 'slow-failure']);
+        expect(screen.queryByText(/ \/ /)).not.toBeInTheDocument();
+    });
+
+    it('keeps its label inside the field', () => {
+        renderSection(TIMED);
+
+        const field = minDurationInput().closest('label');
+        expect(field).toHaveTextContent('sidebar.historyMinDuration');
+        expect(field).toHaveTextContent('sidebar.historyMinDurationUnit');
+    });
+});
+
+const searchErrorsToggle = () => screen.getByRole('button', {name: 'sidebar.historySearchErrors'});
+const searchInput = () => screen.getByPlaceholderText('sidebar.searchHistory');
+
+function failedEntry(id: string, error: string | null): QueryHistoryEntry {
+    return {...makeEntry(id, 'main'), status: 'error', error};
+}
+
+const WITH_ERRORS = [
+    failedEntry('denied', 'permission denied for table payroll'),
+    makeEntry('ok', 'main'),
+    failedEntry('legacy', null),
+    failedEntry('missing', 'relation missing does not exist'),
+];
+
+describe('QueryHistorySection error message search (#1489)', () => {
+    it('starts in SQL-only mode with a named, unpressed toggle', () => {
+        renderSection(WITH_ERRORS);
+
+        const toggle = searchErrorsToggle();
+        expect(toggle).toHaveAttribute('aria-pressed', 'false');
+        expect(toggle).toHaveAttribute('title', 'sidebar.historySearchErrors');
+
+        fireEvent.change(searchInput(), {target: {value: 'permission'}});
+        expect(visibleIds()).toEqual([]);
+        expect(screen.getByText('0 / 4')).toBeInTheDocument();
+    });
+
+    it('matches recorded errors while pressed and updates the counter', () => {
+        renderSection(WITH_ERRORS);
+
+        fireEvent.change(searchInput(), {target: {value: 'PERMISSION'}});
+        fireEvent.click(searchErrorsToggle());
+
+        expect(searchErrorsToggle()).toHaveAttribute('aria-pressed', 'true');
+        expect(visibleIds()).toEqual(['denied']);
+        expect(screen.getByText('1 / 4')).toBeInTheDocument();
+
+        fireEvent.click(searchErrorsToggle());
+        expect(searchErrorsToggle()).toHaveAttribute('aria-pressed', 'false');
+        expect(visibleIds()).toEqual([]);
+    });
+
+    it('shows every entry for an empty query even while pressed', () => {
+        renderSection(WITH_ERRORS);
+
+        fireEvent.click(searchErrorsToggle());
+
+        expect(visibleIds()).toEqual(['denied', 'ok', 'legacy', 'missing']);
+        expect(screen.queryByText(/ \/ /)).not.toBeInTheDocument();
+    });
+
+    it('combines with the outcome filter', () => {
+        renderSection([...WITH_ERRORS, makeEntry('select-ok', 'main')]);
+
+        fireEvent.click(searchErrorsToggle());
+        fireEvent.change(searchInput(), {target: {value: "SELECT 'ok"}});
+        expect(visibleIds()).toEqual(['ok']);
+
+        fireEvent.change(screen.getByRole('combobox', {name: 'sidebar.historyOutcomeFilter'}), {
+            target: {value: 'failed'},
+        });
+        expect(visibleIds()).toEqual([]);
+
+        fireEvent.change(searchInput(), {target: {value: 'does not exist'}});
+        expect(visibleIds()).toEqual(['missing']);
+        expect(screen.getByText('1 / 5')).toBeInTheDocument();
+    });
+
+    it('goes back to SQL-only mode when the filters are cleared', () => {
+        renderSection(WITH_ERRORS);
+
+        fireEvent.click(searchErrorsToggle());
+        fireEvent.change(searchInput(), {target: {value: 'payroll'}});
+        expect(visibleIds()).toEqual(['denied']);
+
+        fireEvent.click(clearFiltersButton());
+
+        expect(searchErrorsToggle()).toHaveAttribute('aria-pressed', 'false');
+        expect(visibleIds()).toEqual(['denied', 'ok', 'legacy', 'missing']);
+
+        fireEvent.change(searchInput(), {target: {value: 'payroll'}});
+        expect(visibleIds()).toEqual([]);
+    });
+
+    it('exports only the entries matched through their error', async () => {
+        downloadFile.mockReset().mockResolvedValue(true);
+        renderSection(WITH_ERRORS);
+
+        fireEvent.click(searchErrorsToggle());
+        fireEvent.change(searchInput(), {target: {value: 'permission denied'}});
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+
+        const contents = new TextDecoder().decode(downloadFile.mock.calls[0][0].contents);
+        expect(contents).toContain("SELECT 'denied'");
+        expect(contents).not.toContain("SELECT 'ok'");
+        expect(contents).not.toContain("SELECT 'missing'");
     });
 });

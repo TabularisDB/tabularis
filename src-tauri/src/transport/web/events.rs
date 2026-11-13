@@ -229,9 +229,10 @@ impl WebEventBus {
             | "export_progress"
             | "connection-metadata-invalidated"
             | "tabularis://plugin-activated" => Some(AuthorizationLevel::Database),
-            "theme-catalog-changed" | "ui-state://changed" | "tabularis://plugin-installed" => {
-                Some(AuthorizationLevel::Session)
-            }
+            "theme-catalog-changed"
+            | "ui-state://changed"
+            | "tabularis://plugin-installed"
+            | "tabularis://ai-providers-changed" => Some(AuthorizationLevel::Session),
             "plugin-install-progress" | "tabularis://plugin-install" => {
                 Some(AuthorizationLevel::Sensitive)
             }
@@ -239,9 +240,11 @@ impl WebEventBus {
             | "ai://activity"
             | "ssh-askpass://request"
             | "ssh-askpass://dismiss" => Some(AuthorizationLevel::Sensitive),
-            "update-progress" | "update-installing" | "server://lifecycle" => {
-                Some(AuthorizationLevel::LocalAdmin)
-            }
+            // Desktop-only today: emitted when the system hands files to the app.
+            "update-progress"
+            | "update-installing"
+            | "server://lifecycle"
+            | "tabularis://open-data-files" => Some(AuthorizationLevel::LocalAdmin),
             _ => None,
         }
     }

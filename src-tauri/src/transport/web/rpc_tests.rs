@@ -6,6 +6,26 @@ use axum::http::header::CONTENT_TYPE;
 use axum::http::HeaderValue;
 use uuid::Uuid;
 
+#[test]
+fn routine_debug_web_command_preserves_native_identity_and_rejects_extra_fields() {
+    let body = br#"{"connectionId":"oracle","version":1,"command":{"action":"step","session_id":"session","mode":"over"}}"#;
+    let command =
+        decode_database_object_command(DatabaseObjectRpcCommand::RoutineDebug, body).unwrap();
+    assert!(
+        matches!(command, DatabaseObjectCommand::RoutineDebug { version: 1, command: crate::routine_debug::DebugCommand::Step { session_id, mode: crate::routine_debug::DebugStep::Over }, .. } if session_id == "session")
+    );
+    let invalid = br#"{"connectionId":"oracle","version":1,"command":{"action":"start","preview_id":"p","session_id":"s","sql":"CALL other()"}}"#;
+    assert!(
+        decode_database_object_command(DatabaseObjectRpcCommand::RoutineDebug, invalid).is_err()
+    );
+    assert!(matches!(
+        RpcCommand::parse("routine_debug"),
+        Some(RpcCommand::DatabaseObject(
+            DatabaseObjectRpcCommand::RoutineDebug
+        ))
+    ));
+}
+
 struct FixtureApplication {
     delay: Duration,
     saved_params: HashMap<String, ConnectionParams>,
@@ -165,6 +185,20 @@ impl ApplicationApi for FixtureApplication {
                     "mimeType": "text/plain",
                     "token": "logs-download-token",
                     "size": 64
+                })
+            }
+            crate::application::generic_exports::GenericExportCommand::ExportTable { .. } => {
+                serde_json::json!({
+                    "rows": 2,
+                    "bytes": 256,
+                    "structureSource": "driver",
+                    "file": {
+                        "kind": "download",
+                        "fileName": "users_20261030-120000.sql",
+                        "mimeType": "application/sql",
+                        "token": "table-export-download-token",
+                        "size": 256
+                    }
                 })
             }
             crate::application::generic_exports::GenericExportCommand::CancelExport { .. } => {
@@ -664,9 +698,11 @@ fn registers_ai_commands_with_explicit_authorization() {
         "check_ai_key",
         "check_ai_key_status",
         "get_ai_models",
+        "get_ai_providers",
         "generate_ai_query",
         "explain_ai_query",
         "analyze_ai_explain_plan",
+        "analyze_ai_crash_report",
         "generate_cell_name",
         "generate_tab_rename",
         "suggest_table_name",
@@ -687,6 +723,11 @@ fn registers_ai_commands_with_explicit_authorization() {
 
     let schema_context =
         RpcCommand::parse("get_ai_schema_context").expect("missing get_ai_schema_context");
+    let migration = RpcCommand::parse("migrate_ai_providers").expect("missing AI migration");
+    assert_eq!(
+        migration.metadata().authorization,
+        AuthorizationLevel::LocalAdmin
+    );
     assert_eq!(
         schema_context.metadata().authorization,
         AuthorizationLevel::Database
@@ -709,6 +750,7 @@ fn registers_plugin_lifecycle_commands_with_local_admin_authorization() {
         "get_plugin_startup_errors",
         "kill_plugin_process",
         "restart_plugin_process",
+        "sync_plugin_settings",
     ] {
         let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
         assert_eq!(
@@ -982,6 +1024,10 @@ async fn rejects_destructive_operations_without_local_admin_authorization() {
             "restart_plugin_process",
             serde_json::json!({"pluginId": "postgres-driver"}),
         ),
+        (
+            "sync_plugin_settings",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
     ] {
         let response = dispatcher
             .dispatch(
@@ -1024,6 +1070,8 @@ fn registers_saved_query_and_history_commands_with_database_authorization() {
         "save_query",
         "update_saved_query",
         "delete_saved_query",
+        "get_saved_query_versions",
+        "restore_saved_query_version",
         "get_saved_query_folders",
         "create_saved_query_folder",
         "rename_saved_query_folder",
@@ -1192,6 +1240,32 @@ async fn routes_database_transfer_jobs_through_the_shared_application_api() {
             "cancel_import",
             serde_json::json!({"connectionId": "connection-1"}),
         ),
+        (
+            "read_table_sql_header",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "uploadToken": Uuid::new_v4().to_string()
+            }),
+        ),
+        (
+            "import_table_from_sql",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "uploadToken": Uuid::new_v4().to_string(),
+                "options": {"ifExists": "drop_and_recreate", "schema": "public"}
+            }),
+        ),
+        (
+            "cancel_table_import",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "export_table_to_sql",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "options": {"table": "users", "content": "structure_only", "schema": "public"}
+            }),
+        ),
     ];
 
     for (command, payload) in commands {
@@ -1227,6 +1301,10 @@ async fn routes_all_metadata_commands_through_the_shared_application_api() {
         ),
         (
             "get_columns",
+            serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
+        ),
+        (
+            "get_approximate_row_count",
             serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
         ),
         (
@@ -1539,8 +1617,14 @@ async fn routes_ai_commands_through_the_shared_application_api() {
         ),
         ("get_ai_models", serde_json::json!({"forceRefresh": false})),
         ("generate_ai_query", generate),
+        ("complete_ai_inline", serde_json::json!({"req": {
+            "requestId": "inline-contract", "provider": "ollama", "model": "local",
+            "prefix": "SELECT ", "suffix": "", "schema": "", "dialect": "postgres"
+        }})),
+        ("cancel_ai_inline", serde_json::json!({"requestId": "inline-contract"})),
         ("explain_ai_query", explain.clone()),
-        ("analyze_ai_explain_plan", explain),
+        ("analyze_ai_explain_plan", explain.clone()),
+        ("analyze_ai_crash_report", explain),
         (
             "generate_cell_name",
             serde_json::json!({"req": {"provider": "openai", "model": "gpt-contract", "query": "SELECT 1"}}),
@@ -1638,6 +1722,10 @@ async fn routes_plugin_lifecycle_commands_through_the_shared_application_api() {
         ),
         ("get_plugin_startup_errors", Value::Null),
         (
+            "sync_plugin_settings",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
             "kill_plugin_process",
             serde_json::json!({"pluginId": "postgres-driver"}),
         ),
@@ -1665,7 +1753,7 @@ async fn routes_plugin_lifecycle_commands_through_the_shared_application_api() {
         .contexts
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    assert_eq!(contexts.len(), 13);
+    assert_eq!(contexts.len(), 14);
     assert!(contexts
         .iter()
         .all(|context| context.authorization == AuthorizationLevel::LocalAdmin));
@@ -2231,7 +2319,19 @@ fn registers_merged_host_commands_with_explicit_authorization() {
         assert_eq!(command.metadata().authorization, authorization, "{name}");
     }
     // Desktop-only integrations never get a browser route.
-    for name in ["open_storage_location", "get_linux_system_theme"] {
+    for name in [
+        "open_storage_location",
+        "get_linux_system_theme",
+        "list_linked_folders",
+        "link_local_folder",
+        "unlink_local_folder",
+        "list_linked_directory",
+        "read_linked_sql_file",
+        "write_linked_sql_file",
+        "linked_git_status",
+        "linked_git_review",
+        "linked_git_commit",
+    ] {
         assert!(RpcCommand::parse(name).is_none(), "{name}");
     }
 }
@@ -3048,10 +3148,77 @@ async fn connection_policy_accepts_omitted_blank_ssl_mode_on_saved_connections()
 #[tokio::test]
 async fn database_backup_rpc_requires_local_admin_and_uses_the_shared_application() {
     let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
-    for command in ["get_database_backup_status", "run_database_backup_now", "cancel_database_backup"] {
-        for (authorization, expected) in [(AuthorizationLevel::Database, StatusCode::FORBIDDEN), (AuthorizationLevel::LocalAdmin, StatusCode::OK)] {
-            let response = dispatcher.dispatch(command, RequestId(command.to_string()), &json_headers(), Bytes::from_static(b"null"), Some(Uuid::new_v4()), authorization).await;
+    for command in [
+        "get_database_backup_status",
+        "run_database_backup_now",
+        "cancel_database_backup",
+    ] {
+        for (authorization, expected) in [
+            (AuthorizationLevel::Database, StatusCode::FORBIDDEN),
+            (AuthorizationLevel::LocalAdmin, StatusCode::OK),
+        ] {
+            let response = dispatcher
+                .dispatch(
+                    command,
+                    RequestId(command.to_string()),
+                    &json_headers(),
+                    Bytes::from_static(b"null"),
+                    Some(Uuid::new_v4()),
+                    authorization,
+                )
+                .await;
             assert_eq!(response.status(), expected, "{command}");
         }
     }
+}
+
+#[tokio::test]
+async fn opens_data_files_only_for_local_admin_upload_sessions() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let payload = Bytes::from(
+        serde_json::to_vec(&serde_json::json!({
+            "uploadToken": Uuid::new_v4().to_string(),
+            "workspaceName": "Data files",
+        }))
+        .unwrap(),
+    );
+    let headers = json_headers();
+    let dispatch = |session: Option<Uuid>, granted: AuthorizationLevel| {
+        dispatcher.dispatch(
+            "open_data_file",
+            RequestId("open-data-file".to_string()),
+            &headers,
+            payload.clone(),
+            session,
+            granted,
+        )
+    };
+
+    // The workspace database can read host files through SQL.
+    let restricted = dispatch(Some(Uuid::new_v4()), AuthorizationLevel::Sensitive).await;
+    assert_eq!(restricted.status(), StatusCode::FORBIDDEN);
+
+    let without_session = dispatch(None, AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(without_session.status(), StatusCode::BAD_REQUEST);
+
+    let allowed = dispatch(Some(Uuid::new_v4()), AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(allowed.status(), StatusCode::OK);
+
+    let desktop_only_field = dispatcher
+        .dispatch(
+            "open_data_file",
+            RequestId("open-data-file-path".to_string()),
+            &json_headers(),
+            Bytes::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "filePath": "/etc/passwd",
+                    "workspaceName": "Data files",
+                }))
+                .unwrap(),
+            ),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
+    assert_eq!(desktop_only_field.status(), StatusCode::BAD_REQUEST);
 }

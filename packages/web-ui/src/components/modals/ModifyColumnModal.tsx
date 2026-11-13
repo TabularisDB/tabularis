@@ -8,8 +8,8 @@ import {useDrivers} from '@/hooks/useDrivers';
 import {Modal} from '@/components/ui/Modal';
 import {Select} from '@/components/ui/Select';
 import {supportsAlterColumn, supportsColumnComments} from '@/utils/driverCapabilities';
-import {parseColumnType, buildColumnDefinition} from '@/utils/columnTypes';
-import type {ColumnFormData} from '@/utils/columnTypes';
+import {existingColumnForm, buildColumnDefinition} from '@/utils/columnTypes';
+import type {ColumnFormData, ExistingColumn} from '@/utils/columnTypes';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 
 type ColumnDef = ColumnFormData;
@@ -26,14 +26,7 @@ interface ModifyColumnModalProps {
     schema?: string;
     database?: string;
     // If provided, we are in "Edit" mode. If null, "Add" mode.
-    column?: {
-        name: string;
-        data_type: string;
-        is_nullable: boolean;
-        is_pk: boolean;
-        is_auto_increment: boolean;
-        comment?: string | null;
-    } | null;
+    column?: ExistingColumn | null;
 }
 
 export const ModifyColumnModal = ({
@@ -66,17 +59,7 @@ export const ModifyColumnModal = ({
 
     const initial = useMemo(() => {
         if (column) {
-            const {type, length} = parseColumnType(column.data_type, availableTypes);
-            return {
-                name: column.name,
-                type,
-                length,
-                isNullable: column.is_nullable,
-                defaultValue: '',
-                isPk: column.is_pk || false,
-                isAutoInc: column.is_auto_increment || false,
-                comment: canComment ? (column.comment ?? '') : undefined,
-            };
+            return existingColumnForm(column, availableTypes, canComment);
         }
         return {
             name: '',
@@ -112,16 +95,9 @@ export const ModifyColumnModal = ({
         try {
             let stmts: string[];
             if (isEdit) {
-                const oldCol = buildColumnDefinition({
-                    name: column!.name,
-                    type: parseColumnType(column!.data_type, availableTypes).type,
-                    length: parseColumnType(column!.data_type, availableTypes).length,
-                    isNullable: column!.is_nullable,
-                    defaultValue: '',
-                    isPk: column!.is_pk,
-                    isAutoInc: column!.is_auto_increment,
-                    comment: canComment ? (column!.comment ?? '') : undefined,
-                });
+                const oldCol = buildColumnDefinition(
+                    existingColumnForm(column!, availableTypes, canComment),
+                );
                 const newCol = buildColumnDefinition(form);
                 stmts = await client.call('get_alter_column_sql', {
                     connectionId,
@@ -176,16 +152,9 @@ export const ModifyColumnModal = ({
         try {
             let stmts: string[];
             if (isEdit) {
-                const oldCol = buildColumnDefinition({
-                    name: column!.name,
-                    type: parseColumnType(column!.data_type, availableTypes).type,
-                    length: parseColumnType(column!.data_type, availableTypes).length,
-                    isNullable: column!.is_nullable,
-                    defaultValue: '',
-                    isPk: column!.is_pk,
-                    isAutoInc: column!.is_auto_increment,
-                    comment: canComment ? (column!.comment ?? '') : undefined,
-                });
+                const oldCol = buildColumnDefinition(
+                    existingColumnForm(column!, availableTypes, canComment),
+                );
                 const newCol = buildColumnDefinition(form);
                 stmts = await client.call('get_alter_column_sql', {
                     connectionId,
@@ -380,16 +349,17 @@ export const ModifyColumnModal = ({
                             >
                                 {t('modifyColumn.comment')}
                             </label>
-                            <input
+                            <textarea
                                 autoCorrect="off"
                                 autoCapitalize="off"
                                 autoComplete="off"
                                 spellCheck={false}
                                 id={commentInputId}
+                                rows={3}
                                 value={form.comment ?? ''}
                                 onChange={(e) => setForm({...form, comment: e.target.value})}
                                 disabled={!canAlterColumn && isEdit}
-                                className="w-full bg-base border border-strong rounded p-2 text-primary text-sm focus:border-focus outline-none disabled:opacity-50"
+                                className="w-full bg-base border border-strong rounded p-2 text-primary text-sm resize-y focus:border-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
                                 placeholder={t('modifyColumn.commentPlaceholder')}
                             />
                         </div>

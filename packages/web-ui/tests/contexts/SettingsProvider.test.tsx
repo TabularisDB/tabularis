@@ -68,6 +68,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'save_config') {
                 return Promise.resolve(undefined);
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -151,6 +161,70 @@ describe('SettingsProvider', () => {
         );
     });
 
+    it.each([true, false])(
+        'persists the minimap value %s without changing other settings',
+        async (enabled) => {
+            let persisted: Partial<Settings> = {language: 'en', editorFontSize: 18};
+            vi.mocked(invoke).mockImplementation(async (command, args) => {
+                if (command === 'get_config') return persisted;
+                if (command === 'save_config') {
+                    persisted = {...persisted, ...(args as {config: Partial<Settings>}).config};
+                }
+                return undefined;
+            });
+            const wrapper = ({children}: {children: React.ReactNode}) =>
+                React.createElement(SettingsProvider, null, children);
+            const first = renderHook(() => useSettings(), {wrapper});
+            await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+            expect(first.result.current.settings.editorMinimap).toBe(false);
+            await act(async () => {
+                await first.result.current.updateSetting('editorMinimap', enabled);
+            });
+            expect(invoke).toHaveBeenCalledWith('save_config', {config: {editorMinimap: enabled}});
+            await act(async () => {
+                await first.result.current.updateSetting('fontSize', 16);
+            });
+            first.unmount();
+            const second = renderHook(() => useSettings(), {wrapper});
+            await waitFor(() => expect(second.result.current.isLoading).toBe(false));
+            expect(second.result.current.settings.editorMinimap).toBe(enabled);
+            expect(second.result.current.settings.editorFontSize).toBe(18);
+            expect(second.result.current.settings.fontSize).toBe(16);
+        },
+    );
+
+    it.each(['none', 'selection', 'all'] as const)(
+        'persists whitespace mode %s across settings reloads',
+        async (mode) => {
+            let persisted: Partial<Settings> = {
+                language: 'en',
+                editorHighlightInvisibleCharacters: false,
+            };
+            vi.mocked(invoke).mockImplementation(async (command, args) => {
+                if (command === 'get_config') return persisted;
+                if (command === 'save_config')
+                    persisted = {...persisted, ...(args as {config: Partial<Settings>}).config};
+                return undefined;
+            });
+            const wrapper = ({children}: {children: React.ReactNode}) =>
+                React.createElement(SettingsProvider, null, children);
+            const first = renderHook(() => useSettings(), {wrapper});
+            await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+            expect(first.result.current.settings.editorRenderWhitespace).toBe('selection');
+            await act(async () => {
+                await first.result.current.updateSetting('editorRenderWhitespace', mode);
+            });
+            expect(invoke).toHaveBeenCalledWith('save_config', {
+                config: {editorRenderWhitespace: mode},
+            });
+            first.unmount();
+            const second = renderHook(() => useSettings(), {wrapper});
+            await waitFor(() => expect(second.result.current.isLoading).toBe(false));
+            expect(second.result.current.settings.editorRenderWhitespace).toBe(mode);
+            expect(second.result.current.settings.editorHighlightInvisibleCharacters).toBe(false);
+        },
+    );
+
     it('should provide default settings when backend is empty', async () => {
         const wrapper = ({children}: {children: React.ReactNode}) =>
             React.createElement(SettingsProvider, null, children);
@@ -190,6 +264,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'save_config') {
                 return Promise.resolve(undefined);
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -232,6 +316,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({language: 'it'});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -248,9 +342,8 @@ describe('SettingsProvider', () => {
 
         await waitFor(() => {
             expect(mockChangeLanguage).toHaveBeenCalledWith('it');
+            expect(result.current.isLoading).toBe(false);
         });
-
-        expect(result.current.isLoading).toBe(false);
         expect(result.current.isLanguageReady).toBe(false);
         expect(result.current.isLanguageSettled).toBe(false);
         expect(result.current.settings.language).toBe('it');
@@ -270,6 +363,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({language: 'it'});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -302,6 +405,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({language: 'it'});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -361,6 +474,16 @@ describe('SettingsProvider', () => {
                 expect(args?.config).toHaveProperty('language', 'en');
                 return Promise.resolve(undefined);
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -397,6 +520,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({aiEnabled: null});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }
@@ -423,6 +556,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'get_config') {
                 return Promise.resolve({aiEnabled: true});
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 if (args?.provider === 'openai') return Promise.resolve(true);
                 return Promise.resolve(false);
@@ -545,6 +688,16 @@ describe('SettingsProvider', () => {
             if (cmd === 'save_config') {
                 return Promise.resolve(undefined);
             }
+            if (cmd === 'get_ai_providers')
+                return Promise.resolve({
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                    ],
+                    pendingMigration: [],
+                });
             if (cmd === 'check_ai_key') {
                 return Promise.resolve(false);
             }

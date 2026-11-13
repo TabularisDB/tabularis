@@ -1,5 +1,5 @@
-import {describe, it, expect, vi, beforeEach} from 'vitest';
-import {render, screen, fireEvent, waitFor, act} from '@testing-library/react';
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
+import {render, screen, fireEvent, waitFor, act, within} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import {ExplorerSidebar} from '@/components/layout/ExplorerSidebar';
 import {useDatabase} from '@/hooks/useDatabase';
@@ -13,6 +13,8 @@ import {useSettings} from '@/hooks/useSettings';
 import {useDatabaseObjectNavigation} from '@/hooks/useDatabaseObjectNavigation';
 import {openEditor} from '@/utils/editorNavigation';
 import {FOLDERS_FILE_UNREADABLE} from '@/utils/savedQueryFolders';
+import {UI_STATE_KEYS, uiStateStore} from '@/utils/uiStateStore';
+import {tableTransferCommandStore} from '@/utils/tableTransferCommands';
 
 const translateMock = vi.hoisted(() => (key: string) => key);
 const toastSpy = vi.hoisted(() => vi.fn());
@@ -163,6 +165,8 @@ describe('ExplorerSidebar — schema load error block', () => {
             queries: [],
             folders: [],
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
             saveQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
@@ -300,6 +304,8 @@ describe('ExplorerSidebar — database object navigation', () => {
             queries: [],
             folders: [],
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
             saveQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
@@ -684,6 +690,63 @@ describe('ExplorerSidebar — database object navigation', () => {
         expect(screen.getByRole('button', {name: 'sidebar.generateSQL'})).toBeDisabled();
     });
 
+    it('offers Export table to SQL on tables and opens its dialog', () => {
+        openContextMenuOn('orders');
+
+        fireEvent.click(screen.getByRole('button', {name: 'tableTransfer.exportMenu'}));
+
+        expect(screen.getByText('tableTransfer.exportTitle')).toBeInTheDocument();
+        expect(screen.getByText('orders', {selector: 'div[title="orders"]'})).toBeInTheDocument();
+    });
+
+    it('hides Export table to SQL for drivers that opt out', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...databaseState,
+            activeCapabilities: {...databaseState.activeCapabilities, table_export: false},
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        openContextMenuOn('orders');
+
+        expect(
+            screen.queryByRole('button', {name: 'tableTransfer.exportMenu'}),
+        ).not.toBeInTheDocument();
+    });
+
+    it('offers the selected table to the command palette and opens its dialog', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...databaseState,
+            activeTable: 'orders',
+            activeDatabaseName: 'shop',
+        } as unknown as ReturnType<typeof useDatabase>);
+        renderSidebar();
+
+        const commands = tableTransferCommandStore.get('c1');
+        expect(commands?.exportTable?.description).toBe('shop.orders');
+        expect(commands?.importTable?.description).toBe('shop');
+        act(() => commands?.exportTable?.run());
+
+        expect(screen.getByText('tableTransfer.exportTitle')).toBeInTheDocument();
+        expect(screen.getByText('orders', {selector: 'div[title="orders"]'})).toBeInTheDocument();
+    });
+
+    it('offers no palette table transfer commands for drivers that opt out', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...databaseState,
+            activeTable: 'orders',
+            activeCapabilities: {
+                ...databaseState.activeCapabilities,
+                table_export: false,
+                table_import: false,
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+        renderSidebar();
+
+        expect(tableTransferCommandStore.get('c1')).toEqual({
+            exportTable: undefined,
+            importTable: undefined,
+        });
+    });
+
     it('disables trigger definition without trigger metadata', () => {
         databaseState.triggers = [
             {
@@ -701,6 +764,50 @@ describe('ExplorerSidebar — database object navigation', () => {
                 name: 'sidebar.viewTriggerDefinition',
             }),
         ).toBeDisabled();
+    });
+
+    describe('pinned objects (#1306)', () => {
+        const pinnedGroup = () => screen.queryByRole('group', {name: 'sidebar.pinned'});
+
+        beforeEach(() => uiStateStore.reset());
+        afterEach(() => uiStateStore.reset());
+
+        it('context menu — pin lists the table in a Pinned group and unpin removes it', () => {
+            openContextMenuOn('orders');
+            fireEvent.click(screen.getByText('sidebar.pin'));
+
+            expect(within(pinnedGroup()!).getByText('orders')).toBeInTheDocument();
+            expect(screen.getAllByText('orders')).toHaveLength(2);
+            expect(uiStateStore.get(UI_STATE_KEYS.explorerPins.key, null)).toEqual({
+                c1: {'[null,null]': [{kind: 'table', name: 'orders'}]},
+            });
+
+            fireEvent.contextMenu(within(pinnedGroup()!).getByText('orders'));
+            fireEvent.click(screen.getByText('sidebar.unpin'));
+            expect(pinnedGroup()).toBeNull();
+            expect(uiStateStore.get(UI_STATE_KEYS.explorerPins.key, null)).toEqual({});
+        });
+
+        it('context menu — pins a view', () => {
+            openContextMenuOn('active_orders');
+            fireEvent.click(screen.getByText('sidebar.pin'));
+            expect(within(pinnedGroup()!).getByText('active_orders')).toBeInTheDocument();
+        });
+
+        it('opens a pinned table like its regular item', () => {
+            uiStateStore.set(UI_STATE_KEYS.explorerPins.key, {
+                c1: {'[null,null]': [{kind: 'table', name: 'orders'}]},
+            });
+            renderSidebar();
+            fireEvent.doubleClick(within(pinnedGroup()!).getByText('orders'));
+            expect(objectNavigation.open).toHaveBeenCalledWith('orders', undefined);
+        });
+
+        it('disables pinning without an active connection', () => {
+            databaseState.activeConnectionId = null;
+            openContextMenuOn('orders');
+            expect(screen.getByRole('button', {name: 'sidebar.pin'})).toBeDisabled();
+        });
     });
 });
 
@@ -749,6 +856,8 @@ describe('ExplorerSidebar — capabilities threading (issue #614)', () => {
             queries: [],
             folders: [],
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
             saveQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
@@ -804,6 +913,45 @@ describe('ExplorerSidebar — capabilities threading (issue #614)', () => {
             databaseState.activeCapabilities,
         );
     });
+    it.each([true, false])('reports index name copy success: %s', async (succeeds) => {
+        const showAlert = vi.fn();
+        vi.mocked(useAlert).mockReturnValue({showAlert} as unknown as ReturnType<typeof useAlert>);
+        const writeText = succeeds
+            ? vi.fn().mockResolvedValue(undefined)
+            : vi.fn().mockRejectedValue(new Error('Clipboard blocked'));
+        Object.defineProperty(navigator, 'clipboard', {value: {writeText}, configurable: true});
+        vi.mocked(invoke).mockImplementation(async (command) =>
+            command === 'get_indexes'
+                ? [
+                      {
+                          name: 'orders_idx',
+                          column_name: 'customer_id',
+                          is_unique: true,
+                          is_primary: false,
+                      },
+                  ]
+                : [],
+        );
+        renderSidebar();
+        const table = screen.getByText('orders').closest('[data-table-name]')!;
+        fireEvent.click(table.querySelector('button')!);
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith(
+                'get_indexes',
+                expect.objectContaining({tableName: 'orders'}),
+            ),
+        );
+        fireEvent.click(screen.getByText('sidebar.indexes'));
+        fireEvent.contextMenu(await screen.findByText('orders_idx', {exact: false}));
+        fireEvent.click(screen.getByText('sidebar.copyName'));
+        await waitFor(() => expect(writeText).toHaveBeenCalledWith('orders_idx'));
+        await waitFor(() =>
+            expect(showAlert).toHaveBeenCalledWith(succeeds ? 'common.copied' : 'common.error', {
+                kind: succeeds ? 'info' : 'error',
+            }),
+        );
+    });
+
     it.each(['index', 'foreign_key'] as const)(
         'opens %s details from the menu for a read-only plugin using capabilities',
         async (kind) => {
@@ -930,6 +1078,8 @@ describe('ExplorerSidebar — saved query actions', () => {
             folders: [],
             saveQuery,
             deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
             updateQuery: vi.fn(),
         } as unknown as ReturnType<typeof useSavedQueries>);
         vi.mocked(useQueryHistory).mockReturnValue({
@@ -1097,6 +1247,8 @@ describe('ExplorerSidebar — saved query actions', () => {
                 folders,
                 saveQuery,
                 deleteQuery: vi.fn(),
+                getQueryVersions: vi.fn(),
+                restoreQueryVersion: vi.fn(),
                 updateQuery: vi.fn(),
                 createFolder,
                 renameFolder,
@@ -1369,6 +1521,8 @@ describe('ExplorerSidebar — saved query actions', () => {
                 folders: [],
                 saveQuery,
                 deleteQuery: vi.fn(),
+                getQueryVersions: vi.fn(),
+                restoreQueryVersion: vi.fn(),
                 updateQuery: vi.fn(),
             } as unknown as ReturnType<typeof useSavedQueries>);
             renderFavorites();
@@ -1410,5 +1564,276 @@ describe('ExplorerSidebar — saved query actions', () => {
             expect(screen.getByText('Cleanup')).toBeTruthy();
             expect(screen.getByText('Report')).toBeTruthy();
         });
+    });
+});
+
+describe('ExplorerSidebar — create database / schema actions (#839)', () => {
+    const stubSidebarHooks = () => {
+        vi.mocked(useSavedQueries).mockReturnValue({
+            queries: [],
+            folders: [],
+            deleteQuery: vi.fn(),
+            getQueryVersions: vi.fn(),
+            restoreQueryVersion: vi.fn(),
+            updateQuery: vi.fn(),
+            saveQuery: vi.fn(),
+        } as unknown as ReturnType<typeof useSavedQueries>);
+        vi.mocked(useQueryHistory).mockReturnValue({
+            entries: [],
+            isLoading: false,
+            deleteEntry: vi.fn(),
+            clearHistory: vi.fn(),
+            recoveryNotice: null,
+            dismissRecoveryNotice: vi.fn(),
+        } as unknown as ReturnType<typeof useQueryHistory>);
+        vi.mocked(useAlert).mockReturnValue({
+            showAlert: vi.fn(),
+        } as unknown as ReturnType<typeof useAlert>);
+        vi.mocked(useDrivers).mockReturnValue({
+            allDrivers: [],
+        } as unknown as ReturnType<typeof useDrivers>);
+        vi.mocked(useEditor).mockReturnValue({
+            tabs: [],
+            openNotebook: vi.fn(),
+            updateTab: vi.fn(),
+            closeTab: vi.fn(),
+            addTab: vi.fn(),
+            setActiveTabId: vi.fn(),
+        } as unknown as ReturnType<typeof useEditor>);
+        vi.mocked(useSettings).mockReturnValue({
+            settings: {displayTimezone: 'auto'},
+        } as unknown as ReturnType<typeof useSettings>);
+        vi.mocked(useConnectionLayoutContext).mockReturnValue({
+            splitView: {connectionIds: []},
+            isSplitVisible: false,
+            explorerConnectionId: null,
+            setExplorerConnectionId: vi.fn(),
+        } as unknown as ReturnType<typeof useConnectionLayoutContext>);
+        vi.mocked(useDatabaseObjectNavigation).mockReturnValue({
+            open: vi.fn(),
+            count: vi.fn(),
+            newConsole: vi.fn(),
+            openRoutineDefinition: vi.fn(),
+            openTriggerDefinition: vi.fn(),
+            openDefinition: vi.fn(),
+        } as unknown as ReturnType<typeof useDatabaseObjectNavigation>);
+    };
+
+    const baseDatabaseState = {
+        activeConnectionId: 'c1',
+        activeDriver: 'mysql',
+        activeTable: null,
+        setActiveTable: vi.fn(),
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        schemas: [] as string[],
+        connectionDataMap: {c1: {}},
+        schemaDataMap: {},
+        databaseDataMap: {},
+        nestedDatabaseDataMap: {},
+        selectedSchemas: [] as string[],
+        selectedDatabases: [] as string[],
+        connections: [],
+        isLoadingTables: false,
+        isLoadingSchemas: false,
+        needsSchemaSelection: false,
+        connect: vi.fn(),
+        loadSchemaData: vi.fn(),
+        refreshSchemaData: vi.fn(),
+        setSelectedSchemas: vi.fn(),
+        refreshSchemas: vi.fn(),
+        loadDatabaseData: vi.fn(),
+        setSelectedDatabases: vi.fn(),
+        loadNestedSchemas: vi.fn(),
+        setSelectedSchemasForDatabase: vi.fn(),
+        refreshDatabaseSelection: vi.fn(),
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        stubSidebarHooks();
+    });
+
+    it('offers New Database on a MySQL multi-database connection', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeCapabilities: {
+                schemas: false,
+                file_based: false,
+                folder_based: false,
+                identifier_quote: '`',
+                sql_dialect: 'mysql',
+            },
+            selectedDatabases: ['app'],
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.newDatabase'}));
+        expect(screen.getByText('createDatabase.title')).toBeInTheDocument();
+    });
+
+    it('offers New Schema on a single-database PostgreSQL connection', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: {
+                schemas: true,
+                file_based: false,
+                folder_based: false,
+                identifier_quote: '"',
+                sql_dialect: 'postgres',
+            },
+            schemas: ['public'],
+            selectedSchemas: ['public'],
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.newSchema'}));
+        expect(screen.getByText('createSchema.title')).toBeInTheDocument();
+    });
+
+    it('hides New Database on SQLite', () => {
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'sqlite',
+            activeCapabilities: {
+                schemas: false,
+                file_based: true,
+                folder_based: false,
+                identifier_quote: '"',
+                sql_dialect: 'sqlite',
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        expect(screen.queryByRole('button', {name: 'sidebar.newDatabase'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'sidebar.newSchema'})).not.toBeInTheDocument();
+    });
+
+    const postgresCaps = {
+        schemas: true,
+        file_based: false,
+        folder_based: false,
+        identifier_quote: '"',
+        sql_dialect: 'postgres',
+    };
+
+    const submitCreateSchema = async (name: string) => {
+        fireEvent.click(screen.getByRole('button', {name: 'sidebar.newSchema'}));
+        fireEvent.change(screen.getByLabelText('createSchema.name'), {target: {value: name}});
+        fireEvent.click(screen.getByRole('button', {name: 'createSchema.create'}));
+        await waitFor(() => {
+            expect(invoke).toHaveBeenCalledWith(
+                'execute_query',
+                expect.objectContaining({query: `CREATE SCHEMA "${name}"`}),
+            );
+        });
+    };
+
+    it('refreshes the picker after creating a schema with none selected', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            schemas: ['public'],
+            selectedSchemas: [],
+            needsSchemaSelection: true,
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.refreshSchemas).toHaveBeenCalled();
+        });
+        expect(baseDatabaseState.setSelectedSchemas).not.toHaveBeenCalled();
+    });
+
+    it('adds a created schema to an existing selection', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            schemas: ['public'],
+            selectedSchemas: ['public'],
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.setSelectedSchemas).toHaveBeenCalledWith(['public', 'store']);
+        });
+        expect(baseDatabaseState.refreshSchemas).toHaveBeenCalled();
+    });
+
+    it('keeps the nested schema picker open after creating a schema with none selected', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            selectedDatabases: ['app'],
+            nestedDatabaseDataMap: {
+                app: {
+                    schemas: ['public'],
+                    schemasLoaded: true,
+                    isLoadingSchemas: false,
+                    selectedSchemas: [],
+                    activeSchema: null,
+                    needsSchemaSelection: true,
+                    schemaDataMap: {},
+                },
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.loadNestedSchemas).toHaveBeenCalledWith(
+                'app',
+                undefined,
+                true,
+            );
+        });
+        expect(baseDatabaseState.setSelectedSchemasForDatabase).not.toHaveBeenCalled();
+        expect(baseDatabaseState.setSelectedSchemas).not.toHaveBeenCalled();
+    });
+
+    it('adds a created schema to a nested database that already has a selection', async () => {
+        vi.mocked(invoke).mockResolvedValue({rows: [], columns: []});
+        vi.mocked(useDatabase).mockReturnValue({
+            ...baseDatabaseState,
+            activeDriver: 'postgres',
+            activeCapabilities: postgresCaps,
+            selectedDatabases: ['app'],
+            nestedDatabaseDataMap: {
+                app: {
+                    schemas: ['public'],
+                    schemasLoaded: true,
+                    isLoadingSchemas: false,
+                    selectedSchemas: ['public'],
+                    activeSchema: 'public',
+                    needsSchemaSelection: false,
+                    schemaDataMap: {},
+                },
+            },
+        } as unknown as ReturnType<typeof useDatabase>);
+
+        renderSidebar();
+        await submitCreateSchema('store');
+
+        await waitFor(() => {
+            expect(baseDatabaseState.setSelectedSchemasForDatabase).toHaveBeenCalledWith('app', [
+                'public',
+                'store',
+            ]);
+        });
+        expect(baseDatabaseState.loadNestedSchemas).toHaveBeenCalledWith('app', undefined, true);
     });
 });

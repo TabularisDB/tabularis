@@ -41,6 +41,12 @@ export const QUERY_HISTORY_TIME_RANGE_OPTIONS: readonly QueryHistoryTimeRange[] 
 
 export interface QueryHistoryFilterOptions {
     search?: string;
+    /**
+     * When true, the text search also matches the recorded error message, so
+     * an entry matches when its SQL or its error contains the text. Off by
+     * default: the search looks at the SQL only.
+     */
+    searchErrors?: boolean;
     outcome?: QueryHistoryOutcomeFilter;
     timeRange?: QueryHistoryTimeRange;
     database?: QueryHistoryDatabaseFilter;
@@ -63,6 +69,40 @@ export interface QueryHistoryFilterOptions {
     from?: string;
     /** Inclusive calendar-day upper bound as `YYYY-MM-DD`. */
     to?: string;
+    /**
+     * Minimum recorded execution time in milliseconds, as typed in the panel.
+     * Empty or undefined means "no threshold"; `"0"` is a threshold of zero.
+     */
+    minDurationMs?: string;
+}
+
+/** Why the minimum-duration filter cannot be applied. */
+export type QueryHistoryMinDurationError = 'invalid' | 'negative';
+
+/** A plain decimal number: `500`, `0`, `2.5`, `.5`. */
+const DECIMAL_NUMBER = /^(\d+\.?\d*|\.\d+)$/;
+
+/**
+ * Validates the minimum-duration field and returns `null` when it can be
+ * applied, including when it is empty. Only plain decimal numbers count:
+ * exponents, hex, `Infinity` and stray characters are rejected so a typo cannot
+ * silently widen or narrow the list. A negative number gets its own reason.
+ */
+export function validateQueryHistoryMinDuration(raw?: string): QueryHistoryMinDurationError | null {
+    const trimmed = raw?.trim() ?? '';
+    if (!trimmed) return null;
+    if (trimmed.startsWith('-') && DECIMAL_NUMBER.test(trimmed.slice(1))) return 'negative';
+    if (!DECIMAL_NUMBER.test(trimmed)) return 'invalid';
+    // A digit string too long for a double overflows to Infinity.
+    if (!Number.isFinite(Number(trimmed))) return 'invalid';
+    return null;
+}
+
+/** The threshold in milliseconds, or `null` when the field is empty or unusable. */
+export function parseQueryHistoryMinDuration(raw?: string): number | null {
+    const trimmed = raw?.trim() ?? '';
+    if (!trimmed || validateQueryHistoryMinDuration(trimmed) !== null) return null;
+    return Number(trimmed);
 }
 
 /** Why a custom `from` / `to` range cannot be applied. */
@@ -198,20 +238,36 @@ export function isQueryHistoryDatabaseFilterAvailable(
     return choices.databases.some((name) => queryHistoryDatabaseFilterFor(name) === database);
 }
 
-function matchesSearch(entry: QueryHistoryEntry, search: string): boolean {
-    const trimmed = search.trim();
-    if (!trimmed) return true;
-    return entry.sql.toLowerCase().includes(trimmed.toLowerCase());
+/**
+ * Applies the minimum-duration threshold. A missing duration is unknown, not
+ * zero, so it never satisfies an active threshold; a recorded `0` does satisfy
+ * a threshold of zero.
+ */
+function matchesMinDuration(entry: QueryHistoryEntry, minDurationMs: number | null): boolean {
+    if (minDurationMs === null) return true;
+    const recorded = entry.executionTimeMs;
+    if (recorded === null || !Number.isFinite(recorded)) return false;
+    return recorded >= minDurationMs;
+}
+
+function matchesSearch(entry: QueryHistoryEntry, search: string, searchErrors: boolean): boolean {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return true;
+    if (entry.sql.toLowerCase().includes(needle)) return true;
+    // Entries without a recorded error (successes, legacy entries) only match
+    // through their SQL.
+    return searchErrors && Boolean(entry.error?.toLowerCase().includes(needle));
 }
 
 /**
- * True when any Query History filter (text, outcome, time range, database, or
- * custom date range) is active. Used to show the filtered/total counter.
+ * True when any Query History filter (text, outcome, time range, database,
+ * custom date range, or minimum duration) is active. Used to show the
+ * filtered/total counter.
  */
 export function isQueryHistoryFilterActive(
     options: Pick<
         QueryHistoryFilterOptions,
-        'search' | 'outcome' | 'timeRange' | 'database' | 'from' | 'to'
+        'search' | 'outcome' | 'timeRange' | 'database' | 'from' | 'to' | 'minDurationMs'
     >,
 ): boolean {
     const searchActive = Boolean(options.search?.trim());
@@ -222,15 +278,27 @@ export function isQueryHistoryFilterActive(
     const timeActive = (options.timeRange ?? 'all') !== 'all' && options.timeRange !== 'custom';
     const databaseActive = (options.database ?? 'all') !== 'all';
     const rangeActive = Boolean(options.from?.trim()) || Boolean(options.to?.trim());
-    return searchActive || outcomeActive || timeActive || databaseActive || rangeActive;
+    // Anything typed counts, "0" included: a threshold of zero still hides the
+    // entries that have no recorded duration.
+    const durationActive = Boolean(options.minDurationMs?.trim());
+    return (
+        searchActive ||
+        outcomeActive ||
+        timeActive ||
+        databaseActive ||
+        rangeActive ||
+        durationActive
+    );
 }
 
 /**
- * Filter query-history entries by optional text search, outcome, time range,
- * database, and custom `from` / `to` calendar dates.
+ * Filter query-history entries by optional text search (SQL only, or SQL or
+ * recorded error with `searchErrors`), outcome, time range,
+ * database, custom `from` / `to` calendar dates, and minimum recorded duration.
  * Filters combine with AND. Relative ranges are rolling windows from `now`;
  * `today` and the custom range use the calendar day in `timeZone`, with both
- * boundaries inclusive.
+ * boundaries inclusive. The duration threshold is inclusive too, and entries
+ * without a recorded duration never match it.
  */
 export function filterQueryHistoryEntries(
     entries: QueryHistoryEntry[],
@@ -238,22 +306,30 @@ export function filterQueryHistoryEntries(
 ): QueryHistoryEntry[] {
     const {
         search = '',
+        searchErrors = false,
         outcome = 'any',
         timeRange = 'all',
         database = 'all',
         from = '',
         to = '',
+        minDurationMs = '',
         now = Date.now(),
         timeZone,
     } = options;
 
-    if (!isQueryHistoryFilterActive({search, outcome, timeRange, database, from, to})) {
+    if (
+        !isQueryHistoryFilterActive({search, outcome, timeRange, database, from, to, minDurationMs})
+    ) {
         return entries;
     }
 
     // An unusable custom range (unparseable boundary, or `from` after `to`)
-    // matches nothing; the UI explains the reason rather than widening it.
-    if (validateQueryHistoryDateRange(from, to) !== null) {
+    // or an unusable duration matches nothing; the UI explains the reason
+    // rather than widening it.
+    if (
+        validateQueryHistoryDateRange(from, to) !== null ||
+        validateQueryHistoryMinDuration(minDurationMs) !== null
+    ) {
         return [];
     }
 
@@ -261,16 +337,18 @@ export function filterQueryHistoryEntries(
     const toRaw = to.trim();
     const fromDay = fromRaw ? parseCalendarDay(fromRaw) : null;
     const toDay = toRaw ? parseCalendarDay(toRaw) : null;
+    const minDuration = parseQueryHistoryMinDuration(minDurationMs);
 
     const nowMs = typeof now === 'number' ? now : now.getTime();
     const zone = resolveZone(timeZone);
 
     return entries.filter(
         (entry) =>
-            matchesSearch(entry, search) &&
+            matchesSearch(entry, search, searchErrors) &&
             matchesOutcome(entry, outcome) &&
             matchesDatabase(entry, database) &&
             matchesTimeRange(entry, timeRange, nowMs, zone) &&
-            matchesDateRange(entry, fromDay, toDay, zone),
+            matchesDateRange(entry, fromDay, toDay, zone) &&
+            matchesMinDuration(entry, minDuration),
     );
 }

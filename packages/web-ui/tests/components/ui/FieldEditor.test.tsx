@@ -2,6 +2,7 @@ import {describe, it, expect, vi} from 'vitest';
 import {render, screen, fireEvent} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {FieldEditor} from '@/components/ui/FieldEditor';
+import {blobTextToWireFormat} from '@/utils/blob';
 
 // Mock GeometryInput component
 interface MockGeometryInputProps {
@@ -45,6 +46,55 @@ vi.mock('@/utils/geometry', () => ({
 }));
 
 describe('FieldEditor', () => {
+    it('edits native Boolean values with a checkbox', () => {
+        const onChange = vi.fn();
+        render(<FieldEditor name="enabled" type="boolean" value={false} onChange={onChange} />);
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        expect(onChange).toHaveBeenCalledWith(true);
+    });
+
+    it('shows the configured NULL label on a nullable Boolean', () => {
+        render(
+            <FieldEditor
+                name="enabled"
+                type="boolean"
+                value={null}
+                isNullable
+                nullLabel="∅"
+                onChange={vi.fn()}
+            />,
+        );
+        expect(screen.getByText('∅')).toBeInTheDocument();
+    });
+
+    it('retains a numeric Boolean representation and allows NULL', () => {
+        const onChange = vi.fn();
+        const {rerender} = render(
+            <FieldEditor
+                name="enabled"
+                type="boolean"
+                value={1}
+                originalValue={1}
+                isNullable
+                onChange={onChange}
+            />,
+        );
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        expect(onChange).toHaveBeenLastCalledWith(0);
+        rerender(
+            <FieldEditor
+                name="enabled"
+                type="boolean"
+                value={0}
+                originalValue={1}
+                isNullable
+                onChange={onChange}
+            />,
+        );
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        expect(onChange).toHaveBeenLastCalledWith(null);
+    });
+
     it('should render textarea for non-geometric types', () => {
         const onChange = vi.fn();
         render(<FieldEditor name="name" type="varchar" value="John Doe" onChange={onChange} />);
@@ -96,6 +146,8 @@ describe('FieldEditor', () => {
             />,
         );
 
+        // "test" is printable text, so the editor opens as text; hex is one click away.
+        fireEvent.click(screen.getByRole('tab', {name: 'blobInput.hex'}));
         const input = screen.getByPlaceholderText('00 FF');
         expect(input).toHaveValue('74 65 73 74');
 
@@ -103,6 +155,80 @@ describe('FieldEditor', () => {
         fireEvent.blur(input);
 
         expect(onChange).toHaveBeenCalledWith('BLOB:2:application/octet-stream:Cv8=');
+    });
+
+    it('edits a BLOB that holds text as text and saves it as UTF-8', () => {
+        const onChange = vi.fn();
+        render(
+            <FieldEditor
+                name="path"
+                type="BLOB"
+                value={blobTextToWireFormat('C:\\old\\report.txt')}
+                onChange={onChange}
+            />,
+        );
+
+        expect(screen.getByRole('tab', {name: 'blobInput.text'})).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        const input = screen.getByRole('textbox');
+        expect(input).toHaveValue('C:\\old\\report.txt');
+
+        fireEvent.change(input, {target: {value: 'C:\\new\\Café ✓.txt'}});
+        fireEvent.blur(input);
+
+        expect(onChange).toHaveBeenCalledWith(blobTextToWireFormat('C:\\new\\Café ✓.txt'));
+    });
+
+    it('does not save a BLOB whose text was left unchanged', () => {
+        const onChange = vi.fn();
+        render(
+            <FieldEditor
+                name="path"
+                type="BLOB"
+                value={blobTextToWireFormat('unchanged')}
+                onChange={onChange}
+            />,
+        );
+
+        fireEvent.blur(screen.getByRole('textbox'));
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('switches a text BLOB between the text and hex editors', () => {
+        render(
+            <FieldEditor
+                name="path"
+                type="BLOB"
+                value={blobTextToWireFormat('ab')}
+                onChange={vi.fn()}
+            />,
+        );
+
+        fireEvent.click(screen.getByRole('tab', {name: 'blobInput.hex'}));
+        expect(screen.getByRole('tab', {name: 'blobInput.hex'})).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        expect(screen.getByRole('textbox')).toHaveValue('61 62');
+
+        fireEvent.click(screen.getByRole('tab', {name: 'blobInput.text'}));
+        expect(screen.getByRole('textbox')).toHaveValue('ab');
+    });
+
+    it('offers only the hex editor for a BLOB that is not text', () => {
+        render(
+            <FieldEditor
+                name="payload"
+                type="BLOB"
+                value={`BLOB:2:application/octet-stream:${btoa('\x00\xff')}`}
+                onChange={vi.fn()}
+            />,
+        );
+
+        expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+        expect(screen.getByPlaceholderText('00 FF')).toHaveValue('00 FF');
     });
 
     it('should keep a generic BLOB over 10 KiB in the download editor', () => {

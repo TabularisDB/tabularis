@@ -3,6 +3,23 @@ import '@testing-library/jest-dom/vitest';
 import {cleanup} from '@testing-library/react';
 import {afterEach} from 'vitest';
 import {vi} from 'vitest';
+import {UI_STATE_CACHE_KEY, uiStateStore} from '@/utils/uiStateStore';
+
+class MockResizeObserver implements ResizeObserver {
+    constructor(_callback: ResizeObserverCallback) {}
+
+    observe(_target: Element): void {}
+
+    unobserve(_target: Element): void {}
+
+    disconnect(): void {}
+}
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    writable: true,
+    value: MockResizeObserver,
+});
 
 // Node's native storage globals can prevent Vitest from installing jsdom's.
 // Bind both APIs before test modules load, using this worker's real DOM storage.
@@ -17,6 +34,9 @@ for (const name of ['localStorage', 'sessionStorage'] as const) {
 // Cleanup after each test
 afterEach(() => {
     cleanup();
+    // Shared UI state (e.g. expanded explorer nodes) must not leak into the next test.
+    localStorage.removeItem(UI_STATE_CACHE_KEY);
+    uiStateStore.reset();
 });
 
 // Mock browser APIs missing in JSDOM for Monaco Editor
@@ -30,6 +50,9 @@ Object.defineProperty(document, 'execCommand', {
 // Mock Tauri APIs
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn(),
+    convertFileSrc: vi.fn(
+        (path: string, protocol?: string) => `${protocol ?? 'asset'}://localhost/${path}`,
+    ),
     isTauri: vi.fn().mockReturnValue(true),
 }));
 
@@ -96,6 +119,7 @@ vi.mock('react-i18next', () => ({
         i18n: {
             language: 'en',
             changeLanguage: vi.fn(),
+            getResourceBundle: vi.fn(() => ({})),
         },
     }),
     initReactI18next: {
@@ -129,6 +153,7 @@ vi.mock('lucide-react', () => ({
     ArrowUp: () => null,
     ArrowUpCircle: () => null,
     ArrowDown: () => null,
+    ArrowDownAZ: () => null,
     ArrowUpDown: () => null,
     Filter: () => null,
     SlidersHorizontal: () => null,
@@ -156,7 +181,10 @@ vi.mock('lucide-react', () => ({
     Network: () => null,
     Code: () => null,
     FileText: () => null,
+    FileSpreadsheet: () => null,
     FileIcon: () => null,
+    FileDown: () => null,
+    FileUp: () => null,
     ImageIcon: () => null,
     Command: () => null,
     Braces: () => null,
@@ -223,6 +251,8 @@ vi.mock('lucide-react', () => ({
     Code2: () => null,
     Rows3: () => null,
     WrapText: () => null,
+    GitCompare: () => null,
+    Columns2: () => null,
     PanelTop: () => null,
     ChevronsDownUp: () => null,
     ChevronsUpDown: () => null,

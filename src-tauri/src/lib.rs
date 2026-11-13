@@ -4,11 +4,12 @@
 #![cfg_attr(not(feature = "desktop"), allow(unused_imports, dead_code))]
 
 pub mod ai;
+pub mod ai_assistants;
 pub mod ai_activity;
 #[cfg(test)]
-pub mod ai_activity_tests;
-#[cfg(test)]
 pub mod ai_activity_lexer_tests;
+#[cfg(test)]
+pub mod ai_activity_tests;
 pub mod ai_approval;
 #[cfg(test)]
 pub mod ai_approval_tests;
@@ -23,7 +24,6 @@ pub mod ai_schema_context_tests;
 pub mod application;
 pub mod askpass;
 pub mod backup;
-pub mod database_backup;
 pub mod chatgpt;
 pub mod cli;
 pub mod clipboard_import;
@@ -36,6 +36,7 @@ pub mod connection_cache;
 #[cfg(test)]
 pub mod connection_cache_tests;
 pub mod connection_import;
+pub mod database_backup;
 
 pub mod connection_migrations;
 #[cfg(test)]
@@ -90,6 +91,7 @@ pub mod proxy;
 pub mod query_history;
 #[cfg(test)]
 pub mod query_history_tests;
+pub mod routine_debug;
 pub mod runtime;
 pub mod sandbox;
 #[cfg(test)]
@@ -97,23 +99,25 @@ pub mod sandbox_tests;
 pub mod saved_queries;
 #[cfg(test)]
 pub mod saved_queries_tests;
-pub mod sql_database_statements;
-pub mod sql_file;
-#[cfg(test)]
-pub mod sql_file_tests;
 pub mod saved_query_folders;
 #[cfg(test)]
 pub mod saved_query_folders_tests;
 pub mod secret_store;
+pub mod sql_database_statements;
+pub mod sql_file;
+#[cfg(test)]
+pub mod sql_file_tests;
 pub mod sqlite_database;
 #[cfg(test)]
 pub mod sqlite_database_tests;
+pub mod ssh_socks5;
 pub mod ssh_tunnel;
 pub mod ssm_tunnel;
 pub mod storage_location;
 #[cfg(test)]
 pub mod storage_location_tests;
 
+pub mod table_sql;
 pub mod team_share;
 
 pub mod theme_models;
@@ -123,7 +127,6 @@ pub mod ui_state;
 
 #[cfg(test)]
 pub mod ui_state_tests;
-
 
 /// Tauri's global runtime in the desktop app; the ambient Tokio runtime of
 /// `tabularis web` and `--mcp` otherwise.
@@ -211,17 +214,22 @@ pub fn run() {
             let web_data_dir = application.context.paths.data_dir().to_path_buf();
             let web_plugins_dir = application.context.paths.plugins_dir();
             let database_backup_scheduler = database_backup::spawn_database_backup_scheduler(
-                application.context.clone(), application_state.dump_cancellation.clone(),
+                application.context.clone(),
+                application_state.dump_cancellation.clone(),
             );
-            let approval_heartbeat = runtime::lifecycle::start_approval_heartbeat(&application.context);
+            let approval_heartbeat =
+                runtime::lifecycle::start_approval_heartbeat(&application.context);
             let approval_watcher = ai_approval_watcher::spawn_headless(
                 application.context.clone(),
                 application_state.clone(),
             );
-            let application_api = std::sync::Arc::new(application::RuntimeApplicationApi::new(
-                application.context,
-                application_state.clone(),
-            ));
+            let application_api = std::sync::Arc::new(
+                application::RuntimeApplicationApi::new(
+                    application.context,
+                    application_state.clone(),
+                )
+                .with_connection_policy(web_args.connection_policy()),
+            );
 
             let server_result =
                 transport::web::server::run(transport::web::server::WebServerOptions {
@@ -266,4 +274,3 @@ pub fn run() {
         std::process::exit(2);
     }
 }
-

@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {
     Loader2,
@@ -16,6 +16,7 @@ import {MetadataErrorIndicator} from './MetadataErrorIndicator';
 import {SidebarTableItem} from './SidebarTableItem';
 import {TableFilterInput} from './TableFilterInput';
 import {SidebarViewItem} from './SidebarViewItem';
+import {SidebarPinnedGroup} from './SidebarPinnedGroup';
 import {SidebarRoutineItem} from './SidebarRoutineItem';
 import {SidebarRoutineGroupHeader} from './SidebarRoutineGroupHeader';
 import {SidebarTriggerItem} from './SidebarTriggerItem';
@@ -25,6 +26,10 @@ import type {ContextMenuData} from '@/types/sidebar';
 import {groupRoutinesByType, routineLabel} from '@/utils/routines';
 import {formatObjectCount} from '@/utils/schema';
 import {fuzzyFilter} from '@/utils/fuzzy';
+import {resolvePins} from '@/utils/explorerPins';
+import {useExplorerPins} from '@/hooks/useExplorerPins';
+import {useExplorerExpanded} from '@/hooks/useExplorerExpanded';
+import {expansionKey} from '@/utils/explorerExpansion';
 import {onActivationKey} from '@/utils/keyboardEvents';
 
 interface SidebarSchemaItemProps {
@@ -113,7 +118,12 @@ export const SidebarSchemaItem = ({
 }: SidebarSchemaItemProps) => {
     const {t} = useTranslation();
 
-    const [isExpanded, setIsExpanded] = useState(activeSchema === schemaName);
+    // Saved across restarts; the active schema still opens on mount.
+    const {isExpanded, setExpanded, reveal} = useExplorerExpanded(
+        expansionKey(connectionId, ['schema', database, schemaName]),
+        false,
+        {revealed: activeSchema === schemaName},
+    );
     const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
     const [tablesOpen, setTablesOpen] = useState(true);
     const [viewsOpen, setViewsOpen] = useState(true);
@@ -129,7 +139,7 @@ export const SidebarSchemaItem = ({
     if (activeSchema !== prevActiveSchema) {
         setPrevActiveSchema(activeSchema);
         if (activeSchema === schemaName) {
-            setIsExpanded(true);
+            reveal();
         }
     }
 
@@ -153,9 +163,22 @@ export const SidebarSchemaItem = ({
     const groupedRoutines =
         routines.length > 0 ? groupRoutinesByType(routines) : {procedures: [], functions: []};
 
+    // A schema restored as expanded after a restart has not loaded yet: load it
+    // once. Later loads stay on the toggle, so a failing load is not retried in a loop.
+    const restoreLoadRequested = useRef(false);
+    useEffect(() => {
+        if (!isExpanded || restoreLoadRequested.current) return;
+        restoreLoadRequested.current = true;
+        if (!isLoaded && !isLoading) {
+            onLoadSchema(schemaName);
+        }
+    }, [isExpanded, isLoaded, isLoading, schemaName, onLoadSchema]);
+
     const handleToggle = () => {
         const willExpand = !isExpanded;
-        setIsExpanded(willExpand);
+        setExpanded(willExpand);
+        // The toggle loads by itself; keep the restore effect from loading again.
+        restoreLoadRequested.current = true;
         if (willExpand && !isLoaded && !isLoading) {
             onLoadSchema(schemaName);
         }
@@ -164,6 +187,68 @@ export const SidebarSchemaItem = ({
     const itemCount = isLoaded
         ? formatObjectCount(tables.length, views.length, routines.length, triggers.length)
         : '';
+
+    // Pinned objects that still exist, filtered like the table list (#1306). The same
+    // items render in the Pinned group and in their regular lists.
+    const {pinsFor} = useExplorerPins(connectionId);
+    const pinned = pinsFor(database, schemaName);
+    const byName = (object: {name: string}) => object.name;
+    const pinnedTables = resolvePins(pinned, 'table', filteredTables, byName);
+    const pinnedViews = resolvePins(
+        pinned,
+        'view',
+        fuzzyFilter(views, tableFilter, byName),
+        byName,
+    );
+    const pinnedMaterializedViews = resolvePins(
+        pinned,
+        'view',
+        fuzzyFilter(materializedViews, tableFilter, byName),
+        byName,
+    );
+
+    const renderTable = (table: (typeof tables)[number]) => (
+        <SidebarTableItem
+            key={table.name}
+            table={table}
+            activeTable={activeSchema === schemaName ? activeTable : null}
+            onTableClick={(name) => onTableClick(name, schemaName)}
+            onTableDoubleClick={(name) => onTableDoubleClick(name, schemaName)}
+            onContextMenu={onContextMenu}
+            connectionId={connectionId}
+            driver={driver}
+            onAddColumn={onAddColumn}
+            onEditColumn={onEditColumn}
+            onAddIndex={onAddIndex}
+            onDropIndex={onDropIndex}
+            onAddForeignKey={onAddForeignKey}
+            onDropForeignKey={onDropForeignKey}
+            schemaVersion={schemaVersion}
+            schema={schemaName}
+            database={database}
+        />
+    );
+
+    const renderView = (view: (typeof views)[number], materialized = false) => (
+        <SidebarViewItem
+            key={view.name}
+            view={view}
+            activeView={null}
+            onViewClick={onViewClick}
+            onViewDoubleClick={(name) =>
+                materialized
+                    ? onViewDoubleClick(name, schemaName, true)
+                    : onViewDoubleClick(name, schemaName)
+            }
+            onContextMenu={onContextMenu}
+            connectionId={connectionId}
+            driver={driver}
+            schema={schemaName}
+            database={database}
+            materialized={materialized}
+            isRefreshing={materialized && refreshingMatView === view.name}
+        />
+    );
 
     return (
         <div className="flex flex-col">
@@ -174,7 +259,7 @@ export const SidebarSchemaItem = ({
                 aria-expanded={isExpanded}
                 className="flex items-center justify-between px-2 py-1.5 group/schema cursor-pointer hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                 onClick={handleToggle}
-                onKeyDown={onActivationKey(handleToggle)}
+                onKeyDown={(event) => onActivationKey(handleToggle)(event)}
             >
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                     {isExpanded ? (
@@ -237,6 +322,17 @@ export const SidebarSchemaItem = ({
                         </div>
                     ) : (
                         <>
+                            {pinnedTables.length +
+                                pinnedViews.length +
+                                pinnedMaterializedViews.length >
+                                0 && (
+                                <SidebarPinnedGroup>
+                                    {pinnedTables.map((table) => renderTable(table))}
+                                    {pinnedViews.map((view) => renderView(view))}
+                                    {pinnedMaterializedViews.map((view) => renderView(view, true))}
+                                </SidebarPinnedGroup>
+                            )}
+
                             {/* Tables */}
                             <Accordion
                                 title={`${t('sidebar.tables')} (${tables.length})`}
@@ -275,35 +371,7 @@ export const SidebarSchemaItem = ({
                                             : t('sidebar.noTables')}
                                     </div>
                                 ) : (
-                                    <div>
-                                        {filteredTables.map((table) => (
-                                            <SidebarTableItem
-                                                key={table.name}
-                                                table={table}
-                                                activeTable={
-                                                    activeSchema === schemaName ? activeTable : null
-                                                }
-                                                onTableClick={(name) =>
-                                                    onTableClick(name, schemaName)
-                                                }
-                                                onTableDoubleClick={(name) =>
-                                                    onTableDoubleClick(name, schemaName)
-                                                }
-                                                onContextMenu={onContextMenu}
-                                                connectionId={connectionId}
-                                                driver={driver}
-                                                onAddColumn={onAddColumn}
-                                                onEditColumn={onEditColumn}
-                                                onAddIndex={onAddIndex}
-                                                onDropIndex={onDropIndex}
-                                                onAddForeignKey={onAddForeignKey}
-                                                onDropForeignKey={onDropForeignKey}
-                                                schemaVersion={schemaVersion}
-                                                schema={schemaName}
-                                                database={database}
-                                            />
-                                        ))}
-                                    </div>
+                                    <div>{filteredTables.map((table) => renderTable(table))}</div>
                                 )}
                             </Accordion>
 
@@ -332,24 +400,7 @@ export const SidebarSchemaItem = ({
                                         {t('sidebar.noViews')}
                                     </div>
                                 ) : (
-                                    <div>
-                                        {views.map((view) => (
-                                            <SidebarViewItem
-                                                key={view.name}
-                                                view={view}
-                                                activeView={null}
-                                                onViewClick={onViewClick}
-                                                onViewDoubleClick={(name) =>
-                                                    onViewDoubleClick(name, schemaName)
-                                                }
-                                                onContextMenu={onContextMenu}
-                                                connectionId={connectionId}
-                                                driver={driver}
-                                                schema={schemaName}
-                                                database={database}
-                                            />
-                                        ))}
-                                    </div>
+                                    <div>{views.map((view) => renderView(view))}</div>
                                 )}
                             </Accordion>
 
@@ -362,24 +413,7 @@ export const SidebarSchemaItem = ({
                                     }
                                 >
                                     <div>
-                                        {materializedViews.map((view) => (
-                                            <SidebarViewItem
-                                                key={view.name}
-                                                view={view}
-                                                activeView={null}
-                                                onViewClick={onViewClick}
-                                                onViewDoubleClick={(name) =>
-                                                    onViewDoubleClick(name, schemaName, true)
-                                                }
-                                                onContextMenu={onContextMenu}
-                                                connectionId={connectionId}
-                                                driver={driver}
-                                                schema={schemaName}
-                                                database={database}
-                                                materialized
-                                                isRefreshing={refreshingMatView === view.name}
-                                            />
-                                        ))}
+                                        {materializedViews.map((view) => renderView(view, true))}
                                     </div>
                                 </Accordion>
                             )}

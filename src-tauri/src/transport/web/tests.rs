@@ -160,7 +160,7 @@ fn enforces_remote_credentials_origins_rate_limits_and_capability_policy() {
 fn bounds_the_session_store_without_displacing_live_sessions() {
     let proxy_security = LocalSessionSecurity::new_remote(
         RemoteSessionSecurityConfig {
-        trusted_proxies: Vec::new(),
+            trusted_proxies: Vec::new(),
             public_origin: "https://tabularis.example.com".to_string(),
             allowed_origins: vec!["https://tabularis.example.com".to_string()],
             session_ttl: Duration::from_secs(60),
@@ -328,6 +328,21 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         unauthorized_plugin_asset.status(),
         reqwest::StatusCode::UNAUTHORIZED
     );
+    let denied_ticket = client
+        .get(format!("{base_url}/api/v1/sandbox-ticket/example-plugin"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(denied_ticket.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let unsigned_asset = client
+        .get(format!(
+            "{base_url}/api/v1/sandbox/plugins/example-plugin/ui/dist/index.js"
+        ))
+        .header("Origin", "null")
+        .send()
+        .await
+        .unwrap();
+    assert!(!unsigned_asset.status().is_success());
     assert!(uuid::Uuid::parse_str(
         unauthorized
             .headers()
@@ -376,6 +391,67 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
     assert!(set_cookie.contains("SameSite=Strict"));
     assert!(set_cookie.contains("Path=/"));
     let cookie = set_cookie.split(';').next().unwrap().to_string();
+
+    let ticket = client
+        .get(format!("{base_url}/api/v1/sandbox-ticket/example-plugin"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ticket.status(), reqwest::StatusCode::OK);
+    let ticket: Value = ticket.json().await.unwrap();
+    let sandbox_base = ticket["baseUrl"].as_str().unwrap().to_string();
+    for asset in [
+        "__guest__.html?module=ui%2Fdist%2Findex.js",
+        "ui/dist/index.js",
+    ] {
+        let response = client
+            .get(format!("{base_url}{sandbox_base}{asset}"))
+            .header("Origin", "null")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        assert!(response
+            .headers()
+            .get("content-security-policy")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("connect-src 'none'"));
+        assert_eq!(
+            response.headers().get("referrer-policy").unwrap(),
+            "no-referrer"
+        );
+    }
+    let wrong_plugin = sandbox_base.replace("example-plugin/", "missing-plugin/");
+    let response = client
+        .get(format!("{base_url}{wrong_plugin}__guest__.html"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let mut parts: Vec<_> = sandbox_base.split('/').collect();
+    parts[6] = "invalid-ticket";
+    let wrong_ticket = parts.join("/");
+    let response = client
+        .get(format!("{base_url}{wrong_ticket}__guest__.html"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let response = client
+        .get(format!("{base_url}{sandbox_base}ui/dist/private.txt"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
+    let response = client
+        .get(format!("{base_url}{sandbox_base}ui/%2e%2e/private.txt"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
 
     let replay = client.get(&bootstrap_url).send().await.unwrap();
     assert_eq!(replay.status(), reqwest::StatusCode::UNAUTHORIZED);
@@ -580,6 +656,12 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         .await
         .unwrap();
     assert_eq!(logout.status(), reqwest::StatusCode::NO_CONTENT);
+    let revoked_asset = client
+        .get(format!("{base_url}{sandbox_base}ui/dist/index.js"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(revoked_asset.status(), reqwest::StatusCode::UNAUTHORIZED);
     assert!(logout
         .headers()
         .get(SET_COOKIE)
@@ -734,6 +816,27 @@ async fn password_login_resumes_a_connection_link() {
         .unwrap()
         .to_string();
 
+    let unauthenticated = get("/api/v1/sandbox-ticket/example-plugin").await.unwrap();
+    assert_eq!(unauthenticated.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let ticket = client
+        .get(format!("{base_url}/api/v1/sandbox-ticket/example-plugin"))
+        .header(HOST, "tabularis.example.com")
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ticket.status(), reqwest::StatusCode::OK);
+    let ticket: Value = ticket.json().await.unwrap();
+    let sandbox_base = ticket["baseUrl"].as_str().unwrap();
+    let guest = client
+        .get(format!("{base_url}{sandbox_base}__guest__.html"))
+        .header(HOST, "tabularis.example.com")
+        .header(ORIGIN, "null")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(guest.status(), reqwest::StatusCode::OK);
+
     // With the session, the link serves the app; the client opens the connection.
     let page = client
         .get(format!("{base_url}{link}"))
@@ -777,6 +880,29 @@ async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
 
 #[tokio::test]
 async fn authenticates_remote_password_and_proxy_requests_with_auditing() {
+    // Other web tests clear or disable the process-wide log buffer. Keep the
+    // audit assertions in their own process with a stable logging level.
+    const CHILD: &str = "TABULARIS_WEB_AUDIT_TEST_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "transport::web::tests::authenticates_remote_password_and_proxy_requests_with_auditing",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env("RUST_LOG", "info")
+            .output()
+            .expect("failed to launch the isolated web audit test");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success() && stdout.contains("1 passed"),
+            "isolated web audit test failed:\n{stdout}\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
     let log_buffer = crate::runtime::bootstrap::initialize_logging(false);
@@ -1195,6 +1321,7 @@ async fn executes_representative_commands_over_versioned_rpc() {
                 appearance: None,
                 tag_ids: None,
                 environment: None,
+                managed: false,
             }],
             ..Default::default()
         },
@@ -1785,6 +1912,30 @@ async fn executes_representative_commands_over_versioned_rpc() {
     )
     .await;
     assert_eq!(updated_query["name"], "Named users");
+    let versions = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_saved_query_versions",
+        serde_json::json!({"connectionId": "metadata-fixture", "id": saved_query_id}),
+    )
+    .await;
+    assert_eq!(versions[0]["sql"], "SELECT * FROM users");
+    let restored_query = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "restore_saved_query_version",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "id": saved_query_id,
+            "versionId": versions[0]["id"]
+        }),
+    )
+    .await;
+    assert_eq!(restored_query["sql"], "SELECT * FROM users");
 
     let history_entry = rpc_data(
         &client,
@@ -3201,29 +3352,47 @@ async fn serves_plugin_assets_from_the_local_plugin_directory_with_custom_data_s
     std::fs::create_dir_all(&data_dir).unwrap();
     std::fs::create_dir_all(plugin.join("ui")).unwrap();
     std::fs::write(data_dir.join("index.html"), "Tabularis").unwrap();
-    std::fs::write(plugin.join(".tabularium"), r#"{
+    std::fs::write(
+        plugin.join(".tabularium"),
+        r#"{
         "id":"example-plugin", "name":"Fixture", "version":"1.0.0",
         "description":"Fixture", "ui_extensions":[{
             "slot":"data-grid.toolbar.actions", "module":"ui/index.js"
         }]
-    }"#).unwrap();
+    }"#,
+    )
+    .unwrap();
     std::fs::write(plugin.join("ui/index.js"), "window.pluginLoaded = true;").unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
-    let (security, token) = LocalSessionSecurity::new(
-        base_url.clone(), LocalSessionSecurityConfig::default(),
-    ).unwrap();
+    let (security, token) =
+        LocalSessionSecurity::new(base_url.clone(), LocalSessionSecurityConfig::default()).unwrap();
     let session = security.consume_bootstrap(token.expose()).unwrap();
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let server = tokio::spawn(server::serve_with_events(
-        listener, data_dir.clone(), data_dir.clone(), plugins_dir, security,
-        test_application(&data_dir), WebEventBus::default(), Arc::default(),
-        async move { let _ = shutdown_rx.await; },
+        listener,
+        data_dir.clone(),
+        data_dir.clone(),
+        plugins_dir,
+        security,
+        test_application(&data_dir),
+        WebEventBus::default(),
+        Arc::default(),
+        async move {
+            let _ = shutdown_rx.await;
+        },
     ));
     let response = reqwest::Client::new()
-        .get(format!("{base_url}/api/v1/assets/plugins/example-plugin/ui/index.js"))
-        .header(COOKIE, format!("tabularis_session={}", session.cookie_value))
-        .send().await.unwrap();
+        .get(format!(
+            "{base_url}/api/v1/assets/plugins/example-plugin/ui/index.js"
+        ))
+        .header(
+            COOKIE,
+            format!("tabularis_session={}", session.cookie_value),
+        )
+        .send()
+        .await
+        .unwrap();
     let status = response.status();
     let body = response.text().await.unwrap();
     shutdown_tx.send(()).unwrap();
@@ -3238,18 +3407,30 @@ fn login_attempts_are_counted_per_client_behind_a_proxy() {
     let public = "203.0.113.7".parse().unwrap();
     let proxy = "172.18.0.3".parse().unwrap();
     let trusted = ["172.18.0.3/32".parse().unwrap(), "::1/128".parse().unwrap()];
-    assert_eq!(login_client(Some(public), Some("198.51.100.1"), &trusted), public);
-    assert_eq!(login_client(Some(proxy), Some("198.51.100.1, 198.51.100.2"), &trusted), "198.51.100.2".parse::<std::net::IpAddr>().unwrap());
+    assert_eq!(
+        login_client(Some(public), Some("198.51.100.1"), &trusted),
+        public
+    );
+    assert_eq!(
+        login_client(Some(proxy), Some("198.51.100.1, 198.51.100.2"), &trusted),
+        "198.51.100.2".parse::<std::net::IpAddr>().unwrap()
+    );
     assert_eq!(login_client(Some(proxy), None, &trusted), proxy);
     assert_eq!(login_client(Some(proxy), Some("garbage"), &trusted), proxy);
-    assert_eq!(login_client(Some("::1".parse().unwrap()), Some("2001:db8::7"), &trusted), "2001:db8::7".parse::<std::net::IpAddr>().unwrap());
+    assert_eq!(
+        login_client(Some("::1".parse().unwrap()), Some("2001:db8::7"), &trusted),
+        "2001:db8::7".parse::<std::net::IpAddr>().unwrap()
+    );
 }
 
 #[test]
 fn private_clients_cannot_spoof_the_login_bucket_without_explicit_proxy_trust() {
     for address in ["127.0.0.1", "172.18.0.3", "::1", "fd00::1"] {
         let peer = address.parse().unwrap();
-        assert_eq!(super::auth::login_client(Some(peer), Some("198.51.100.1"), &[]), peer);
+        assert_eq!(
+            super::auth::login_client(Some(peer), Some("198.51.100.1"), &[]),
+            peer
+        );
     }
 }
 

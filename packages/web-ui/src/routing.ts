@@ -1,4 +1,4 @@
-export const WEB_UI_BASE_PATH = '/';
+export const WEB_UI_BASE_PATH = import.meta.env.BASE_URL;
 
 export const BROWSER_ROUTES = {
     root: '/',
@@ -65,6 +65,11 @@ export function buildVisualExplainRoute(connectionId: string, query: string): st
     return `${BROWSER_ROUTES.visualExplain}?connection=${encodeURIComponent(
         connectionId,
     )}&query=${base64UrlEncode(query)}`;
+}
+
+/** A plan handed over by another window, see platform/visualExplainSessions. */
+export function buildVisualExplainSessionRoute(sessionId: string): string {
+    return `${BROWSER_ROUTES.visualExplain}?session=${encodeURIComponent(sessionId)}`;
 }
 
 export function buildRouteWindowLabel(prefix: string, ...parts: string[]): string {

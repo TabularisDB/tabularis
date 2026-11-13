@@ -1,6 +1,8 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {render, screen, fireEvent} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type {JsonEditorProps, NodeData} from 'json-edit-react';
+import {compareJsonKeys} from '@/utils/jsonTree';
 
 type CapturedProps = JsonEditorProps & {
     restrictEdit?: boolean;
@@ -341,6 +343,81 @@ describe('JsonTreeView', () => {
             const editor = screen.getByTestId('mock-json-editor');
             fireEvent.click(screen.getByRole('button', {name: 'jsonInput.collapseAll'}));
             expect(screen.getByTestId('mock-json-editor')).toBe(editor);
+        });
+    });
+
+    describe('sort keys', () => {
+        const data = {z: 1, '10': 'ten', '2': 'two', nested: {y: 2, alpha: 3}};
+        const layouts = [
+            {name: 'compact', props: {}},
+            {name: 'full-height', props: {fillHeight: true}},
+        ];
+        const sortToggle = () => screen.getByRole('button', {name: 'jsonInput.sortKeys'});
+
+        it.each(layouts)('turns key sorting on and off in a read-only tree ($name)', ({props}) => {
+            const onChange = vi.fn();
+            render(<JsonTreeView value={data} readOnly onChange={onChange} {...props} />);
+            expect(sortToggle()).toHaveAttribute('aria-pressed', 'false');
+            expect(lastProps.current!.keySort).toBe(false);
+
+            fireEvent.click(sortToggle());
+            expect(sortToggle()).toHaveAttribute('aria-pressed', 'true');
+            expect(lastProps.current!.keySort).toBe(compareJsonKeys);
+
+            fireEvent.click(sortToggle());
+            expect(sortToggle()).toHaveAttribute('aria-pressed', 'false');
+            expect(lastProps.current!.keySort).toBe(false);
+
+            expect(lastProps.current!.data).toBe(data);
+            expect(onChange).not.toHaveBeenCalled();
+        });
+
+        it.each(layouts)('is not offered in an editable tree ($name)', ({props}) => {
+            render(<JsonTreeView value={data} onChange={() => {}} {...props} />);
+            expect(
+                screen.queryByRole('button', {name: 'jsonInput.sortKeys'}),
+            ).not.toBeInTheDocument();
+            expect(lastProps.current!.keySort).toBe(false);
+        });
+
+        it('stops sorting when the tree becomes editable', () => {
+            const {rerender} = render(<JsonTreeView value={data} readOnly onChange={() => {}} />);
+            fireEvent.click(sortToggle());
+            expect(lastProps.current!.keySort).toBe(compareJsonKeys);
+
+            rerender(<JsonTreeView value={data} onChange={() => {}} />);
+            expect(lastProps.current!.keySort).toBe(false);
+            expect(
+                screen.queryByRole('button', {name: 'jsonInput.sortKeys'}),
+            ).not.toBeInTheDocument();
+        });
+
+        it('can be reached and toggled with the keyboard', async () => {
+            const user = userEvent.setup();
+            render(<JsonTreeView value={data} searchQuery="" />);
+
+            await user.tab();
+            await user.tab();
+            await user.tab();
+            expect(sortToggle()).toHaveFocus();
+
+            await user.keyboard(' ');
+            expect(sortToggle()).toHaveAttribute('aria-pressed', 'true');
+            expect(lastProps.current!.keySort).toBe(compareJsonKeys);
+        });
+
+        it.each([{}, []])('can be toggled for an empty container %j', (value) => {
+            render(<JsonTreeView value={value} />);
+            expect(sortToggle()).toBeEnabled();
+
+            fireEvent.click(sortToggle());
+            expect(lastProps.current!.keySort).toBe(compareJsonKeys);
+            expect(lastProps.current!.data).toBe(value);
+        });
+
+        it.each(['text', 42, true, null])('is disabled for scalar root %s', (value) => {
+            render(<JsonTreeView value={value} />);
+            expect(sortToggle()).toBeDisabled();
         });
     });
 });

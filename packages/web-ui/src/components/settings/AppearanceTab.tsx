@@ -244,6 +244,24 @@ export function AppearanceTab() {
                         </SettingRow>
 
                         <SettingRow
+                            label={t('settings.appearance_editorRenderWhitespace')}
+                            description={t('settings.appearance_editorRenderWhitespaceDesc')}
+                        >
+                            <SettingButtonGroup
+                                value={settings.editorRenderWhitespace ?? 'selection'}
+                                onChange={(value) => updateSetting('editorRenderWhitespace', value)}
+                                options={[
+                                    {value: 'none', label: t('settings.appearance_whitespaceNone')},
+                                    {
+                                        value: 'selection',
+                                        label: t('settings.appearance_whitespaceSelection'),
+                                    },
+                                    {value: 'all', label: t('settings.appearance_whitespaceAll')},
+                                ]}
+                            />
+                        </SettingRow>
+
+                        <SettingRow
                             label={t('settings.appearance_editorHighlightInvisibleCharacters')}
                             description={t(
                                 'settings.appearance_editorHighlightInvisibleCharactersDesc',
@@ -254,6 +272,16 @@ export function AppearanceTab() {
                                 onChange={(v) =>
                                     updateSetting('editorHighlightInvisibleCharacters', v)
                                 }
+                            />
+                        </SettingRow>
+
+                        <SettingRow
+                            label={t('settings.appearance_editorMinimap')}
+                            description={t('settings.appearance_editorMinimapDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.editorMinimap ?? false}
+                                onChange={(v) => updateSetting('editorMinimap', v)}
                             />
                         </SettingRow>
 
@@ -295,6 +323,18 @@ export function AppearanceTab() {
                                     {value: 'lower', label: 'lower'},
                                 ]}
                                 mono
+                            />
+                        </SettingRow>
+                    </SettingSection>
+
+                    <SettingSection title={t('settings.diagnostics_title')}>
+                        <SettingRow
+                            label={t('settings.diagnostics_enabled')}
+                            description={t('settings.diagnostics_enabledDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.sqlDiagnosticsEnabled ?? false}
+                                onChange={(v) => updateSetting('sqlDiagnosticsEnabled', v)}
                             />
                         </SettingRow>
                     </SettingSection>

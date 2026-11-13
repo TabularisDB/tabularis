@@ -4,6 +4,70 @@ use crate::runtime::paths::FixedRuntimePaths;
 use crate::runtime::secrets::KeyringRuntimeSecrets;
 use std::sync::Arc;
 
+#[test]
+fn editor_whitespace_survives_partial_updates_and_config_reload() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = runtime(temp.path());
+    save_config(&runtime, AppConfig::default()).unwrap();
+    assert!(load_config(&runtime).editor_render_whitespace.is_none());
+
+    for mode in ["none", "selection", "all"] {
+        save_config(
+            &runtime,
+            AppConfig {
+                editor_render_whitespace: Some(mode.to_string()),
+                editor_highlight_invisible_characters: Some(false),
+                ..AppConfig::default()
+            },
+        )
+        .unwrap();
+        save_config(
+            &runtime,
+            AppConfig {
+                font_size: Some(16),
+                ..AppConfig::default()
+            },
+        )
+        .unwrap();
+        let reloaded = load_config(&runtime);
+        assert_eq!(reloaded.editor_render_whitespace.as_deref(), Some(mode));
+        assert_eq!(reloaded.editor_highlight_invisible_characters, Some(false));
+        assert_eq!(reloaded.font_size, Some(16));
+    }
+}
+
+#[test]
+fn editor_minimap_survives_partial_updates_and_config_reload() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = runtime(temp.path());
+    let legacy: AppConfig =
+        serde_json::from_str(r#"{"language":"en","editorFontSize":18}"#).unwrap();
+    assert!(legacy.editor_minimap.is_none());
+    save_config(&runtime, legacy).unwrap();
+
+    for enabled in [true, false] {
+        save_config(
+            &runtime,
+            serde_json::from_value(serde_json::json!({"editorMinimap": enabled})).unwrap(),
+        )
+        .unwrap();
+        save_config(
+            &runtime,
+            serde_json::from_value(serde_json::json!({"fontSize": 16})).unwrap(),
+        )
+        .unwrap();
+        let reloaded = load_config(&runtime);
+        assert_eq!(reloaded.editor_minimap, Some(enabled));
+        assert_eq!(reloaded.editor_font_size, Some(18));
+        assert_eq!(reloaded.language.as_deref(), Some("en"));
+        assert_eq!(reloaded.font_size, Some(16));
+        assert_eq!(
+            serde_json::to_value(reloaded).unwrap()["editorMinimap"],
+            enabled
+        );
+    }
+}
+
 fn runtime(root: &Path) -> RuntimeContext {
     RuntimeContext::new(
         Arc::new(FixedRuntimePaths::new(
@@ -307,12 +371,14 @@ fn config_merge_keeps_plugin_timeouts_and_query_notifications() {
             plugin_call_timeout_seconds: Some(90),
             notify_long_queries: Some(true),
             notify_long_queries_threshold_sec: Some(30),
+            sql_diagnostics_enabled: Some(true),
             ..Default::default()
         },
     );
     assert_eq!(config.plugin_call_timeout_seconds, Some(90));
     assert_eq!(config.notify_long_queries, Some(true));
     assert_eq!(config.notify_long_queries_threshold_sec, Some(30));
+    assert_eq!(config.sql_diagnostics_enabled, Some(true));
 }
 
 #[test]
@@ -324,6 +390,7 @@ fn saves_all_grid_preferences_and_preserves_them_on_partial_updates() {
         "columnMaskingEnabled": false,
         "columnMaskingOverrides": {"connection.table": {"include": ["secret"]}},
         "columnMaskingPatterns": ["password"],
+        "nullDisplay": "emptySet",
         "resultZebraStripes": false,
         "rowEditorFollowSelection": false,
         "stickyColumnHeaders": false
@@ -356,8 +423,23 @@ fn database_backup_plan_survives_unrelated_config_updates() {
         "enabled": true, "connectionId": "sqlite-review", "time": "03:15", "timezone": "UTC",
         "destinationDirectory": "/backups", "retention": 3,
         "includeStructure": true, "includeData": true
-    })).unwrap();
-    save_config(&runtime, AppConfig { database_backup_plan: Some(plan.clone()), ..Default::default() }).unwrap();
-    save_config(&runtime, AppConfig { language: Some("de".to_string()), ..Default::default() }).unwrap();
+    }))
+    .unwrap();
+    save_config(
+        &runtime,
+        AppConfig {
+            database_backup_plan: Some(plan.clone()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    save_config(
+        &runtime,
+        AppConfig {
+            language: Some("de".to_string()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert_eq!(load_config(&runtime).database_backup_plan, Some(plan));
 }

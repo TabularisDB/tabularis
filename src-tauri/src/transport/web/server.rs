@@ -5,6 +5,7 @@ use super::auth::{
 };
 use super::contract::SessionNegotiation;
 use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
+use super::login_page::{login_page_csp, render_login_page};
 use super::login_target::{login_return_target, LOGIN_TARGET_PARAM};
 use super::rpc::{RequestId, RpcAccessPolicy, RpcDispatcher};
 use crate::application::file_transfers::{
@@ -47,6 +48,12 @@ const MAX_EVENT_CONTROL_BYTES: usize = 16 * 1024;
 const FILE_NAME_HEADER_NAME: &str = "x-tabularis-file-name";
 const FILE_PURPOSE_HEADER_NAME: &str = "x-tabularis-purpose";
 const BLOB_TRANSFER_PURPOSE: &str = "blob";
+const SANDBOX_GUEST_CSP: &str = "sandbox allow-scripts; default-src 'none'; script-src 'self'; \
+  style-src 'self' 'unsafe-inline'; img-src data: blob:; font-src data:; \
+  connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'";
+static SANDBOX_GUEST_HTML: &[u8] = include_bytes!("../../../resources/guest/__guest__.html");
+static SANDBOX_GUEST_RUNTIME_JS: &[u8] = include_bytes!("../../../resources/guest/runtime.js");
+static SANDBOX_HOST_CSS: &[u8] = include_bytes!("../../../resources/guest/host.css");
 const PLUGIN_ASSET_CSP: &str = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; sandbox";
 const CROSS_ORIGIN_RESOURCE_POLICY: HeaderName =
     HeaderName::from_static("cross-origin-resource-policy");
@@ -326,6 +333,11 @@ fn router(
         .route(
             "/api/v1/assets/plugins/:plugin_id/*asset_path",
             get(plugin_asset),
+        )
+        .route("/api/v1/sandbox-ticket/:plugin_id", get(sandbox_ticket))
+        .route(
+            "/api/v1/sandbox/plugins/:session_id/:ticket/:plugin_id/*asset_path",
+            get(sandbox_plugin_asset),
         )
         .route("/api/*path", any(StatusCode::NOT_FOUND))
         .layer(RequestBodyLimitLayer::new(max_body_bytes));
@@ -782,6 +794,71 @@ async fn plugin_asset(
     response
 }
 
+/// Serves the sandboxed plugin guest page, its runtime and the plugin's declared UI modules.
+///
+/// Opaque sandbox frames cannot send the session cookie on sub-resource requests.
+/// Their URLs therefore carry a session-bound, plugin-scoped read-only capability.
+async fn sandbox_ticket(
+    Extension(session): Extension<AuthenticatedSession>,
+    Path(plugin_id): Path<String>,
+) -> Response {
+    if crate::application::plugins::validate_plugin_id(&plugin_id).is_err() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
+    let base_url = format!(
+        "/api/v1/sandbox/plugins/{}/{}/{plugin_id}/",
+        session.event_scope(),
+        session.sandbox_ticket(&plugin_id)
+    );
+    let mut response = Json(serde_json::json!({"baseUrl": base_url})).into_response();
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+async fn sandbox_plugin_asset(
+    State(state): State<WebServerState>,
+    Path((session_id, ticket, plugin_id, asset_path)): Path<(Uuid, String, String, String)>,
+) -> Response {
+    if crate::application::plugins::validate_plugin_id(&plugin_id).is_err() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
+    if !state
+        .security
+        .verify_sandbox_ticket(session_id, &plugin_id, &ticket)
+    {
+        return status_response(StatusCode::UNAUTHORIZED);
+    }
+    let (bytes, content_type) = match asset_path.as_str() {
+        "__guest__.html" => (SANDBOX_GUEST_HTML.to_vec(), "text/html; charset=utf-8"),
+        "__runtime__.js" => (
+            SANDBOX_GUEST_RUNTIME_JS.to_vec(),
+            "application/javascript; charset=utf-8",
+        ),
+        "__host.css__" => (SANDBOX_HOST_CSS.to_vec(), "text/css; charset=utf-8"),
+        other => match crate::application::plugin_assets::read_plugin_asset(
+            &state.plugins_dir,
+            &plugin_id,
+            other,
+        ) {
+            Ok(asset) => (asset.bytes, asset.content_type),
+            Err(_) => return status_response(StatusCode::NOT_FOUND),
+        },
+    };
+    let mut response = Response::new(Body::from(bytes));
+    let headers = response.headers_mut();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
+    headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    headers.insert(
+        CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(SANDBOX_GUEST_CSP),
+    );
+    response
+}
+
 async fn connection_icon_asset(
     State(state): State<WebServerState>,
     Path(filename): Path<String>,
@@ -1061,22 +1138,27 @@ async fn security_gate(
         return status_response(StatusCode::FORBIDDEN);
     }
 
+    let path = request.uri().path();
+    // Opaque frames may send Origin: null and cannot use the session cookie.
+    // The asset handler verifies a session-bound capability before serving bytes.
+    let sandbox_asset = path.starts_with("/api/v1/sandbox/plugins/")
+        && matches!(*request.method(), Method::GET | Method::HEAD);
+
     let origin = request
         .headers()
         .get(ORIGIN)
         .and_then(|value| value.to_str().ok());
-    if origin.is_some_and(|value| !state.security.origin_allowed(value)) {
+    if !sandbox_asset && origin.is_some_and(|value| !state.security.origin_allowed(value)) {
         audit_event("request", request_id, None, "outcome=denied reason=origin");
         return status_response(StatusCode::FORBIDDEN);
     }
 
-    let path = request.uri().path();
     let local_bootstrap =
         !state.security.is_remote() && path == BOOTSTRAP_PATH && request.method() == Method::GET;
     let password_login = state.security.password_authentication()
         && ((path == LOGIN_PAGE_PATH && request.method() == Method::GET)
             || (path == LOGIN_PATH && request.method() == Method::POST));
-    if path == "/healthz" || local_bootstrap || password_login {
+    if path == "/healthz" || local_bootstrap || password_login || sandbox_asset {
         if path == LOGIN_PATH && !origin.is_some_and(|origin| state.security.origin_allowed(origin))
         {
             audit_event(
@@ -1133,6 +1215,9 @@ async fn security_gate(
                     return authentication_error_response(error, false, None);
                 }
             }
+        }
+        None if path.starts_with("/api/v1/sandbox-ticket/") => {
+            return status_response(StatusCode::UNAUTHORIZED);
         }
         None if state.security.password_authentication() && request.method() == Method::GET => {
             return login_redirect_response(login_return_target(path));
@@ -1250,20 +1335,9 @@ fn login_redirect_response(target: Option<&str>) -> Response {
     response
 }
 
-/// `target` must come from `login_return_target`, whose character set needs
-/// no HTML escaping.
+/// `target` must come from `login_return_target`.
 fn login_page_response(status: StatusCode, error: Option<&str>, target: Option<&str>) -> Response {
-    let error = error
-        .map(|message| format!("<p role=\"alert\">{message}</p>"))
-        .unwrap_or_default();
-    let target = target
-        .map(|target| {
-            format!("<input type=\"hidden\" name=\"{LOGIN_TARGET_PARAM}\" value=\"{target}\">")
-        })
-        .unwrap_or_default();
-    let body = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>Tabularis Web sign in</title></head><body><main><h1>Sign in to Tabularis Web</h1>{error}<form method=\"post\" action=\"{LOGIN_PATH}\">{target}<label>Password <input type=\"password\" name=\"password\" required autofocus autocomplete=\"current-password\"></label><button type=\"submit\">Sign in</button></form></main></body></html>"
-    );
+    let body = render_login_page(LOGIN_PATH, error, target);
     let mut response = (status, body).into_response();
     let headers = response.headers_mut();
     headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -1276,14 +1350,12 @@ fn login_page_response(status: StatusCode, error: Option<&str>, target: Option<&
     headers.insert(REFERRER_POLICY, HeaderValue::from_static("same-origin"));
     headers.insert(
         CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static(
-            "default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
-        ),
+        HeaderValue::from_static(login_page_csp()),
     );
     response
 }
 
-fn authentication_error_response(
+pub(super) fn authentication_error_response(
     error: AuthenticationError,
     html: bool,
     target: Option<&str>,

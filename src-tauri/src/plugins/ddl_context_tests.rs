@@ -10,6 +10,7 @@ fn column(name: &str) -> ColumnDefinition {
         is_auto_increment: false,
         default_value: None,
         comment: None,
+        on_update: None,
     }
 }
 

@@ -74,6 +74,7 @@ fn saved_connection(driver: &str, keys: &[&str]) -> SavedConnection {
         appearance: None,
         tag_ids: None,
         environment: None,
+        managed: false,
     }
 }
 

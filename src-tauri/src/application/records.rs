@@ -189,17 +189,19 @@ pub async fn delete_record(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     log::info!(
         "Deleting a record on connection {} from table {}",
         connection_id,
         table
     );
     reject_server_file_refs(session_id, pk_map.values())?;
-    let (_driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
-        runtime,
-        session_id,
-        connection_id,
-    )?;
+    let (_driver_id, mut params) =
+        crate::application::connections::resolve_saved_connection_params(
+            runtime,
+            session_id,
+            connection_id,
+        )?;
     apply_database(&mut params.database, database);
     driver_for(&params)
         .await?
@@ -219,6 +221,7 @@ pub async fn update_record(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     log::info!(
         "Updating column {} on connection {} in table {}",
         col_name,
@@ -233,11 +236,12 @@ pub async fn update_record(
         &mut new_val,
         max_blob_size,
     )?;
-    let (_driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
-        runtime,
-        session_id,
-        connection_id,
-    )?;
+    let (_driver_id, mut params) =
+        crate::application::connections::resolve_saved_connection_params(
+            runtime,
+            session_id,
+            connection_id,
+        )?;
     apply_database(&mut params.database, database);
     let result = driver_for(&params)
         .await?
@@ -265,6 +269,7 @@ pub async fn insert_record(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
+    crate::application::read_only::ensure_writable(runtime, connection_id)?;
     log::info!(
         "Inserting a record on connection {} into table {}",
         connection_id,
@@ -279,11 +284,12 @@ pub async fn insert_record(
             uploads.push(upload);
         }
     }
-    let (_driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
-        runtime,
-        session_id,
-        connection_id,
-    )?;
+    let (_driver_id, mut params) =
+        crate::application::connections::resolve_saved_connection_params(
+            runtime,
+            session_id,
+            connection_id,
+        )?;
     apply_database(&mut params.database, database);
     let result = driver_for(&params)
         .await?
@@ -306,11 +312,12 @@ pub async fn fetch_blob(
     policy: BlobFetchPolicy,
 ) -> Result<BlobFetchResponse, String> {
     reject_server_file_refs(session_id, pk_map.values())?;
-    let (_driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
-        runtime,
-        session_id,
-        connection_id,
-    )?;
+    let (_driver_id, mut params) =
+        crate::application::connections::resolve_saved_connection_params(
+            runtime,
+            session_id,
+            connection_id,
+        )?;
     apply_database(&mut params.database, database);
     let wire_value = driver_for(&params)
         .await?

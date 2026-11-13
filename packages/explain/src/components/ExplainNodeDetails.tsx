@@ -1,16 +1,25 @@
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
+import {Check, Copy} from 'lucide-react';
+import clsx from 'clsx';
 import type {ExplainNode} from '../types';
 import type {ExplainNodeMetrics} from '../metrics';
 import type {ExplainDiagnostic} from '../diagnostics';
-import {formatCost, formatRows, formatTime} from '../plan';
 import {ExplainDiagnosticList} from './ExplainDiagnosticChips';
+import {
+    formatExplainNodeDetails,
+    getExplainNodeDetailSections,
+    type ExplainNodeDetailEntry,
+} from '../nodeDetails';
 
-interface ExplainNodeDetailsProps {
+export interface ExplainNodeDetailsProps {
     node: ExplainNode | null;
     hasAnalyzeData: boolean;
     /** Derived exclusive metrics for `node`, when the caller has them. */
     metrics?: ExplainNodeMetrics | null;
     diagnostics?: ExplainDiagnostic[];
+    onCopyDetails?: (text: string) => Promise<boolean | void> | boolean | void;
+    className?: string;
 }
 
 export function ExplainNodeDetails({
@@ -18,151 +27,137 @@ export function ExplainNodeDetails({
     hasAnalyzeData,
     metrics = null,
     diagnostics = [],
+    onCopyDetails,
+    className,
 }: ExplainNodeDetailsProps) {
     const {t} = useTranslation();
+    const translate = useCallback(
+        (key: string, fallback?: string): string => {
+            return (
+                (t(key, fallback ? {defaultValue: fallback} : undefined) as unknown as string) ||
+                fallback ||
+                key
+            );
+        },
+        [t],
+    );
+    const [copiedNodeId, setCopiedNodeId] = useState<string | null>(null);
+    const copied = node !== null && copiedNodeId === node.id;
+    const [isCopying, setIsCopying] = useState(false);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    if (!node) {
-        return <div className="p-4 text-xs text-muted">{t('editor.visualExplain.selectNode')}</div>;
-    }
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) {
+                clearTimeout(timerRef.current);
+            }
+        };
+    }, []);
 
-    const generalEntries: [string, string][] = [
-        [t('editor.visualExplain.nodeType'), node.node_type],
-        ...(node.relation
-            ? [[t('editor.visualExplain.relation'), node.relation] as [string, string]]
-            : []),
-        ...(node.startup_cost != null && node.total_cost != null
-            ? [
-                  [
-                      t('editor.visualExplain.cost'),
-                      `${formatCost(node.startup_cost)} - ${formatCost(node.total_cost)}`,
-                  ] as [string, string],
-              ]
-            : node.total_cost != null
-              ? [[t('editor.visualExplain.cost'), formatCost(node.total_cost)] as [string, string]]
-              : []),
-        ...(metrics?.exclusiveCost != null
-            ? [
-                  [t('editor.visualExplain.selfCost'), formatCost(metrics.exclusiveCost)] as [
-                      string,
-                      string,
-                  ],
-              ]
-            : []),
-        ...(node.plan_rows != null
-            ? [[t('editor.visualExplain.estRows'), formatRows(node.plan_rows)] as [string, string]]
-            : []),
-        ...(node.filter
-            ? [[t('editor.visualExplain.filter'), node.filter] as [string, string]]
-            : []),
-        ...(node.index_condition
-            ? [[t('editor.visualExplain.indexCondition'), node.index_condition] as [string, string]]
-            : []),
-        ...(node.join_type
-            ? [[t('editor.visualExplain.joinType'), node.join_type] as [string, string]]
-            : []),
-        ...(node.hash_condition
-            ? [[t('editor.visualExplain.hashCondition'), node.hash_condition] as [string, string]]
-            : []),
-    ];
+    const handleCopy = useCallback(async () => {
+        if (!node || isCopying) return;
+        const text = formatExplainNodeDetails(node, {
+            hasAnalyzeData,
+            metrics,
+            diagnostics,
+            t: translate,
+        });
 
-    const analyzeEntries: [string, string][] = hasAnalyzeData
-        ? [
-              ...(node.actual_rows != null
-                  ? [
-                        [t('editor.visualExplain.actualRows'), formatRows(node.actual_rows)] as [
-                            string,
-                            string,
-                        ],
-                    ]
-                  : []),
-              ...(metrics?.totalRows != null && node.actual_loops != null && node.actual_loops > 1
-                  ? [
-                        [t('editor.visualExplain.rowsAllLoops'), formatRows(metrics.totalRows)] as [
-                            string,
-                            string,
-                        ],
-                    ]
-                  : []),
-              ...(metrics?.exclusiveTimeMs != null
-                  ? [
-                        [
-                            t('editor.visualExplain.selfTime'),
-                            metrics.timeShare != null
-                                ? `${formatTime(metrics.exclusiveTimeMs)} (${Math.round(metrics.timeShare * 100)}%)`
-                                : formatTime(metrics.exclusiveTimeMs),
-                        ] as [string, string],
-                    ]
-                  : []),
-              ...(metrics?.inclusiveTimeMs != null
-                  ? [
-                        [
-                            t('editor.visualExplain.totalTime'),
-                            formatTime(metrics.inclusiveTimeMs),
-                        ] as [string, string],
-                    ]
-                  : []),
-              ...(node.actual_time_ms != null
-                  ? [
-                        [
-                            t('editor.visualExplain.timePerLoop'),
-                            formatTime(node.actual_time_ms),
-                        ] as [string, string],
-                    ]
-                  : []),
-              ...(node.actual_loops != null
-                  ? [
-                        [t('editor.visualExplain.loops'), String(node.actual_loops)] as [
-                            string,
-                            string,
-                        ],
-                    ]
-                  : []),
-              ...(node.buffers_hit != null
-                  ? [
-                        [t('editor.visualExplain.buffersHit'), String(node.buffers_hit)] as [
-                            string,
-                            string,
-                        ],
-                    ]
-                  : []),
-              ...(node.buffers_read != null
-                  ? [
-                        [t('editor.visualExplain.buffersRead'), String(node.buffers_read)] as [
-                            string,
-                            string,
-                        ],
-                    ]
-                  : []),
-          ]
+        setIsCopying(true);
+        try {
+            let success = false;
+            if (onCopyDetails) {
+                const result = await onCopyDetails(text);
+                if (result !== false) {
+                    success = true;
+                }
+            } else if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                success = true;
+            }
+
+            if (success) {
+                if (timerRef.current) {
+                    clearTimeout(timerRef.current);
+                }
+                setCopiedNodeId(node.id);
+                timerRef.current = setTimeout(() => {
+                    setCopiedNodeId(null);
+                }, 2000);
+            }
+        } catch (err) {
+            console.error('Failed to copy node details:', err);
+        } finally {
+            setIsCopying(false);
+        }
+    }, [node, isCopying, hasAnalyzeData, metrics, diagnostics, translate, onCopyDetails]);
+
+    const sections = node
+        ? getExplainNodeDetailSections(node, {
+              hasAnalyzeData,
+              metrics,
+              t: translate,
+          })
         : [];
 
-    const extraEntries: [string, string][] = Object.entries(node.extra).map(([key, value]) => [
-        key,
-        typeof value === 'string' ? value : JSON.stringify(value),
-    ]);
-
     return (
-        <div className="text-xs">
-            {diagnostics.length > 0 && (
-                <div className="border-b border-default/60">
-                    <div className="bg-base/60 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                        {t('editor.visualExplain.diagnostics.title')}
-                    </div>
-                    <ExplainDiagnosticList diagnostics={diagnostics} />
+        <div className={clsx('text-xs flex flex-col', className)}>
+            <div className="flex items-center justify-between px-4 py-2 border-b border-default/60 bg-base/60 sticky top-0 z-10">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    {t('editor.visualExplain.nodeDetails', 'Node Details')}
+                </span>
+                <button
+                    type="button"
+                    onClick={handleCopy}
+                    disabled={!node || isCopying}
+                    className="flex items-center gap-1.5 px-2 py-0.5 text-xs rounded border border-default bg-surface hover:bg-surface-secondary text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                    title={
+                        node
+                            ? t('editor.visualExplain.copyDetails', 'Copy Details')
+                            : t('editor.visualExplain.selectNode', 'Select a node to view details')
+                    }
+                    aria-label={t('editor.visualExplain.copyDetails', 'Copy Details')}
+                >
+                    {copied ? (
+                        <>
+                            <Check size={12} className="text-accent-success" />
+                            <span className="text-accent-success text-[11px]">
+                                {t('editor.visualExplain.copied', 'Copied')}
+                            </span>
+                        </>
+                    ) : (
+                        <>
+                            <Copy size={12} className="text-secondary" />
+                            <span className="text-secondary text-[11px]">
+                                {t('editor.visualExplain.copyDetails', 'Copy Details')}
+                            </span>
+                        </>
+                    )}
+                </button>
+            </div>
+
+            {!node ? (
+                <div className="p-4 text-xs text-muted">
+                    {t('editor.visualExplain.selectNode', 'Select a node to view details')}
                 </div>
-            )}
-            <DetailSection title={t('editor.visualExplain.general')} entries={generalEntries} />
-            {analyzeEntries.length > 0 && (
-                <DetailSection
-                    title={t('editor.visualExplain.analyzeData')}
-                    entries={analyzeEntries}
-                />
-            )}
-            {extraEntries.length > 0 && (
-                <DetailSection
-                    title={t('editor.visualExplain.extraDetails')}
-                    entries={extraEntries}
-                />
+            ) : (
+                <div>
+                    {diagnostics.length > 0 && (
+                        <div className="border-b border-default/60">
+                            <div className="bg-base/60 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                                {t('editor.visualExplain.diagnostics.title', 'Diagnostics')}
+                            </div>
+                            <ExplainDiagnosticList diagnostics={diagnostics} />
+                        </div>
+                    )}
+                    {sections.map((section) => (
+                        <DetailSection
+                            key={section.title}
+                            title={section.title}
+                            entries={section.entries}
+                        />
+                    ))}
+                </div>
             )}
         </div>
     );
@@ -170,7 +165,7 @@ export function ExplainNodeDetails({
 
 interface DetailSectionProps {
     title: string;
-    entries: [string, string][];
+    entries: ExplainNodeDetailEntry[];
 }
 
 function DetailSection({title, entries}: DetailSectionProps) {
@@ -184,7 +179,7 @@ function DetailSection({title, entries}: DetailSectionProps) {
                 {title}
             </div>
             <div className="divide-y divide-default/40">
-                {entries.map(([label, value]) => (
+                {entries.map(({label, value}) => (
                     <div key={label} className="px-4 py-2.5">
                         <div className="text-[11px] text-muted mb-1">{label}</div>
                         <div className="text-secondary break-words font-mono leading-relaxed">

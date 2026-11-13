@@ -14,8 +14,8 @@ use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 use zip::ZipArchive;
@@ -42,6 +42,18 @@ pub enum DatabaseTransferCommand {
         database: Option<String>,
     },
     CancelImport {
+        connection_id: String,
+    },
+    PreviewTableImport {
+        connection_id: String,
+        upload_token: String,
+    },
+    ImportTable {
+        connection_id: String,
+        upload_token: String,
+        options: super::table_transfers::TableImportOptions,
+    },
+    CancelTableImport {
         connection_id: String,
     },
 }
@@ -145,6 +157,49 @@ pub async fn execute(
             cancel_job(state, session_id, JobKind::Import, &connection_id)?;
             Ok(serde_json::Value::Null)
         }
+        DatabaseTransferCommand::PreviewTableImport {
+            connection_id,
+            upload_token,
+        } => {
+            let owner = session_id.ok_or_else(|| "A browser session is required".to_string())?;
+            json(
+                super::table_transfers::preview_table_import(
+                    runtime,
+                    session_id,
+                    connection_id,
+                    super::table_transfers::TableImportSource::SessionUpload {
+                        owner,
+                        token: upload_token,
+                    },
+                )
+                .await?,
+            )
+        }
+        DatabaseTransferCommand::ImportTable {
+            connection_id,
+            upload_token,
+            options,
+        } => {
+            let owner = session_id.ok_or_else(|| "A browser session is required".to_string())?;
+            json(
+                super::table_transfers::import_table(
+                    runtime,
+                    state,
+                    session_id,
+                    connection_id,
+                    super::table_transfers::TableImportSource::SessionUpload {
+                        owner,
+                        token: upload_token,
+                    },
+                    options,
+                )
+                .await?,
+            )
+        }
+        DatabaseTransferCommand::CancelTableImport { connection_id } => {
+            super::table_transfers::cancel_table_import(state, session_id, &connection_id)?;
+            Ok(serde_json::Value::Null)
+        }
     }
 }
 
@@ -158,7 +213,19 @@ pub async fn dump_database(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<Option<GeneratedFile>, String> {
-    dump_database_job(runtime, state, session_id, connection_id, destination, options, schema, database, None, None).await
+    dump_database_job(
+        runtime,
+        state,
+        session_id,
+        connection_id,
+        destination,
+        options,
+        schema,
+        database,
+        None,
+        None,
+    )
+    .await
 }
 
 pub struct DumpRequest {
@@ -178,7 +245,9 @@ pub fn db_backup_slot_key(connection_id: &str) -> String {
 
 pub(crate) fn abort_slot(handles: &Mutex<AbortHandleMap>, slot_key: &str) -> bool {
     let entries = handles.lock().unwrap().remove(slot_key).unwrap_or_default();
-    for handle in &entries { handle.abort(); }
+    for handle in &entries {
+        handle.abort();
+    }
     !entries.is_empty()
 }
 
@@ -188,8 +257,11 @@ pub(crate) async fn await_cancellable_dump<T>(
     task: tokio::task::JoinHandle<Result<T, String>>,
     cancel_requested: Option<&AtomicBool>,
 ) -> Result<T, String> {
-    let mut registration = JobRegistration::new(handles.clone(), slot_key, Arc::new(task.abort_handle()));
-    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) { task.abort(); }
+    let mut registration =
+        JobRegistration::new(handles.clone(), slot_key, Arc::new(task.abort_handle()));
+    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        task.abort();
+    }
     let result = task.await;
     registration.complete();
     join_job(result, "Dump")
@@ -201,10 +273,23 @@ pub async fn dump_database_with_handles(
     request: DumpRequest,
     cancel_requested: Option<&AtomicBool>,
 ) -> Result<(), String> {
-    let state = DumpCancellationState { handles: handles.clone() };
-    dump_database_job(runtime, &state, None, request.connection_id,
-        DumpDestination::ServerPath(PathBuf::from(request.file_path)), request.options,
-        request.schema, request.database, Some(request.slot_key), cancel_requested).await.map(|_| ())
+    let state = DumpCancellationState {
+        handles: handles.clone(),
+    };
+    dump_database_job(
+        runtime,
+        &state,
+        None,
+        request.connection_id,
+        DumpDestination::ServerPath(PathBuf::from(request.file_path)),
+        request.options,
+        request.schema,
+        request.database,
+        Some(request.slot_key),
+        cancel_requested,
+    )
+    .await
+    .map(|_| ())
 }
 
 async fn dump_database_job(
@@ -219,7 +304,9 @@ async fn dump_database_job(
     slot_key: Option<String>,
     cancel_requested: Option<&AtomicBool>,
 ) -> Result<Option<GeneratedFile>, String> {
-    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) { return Err(DUMP_CANCELLED.to_string()); }
+    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        return Err(DUMP_CANCELLED.to_string());
+    }
     if !options.structure && !options.data {
         return Err("Select structure, data, or both for the dump".to_string());
     }
@@ -267,7 +354,8 @@ async fn dump_database_job(
         slot_key.unwrap_or_else(|| job_key(session_id, JobKind::Dump, &connection_id)),
         task,
         cancel_requested,
-    ).await?;
+    )
+    .await?;
 
     let Some(owner) = download_owner else {
         return Ok(None);
@@ -302,6 +390,7 @@ pub async fn import_database(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<(), String> {
+    crate::application::read_only::ensure_writable(runtime, &connection_id)?;
     let (driver, mut params) =
         super::connections::resolve_saved_connection_params(runtime, session_id, &connection_id)?;
     if let Some(database) = database.filter(|database| !database.is_empty()) {
@@ -381,6 +470,9 @@ pub fn cancel_session_jobs(state: &DumpCancellationState, session_id: Uuid) {
 pub enum JobKind {
     Dump,
     Import,
+    /// "Import table from SQL", kept apart from database imports so the two
+    /// never cancel each other on the same connection.
+    TableImport,
 }
 
 impl JobKind {
@@ -388,6 +480,7 @@ impl JobKind {
         match self {
             Self::Dump => "dump",
             Self::Import => "import",
+            Self::TableImport => "table import",
         }
     }
 }
@@ -402,7 +495,16 @@ async fn write_dump(
     schema: Option<&str>,
     options: &DumpOptions,
 ) -> Result<(), String> {
-    let file = File::create(file_path).map_err(|error| error.to_string())?;
+    let pending = file_path.with_file_name(format!(".tabularis-dump-{}.tmp", Uuid::new_v4()));
+    let mut open = fs::OpenOptions::new();
+    open.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        open.mode(0o600);
+    }
+    let file = open.open(&pending).map_err(|error| error.to_string())?;
+    let _cleanup = TemporaryFile::new(pending.clone());
     let mut writer = BufWriter::new(file);
     writeln!(writer, "-- Tabularis Dump").map_err(|error| error.to_string())?;
     let database_label = if session_id.is_some() {
@@ -490,6 +592,8 @@ async fn write_dump(
         );
     }
     writer.flush().map_err(|error| error.to_string())?;
+    drop(writer);
+    fs::rename(&pending, file_path).map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -503,100 +607,232 @@ async fn export_table_data(
     schema: Option<&str>,
 ) -> Result<(), String> {
     let query = format!("SELECT * FROM {}", dialect.table_ref(schema, table));
-    match driver {
-        "mysql" => {
-            let pool = get_mysql_pool(params).await?;
-            let mut rows = sqlx::query(&query).fetch(&pool);
-            let mut batch = Vec::new();
-            while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
-                let values = (0..row.columns().len())
-                    .map(|index| {
-                        use sqlx::{Column, TypeInfo};
-                        let value = mysql::extract::extract_value(&row, index, None);
-                        // JSON columns are extracted as parsed values and must be
-                        // written back as JSON literals, not as their string content.
-                        if row.column(index).type_info().name() == "JSON" {
-                            dialect.escape_json_value(value)
-                        } else {
-                            dialect.escape_value(value)
+    if !drv.manifest().is_builtin {
+        return export_plugin_table_data(writer, drv, params, dialect, table, schema, &query).await;
+    }
+    let mut batch = Vec::new();
+    stream_sql_rows(drv, params, driver, &query, table, schema, |_, cells| {
+        let values = cells
+            .into_iter()
+            .map(|cell| cell.render(dialect))
+            .collect::<Vec<_>>();
+        write_insert_batch(writer, dialect, schema, table, &mut batch, values)
+    })
+    .await?;
+    flush_insert_batch(writer, dialect, schema, table, &mut batch)
+}
+
+async fn export_plugin_table_data(
+    writer: &mut BufWriter<File>,
+    drv: &Arc<dyn DatabaseDriver>,
+    params: &ConnectionParams,
+    dialect: &DumpDialect,
+    table: &str,
+    schema: Option<&str>,
+    query: &str,
+) -> Result<(), String> {
+    let mut page = 1;
+    let mut plugin_renderer = true;
+    let mut json_columns = None;
+    let mut batch = Vec::new();
+    loop {
+        let result = if params.read_only {
+            super::read_only::execute_query(drv.as_ref(), params, query, Some(1000), page, schema)
+                .await?
+        } else {
+            drv.execute_query(params, query, Some(1000), page, schema)
+                .await?
+        };
+        let fetched = result.rows.len() as u32;
+        for rows in result.rows.chunks(100) {
+            if plugin_renderer {
+                match drv
+                    .render_insert_statements(table, schema, &result.columns, rows)
+                    .await?
+                {
+                    Some(statements) => {
+                        for statement in statements {
+                            writeln!(
+                                writer,
+                                "{}",
+                                crate::table_sql::terminate_statements(&statement)
+                            )
+                            .map_err(|error| error.to_string())?;
                         }
-                    })
-                    .collect::<Vec<_>>();
+                        continue;
+                    }
+                    None => plugin_renderer = false,
+                }
+            }
+            let names = match &json_columns {
+                Some(names) => names,
+                None => json_columns.insert(json_column_names(
+                    &drv.get_columns(params, table, schema).await?,
+                )),
+            };
+            for row in rows {
+                let values = plugin_row_cells(row.clone(), &result.columns, names)
+                    .into_iter()
+                    .map(|cell| cell.render(dialect))
+                    .collect();
                 write_insert_batch(writer, dialect, schema, table, &mut batch, values)?;
             }
-            flush_insert_batch(writer, dialect, schema, table, &mut batch)?;
+        }
+        if fetched == 0 || !plugin_dump_has_more(result.pagination, fetched, 1000) {
+            break;
+        }
+        page += 1;
+    }
+    flush_insert_batch(writer, dialect, schema, table, &mut batch)
+}
+
+/// One value read for a SQL export, with whether its column holds JSON:
+/// such values are parsed by the extractors and must be written back as
+/// JSON literals rather than as their string content.
+pub(crate) struct SqlCell {
+    pub value: serde_json::Value,
+    pub is_json: bool,
+}
+
+impl SqlCell {
+    pub(crate) fn render(self, dialect: &DumpDialect) -> String {
+        if self.is_json {
+            dialect.escape_json_value(self.value)
+        } else {
+            dialect.escape_value(self.value)
+        }
+    }
+}
+
+/// Rows between two forced yields. A driver stream with rows already
+/// buffered never waits, so without a yield the task would never reach a
+/// point where an abort (an export's cancel) can take effect.
+const ROWS_PER_YIELD: u64 = 256;
+
+async fn yield_every_rows(streamed: &mut u64) {
+    *streamed += 1;
+    if *streamed % ROWS_PER_YIELD == 0 {
+        tokio::task::yield_now().await;
+    }
+}
+
+/// Streams the rows of `query` (a `SELECT` over `table`) one at a time, so
+/// memory stays flat whatever the table size. Built-in drivers stream
+/// natively; plugin drivers are paged through `execute_query`. `on_row`
+/// gets the result's column names and the row's cells.
+pub(crate) async fn stream_sql_rows<F>(
+    drv: &Arc<dyn DatabaseDriver>,
+    params: &ConnectionParams,
+    driver: &str,
+    query: &str,
+    table: &str,
+    schema: Option<&str>,
+    mut on_row: F,
+) -> Result<(), String>
+where
+    F: FnMut(&[String], Vec<SqlCell>) -> Result<(), String>,
+{
+    // Built-in pools enforce the saved read-only policy at connection setup,
+    // so both modes retain native streaming and type-aware cell extraction.
+    match driver {
+        "mysql" => {
+            use sqlx::{Column, TypeInfo};
+            let pool = get_mysql_pool(params).await?;
+            let mut rows = sqlx::query(query).fetch(&pool);
+            let mut streamed = 0u64;
+            let mut columns: Option<Vec<String>> = None;
+            while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
+                let names = columns.get_or_insert_with(|| {
+                    row.columns().iter().map(|c| c.name().to_string()).collect()
+                });
+                let cells = (0..row.columns().len())
+                    .map(|index| SqlCell {
+                        value: mysql::extract::extract_value(&row, index, None),
+                        is_json: row.column(index).type_info().name() == "JSON",
+                    })
+                    .collect::<Vec<_>>();
+                on_row(names, cells)?;
+                yield_every_rows(&mut streamed).await;
+            }
         }
         "postgres" => {
             let pool = get_postgres_pool(params).await?;
             let client = pool.get().await.map_err(|error| error.to_string())?;
             let query_params: Vec<i32> = Vec::new();
             let mut rows = std::pin::pin!(client
-                .query_raw(&query, &query_params)
+                .query_raw(query, &query_params)
                 .await
                 .map_err(|error| error.to_string())?);
-            let mut batch = Vec::new();
+            let mut columns: Option<Vec<String>> = None;
+            let mut streamed = 0u64;
             while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
-                let values = (0..row.columns().len())
+                let names = columns.get_or_insert_with(|| {
+                    row.columns().iter().map(|c| c.name().to_string()).collect()
+                });
+                let cells = (0..row.columns().len())
                     .map(|index| {
-                        let value = postgres::extract::extract_value(&row, index, None);
                         let column_type = row.columns()[index].type_();
-                        if *column_type == tokio_postgres::types::Type::JSON
-                            || *column_type == tokio_postgres::types::Type::JSONB
-                        {
-                            dialect.escape_json_value(value)
-                        } else {
-                            dialect.escape_value(value)
+                        SqlCell {
+                            value: postgres::extract::extract_value(&row, index, None),
+                            is_json: *column_type == tokio_postgres::types::Type::JSON
+                                || *column_type == tokio_postgres::types::Type::JSONB,
                         }
                     })
                     .collect::<Vec<_>>();
-                write_insert_batch(writer, dialect, schema, table, &mut batch, values)?;
+                on_row(names, cells)?;
+                yield_every_rows(&mut streamed).await;
             }
-            flush_insert_batch(writer, dialect, schema, table, &mut batch)?;
         }
         "sqlite" => {
+            use sqlx::Column;
             let pool = get_sqlite_pool(params).await?;
-            let mut rows = sqlx::query(&query).fetch(&pool);
-            let mut batch = Vec::new();
+            let mut rows = sqlx::query(query).fetch(&pool);
+            let mut streamed = 0u64;
+            let mut columns: Option<Vec<String>> = None;
             while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
-                let values = (0..row.columns().len())
-                    .map(|index| {
-                        dialect.escape_value(sqlite::extract::extract_value(&row, index, None))
+                let names = columns.get_or_insert_with(|| {
+                    row.columns().iter().map(|c| c.name().to_string()).collect()
+                });
+                let cells = (0..row.columns().len())
+                    .map(|index| SqlCell {
+                        value: sqlite::extract::extract_value(&row, index, None),
+                        is_json: false,
                     })
                     .collect::<Vec<_>>();
-                write_insert_batch(writer, dialect, schema, table, &mut batch, values)?;
+                on_row(names, cells)?;
+                yield_every_rows(&mut streamed).await;
             }
-            flush_insert_batch(writer, dialect, schema, table, &mut batch)?;
         }
         _ => {
             // Already scoped: `None` for a plugin without schemas, whose
             // "schema" RPC parameter may mean something else entirely.
-            let fallback_schema = schema;
-            let json_columns =
-                json_column_names(&drv.get_columns(params, table, fallback_schema).await?);
-            let mut batch = Vec::new();
+            let json_columns = json_column_names(&drv.get_columns(params, table, schema).await?);
             let mut page = 1u32;
             loop {
-                let result = drv
-                    .execute_query(params, &query, Some(1000), page, fallback_schema)
-                    .await?;
+                let result = if params.read_only {
+                    super::read_only::execute_query(
+                        drv.as_ref(),
+                        params,
+                        query,
+                        Some(1000),
+                        page,
+                        schema,
+                    )
+                    .await?
+                } else {
+                    drv.execute_query(params, query, Some(1000), page, schema)
+                        .await?
+                };
                 let fetched = result.rows.len() as u32;
                 for row in result.rows {
-                    batch.push(format_row_values(
-                        row,
-                        &result.columns,
-                        &json_columns,
-                        dialect,
-                    ));
-                    if batch.len() >= 100 {
-                        flush_insert_batch(writer, dialect, schema, table, &mut batch)?;
-                    }
+                    let cells = plugin_row_cells(row, &result.columns, &json_columns);
+                    on_row(&result.columns, cells)?;
                 }
                 if fetched == 0 || !plugin_dump_has_more(result.pagination, fetched, 1000) {
                     break;
                 }
                 page += 1;
             }
-            flush_insert_batch(writer, dialect, schema, table, &mut batch)?;
         }
     }
     Ok(())
@@ -648,7 +884,11 @@ fn flush_insert_batch(
 /// pattern for the same "driver doesn't report pagination" gap: it may
 /// cost one extra empty-page fetch when a table's row count is an exact
 /// multiple of the page size, but it never drops rows.
-fn plugin_dump_has_more(pagination: Option<Pagination>, fetched: u32, page_size: u32) -> bool {
+pub(crate) fn plugin_dump_has_more(
+    pagination: Option<Pagination>,
+    fetched: u32,
+    page_size: u32,
+) -> bool {
     pagination
         .map(|p| p.has_more)
         .unwrap_or(fetched >= page_size)
@@ -662,7 +902,7 @@ fn plugin_dump_has_more(pagination: Option<Pagination>, fetched: u32, page_size:
 /// directly), `QueryResult` only carries column *names*, so a JSON column
 /// can't be told apart from a plain text column by inspecting a cell's
 /// value alone — both arrive as a `serde_json::Value::String`.
-fn json_column_names(columns: &[TableColumn]) -> HashSet<String> {
+pub(crate) fn json_column_names(columns: &[TableColumn]) -> HashSet<String> {
     columns
         .iter()
         .filter(|c| {
@@ -673,25 +913,35 @@ fn json_column_names(columns: &[TableColumn]) -> HashSet<String> {
         .collect()
 }
 
+/// The cells of one row from the generic `execute_query` RPC. `columns`
+/// must be the same `QueryResult.columns` the row's values came from, in the
+/// same order.
+pub(crate) fn plugin_row_cells(
+    row: Vec<serde_json::Value>,
+    columns: &[String],
+    json_columns: &HashSet<String>,
+) -> Vec<SqlCell> {
+    row.into_iter()
+        .zip(columns.iter())
+        .map(|(value, name)| SqlCell {
+            value,
+            is_json: json_columns.contains(name),
+        })
+        .collect()
+}
+
 /// Formats one row from the generic `execute_query` RPC into a parenthesized
-/// SQL value list, e.g. `(1, 'Alice', NULL)`. `columns` must be the same
-/// `QueryResult.columns` the row's values came from, in the same order.
+/// SQL value list, e.g. `(1, 'Alice', NULL)`.
+#[cfg(test)]
 fn format_row_values(
     row: Vec<serde_json::Value>,
     columns: &[String],
     json_columns: &HashSet<String>,
     dialect: &DumpDialect,
 ) -> String {
-    let values: Vec<String> = row
+    let values: Vec<String> = plugin_row_cells(row, columns, json_columns)
         .into_iter()
-        .zip(columns.iter())
-        .map(|(val, col_name)| {
-            if json_columns.contains(col_name) {
-                dialect.escape_json_value(val)
-            } else {
-                dialect.escape_value(val)
-            }
-        })
+        .map(|cell| cell.render(dialect))
         .collect();
     format!("({})", values.join(", "))
 }
@@ -997,7 +1247,7 @@ fn has_zip_extension(path: &Path) -> bool {
         .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
 }
 
-fn emit_progress<T: Serialize>(
+pub(crate) fn emit_progress<T: Serialize>(
     runtime: &RuntimeContext,
     session_id: Option<Uuid>,
     event: &str,
@@ -1021,14 +1271,14 @@ fn percentage(processed: usize, total: usize) -> f32 {
     }
 }
 
-fn job_key(session_id: Option<Uuid>, kind: JobKind, connection_id: &str) -> String {
+pub(crate) fn job_key(session_id: Option<Uuid>, kind: JobKind, connection_id: &str) -> String {
     match session_id {
         Some(session_id) => format!("web:{session_id}:{}:{connection_id}", kind.label()),
         None => format!("desktop:{}:{connection_id}", kind.label()),
     }
 }
 
-fn join_job<T>(
+pub(crate) fn join_job<T>(
     result: Result<Result<T, String>, tokio::task::JoinError>,
     label: &str,
 ) -> Result<T, String> {
@@ -1083,7 +1333,7 @@ impl Drop for TemporaryFile {
     }
 }
 
-struct JobRegistration {
+pub(crate) struct JobRegistration {
     handles: Arc<Mutex<AbortHandleMap>>,
     key: String,
     handle: Arc<tokio::task::AbortHandle>,
@@ -1091,7 +1341,7 @@ struct JobRegistration {
 }
 
 impl JobRegistration {
-    fn new(
+    pub(crate) fn new(
         handles: Arc<Mutex<AbortHandleMap>>,
         key: String,
         handle: Arc<tokio::task::AbortHandle>,
@@ -1105,7 +1355,7 @@ impl JobRegistration {
         }
     }
 
-    fn complete(&mut self) {
+    pub(crate) fn complete(&mut self) {
         unregister_abort_handle(&self.handles, &self.key, &self.handle);
         self.completed = true;
     }

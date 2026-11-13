@@ -2,6 +2,37 @@ use super::*;
 use crate::commands::{register_abort_handle, QueryCancellationState};
 use std::time::Duration;
 
+#[tokio::test]
+async fn sandbox_query_rejects_incomplete_results() {
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let params = crate::models::ConnectionParams {
+        driver: "sqlite".into(),
+        database: crate::models::DatabaseSelection::Single(file.path().to_string_lossy().into()),
+        ..Default::default()
+    };
+    let driver = crate::drivers::sqlite::SqliteDriver::new();
+    let result = execute_bounded_plugin_query(&driver, &params, "SELECT 42", None)
+        .await
+        .unwrap();
+    assert_eq!(result.rows.len(), 1);
+    let boundary = format!(
+        "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < {}) SELECT x FROM n",
+        WEB_MAX_ROWS_PER_PAGE
+    );
+    let result = execute_bounded_plugin_query(&driver, &params, &boundary, None)
+        .await
+        .unwrap();
+    assert_eq!(result.rows.len(), WEB_MAX_ROWS_PER_PAGE as usize);
+    let query = format!(
+        "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x <= {}) SELECT x FROM n",
+        WEB_MAX_ROWS_PER_PAGE
+    );
+    let error = execute_bounded_plugin_query(&driver, &params, &query, None)
+        .await
+        .unwrap_err();
+    assert!(error.contains("narrow the query or add a LIMIT"));
+}
+
 async fn sleeper() -> tokio::task::JoinHandle<()> {
     tokio::spawn(async { tokio::time::sleep(Duration::from_secs(10)).await })
 }

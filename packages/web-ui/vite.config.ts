@@ -3,13 +3,13 @@ import {fileURLToPath} from 'node:url';
 import {defineConfig} from 'vite';
 import react from '@vitejs/plugin-react';
 
-import {WEB_UI_BASE_PATH} from './src/routing';
+import {normalizeWebBasePath} from './src/utils/webBasePath';
 
 const webUiRoot = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
     appType: 'spa',
-    base: WEB_UI_BASE_PATH,
+    base: normalizeWebBasePath(process.env.TABULARIS_BASE_PATH),
     plugins: [react()],
     css: {
         postcss: webUiRoot,

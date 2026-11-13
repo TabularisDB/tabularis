@@ -8,7 +8,10 @@ import {
     restoreWindowAlwaysOnTop,
 } from '@/utils/mcpApprovalAttention';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {useToast} from '@/hooks/useToast';
+import {toErrorMessage} from '@/utils/errors';
 import {LoadingState} from '@/components/ui/LoadingState';
+import type {ApprovalDecisionPayload} from '@/types/ai';
 
 const AiApprovalModal = lazy(() =>
     import('./AiApprovalModal').then((module) => ({default: module.AiApprovalModal})),
@@ -21,7 +24,8 @@ export function AiApprovalGate() {
     const platform = usePlatformCapabilities();
     const {t} = useTranslation();
     const {settings, isLoading: isSettingsLoading} = useSettings();
-    const {pending, decide} = usePendingApprovals();
+    const {showToast} = useToast();
+    const {pending, decide: decideApproval} = usePendingApprovals();
     const current = pending[0];
     const currentApprovalId = current?.id ?? null;
     const attentionApprovalIdRef = useRef<string | null>(null);
@@ -84,15 +88,25 @@ export function AiApprovalGate() {
 
     if (!current) return null;
 
+    const decide = async (payload: ApprovalDecisionPayload) => {
+        try {
+            await decideApproval(payload);
+        } catch (err) {
+            showToast(t('aiApproval.decisionFailed', {error: toErrorMessage(err)}), {
+                kind: 'error',
+            });
+        }
+    };
+
     const handleClose = () => {
         // Closing without an explicit decision is treated as deny — the MCP
         // subprocess is blocked waiting on us, so silent dismissal would just
         // burn the timeout.
-        decide({
+        void decide({
             approvalId: current.id,
             decision: 'deny',
             reason: 'dismissed',
-        }).catch(() => {});
+        });
     };
 
     return (

@@ -85,6 +85,25 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ---
 
+## Blacksmith
+
+<a href="https://www.blacksmith.sh/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/blacksmith.svg" height="40" alt="Blacksmith" /></a>
+
+**Faster, cheaper GitHub Actions runners, powering the CI behind Tabularis.**
+
+🔗 [https://www.blacksmith.sh](https://www.blacksmith.sh/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)
+
+- ⚡ Bare-metal runners with high single-core performance
+- 🔁 Drop-in for GitHub Actions: change one runs-on line
+- 📦 Co-located dependency cache and managed Docker layer cache
+- 🔍 CI observability: search logs and spot slow or failing jobs
+- ❤️ Powering the Tabularis CI as a sponsor
+
+> **3,000 free minutes every month**
+> Blacksmith includes 3,000 free CI minutes per month, no credit card required. Swap the runs-on label in your workflow and your next run is on Blacksmith.
+
+---
+
 ## DigitalOcean
 
 <a href="https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/digitalocean.png" height="40" alt="DigitalOcean" /></a>

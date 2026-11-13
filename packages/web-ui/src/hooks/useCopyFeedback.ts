@@ -9,6 +9,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
  * @returns `{ copied, copy, reset }` — `copy(text)` writes `text` to the
  *          clipboard and flips `copied` to true for `resetMs` ms.
  *          `reset()` cancels the timer and immediately sets `copied` back to false.
+ *          `copy` resolves to `false` when the clipboard write fails.
  */
 export function useCopyFeedback(resetMs = 2000) {
     const [copied, setCopied] = useState(false);
@@ -25,16 +26,18 @@ export function useCopyFeedback(resetMs = 2000) {
     useEffect(() => clearTimer, [clearTimer]);
 
     const copy = useCallback(
-        async (text: string) => {
+        async (text: string): Promise<boolean> => {
             try {
                 await navigator.clipboard.writeText(text);
                 clearTimer();
                 setCopied(true);
                 timerRef.current = setTimeout(() => setCopied(false), resetMs);
+                return true;
             } catch (err) {
                 console.error('Failed to copy to clipboard:', err);
                 clearTimer();
                 setCopied(false);
+                return false;
             }
         },
         [clearTimer, resetMs],

@@ -5,8 +5,10 @@ import {
     getQueryHistoryDatabaseChoices,
     isQueryHistoryDatabaseFilterAvailable,
     isQueryHistoryFilterActive,
+    parseQueryHistoryMinDuration,
     queryHistoryDatabaseFilterFor,
     validateQueryHistoryDateRange,
+    validateQueryHistoryMinDuration,
 } from '@/utils/queryHistoryFilter';
 
 const NOW = new Date('2026-04-15T14:00:00.000Z');
@@ -592,5 +594,270 @@ describe('queryHistoryFilter', () => {
                 }),
             ).toEqual([]);
         });
+    });
+});
+
+describe('queryHistoryFilter minimum duration (#1397)', () => {
+    const TIMED: QueryHistoryEntry[] = [
+        entry({id: 'zero', sql: 'SELECT 0', executionTimeMs: 0}),
+        entry({id: 'fast', sql: 'SELECT 1', executionTimeMs: 10}),
+        entry({id: 'edge', sql: 'SELECT 2', executionTimeMs: 500, status: 'error'}),
+        entry({id: 'slow', sql: 'SELECT 3', executionTimeMs: 1500, database: 'sales'}),
+        entry({id: 'unknown', sql: 'SELECT 4', executionTimeMs: null}),
+    ];
+
+    describe('validateQueryHistoryMinDuration', () => {
+        it('accepts an empty field and plain decimal numbers', () => {
+            expect(validateQueryHistoryMinDuration(undefined)).toBeNull();
+            expect(validateQueryHistoryMinDuration('')).toBeNull();
+            expect(validateQueryHistoryMinDuration('   ')).toBeNull();
+            expect(validateQueryHistoryMinDuration('0')).toBeNull();
+            expect(validateQueryHistoryMinDuration(' 500 ')).toBeNull();
+            expect(validateQueryHistoryMinDuration('2.5')).toBeNull();
+            expect(validateQueryHistoryMinDuration('.5')).toBeNull();
+        });
+
+        it('rejects anything that is not a plain decimal number', () => {
+            expect(validateQueryHistoryMinDuration('abc')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('500ms')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('1e3')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('0x10')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('Infinity')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('NaN')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('1,000')).toBe('invalid');
+            expect(validateQueryHistoryMinDuration('1'.repeat(400))).toBe('invalid');
+        });
+
+        it('reports a negative number separately', () => {
+            expect(validateQueryHistoryMinDuration('-1')).toBe('negative');
+            expect(validateQueryHistoryMinDuration('-0.5')).toBe('negative');
+            // A stray sign without digits is not a negative number.
+            expect(validateQueryHistoryMinDuration('-')).toBe('invalid');
+        });
+    });
+
+    describe('parseQueryHistoryMinDuration', () => {
+        it('returns the threshold in milliseconds, or null when empty or unusable', () => {
+            expect(parseQueryHistoryMinDuration('')).toBeNull();
+            expect(parseQueryHistoryMinDuration(undefined)).toBeNull();
+            expect(parseQueryHistoryMinDuration('0')).toBe(0);
+            expect(parseQueryHistoryMinDuration(' 500 ')).toBe(500);
+            expect(parseQueryHistoryMinDuration('2.5')).toBe(2.5);
+            expect(parseQueryHistoryMinDuration('abc')).toBeNull();
+            expect(parseQueryHistoryMinDuration('-1')).toBeNull();
+        });
+    });
+
+    describe('isQueryHistoryFilterActive', () => {
+        it('counts any typed threshold, zero included, but not whitespace', () => {
+            expect(isQueryHistoryFilterActive({minDurationMs: ''})).toBe(false);
+            expect(isQueryHistoryFilterActive({minDurationMs: '  '})).toBe(false);
+            expect(isQueryHistoryFilterActive({minDurationMs: '0'})).toBe(true);
+            expect(isQueryHistoryFilterActive({minDurationMs: '500'})).toBe(true);
+            expect(isQueryHistoryFilterActive({minDurationMs: 'abc'})).toBe(true);
+        });
+    });
+
+    describe('filterQueryHistoryEntries', () => {
+        it('returns the same array when the threshold is unset', () => {
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: ''})).toBe(TIMED);
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: '   '})).toBe(TIMED);
+        });
+
+        it('keeps entries at or above the threshold', () => {
+            const ids = filterQueryHistoryEntries(TIMED, {minDurationMs: '500'}).map((e) => e.id);
+            expect(ids).toEqual(['edge', 'slow']);
+        });
+
+        it('treats zero as a threshold and hides entries without a duration', () => {
+            const ids = filterQueryHistoryEntries(TIMED, {minDurationMs: '0'}).map((e) => e.id);
+            expect(ids).toEqual(['zero', 'fast', 'edge', 'slow']);
+        });
+
+        it('keeps a recorded zero distinct from a missing duration', () => {
+            const ids = filterQueryHistoryEntries(TIMED, {minDurationMs: '0.0'}).map((e) => e.id);
+            expect(ids).toContain('zero');
+            expect(ids).not.toContain('unknown');
+        });
+
+        it('accepts fractional thresholds and surrounding whitespace', () => {
+            expect(
+                filterQueryHistoryEntries(TIMED, {minDurationMs: ' 9.5 '}).map((e) => e.id),
+            ).toEqual(['fast', 'edge', 'slow']);
+        });
+
+        it('matches nothing for a negative, nonnumeric or nonfinite threshold', () => {
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: '-1'})).toEqual([]);
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: 'abc'})).toEqual([]);
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: 'Infinity'})).toEqual([]);
+            expect(filterQueryHistoryEntries(TIMED, {minDurationMs: '1e3'})).toEqual([]);
+        });
+
+        it('combines the threshold with the other filters using AND', () => {
+            expect(
+                filterQueryHistoryEntries(TIMED, {minDurationMs: '500', outcome: 'failed'}).map(
+                    (e) => e.id,
+                ),
+            ).toEqual(['edge']);
+            expect(
+                filterQueryHistoryEntries(TIMED, {
+                    minDurationMs: '500',
+                    database: queryHistoryDatabaseFilterFor('sales'),
+                }).map((e) => e.id),
+            ).toEqual(['slow']);
+            expect(
+                filterQueryHistoryEntries(TIMED, {minDurationMs: '500', search: 'select 3'}).map(
+                    (e) => e.id,
+                ),
+            ).toEqual(['slow']);
+            expect(
+                filterQueryHistoryEntries(TIMED, {
+                    minDurationMs: '500',
+                    timeRange: 'lastHour',
+                    now: NOW,
+                }).map((e) => e.id),
+            ).toEqual(['edge', 'slow']);
+            expect(
+                filterQueryHistoryEntries(TIMED, {minDurationMs: '2000', outcome: 'any'}),
+            ).toEqual([]);
+        });
+    });
+});
+
+describe('queryHistoryFilter error message search', () => {
+    const ERROR_ENTRIES: QueryHistoryEntry[] = [
+        entry({
+            id: 'denied',
+            sql: 'SELECT * FROM payroll',
+            status: 'error',
+            error: 'ERROR: Permission denied for table payroll',
+            database: 'hr',
+            executionTimeMs: 40,
+        }),
+        entry({
+            id: 'sql-mentions-it',
+            sql: "SELECT 'permission denied' AS note",
+            database: 'hr',
+        }),
+        entry({
+            id: 'other-error',
+            sql: 'SELECT * FROM missing',
+            status: 'error',
+            error: 'relation missing does not exist',
+            database: 'sales',
+        }),
+        entry({id: 'legacy-failure', sql: 'DELETE FROM users', status: 'error', error: null}),
+        entry({
+            id: 'old-denied',
+            sql: 'UPDATE payroll SET paid = true',
+            executedAt: '2026-03-01T10:00:00.000Z',
+            status: 'error',
+            error: 'permission denied for table payroll',
+            database: 'hr',
+            executionTimeMs: 5,
+        }),
+    ];
+
+    const ids = (options: Parameters<typeof filterQueryHistoryEntries>[1]) =>
+        filterQueryHistoryEntries(ERROR_ENTRIES, {now: NOW, timeZone: 'UTC', ...options}).map(
+            (e) => e.id,
+        );
+
+    it('searches the SQL only by default', () => {
+        expect(ids({search: 'permission denied'})).toEqual(['sql-mentions-it']);
+        expect(ids({search: 'permission denied', searchErrors: false})).toEqual([
+            'sql-mentions-it',
+        ]);
+    });
+
+    it('matches the SQL or the recorded error when enabled', () => {
+        expect(ids({search: 'permission denied', searchErrors: true})).toEqual([
+            'denied',
+            'sql-mentions-it',
+            'old-denied',
+        ]);
+    });
+
+    it('matches an entry through its error message alone', () => {
+        expect(ids({search: 'does not exist', searchErrors: true})).toEqual(['other-error']);
+        expect(ids({search: 'does not exist'})).toEqual([]);
+    });
+
+    it('still matches through the SQL when enabled', () => {
+        expect(ids({search: 'from users', searchErrors: true})).toEqual(['legacy-failure']);
+    });
+
+    it('ignores case and surrounding spaces in the error search', () => {
+        expect(ids({search: '  PERMISSION Denied  ', searchErrors: true})).toEqual([
+            'denied',
+            'sql-mentions-it',
+            'old-denied',
+        ]);
+    });
+
+    it('treats a missing error as no match instead of failing', () => {
+        const noError = [
+            entry({id: 'null-error', sql: 'SELECT 1', status: 'error', error: null}),
+            entry({id: 'empty-error', sql: 'SELECT 2', status: 'error', error: ''}),
+            {
+                ...entry({id: 'undefined-error', sql: 'SELECT 3', status: 'error'}),
+                error: undefined as unknown as string | null,
+            },
+        ];
+        expect(
+            filterQueryHistoryEntries(noError, {search: 'denied', searchErrors: true, now: NOW}),
+        ).toEqual([]);
+        expect(
+            filterQueryHistoryEntries(noError, {
+                search: 'select',
+                searchErrors: true,
+                now: NOW,
+            }).map((e) => e.id),
+        ).toEqual(['null-error', 'empty-error', 'undefined-error']);
+    });
+
+    it('matches every entry for an empty or blank query', () => {
+        expect(filterQueryHistoryEntries(ERROR_ENTRIES, {searchErrors: true, now: NOW})).toBe(
+            ERROR_ENTRIES,
+        );
+        expect(
+            filterQueryHistoryEntries(ERROR_ENTRIES, {search: '   ', searchErrors: true, now: NOW}),
+        ).toBe(ERROR_ENTRIES);
+    });
+
+    it('combines the text match with outcome, date, database and duration using AND', () => {
+        expect(ids({search: 'permission denied', searchErrors: true, outcome: 'failed'})).toEqual([
+            'denied',
+            'old-denied',
+        ]);
+        expect(ids({search: 'permission denied', searchErrors: true, timeRange: 'today'})).toEqual([
+            'denied',
+            'sql-mentions-it',
+        ]);
+        expect(
+            ids({
+                search: 'permission denied',
+                searchErrors: true,
+                timeRange: 'custom',
+                from: '2026-03-01',
+                to: '2026-03-01',
+            }),
+        ).toEqual(['old-denied']);
+        expect(
+            ids({
+                search: 'denied',
+                searchErrors: true,
+                database: queryHistoryDatabaseFilterFor('sales'),
+            }),
+        ).toEqual([]);
+        expect(ids({search: 'denied', searchErrors: true, minDurationMs: '20'})).toEqual([
+            'denied',
+        ]);
+    });
+
+    it('leaves the entries untouched', () => {
+        const before = structuredClone(ERROR_ENTRIES);
+        ids({search: 'permission denied', searchErrors: true, outcome: 'failed'});
+        expect(ERROR_ENTRIES).toEqual(before);
     });
 });

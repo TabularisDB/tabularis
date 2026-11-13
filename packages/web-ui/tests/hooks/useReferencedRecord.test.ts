@@ -1,6 +1,7 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {invoke} from '@tauri-apps/api/core';
 import type {ForeignKey} from '@/types/schema';
+import type {DriverCapabilities} from '@/types/plugins';
 import {fetchReferencedRecord} from '@/hooks/useReferencedRecord';
 import {TabularisClient} from '@/api/client';
 import {TauriTransport} from '@/api/transports/tauriTransport';
@@ -76,6 +77,40 @@ describe('useReferencedRecord hook integration', () => {
                 limit: 100,
                 page: 1,
                 schema: 'public',
+            });
+        });
+
+        it('queries the referenced schema for a cross-schema FK, not the source schema', async () => {
+            const mockInvoke = vi.mocked(invoke);
+            mockInvoke.mockResolvedValueOnce({columns: [], rows: [], affected_rows: 0});
+            const capabilities: DriverCapabilities = {
+                schemas: true,
+                views: true,
+                routines: true,
+                file_based: false,
+                folder_based: false,
+                identifier_quote: '"',
+                alter_primary_key: true,
+                sql_dialect: 'postgres',
+            };
+
+            await fetchReferencedRecord(
+                {
+                    connectionId: 'conn-123',
+                    fk: {...fk('fk_org', 'org_id', 'organizations', 'id'), ref_schema: 'core'},
+                    value: 42,
+                    driver: capabilities,
+                    schema: 'billing',
+                },
+                client,
+            );
+
+            expect(mockInvoke).toHaveBeenCalledWith('execute_query', {
+                connectionId: 'conn-123',
+                query: 'SELECT * FROM "core"."organizations" WHERE "id" = 42',
+                limit: 100,
+                page: 1,
+                schema: 'core',
             });
         });
 

@@ -2,10 +2,14 @@ import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {render, screen, fireEvent} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import React from 'react';
+import userEvent from '@testing-library/user-event';
+import type {Settings} from '@/contexts/SettingsContext';
 
 const updateSettings = vi.fn(async () => undefined);
 const setTheme = vi.fn(async () => undefined);
 let loading = false;
+const updateSetting = vi.fn();
+let appearanceSettings: Partial<Settings> = {};
 
 const lightTheme = {
     id: 'tabularis-light',
@@ -47,8 +51,8 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/hooks/useSettings', () => ({
     useSettings: () => ({
-        settings: {fontFamily: 'System', fontSize: 14},
-        updateSetting: vi.fn(),
+        settings: {fontFamily: 'System', fontSize: 14, ...appearanceSettings},
+        updateSetting,
     }),
 }));
 
@@ -75,7 +79,29 @@ describe('AppearanceTab theme mode', () => {
         vi.clearAllMocks();
         themeSettings = {...themeSettings, followSystemTheme: false};
         loading = false;
+        appearanceSettings = {};
     });
+
+    it.each(['none', 'selection', 'all'] as const)(
+        'saves whitespace mode %s independently of Unicode highlighting',
+        async (mode) => {
+            const user = userEvent.setup();
+            render(
+                <MemoryRouter>
+                    <AppearanceTab />
+                </MemoryRouter>,
+            );
+            await user.click(screen.getByRole('button', {name: 'settings.appearance_sqlEditor'}));
+            expect(
+                screen.getByRole('button', {name: 'settings.appearance_whitespaceSelection'}),
+            ).toHaveAttribute('aria-pressed', 'true');
+            const labels = {none: 'None', selection: 'Selection', all: 'All'};
+            await user.click(
+                screen.getByRole('button', {name: `settings.appearance_whitespace${labels[mode]}`}),
+            );
+            expect(updateSetting).toHaveBeenCalledExactlyOnceWith('editorRenderWhitespace', mode);
+        },
+    );
 
     it('disables theme choices while preferences are hydrating', () => {
         loading = true;
@@ -136,6 +162,29 @@ describe('AppearanceTab theme mode', () => {
         fireEvent.click(screen.getByText('settings.themeModeSystem'));
         expect(updateSettings).toHaveBeenCalledWith({followSystemTheme: true});
     });
+
+    it.each([undefined, true, false])(
+        'exposes a keyboard-accessible minimap toggle for value %s',
+        async (editorMinimap) => {
+            appearanceSettings = {editorMinimap};
+            const user = userEvent.setup();
+            render(
+                <MemoryRouter>
+                    <AppearanceTab />
+                </MemoryRouter>,
+            );
+            await user.click(screen.getByRole('button', {name: 'settings.appearance_sqlEditor'}));
+            const toggle = screen.getByRole('checkbox', {
+                name: 'settings.appearance_editorMinimap',
+            });
+            expect(toggle).toHaveProperty('checked', editorMinimap ?? false);
+            expect(toggle).toHaveAccessibleDescription('settings.appearance_editorMinimapDesc');
+            toggle.focus();
+            await user.keyboard(' ');
+            expect(toggle).toHaveFocus();
+            expect(updateSetting).toHaveBeenCalledWith('editorMinimap', !editorMinimap);
+        },
+    );
 
     it('shows filtered light/dark pickers in follow-system mode', () => {
         themeSettings = {...themeSettings, followSystemTheme: true};

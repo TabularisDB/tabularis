@@ -15,6 +15,8 @@ fn column(name: &str, data_type: &str, is_pk: bool, is_nullable: bool) -> TableC
         numeric_scale: None,
         comment: None,
         full_type: None,
+        default_sql: None,
+        on_update: None,
     }
 }
 
@@ -32,6 +34,7 @@ fn formats_columns_relationships_and_truncation() {
                 column_name: "team_id".to_string(),
                 ref_table: "teams".to_string(),
                 ref_column: "id".to_string(),
+                ref_schema: None,
                 on_delete: None,
                 on_update: None,
                 seq_in_fk: None,

@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use crate::models::{ExportPayload, ConnectionGroup, SavedConnection, SshConnection, ConnectionParams, DatabaseSelection};
+    use crate::models::{
+        ConnectionGroup, ConnectionParams, DatabaseSelection, ExportPayload, SavedConnection,
+        SshConnection,
+    };
 
     #[test]
     fn test_export_payload_serialization() {
@@ -25,6 +28,8 @@ mod tests {
                     database: DatabaseSelection::Single("test".to_string()),
                     ssh_enabled: Some(false),
                     save_in_keychain: Some(true),
+                    connect_timeout_secs: Some(10),
+                    query_timeout_secs: Some(120),
                     ..Default::default()
                 },
                 plugin_secret_keys: vec![],
@@ -34,6 +39,7 @@ mod tests {
                 appearance: None,
                 tag_ids: None,
                 environment: None,
+                managed: false,
             }],
             ssh_connections: vec![SshConnection {
                 id: "ssh1".to_string(),
@@ -60,8 +66,22 @@ mod tests {
         assert_eq!(deserialized.groups.len(), 1);
         assert_eq!(deserialized.connections.len(), 1);
         assert_eq!(deserialized.ssh_connections.len(), 1);
-        assert_eq!(deserialized.connections[0].params.password, Some("password".to_string()));
-        assert_eq!(deserialized.ssh_connections[0].password, Some("ssh_password".to_string()));
+        assert_eq!(
+            deserialized.connections[0].params.password,
+            Some("password".to_string())
+        );
+        assert_eq!(
+            deserialized.connections[0].params.connect_timeout_secs,
+            Some(10)
+        );
+        assert_eq!(
+            deserialized.connections[0].params.query_timeout_secs,
+            Some(120)
+        );
+        assert_eq!(
+            deserialized.ssh_connections[0].password,
+            Some("ssh_password".to_string())
+        );
     }
 
     // Helper: build a 3-level tree
@@ -122,7 +142,8 @@ mod tests {
         let deserialized: ExportPayload = serde_json::from_str(&json).unwrap();
 
         // Same set of ids
-        let original_ids: std::collections::HashSet<_> = tree.iter().map(|g| g.id.clone()).collect();
+        let original_ids: std::collections::HashSet<_> =
+            tree.iter().map(|g| g.id.clone()).collect();
         let new_ids: std::collections::HashSet<_> =
             deserialized.groups.iter().map(|g| g.id.clone()).collect();
         assert_eq!(original_ids, new_ids);

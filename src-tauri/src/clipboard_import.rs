@@ -176,6 +176,7 @@ pub async fn import_with_runtime(
     session_id: Option<uuid::Uuid>,
     req: ClipboardImportRequest,
 ) -> Result<ClipboardImportResult, String> {
+    crate::application::read_only::ensure_writable(runtime, &req.connection_id)?;
     log::info!(
         "Clipboard import: table='{}', rows={}, create_table={}",
         req.table_name,

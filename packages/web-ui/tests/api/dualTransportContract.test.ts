@@ -196,6 +196,7 @@ defineTransportContractSuite('Tauri adapter mock', serializationFixture, async (
             command === 'enable_plugin' ||
             command === 'kill_plugin_process' ||
             command === 'restart_plugin_process' ||
+            command === 'sync_plugin_settings' ||
             command === 'uninstall_plugin'
         ) {
             return null;

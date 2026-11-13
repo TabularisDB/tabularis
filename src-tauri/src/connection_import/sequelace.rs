@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 use plist::Value;
 
 use super::keychain_read::{read_generic_password, KeychainReadResult};
-use super::types::{ImportEnvelope, ImportedConnection, ImportedCredentials, ImportedSsh, ImportedSsl};
+use super::types::{
+    ImportEnvelope, ImportedConnection, ImportedCredentials, ImportedSsh, ImportedSsl,
+};
 use super::{resolve_key_path, ForeignAppImporter, ForeignImportError};
 
 pub struct SequelAceImporter {
@@ -46,7 +48,9 @@ impl ForeignAppImporter for SequelAceImporter {
         _file: Option<&Path>,
     ) -> Result<ImportEnvelope, ForeignImportError> {
         if !self.favorites_file().is_file() {
-            return Err(ForeignImportError::FileNotFound(self.display_name().to_string()));
+            return Err(ForeignImportError::FileNotFound(
+                self.display_name().to_string(),
+            ));
         }
         let children = self.root_children().ok_or_else(|| {
             ForeignImportError::UnsupportedFormat("Missing Favorites Root or Children".into())
@@ -104,7 +108,9 @@ impl SequelAceImporter {
 fn count(children: &[Value]) -> usize {
     let mut n = 0;
     for child in children {
-        let Some(dict) = child.as_dictionary() else { continue };
+        let Some(dict) = child.as_dictionary() else {
+            continue;
+        };
         if let Some(sub) = dict.get("Children").and_then(Value::as_array) {
             n += count(sub);
         } else if dict.contains_key("host") || dict.contains_key("id") {
@@ -122,7 +128,9 @@ fn parse_children(
     group_names: &mut Vec<String>,
 ) {
     for child in children {
-        let Some(dict) = child.as_dictionary() else { continue };
+        let Some(dict) = child.as_dictionary() else {
+            continue;
+        };
         if let Some(sub) = dict.get("Children").and_then(Value::as_array) {
             let name = dict
                 .get("Name")
@@ -148,13 +156,32 @@ fn parse_children(
 }
 
 fn parse_connection(dict: &plist::Dictionary, group_name: Option<&str>) -> ImportedConnection {
-    let connection_type = dict.get("type").and_then(Value::as_signed_integer).unwrap_or(0);
+    let connection_type = dict
+        .get("type")
+        .and_then(Value::as_signed_integer)
+        .unwrap_or(0);
     ImportedConnection {
-        name: dict.get("name").and_then(Value::as_string).unwrap_or("Untitled").to_string(),
-        host: dict.get("host").and_then(Value::as_string).unwrap_or("localhost").to_string(),
+        name: dict
+            .get("name")
+            .and_then(Value::as_string)
+            .unwrap_or("Untitled")
+            .to_string(),
+        host: dict
+            .get("host")
+            .and_then(Value::as_string)
+            .unwrap_or("localhost")
+            .to_string(),
         port: dict.get("port").and_then(plist_port).unwrap_or(3306),
-        database: dict.get("database").and_then(Value::as_string).unwrap_or("").to_string(),
-        username: dict.get("user").and_then(Value::as_string).unwrap_or("").to_string(),
+        database: dict
+            .get("database")
+            .and_then(Value::as_string)
+            .unwrap_or("")
+            .to_string(),
+        username: dict
+            .get("user")
+            .and_then(Value::as_string)
+            .unwrap_or("")
+            .to_string(),
         driver_label: "MySQL".to_string(),
         ssh: parse_ssh(dict, connection_type),
         ssl: parse_ssl(dict),
@@ -166,12 +193,27 @@ fn parse_ssh(dict: &plist::Dictionary, connection_type: i64) -> Option<ImportedS
     if connection_type != 2 {
         return None;
     }
-    let key_enabled = dict.get("sshKeyLocationEnabled").and_then(Value::as_signed_integer).unwrap_or(0) != 0;
-    let raw_key = dict.get("sshKeyLocation").and_then(Value::as_string).unwrap_or("");
+    let key_enabled = dict
+        .get("sshKeyLocationEnabled")
+        .and_then(Value::as_signed_integer)
+        .unwrap_or(0)
+        != 0;
+    let raw_key = dict
+        .get("sshKeyLocation")
+        .and_then(Value::as_string)
+        .unwrap_or("");
     Some(ImportedSsh {
-        host: dict.get("sshHost").and_then(Value::as_string).unwrap_or("").to_string(),
+        host: dict
+            .get("sshHost")
+            .and_then(Value::as_string)
+            .unwrap_or("")
+            .to_string(),
         port: dict.get("sshPort").and_then(plist_port),
-        username: dict.get("sshUser").and_then(Value::as_string).unwrap_or("").to_string(),
+        username: dict
+            .get("sshUser")
+            .and_then(Value::as_string)
+            .unwrap_or("")
+            .to_string(),
         auth_type: if key_enabled { "ssh_key" } else { "password" }.to_string(),
         private_key_path: if key_enabled {
             Some(resolve_key_path(raw_key))
@@ -183,13 +225,21 @@ fn parse_ssh(dict: &plist::Dictionary, connection_type: i64) -> Option<ImportedS
 
 fn parse_ssl(dict: &plist::Dictionary) -> Option<ImportedSsl> {
     let use_ssl = match dict.get("useSSL") {
-        Some(v) => v.as_signed_integer().map(|n| n != 0).or_else(|| v.as_boolean()).unwrap_or(false),
+        Some(v) => v
+            .as_signed_integer()
+            .map(|n| n != 0)
+            .or_else(|| v.as_boolean())
+            .unwrap_or(false),
         None => false,
     };
     if !use_ssl {
         return None;
     }
-    let get = |k: &str| dict.get(k).and_then(Value::as_string).map(|s| s.to_string());
+    let get = |k: &str| {
+        dict.get(k)
+            .and_then(Value::as_string)
+            .map(|s| s.to_string())
+    };
     Some(ImportedSsl {
         mode: "require".to_string(),
         ca_certificate_path: get("sslCACertFileLocation"),
@@ -207,7 +257,10 @@ fn read_credentials(dict: &plist::Dictionary, abort: &mut bool) -> ImportedCrede
         .unwrap_or_else(|| "0".to_string());
     let user = dict.get("user").and_then(Value::as_string).unwrap_or("");
     let host = dict.get("host").and_then(Value::as_string).unwrap_or("");
-    let database = dict.get("database").and_then(Value::as_string).unwrap_or("");
+    let database = dict
+        .get("database")
+        .and_then(Value::as_string)
+        .unwrap_or("");
 
     let mut read = |service: String, account: String| -> Option<String> {
         if *abort {

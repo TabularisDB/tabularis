@@ -1,11 +1,12 @@
 import type {ComponentProps} from 'react';
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
-import {parseExplain} from '@tabularis/explain';
+import {parsePostgresJson} from '@tabularis/explain';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {NotebookCellWrapper} from '@/components/notebook/NotebookCellWrapper';
-import type {SqlCellEditor} from '@/components/notebook/SqlCellEditor';
-import type {VisualExplainViewProps} from '@/components/explain/VisualExplainView';
+import {NotebookCellWrapper} from '../../../src/components/notebook/NotebookCellWrapper';
+import {duplicateCell} from '@/utils/notebook';
+import type {SqlCellEditor} from '../../../src/components/notebook/SqlCellEditor';
+import type {VisualExplainViewProps} from '../../../src/components/explain/VisualExplainView';
 
 vi.mock('@/hooks/useTabularisClient', () => import('../../support/tauriBackedHooks'));
 vi.mock('@/hooks/usePlatformCapabilities', () => import('../../support/tauriBackedHooks'));
@@ -19,26 +20,26 @@ vi.mock('react-i18next', () => {
     return {useTranslation: () => ({t})};
 });
 vi.mock('lucide-react', () => vi.importActual('lucide-react'));
-vi.mock('@/hooks/useDatabase', () => ({
+vi.mock('../../../src/hooks/useDatabase', () => ({
     useDatabase: () => ({...database, connections: []}),
 }));
-vi.mock('@/hooks/useSettings', () => ({
+vi.mock('../../../src/hooks/useSettings', () => ({
     useSettings: () => ({settings: {aiEnabled: false}}),
 }));
-vi.mock('@/hooks/useDrivers', () => ({
+vi.mock('../../../src/hooks/useDrivers', () => ({
     useDrivers: () => ({allDrivers: []}),
 }));
-vi.mock('@/utils/driverUI', () => ({getConnectionIcon: () => null}));
-vi.mock('@/components/notebook/CellNameAiButton', () => ({
+vi.mock('../../../src/utils/driverUI', () => ({getConnectionIcon: () => null}));
+vi.mock('../../../src/components/notebook/CellNameAiButton', () => ({
     CellNameAiButton: () => null,
 }));
-vi.mock('@/components/notebook/CellHistoryPanel', () => ({
+vi.mock('../../../src/components/notebook/CellHistoryPanel', () => ({
     CellHistoryPanel: () => null,
 }));
-vi.mock('@/components/notebook/MarkdownCell', () => ({
+vi.mock('../../../src/components/notebook/MarkdownCell', () => ({
     MarkdownCell: () => <div data-testid="markdown">Markdown content</div>,
 }));
-vi.mock('@/components/notebook/SqlCellEditor', () => ({
+vi.mock('../../../src/components/notebook/SqlCellEditor', () => ({
     SqlCellEditor: (props: ComponentProps<typeof SqlCellEditor>) => (
         <textarea
             aria-label="SQL editor"
@@ -48,8 +49,8 @@ vi.mock('@/components/notebook/SqlCellEditor', () => ({
         />
     ),
 }));
-vi.mock('@/components/notebook/SqlCellResult', () => ({SqlCellResult: () => null}));
-vi.mock('@/components/explain/VisualExplainView', () => ({
+vi.mock('../../../src/components/notebook/SqlCellResult', () => ({SqlCellResult: () => null}));
+vi.mock('../../../src/components/explain/VisualExplainView', () => ({
     VisualExplainView: (props: VisualExplainViewProps) => (
         <section data-testid="explain-view">
             {props.plan && <div data-testid="plan">{props.plan.root.node_type}</div>}
@@ -86,7 +87,7 @@ describe('NotebookCellWrapper query plans', () => {
     beforeEach(() => {
         mockInvoke.mockReset().mockResolvedValue({
             kind: 'plan',
-            plan: parseExplain('[{"Plan":{"Node Type":"Result"}}]'),
+            plan: parsePostgresJson('[{"Plan":{"Node Type":"Result"}}]'),
         });
         database.capabilities = {explain: false};
         database.getConnectionData.mockReset().mockImplementation((id: string) => {
@@ -326,5 +327,80 @@ describe('NotebookCellWrapper query plans', () => {
             database: undefined,
         });
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+});
+
+describe('NotebookCellWrapper duplicate action', () => {
+    const label = 'editor.notebook.duplicateCellToEnd';
+
+    beforeEach(() => {
+        mockInvoke.mockReset().mockResolvedValue({
+            kind: 'plan',
+            plan: parsePostgresJson('[{"Plan":{"Node Type":"Result"}}]'),
+        });
+        database.getConnectionData.mockReset().mockReturnValue({
+            capabilities: {explain: true},
+            driver: 'postgres',
+        });
+    });
+
+    it.each(['sql', 'markdown'] as const)(
+        'offers a labelled duplicate button on %s cells',
+        (type) => {
+            const onDuplicate = vi.fn();
+            const props = makeProps();
+            render(
+                <NotebookCellWrapper
+                    {...props}
+                    cell={{...props.cell, type}}
+                    onDuplicate={onDuplicate}
+                    canDuplicate
+                />,
+            );
+            const button = screen.getByRole('button', {name: label});
+            expect(button).toHaveAttribute('title', label);
+            expect(button).toBeEnabled();
+            fireEvent.click(button);
+            expect(onDuplicate).toHaveBeenCalledTimes(1);
+            expect(props.onRun).not.toHaveBeenCalled();
+        },
+    );
+
+    it('is disabled when duplication is not allowed', () => {
+        const onDuplicate = vi.fn();
+        render(
+            <NotebookCellWrapper {...makeProps()} onDuplicate={onDuplicate} canDuplicate={false} />,
+        );
+        const button = screen.getByRole('button', {name: label});
+        expect(button).toBeDisabled();
+        fireEvent.click(button);
+        expect(onDuplicate).not.toHaveBeenCalled();
+    });
+
+    it('does not fetch a query plan for the copy of a cell whose plan is open', async () => {
+        const props = makeProps();
+        const source = {...props.cell, isQueryPlanVisible: true, result: null};
+        const explainQuery = {sql: source.content, unresolvedRefs: []};
+
+        // Control: the open plan of the original is fetched on mount.
+        const {unmount} = render(
+            <NotebookCellWrapper {...props} cell={source} explainQuery={explainQuery} />,
+        );
+        await settle();
+        expect(mockInvoke).toHaveBeenCalledTimes(1);
+        unmount();
+        mockInvoke.mockClear();
+
+        const copy = duplicateCell(source);
+        render(<NotebookCellWrapper {...props} cell={copy} explainQuery={explainQuery} />);
+        await settle();
+        expect(mockInvoke).not.toHaveBeenCalled();
+        expect(screen.queryByTestId('explain-view')).not.toBeInTheDocument();
+        expect(copy.isQueryPlanVisible).toBe(false);
+    });
+
+    it('is hidden without a duplicate handler', () => {
+        render(<NotebookCellWrapper {...makeProps()} />);
+        expect(screen.queryByRole('button', {name: label})).not.toBeInTheDocument();
     });
 });
