@@ -2704,6 +2704,8 @@
     "expandAll": "Mở rộng tất cả",
     "collapseAll": "Thu gọn tất cả",
     "sortKeys": "Sắp xếp khóa",
+    "expandToLevel": "Mở rộng đến cấp",
+    "expandToLevelN": "Mở rộng đến cấp {{level}}",
     "search": "Tìm kiếm",
     "copyPath": "Sao chép đường dẫn",
     "copyValue": "Sao chép giá trị",

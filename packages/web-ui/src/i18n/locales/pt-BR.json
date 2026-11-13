@@ -2679,6 +2679,8 @@
     "expandAll": "Expandir tudo",
     "collapseAll": "Recolher tudo",
     "sortKeys": "Ordenar chaves",
+    "expandToLevel": "Expandir até o nível",
+    "expandToLevelN": "Expandir até o nível {{level}}",
     "search": "Buscar",
     "copyPath": "Copiar Caminho",
     "copyValue": "Copiar Valor",

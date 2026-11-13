@@ -2634,6 +2634,8 @@
     "expandAll": "Alle erweitern",
     "collapseAll": "Alle reduzieren",
     "sortKeys": "Schlüssel sortieren",
+    "expandToLevel": "Bis Ebene ausklappen",
+    "expandToLevelN": "Bis Ebene {{level}} ausklappen",
     "search": "Suchen",
     "copyPath": "Pfad kopieren",
     "copyValue": "Wert kopieren",

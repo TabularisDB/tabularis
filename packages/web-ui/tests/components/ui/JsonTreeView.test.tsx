@@ -1,8 +1,8 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
-import {render, screen, fireEvent} from '@testing-library/react';
+import {render, screen, fireEvent, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {JsonEditorProps, NodeData} from 'json-edit-react';
-import {compareJsonKeys} from '@/utils/jsonTree';
+import {buildExpandToLevelTrigger, compareJsonKeys} from '@/utils/jsonTree';
 
 type CapturedProps = JsonEditorProps & {
     restrictEdit?: boolean;
@@ -418,6 +418,131 @@ describe('JsonTreeView', () => {
         it.each(['text', 42, true, null])('is disabled for scalar root %s', (value) => {
             render(<JsonTreeView value={value} />);
             expect(sortToggle()).toBeDisabled();
+        });
+    });
+
+    describe('expand to level', () => {
+        const data = {customer: {address: {city: 'Rome'}}, list: [[1], {a: {}}]};
+        const layouts = [
+            {name: 'compact', props: {}},
+            {name: 'full-height', props: {fillHeight: true}},
+        ];
+        const levelGroup = () => screen.getByRole('group', {name: 'jsonInput.expandToLevel'});
+        const levelButton = (level: number) => {
+            const button = within(levelGroup()).getAllByRole('button', {
+                name: 'jsonInput.expandToLevelN',
+            })[level - 1];
+            expect(button).toHaveTextContent(String(level));
+            return button;
+        };
+
+        it.each(layouts)('offers levels 1, 2 and 3 in a read-only tree ($name)', ({props}) => {
+            render(<JsonTreeView value={data} readOnly onChange={() => {}} {...props} />);
+            const buttons = within(levelGroup()).getAllByRole('button');
+            expect(buttons.map((b) => b.textContent)).toEqual(['1', '2', '3']);
+            buttons.forEach((b) => expect(b).toBeEnabled());
+        });
+
+        it.each(layouts)(
+            'sends the chosen depth to the library collapse API ($name)',
+            ({props}) => {
+                const onChange = vi.fn();
+                render(<JsonTreeView value={data} readOnly onChange={onChange} {...props} />);
+                expect(lastProps.current!.externalTriggers).toBeUndefined();
+
+                for (const level of [1, 2, 3]) {
+                    fireEvent.click(levelButton(level));
+                    expect(lastProps.current!.externalTriggers).toEqual(
+                        buildExpandToLevelTrigger(data, level),
+                    );
+                }
+
+                expect(lastProps.current!.data).toBe(data);
+                expect(onChange).not.toHaveBeenCalled();
+            },
+        );
+
+        it.each(layouts)('is not offered in an editable tree ($name)', ({props}) => {
+            render(<JsonTreeView value={data} onChange={() => {}} {...props} />);
+            expect(
+                screen.queryByRole('group', {name: 'jsonInput.expandToLevel'}),
+            ).not.toBeInTheDocument();
+            expect(lastProps.current!.restrictEdit).not.toBe(true);
+        });
+
+        it('issues a new trigger object when the same level is chosen again', () => {
+            render(<JsonTreeView value={data} />);
+            fireEvent.click(levelButton(2));
+            const first = lastProps.current!.externalTriggers;
+            fireEvent.click(levelButton(2));
+            expect(lastProps.current!.externalTriggers).not.toBe(first);
+            expect(lastProps.current!.externalTriggers).toEqual(first);
+        });
+
+        it('keeps search text and key sorting', () => {
+            render(<JsonTreeView value={data} />);
+            fireEvent.change(screen.getByPlaceholderText('jsonInput.search'), {
+                target: {value: 'Rome'},
+            });
+            fireEvent.click(screen.getByRole('button', {name: 'jsonInput.sortKeys'}));
+            fireEvent.click(levelButton(3));
+            expect(lastProps.current!.searchText).toBe('Rome');
+            expect(lastProps.current!.keySort).toBe(compareJsonKeys);
+            expect(screen.getByRole('button', {name: 'jsonInput.sortKeys'})).toHaveAttribute(
+                'aria-pressed',
+                'true',
+            );
+        });
+
+        it('leaves expand all and collapse all usable', () => {
+            render(<JsonTreeView value={data} />);
+            fireEvent.click(levelButton(1));
+            fireEvent.click(screen.getByRole('button', {name: 'jsonInput.expandAll'}));
+            expect(lastProps.current!.externalTriggers).toEqual({
+                collapse: {path: [], collapsed: false, includeChildren: true},
+            });
+            fireEvent.click(levelButton(2));
+            expect(lastProps.current!.externalTriggers).toEqual(buildExpandToLevelTrigger(data, 2));
+            fireEvent.click(screen.getByRole('button', {name: 'jsonInput.collapseAll'}));
+            expect(lastProps.current!.externalTriggers).toEqual({
+                collapse: {path: [], collapsed: true, includeChildren: true},
+            });
+        });
+
+        it('does not remount the editor', () => {
+            render(<JsonTreeView value={data} />);
+            const editor = screen.getByTestId('mock-json-editor');
+            fireEvent.click(levelButton(1));
+            fireEvent.click(levelButton(3));
+            expect(screen.getByTestId('mock-json-editor')).toBe(editor);
+        });
+
+        it.each([{}, []])('is safe for an empty container %j', (value) => {
+            render(<JsonTreeView value={value} />);
+            fireEvent.click(levelButton(3));
+            expect(lastProps.current!.externalTriggers).toEqual({
+                collapse: [
+                    {path: [], collapsed: false, includeChildren: false},
+                    {path: [], collapsed: true, includeChildren: true},
+                ],
+            });
+            expect(lastProps.current!.data).toBe(value);
+        });
+
+        it.each(['text', 42, true, null])('is disabled for scalar root %s', (value) => {
+            render(<JsonTreeView value={value} />);
+            within(levelGroup())
+                .getAllByRole('button')
+                .forEach((b) => expect(b).toBeDisabled());
+        });
+
+        it('can be reached and used with the keyboard', async () => {
+            const user = userEvent.setup();
+            render(<JsonTreeView value={data} searchQuery="" />);
+            for (let i = 0; i < 5; i++) await user.tab();
+            expect(levelButton(2)).toHaveFocus();
+            await user.keyboard('{Enter}');
+            expect(lastProps.current!.externalTriggers).toEqual(buildExpandToLevelTrigger(data, 2));
         });
     });
 });
