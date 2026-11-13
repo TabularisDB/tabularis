@@ -1133,6 +1133,8 @@
     },
     "shortcuts": {
       "title": "키보드 단축키",
+      "searchPlaceholder": "작업 또는 단축키 검색",
+      "noMatches": "검색과 일치하는 단축키가 없습니다.",
       "categories": {
         "editor": "에디터",
         "navigation": "탐색",

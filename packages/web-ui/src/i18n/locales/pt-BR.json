@@ -1170,6 +1170,8 @@
     },
     "shortcuts": {
       "title": "Atalhos de Teclado",
+      "searchPlaceholder": "Buscar ações ou atalhos",
+      "noMatches": "Nenhum atalho corresponde à pesquisa.",
       "categories": {
         "editor": "Editor",
         "navigation": "Navegação",

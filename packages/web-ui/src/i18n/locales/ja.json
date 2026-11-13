@@ -1178,6 +1178,8 @@
     },
     "shortcuts": {
       "title": "キーボードショートカット",
+      "searchPlaceholder": "アクションまたはショートカットを検索",
+      "noMatches": "検索に一致するショートカットはありません。",
       "categories": {
         "editor": "エディタ",
         "navigation": "ナビゲーション",

@@ -1189,6 +1189,8 @@
     },
     "shortcuts": {
       "title": "Atajos de teclado",
+      "searchPlaceholder": "Buscar acciones o atajos",
+      "noMatches": "Ningún atajo coincide con la búsqueda.",
       "categories": {
         "editor": "Editor",
         "navigation": "Navegación",
