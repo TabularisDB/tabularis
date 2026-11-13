@@ -2343,6 +2343,7 @@ impl PostgresDriver {
                     column_comments: true,
                     drop_table_sql: false,
                     column_stats: false,
+                    query_classification: false,
                     query_timeout: true,
                     alter_column: true,
                     create_foreign_keys: true,

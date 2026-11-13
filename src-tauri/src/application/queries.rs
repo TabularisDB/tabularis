@@ -282,7 +282,7 @@ pub async fn execute_query(
     let (driver, params) =
         driver_and_params(runtime, scope.session_id, &connection_id, database).await?;
 
-    super::read_only::validate_query(&params, &driver.manifest().capabilities, &sanitized_query)?;
+    super::read_only::validate_query(driver.as_ref(), &params, &sanitized_query).await?;
 
     let effective_limit = response_limit(policy, limit);
     let driver_session = query_session_id.as_deref().map(|id| {
@@ -454,7 +454,7 @@ pub async fn execute_query_batch(
 
     // Validate the entire batch before sending its first statement.
     for query in &sanitized_queries {
-        super::read_only::validate_query(&params, &driver.manifest().capabilities, query)?;
+        super::read_only::validate_query(driver.as_ref(), &params, query).await?;
     }
 
     let progress: Option<Arc<BatchProgressFn>> = batch_id.map(|batch_id| {

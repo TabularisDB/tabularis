@@ -41,6 +41,8 @@ mod keychain_tests;
 #[cfg(test)]
 mod output_tests;
 #[cfg(test)]
+mod read_only_tests;
+#[cfg(test)]
 mod tests;
 
 const APPROVAL_POLL_INTERVAL_MS: u64 = 500;
@@ -1176,22 +1178,28 @@ async fn tool_run_query(
     audit.connection_id = Some(conn_id.to_string());
     audit.query = Some(query.to_string());
     // Dialect-agnostic first, so the audit entry has a kind even when the
-    // connection cannot be resolved; refined below once the driver's
-    // `sql_dialect` / `sql_syntax` are known.
+    // connection cannot be resolved; refined below once the driver is known.
     audit.query_kind = Some(ai_activity::classify_query_kind(query).to_string());
 
     let (conn, mut db_params, driver) =
         resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
     let capabilities = driver.manifest().capabilities.clone();
-    let kind = ai_activity::classify_query_kind_for_capabilities(query, Some(&capabilities));
-    audit.query_kind = Some(kind.to_string());
     audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
     apply_database_override(&mut db_params, database, &capabilities)?;
 
+    // Classified after the database override so a driver that classifies its
+    // own language sees the same connection the query will run against. SQL
+    // drivers are read here as before; see `application::read_only` for the
+    // rest. The same verdict feeds the saved connection's read-only policy
+    // below, the MCP read-only mode and the approval gate.
+    let kind =
+        crate::application::read_only::classify_query(driver.as_ref(), &db_params, query).await;
+    audit.query_kind = Some(kind.to_string());
+
     // Read-only enforcement (fail-closed: unknown counts as write).
-    crate::application::read_only::validate_query(&db_params, &capabilities, query).map_err(
+    crate::application::read_only::validate_kind(&db_params, &capabilities, kind).map_err(
         |message| {
             audit.status = "blocked_readonly".to_string();
             audit.error = Some(message.clone());
@@ -1225,7 +1233,10 @@ async fn tool_run_query(
         _ => kind != "select",
     };
 
+    // What will run, and what it was classified as. An edit made during
+    // approval replaces both, so the two never describe different texts.
     let mut effective_query: String = query.to_string();
+    let mut effective_kind = kind;
 
     if needs_approval {
         // Fail fast if the GUI is not running — otherwise we'd queue a
@@ -1308,10 +1319,13 @@ async fn tool_run_query(
                         // payload) and slip past the gate that runs against
                         // the *original* query above.
                         effective_query = edited.to_string();
-                        let new_kind = ai_activity::classify_query_kind_for_capabilities(
+                        let new_kind = crate::application::read_only::classify_query(
+                            driver.as_ref(),
+                            &db_params,
                             &effective_query,
-                            Some(&capabilities),
-                        );
+                        )
+                        .await;
+                        effective_kind = new_kind;
                         audit.query = Some(effective_query.clone());
                         audit.query_kind = Some(new_kind.to_string());
 
@@ -1385,7 +1399,7 @@ async fn tool_run_query(
     // here because it was classified as a read, and so is anything sent to a
     // read-only connection. Classification cannot see what a function call
     // does, so have the database refuse writes too.
-    crate::application::read_only::validate_query(&db_params, &capabilities, &effective_query)
+    crate::application::read_only::validate_kind(&db_params, &capabilities, effective_kind)
         .map_err(|message| JsonRpcError {
             code: -32000,
             message,

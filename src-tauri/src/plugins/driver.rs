@@ -88,6 +88,22 @@ fn parse_query_response(value: Value) -> Result<(QueryResult, bool), String> {
     Ok((parsed, false))
 }
 
+/// Read a `classify_query` response: `{ "kind": "select" | "write" | "ddl" |
+/// "unknown" }`.
+///
+/// Anything else reads as `"unknown"`: another shape, a different spelling
+/// (`"SELECT"`) or a kind this host doesn't know. The verdict decides whether
+/// a query may skip the read-only and approval gates, so a response the host
+/// cannot understand is never read as "this is a read".
+pub(crate) fn parse_query_kind(value: &Value) -> &'static str {
+    match value.get("kind").and_then(Value::as_str) {
+        Some("select") => "select",
+        Some("write") => "write",
+        Some("ddl") => "ddl",
+        _ => "unknown",
+    }
+}
+
 /// A session-aware plugin answers a failed statement with its error and the
 /// transaction state it left (a failed `COMMIT` has ended the transaction).
 fn parse_session_error(value: &Value) -> Option<(String, bool)> {
@@ -1327,6 +1343,24 @@ impl DatabaseDriver for RpcDriver {
             .map_err(|error| error.to_string())?;
         // No execute_query fallback: a missing RPC or protection error fails closed.
         serde_json::from_value(result).map_err(|error| error.to_string())
+    }
+
+    async fn classify_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+    ) -> Result<Option<&'static str>, String> {
+        if !self.manifest.capabilities.query_classification {
+            return Ok(None);
+        }
+        let res = self
+            .process
+            .call(
+                "classify_query",
+                json!({ "params": self.with_primary_database(params), "query": query }),
+            )
+            .await?;
+        Ok(Some(parse_query_kind(&res)))
     }
 
     async fn execute_batch(
@@ -4258,6 +4292,10 @@ mod table_query_template_tests;
 #[cfg(test)]
 #[path = "column_stats_tests.rs"]
 mod column_stats_tests;
+
+#[cfg(test)]
+#[path = "query_classification_tests.rs"]
+mod query_classification_tests;
 
 #[cfg(test)]
 #[path = "read_only_tests.rs"]

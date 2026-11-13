@@ -30,8 +30,18 @@ fn old_connections_remain_writable_and_the_policy_round_trips() {
     assert!(restored.read_only);
 }
 
-#[test]
-fn plugin_opt_in_is_required_and_sql_preflight_fails_closed() {
+/// A driver that reads SQL: it does not classify its own language, so asking
+/// it to would fail the query, which these tests would see.
+fn sql_driver() -> crate::plugins::driver::RpcDriver {
+    let mut manifest = crate::plugins::driver::test_manifest();
+    manifest.capabilities = capabilities();
+    crate::plugins::driver::test_driver_with_manifest(manifest, |_| {
+        Err("a SQL driver is never asked to classify".into())
+    })
+}
+
+#[tokio::test]
+async fn plugin_opt_in_is_required_and_sql_preflight_fails_closed() {
     let params = ConnectionParams {
         read_only: true,
         ..Default::default()
@@ -45,15 +55,13 @@ fn plugin_opt_in_is_required_and_sql_preflight_fails_closed() {
         }
     )
     .is_ok());
+    let driver = sql_driver();
     for sql in [
         "SELECT 1",
         "WITH x AS (SELECT 1) SELECT * FROM x",
         "PRAGMA table_info(items)",
     ] {
-        assert!(
-            validate_query(&params, &capabilities(), sql).is_ok(),
-            "{sql}"
-        );
+        assert!(validate_query(&driver, &params, sql).await.is_ok(), "{sql}");
     }
     for sql in [
         "DELETE FROM items",
@@ -67,7 +75,7 @@ fn plugin_opt_in_is_required_and_sql_preflight_fails_closed() {
         "WITH x AS (DELETE FROM items RETURNING *) SELECT * FROM x",
     ] {
         assert!(
-            validate_query(&params, &capabilities(), sql).is_err(),
+            validate_query(&driver, &params, sql).await.is_err(),
             "{sql}"
         );
     }

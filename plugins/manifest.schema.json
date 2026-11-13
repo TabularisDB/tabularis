@@ -396,6 +396,11 @@
           "default": false,
           "description": "Column statistics popover through the optional get_column_stats RPC. When false, plugins with a postgres, mysql or sqlite sql_dialect keep the host's generic SQL and the others don't show the entry."
         },
+        "query_classification": {
+          "type": "boolean",
+          "default": false,
+          "description": "Classify queries in the driver's own query language through the optional classify_query RPC, for the read-only policies: the MCP read-only mode, the MCP approval gate and saved read-only connections. When false the host reads every query as SQL. A select verdict only counts when the driver also declares read_only_queries (or readonly), because a classifier alone does not stop a write at execution."
+        },
         "query_timeout": {
           "type": "boolean",
           "default": false,

@@ -98,11 +98,7 @@ where
 {
     if params.read_only {
         let driver = crate::drivers::registry::get_connection_driver(params).await?;
-        crate::application::read_only::validate_query(
-            params,
-            &driver.manifest().capabilities,
-            query,
-        )?;
+        crate::application::read_only::validate_query(driver.as_ref(), params, query).await?;
     }
     // An editor session may still hold a writable transaction opened before
     // the policy changed. Protected exports must use the isolated pool/RPC.
