@@ -31,6 +31,9 @@ vi.mock('@/hooks/usePluginRegistry', () => ({
     usePluginRegistry: vi.fn(),
 }));
 vi.mock('@/hooks/useUpdate', () => ({useUpdate: vi.fn()}));
+vi.mock('@/hooks/useCanManageCredentialProfiles', () => ({
+    useCanManageCredentialProfiles: () => true,
+}));
 vi.mock('@/hooks/useSettings', () => ({
     useSettings: () => ({settings: {}, isLoading: false, updateSetting: vi.fn()}),
 }));
@@ -80,6 +83,9 @@ vi.mock('@/components/settings/ShortcutsTab', () => ({
 }));
 vi.mock('@/components/settings/SshTab', () => ({
     SshTab: () => <div>SshTab</div>,
+}));
+vi.mock('@/components/settings/CredentialProfilesTab', () => ({
+    CredentialProfilesTab: () => <div>CredentialProfilesTab</div>,
 }));
 vi.mock('@/components/settings/BackupTab', () => ({
     BackupTab: () => <div>BackupTab</div>,
@@ -372,6 +378,15 @@ describe('managed connections', () => {
 
         expect(screen.queryByText('SshTab')).not.toBeInTheDocument();
         expect(screen.getByText('GeneralTab')).toBeInTheDocument();
+    });
+
+    it('hides credential profiles in managed mode, including a direct tab URL', () => {
+        renderApp('/settings', managed);
+        expect(screen.queryByRole('button', {name: 'Profili credenziali'})).not.toBeInTheDocument();
+
+        renderApp('/settings?tab=credential-profiles', managed);
+        expect(screen.queryByText('CredentialProfilesTab')).not.toBeInTheDocument();
+        expect(screen.getAllByText('GeneralTab').length).toBeGreaterThan(0);
     });
 
     it('still opens the tab from its URL outside managed mode', () => {
