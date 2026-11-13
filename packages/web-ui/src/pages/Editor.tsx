@@ -60,6 +60,8 @@ import {
     speaksGenericSql,
     supportsExplain,
 } from '@/utils/driverCapabilities';
+import {canShowPreviewAction, supportsDmlPreview} from '@/utils/dmlPreview';
+import type {DmlPreview} from '@/api/contract';
 import {useClickOutside} from '@/hooks/useClickOutside';
 import {DANGEROUS_QUERY_I18N} from '@/hooks/useDangerousQueryGuard';
 import {useProductionGuard} from '@/hooks/useProductionGuard';
@@ -119,6 +121,7 @@ import {
     ExternalLink,
     CheckCircle2,
     WrapText,
+    Eye,
 } from 'lucide-react';
 import {invoke} from '@tauri-apps/api/core';
 import {TableToolbar} from '@/components/ui/TableToolbar';
@@ -138,6 +141,7 @@ import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {ExplainSelectionModal} from '@/components/modals/ExplainSelectionModal';
+import {DmlPreviewModal} from '@/components/modals/DmlPreviewModal';
 import {useTabSwitcher} from '@/hooks/useTabSwitcher';
 import {TabSwitcherModal} from '@/components/modals/TabSwitcherModal';
 import {QueryModal} from '@/components/modals/QueryModal';
@@ -371,6 +375,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const driverReadonly = isReadonly(activeCapabilities);
     const driverSupportsExplain = supportsExplain(activeCapabilities);
+    const driverSupportsDmlPreview = supportsDmlPreview(activeCapabilities);
     // The connection's resolved SQL syntax (`sql_dialect` preset plus any
     // declared `sql_syntax`), passed wherever a dialect is needed. Cached per
     // capabilities, so it is as stable as the dialect string it replaces.
@@ -526,7 +531,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         parameters: string[];
         pendingPageNum: number;
         pendingTabId?: string;
-        mode: 'run' | 'save' | 'explain';
+        mode: 'run' | 'save' | 'explain' | 'preview';
         pendingMultiQueries?: string[];
     }>({
         isOpen: false,
@@ -639,6 +644,15 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [explainSelectableQueries, setExplainSelectableQueries] = useState<
         {query: string; index: number}[]
     >([]);
+    const [isDmlPreviewOpen, setIsDmlPreviewOpen] = useState(false);
+    const [dmlPreview, setDmlPreview] = useState<DmlPreview | null>(null);
+    const [dmlPreviewError, setDmlPreviewError] = useState<string | null>(null);
+    const [dmlPreviewLoading, setDmlPreviewLoading] = useState(false);
+    // The tab the open preview belongs to, so "Run statement" runs there.
+    const [dmlPreviewTabId, setDmlPreviewTabId] = useState<string | undefined>();
+    // Bumped by every preview request and by closing the modal, so a late
+    // response from a superseded request is dropped.
+    const dmlPreviewGenerationRef = useRef(0);
     const [isCountLoading, setIsCountLoading] = useState(false);
     const [applyToAll, setApplyToAll] = useState(false);
     const [copyFormat, setCopyFormat] = useState<CopyFormat>(settings.copyFormat ?? 'csv');
@@ -940,6 +954,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     // action, so it is hidden where the connection declares no SQL dialect.
     const stripCommentsKeysRef = useRef<Map<string, {set(value: boolean): void}>>(new Map());
     const supportsExplainRef = useRef(false);
+    const requestDmlPreviewRef = useRef<(sql: string, tabId?: string) => void>(null!);
+    const supportsDmlPreviewRef = useRef(false);
     const tabScrollRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
@@ -2993,6 +3009,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         for (const key of stripCommentsKeysRef.current.values()) key.set(canStrip);
     }, [activeDialect]);
     supportsExplainRef.current = driverSupportsExplain;
+    supportsDmlPreviewRef.current = driverSupportsDmlPreview;
 
     // Global Ctrl/Command+F5 shortcut for Run (+Shift for Run All)
     useEffect(() => {
@@ -4490,6 +4507,97 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         handleSubmitChanges,
     ]);
 
+    const previewDmlChanges = useCallback(
+        async (sql: string, tabId?: string) => {
+            const targetTabId = tabId ?? activeTabIdRef.current;
+            const targetTab = tabsRef.current.find((tab) => tab.id === targetTabId);
+            const connectionId = targetTab?.connectionId ?? activeConnectionId;
+            if (!connectionId || !sql.trim()) return;
+            const schema = targetTab?.schema ?? activeSchema ?? undefined;
+            const database = targetTab?.database;
+            const generation = ++dmlPreviewGenerationRef.current;
+            setDmlPreview(null);
+            setDmlPreviewError(null);
+            setDmlPreviewTabId(targetTab?.id);
+            setDmlPreviewLoading(true);
+            setIsDmlPreviewOpen(true);
+            try {
+                const preview = await client.call('preview_dml_changes', {
+                    connectionId,
+                    sql,
+                    schema,
+                    database,
+                    limit: 100,
+                });
+                if (generation !== dmlPreviewGenerationRef.current) return;
+                setDmlPreview(preview);
+            } catch (error) {
+                if (generation !== dmlPreviewGenerationRef.current) return;
+                setDmlPreviewError(toErrorMessage(error));
+            }
+            setDmlPreviewLoading(false);
+        },
+        [activeConnectionId, activeSchema, client],
+    );
+
+    const requestDmlPreview = useCallback(
+        (rawSql: string, tabId?: string) => {
+            let sql = rawSql.trim();
+            if (!sql) return;
+            if (!canShowPreviewAction(activeCapabilities, sql)) {
+                showAlert(t('editor.dmlPreview.notAvailable'), {kind: 'warning'});
+                return;
+            }
+            const params = extractQueryParams(sql, activeDialect);
+            const targetTabId = tabId ?? activeTabIdRef.current;
+            if (params.length > 0 && targetTabId) {
+                const targetTab = tabsRef.current.find((tab) => tab.id === targetTabId);
+                const storedParams = targetTab?.queryParams || {};
+                const missingParams = params.filter(
+                    (param) =>
+                        storedParams[param] === undefined || storedParams[param].trim() === '',
+                );
+                if (missingParams.length > 0) {
+                    setQueryParamsModal({
+                        isOpen: true,
+                        sql,
+                        parameters: params,
+                        pendingPageNum: 1,
+                        pendingTabId: targetTabId,
+                        mode: 'preview',
+                    });
+                    return;
+                }
+                sql = interpolateQueryParams(sql, storedParams, activeDialect);
+            }
+            void previewDmlChanges(sql, tabId);
+        },
+        [activeCapabilities, activeDialect, previewDmlChanges, showAlert, t],
+    );
+    requestDmlPreviewRef.current = requestDmlPreview;
+
+    const handleDmlPreviewAction = useCallback(() => {
+        if (!activeTab || !activeConnectionId) return;
+        const editor = editorsRef.current[activeTab.id];
+        if (editor) {
+            const selection = editor.getSelection();
+            if (selection && !selection.isEmpty()) {
+                const selectedText = (editor.getModel()?.getValueInRange(selection) ?? '').trim();
+                if (selectedText) {
+                    requestDmlPreview(selectedText, activeTab.id);
+                    return;
+                }
+            }
+            const statement = getStatementAtCursor(editor, activeDialect);
+            if (statement?.text.trim()) {
+                requestDmlPreview(statement.text, activeTab.id);
+                return;
+            }
+        }
+        const text = (activeTab.query ?? '').trim();
+        if (text) requestDmlPreview(text, activeTab.id);
+    }, [activeTab, activeConnectionId, activeDialect, requestDmlPreview]);
+
     const handleParamsSubmit = useCallback(
         (values: Record<string, string>) => {
             const {pendingTabId, mode, sql, pendingPageNum, pendingMultiQueries} = queryParamsModal;
@@ -4514,9 +4622,21 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             } else if (mode === 'explain') {
                 setVisualExplainQuery(interpolateQueryParams(sql, newParams, activeDialect));
                 setIsVisualExplainOpen(true);
+            } else if (mode === 'preview') {
+                void previewDmlChanges(
+                    interpolateQueryParams(sql, newParams, activeDialect),
+                    pendingTabId,
+                );
             }
         },
-        [activeDialect, queryParamsModal, updateTab, runQuery, runMultipleQueries],
+        [
+            activeDialect,
+            queryParamsModal,
+            updateTab,
+            runQuery,
+            runMultipleQueries,
+            previewDmlChanges,
+        ],
     );
 
     const handleEditParams = useCallback(() => {
@@ -4701,6 +4821,42 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     setExplainSelectableQueries(explainable);
                     setIsExplainSelectionOpen(true);
                 }
+            },
+        });
+        editor.addAction({
+            id: 'preview-dml-changes',
+            label: t('editor.dmlPreview.action'),
+            contextMenuGroupId: 'navigation',
+            contextMenuOrder: 1.55,
+            run: (ed) => {
+                if (!supportsDmlPreviewRef.current) {
+                    showAlert(t('editor.dmlPreview.notAvailable'), {kind: 'warning'});
+                    return;
+                }
+                const selection = ed.getSelection();
+                const selectedText =
+                    selection && !selection.isEmpty()
+                        ? ed.getModel()?.getValueInRange(selection)
+                        : undefined;
+                const text = (selectedText || '').trim();
+                if (text) {
+                    requestDmlPreviewRef.current(text, tabId);
+                    return;
+                }
+                const model = ed.getModel();
+                const position = ed.getPosition();
+                if (model && position) {
+                    const statement = findStatementAtOffset(
+                        splitBatches(model.getValue(), activeDialectRef.current),
+                        model.getOffsetAt(position),
+                    );
+                    if (statement?.text.trim()) {
+                        requestDmlPreviewRef.current(statement.text, tabId);
+                        return;
+                    }
+                }
+                const fallback = (ed.getValue() || '').trim();
+                if (fallback) requestDmlPreviewRef.current(fallback, tabId);
             },
         });
         stripCommentsKeysRef.current.set(
@@ -5609,6 +5765,20 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                             <WrapText size={16} />
                             <span className="hidden @[640px]:inline whitespace-nowrap">
                                 {t('editor.formatSql')}
+                            </span>
+                        </button>
+                    )}
+
+                    {!isTableTab && driverSupportsDmlPreview && (
+                        <button
+                            onClick={handleDmlPreviewAction}
+                            disabled={!activeConnectionId || dmlPreviewLoading}
+                            className="flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                            title={t('editor.dmlPreview.action')}
+                        >
+                            <Eye size={16} />
+                            <span className="hidden @[640px]:inline whitespace-nowrap">
+                                {t('editor.dmlPreview.action')}
                             </span>
                         </button>
                     )}
@@ -6979,6 +7149,21 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     openExplainForQuery(q);
                 }}
                 onClose={() => setIsExplainSelectionOpen(false)}
+            />
+            <DmlPreviewModal
+                isOpen={isDmlPreviewOpen}
+                onClose={() => {
+                    dmlPreviewGenerationRef.current++;
+                    setIsDmlPreviewOpen(false);
+                    setDmlPreviewLoading(false);
+                }}
+                preview={dmlPreview}
+                error={dmlPreviewError}
+                loading={dmlPreviewLoading}
+                onRunStatement={(sql) => {
+                    setIsDmlPreviewOpen(false);
+                    void runQuery(sql, 1, dmlPreviewTabId);
+                }}
             />
             {tabContextMenu &&
                 (() => {

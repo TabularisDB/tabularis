@@ -2147,6 +2147,22 @@
       "copyDetailsFailed": "Error al copiar los detalles del nodo al portapapeles",
       "nodeDetails": "Detalles del nodo"
     },
+    "dmlPreview": {
+      "action": "Vista previa de cambios",
+      "title": "Vista previa de cambios",
+      "titleUpdate": "Vista previa de UPDATE en {{target}}",
+      "titleDelete": "Vista previa de DELETE en {{target}}",
+      "loading": "Generando la vista previa…",
+      "previewSql": "SQL de vista previa",
+      "truncated": "Se muestran las primeras {{limit}} filas; hay más coincidencias.",
+      "noFilter": "Esta sentencia no tiene cláusula WHERE, así que afectaría a todas las filas de {{target}}.",
+      "triggers": "Disparadores en {{target}}: {{triggers}}. Reglas: {{rules}}. Se ejecutan al correr la sentencia, no en esta vista previa.",
+      "canDiffer": "Las escrituras concurrentes y los disparadores pueden hacer que el efecto final difiera de esta vista previa.",
+      "empty": "Ninguna fila coincide con esta sentencia.",
+      "runStatement": "Ejecutar sentencia",
+      "close": "Cerrar",
+      "notAvailable": "La vista previa está disponible para un único UPDATE o DELETE de PostgreSQL sobre una tabla."
+    },
     "notebook": {
       "addSqlCell": "Agregar Celda SQL",
       "addMarkdownCell": "Agregar Celda Markdown",

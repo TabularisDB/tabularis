@@ -453,6 +453,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::release_query_session,
             commands::get_server_now,
             commands::explain_query_plan,
+            commands::preview_dml_changes,
             commands::count_query,
             commands::cancel_query,
             commands::get_views,

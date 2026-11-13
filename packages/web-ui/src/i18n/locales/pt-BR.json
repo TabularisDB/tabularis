@@ -2185,6 +2185,22 @@
       "copyDetailsFailed": "Falha ao copiar detalhes do nó para a área de transferência",
       "nodeDetails": "Detalhes do nó"
     },
+    "dmlPreview": {
+      "action": "Pré-visualizar alterações",
+      "title": "Pré-visualizar alterações",
+      "titleUpdate": "Pré-visualizar UPDATE em {{target}}",
+      "titleDelete": "Pré-visualizar DELETE em {{target}}",
+      "loading": "Gerando a pré-visualização…",
+      "previewSql": "SQL da pré-visualização",
+      "truncated": "Mostrando as primeiras {{limit}} linhas; há mais correspondências.",
+      "noFilter": "Esta instrução não tem cláusula WHERE, então afetaria todas as linhas de {{target}}.",
+      "triggers": "Gatilhos em {{target}}: {{triggers}}. Regras: {{rules}}. Eles são executados na execução, não nesta pré-visualização.",
+      "canDiffer": "Gravações simultâneas e gatilhos podem fazer o efeito final diferir desta pré-visualização.",
+      "empty": "Nenhuma linha corresponde a esta instrução.",
+      "runStatement": "Executar instrução",
+      "close": "Fechar",
+      "notAvailable": "A pré-visualização está disponível para um único UPDATE ou DELETE do PostgreSQL em uma tabela."
+    },
     "notebook": {
       "addSqlCell": "Adicionar Célula SQL",
       "addMarkdownCell": "Adicionar Célula Markdown",

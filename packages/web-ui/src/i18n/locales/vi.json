@@ -2216,6 +2216,22 @@
       "copyDetailsFailed": "Không thể sao chép chi tiết nút vào khay nhớ tạm",
       "nodeDetails": "Chi tiết nút"
     },
+    "dmlPreview": {
+      "action": "Xem trước thay đổi",
+      "title": "Xem trước thay đổi",
+      "titleUpdate": "Xem trước UPDATE trên {{target}}",
+      "titleDelete": "Xem trước DELETE trên {{target}}",
+      "loading": "Đang tạo bản xem trước…",
+      "previewSql": "SQL xem trước",
+      "truncated": "Đang hiện {{limit}} hàng đầu tiên; còn các hàng khác khớp.",
+      "noFilter": "Câu lệnh này không có mệnh đề WHERE, vì vậy sẽ ảnh hưởng đến mọi hàng trong {{target}}.",
+      "triggers": "{{target}} có {{triggers}} trigger và {{rules}} quy tắc. Chúng chạy khi thực thi, không phải trong bản xem trước này.",
+      "canDiffer": "Ghi đồng thời và trigger có thể làm kết quả cuối khác với bản xem trước này.",
+      "empty": "Không có hàng nào khớp với câu lệnh này.",
+      "runStatement": "Chạy câu lệnh",
+      "close": "Đóng",
+      "notAvailable": "Xem trước có sẵn cho một câu UPDATE hoặc DELETE PostgreSQL trên một bảng."
+    },
     "notebook": {
       "addSqlCell": "Thêm ô SQL",
       "addMarkdownCell": "Thêm ô Markdown",

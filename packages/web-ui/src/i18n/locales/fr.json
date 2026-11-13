@@ -2214,6 +2214,22 @@
       "copyDetailsFailed": "Échec de la copie des détails du nœud dans le presse-papiers",
       "nodeDetails": "Détails du nœud"
     },
+    "dmlPreview": {
+      "action": "Prévisualiser les modifications",
+      "title": "Prévisualiser les modifications",
+      "titleUpdate": "Prévisualiser l’UPDATE sur {{target}}",
+      "titleDelete": "Prévisualiser le DELETE sur {{target}}",
+      "loading": "Génération de l’aperçu…",
+      "previewSql": "SQL de l’aperçu",
+      "truncated": "Affichage des {{limit}} premières lignes ; d’autres lignes correspondent.",
+      "noFilter": "Cette instruction n’a pas de clause WHERE, elle affecterait donc toutes les lignes de {{target}}.",
+      "triggers": "Déclencheurs sur {{target}} : {{triggers}}. Règles : {{rules}}. Ils s’exécutent lors de l’exécution, pas dans cet aperçu.",
+      "canDiffer": "Des écritures concurrentes et des déclencheurs peuvent faire différer l’effet final de cet aperçu.",
+      "empty": "Aucune ligne ne correspond à cette instruction.",
+      "runStatement": "Exécuter l’instruction",
+      "close": "Fermer",
+      "notAvailable": "L’aperçu est disponible pour un seul UPDATE ou DELETE PostgreSQL sur une table."
+    },
     "notebook": {
       "addSqlCell": "Ajouter une cellule SQL",
       "addMarkdownCell": "Ajouter une cellule Markdown",

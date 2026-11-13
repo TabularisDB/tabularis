@@ -1615,6 +1615,29 @@ pub async fn explain_query_plan<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn preview_dml_changes<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    sql: String,
+    schema: Option<String>,
+    database: Option<String>,
+    limit: Option<u32>,
+) -> Result<crate::application::dml_preview::DmlPreview, String> {
+    crate::application::dml_preview::preview(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        crate::application::dml_preview::DmlPreviewRequest {
+            connection_id,
+            sql,
+            schema,
+            database,
+            limit,
+        },
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn count_query<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,

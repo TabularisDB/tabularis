@@ -586,6 +586,29 @@ export function defineTransportContractSuite(
                 },
             });
             await expect(
+                harness.transport.call('preview_dml_changes', {
+                    connectionId: 'query-fixture',
+                    sql: "UPDATE orders SET status = 'paid' WHERE id = 1",
+                    limit: 100,
+                }),
+            ).resolves.toEqual({
+                kind: 'update',
+                target: '"public"."orders"',
+                sourceSql: "UPDATE orders SET status = 'paid' WHERE id = 1",
+                connectionId: 'query-fixture',
+                schema: null,
+                database: null,
+                previewSql:
+                    'SELECT "status" AS "status (current)", \'paid\' AS "status (proposed)", "orders".* FROM "orders" WHERE ("id" OPERATOR(pg_catalog.=) 1) LIMIT 101',
+                assignedColumns: ['status'],
+                hasFilter: true,
+                limit: 100,
+                truncated: false,
+                triggers: 0,
+                rules: 0,
+                result: QUERY_RESULT,
+            });
+            await expect(
                 harness.transport.call('cancel_query', {
                     connectionId: 'query-fixture',
                     queryRequestId: 'query-request-1',
@@ -1599,6 +1622,30 @@ async function handleRequest(
                     payload: '[]',
                     original_query: 'SELECT 1 AS value',
                 },
+            },
+        },
+        preview_dml_changes: {
+            request: {
+                connectionId: 'query-fixture',
+                sql: "UPDATE orders SET status = 'paid' WHERE id = 1",
+                limit: 100,
+            },
+            response: {
+                kind: 'update',
+                target: '"public"."orders"',
+                sourceSql: "UPDATE orders SET status = 'paid' WHERE id = 1",
+                connectionId: 'query-fixture',
+                schema: null,
+                database: null,
+                previewSql:
+                    'SELECT "status" AS "status (current)", \'paid\' AS "status (proposed)", "orders".* FROM "orders" WHERE ("id" OPERATOR(pg_catalog.=) 1) LIMIT 101',
+                assignedColumns: ['status'],
+                hasFilter: true,
+                limit: 100,
+                truncated: false,
+                triggers: 0,
+                rules: 0,
+                result: QUERY_RESULT,
             },
         },
         cancel_query: {

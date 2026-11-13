@@ -2185,6 +2185,22 @@
       "copyDetailsFailed": "ノードの詳細をクリップボードにコピーできませんでした",
       "nodeDetails": "ノードの詳細"
     },
+    "dmlPreview": {
+      "action": "変更をプレビュー",
+      "title": "変更をプレビュー",
+      "titleUpdate": "{{target}} の UPDATE をプレビュー",
+      "titleDelete": "{{target}} の DELETE をプレビュー",
+      "loading": "プレビューを作成しています…",
+      "previewSql": "プレビュー SQL",
+      "truncated": "先頭 {{limit}} 行を表示しています。さらに一致する行があります。",
+      "noFilter": "この文には WHERE 句がないため、{{target}} のすべての行が対象になります。",
+      "triggers": "{{target}} にはトリガーが {{triggers}} 個、ルールが {{rules}} 個あります。実行時に動作し、このプレビューでは動きません。",
+      "canDiffer": "同時実行の書き込みやトリガーにより、最終結果はこのプレビューと異なる場合があります。",
+      "empty": "この文に一致する行はありません。",
+      "runStatement": "文を実行",
+      "close": "閉じる",
+      "notAvailable": "プレビューは、1 つのテーブルに対する単一の PostgreSQL UPDATE または DELETE で利用できます。"
+    },
     "notebook": {
       "addSqlCell": "SQL セルを追加",
       "addMarkdownCell": "Markdown セルを追加",
