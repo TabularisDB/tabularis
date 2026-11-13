@@ -1,6 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {renderHook, waitFor, act} from '@testing-library/react';
 import {UpdateProvider} from '@/contexts/UpdateProvider';
+import {WebSessionProvider} from '@/contexts/WebSessionProvider';
 import {useUpdate} from '@/hooks/useUpdate';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
@@ -47,6 +48,15 @@ const WEB_SESSION: SessionNegotiation = {
         streaming: false,
     },
 };
+
+function createUpdateWrapper(session: SessionNegotiation | null = null) {
+    return ({children}: {children: React.ReactNode}) =>
+        React.createElement(
+            WebSessionProvider,
+            {session},
+            React.createElement(UpdateProvider, null, children),
+        );
+}
 
 describe('UpdateProvider', () => {
     let unlistenProgressMock: () => void;
@@ -106,8 +116,7 @@ describe('UpdateProvider', () => {
 
     it('exposes server information without starting native updater work in web mode', async () => {
         vi.useFakeTimers();
-        const wrapper = ({children}: {children: React.ReactNode}) =>
-            React.createElement(UpdateProvider, {session: WEB_SESSION}, children);
+        const wrapper = createUpdateWrapper(WEB_SESSION);
 
         const {result} = renderHook(() => useUpdate(), {wrapper});
 

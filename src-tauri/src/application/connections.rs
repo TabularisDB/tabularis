@@ -1,10 +1,10 @@
 #[path = "connection_secret_writes.rs"]
 mod connection_secret_writes;
-use connection_secret_writes::SecretWrites;
+pub(crate) use connection_secret_writes::SecretWrites;
 
 use crate::models::{
-    ConnectionAppearance, ConnectionGroup, ConnectionParams, ConnectionsFile, SavedConnection,
-    TestConnectionRequest,
+    ConnectionAppearance, ConnectionGroup, ConnectionParams, ConnectionsFile, CredentialProfile,
+    SavedConnection, TestConnectionRequest,
 };
 use crate::plugin_secrets::PluginSecretChanges;
 use crate::runtime::{state::ApplicationState, RuntimeContext};
@@ -116,6 +116,21 @@ pub enum ConnectionCommand {
     SetConnectionTags {
         connection_id: String,
         tag_ids: Vec<String>,
+    },
+    ListCredentialProfiles,
+    CreateCredentialProfile {
+        name: String,
+        username: String,
+        password: String,
+    },
+    UpdateCredentialProfile {
+        id: String,
+        name: String,
+        username: String,
+        password: Option<String>,
+    },
+    DeleteCredentialProfile {
+        id: String,
     },
     GetRegisteredDrivers,
     GetDriverManifest {
@@ -325,6 +340,27 @@ pub async fn execute_for_session(
             save_file(runtime, state, &file)?;
             Ok(Value::Null)
         }
+        ConnectionCommand::ListCredentialProfiles => json(load_file(runtime)?.credential_profiles),
+        ConnectionCommand::CreateCredentialProfile {
+            name,
+            username,
+            password,
+        } => json(create_credential_profile(
+            runtime, state, name, username, password,
+        )?),
+        ConnectionCommand::UpdateCredentialProfile {
+            id,
+            name,
+            username,
+            password,
+        } => {
+            update_credential_profile(runtime, state, id, name, username, password)?;
+            Ok(Value::Null)
+        }
+        ConnectionCommand::DeleteCredentialProfile { id } => {
+            delete_credential_profile(runtime, state, id)?;
+            Ok(Value::Null)
+        }
         ConnectionCommand::GetRegisteredDrivers => {
             json(crate::drivers::registry::list_drivers().await)
         }
@@ -389,12 +425,14 @@ pub(crate) fn resolve_saved_connection_params(
     session_id: Option<Uuid>,
     connection_id: &str,
 ) -> Result<(String, ConnectionParams), String> {
-    let saved = find_connection(&load_file(runtime)?, connection_id)?;
+    let file = load_file(runtime)?;
+    let saved = find_connection(&file, connection_id)?;
     let driver_id = saved.params.driver.clone();
     let plugin_secrets = load_plugin_secrets(runtime, &saved);
     let mut params = saved.params;
     super::read_only::prepare_params(&mut params);
     restore_secrets_for_connect(runtime, connection_id, &mut params)?;
+    apply_credential_profile(runtime, &file, &mut params)?;
     params.extra.extend(plugin_secrets);
     params.connection_id = Some(connection_id.to_string());
     let params =
@@ -476,6 +514,40 @@ fn save_file(
     Ok(())
 }
 
+/// Applies `modify` to `connections.json` under the same exclusive lock as
+/// delete and import, then drops the cached connection list.
+///
+/// `modify` records its keychain changes in the [`SecretWrites`] it receives.
+/// On a `modify` error, or when writing the file fails, those changes are
+/// rolled back before the lock is released, so a concurrent import or delete
+/// can never interleave with them. `modify` must not call [`load_file`] or
+/// [`save_file`]: the lock is not reentrant, and [`save_file`] takes it again.
+fn modify_connections_file<T>(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    modify: impl FnOnce(&mut ConnectionsFile, &mut SecretWrites) -> Result<T, String>,
+) -> Result<T, String> {
+    let path = runtime.paths.connections_file();
+    let value = crate::persistence::with_connections_file_exclusive(|| {
+        let mut file = crate::persistence::read_connections_file(&path)?;
+        let mut writes = SecretWrites::default();
+        let value = match modify(&mut file, &mut writes) {
+            Ok(value) => value,
+            Err(error) => {
+                writes.rollback(runtime);
+                return Err(error);
+            }
+        };
+        if let Err(error) = crate::persistence::write_connections_file(&path, &file) {
+            writes.rollback(runtime);
+            return Err(error);
+        }
+        Ok(value)
+    })?;
+    state.connection_cache.invalidate();
+    Ok(value)
+}
+
 fn find_connection(file: &ConnectionsFile, id: &str) -> Result<SavedConnection, String> {
     file.connections
         .iter()
@@ -522,6 +594,164 @@ fn secret_account(connection_id: &str, suffix: &str) -> String {
     format!("{connection_id}:{suffix}")
 }
 
+/// Keychain account for a shared credential profile password. Uses a dedicated
+/// namespace so a profile id cannot collide with a connection id (`{id}:db`).
+pub(crate) fn profile_db_secret_account(profile_id: &str) -> String {
+    format!("{profile_id}:profile:db")
+}
+
+fn validate_credential_profile_reference(
+    file: &ConnectionsFile,
+    connection_id: &str,
+    params: &ConnectionParams,
+) -> Result<(), String> {
+    if let Some(profile_id) = params.credential_profile_id.as_deref() {
+        if !file
+            .credential_profiles
+            .iter()
+            .any(|profile| profile.id == profile_id)
+        {
+            return Err(format!("Credential profile '{profile_id}' not found"));
+        }
+        crate::credential_profiles::validate_connection_profile_link(connection_id, profile_id)?;
+    }
+    Ok(())
+}
+
+/// Profile-linked connections never keep an inline DB password in `connections.json`.
+fn clear_profile_owned_inline_password(params: &mut ConnectionParams) {
+    if params.credential_profile_id.is_some() {
+        params.password = None;
+    }
+}
+
+/// Deletes a stale per-connection DB secret unless it aliases a linked profile's account.
+fn delete_connection_db_secret_if_distinct(
+    runtime: &RuntimeContext,
+    writes: &mut SecretWrites,
+    connection_id: &str,
+    profile_id: Option<&str>,
+) -> Result<(), String> {
+    if profile_id.is_some_and(|profile_id| {
+        crate::credential_profiles::connection_db_collides_with_profile_db(
+            connection_id,
+            profile_id,
+        )
+    }) {
+        return Ok(());
+    }
+    writes.delete(runtime, secret_account(connection_id, DB_SECRET_SUFFIX))?;
+    Ok(())
+}
+
+fn skip_connection_db_keychain_delete(connection: &SavedConnection) -> bool {
+    let Some(profile_id) = connection.params.credential_profile_id.as_deref() else {
+        return false;
+    };
+    crate::credential_profiles::connection_db_collides_with_profile_db(&connection.id, profile_id)
+}
+
+fn persist_credential_profile_password(
+    runtime: &RuntimeContext,
+    cache: &crate::credential_cache::CredentialCache,
+    file: &ConnectionsFile,
+    profile_id: &str,
+    password: &str,
+    writes: &mut SecretWrites,
+) -> Result<(), String> {
+    if password.is_empty() {
+        return Err("Credential profile password cannot be empty".to_string());
+    }
+    writes.set(runtime, profile_db_secret_account(profile_id), password)?;
+    for connection_id in crate::credential_profiles::connection_ids_for_profile(file, profile_id) {
+        crate::credential_cache::invalidate_db_password(cache, &connection_id);
+    }
+    Ok(())
+}
+
+fn create_credential_profile(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    name: String,
+    username: String,
+    password: String,
+) -> Result<CredentialProfile, String> {
+    modify_connections_file(runtime, state, |file, writes| {
+        let profile = crate::credential_profiles::create_profile_impl(file, &name, &username)?;
+        persist_credential_profile_password(
+            runtime,
+            &state.credential_cache,
+            file,
+            &profile.id,
+            &password,
+            writes,
+        )?;
+        Ok(profile)
+    })
+}
+
+fn delete_credential_profile(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    id: String,
+) -> Result<(), String> {
+    modify_connections_file(runtime, state, |file, writes| {
+        let dependents = crate::credential_profiles::dependent_connections_for_profile(file, &id);
+        if !dependents.is_empty() {
+            return Err(
+                crate::credential_profiles::credential_profile_delete_blocked_error(&id, dependents),
+            );
+        }
+        if !file
+            .credential_profiles
+            .iter()
+            .any(|profile| profile.id == id)
+        {
+            return Err("Credential profile not found".to_string());
+        }
+        crate::credential_profiles::validate_profile_keychain_namespace(file, &id)?;
+        // The keychain delete belongs in the same lock window as the metadata
+        // removal: a failed delete then leaves the file untouched instead of
+        // publishing a removal it has to undo afterwards.
+        writes.delete(runtime, profile_db_secret_account(&id))?;
+        crate::credential_profiles::delete_profile_impl(file, &id)?;
+        crate::credential_cache::invalidate_db_password(&state.credential_cache, &id);
+        Ok(())
+    })?;
+    Ok(())
+}
+
+fn update_credential_profile(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    id: String,
+    name: String,
+    username: String,
+    password: Option<String>,
+) -> Result<(), String> {
+    modify_connections_file(runtime, state, |file, writes| {
+        if !file
+            .credential_profiles
+            .iter()
+            .any(|profile| profile.id == id)
+        {
+            return Err("Credential profile not found".to_string());
+        }
+        if let Some(password) = password.as_deref() {
+            persist_credential_profile_password(
+                runtime,
+                &state.credential_cache,
+                file,
+                &id,
+                password,
+                writes,
+            )?;
+        }
+        crate::credential_profiles::update_profile_impl(file, &id, &name, &username)?;
+        Ok(())
+    })
+}
+
 fn non_empty(value: Option<&String>) -> Option<&str> {
     value.map(String::as_str).filter(|value| !value.is_empty())
 }
@@ -562,15 +792,29 @@ fn persist_passwords(
     writes: &mut SecretWrites,
 ) -> Result<(), String> {
     if !params.save_in_keychain.unwrap_or(false) {
+        clear_profile_owned_inline_password(params);
         return Ok(());
     }
     let mut password_writes = SecretWrites::default();
+    let profile_id = params.credential_profile_id.clone();
     let result = (|| {
+        if profile_id.is_some() {
+            clear_profile_owned_inline_password(params);
+            delete_connection_db_secret_if_distinct(
+                runtime,
+                &mut password_writes,
+                id,
+                profile_id.as_deref(),
+            )?;
+        }
         for (suffix, value) in [
             (DB_SECRET_SUFFIX, params.password.as_deref()),
             (SSH_SECRET_SUFFIX, params.ssh_password.as_deref()),
             (SSH_PASSPHRASE_SUFFIX, params.ssh_key_passphrase.as_deref()),
         ] {
+            if suffix == DB_SECRET_SUFFIX && profile_id.is_some() {
+                continue;
+            }
             if let Some(value) = value {
                 if value.is_empty() {
                     password_writes.delete(runtime, secret_account(id, suffix))?;
@@ -638,6 +882,10 @@ fn merge_and_persist_update_secrets(
             SSH_PASSPHRASE_SUFFIX,
         ),
     ] {
+        if suffix == DB_SECRET_SUFFIX && params.credential_profile_id.is_some() {
+            *field = None;
+            continue;
+        }
         if field.is_none() {
             *field = if existing.save_in_keychain.unwrap_or(false) {
                 runtime.secrets.get(&secret_account(id, suffix))?
@@ -645,6 +893,15 @@ fn merge_and_persist_update_secrets(
                 previous.clone()
             };
         }
+    }
+    if params.credential_profile_id.is_some() {
+        clear_profile_owned_inline_password(params);
+        delete_connection_db_secret_if_distinct(
+            runtime,
+            writes,
+            id,
+            params.credential_profile_id.as_deref(),
+        )?;
     }
     if !params.ssh_enabled.unwrap_or(false) && keychain {
         // Empty values delete the stored SSH secrets of a disabled tunnel.
@@ -728,11 +985,24 @@ fn persist_plugin_secrets(
 }
 
 /// Secrets a plugin SQL builder may forward: the connection URI, the database
-/// password and the plugin-owned secrets. Never fails (see
-/// `commands::apply_sql_builder_secrets`); SSH secrets are skipped because the
+/// password and the plugin-owned secrets. SSH secrets are skipped because the
 /// builders never open tunnels.
-pub(crate) fn bind_sql_builder_secrets(runtime: &RuntimeContext, connection: &mut SavedConnection) {
+///
+/// Credential profiles fail closed (same as connect/test): an unresolved profile
+/// aborts with an error and never falls back to inline connection credentials.
+/// Other keychain reads stay lenient via [`commands::apply_sql_builder_secrets`].
+pub(crate) fn bind_sql_builder_secrets(
+    runtime: &RuntimeContext,
+    connection: &mut SavedConnection,
+) -> Result<(), String> {
     let id = connection.id.clone();
+    let profile_password = if connection.params.credential_profile_id.is_some() {
+        let file = load_file(runtime)?;
+        apply_credential_profile(runtime, &file, &mut connection.params)?;
+        connection.params.password.clone()
+    } else {
+        None
+    };
     crate::commands::apply_sql_builder_secrets(
         &mut connection.params,
         &id,
@@ -746,14 +1016,19 @@ pub(crate) fn bind_sql_builder_secrets(runtime: &RuntimeContext, connection: &mu
             }
         },
         || {
-            runtime
-                .secrets
-                .get(&secret_account(&id, DB_SECRET_SUFFIX))?
-                .ok_or_else(|| "No password stored".to_string())
+            if let Some(password) = profile_password {
+                Ok(password)
+            } else {
+                runtime
+                    .secrets
+                    .get(&secret_account(&id, DB_SECRET_SUFFIX))?
+                    .ok_or_else(|| "No password stored".to_string())
+            }
         },
     );
     let plugin_secrets = load_plugin_secrets(runtime, connection);
     connection.params.extra.extend(plugin_secrets);
+    Ok(())
 }
 
 fn delete_plugin_secrets(runtime: &RuntimeContext, connection: &SavedConnection) {
@@ -765,6 +1040,51 @@ fn delete_plugin_secrets(runtime: &RuntimeContext, connection: &SavedConnection)
     }
 }
 
+/// Replace a connection's inline login with the shared credential profile it
+/// references. The profile supplies the username and the password stored under
+/// `{profile_id}:profile:db` (see [`profile_db_secret_account`]).
+///
+/// Fail-closed: a referenced profile that is missing, or a profile without a
+/// stored password, is an error. It never falls back to the connection's own
+/// password, so a stale inline credential cannot silently take over.
+///
+/// IAM connections keep their per-connect token: the profile only supplies the
+/// username, because their password is never a stored secret.
+pub(crate) fn resolve_credential_profile(
+    params: &mut ConnectionParams,
+    profiles: &[CredentialProfile],
+    read_password: impl FnOnce(&str) -> Result<Option<String>, String>,
+) -> Result<(), String> {
+    let Some(profile_id) = params.credential_profile_id.clone() else {
+        return Ok(());
+    };
+    let profile = profiles
+        .iter()
+        .find(|profile| profile.id == profile_id)
+        .ok_or_else(|| format!("Credential profile '{profile_id}' not found"))?;
+    let username = profile.username.clone();
+    if params.use_iam_auth.unwrap_or(false) {
+        params.username = Some(username);
+        return Ok(());
+    }
+    let password = read_password(&profile_id)?.ok_or_else(|| {
+        format!("Password for credential profile '{profile_id}' is unavailable in the OS keychain")
+    })?;
+    params.username = Some(username);
+    params.password = Some(password);
+    Ok(())
+}
+
+fn apply_credential_profile(
+    runtime: &RuntimeContext,
+    file: &ConnectionsFile,
+    params: &mut ConnectionParams,
+) -> Result<(), String> {
+    resolve_credential_profile(params, &file.credential_profiles, |profile_id| {
+        runtime.secrets.get(&profile_db_secret_account(profile_id))
+    })
+}
+
 fn restore_secrets(
     runtime: &RuntimeContext,
     id: &str,
@@ -772,7 +1092,9 @@ fn restore_secrets(
 ) -> Result<(), String> {
     if params.save_in_keychain.unwrap_or(false) {
         // IAM tokens expire after 15 minutes, so a stored one is always stale.
-        if params.password.as_deref().is_none_or(str::is_empty)
+        // A referenced credential profile owns the password instead.
+        if params.credential_profile_id.is_none()
+            && params.password.as_deref().is_none_or(str::is_empty)
             && !params.use_iam_auth.unwrap_or(false)
         {
             params.password = runtime.secrets.get(&secret_account(id, DB_SECRET_SUFFIX))?;
@@ -827,23 +1149,23 @@ fn save_connection(
     detect_json_in_text_columns: Option<bool>,
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
-    let mut file = load_file(runtime)?;
     let id = Uuid::new_v4().to_string();
     let environment = validate_environment(environment)?;
-    let mut writes = SecretWrites::default();
-    let result = (|| {
+    let connection = modify_connections_file(runtime, state, |file, writes| {
         params.connection_id = None;
+        validate_credential_profile_reference(file, &id, &params)?;
         let plugin_secret_keys = persist_plugin_secrets(
             runtime,
             &id,
             None,
             &mut params,
             &plugin_secret_changes,
-            &mut writes,
+            writes,
         )?;
-        persist_secrets_for_create(runtime, &id, &mut params, &mut writes)?;
+        persist_secrets_for_create(runtime, &id, &mut params, writes)?;
+        clear_profile_owned_inline_password(&mut params);
         let connection = SavedConnection {
-            id,
+            id: id.clone(),
             name,
             params,
             plugin_secret_keys,
@@ -856,23 +1178,22 @@ fn save_connection(
             managed: false,
         };
         file.connections.push(connection.clone());
-        save_file(runtime, state, &file)?;
-        if !connection.params.save_in_keychain.unwrap_or(false) {
-            for suffix in [DB_SECRET_SUFFIX, SSH_SECRET_SUFFIX, SSH_PASSPHRASE_SUFFIX] {
-                if let Err(error) = runtime
-                    .secrets
-                    .delete(&secret_account(&connection.id, suffix))
-                {
-                    log::warn!("Failed to remove unused connection credential: {error}");
-                }
+        Ok(connection)
+    })?;
+    if !connection.params.save_in_keychain.unwrap_or(false) {
+        for suffix in [DB_SECRET_SUFFIX, SSH_SECRET_SUFFIX, SSH_PASSPHRASE_SUFFIX] {
+            if suffix == DB_SECRET_SUFFIX && skip_connection_db_keychain_delete(&connection) {
+                continue;
+            }
+            if let Err(error) = runtime
+                .secrets
+                .delete(&secret_account(&connection.id, suffix))
+            {
+                log::warn!("Failed to remove unused connection credential: {error}");
             }
         }
-        Ok(redact_connection(connection))
-    })();
-    if result.is_err() {
-        writes.rollback(runtime);
     }
-    result
+    Ok(redact_connection(connection))
 }
 
 /// Creates an empty SQLite file and saves a connection to it. The file is
@@ -987,26 +1308,26 @@ fn update_connection(
     detect_json_in_text_columns: Option<bool>,
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
-    let mut file = load_file(runtime)?;
-    let index = file
-        .connections
-        .iter()
-        .position(|connection| connection.id == id)
-        .ok_or_else(|| "Connection not found".to_string())?;
-    let existing = file.connections[index].clone();
-    let environment = validate_environment(environment)?;
-    let mut writes = SecretWrites::default();
-    let result = (|| {
+    let (connection, previous_database) = modify_connections_file(runtime, state, |file, writes| {
+        let index = file
+            .connections
+            .iter()
+            .position(|connection| connection.id == id)
+            .ok_or_else(|| "Connection not found".to_string())?;
+        let existing = file.connections[index].clone();
+        let environment = validate_environment(environment)?;
         params.connection_id = None;
+        validate_credential_profile_reference(file, &id, &params)?;
         let plugin_secret_keys = persist_plugin_secrets(
             runtime,
             &id,
             Some((&existing.params.driver, &existing.plugin_secret_keys)),
             &mut params,
             &plugin_secret_changes,
-            &mut writes,
+            writes,
         )?;
-        merge_and_persist_update_secrets(runtime, &id, &existing.params, &mut params, &mut writes)?;
+        merge_and_persist_update_secrets(runtime, &id, &existing.params, &mut params, writes)?;
+        clear_profile_owned_inline_password(&mut params);
         let connection = SavedConnection {
             id,
             name,
@@ -1020,47 +1341,47 @@ fn update_connection(
             environment,
             managed: existing.managed,
         };
+        let previous_database = existing.params.database;
         file.connections[index] = connection.clone();
-        save_file(runtime, state, &file)?;
-        if !connection.params.save_in_keychain.unwrap_or(false) {
-            for suffix in [DB_SECRET_SUFFIX, SSH_SECRET_SUFFIX, SSH_PASSPHRASE_SUFFIX] {
-                if let Err(error) = runtime
-                    .secrets
-                    .delete(&secret_account(&connection.id, suffix))
-                {
-                    log::warn!("Failed to remove unused connection credential: {error}");
-                }
+        Ok((connection, previous_database))
+    })?;
+    if !connection.params.save_in_keychain.unwrap_or(false) {
+        for suffix in [DB_SECRET_SUFFIX, SSH_SECRET_SUFFIX, SSH_PASSPHRASE_SUFFIX] {
+            if suffix == DB_SECRET_SUFFIX && skip_connection_db_keychain_delete(&connection) {
+                continue;
+            }
+            if let Err(error) = runtime
+                .secrets
+                .delete(&secret_account(&connection.id, suffix))
+            {
+                log::warn!("Failed to remove unused connection credential: {error}");
             }
         }
-        crate::credential_cache::invalidate_all_for_connection(
-            &state.credential_cache,
-            &connection.id,
-        );
-        if let Some(database) = crate::models::single_db_before_multi_transition(
-            &existing.params.database,
-            &connection.params.database,
-        ) {
-            if let Err(error) = super::productivity::backfill_saved_queries_for_connection(
-                runtime.paths.config_dir(),
-                &connection.id,
-                &database,
-            ) {
-                log::warn!("Failed to backfill saved query database: {error}");
-            }
-            if let Err(error) = super::productivity::backfill_query_history_for_connection(
-                runtime.paths.config_dir(),
-                &connection.id,
-                &database,
-            ) {
-                log::warn!("Failed to backfill query history database: {error}");
-            }
-        }
-        Ok(redact_connection(connection))
-    })();
-    if result.is_err() {
-        writes.rollback(runtime);
     }
-    result
+    crate::credential_cache::invalidate_all_for_connection(
+        &state.credential_cache,
+        &connection.id,
+    );
+    if let Some(database) = crate::models::single_db_before_multi_transition(
+        &previous_database,
+        &connection.params.database,
+    ) {
+        if let Err(error) = super::productivity::backfill_saved_queries_for_connection(
+            runtime.paths.config_dir(),
+            &connection.id,
+            &database,
+        ) {
+            log::warn!("Failed to backfill saved query database: {error}");
+        }
+        if let Err(error) = super::productivity::backfill_query_history_for_connection(
+            runtime.paths.config_dir(),
+            &connection.id,
+            &database,
+        ) {
+            log::warn!("Failed to backfill query history database: {error}");
+        }
+    }
+    Ok(redact_connection(connection))
 }
 
 fn delete_connection(
@@ -1507,8 +1828,9 @@ fn prepare_connection_request(
     super::read_only::prepare_params(&mut request.params);
     let iam_auth = request.params.use_iam_auth.unwrap_or(false);
     let mut stored_plugin_secrets = std::collections::HashMap::new();
+    let file = load_file(runtime)?;
     let saved = match request.connection_id.as_deref() {
-        Some(connection_id) => find_connection(&load_file(runtime)?, connection_id).ok(),
+        Some(connection_id) => find_connection(&file, connection_id).ok(),
         None => None,
     };
     if let Some(saved) = saved {
@@ -1518,11 +1840,17 @@ fn prepare_connection_request(
             stored_plugin_secrets = load_plugin_secrets(runtime, &saved);
             stored_plugin_secrets.retain(|key, _| !request.plugin_secret_changes.contains_key(key));
         }
-        if request.params.password.as_deref().is_none_or(str::is_empty) && !iam_auth {
+        if request.params.credential_profile_id.is_none()
+            && request.params.password.as_deref().is_none_or(str::is_empty)
+            && !iam_auth
+        {
             request.params.password = saved.params.password;
         }
         restore_secrets_for_connect(runtime, &saved.id, &mut request.params)?;
     }
+    // A profile selected in the modal (saved or not) owns the login; resolve it
+    // after the saved connection's secrets so it always wins.
+    apply_credential_profile(runtime, &file, &mut request.params)?;
     crate::plugin_secrets::apply_runtime_changes(
         &mut request.params,
         stored_plugin_secrets,

@@ -488,6 +488,10 @@ enum ConnectionRpcCommand {
     UpdateConnectionTag,
     DeleteConnectionTag,
     SetConnectionTags,
+    ListCredentialProfiles,
+    CreateCredentialProfile,
+    UpdateCredentialProfile,
+    DeleteCredentialProfile,
     GetRegisteredDrivers,
     GetDriverManifest,
     GetActiveConnections,
@@ -1356,6 +1360,23 @@ struct CreateTagRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateCredentialProfileRequest {
+    name: String,
+    username: String,
+    password: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UpdateCredentialProfileRequest {
+    id: String,
+    name: String,
+    username: String,
+    password: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SetTagsRequest {
     connection_id: String,
     tag_ids: Vec<String>,
@@ -2109,8 +2130,8 @@ impl RpcCommand {
                 application_error_code: "QUERY_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
-            Self::Connection(_) => CommandMetadata {
-                authorization: AuthorizationLevel::Database,
+            Self::Connection(command) => CommandMetadata {
+                authorization: command.authorization(),
                 application_error_code: "CONNECTION_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
@@ -2665,6 +2686,10 @@ impl ConnectionRpcCommand {
             "update_connection_tag" => Self::UpdateConnectionTag,
             "delete_connection_tag" => Self::DeleteConnectionTag,
             "set_connection_tags" => Self::SetConnectionTags,
+            "list_credential_profiles" => Self::ListCredentialProfiles,
+            "create_credential_profile" => Self::CreateCredentialProfile,
+            "update_credential_profile" => Self::UpdateCredentialProfile,
+            "delete_credential_profile" => Self::DeleteCredentialProfile,
             "get_registered_drivers" => Self::GetRegisteredDrivers,
             "get_driver_manifest" => Self::GetDriverManifest,
             "get_active_connections" => Self::GetActiveConnections,
@@ -2674,6 +2699,16 @@ impl ConnectionRpcCommand {
             "list_databases" => Self::ListDatabases,
             _ => return None,
         })
+    }
+
+    fn authorization(self) -> AuthorizationLevel {
+        match self {
+            Self::ListCredentialProfiles
+            | Self::CreateCredentialProfile
+            | Self::UpdateCredentialProfile
+            | Self::DeleteCredentialProfile => AuthorizationLevel::LocalAdmin,
+            _ => AuthorizationLevel::Database,
+        }
     }
 }
 
@@ -4380,6 +4415,31 @@ fn decode_connection_command(
                 connection_id: request.connection_id,
                 tag_ids: request.tag_ids,
             }
+        }
+        ConnectionRpcCommand::ListCredentialProfiles => {
+            decode_empty_payload(body)?;
+            ConnectionCommand::ListCredentialProfiles
+        }
+        ConnectionRpcCommand::CreateCredentialProfile => {
+            let request: CreateCredentialProfileRequest = decode_payload(body)?;
+            ConnectionCommand::CreateCredentialProfile {
+                name: request.name,
+                username: request.username,
+                password: request.password,
+            }
+        }
+        ConnectionRpcCommand::UpdateCredentialProfile => {
+            let request: UpdateCredentialProfileRequest = decode_payload(body)?;
+            ConnectionCommand::UpdateCredentialProfile {
+                id: request.id,
+                name: request.name,
+                username: request.username,
+                password: request.password,
+            }
+        }
+        ConnectionRpcCommand::DeleteCredentialProfile => {
+            let request: IdRequest = decode_payload(body)?;
+            ConnectionCommand::DeleteCredentialProfile { id: request.id }
         }
         ConnectionRpcCommand::GetRegisteredDrivers => {
             decode_empty_payload(body)?;

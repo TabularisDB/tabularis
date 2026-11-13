@@ -55,6 +55,8 @@ pub fn build_payload(
         ssh_connections: Vec::new(),
         k8s_connections: Vec::new(),
         tags: Vec::new(),
+        credential_profiles: Vec::new(),
+        credential_profile_secrets: HashMap::new(),
         plugin_secrets: HashMap::new(),
     };
 
