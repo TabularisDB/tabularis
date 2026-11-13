@@ -608,6 +608,7 @@
         "applyToAll": "Áp dụng cho tất cả:"
       },
       "tabularisJsonHint": "Tệp xuất của Tabularis (.json)",
+      "projectConfigHint": "Quét các tệp .env hoặc Docker Compose",
       "menuLabel": "Nhập kết nối…",
       "group": {
         "label": "Nhóm:",

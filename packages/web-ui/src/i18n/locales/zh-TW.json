@@ -615,6 +615,7 @@
                 "applyToAll": "全部操作:"
             },
             "tabularisJsonHint": "Tabularis 匯出檔案 (.json)",
+            "projectConfigHint": "掃描 .env 或 Docker Compose 檔案",
             "menuLabel": "匯入連線…",
             "group": {
                 "label": "群組：",

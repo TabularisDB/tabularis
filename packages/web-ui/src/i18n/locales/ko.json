@@ -557,6 +557,7 @@
         "replace": "교체"
       },
       "tabularisJsonHint": "Tabularis 내보내기 파일 (.json)",
+      "projectConfigHint": ".env 또는 Docker Compose 파일 검사",
       "menuLabel": "연결 가져오기…",
       "group": {
         "label": "그룹:",

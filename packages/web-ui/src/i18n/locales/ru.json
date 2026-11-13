@@ -620,6 +620,7 @@
         "applyToAll": "Действие для всех:"
       },
       "tabularisJsonHint": "Файл экспорта Tabularis (.json)",
+      "projectConfigHint": "Сканировать файлы .env или Docker Compose",
       "menuLabel": "Импорт подключений…",
       "group": {
         "label": "Группа:",

@@ -125,7 +125,7 @@ fn collect_warnings(
     driver_id: &str,
     file_exists: &dyn Fn(&str) -> bool,
 ) -> Vec<String> {
-    let mut warnings = Vec::new();
+    let mut warnings = conn.warnings.clone();
 
     if let Some(ssh) = &conn.ssh {
         if let Some(key) = ssh.private_key_path.as_deref().filter(|s| !s.is_empty()) {
@@ -205,6 +205,7 @@ mod tests {
             ssh: None,
             ssl: None,
             group_name: None,
+            warnings: Vec::new(),
         }
     }
 

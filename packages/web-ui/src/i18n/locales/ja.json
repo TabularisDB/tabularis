@@ -617,6 +617,7 @@
         "applyToAll": "すべての操作:"
       },
       "tabularisJsonHint": "Tabularis エクスポートファイル (.json)",
+      "projectConfigHint": ".env または Docker Compose ファイルをスキャン",
       "menuLabel": "接続をインポート…",
       "group": {
         "label": "グループ:",

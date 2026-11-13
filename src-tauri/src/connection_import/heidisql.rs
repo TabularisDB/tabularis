@@ -197,5 +197,6 @@ fn parse_session(
         ssh,
         ssl: None,
         group_name,
+        warnings: Vec::new(),
     }
 }

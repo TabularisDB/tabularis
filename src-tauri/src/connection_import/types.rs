@@ -24,6 +24,8 @@ pub struct ImportedConnection {
     pub ssl: Option<ImportedSsl>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
