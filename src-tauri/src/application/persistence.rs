@@ -374,6 +374,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         formatter_lines_between_queries,
         formatter_dense_operators,
         ping_interval,
+        auto_reconnect,
         query_history_max_entries,
         show_welcome,
         start_maximized,

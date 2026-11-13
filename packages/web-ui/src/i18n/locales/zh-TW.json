@@ -615,6 +615,7 @@
                 "applyToAll": "全部操作:"
             },
             "tabularisJsonHint": "Tabularis 匯出檔案 (.json)",
+            "projectConfigHint": "掃描 .env 或 Docker Compose 檔案",
             "menuLabel": "匯入連線…",
             "group": {
                 "label": "群組：",
@@ -1071,6 +1072,8 @@
         "connectionHealthCheck": "連線健康檢查",
         "pingInterval": "Ping 間隔",
         "pingIntervalDesc": "檢查使用中的連線是否仍然有效的頻率。設定為 0 可停用。",
+        "autoReconnect": "自動重新連線",
+        "autoReconnectDesc": "連線未通過健康檢查時，在關閉前嘗試重新連線一次。中斷的查詢絕不會重新執行，開啟中的交易會被回滾。",
         "seconds": "秒",
         "entries": "條目",
         "queryHistory": "查詢歷史",
@@ -2221,6 +2224,22 @@
             "copyDetailsFailed": "無法將節點詳情複製到剪貼簿",
             "nodeDetails": "節點詳情"
         },
+        "dmlPreview": {
+            "action": "預覽變更",
+            "title": "預覽變更",
+            "titleUpdate": "預覽對 {{target}} 的 UPDATE",
+            "titleDelete": "預覽對 {{target}} 的 DELETE",
+            "loading": "正在產生預覽…",
+            "previewSql": "預覽 SQL",
+            "truncated": "正在顯示前 {{limit}} 列；還有更多符合的列。",
+            "noFilter": "此陳述式沒有 WHERE 子句，因此會影響 {{target}} 中的每一列。",
+            "triggers": "{{target}} 有 {{triggers}} 個觸發程序與 {{rules}} 條規則。它們會在執行時執行，而不會在此預覽中執行。",
+            "canDiffer": "並行寫入與觸發程序可能使最終效果與此預覽不同。",
+            "empty": "沒有列符合此陳述式。",
+            "runStatement": "執行陳述式",
+            "close": "關閉",
+            "notAvailable": "預覽適用於針對單一資料表的一條 PostgreSQL UPDATE 或 DELETE。"
+        },
         "notebook": {
             "addSqlCell": "新增 SQL 儲存格",
             "addMarkdownCell": "新增 Markdown 儲存格",
@@ -2505,7 +2524,10 @@
     },
     "healthCheck": {
         "title": "連線中斷",
-        "connectionLost": "資料庫連線已中斷"
+        "connectionLost": "資料庫連線已中斷",
+        "reconnecting": "連線中斷，正在重新連線…",
+        "reconnected": "連線已恢復。",
+        "reconnectedSessionsReset": "連線已恢復。開啟中的查詢工作階段已重設，未提交的交易已回滾。"
     },
     "erDiagram": {
         "title": "ER 圖",
@@ -2624,6 +2646,77 @@
         "breakingChanges": "重大變更",
         "readMore": "瞭解更多",
         "dismiss": "知道了"
+    },
+    "tableRowTransfer": {
+        "contextMenuLabel": "傳輸到其他連線…",
+        "title": "傳輸資料表中的列",
+        "appendOnly": "列將附加到已存在的資料表。不會清空、刪除、取代或建立任何內容。",
+        "targetConnection": "目標連線",
+        "targetDatabase": "目標資料庫",
+        "targetSchema": "目標 Schema",
+        "targetTable": "目標資料表",
+        "selectPlaceholder": "選擇…",
+        "noTargets": "沒有與此來源相容的連線。",
+        "noTables": "目標中找不到資料表。",
+        "review": "檢視計畫",
+        "start": "開始傳輸",
+        "success": "資料表傳輸已完成",
+        "mapping": "欄位對應",
+        "sourceColumn": "來源欄位",
+        "sourceType": "來源類型",
+        "targetColumn": "目標欄位",
+        "targetColumnFor": "{{column}} 的目標欄位",
+        "targetType": "目標類型",
+        "conversion": "轉換",
+        "skipColumn": "略過此欄位",
+        "skipped": "已略過",
+        "rule": {
+            "exact": "精確",
+            "exactHint": "值原樣複製。",
+            "checked": "已驗證",
+            "checkedHint": "每個值都會驗證；會遺失資訊的值將中止傳輸。"
+        },
+        "conflictLabel": "當列已存在時",
+        "conflict": {
+            "fail": "在第一個被拒絕的列停止",
+            "failHint": "已提交的列會保留在目標中。",
+            "skip": "略過重複列",
+            "skipHint": "違反唯一鍵或主鍵的列將被略過。其他任何錯誤仍會中止傳輸。"
+        },
+        "estimatedRows": "約 {{count}} 列（估計）",
+        "blocked": "無法開始此傳輸",
+        "running": "傳輸中…",
+        "progress": "已寫入 {{written}} 列，已略過 {{skipped}} 列",
+        "status": {
+            "completed": "已完成",
+            "failed": "失敗",
+            "cancelled": "已取消",
+            "notStarted": "未開始",
+            "running": "執行中"
+        },
+        "rowsWritten": "已寫入列數",
+        "rowsSkipped": "已略過列數",
+        "rowsFailed": "已回復列數（最後一批）",
+        "committedRemain": "{{count}} 列已提交，並保留在目標資料表中，未被回復。",
+        "issue": {
+            "targetReadOnly": "目標連線為唯讀。",
+            "duplicateTargetTable": "同一個目標資料表被選擇了兩次。",
+            "sourceTableNotFound": "找不到來源資料表。",
+            "targetTableNotFound": "目標資料表不存在。傳輸不會建立資料表。",
+            "sourceEqualsTarget": "來源與目標是同一張資料表。",
+            "targetIdentityUnverified": "Tabularis 無法確認來源與目標連線指向不同的資料庫，因此已封鎖此傳輸，以免將資料表寫入自身。",
+            "unknownSourceColumn": "未知的來源欄位",
+            "unknownTargetColumn": "未知的目標欄位",
+            "noTargetColumn": "沒有相符的目標欄位；請對應或明確略過",
+            "duplicateTargetColumn": "兩個來源欄位對應到同一個目標欄位",
+            "targetColumnGenerated": "目標欄位是產生欄位，無法寫入",
+            "unsupportedSourceType": "不支援的來源欄位類型",
+            "unsupportedTargetType": "不支援的目標欄位類型",
+            "incompatibleTypes": "來源與目標類型不相容",
+            "requiredTargetColumnUnmapped": "必要的目標欄位沒有對應的來源",
+            "noColumnsMapped": "沒有已對應的欄位",
+            "unknown": "未知問題"
+        }
     },
     "dump": {
         "title": "匯出資料庫",

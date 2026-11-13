@@ -617,6 +617,7 @@
         "applyToAll": "Action pour tout:"
       },
       "tabularisJsonHint": "Fichier d'export Tabularis (.json)",
+      "projectConfigHint": "Analyser les fichiers .env ou Docker Compose",
       "menuLabel": "Importer des connexions…",
       "group": {
         "label": "Groupe :",
@@ -1041,6 +1042,8 @@
     "connectionHealthCheck": "Vérification de l’état des connexions",
     "pingInterval": "Intervalle de ping",
     "pingIntervalDesc": "À quelle fréquence vérifier si les connexions actives sont toujours vivantes. Définissez 0 pour désactiver.",
+    "autoReconnect": "Reconnexion automatique",
+    "autoReconnectDesc": "Lorsqu'une connexion échoue à la vérification d'état, une reconnexion est tentée une fois avant sa fermeture. Les requêtes interrompues ne sont jamais relancées et les transactions ouvertes sont annulées.",
     "seconds": "secondes",
     "entries": "entrées",
     "queryHistory": "Historique des requêtes",
@@ -2211,6 +2214,22 @@
       "copyDetailsFailed": "Échec de la copie des détails du nœud dans le presse-papiers",
       "nodeDetails": "Détails du nœud"
     },
+    "dmlPreview": {
+      "action": "Prévisualiser les modifications",
+      "title": "Prévisualiser les modifications",
+      "titleUpdate": "Prévisualiser l’UPDATE sur {{target}}",
+      "titleDelete": "Prévisualiser le DELETE sur {{target}}",
+      "loading": "Génération de l’aperçu…",
+      "previewSql": "SQL de l’aperçu",
+      "truncated": "Affichage des {{limit}} premières lignes ; d’autres lignes correspondent.",
+      "noFilter": "Cette instruction n’a pas de clause WHERE, elle affecterait donc toutes les lignes de {{target}}.",
+      "triggers": "Déclencheurs sur {{target}} : {{triggers}}. Règles : {{rules}}. Ils s’exécutent lors de l’exécution, pas dans cet aperçu.",
+      "canDiffer": "Des écritures concurrentes et des déclencheurs peuvent faire différer l’effet final de cet aperçu.",
+      "empty": "Aucune ligne ne correspond à cette instruction.",
+      "runStatement": "Exécuter l’instruction",
+      "close": "Fermer",
+      "notAvailable": "L’aperçu est disponible pour un seul UPDATE ou DELETE PostgreSQL sur une table."
+    },
     "notebook": {
       "addSqlCell": "Ajouter une cellule SQL",
       "addMarkdownCell": "Ajouter une cellule Markdown",
@@ -2495,7 +2514,10 @@
   },
   "healthCheck": {
     "title": "Connexion perdue",
-    "connectionLost": "Une connexion à la base de données a été perdue"
+    "connectionLost": "Une connexion à la base de données a été perdue",
+    "reconnecting": "Connexion perdue. Reconnexion…",
+    "reconnected": "Connexion rétablie.",
+    "reconnectedSessionsReset": "Connexion rétablie. Les sessions de requête ouvertes ont été réinitialisées et toute transaction non validée a été annulée."
   },
   "erDiagram": {
     "title": "Diagramme ER",
@@ -2614,6 +2636,77 @@
     "breakingChanges": "Changements incompatibles",
     "readMore": "En savoir plus",
     "dismiss": "Compris"
+  },
+  "tableRowTransfer": {
+    "contextMenuLabel": "Transférer vers une autre connexion…",
+    "title": "Transférer les lignes de la table",
+    "appendOnly": "Les lignes sont ajoutées à une table existante. Rien n'est tronqué, supprimé, remplacé ni créé.",
+    "targetConnection": "Connexion cible",
+    "targetDatabase": "Base de données cible",
+    "targetSchema": "Schéma cible",
+    "targetTable": "Table cible",
+    "selectPlaceholder": "Sélectionner…",
+    "noTargets": "Aucune connexion compatible n'est disponible pour cette source.",
+    "noTables": "Aucune table trouvée dans la cible.",
+    "review": "Vérifier le plan",
+    "start": "Démarrer le transfert",
+    "success": "Transfert de table terminé",
+    "mapping": "Correspondance des colonnes",
+    "sourceColumn": "Colonne source",
+    "sourceType": "Type source",
+    "targetColumn": "Colonne cible",
+    "targetColumnFor": "Colonne cible pour {{column}}",
+    "targetType": "Type cible",
+    "conversion": "Conversion",
+    "skipColumn": "Ignorer cette colonne",
+    "skipped": "Ignorée",
+    "rule": {
+      "exact": "Exacte",
+      "exactHint": "La valeur est copiée telle quelle.",
+      "checked": "Vérifiée",
+      "checkedHint": "Chaque valeur est vérifiée ; une valeur qui perdrait de l'information arrête le transfert."
+    },
+    "conflictLabel": "Quand une ligne existe déjà",
+    "conflict": {
+      "fail": "S'arrêter à la première ligne rejetée",
+      "failHint": "Les lignes déjà validées restent dans la cible.",
+      "skip": "Ignorer les lignes en double",
+      "skipHint": "Les lignes qui violent une clé unique ou primaire sont ignorées. Toute autre erreur arrête toujours le transfert."
+    },
+    "estimatedRows": "Environ {{count}} lignes (estimation)",
+    "blocked": "Ce transfert ne peut pas démarrer",
+    "running": "Transfert en cours…",
+    "progress": "{{written}} lignes écrites, {{skipped}} ignorées",
+    "status": {
+      "completed": "Terminé",
+      "failed": "Échoué",
+      "cancelled": "Annulé",
+      "notStarted": "Non démarré",
+      "running": "En cours"
+    },
+    "rowsWritten": "Lignes écrites",
+    "rowsSkipped": "Lignes ignorées",
+    "rowsFailed": "Lignes annulées (dernier lot)",
+    "committedRemain": "{{count}} lignes étaient déjà validées et restent dans la table cible. Elles n'ont pas été annulées.",
+    "issue": {
+      "targetReadOnly": "La connexion cible est en lecture seule.",
+      "duplicateTargetTable": "La même table cible est sélectionnée deux fois.",
+      "sourceTableNotFound": "La table source est introuvable.",
+      "targetTableNotFound": "La table cible n'existe pas. Un transfert ne crée jamais de table.",
+      "sourceEqualsTarget": "La source et la cible sont la même table.",
+      "targetIdentityUnverified": "Tabularis ne peut pas confirmer que les connexions source et cible atteignent des bases de données différentes ; le transfert est bloqué pour éviter d'écrire une table dans elle-même.",
+      "unknownSourceColumn": "Colonne source inconnue",
+      "unknownTargetColumn": "Colonne cible inconnue",
+      "noTargetColumn": "Aucune colonne cible ne correspond ; associez-la ou ignorez-la explicitement",
+      "duplicateTargetColumn": "Deux colonnes source pointent vers la même colonne cible",
+      "targetColumnGenerated": "La colonne cible est générée et ne peut pas être écrite",
+      "unsupportedSourceType": "Type de colonne source non pris en charge",
+      "unsupportedTargetType": "Type de colonne cible non pris en charge",
+      "incompatibleTypes": "Les types source et cible ne sont pas compatibles",
+      "requiredTargetColumnUnmapped": "Une colonne cible obligatoire n'a pas de source",
+      "noColumnsMapped": "Aucune colonne n'est associée",
+      "unknown": "Problème inconnu"
+    }
   },
   "dump": {
     "title": "Exporter la base de données",

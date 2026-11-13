@@ -603,6 +603,7 @@
         "applyToAll": "全部操作:"
       },
       "tabularisJsonHint": "Tabularis 导出文件 (.json)",
+      "projectConfigHint": "扫描 .env 或 Docker Compose 文件",
       "menuLabel": "导入连接…",
       "group": {
         "label": "分组：",
@@ -2144,6 +2145,22 @@
       "copyDetailsFailed": "无法将节点详情复制到剪贴板",
       "nodeDetails": "节点详情"
     },
+    "dmlPreview": {
+      "action": "预览更改",
+      "title": "预览更改",
+      "titleUpdate": "预览对 {{target}} 的 UPDATE",
+      "titleDelete": "预览对 {{target}} 的 DELETE",
+      "loading": "正在生成预览…",
+      "previewSql": "预览 SQL",
+      "truncated": "正在显示前 {{limit}} 行；还有更多匹配的行。",
+      "noFilter": "这条语句没有 WHERE 子句，因此会影响到 {{target}} 中的每一行。",
+      "triggers": "{{target}} 有 {{triggers}} 个触发器和 {{rules}} 条规则。它们会在执行时运行，而不会在此预览中运行。",
+      "canDiffer": "并发写入和触发器可能使最终效果与此预览不同。",
+      "empty": "没有行匹配此语句。",
+      "runStatement": "运行语句",
+      "close": "关闭",
+      "notAvailable": "预览适用于针对单个表的一条 PostgreSQL UPDATE 或 DELETE。"
+    },
     "notebook": {
       "addSqlCell": "添加 SQL 单元格",
       "addMarkdownCell": "添加 Markdown 单元格",
@@ -2493,6 +2510,77 @@
     "breakingChanges": "重大变更",
     "readMore": "了解更多",
     "dismiss": "知道了"
+  },
+  "tableRowTransfer": {
+    "contextMenuLabel": "传输到其他连接…",
+    "title": "传输表中的行",
+    "appendOnly": "行将追加到已存在的表中。不会清空、删除、替换或创建任何内容。",
+    "targetConnection": "目标连接",
+    "targetDatabase": "目标数据库",
+    "targetSchema": "目标 Schema",
+    "targetTable": "目标表",
+    "selectPlaceholder": "选择…",
+    "noTargets": "没有与此来源兼容的连接。",
+    "noTables": "目标中没有找到表。",
+    "review": "查看计划",
+    "start": "开始传输",
+    "success": "表传输已完成",
+    "mapping": "列映射",
+    "sourceColumn": "源列",
+    "sourceType": "源类型",
+    "targetColumn": "目标列",
+    "targetColumnFor": "{{column}} 的目标列",
+    "targetType": "目标类型",
+    "conversion": "转换",
+    "skipColumn": "跳过此列",
+    "skipped": "已跳过",
+    "rule": {
+      "exact": "精确",
+      "exactHint": "值原样复制。",
+      "checked": "已校验",
+      "checkedHint": "每个值都会校验；会丢失信息的值将中止传输。"
+    },
+    "conflictLabel": "当行已存在时",
+    "conflict": {
+      "fail": "在第一个被拒绝的行处停止",
+      "failHint": "已提交的行会保留在目标中。",
+      "skip": "跳过重复行",
+      "skipHint": "违反唯一键或主键的行将被跳过。其他任何错误仍会中止传输。"
+    },
+    "estimatedRows": "约 {{count}} 行（估算）",
+    "blocked": "无法开始此传输",
+    "running": "正在传输…",
+    "progress": "已写入 {{written}} 行，已跳过 {{skipped}} 行",
+    "status": {
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "notStarted": "未开始",
+      "running": "运行中"
+    },
+    "rowsWritten": "已写入行数",
+    "rowsSkipped": "已跳过行数",
+    "rowsFailed": "已回滚行数（最后一批）",
+    "committedRemain": "{{count}} 行已提交，并保留在目标表中，未被回滚。",
+    "issue": {
+      "targetReadOnly": "目标连接为只读。",
+      "duplicateTargetTable": "同一个目标表被选择了两次。",
+      "sourceTableNotFound": "未找到源表。",
+      "targetTableNotFound": "目标表不存在。传输不会创建表。",
+      "sourceEqualsTarget": "源和目标是同一张表。",
+      "targetIdentityUnverified": "Tabularis 无法确认源连接和目标连接指向不同的数据库，因此已阻止此传输，以免将表写入自身。",
+      "unknownSourceColumn": "未知的源列",
+      "unknownTargetColumn": "未知的目标列",
+      "noTargetColumn": "没有匹配的目标列；请映射或明确跳过",
+      "duplicateTargetColumn": "两个源列映射到同一个目标列",
+      "targetColumnGenerated": "目标列是生成列，无法写入",
+      "unsupportedSourceType": "不支持的源列类型",
+      "unsupportedTargetType": "不支持的目标列类型",
+      "incompatibleTypes": "源类型与目标类型不兼容",
+      "requiredTargetColumnUnmapped": "必需的目标列没有对应的源",
+      "noColumnsMapped": "没有已映射的列",
+      "unknown": "未知问题"
+    }
   },
   "dump": {
     "title": "导出数据库",

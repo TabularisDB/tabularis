@@ -604,6 +604,7 @@
         "applyToAll": "Aktion für alle:"
       },
       "tabularisJsonHint": "Tabularis-Exportdatei (.json)",
+      "projectConfigHint": ".env- oder Docker Compose-Dateien scannen",
       "menuLabel": "Verbindungen importieren…",
       "group": {
         "label": "Gruppe:",
@@ -1008,6 +1009,8 @@
     "connectionHealthCheck": "Verbindungszustandsprüfung",
     "pingInterval": "Ping-Intervall",
     "pingIntervalDesc": "Wie oft geprüft werden soll, ob aktive Verbindungen noch erreichbar sind. Setze 0, um die Prüfung zu deaktivieren.",
+    "autoReconnect": "Automatisch neu verbinden",
+    "autoReconnectDesc": "Wenn eine Verbindung die Integritätsprüfung nicht besteht, wird vor dem Schließen einmal versucht, neu zu verbinden. Unterbrochene Abfragen werden nie erneut ausgeführt, offene Transaktionen werden zurückgesetzt.",
     "seconds": "Sekunden",
     "entries": "Einträge",
     "queryHistory": "Abfrageverlauf",
@@ -2171,6 +2174,22 @@
       "copyDetailsFailed": "Knotendetails konnten nicht in die Zwischenablage kopiert werden",
       "nodeDetails": "Knotendetails"
     },
+    "dmlPreview": {
+      "action": "Änderungen vorschauen",
+      "title": "Änderungen vorschauen",
+      "titleUpdate": "UPDATE auf {{target}} vorschauen",
+      "titleDelete": "DELETE auf {{target}} vorschauen",
+      "loading": "Vorschau wird erstellt…",
+      "previewSql": "Vorschau-SQL",
+      "truncated": "Die ersten {{limit}} Zeilen werden angezeigt; es gibt weitere Treffer.",
+      "noFilter": "Diese Anweisung hat keine WHERE-Klausel und würde jede Zeile in {{target}} betreffen.",
+      "triggers": "Trigger auf {{target}}: {{triggers}}. Regeln: {{rules}}. Sie laufen bei der Ausführung, nicht in dieser Vorschau.",
+      "canDiffer": "Gleichzeitige Schreibvorgänge und Trigger können das endgültige Ergebnis von dieser Vorschau unterscheiden.",
+      "empty": "Keine Zeilen entsprechen dieser Anweisung.",
+      "runStatement": "Anweisung ausführen",
+      "close": "Schließen",
+      "notAvailable": "Die Vorschau ist für ein einzelnes PostgreSQL-UPDATE oder -DELETE auf einer Tabelle verfügbar."
+    },
     "notebook": {
       "addSqlCell": "SQL-Zelle hinzufügen",
       "addMarkdownCell": "Markdown-Zelle hinzufügen",
@@ -2455,7 +2474,10 @@
   },
   "healthCheck": {
     "title": "Verbindung verloren",
-    "connectionLost": "Eine Datenbankverbindung wurde verloren"
+    "connectionLost": "Eine Datenbankverbindung wurde verloren",
+    "reconnecting": "Verbindung verloren. Neu verbinden…",
+    "reconnected": "Verbindung wiederhergestellt.",
+    "reconnectedSessionsReset": "Verbindung wiederhergestellt. Offene Abfragesitzungen wurden zurückgesetzt und nicht festgeschriebene Transaktionen zurückgerollt."
   },
   "erDiagram": {
     "title": "ER-Diagramm",
@@ -2540,6 +2562,77 @@
     "breakingChanges": "Breaking Changes",
     "readMore": "Mehr lesen",
     "dismiss": "Verstanden"
+  },
+  "tableRowTransfer": {
+    "contextMenuLabel": "In andere Verbindung übertragen…",
+    "title": "Tabellenzeilen übertragen",
+    "appendOnly": "Zeilen werden an eine bestehende Tabelle angehängt. Es wird nichts gekürzt, gelöscht, ersetzt oder angelegt.",
+    "targetConnection": "Zielverbindung",
+    "targetDatabase": "Zieldatenbank",
+    "targetSchema": "Zielschema",
+    "targetTable": "Zieltabelle",
+    "selectPlaceholder": "Auswählen…",
+    "noTargets": "Für diese Quelle ist keine kompatible Verbindung verfügbar.",
+    "noTables": "Im Ziel wurden keine Tabellen gefunden.",
+    "review": "Plan prüfen",
+    "start": "Übertragung starten",
+    "success": "Tabellenübertragung abgeschlossen",
+    "mapping": "Spaltenzuordnung",
+    "sourceColumn": "Quellspalte",
+    "sourceType": "Quelltyp",
+    "targetColumn": "Zielspalte",
+    "targetColumnFor": "Zielspalte für {{column}}",
+    "targetType": "Zieltyp",
+    "conversion": "Konvertierung",
+    "skipColumn": "Spalte überspringen",
+    "skipped": "Übersprungen",
+    "rule": {
+      "exact": "Exakt",
+      "exactHint": "Der Wert wird unverändert kopiert.",
+      "checked": "Geprüft",
+      "checkedHint": "Jeder Wert wird geprüft; ein Wert, der Informationen verlieren würde, stoppt die Übertragung."
+    },
+    "conflictLabel": "Wenn eine Zeile bereits existiert",
+    "conflict": {
+      "fail": "Bei der ersten abgelehnten Zeile anhalten",
+      "failHint": "Bereits festgeschriebene Zeilen bleiben im Ziel.",
+      "skip": "Doppelte Zeilen überspringen",
+      "skipHint": "Zeilen, die einen Unique- oder Primärschlüssel verletzen, werden übersprungen. Jeder andere Fehler stoppt weiterhin die Übertragung."
+    },
+    "estimatedRows": "Etwa {{count}} Zeilen (Schätzung)",
+    "blocked": "Diese Übertragung kann nicht gestartet werden",
+    "running": "Übertragung läuft…",
+    "progress": "{{written}} Zeilen geschrieben, {{skipped}} übersprungen",
+    "status": {
+      "completed": "Abgeschlossen",
+      "failed": "Fehlgeschlagen",
+      "cancelled": "Abgebrochen",
+      "notStarted": "Nicht gestartet",
+      "running": "Läuft"
+    },
+    "rowsWritten": "Geschriebene Zeilen",
+    "rowsSkipped": "Übersprungene Zeilen",
+    "rowsFailed": "Zurückgerollte Zeilen (letzter Stapel)",
+    "committedRemain": "{{count}} Zeilen wurden bereits festgeschrieben und bleiben in der Zieltabelle. Sie wurden nicht zurückgerollt.",
+    "issue": {
+      "targetReadOnly": "Die Zielverbindung ist schreibgeschützt.",
+      "duplicateTargetTable": "Dieselbe Zieltabelle ist doppelt ausgewählt.",
+      "sourceTableNotFound": "Die Quelltabelle wurde nicht gefunden.",
+      "targetTableNotFound": "Die Zieltabelle existiert nicht. Eine Übertragung legt nie Tabellen an.",
+      "sourceEqualsTarget": "Quelle und Ziel sind dieselbe Tabelle.",
+      "targetIdentityUnverified": "Tabularis kann nicht bestätigen, dass Quell- und Zielverbindung unterschiedliche Datenbanken erreichen. Die Übertragung wird blockiert, damit keine Tabelle in sich selbst geschrieben wird.",
+      "unknownSourceColumn": "Unbekannte Quellspalte",
+      "unknownTargetColumn": "Unbekannte Zielspalte",
+      "noTargetColumn": "Keine Zielspalte passt; zuordnen oder ausdrücklich überspringen",
+      "duplicateTargetColumn": "Zwei Quellspalten werden derselben Zielspalte zugeordnet",
+      "targetColumnGenerated": "Die Zielspalte ist generiert und kann nicht beschrieben werden",
+      "unsupportedSourceType": "Nicht unterstützter Typ der Quellspalte",
+      "unsupportedTargetType": "Nicht unterstützter Typ der Zielspalte",
+      "incompatibleTypes": "Quell- und Zieltyp sind nicht kompatibel",
+      "requiredTargetColumnUnmapped": "Eine erforderliche Zielspalte hat keine Quelle",
+      "noColumnsMapped": "Es sind keine Spalten zugeordnet",
+      "unknown": "Unbekanntes Problem"
+    }
   },
   "dump": {
     "title": "Datenbank sichern",

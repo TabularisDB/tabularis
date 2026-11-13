@@ -329,6 +329,28 @@ export interface ExplainQueryRequest extends MetadataRequest {
     analyze: boolean;
 }
 
+export interface PreviewDmlChangesRequest extends MetadataRequest {
+    sql: string;
+    limit?: number;
+}
+
+export interface DmlPreview {
+    kind: 'update' | 'delete';
+    target: string;
+    sourceSql: string;
+    connectionId: string;
+    schema: string | null;
+    database: string | null;
+    previewSql: string;
+    assignedColumns: string[];
+    hasFilter: boolean;
+    limit: number;
+    truncated: boolean;
+    triggers: number;
+    rules: number;
+    result: QueryResult;
+}
+
 export interface CancelQueryRequest extends ConnectionIdRequest {
     queryRequestId?: RequestId;
 }
@@ -473,6 +495,93 @@ export interface DatabaseImportRequest extends ConnectionIdRequest {
     filePath?: string;
     /** Browser-only opaque upload token. */
     uploadToken?: string;
+}
+
+export type TableTransferConflictMode = 'fail' | 'skip';
+
+export interface TableTransferColumnMapping {
+    sourceColumn: string;
+    /** `null` skips the source column explicitly. */
+    targetColumn: string | null;
+}
+
+export interface TableTransferSelection {
+    sourceTable: string;
+    targetTable: string;
+    /** Omitted columns are matched to the target by name. */
+    columns?: TableTransferColumnMapping[];
+}
+
+export interface TableTransferRequest {
+    sourceConnectionId: string;
+    sourceDatabase?: string;
+    sourceSchema?: string;
+    targetConnectionId: string;
+    targetDatabase?: string;
+    targetSchema?: string;
+    tables: TableTransferSelection[];
+    conflict?: TableTransferConflictMode;
+    batchRows?: number;
+    /** Required to run; identifies the job for progress events and cancellation. */
+    transferId?: string;
+}
+
+export interface TableTransferCapabilities {
+    pairs: Array<{source: string; target: string}>;
+    writeModes: string[];
+    conflictModes: TableTransferConflictMode[];
+    maxBatchRows: number;
+    defaultBatchRows: number;
+}
+
+export interface TableTransferIssue {
+    code: string;
+    column?: string;
+}
+
+export interface TableTransferColumnPlan {
+    sourceColumn: string;
+    sourceType: string;
+    targetColumn: string | null;
+    targetType: string | null;
+    rule: 'exact' | 'checked' | null;
+    skipped: boolean;
+    issue: string | null;
+}
+
+export interface TableTransferTablePlan {
+    sourceTable: string;
+    targetTable: string;
+    columns: TableTransferColumnPlan[];
+    issues: TableTransferIssue[];
+    blocking: boolean;
+    estimatedRows: number | null;
+}
+
+export interface TableTransferPlan {
+    tables: TableTransferTablePlan[];
+    issues: TableTransferIssue[];
+    blocking: boolean;
+}
+
+export type TableTransferStatus = 'completed' | 'failed' | 'cancelled' | 'notStarted' | 'running';
+
+export interface TableTransferTableResult {
+    sourceTable: string;
+    targetTable: string;
+    status: TableTransferStatus;
+    rowsRead: number;
+    rowsWritten: number;
+    rowsSkipped: number;
+    /** Rows of the batch that was rolled back when the table failed. */
+    rowsFailed: number;
+    error: string | null;
+}
+
+export interface TableTransferResult {
+    transferId: string;
+    status: TableTransferStatus;
+    tables: TableTransferTableResult[];
 }
 
 export type TableSqlContent = 'structure_and_data' | 'structure_only';
@@ -831,6 +940,22 @@ export interface CommandMap {
     cancel_dump: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
     import_database: CommandDefinition<DatabaseImportRequest, void, 'sensitive'>;
     cancel_import: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
+    get_table_transfer_capabilities: CommandDefinition<
+        undefined,
+        TableTransferCapabilities,
+        'sensitive'
+    >;
+    plan_table_transfer: CommandDefinition<
+        {request: TableTransferRequest},
+        TableTransferPlan,
+        'sensitive'
+    >;
+    run_table_transfer: CommandDefinition<
+        {request: TableTransferRequest},
+        TableTransferResult,
+        'sensitive'
+    >;
+    cancel_table_transfer: CommandDefinition<{transferId: string}, void, 'sensitive'>;
     export_table_to_sql: CommandDefinition<TableExportRequest, TableExportResult, 'sensitive'>;
     read_table_sql_header: CommandDefinition<
         TableImportFileRequest,
@@ -1068,6 +1193,7 @@ export interface CommandMap {
         'database'
     >;
     explain_query_plan: CommandDefinition<ExplainQueryRequest, ExplainQueryOutput, 'database'>;
+    preview_dml_changes: CommandDefinition<PreviewDmlChangesRequest, DmlPreview, 'database'>;
     cancel_query: CommandDefinition<CancelQueryRequest, void, 'database'>;
     get_server_now: CommandDefinition<ConnectionIdRequest, string, 'database'>;
 

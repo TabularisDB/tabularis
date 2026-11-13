@@ -1,6 +1,6 @@
 import type {ConnectionTestProgressPayload} from '@/utils/connectionTest';
 import type {BatchStatementResult} from '@/types/editor';
-import type {AuthorizationLevel} from './contract';
+import type {AuthorizationLevel, TableTransferStatus} from './contract';
 import type {SshAskpassRequest} from '@/types/askpass';
 import type {RequestId} from './errors';
 import type {AiActivityEvent, PendingApproval} from '@/types/ai';
@@ -10,6 +10,11 @@ export interface EventDefinition<Payload, Authorization extends AuthorizationLev
     readonly authorization: Authorization;
 }
 
+/** A failed connection being recovered; a failed recovery arrives as `connection-health-failed`. */
+export type ConnectionLifecycleEvent =
+    | {connectionId: string; state: 'reconnecting'}
+    | {connectionId: string; state: 'reconnected'; releasedSessions: number};
+
 export interface EventMap {
     'session-transaction-state': EventDefinition<
         {session_id: string; in_transaction: boolean},
@@ -17,6 +22,7 @@ export interface EventMap {
     >;
     'connection-test-progress': EventDefinition<ConnectionTestProgressPayload, 'database'>;
     'connection-health-failed': EventDefinition<{connectionId: string; error: string}, 'database'>;
+    'connection-lifecycle': EventDefinition<ConnectionLifecycleEvent, 'database'>;
     'connections:active-changed': EventDefinition<string[], 'database'>;
     'database-dropped': EventDefinition<{connectionId: string; database: string}, 'database'>;
     'batch-statement-complete': EventDefinition<
@@ -49,6 +55,21 @@ export interface EventMap {
             total_statements: number;
             percentage: number;
             current_operation: string;
+        },
+        'database'
+    >;
+    table_transfer_progress: EventDefinition<
+        {
+            transfer_id: string;
+            table_index: number;
+            total_tables: number;
+            source_table: string;
+            target_table: string;
+            status: TableTransferStatus;
+            rows_read: number;
+            rows_written: number;
+            rows_skipped: number;
+            estimated_rows: number | null;
         },
         'database'
     >;
@@ -97,6 +118,7 @@ export const EVENT_AUTHORIZATION = {
     'session-transaction-state': 'database',
     'connection-test-progress': 'database',
     'connection-health-failed': 'database',
+    'connection-lifecycle': 'database',
     'connections:active-changed': 'database',
     'database-dropped': 'database',
     'batch-statement-complete': 'database',
@@ -104,6 +126,7 @@ export const EVENT_AUTHORIZATION = {
     'query-cancelled': 'database',
     dump_progress: 'database',
     import_progress: 'database',
+    table_transfer_progress: 'database',
     export_progress: 'database',
     'ssh-askpass://request': 'sensitive',
     'ssh-askpass://dismiss': 'sensitive',

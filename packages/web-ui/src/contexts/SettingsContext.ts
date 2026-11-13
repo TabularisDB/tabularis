@@ -140,6 +140,7 @@ export interface Settings {
     formatterLinesBetweenQueries?: number;
     formatterDenseOperators?: boolean;
     pingInterval?: number;
+    autoReconnect?: boolean;
     queryHistoryMaxEntries?: number;
     showWelcome?: boolean;
     /** Reconnect to the last active connection on startup. Default: true. */
@@ -291,6 +292,7 @@ export const DEFAULT_SETTINGS: Settings = {
     formatterLinesBetweenQueries: 1,
     formatterDenseOperators: false,
     pingInterval: 30,
+    autoReconnect: false,
     queryHistoryMaxEntries: 500,
     autoConnectLastConnection: true,
     startMaximized: false,

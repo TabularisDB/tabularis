@@ -275,6 +275,10 @@ enum DatabaseTransferRpcCommand {
     CancelDump,
     Import,
     CancelImport,
+    GetTableTransferCapabilities,
+    PlanTableTransfer,
+    RunTableTransfer,
+    CancelTableTransfer,
     PreviewTableImport,
     ImportTable,
     CancelTableImport,
@@ -369,6 +373,7 @@ enum QueryRpcCommand {
     Count,
     Explain,
     GetServerNow,
+    PreviewDml,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -672,6 +677,18 @@ struct DumpDatabaseRequest {
     options: DumpOptions,
     schema: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TableTransferRpcRequest {
+    request: crate::table_transfer::TableTransferRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CancelTableTransferRequest {
+    transfer_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1135,6 +1152,16 @@ struct ExecuteQueryRequest {
     schema: Option<String>,
     session_id: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PreviewDmlChangesRequest {
+    connection_id: String,
+    sql: String,
+    schema: Option<String>,
+    database: Option<String>,
+    limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2356,6 +2383,10 @@ impl DatabaseTransferRpcCommand {
             "cancel_dump" => Self::CancelDump,
             "import_database" => Self::Import,
             "cancel_import" => Self::CancelImport,
+            "get_table_transfer_capabilities" => Self::GetTableTransferCapabilities,
+            "plan_table_transfer" => Self::PlanTableTransfer,
+            "run_table_transfer" => Self::RunTableTransfer,
+            "cancel_table_transfer" => Self::CancelTableTransfer,
             "read_table_sql_header" => Self::PreviewTableImport,
             "import_table_from_sql" => Self::ImportTable,
             "cancel_table_import" => Self::CancelTableImport,
@@ -2529,6 +2560,7 @@ impl QueryRpcCommand {
             "count_query" => Self::Count,
             "explain_query_plan" => Self::Explain,
             "get_server_now" => Self::GetServerNow,
+            "preview_dml_changes" => Self::PreviewDml,
             _ => return None,
         })
     }
@@ -2857,6 +2889,22 @@ fn decode_database_transfer_command(
             DatabaseTransferCommand::CancelImport {
                 connection_id: request.connection_id,
             }
+        }
+        DatabaseTransferRpcCommand::GetTableTransferCapabilities => {
+            decode_empty_payload(body)?;
+            DatabaseTransferCommand::GetTableTransferCapabilities
+        }
+        DatabaseTransferRpcCommand::PlanTableTransfer => {
+            let request: TableTransferRpcRequest = decode_payload(body)?;
+            DatabaseTransferCommand::PlanTableTransfer { request: request.request }
+        }
+        DatabaseTransferRpcCommand::RunTableTransfer => {
+            let request: TableTransferRpcRequest = decode_payload(body)?;
+            DatabaseTransferCommand::RunTableTransfer { request: request.request }
+        }
+        DatabaseTransferRpcCommand::CancelTableTransfer => {
+            let request: CancelTableTransferRequest = decode_payload(body)?;
+            DatabaseTransferCommand::CancelTableTransfer { transfer_id: request.transfer_id }
         }
         DatabaseTransferRpcCommand::PreviewTableImport => {
             let request: ReadTableSqlHeaderRequest = decode_payload(body)?;
@@ -3500,6 +3548,16 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
             let request: ConnectionIdRequest = decode_payload(body)?;
             QueryCommand::GetServerNow {
                 connection_id: request.connection_id,
+            }
+        }
+        QueryRpcCommand::PreviewDml => {
+            let request: PreviewDmlChangesRequest = decode_payload(body)?;
+            QueryCommand::PreviewDml {
+                connection_id: request.connection_id,
+                sql: request.sql,
+                schema: request.schema,
+                database: request.database,
+                limit: request.limit,
             }
         }
     })

@@ -114,6 +114,7 @@ pub mod ssh_socks5;
 pub mod ssh_tunnel;
 pub mod ssm_tunnel;
 pub mod storage_location;
+pub mod table_transfer;
 #[cfg(test)]
 pub mod storage_location_tests;
 

@@ -617,6 +617,7 @@
         "applyToAll": "Aksyon para sa lahat:"
       },
       "tabularisJsonHint": "Tabularis export file (.json)",
+      "projectConfigHint": "I-scan ang mga file ng .env o Docker Compose",
       "menuLabel": "Mag-import ng mga koneksyon…",
       "group": {
         "label": "Grupo:",
@@ -1041,6 +1042,8 @@
     "connectionHealthCheck": "Connection Health Check",
     "pingInterval": "Ping Interval",
     "pingIntervalDesc": "Gaano kadalas i-check kung buhay pa ang mga aktibong koneksyon. Itakda sa 0 para i-disable.",
+    "autoReconnect": "Awtomatikong muling kumonekta",
+    "autoReconnectDesc": "Kapag pumalya ang isang koneksyon sa health check, susubukan itong ikonekta muli nang isang beses bago isara. Hindi kailanman muling pinapatakbo ang mga naantalang query, at ibinabalik (rollback) ang mga bukas na transaksyon.",
     "seconds": "segundo",
     "entries": "entry",
     "queryHistory": "Query History",
@@ -2202,6 +2205,22 @@
       "copyDetailsFailed": "Nabigong kopyahin ang mga detalye ng node sa clipboard",
       "nodeDetails": "Mga Detalye ng Node"
     },
+    "dmlPreview": {
+      "action": "I-preview ang mga pagbabago",
+      "title": "I-preview ang mga pagbabago",
+      "titleUpdate": "I-preview ang UPDATE sa {{target}}",
+      "titleDelete": "I-preview ang DELETE sa {{target}}",
+      "loading": "Gumagawa ng preview…",
+      "previewSql": "SQL ng preview",
+      "truncated": "Ipinapakita ang unang {{limit}} (na) row; may iba pang tumutugma.",
+      "noFilter": "Walang WHERE clause ang statement na ito, kaya maaapektuhan nito ang bawat row sa {{target}}.",
+      "triggers": "Mga trigger sa {{target}}: {{triggers}}. Mga rule: {{rules}}. Gumagana ang mga ito sa pag-execute, hindi sa preview na ito.",
+      "canDiffer": "Maaaring magkaiba ang huling epekto sa preview na ito dahil sa sabay-sabay na pagsulat at mga trigger.",
+      "empty": "Walang row na tumutugma sa statement na ito.",
+      "runStatement": "Patakbuhin ang statement",
+      "close": "Isara",
+      "notAvailable": "Available ang preview para sa iisang PostgreSQL UPDATE o DELETE sa isang table."
+    },
     "notebook": {
       "addSqlCell": "Magdagdag ng SQL Cell",
       "addMarkdownCell": "Magdagdag ng Markdown Cell",
@@ -2485,7 +2504,10 @@
   },
   "healthCheck": {
     "title": "Nawala ang Koneksyon",
-    "connectionLost": "Nawala ang isang database connection"
+    "connectionLost": "Nawala ang isang database connection",
+    "reconnecting": "Nawala ang koneksyon. Muling kumokonekta…",
+    "reconnected": "Naibalik ang koneksyon.",
+    "reconnectedSessionsReset": "Naibalik ang koneksyon. Na-reset ang mga bukas na query session at na-rollback ang anumang hindi pa na-commit na transaksyon."
   },
   "erDiagram": {
     "title": "ER Diagram",
@@ -2604,6 +2626,77 @@
     "breakingChanges": "Mga Breaking Change",
     "readMore": "Magbasa pa",
     "dismiss": "Nakuha ko na"
+  },
+  "tableRowTransfer": {
+    "contextMenuLabel": "Ilipat sa ibang koneksyon…",
+    "title": "Ilipat ang mga hilera ng talahanayan",
+    "appendOnly": "Idinaragdag ang mga hilera sa umiiral nang talahanayan. Walang tatanggalin, papalitan, i-truncate o gagawin.",
+    "targetConnection": "Target na koneksyon",
+    "targetDatabase": "Target na database",
+    "targetSchema": "Target na schema",
+    "targetTable": "Target na talahanayan",
+    "selectPlaceholder": "Pumili…",
+    "noTargets": "Walang katugmang koneksyon para sa source na ito.",
+    "noTables": "Walang nakitang talahanayan sa target.",
+    "review": "Suriin ang plano",
+    "start": "Simulan ang paglilipat",
+    "success": "Natapos ang paglilipat ng talahanayan",
+    "mapping": "Pagmamapa ng column",
+    "sourceColumn": "Source column",
+    "sourceType": "Uri ng source",
+    "targetColumn": "Target column",
+    "targetColumnFor": "Target column para sa {{column}}",
+    "targetType": "Uri ng target",
+    "conversion": "Conversion",
+    "skipColumn": "Laktawan ang column na ito",
+    "skipped": "Nilaktawan",
+    "rule": {
+      "exact": "Eksakto",
+      "exactHint": "Kinokopya ang value nang walang pagbabago.",
+      "checked": "Sinuri",
+      "checkedHint": "Sinusuri ang bawat value; ihihinto ang paglilipat kapag may value na mawawalan ng impormasyon."
+    },
+    "conflictLabel": "Kapag umiiral na ang hilera",
+    "conflict": {
+      "fail": "Huminto sa unang tinanggihang hilera",
+      "failHint": "Mananatili sa target ang mga hilerang na-commit na.",
+      "skip": "Laktawan ang mga duplicate na hilera",
+      "skipHint": "Lalaktawan ang mga hilerang lumalabag sa unique o primary key. Ihihinto pa rin ng anumang ibang error ang paglilipat."
+    },
+    "estimatedRows": "Humigit-kumulang {{count}} hilera (tantiya)",
+    "blocked": "Hindi masisimulan ang paglilipat na ito",
+    "running": "Naglilipat…",
+    "progress": "{{written}} hilera ang naisulat, {{skipped}} ang nilaktawan",
+    "status": {
+      "completed": "Tapos na",
+      "failed": "Nabigo",
+      "cancelled": "Kinansela",
+      "notStarted": "Hindi pa nasimulan",
+      "running": "Tumatakbo"
+    },
+    "rowsWritten": "Mga hilerang naisulat",
+    "rowsSkipped": "Mga hilerang nilaktawan",
+    "rowsFailed": "Mga hilerang na-roll back (huling batch)",
+    "committedRemain": "{{count}} hilera ang na-commit na at mananatili sa target na talahanayan. Hindi sila na-roll back.",
+    "issue": {
+      "targetReadOnly": "Read-only ang target na koneksyon.",
+      "duplicateTargetTable": "Dalawang beses napili ang parehong target na talahanayan.",
+      "sourceTableNotFound": "Hindi nakita ang source na talahanayan.",
+      "targetTableNotFound": "Walang target na talahanayan. Hindi gumagawa ng talahanayan ang paglilipat.",
+      "sourceEqualsTarget": "Iisang talahanayan ang source at target.",
+      "targetIdentityUnverified": "Hindi makumpirma ng Tabularis na magkaibang database ang naaabot ng source at target na koneksyon, kaya naka-block ang paglilipat upang hindi masulat ang isang talahanayan sa sarili nito.",
+      "unknownSourceColumn": "Hindi kilalang source column",
+      "unknownTargetColumn": "Hindi kilalang target column",
+      "noTargetColumn": "Walang tugmang target column; imapa o tahasang laktawan",
+      "duplicateTargetColumn": "Dalawang source column ang nakamapa sa iisang target column",
+      "targetColumnGenerated": "Generated ang target column at hindi maisusulatan",
+      "unsupportedSourceType": "Hindi suportadong uri ng source column",
+      "unsupportedTargetType": "Hindi suportadong uri ng target column",
+      "incompatibleTypes": "Hindi magkatugma ang uri ng source at target",
+      "requiredTargetColumnUnmapped": "Walang source ang kinakailangang target column",
+      "noColumnsMapped": "Walang nakamapang column",
+      "unknown": "Hindi kilalang problema"
+    }
   },
   "dump": {
     "title": "I-dump ang Database",

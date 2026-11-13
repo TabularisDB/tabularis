@@ -1525,13 +1525,13 @@ pub(crate) async fn release_connection_sessions<R: Runtime>(
     app: &AppHandle<R>,
     connection_id: &str,
     _params: Option<&ConnectionParams>,
-) {
+) -> usize {
     crate::application::query_sessions::release_connection(
         &app.state::<crate::runtime::RuntimeContext>(),
         None,
         connection_id,
     )
-    .await;
+    .await
 }
 
 #[tauri::command]
@@ -1610,6 +1610,29 @@ pub async fn explain_query_plan<R: Runtime>(
         analyze,
         schema,
         database,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn preview_dml_changes<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    sql: String,
+    schema: Option<String>,
+    database: Option<String>,
+    limit: Option<u32>,
+) -> Result<crate::application::dml_preview::DmlPreview, String> {
+    crate::application::dml_preview::preview(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        crate::application::dml_preview::DmlPreviewRequest {
+            connection_id,
+            sql,
+            schema,
+            database,
+            limit,
+        },
     )
     .await
 }

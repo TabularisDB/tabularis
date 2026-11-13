@@ -617,6 +617,7 @@
         "applyToAll": "Action for all:"
       },
       "tabularisJsonHint": "Tabularis export file (.json)",
+      "projectConfigHint": "Scan .env or Docker Compose files",
       "menuLabel": "Import connections…",
       "group": {
         "label": "Group:",
@@ -1073,6 +1074,8 @@
     "connectionHealthCheck": "Connection Health Check",
     "pingInterval": "Ping Interval",
     "pingIntervalDesc": "How often to check if active connections are still alive. Set to 0 to disable.",
+    "autoReconnect": "Reconnect automatically",
+    "autoReconnectDesc": "When a connection fails its health check, try once to reconnect before closing it. Interrupted queries are never re-run, and open transactions are rolled back.",
     "seconds": "seconds",
     "entries": "entries",
     "queryHistory": "Query History",
@@ -2242,6 +2245,22 @@
       "copyDetailsFailed": "Failed to copy node details to clipboard",
       "nodeDetails": "Node Details"
     },
+    "dmlPreview": {
+      "action": "Preview changes",
+      "title": "Preview changes",
+      "titleUpdate": "Preview UPDATE on {{target}}",
+      "titleDelete": "Preview DELETE on {{target}}",
+      "loading": "Building the preview…",
+      "previewSql": "Preview SQL",
+      "truncated": "Showing the first {{limit}} rows; more rows match.",
+      "noFilter": "This statement has no WHERE clause, so it would affect every row in {{target}}.",
+      "triggers": "Triggers on {{target}}: {{triggers}}. Rules: {{rules}}. They run when the statement is executed, not in this preview.",
+      "canDiffer": "Concurrent writes and triggers can make the final effect differ from this preview.",
+      "empty": "No rows match this statement.",
+      "runStatement": "Run statement",
+      "close": "Close",
+      "notAvailable": "Preview changes is available for a single PostgreSQL UPDATE or DELETE on one table."
+    },
     "notebook": {
       "addSqlCell": "Add SQL Cell",
       "addMarkdownCell": "Add Markdown Cell",
@@ -2526,7 +2545,10 @@
   },
   "healthCheck": {
     "title": "Connection Lost",
-    "connectionLost": "A database connection was lost"
+    "connectionLost": "A database connection was lost",
+    "reconnecting": "Connection lost. Reconnecting…",
+    "reconnected": "Connection restored.",
+    "reconnectedSessionsReset": "Connection restored. Open query sessions were reset and any uncommitted transaction was rolled back."
   },
   "erDiagram": {
     "title": "ER Diagram",
@@ -2645,6 +2667,77 @@
     "breakingChanges": "Breaking Changes",
     "readMore": "Read more",
     "dismiss": "Got it"
+  },
+  "tableRowTransfer": {
+    "contextMenuLabel": "Transfer to another connection…",
+    "title": "Transfer table rows",
+    "appendOnly": "Rows are appended to a table that already exists. Nothing is truncated, dropped, replaced or created.",
+    "targetConnection": "Target connection",
+    "targetDatabase": "Target database",
+    "targetSchema": "Target schema",
+    "targetTable": "Target table",
+    "selectPlaceholder": "Select…",
+    "noTargets": "No compatible connection is available for this source.",
+    "noTables": "No tables found in the target.",
+    "review": "Review plan",
+    "start": "Start transfer",
+    "success": "Table transfer completed",
+    "mapping": "Column mapping",
+    "sourceColumn": "Source column",
+    "sourceType": "Source type",
+    "targetColumn": "Target column",
+    "targetColumnFor": "Target column for {{column}}",
+    "targetType": "Target type",
+    "conversion": "Conversion",
+    "skipColumn": "Skip this column",
+    "skipped": "Skipped",
+    "rule": {
+      "exact": "Exact",
+      "exactHint": "The value is copied unchanged.",
+      "checked": "Checked",
+      "checkedHint": "Every value is verified; a value that would lose information stops the transfer."
+    },
+    "conflictLabel": "When a row already exists",
+    "conflict": {
+      "fail": "Stop at the first rejected row",
+      "failHint": "Rows already committed stay in the target.",
+      "skip": "Skip duplicate rows",
+      "skipHint": "Rows that violate a unique or primary key are skipped. Any other error still stops the transfer."
+    },
+    "estimatedRows": "About {{count}} rows (estimate)",
+    "blocked": "This transfer cannot start",
+    "running": "Transferring…",
+    "progress": "{{written}} rows written, {{skipped}} skipped",
+    "status": {
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "notStarted": "Not started",
+      "running": "Running"
+    },
+    "rowsWritten": "Rows written",
+    "rowsSkipped": "Rows skipped",
+    "rowsFailed": "Rows rolled back (last batch)",
+    "committedRemain": "{{count}} rows were already committed and remain in the target table. They were not rolled back.",
+    "issue": {
+      "targetReadOnly": "The target connection is read-only.",
+      "duplicateTargetTable": "The same target table is selected twice.",
+      "sourceTableNotFound": "The source table was not found.",
+      "targetTableNotFound": "The target table does not exist. Tables are never created by a transfer.",
+      "sourceEqualsTarget": "The source and the target are the same table.",
+      "targetIdentityUnverified": "Tabularis cannot confirm that the source and target connections reach different databases, so the transfer is blocked to avoid writing a table into itself.",
+      "unknownSourceColumn": "Unknown source column",
+      "unknownTargetColumn": "Unknown target column",
+      "noTargetColumn": "No target column matches; map it or skip it explicitly",
+      "duplicateTargetColumn": "Two source columns map to the same target column",
+      "targetColumnGenerated": "The target column is generated and cannot be written",
+      "unsupportedSourceType": "Unsupported source column type",
+      "unsupportedTargetType": "Unsupported target column type",
+      "incompatibleTypes": "The source and target types are not compatible",
+      "requiredTargetColumnUnmapped": "A required target column has no source",
+      "noColumnsMapped": "No columns are mapped",
+      "unknown": "Unknown problem"
+    }
   },
   "dump": {
     "title": "Dump Database",

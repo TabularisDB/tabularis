@@ -608,6 +608,7 @@
         "applyToAll": "Áp dụng cho tất cả:"
       },
       "tabularisJsonHint": "Tệp xuất của Tabularis (.json)",
+      "projectConfigHint": "Quét các tệp .env hoặc Docker Compose",
       "menuLabel": "Nhập kết nối…",
       "group": {
         "label": "Nhóm:",
@@ -1061,6 +1062,8 @@
     "connectionHealthCheck": "Kiểm tra tình trạng kết nối",
     "pingInterval": "Chu kỳ ping",
     "pingIntervalDesc": "Tần suất kiểm tra các kết nối đang mở còn hoạt động hay không. Đặt 0 để tắt.",
+    "autoReconnect": "Tự động kết nối lại",
+    "autoReconnectDesc": "Khi một kết nối không vượt qua kiểm tra tình trạng, thử kết nối lại một lần trước khi đóng. Các truy vấn bị gián đoạn không bao giờ được chạy lại và các giao dịch đang mở sẽ được hoàn tác.",
     "seconds": "giây",
     "entries": "mục",
     "queryHistory": "Lịch sử truy vấn",
@@ -2213,6 +2216,22 @@
       "copyDetailsFailed": "Không thể sao chép chi tiết nút vào khay nhớ tạm",
       "nodeDetails": "Chi tiết nút"
     },
+    "dmlPreview": {
+      "action": "Xem trước thay đổi",
+      "title": "Xem trước thay đổi",
+      "titleUpdate": "Xem trước UPDATE trên {{target}}",
+      "titleDelete": "Xem trước DELETE trên {{target}}",
+      "loading": "Đang tạo bản xem trước…",
+      "previewSql": "SQL xem trước",
+      "truncated": "Đang hiện {{limit}} hàng đầu tiên; còn các hàng khác khớp.",
+      "noFilter": "Câu lệnh này không có mệnh đề WHERE, vì vậy sẽ ảnh hưởng đến mọi hàng trong {{target}}.",
+      "triggers": "{{target}} có {{triggers}} trigger và {{rules}} quy tắc. Chúng chạy khi thực thi, không phải trong bản xem trước này.",
+      "canDiffer": "Ghi đồng thời và trigger có thể làm kết quả cuối khác với bản xem trước này.",
+      "empty": "Không có hàng nào khớp với câu lệnh này.",
+      "runStatement": "Chạy câu lệnh",
+      "close": "Đóng",
+      "notAvailable": "Xem trước có sẵn cho một câu UPDATE hoặc DELETE PostgreSQL trên một bảng."
+    },
     "notebook": {
       "addSqlCell": "Thêm ô SQL",
       "addMarkdownCell": "Thêm ô Markdown",
@@ -2491,7 +2510,10 @@
   },
   "healthCheck": {
     "title": "Mất kết nối",
-    "connectionLost": "Một kết nối cơ sở dữ liệu đã bị mất"
+    "connectionLost": "Một kết nối cơ sở dữ liệu đã bị mất",
+    "reconnecting": "Mất kết nối. Đang kết nối lại…",
+    "reconnected": "Đã khôi phục kết nối.",
+    "reconnectedSessionsReset": "Đã khôi phục kết nối. Các phiên truy vấn đang mở đã được đặt lại và mọi giao dịch chưa commit đã được hoàn tác."
   },
   "erDiagram": {
     "title": "Sơ đồ ER",
@@ -2610,6 +2632,77 @@
     "breakingChanges": "Thay đổi không tương thích ngược",
     "readMore": "Xem thêm",
     "dismiss": "Đã hiểu"
+  },
+  "tableRowTransfer": {
+    "contextMenuLabel": "Chuyển sang kết nối khác…",
+    "title": "Chuyển các hàng của bảng",
+    "appendOnly": "Các hàng được thêm vào một bảng đã tồn tại. Không có gì bị cắt bớt, xóa, thay thế hay tạo mới.",
+    "targetConnection": "Kết nối đích",
+    "targetDatabase": "Cơ sở dữ liệu đích",
+    "targetSchema": "Schema đích",
+    "targetTable": "Bảng đích",
+    "selectPlaceholder": "Chọn…",
+    "noTargets": "Không có kết nối nào tương thích với nguồn này.",
+    "noTables": "Không tìm thấy bảng nào ở đích.",
+    "review": "Xem lại kế hoạch",
+    "start": "Bắt đầu chuyển",
+    "success": "Đã chuyển xong bảng",
+    "mapping": "Ánh xạ cột",
+    "sourceColumn": "Cột nguồn",
+    "sourceType": "Kiểu nguồn",
+    "targetColumn": "Cột đích",
+    "targetColumnFor": "Cột đích cho {{column}}",
+    "targetType": "Kiểu đích",
+    "conversion": "Chuyển đổi",
+    "skipColumn": "Bỏ qua cột này",
+    "skipped": "Đã bỏ qua",
+    "rule": {
+      "exact": "Chính xác",
+      "exactHint": "Giá trị được sao chép nguyên vẹn.",
+      "checked": "Có kiểm tra",
+      "checkedHint": "Mọi giá trị đều được kiểm tra; giá trị làm mất thông tin sẽ dừng việc chuyển."
+    },
+    "conflictLabel": "Khi hàng đã tồn tại",
+    "conflict": {
+      "fail": "Dừng ở hàng bị từ chối đầu tiên",
+      "failHint": "Các hàng đã commit vẫn nằm ở đích.",
+      "skip": "Bỏ qua hàng trùng lặp",
+      "skipHint": "Các hàng vi phạm khóa duy nhất hoặc khóa chính sẽ bị bỏ qua. Mọi lỗi khác vẫn dừng việc chuyển."
+    },
+    "estimatedRows": "Khoảng {{count}} hàng (ước tính)",
+    "blocked": "Không thể bắt đầu việc chuyển này",
+    "running": "Đang chuyển…",
+    "progress": "Đã ghi {{written}} hàng, bỏ qua {{skipped}}",
+    "status": {
+      "completed": "Hoàn tất",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy",
+      "notStarted": "Chưa bắt đầu",
+      "running": "Đang chạy"
+    },
+    "rowsWritten": "Số hàng đã ghi",
+    "rowsSkipped": "Số hàng bỏ qua",
+    "rowsFailed": "Số hàng đã hoàn tác (lô cuối)",
+    "committedRemain": "{{count}} hàng đã được commit và vẫn nằm trong bảng đích. Chúng không bị hoàn tác.",
+    "issue": {
+      "targetReadOnly": "Kết nối đích ở chế độ chỉ đọc.",
+      "duplicateTargetTable": "Cùng một bảng đích được chọn hai lần.",
+      "sourceTableNotFound": "Không tìm thấy bảng nguồn.",
+      "targetTableNotFound": "Bảng đích không tồn tại. Việc chuyển không bao giờ tạo bảng.",
+      "sourceEqualsTarget": "Nguồn và đích là cùng một bảng.",
+      "targetIdentityUnverified": "Tabularis không thể xác nhận kết nối nguồn và đích trỏ tới các cơ sở dữ liệu khác nhau, nên việc chuyển bị chặn để tránh ghi một bảng vào chính nó.",
+      "unknownSourceColumn": "Cột nguồn không xác định",
+      "unknownTargetColumn": "Cột đích không xác định",
+      "noTargetColumn": "Không có cột đích khớp; hãy ánh xạ hoặc bỏ qua rõ ràng",
+      "duplicateTargetColumn": "Hai cột nguồn ánh xạ vào cùng một cột đích",
+      "targetColumnGenerated": "Cột đích là cột sinh tự động nên không thể ghi",
+      "unsupportedSourceType": "Kiểu cột nguồn không được hỗ trợ",
+      "unsupportedTargetType": "Kiểu cột đích không được hỗ trợ",
+      "incompatibleTypes": "Kiểu nguồn và đích không tương thích",
+      "requiredTargetColumnUnmapped": "Cột đích bắt buộc không có nguồn",
+      "noColumnsMapped": "Chưa ánh xạ cột nào",
+      "unknown": "Sự cố không xác định"
+    }
   },
   "dump": {
     "title": "Dump cơ sở dữ liệu",

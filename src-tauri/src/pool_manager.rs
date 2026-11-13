@@ -1486,6 +1486,23 @@ pub async fn close_pools_for_connection_id(driver: &str, connection_id: &str) {
     }
 }
 
+/// Like [`close_pools_for_connection_id`], but waits at most `limit` for the
+/// pools to close. The pools leave the registry at once either way, so a new
+/// pool can be opened for the connection. A pool with a connection still
+/// checked out finishes closing in the background once it is returned.
+/// Returns false when `limit` passed first.
+pub async fn close_pools_for_connection_id_within(
+    driver: &str,
+    connection_id: &str,
+    limit: std::time::Duration,
+) -> bool {
+    let driver = driver.to_string();
+    let connection_id = connection_id.to_string();
+    let close =
+        tokio::spawn(async move { close_pools_for_connection_id(&driver, &connection_id).await });
+    tokio::time::timeout(limit, close).await.is_ok()
+}
+
 /// Close all connection pools (useful on app shutdown)
 pub async fn close_all_pools() {
     {
