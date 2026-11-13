@@ -67,3 +67,85 @@ async fn mysql_column_previews_without_comment_text_stay_offline() {
         .unwrap();
     assert!(changed[0].ends_with(" COMMENT ''"));
 }
+
+#[tokio::test]
+async fn database_operations_reject_readonly_and_wrong_confirmation_before_secrets_or_network() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            temp.path().into(),
+            temp.path().into(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(UnavailableSecrets),
+    );
+    for read_only in [false, true] {
+        let params = ConnectionParams {
+            driver: "mysql".into(),
+            read_only,
+            ..Default::default()
+        };
+        std::fs::write(
+            runtime.paths.connections_file(),
+            serde_json::to_vec(&serde_json::json!([
+                {"id":"protected", "name":"Protected", "params":params}
+            ]))
+            .unwrap(),
+        )
+        .unwrap();
+        for operation in [
+            crate::database_operations::DatabaseOperation::Drop,
+            crate::database_operations::DatabaseOperation::Empty,
+            crate::database_operations::DatabaseOperation::Truncate,
+        ] {
+            let error = database_operation(
+                &runtime,
+                None,
+                "protected",
+                "target".into(),
+                operation,
+                if read_only { "target" } else { "wrong" }.into(),
+            )
+            .await
+            .unwrap_err();
+            assert!(error.contains(if read_only {
+                "read-only"
+            } else {
+                "confirmation"
+            }));
+        }
+    }
+}
+
+#[tokio::test]
+async fn database_operations_cannot_redirect_a_local_file_connection() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            temp.path().into(),
+            temp.path().into(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(UnavailableSecrets),
+    );
+    crate::drivers::registry::register_driver(crate::drivers::sqlite::SqliteDriver::new()).await;
+    std::fs::write(
+        runtime.paths.connections_file(),
+        serde_json::to_vec(&serde_json::json!([
+            {"id":"local", "name":"Local", "params":{"driver":"sqlite", "database":"allowed.db"}}
+        ]))
+        .unwrap(),
+    )
+    .unwrap();
+    let error = database_operation(
+        &runtime,
+        None,
+        "local",
+        "other.db".into(),
+        crate::database_operations::DatabaseOperation::Empty,
+        "other.db".into(),
+    )
+    .await
+    .unwrap_err();
+    assert!(error.contains("saved database"));
+}

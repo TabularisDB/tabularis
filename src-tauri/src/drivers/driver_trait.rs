@@ -120,6 +120,13 @@ pub struct ConnectionStringExample {
 /// The frontend uses these flags to decide which UI sections to show.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct DriverCapabilities {
+    /// Optional native whole-database operations. Missing flags mean unsupported.
+    #[serde(default)]
+    pub empty_database: bool,
+    #[serde(default)]
+    pub truncate_database: bool,
+    #[serde(default)]
+    pub drop_database: bool,
     /// Supports multiple named schemas (e.g. PostgreSQL).
     pub schemas: bool,
     /// Supports views.
@@ -533,6 +540,14 @@ pub struct PluginManifest {
 /// fall back to `"public"` when it is `None`.
 #[async_trait]
 pub trait DatabaseDriver: Send + Sync {
+    async fn database_operation(
+        &self,
+        _params: &ConnectionParams,
+        _operation: crate::database_operations::DatabaseOperation,
+    ) -> Result<(), String> {
+        Err("Database operations are not supported by this driver".into())
+    }
+
     /// No SQL fallback: debugging requires a native, isolated driver session.
     async fn routine_debug(
         &self,

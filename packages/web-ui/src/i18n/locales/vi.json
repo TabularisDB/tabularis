@@ -3569,5 +3569,16 @@
     "copySummary": "Sao chép tóm tắt",
     "copied": "Đã sao chép tóm tắt, các giá trị literal được ẩn.",
     "copyFailed": "Không sao chép được tóm tắt."
+  },
+  "databaseOperations": {
+    "menu": "Thao tác cơ sở dữ liệu khác",
+    "drop": "Xóa cơ sở dữ liệu…",
+    "truncate": "Xóa dữ liệu các bảng…",
+    "empty": "Xóa tất cả đối tượng…",
+    "dropDescription": "Xóa vĩnh viễn “{{database}}” cùng mọi đối tượng và dữ liệu.",
+    "truncateDescription": "Xóa mọi dòng trong các bảng người dùng của “{{database}}”, giữ cấu trúc. Đặt lại bộ đếm khi được hỗ trợ.",
+    "emptyDescription": "Xóa mọi đối tượng người dùng và dữ liệu của “{{database}}”, giữ cơ sở dữ liệu.",
+    "confirmName": "Nhập tên cơ sở dữ liệu để xác nhận: {{database}}",
+    "warning": "Áp dụng cho toàn bộ cơ sở dữ liệu, kể cả lược đồ ẩn. Các chỉnh sửa chờ và kết quả của kết nối sẽ bị xóa. MySQL có thể áp dụng thay đổi một phần; SQLite chạy trigger DELETE. Hãy sao lưu trước."
   }
 }

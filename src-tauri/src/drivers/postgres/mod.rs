@@ -1,3 +1,4 @@
+mod database_operations;
 pub mod types;
 
 pub mod export;
@@ -2317,6 +2318,9 @@ impl PostgresDriver {
                 description: "PostgreSQL databases".to_string(),
                 default_port: Some(5432),
                 capabilities: DriverCapabilities {
+                    empty_database: true,
+                    truncate_database: true,
+                    drop_database: true,
                     schemas: true,
                     single_database: false,
                     views: true,
@@ -2398,6 +2402,14 @@ impl PostgresDriver {
 
 #[async_trait]
 impl DatabaseDriver for PostgresDriver {
+    async fn database_operation(
+        &self,
+        params: &ConnectionParams,
+        operation: crate::database_operations::DatabaseOperation,
+    ) -> Result<(), String> {
+        database_operations::execute(params, operation).await
+    }
+
     fn manifest(&self) -> &PluginManifest {
         &self.manifest
     }

@@ -3530,5 +3530,16 @@
     "copySummary": "Copia riepilogo",
     "copied": "Riepilogo copiato, con i valori letterali nascosti.",
     "copyFailed": "Impossibile copiare il riepilogo."
+  },
+  "databaseOperations": {
+    "menu": "Altre operazioni sul database",
+    "drop": "Elimina database…",
+    "truncate": "Svuota le tabelle…",
+    "empty": "Rimuovi tutti gli oggetti…",
+    "dropDescription": "Elimina definitivamente il database “{{database}}”, tutti gli oggetti e i dati.",
+    "truncateDescription": "Elimina tutte le righe da tutte le tabelle utente di “{{database}}”, mantenendo la struttura. Azzera i contatori dove supportato.",
+    "emptyDescription": "Rimuove tutti gli oggetti utente e i dati da “{{database}}”, mantenendo il database.",
+    "confirmName": "Digita il nome del database per confermare: {{database}}",
+    "warning": "L’operazione riguarda l’intero database, inclusi gli schemi non visualizzati. Le modifiche alla griglia e i risultati di questa connessione saranno cancellati. MySQL può applicare modifiche parziali in caso di errore; SQLite usa DELETE ed esegue i relativi trigger. Prima di procedere crea un backup."
   }
 }

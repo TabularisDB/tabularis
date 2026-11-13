@@ -2510,3 +2510,22 @@ pub async fn get_driver_manifest(
 ) -> Option<crate::plugins::connection_metadata::DriverManifestDetails> {
     crate::commands::get_driver_manifest(driver_id).await
 }
+
+#[tauri::command]
+pub async fn database_operation<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    database: String,
+    operation: crate::database_operations::DatabaseOperation,
+    confirmation: String,
+) -> Result<(), String> {
+    crate::application::database_objects::database_operation(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        database,
+        operation,
+        confirmation,
+    )
+    .await
+}

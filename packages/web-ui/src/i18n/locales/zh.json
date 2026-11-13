@@ -3434,5 +3434,16 @@
     "copySummary": "复制摘要",
     "copied": "已复制摘要，字面值已隐藏。",
     "copyFailed": "无法复制摘要。"
+  },
+  "databaseOperations": {
+    "menu": "更多数据库操作",
+    "drop": "删除数据库…",
+    "truncate": "清空表数据…",
+    "empty": "删除所有对象…",
+    "dropDescription": "永久删除数据库“{{database}}”及其所有对象和数据。",
+    "truncateDescription": "删除“{{database}}”所有用户表中的行并保留结构。在支持的情况下重置自增计数器。",
+    "emptyDescription": "删除“{{database}}”中的所有用户对象和数据，保留数据库本身。",
+    "confirmName": "输入数据库名称以确认：{{database}}",
+    "warning": "影响整个数据库，包括未显示的架构。此连接待提交的表格修改和结果将被清除。MySQL 出错时可能已提交部分修改；SQLite 会执行 DELETE 触发器。请先备份。"
   }
 }

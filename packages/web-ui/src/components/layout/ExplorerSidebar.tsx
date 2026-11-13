@@ -102,6 +102,7 @@ import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
 import type {DatabaseSqlCapabilities} from '@/types/plugins';
 import {databaseImportFilters} from '@/utils/databaseTransfers';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
+import {DatabaseOperationModal} from '@/components/modals/DatabaseOperationModal';
 import {RunRoutineModal} from '@/components/modals/RunRoutineModal';
 import {DebugRoutineModal} from '@/components/modals/DebugRoutineModal';
 import {Accordion} from './sidebar/Accordion';
@@ -250,6 +251,7 @@ export const ExplorerSidebar = ({
         connectionDataMap,
         connections,
         connect,
+        disconnect,
     } = useDatabase();
     const {allDrivers} = useDrivers();
     const {tabs, openNotebook, updateTab, closeTab, addTab, setActiveTabId} = useEditor();
@@ -333,6 +335,41 @@ export const ExplorerSidebar = ({
         label: string;
         data?: ContextMenuData;
     } | null>(null);
+    const [databaseOperation, setDatabaseOperation] = useState<{
+        connectionId: string;
+        database: string;
+        operation: 'empty' | 'truncate' | 'drop';
+    } | null>(null);
+    const databaseOperationItems = (database: string): ContextMenuItem[] => {
+        if (
+            !activeConnectionId ||
+            activeCapabilities?.readonly ||
+            connections.find((connection) => connection.id === activeConnectionId)?.params.read_only
+        )
+            return [];
+        const operations = (['drop', 'truncate', 'empty'] as const).filter(
+            (operation) => activeCapabilities?.[`${operation}_database`] === true,
+        );
+        return operations.length
+            ? [
+                  {
+                      label: t('databaseOperations.menu'),
+                      icon: Database,
+                      submenu: operations.map((operation) => ({
+                          label: t(`databaseOperations.${operation}`),
+                          icon: Trash2,
+                          danger: true,
+                          action: () =>
+                              setDatabaseOperation({
+                                  connectionId: activeConnectionId,
+                                  database,
+                                  operation,
+                              }),
+                      })),
+                  },
+              ]
+            : [];
+    };
     const [objectDetails, setObjectDetails] = useState<SchemaObjectDetails | null>(null);
     const [schemaModal, setSchemaModal] = useState<TableTarget | null>(null);
     const [runRoutineModal, setRunRoutineModal] = useState<{
@@ -1319,7 +1356,18 @@ export const ExplorerSidebar = ({
                     </div>
                 )}
 
-                <div className="p-4 border-b border-default font-semibold text-sm text-primary flex items-center justify-between gap-2">
+                <div
+                    className="p-4 border-b border-default font-semibold text-sm text-primary flex items-center justify-between gap-2"
+                    onContextMenu={(event) => {
+                        if (!isMultiDb && activeDatabaseName)
+                            handleContextMenu(
+                                event,
+                                'database',
+                                activeDatabaseName,
+                                activeDatabaseName,
+                            );
+                    }}
+                >
                     <div className="flex items-center gap-2 min-w-0">
                         <Database size={16} className="text-accent shrink-0" />
                         <div className="flex flex-col min-w-0">
@@ -1528,6 +1576,26 @@ export const ExplorerSidebar = ({
                                 <UsersRound size={16} />
                             </button>
                         )}
+                        {!isMultiDb &&
+                            activeDatabaseName &&
+                            databaseOperationItems(activeDatabaseName).length > 0 && (
+                                <button
+                                    type="button"
+                                    title={t('databaseOperations.menu')}
+                                    aria-label={t('databaseOperations.menu')}
+                                    className="text-muted hover:text-primary p-1 rounded hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                    onClick={(event) =>
+                                        handleContextMenu(
+                                            event,
+                                            'database',
+                                            activeDatabaseName,
+                                            activeDatabaseName,
+                                        )
+                                    }
+                                >
+                                    <Settings2 size={16} />
+                                </button>
+                            )}
                         <button
                             onClick={onCollapse}
                             className="text-muted hover:text-secondary transition-colors p-1 hover:bg-surface-secondary rounded"
@@ -3709,6 +3777,82 @@ export const ExplorerSidebar = ({
             </aside>
 
             {/* Context Menu */}
+            {databaseOperation && (
+                <DatabaseOperationModal
+                    key={`${databaseOperation.connectionId}:${databaseOperation.database}:${databaseOperation.operation}`}
+                    isOpen
+                    onClose={() => setDatabaseOperation(null)}
+                    {...databaseOperation}
+                    onSuccess={async () => {
+                        const target = databaseOperation;
+                        for (const tab of tabs.filter(
+                            (tab) => tab.connectionId === target.connectionId,
+                        )) {
+                            updateTab(tab.id, {
+                                result: null,
+                                error: '',
+                                executionTime: null,
+                                results: undefined,
+                                activeResultId: undefined,
+                                pendingChanges: undefined,
+                                pendingInsertions: undefined,
+                                pendingDeletions: undefined,
+                                gridHistory: undefined,
+                                autoRefreshIntervalMs: undefined,
+                                isAutoRefreshing: false,
+                            });
+                        }
+                        try {
+                            if (target.operation === 'drop') {
+                                await disconnect(target.connectionId);
+                            } else {
+                                const data = connectionDataMap[target.connectionId];
+                                if (
+                                    isSchemaBasedMultiDb(
+                                        data?.capabilities,
+                                        data?.selectedDatabases ?? [],
+                                    )
+                                ) {
+                                    await loadNestedSchemas(
+                                        target.database,
+                                        target.connectionId,
+                                        true,
+                                    );
+                                    for (const schema of Object.keys(
+                                        data?.nestedDatabaseDataMap[target.database]
+                                            ?.schemaDataMap ?? {},
+                                    )) {
+                                        await refreshNestedSchemaData(
+                                            target.database,
+                                            schema,
+                                            target.connectionId,
+                                        );
+                                    }
+                                } else if (
+                                    !data?.capabilities?.schemas &&
+                                    (data?.selectedDatabases.length ?? 0) > 0
+                                ) {
+                                    await refreshDatabaseData(target.database, target.connectionId);
+                                } else if (data?.capabilities?.schemas) {
+                                    await refreshSchemas(target.connectionId);
+                                    for (const schema of Object.keys(data.schemaDataMap)) {
+                                        await refreshSchemaData(schema, target.connectionId);
+                                    }
+                                } else {
+                                    await Promise.all([
+                                        refreshTables(target.connectionId),
+                                        refreshViews(target.connectionId),
+                                        refreshRoutines(target.connectionId),
+                                        refreshTriggers(target.connectionId),
+                                    ]);
+                                }
+                            }
+                        } catch (cause) {
+                            showAlert(String(cause), {kind: 'error'});
+                        }
+                    }}
+                />
+            )}
             {contextMenu && (
                 <ContextMenu
                     x={contextMenu.x}
@@ -4767,6 +4911,7 @@ export const ExplorerSidebar = ({
                                                 })()
                                               : contextMenu.type === 'database'
                                                 ? [
+                                                      ...databaseOperationItems(contextMenu.id),
                                                       {
                                                           label: t('sidebar.newConsole'),
                                                           icon: FileCode,

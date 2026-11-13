@@ -3551,5 +3551,16 @@
     "copySummary": "Copiar resumo",
     "copied": "Resumo copiado, com valores literais ocultos.",
     "copyFailed": "Não foi possível copiar o resumo."
+  },
+  "databaseOperations": {
+    "menu": "Mais operações de banco de dados",
+    "drop": "Excluir banco de dados…",
+    "truncate": "Esvaziar tabelas…",
+    "empty": "Remover todos os objetos…",
+    "dropDescription": "Excluir permanentemente “{{database}}”, seus objetos e dados.",
+    "truncateDescription": "Excluir todas as linhas das tabelas de usuário de “{{database}}”, mantendo a estrutura. Reiniciar contadores quando possível.",
+    "emptyDescription": "Remover todos os objetos de usuário e dados de “{{database}}”, mantendo o banco.",
+    "confirmName": "Digite o nome para confirmar: {{database}}",
+    "warning": "Afeta todo o banco, incluindo esquemas ocultos. Alterações pendentes e resultados desta conexão serão descartados. MySQL pode aplicar alterações parciais; SQLite executa gatilhos DELETE. Faça um backup."
   }
 }

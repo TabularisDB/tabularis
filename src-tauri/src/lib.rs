@@ -37,6 +37,7 @@ pub mod connection_cache;
 pub mod connection_cache_tests;
 pub mod connection_import;
 pub mod database_backup;
+pub mod database_operations;
 
 pub mod connection_migrations;
 #[cfg(test)]

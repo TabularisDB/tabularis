@@ -15,6 +15,12 @@ mod database_objects_tests;
 
 #[derive(Debug)]
 pub enum DatabaseObjectCommand {
+    DatabaseOperation {
+        connection_id: String,
+        database: String,
+        operation: crate::database_operations::DatabaseOperation,
+        confirmation: String,
+    },
     RoutineDebug {
         connection_id: String,
         version: u32,
@@ -250,6 +256,23 @@ pub async fn execute(
     command: DatabaseObjectCommand,
 ) -> Result<Value, String> {
     match command {
+        DatabaseObjectCommand::DatabaseOperation {
+            connection_id,
+            database,
+            operation,
+            confirmation,
+        } => {
+            database_operation(
+                runtime,
+                session_id,
+                &connection_id,
+                database,
+                operation,
+                confirmation,
+            )
+            .await?;
+            Ok(Value::Null)
+        }
         DatabaseObjectCommand::RoutineDebug {
             connection_id,
             version,
@@ -1446,4 +1469,37 @@ pub async fn map_inferred_column_types(
         .iter()
         .map(|kind| drv.map_inferred_type(kind))
         .collect())
+}
+
+/// Resolve credentials and policy on the server; never trust UI capability checks.
+pub async fn database_operation(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+    database: String,
+    operation: crate::database_operations::DatabaseOperation,
+    confirmation: String,
+) -> Result<(), String> {
+    super::read_only::ensure_writable(runtime, connection_id)?;
+    crate::database_operations::validate_database(&database, &[])?;
+    if confirmation != database {
+        return Err("Database confirmation does not match".into());
+    }
+    // Network drivers browse server databases. A local-file connection must
+    // never turn a database override into permission to erase another file.
+    let saved = super::connections::load_connections(&runtime.paths.connections_file())?
+        .into_iter()
+        .find(|connection| connection.id == connection_id)
+        .ok_or_else(|| "Connection not found".to_string())?;
+    if crate::drivers::registry::is_local_path_driver(&saved.params.driver)
+        && saved.params.database.primary() != database
+    {
+        return Err("File-based operations must target the saved database".into());
+    }
+    let (driver, params) =
+        connected_driver_and_params(runtime, session_id, connection_id, Some(database)).await?;
+    if !operation.supported(&driver.manifest().capabilities) {
+        return Err("This database operation is not supported by the driver".into());
+    }
+    driver.database_operation(&params, operation).await
 }

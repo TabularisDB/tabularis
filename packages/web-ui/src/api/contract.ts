@@ -1138,6 +1138,15 @@ export interface CommandMap {
         string[],
         'database'
     >;
+    database_operation: CommandDefinition<
+        ConnectionIdRequest & {
+            database: string;
+            operation: 'empty' | 'truncate' | 'drop';
+            confirmation: string;
+        },
+        void,
+        'database'
+    >;
     get_drop_table_sql: CommandDefinition<
         MetadataRequest & {table: string},
         string | null,

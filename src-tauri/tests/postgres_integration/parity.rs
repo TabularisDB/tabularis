@@ -267,6 +267,9 @@ fn plugin_manifest() -> PluginManifest {
         description: "PostgreSQL plugin driver for Tabularis".to_string(),
         default_port: Some(5432),
         capabilities: DriverCapabilities {
+            empty_database: true,
+            truncate_database: true,
+            drop_database: true,
             schemas: true,
             single_database: false,
             views: true,

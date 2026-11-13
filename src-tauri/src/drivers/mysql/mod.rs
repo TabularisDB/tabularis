@@ -1,3 +1,4 @@
+mod database_operations;
 pub mod export;
 pub mod extract;
 pub mod types;
@@ -2008,6 +2009,9 @@ impl MysqlDriver {
                 description: "MySQL and MariaDB databases".to_string(),
                 default_port: Some(3306),
                 capabilities: DriverCapabilities {
+                    empty_database: true,
+                    truncate_database: true,
+                    drop_database: true,
                     schemas: false,
                     single_database: false,
                     views: true,
@@ -2111,6 +2115,14 @@ impl MysqlDriver {
 
 #[async_trait]
 impl DatabaseDriver for MysqlDriver {
+    async fn database_operation(
+        &self,
+        params: &ConnectionParams,
+        operation: crate::database_operations::DatabaseOperation,
+    ) -> Result<(), String> {
+        database_operations::execute(params, operation).await
+    }
+
     fn manifest(&self) -> &PluginManifest {
         &self.manifest
     }

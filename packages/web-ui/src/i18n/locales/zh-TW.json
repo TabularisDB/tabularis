@@ -3659,5 +3659,16 @@
         "copySummary": "複製摘要",
         "copied": "已複製摘要，常值已隱藏。",
         "copyFailed": "無法複製摘要。"
+    },
+    "databaseOperations": {
+        "menu": "更多資料庫操作",
+        "drop": "刪除資料庫…",
+        "truncate": "清空資料表資料…",
+        "empty": "刪除所有物件…",
+        "dropDescription": "永久刪除資料庫「{{database}}」及其所有物件和資料。",
+        "truncateDescription": "刪除「{{database}}」所有使用者資料表的資料列並保留結構。在支援時重設自動編號。",
+        "emptyDescription": "刪除「{{database}}」的所有使用者物件和資料，保留資料庫本身。",
+        "confirmName": "輸入資料庫名稱以確認：{{database}}",
+        "warning": "影響整個資料庫，包括未顯示的結構描述。此連線待提交的表格修改和結果將被清除。MySQL 發生錯誤時可能已提交部分修改；SQLite 會執行 DELETE 觸發程序。請先備份。"
     }
 }
