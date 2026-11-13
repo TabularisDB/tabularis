@@ -3361,6 +3361,7 @@
       "alias-conflict": "Lo stesso alias indica tabelle diverse.",
       "wildcard": "Seleziona tutte le colonne (*).",
       "dynamic-sql": "All'interno di SQL dinamico.",
+      "name-case": "Il nome della tabella differisce per maiuscole e minuscole; se sia questa tabella dipende dalle impostazioni del server.",
       "textual": "Impossibile analizzare l'SQL; corrispondono solo i nomi."
     },
     "fkOutgoing": "Fa riferimento a {{object}}.{{column}}",

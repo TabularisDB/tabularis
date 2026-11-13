@@ -3284,6 +3284,7 @@
       "alias-conflict": "같은 별칭이 서로 다른 테이블을 가리킵니다.",
       "wildcard": "모든 열을 선택합니다 (*).",
       "dynamic-sql": "동적 SQL 안에 있습니다.",
+      "name-case": "테이블 이름의 대소문자가 다릅니다. 이 테이블인지는 서버 설정에 따라 다릅니다.",
       "textual": "SQL을 분석할 수 없어 이름만 일치합니다."
     },
     "fkOutgoing": "{{object}}.{{column}} 참조",

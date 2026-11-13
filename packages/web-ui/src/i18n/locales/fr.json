@@ -3407,6 +3407,7 @@
       "alias-conflict": "Le même alias désigne des tables différentes.",
       "wildcard": "Sélectionne toutes les colonnes (*).",
       "dynamic-sql": "Dans du SQL dynamique.",
+      "name-case": "Le nom de la table diffère par la casse ; qu'il s'agisse de cette table dépend des paramètres du serveur.",
       "textual": "Le SQL n'a pas pu être analysé ; seuls les noms correspondent."
     },
     "fkOutgoing": "Référence {{object}}.{{column}}",

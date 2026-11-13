@@ -235,6 +235,70 @@ describe('columnUsage', () => {
             expect(summary('SELECT $$customer_id$$ FROM orders', ordersNoSchema)).toEqual([]);
         });
 
+        it('compares table and schema names the way the dialect stores them', () => {
+            // PostgreSQL folds unquoted names to lower case and keeps quoted ones.
+            expect(summary('SELECT CUSTOMER_ID FROM PUBLIC.ORDERS', ordersPublic)).toEqual([
+                'parsed',
+            ]);
+            expect(summary('SELECT o.customer_id FROM "public"."orders" o', ordersPublic)).toEqual([
+                'parsed',
+            ]);
+            expect(summary('SELECT customer_id FROM "PUBLIC".orders', ordersPublic)).toEqual([]);
+            expect(summary('SELECT customer_id FROM public."Orders"', ordersPublic)).toEqual([]);
+            expect(summary('SELECT "CUSTOMER_ID" FROM public.orders', ordersPublic)).toEqual([]);
+            expect(summary('SELECT o.customer_id FROM public."Orders" o', ordersPublic)).toEqual(
+                [],
+            );
+            expect(
+                summary('SELECT "PUBLIC".orders.customer_id FROM "PUBLIC".orders', ordersPublic),
+            ).toEqual([]);
+
+            // A mixed-case catalog name only matches its quoted spelling.
+            const mixed: ColumnUsageTarget = {
+                schema: 'Sales',
+                table: 'Orders',
+                column: 'CustomerId',
+            };
+            expect(summary('SELECT "CustomerId" FROM "Sales"."Orders"', mixed)).toEqual(['parsed']);
+            expect(summary('SELECT CustomerId FROM "Sales"."Orders"', mixed)).toEqual([]);
+            expect(summary('SELECT "CustomerId" FROM Sales.Orders', mixed)).toEqual([]);
+
+            // Oracle folds unquoted names to upper case.
+            const oracle: ColumnUsageTarget = {
+                schema: 'SHOP',
+                table: 'ORDERS',
+                column: 'CUSTOMER_ID',
+            };
+            const inOracle = (sql: string) =>
+                findColumnReferences(sql, oracle, {dialect: 'oracle'}).map((m) => m.confidence);
+            expect(inOracle('select o.customer_id from shop.orders o')).toEqual(['parsed']);
+            expect(inOracle('select o."customer_id" from shop.orders o')).toEqual([]);
+            expect(inOracle('select o.customer_id from "shop".orders o')).toEqual([]);
+
+            // MySQL column names ignore case; database and table names may not
+            // (lower_case_table_names), so another case is uncertain.
+            expect(mysql('SELECT CUSTOMER_ID FROM shop.orders')).toEqual(['parsed']);
+            expect(mysql('SELECT `Customer_Id` FROM `orders`')).toEqual(['parsed']);
+            expect(mysql('SELECT o.CUSTOMER_ID FROM Orders o')).toEqual(['uncertain:name-case']);
+            expect(mysql('SELECT customer_id FROM `ORDERS`')).toEqual(['uncertain:name-case']);
+            expect(mysql('SELECT customer_id FROM SHOP.orders')).toEqual(['uncertain:name-case']);
+            expect(mysql('SELECT Orders.customer_id FROM orders')).toEqual(['parsed']);
+            expect(mysql('SELECT customer_id FROM orders o JOIN Orders p ON p.id = o.id')).toEqual([
+                'uncertain:several-tables',
+            ]);
+            expect(mysql('SELECT customer_id FROM shop.invoices')).toEqual([]);
+
+            // SQL Server and SQLite compare names without case.
+            const dbo: ColumnUsageTarget = {schema: 'dbo', table: 'orders', column: 'customer_id'};
+            for (const dialect of ['mssql', 'sqlite']) {
+                expect(
+                    findColumnReferences('SELECT "CUSTOMER_ID" FROM "DBO"."Orders"', dbo, {
+                        dialect,
+                    }).map((m) => m.confidence),
+                ).toEqual(['parsed']);
+            }
+        });
+
         it('honours a plugin capabilities syntax', () => {
             const caps = {sql_dialect: 'mysql', identifier_quote: '`'} as DriverCapabilities;
             const syntax = resolveSqlSyntax(caps);

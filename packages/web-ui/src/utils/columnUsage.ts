@@ -3,7 +3,7 @@
 // The lexing reuses the splitter's dialect rules, so quotes, comments and
 // dollar-quoted bodies follow the active driver's SQL dialect.
 
-import {optionsFor, type DialectInput, type DialectOptions} from './sqlSplitter';
+import {normalizeDialect, optionsFor, type DialectInput, type DialectOptions} from './sqlSplitter';
 import {scanToken, type TokenizerState} from './sqlSplitter/tokenizer';
 import type {SavedQueryExcerpt} from './savedQuerySearch';
 
@@ -26,6 +26,7 @@ export type UncertainReason =
     | 'alias-conflict'
     | 'wildcard'
     | 'dynamic-sql'
+    | 'name-case'
     | 'textual';
 
 export interface SqlColumnMatch {
@@ -221,13 +222,75 @@ const isIdent = (token: LexToken | undefined): token is LexToken =>
 const keyword = (token: LexToken | undefined): string =>
     token?.kind === 'word' ? token.value.toUpperCase() : '';
 
-/** Identifier comparison: unquoted and backtick names ignore case, quoted ones don't. */
-function identEquals(token: LexToken, name: string): boolean {
-    if (token.kind === 'quoted' && !token.caseInsensitive) return token.value === name;
-    return token.value.toLowerCase() === name.toLowerCase();
+/** How two names compare: exactly, or without letter case. */
+export type NameMatch = 'exact' | 'insensitive';
+
+/**
+ * How a dialect identifies names. `fold` is what an unquoted name becomes in
+ * the catalog: PostgreSQL folds to lower case and Oracle to upper case, and
+ * both keep quoted names as written. `tables` covers database, schema and
+ * table names, `columns` column names.
+ *
+ * MySQL and MariaDB keep database and table names case-sensitive where the
+ * server runs on a case-sensitive file system (`lower_case_table_names=0`,
+ * the Linux default) and not elsewhere, while column names never are. That
+ * setting is unknown here, so catalog names compare exactly and SQL that
+ * spells a table in another case is reported as uncertain
+ * (`tableCaseUncertain`). SQL Server and SQLite compare without case.
+ */
+export interface IdentifierRules {
+    fold: 'lower' | 'upper' | 'none';
+    tables: NameMatch;
+    columns: NameMatch;
+    tableCaseUncertain: boolean;
 }
 
-const namesEqual = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+export function identifierRulesFor(dialect: DialectInput): IdentifierRules {
+    const name = typeof dialect === 'object' ? dialect.dialect : normalizeDialect(dialect);
+    switch (name) {
+        case 'postgres':
+            return {fold: 'lower', tables: 'exact', columns: 'exact', tableCaseUncertain: false};
+        case 'oracle':
+            return {fold: 'upper', tables: 'exact', columns: 'exact', tableCaseUncertain: false};
+        case 'mysql':
+            return {
+                fold: 'none',
+                tables: 'exact',
+                columns: 'insensitive',
+                tableCaseUncertain: true,
+            };
+        default:
+            return {
+                fold: 'none',
+                tables: 'insensitive',
+                columns: 'insensitive',
+                tableCaseUncertain: false,
+            };
+    }
+}
+
+/** Whether two names, both as the catalog reports them, are the same object. */
+export function catalogNamesEqual(a: string, b: string, match: NameMatch): boolean {
+    return match === 'insensitive' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/** The catalog spelling of an identifier written in SQL. */
+function catalogName(token: LexToken, rules: IdentifierRules): string {
+    if (token.kind === 'quoted' && !token.caseInsensitive) return token.value;
+    // PostgreSQL only folds ASCII letters.
+    if (rules.fold === 'lower') return token.value.replace(/[A-Z]+/g, (c) => c.toLowerCase());
+    if (rules.fold === 'upper') return token.value.toUpperCase();
+    return token.value;
+}
+
+function identEquals(
+    token: LexToken,
+    name: string,
+    rules: IdentifierRules,
+    match: NameMatch,
+): boolean {
+    return catalogNamesEqual(catalogName(token, rules), name, match);
+}
 
 // Words that end a FROM list or cannot be a table alias.
 const NOT_ALIAS = new Set([
@@ -469,7 +532,7 @@ function computeScopes(tokens: LexToken[]): {
     return {scopes, parents, opens};
 }
 
-function buildModel(tokens: LexToken[]): StatementModel {
+function buildModel(tokens: LexToken[], rule: IdentifierRules): StatementModel {
     const {scopes, parents, opens} = computeScopes(tokens);
     const model: StatementModel = {
         tokens,
@@ -556,7 +619,8 @@ function buildModel(tokens: LexToken[]): StatementModel {
                 i += 2;
             }
             const name = parts[parts.length - 1].value;
-            const schema = parts.length > 1 ? parts[parts.length - 2].value : undefined;
+            const schemaPart = parts.length > 1 ? parts[parts.length - 2] : undefined;
+            const schema = schemaPart && catalogName(schemaPart, rule);
             defaultAlias = name;
             if (allowFunction && tokens[i]?.value === '(') {
                 // Table function: its columns are not the table's.
@@ -565,8 +629,9 @@ function buildModel(tokens: LexToken[]): StatementModel {
             } else if (!schema && isCteAt(ctes, name, start)) {
                 binding = {scope: scopes[start], at: start};
             } else {
+                const refName = catalogName(parts[parts.length - 1], rule);
                 binding = {
-                    ref: schema ? {name, schema} : {name},
+                    ref: schema ? {name: refName, schema} : {name: refName},
                     scope: scopes[start],
                     at: start,
                 };
@@ -642,23 +707,39 @@ function buildModel(tokens: LexToken[]): StatementModel {
     return model;
 }
 
-type TableMatch = 'match' | 'schema-unknown' | 'other-qualifier' | 'no';
+type TableMatch = 'match' | 'case-differs' | 'schema-unknown' | 'other-qualifier' | 'no';
 
+/** `ref` holds catalog spellings (see `catalogName`). */
 function matchRelation(
     ref: RelationRef,
     target: ColumnUsageTarget,
     defaultSchema: string | undefined,
+    rules: IdentifierRules,
 ): TableMatch {
-    if (!namesEqual(ref.name, target.table)) return 'no';
+    // A name in SQL that differs from the catalog's only by case may or may
+    // not be the same table (see `IdentifierRules.tableCaseUncertain`).
+    let caseDiffers = false;
+    const same = (written: string, catalog: string): boolean => {
+        if (catalogNamesEqual(written, catalog, rules.tables)) return true;
+        if (rules.tableCaseUncertain && catalogNamesEqual(written, catalog, 'insensitive')) {
+            caseDiffers = true;
+            return true;
+        }
+        return false;
+    };
+    const matched = (): TableMatch => (caseDiffers ? 'case-differs' : 'match');
+    if (!same(ref.name, target.table)) return 'no';
     if (ref.schema !== undefined) {
-        if (target.schema !== undefined)
-            return namesEqual(ref.schema, target.schema) ? 'match' : 'no';
-        if (target.database !== undefined && namesEqual(ref.schema, target.database))
-            return 'match';
+        if (target.schema !== undefined) return same(ref.schema, target.schema) ? matched() : 'no';
+        if (target.database !== undefined && same(ref.schema, target.database)) return matched();
         return 'other-qualifier';
     }
-    if (target.schema === undefined) return 'match';
-    if (defaultSchema !== undefined && namesEqual(defaultSchema, target.schema)) return 'match';
+    if (target.schema === undefined) return matched();
+    if (
+        defaultSchema !== undefined &&
+        catalogNamesEqual(defaultSchema, target.schema, rules.tables)
+    )
+        return matched();
     return 'schema-unknown';
 }
 
@@ -687,14 +768,19 @@ function analyseStatement(
     target: ColumnUsageTarget,
     options: FindColumnReferencesOptions,
 ): SqlColumnMatch[] {
-    const model = buildModel(tokens);
+    const rule = identifierRulesFor(options.dialect);
+    // A mention of the table in any case counts where the case is uncertain.
+    const tableMention: NameMatch = rule.tableCaseUncertain ? 'insensitive' : rule.tables;
+    const model = buildModel(tokens, rule);
     const matches: SqlColumnMatch[] = [];
     const tableRelations = model.relations.filter((r) => r.ref);
     const relationVerdicts = tableRelations.map((r) =>
-        matchRelation(r.ref!, target, options.defaultSchema),
+        matchRelation(r.ref!, target, options.defaultSchema, rule),
     );
     const targetInStatement = relationVerdicts.some((v) => v !== 'no');
-    const targetNameMentioned = tokens.some((t) => isIdent(t) && identEquals(t, target.table));
+    const targetNameMentioned = tokens.some(
+        (t) => isIdent(t) && identEquals(t, target.table, rule, tableMention),
+    );
 
     const uncertain = (token: LexToken, reason: UncertainReason): SqlColumnMatch => ({
         confidence: 'uncertain',
@@ -705,6 +791,7 @@ function analyseStatement(
 
     const resolveVerdict = (verdict: TableMatch): 'parsed' | UncertainReason | null => {
         if (verdict === 'match') return 'parsed';
+        if (verdict === 'case-differs') return 'name-case';
         if (verdict === 'schema-unknown') return 'unqualified-schema';
         if (verdict === 'other-qualifier') return 'unresolved-qualifier';
         return null;
@@ -792,7 +879,7 @@ function analyseStatement(
                 r.at > from &&
                 r.at < until &&
                 r.ref !== undefined &&
-                resolveVerdict(matchRelation(r.ref, target, options.defaultSchema)) !== null,
+                resolveVerdict(matchRelation(r.ref, target, options.defaultSchema, rule)) !== null,
         );
     };
 
@@ -814,7 +901,9 @@ function analyseStatement(
                     bindings.some(
                         (b) =>
                             b.ref &&
-                            resolveVerdict(matchRelation(b.ref, target, options.defaultSchema)),
+                            resolveVerdict(
+                                matchRelation(b.ref, target, options.defaultSchema, rule),
+                            ),
                     )
                 ) {
                     wildcardSeen = true;
@@ -824,7 +913,11 @@ function analyseStatement(
             continue;
         }
 
-        if (!isIdent(token) || model.nameTokens.has(i) || !identEquals(token, target.column))
+        if (
+            !isIdent(token) ||
+            model.nameTokens.has(i) ||
+            !identEquals(token, target.column, rule, rule.columns)
+        )
             continue;
         const next = tokens[i + 1];
         if (next?.value === '.') continue; // a qualifier, not a column
@@ -839,9 +932,10 @@ function analyseStatement(
                 // schema.table.column
                 const verdict = resolveVerdict(
                     matchRelation(
-                        {name: qualifier.value, schema: outer.value},
+                        {name: catalogName(qualifier, rule), schema: catalogName(outer, rule)},
                         target,
                         options.defaultSchema,
+                        rule,
                     ),
                 );
                 if (verdict === 'parsed')
@@ -851,14 +945,14 @@ function analyseStatement(
             }
             const bindings = model.bindings.get(qualifier.value.toLowerCase());
             if (!bindings) {
-                if (targetInStatement || identEquals(qualifier, target.table)) {
+                if (targetInStatement || identEquals(qualifier, target.table, rule, tableMention)) {
                     matches.push(uncertain(token, 'unresolved-qualifier'));
                 }
                 continue;
             }
             const verdicts = bindings.map((b) =>
                 b.ref
-                    ? resolveVerdict(matchRelation(b.ref, target, options.defaultSchema))
+                    ? resolveVerdict(matchRelation(b.ref, target, options.defaultSchema, rule))
                     : 'derived-table',
             );
             const relevant = verdicts.filter((v): v is 'parsed' | UncertainReason => v !== null);
@@ -882,7 +976,9 @@ function analyseStatement(
             if (!relation.ref) return 'unknown';
             const columns = options.columnsOf?.(relation.ref);
             if (!columns) return 'unknown';
-            return columns.some((c) => namesEqual(c, target.column)) ? 'yes' : 'no';
+            return columns.some((c) => catalogNamesEqual(c, target.column, rule.columns))
+                ? 'yes'
+                : 'no';
         };
         let scope: number | undefined = model.scopes[i];
         let shadowed = false;
@@ -891,7 +987,7 @@ function analyseStatement(
             const level = scope;
             const candidates = model.relations.filter((r) => r.scope === level);
             const verdicts = candidates.map((r) =>
-                r.ref ? matchRelation(r.ref, target, options.defaultSchema) : 'no',
+                r.ref ? matchRelation(r.ref, target, options.defaultSchema, rule) : 'no',
             );
             const others = candidates.filter((_, k) => verdicts[k] === 'no').map(mayHaveColumn);
             if (verdicts.some((v) => v !== 'no')) {
@@ -899,7 +995,9 @@ function analyseStatement(
                 const best = verdicts.includes('match')
                     ? 'parsed'
                     : resolveVerdict(verdicts.find((v) => v !== 'no')!);
-                if (shadowed || others.some((o) => o !== 'no')) {
+                // `orders` and `Orders` may be two tables that both have it.
+                const caseTwin = verdicts.includes('match') && verdicts.includes('case-differs');
+                if (shadowed || caseTwin || others.some((o) => o !== 'no')) {
                     matches.push(uncertain(token, 'several-tables'));
                 } else if (best === 'parsed') {
                     matches.push({confidence: 'parsed', start: token.start, end: token.end});

@@ -304,6 +304,162 @@ describe('columnUsageCollector', () => {
                 ]);
             });
 
+            it('compares catalog names the way the dialect stores them', async () => {
+                // PostgreSQL keeps the case of quoted names, so these are other relations.
+                for (const key of [
+                    fk('invoices_fk', 'customer_id', 'orders', 'customer_id', 'PUBLIC'),
+                    fk('invoices_fk', 'customer_id', 'Orders', 'customer_id', 'public'),
+                    fk('invoices_fk', 'customer_id', 'orders', 'CUSTOMER_ID', 'public'),
+                ]) {
+                    expect(await collectFks([], [invoices(key)])).toEqual([]);
+                }
+                expect(
+                    await collectFks(
+                        [
+                            fk('orders_upper_fk', 'CUSTOMER_ID', 'customers', 'id', 'public'),
+                            fk('orders_fk', 'customer_id', 'customers', 'id', 'public'),
+                        ],
+                        [],
+                    ),
+                ).toEqual([
+                    {
+                        direction: 'outgoing',
+                        confidence: 'confirmed',
+                        objectSchema: 'public',
+                        objectName: 'customers',
+                        relatedColumn: 'id',
+                    },
+                ]);
+
+                // A mixed-case catalog target matches its exact spelling only.
+                const mixed: ColumnUsageTarget = {
+                    database: 'shop',
+                    schema: 'Sales',
+                    table: 'Orders',
+                    column: 'CustomerId',
+                };
+                const keys = [
+                    fk('exact_fk', 'customer_id', 'Orders', 'CustomerId', 'Sales'),
+                    fk('lower_fk', 'customer_id', 'orders', 'customerid', 'sales'),
+                ];
+                expect(
+                    (await collectFks([], [invoices(...keys)], mixed)).map((e) => e.objectSchema),
+                ).toEqual(['Sales']);
+
+                // SQLite compares names without case. MySQL column names
+                // ignore case, but its table names are case-sensitive on Linux.
+                const mysqlTarget: ColumnUsageTarget = {
+                    database: 'shop',
+                    table: 'orders',
+                    column: 'customer_id',
+                };
+                const inDialect = async (dialect: string) =>
+                    (
+                        await collectColumnUsage(
+                            fkLookups(
+                                [fk('orders_fk', 'CUSTOMER_ID', 'customers', 'id')],
+                                [
+                                    invoices(
+                                        fk('a', 'customer_id', 'Orders', 'customer_id'),
+                                        fk('b', 'customer_id', 'orders', 'CUSTOMER_ID'),
+                                        fk('c', 'customer_id', 'ORDERS', 'Customer_Id'),
+                                        fk('d', 'customer_id', 'orders', 'customer_id'),
+                                    ),
+                                ],
+                            ),
+                            {target: mysqlTarget, dialect, viewsSupported: true},
+                        )
+                    ).evidence.map((e) => `${e.direction}:${e.constraintName}`);
+                expect(await inDialect('sqlite')).toEqual([
+                    'outgoing:orders_fk',
+                    'incoming:a',
+                    'incoming:b',
+                    'incoming:c',
+                    'incoming:d',
+                ]);
+                expect(await inDialect('mysql')).toEqual([
+                    'outgoing:orders_fk',
+                    'incoming:b',
+                    'incoming:d',
+                ]);
+            });
+
+            it('marks MySQL history that spells the table in another case as uncertain', async () => {
+                const result = await collectColumnUsage(
+                    lookups({
+                        getForeignKeys: async () => [],
+                        getSchemaSnapshot: async () => snapshot,
+                        getViews: async () => [],
+                        getHistory: async () => [
+                            history(
+                                'h1',
+                                'SELECT o.CUSTOMER_ID FROM Orders o',
+                                '2026-11-01T10:00:00Z',
+                            ),
+                            history(
+                                'h2',
+                                'SELECT o.customer_id FROM orders o',
+                                '2026-11-02T10:00:00Z',
+                            ),
+                            history(
+                                'h3',
+                                'SELECT customer_id FROM orders',
+                                '2026-11-03T10:00:00Z',
+                                'SHOP',
+                            ),
+                        ],
+                    }),
+                    {
+                        target: {database: 'shop', table: 'orders', column: 'customer_id'},
+                        dialect: 'mysql',
+                        viewsSupported: true,
+                    },
+                );
+                expect(
+                    result.evidence
+                        .filter((e) => e.source === 'history')
+                        .map((e) => [
+                            e.historyEntry?.id,
+                            e.reason ? `${e.confidence}:${e.reason}` : e.confidence,
+                        ]),
+                ).toEqual([
+                    ['h2', 'parsed'],
+                    ['h1', 'uncertain:name-case'],
+                ]);
+            });
+
+            it('reads the columns of a quoted table name from the snapshot', async () => {
+                // Unqualified `customer_id` is several-tables only when the
+                // other table really has that column.
+                const tables: TableSchema[] = [
+                    {name: 'orders', columns: [column('customer_id')], foreign_keys: []},
+                    {name: 'Archive', columns: [column('customer_id')], foreign_keys: []},
+                    {name: 'archive', columns: [column('id')], foreign_keys: []},
+                ];
+                const evidence = async (sql: string) =>
+                    (
+                        await collectColumnUsage(
+                            lookups({
+                                getForeignKeys: async () => [],
+                                getSchemaSnapshot: async () => tables,
+                                getViews: async () => [],
+                                getHistory: async () => [
+                                    history('h1', sql, '2026-11-01T10:00:00Z'),
+                                ],
+                            }),
+                            {target, dialect: 'postgres', viewsSupported: true},
+                        )
+                    ).evidence.map((e) =>
+                        e.reason ? `${e.confidence}:${e.reason}` : e.confidence,
+                    );
+                expect(
+                    await evidence('SELECT customer_id FROM public.orders, public.archive'),
+                ).toEqual(['parsed']);
+                expect(
+                    await evidence('SELECT customer_id FROM public.orders, public."Archive"'),
+                ).toEqual(['uncertain:several-tables']);
+            });
+
             it('compares nothing when neither side knows a schema', async () => {
                 const evidence = await collectFks(
                     [fk('orders_customer_fk', 'customer_id', 'customers', 'id')],

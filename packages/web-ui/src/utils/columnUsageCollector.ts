@@ -11,7 +11,9 @@ import {toErrorMessage} from './errors';
 import {getReferencedSchema} from './foreignKeys';
 import {
     buildUsageSnippet,
+    catalogNamesEqual,
     findColumnReferences,
+    identifierRulesFor,
     strongestMatch,
     type ColumnUsageConfidence,
     type ColumnUsageTarget,
@@ -113,9 +115,6 @@ export function classifyLookupError(
     return 'failed';
 }
 
-const sameName = (a: string | null | undefined, b: string | null | undefined): boolean =>
-    (a ?? '').toLowerCase() === (b ?? '').toLowerCase();
-
 /**
  * The status of a source that read `scanned` of `total` items, met `errors`
  * failures (the first one's message in `firstError`) and stopped early when
@@ -187,6 +186,14 @@ export async function collectColumnUsage(
     options: CollectColumnUsageOptions,
 ): Promise<ColumnUsageResult> {
     const {target, dialect, signal} = options;
+    // Catalog names compare by the dialect's identifier rules: PostgreSQL's
+    // "Orders" is not orders, and neither is MySQL's Orders on Linux.
+    const rules = identifierRulesFor(dialect);
+    const sameTable = (a: string | null | undefined, b: string | null | undefined): boolean =>
+        catalogNamesEqual(a ?? '', b ?? '', rules.tables);
+    const sameColumn = (a: string | null | undefined, b: string | null | undefined): boolean =>
+        catalogNamesEqual(a ?? '', b ?? '', rules.columns);
+    const tableKey = (name: string) => (rules.tables === 'insensitive' ? name.toLowerCase() : name);
     const limits = {...DEFAULT_COLUMN_USAGE_LIMITS, ...options.limits};
     const result: ColumnUsageResult = {
         sources: {
@@ -220,7 +227,7 @@ export async function collectColumnUsage(
             const outgoing = await lookups.getForeignKeys();
             scanned++;
             for (const fk of outgoing) {
-                if (!sameName(fk.column_name, target.column)) continue;
+                if (!sameColumn(fk.column_name, target.column)) continue;
                 const refSchema = getReferencedSchema(fk, target.schema);
                 result.evidence.push({
                     id: `fk-out-${fk.name}-${refSchema ?? ''}-${fk.ref_table}-${fk.ref_column}`,
@@ -247,9 +254,9 @@ export async function collectColumnUsage(
                 for (const fk of table.foreign_keys ?? []) {
                     const refSchema = getReferencedSchema(fk, target.schema);
                     if (
-                        !sameName(fk.ref_table, target.table) ||
-                        !sameName(fk.ref_column, target.column) ||
-                        (refSchema && target.schema && !sameName(refSchema, target.schema))
+                        !sameTable(fk.ref_table, target.table) ||
+                        !sameColumn(fk.ref_column, target.column) ||
+                        (refSchema && target.schema && !sameTable(refSchema, target.schema))
                     ) {
                         continue;
                     }
@@ -275,16 +282,16 @@ export async function collectColumnUsage(
     const columnsByTable = new Map<string, string[]>();
     for (const table of snapshot ?? []) {
         columnsByTable.set(
-            table.name.toLowerCase(),
+            tableKey(table.name),
             table.columns.map((c) => c.name),
         );
     }
     // Columns are only known for tables of the target's own schema.
     const columnsOf = (ref: RelationRef): readonly string[] | undefined => {
-        if (ref.schema !== undefined && !sameName(ref.schema, target.schema ?? target.database)) {
+        if (ref.schema !== undefined && !sameTable(ref.schema, target.schema ?? target.database)) {
             return undefined;
         }
-        return columnsByTable.get(ref.name.toLowerCase());
+        return columnsByTable.get(tableKey(ref.name));
     };
 
     // 2. View definitions of the target's schema.
@@ -369,7 +376,7 @@ export async function collectColumnUsage(
                 (entry) =>
                     !entry.database ||
                     !target.database ||
-                    sameName(entry.database, target.database),
+                    sameTable(entry.database, target.database),
             )
             .sort((a, b) => b.executedAt.localeCompare(a.executedAt));
         let scanned = 0;
