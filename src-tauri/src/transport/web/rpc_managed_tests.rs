@@ -268,22 +268,35 @@ async fn the_denial_names_the_action_and_carries_no_payload_data() {
     assert!(!body.to_string().contains("pw-in-the-request"));
 }
 
-#[tokio::test]
-async fn driver_errors_cannot_carry_a_stored_credential_to_the_browser() {
+fn failing_dispatcher(
+    message: &str,
+    secret: &str,
+    policy: ManagedConnectionPolicy,
+) -> RpcDispatcher {
     let mut application = FixtureApplication::new(Duration::ZERO);
-    application.failure = Some(
-        "FATAL: password authentication failed (password: s3cr3t-db-pw, uri: pg://u:s3cr3t-db-pw@h)"
-            .to_string(),
-    );
-    application.secrets = vec!["s3cr3t-db-pw".to_string()];
-    let dispatcher = dispatcher_with(application, ManagedConnectionPolicy::managed_only());
+    application.failure = Some(message.to_string());
+    application.secrets = vec![secret.to_string()];
+    dispatcher_with(application, policy)
+}
 
-    let (status, body) = call(
-        &dispatcher,
+async fn failing_call(dispatcher: &RpcDispatcher) -> (StatusCode, Value) {
+    call(
+        dispatcher,
         "register_active_connection",
         json!({"connectionId": "managed-1"}),
     )
-    .await;
+    .await
+}
+
+#[tokio::test]
+async fn driver_errors_cannot_carry_a_stored_credential_to_the_browser() {
+    let dispatcher = failing_dispatcher(
+        "FATAL: password authentication failed (password: s3cr3t-db-pw, uri: pg://u:s3cr3t-db-pw@h)",
+        "s3cr3t-db-pw",
+        ManagedConnectionPolicy::managed_only(),
+    );
+
+    let (status, body) = failing_call(&dispatcher).await;
     assert_eq!(status, StatusCode::CONFLICT);
     assert!(!body.to_string().contains("s3cr3t-db-pw"), "{body}");
     assert!(body["error"]["message"]
@@ -293,17 +306,28 @@ async fn driver_errors_cannot_carry_a_stored_credential_to_the_browser() {
 }
 
 #[tokio::test]
-async fn standalone_error_messages_are_passed_through_unchanged() {
-    let mut application = FixtureApplication::new(Duration::ZERO);
-    application.failure = Some("login failed for s3cr3t-db-pw".to_string());
-    application.secrets = vec!["s3cr3t-db-pw".to_string()];
-    let dispatcher = dispatcher_with(application, ManagedConnectionPolicy::standalone());
+async fn driver_errors_cannot_carry_a_short_stored_password_to_the_browser() {
+    for secret in ["a", "ab", "abc"] {
+        let dispatcher = failing_dispatcher(
+            &format!("driver rejected password {secret}"),
+            secret,
+            ManagedConnectionPolicy::managed_only(),
+        );
 
-    let (_, body) = call(
-        &dispatcher,
-        "register_active_connection",
-        json!({"connectionId": "managed-1"}),
-    )
-    .await;
+        let (status, body) = failing_call(&dispatcher).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(body["error"]["message"], "[redacted]", "{secret}");
+    }
+}
+
+#[tokio::test]
+async fn standalone_error_messages_are_passed_through_unchanged() {
+    let dispatcher = failing_dispatcher(
+        "login failed for s3cr3t-db-pw",
+        "s3cr3t-db-pw",
+        ManagedConnectionPolicy::standalone(),
+    );
+
+    let (_, body) = failing_call(&dispatcher).await;
     assert_eq!(body["error"]["message"], "login failed for s3cr3t-db-pw");
 }

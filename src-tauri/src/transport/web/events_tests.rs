@@ -240,3 +240,31 @@ async fn events_are_untouched_when_no_credentials_are_registered() {
     let event = connection.recv().await.unwrap();
     assert_eq!(event.payload["error"], "offline");
 }
+
+#[tokio::test]
+async fn events_never_carry_a_short_stored_password() {
+    for secret in ["a", "ab", "abc"] {
+        let bus = WebEventBus::new(test_config());
+        let session = Uuid::new_v4();
+        let mut connection = bus.connect(session, AuthorizationLevel::Database).unwrap();
+        connection
+            .subscribe(&["connection-health-failed".to_string()], None)
+            .unwrap();
+        bus.redactor().replace([secret.to_string()]);
+
+        bus.emit_to(
+            session,
+            "connection-health-failed",
+            json!({
+                "connectionId": "c1",
+                "error": format!("login failed for password {secret}"),
+                "items": [{"why": secret}],
+            }),
+        )
+        .unwrap();
+
+        let event = connection.recv().await.unwrap();
+        assert_eq!(event.payload["error"], "[redacted]", "{secret}");
+        assert_eq!(event.payload["items"][0]["why"], "[redacted]", "{secret}");
+    }
+}

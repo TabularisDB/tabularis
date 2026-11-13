@@ -17,6 +17,7 @@ tabularis web --auth password --public-url https://db.example.com \
 
 - `--auth` is set. A loopback session without authentication belongs to the machine owner, who is not a managed user.
 - `--allow-high-risk` is **not** set. Local-administrator authority lets a session read files, run host commands and edit settings, which defeats an administrator-supplied connection set.
+- Every stored credential is at least four characters long. A shorter one would blank every string that happens to contain it, so the instance refuses to start and asks for a longer credential. If a short credential appears after startup (for example, an administrator rotates one), the same whole-string redaction applies, so nothing leaks while the instance is running.
 
 ## Instance modes
 
@@ -72,7 +73,7 @@ Where these are stored: groups, tags, each connection's `group_id`, `tag_ids` an
 - Connection responses never include passwords, connection URIs, SSH passwords or passphrases, proxy credentials or plugin secrets.
 - Error messages are scrubbed of every stored credential before they reach the browser.
 - Pushed events are scrubbed the same way. The instance reloads its credentials every 30 seconds, so a credential an administrator rotates can appear in an event for up to that long.
-- Scrubbing replaces exact values. Values shorter than four characters are not scrubbed, because that would corrupt unrelated text. Use real passwords.
+- Scrubbing replaces exact values. A credential of four or more characters is replaced where it appears. A shorter one cannot be replaced in place without corrupting unrelated text, so any error message or event string that contains it is replaced whole with `[redacted]`.
 - Query results are data from the database and are not scrubbed.
 
 ## Denial code and frontend

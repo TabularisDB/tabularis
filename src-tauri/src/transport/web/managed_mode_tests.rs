@@ -417,6 +417,73 @@ async fn collected_secrets_include_every_stored_credential_kind() {
     }
 }
 
+fn runtime_with_connection(root: &std::path::Path, password: &str) -> Arc<dyn ApplicationApi> {
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.to_path_buf(),
+            root.to_path_buf(),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        Arc::new(MemorySecrets::default()),
+    );
+    let mut params = base_params();
+    params.password = Some(password.to_string());
+    params.save_in_keychain = Some(false);
+    let file = ConnectionsFile {
+        connections: vec![saved_connection("short-1", params, true)],
+        ..Default::default()
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+    Arc::new(RuntimeApplicationApi::new(
+        runtime,
+        Arc::new(ApplicationState::default()),
+    ))
+}
+
+async fn start_error(policy: ManagedConnectionPolicy, password: &str) -> String {
+    let temp = tempfile::tempdir().unwrap();
+    let mut options = options(policy, Some(crate::cli::WebAuthMode::Password), false);
+    options.application = runtime_with_connection(temp.path(), password);
+    server::run(options).await.unwrap_err()
+}
+
+#[tokio::test]
+async fn managed_only_refuses_to_start_with_a_short_stored_credential() {
+    for password in ["a", "ab", "abc"] {
+        let error = start_error(ManagedConnectionPolicy::managed_only(), password).await;
+        assert!(error.contains("shorter than 4 characters"), "{error}");
+        assert!(!error.contains(&format!("'{password}'")), "{error}");
+    }
+}
+
+#[tokio::test]
+async fn managed_only_accepts_credentials_of_four_characters_or_more() {
+    // It then stops for the missing public URL, not for the credential.
+    let error = start_error(ManagedConnectionPolicy::managed_only(), "root").await;
+    assert!(!error.contains("shorter than"), "{error}");
+}
+
+#[tokio::test]
+async fn standalone_does_not_inspect_credentials_at_startup() {
+    let error = start_error(ManagedConnectionPolicy::standalone(), "a").await;
+    assert!(!error.contains("shorter than"), "{error}");
+}
+
+#[tokio::test]
+async fn a_short_credential_that_appears_after_startup_is_still_scrubbed() {
+    let temp = tempfile::tempdir().unwrap();
+    let application = runtime_with_connection(temp.path(), "abc");
+    let events = WebEventBus::default();
+
+    server::refresh_secrets(application.as_ref(), events.redactor()).await;
+
+    assert!(!events.redactor().is_empty());
+    assert_eq!(
+        events.redactor().redact("driver rejected password abc"),
+        "[redacted]"
+    );
+}
+
 fn options(
     policy: ManagedConnectionPolicy,
     auth: Option<crate::cli::WebAuthMode>,

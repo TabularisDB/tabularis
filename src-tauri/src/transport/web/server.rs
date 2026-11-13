@@ -112,6 +112,7 @@ struct BlobUploadResponse {
 
 pub async fn run(options: WebServerOptions) -> Result<(), String> {
     validate_connection_policy(&options)?;
+    reject_short_credentials(&options).await?;
     let server_file_browser_roots =
         super::server_files::canonicalize_roots(&options.server_file_browser_roots)?;
     let listener = TcpListener::bind((options.host.as_str(), options.port))
@@ -237,19 +238,54 @@ fn validate_connection_policy(options: &WebServerOptions) -> Result<(), String> 
 
 const SECRET_REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
 
-/// Reloads the instance's credentials into the redactor.
-pub(crate) async fn refresh_secrets(
-    application: &dyn ApplicationApi,
-    redactor: &crate::application::secret_redaction::SecretRedactor,
-) {
-    let context = crate::application::ApplicationRequestContext {
+fn internal_context() -> crate::application::ApplicationRequestContext {
+    crate::application::ApplicationRequestContext {
         request_id: "secret-refresh".to_string(),
         deadline: std::time::Instant::now() + SECRET_REFRESH_INTERVAL,
         cancellation_id: None,
         authorization: AuthorizationLevel::Session,
         session_id: None,
-    };
-    match application.connection_secret_values(context).await {
+    }
+}
+
+/// A credential too short to be removed from text in place would force the
+/// redactor to blank every string that happens to contain it. Refuse to start
+/// instead, so the operator fixes the credential rather than finding the gap
+/// in an error message.
+async fn reject_short_credentials(options: &WebServerOptions) -> Result<(), String> {
+    if !options.connection_policy.is_managed_only() {
+        return Ok(());
+    }
+    let values = options
+        .application
+        .connection_secret_values(internal_context())
+        .await
+        .map_err(|error| format!("Failed to check the stored credentials: {}", error.message))?;
+    let short = values
+        .iter()
+        .filter(|value| {
+            !value.trim().is_empty() && crate::application::secret_redaction::is_short_secret(value)
+        })
+        .count();
+    if short == 0 {
+        return Ok(());
+    }
+    Err(format!(
+        "--connection-mode managed-only found {short} stored credential(s) shorter than {} \
+         characters. Credentials that short cannot be kept out of error text, so use longer ones",
+        crate::application::secret_redaction::MIN_SUBSTRING_SECRET_LENGTH
+    ))
+}
+
+/// Reloads the instance's credentials into the redactor.
+pub(crate) async fn refresh_secrets(
+    application: &dyn ApplicationApi,
+    redactor: &crate::application::secret_redaction::SecretRedactor,
+) {
+    match application
+        .connection_secret_values(internal_context())
+        .await
+    {
         Ok(values) => redactor.replace(values),
         Err(error) => log::warn!("Failed to refresh managed credentials: {}", error.message),
     }
