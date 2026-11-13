@@ -12,6 +12,7 @@ import {
     HISTORY_LIMIT,
     COALESCE_MS,
 } from '@/utils/notebookUndo';
+import {duplicateCellToEnd} from '@/utils/notebook';
 import type {NotebookCell} from '@/types/notebook';
 
 function state(content: string, extra: Partial<NotebookState> = {}): NotebookState {
@@ -51,6 +52,27 @@ describe('notebookUndo', () => {
             expect(documentSignature(state('X'))).not.toBe(
                 documentSignature(state('X', {params: [{name: 'p', value: '1'}]})),
             );
+        });
+    });
+
+    describe('KPI configuration', () => {
+        it('is part of the document, so KPI changes can be undone and redone', () => {
+            const prev = state('SELECT 1');
+            const next: NotebookState = {
+                cells: [{...prev.cells[0], kpiConfig: {column: 'n', label: 'Users'}}],
+            };
+            expect(documentSignature(next)).not.toBe(documentSignature(prev));
+            const history = recordEdit(createHistory(), prev, next, 10_000);
+            const back = undo(history, next);
+            expect(back?.state.cells[0].kpiConfig).toBeUndefined();
+            const forward = redo(back!.history, back!.state);
+            expect(forward?.state.cells[0].kpiConfig).toEqual({column: 'n', label: 'Users'});
+        });
+
+        it('ignores KPI visibility like chart visibility', () => {
+            const prev = state('SELECT 1');
+            const next: NotebookState = {cells: [{...prev.cells[0], isKpiVisible: true}]};
+            expect(documentSignature(next)).toBe(documentSignature(prev));
         });
     });
 
@@ -208,6 +230,12 @@ describe('notebookUndo', () => {
             });
         });
 
+        it('detects a changed KPI configuration', () => {
+            const prev = ns([cell('a'), cell('b', {kpiConfig: {column: 'n'}})]);
+            const next = ns([cell('a'), cell('b', {kpiConfig: {column: 'n', decimals: 2}})]);
+            expect(describeChange(prev, next)).toMatchObject({kind: 'kpiCell', n: 2});
+        });
+
         it('detects an added SQL cell at its position', () => {
             const prev = ns([cell('a')]);
             const next = ns([cell('a'), cell('b', {content: 'NEW'})]);
@@ -218,6 +246,30 @@ describe('notebookUndo', () => {
             const prev = ns([cell('a')]);
             const next = ns([cell('a'), cell('b', {type: 'markdown'})]);
             expect(describeChange(prev, next).kind).toBe('addMarkdown');
+        });
+
+        it('records a duplicate as one added cell at the end, undone and redone whole', () => {
+            const prev = ns([
+                cell('a', {content: 'SELECT 1'}),
+                cell('b', {content: 'SELECT * FROM {{cell_1}}', result: null}),
+                cell('c', {type: 'markdown', content: '# Notes'}),
+            ]);
+            const next = ns(duplicateCellToEnd(prev.cells, 'b'));
+            expect(describeChange(prev, next)).toMatchObject({
+                kind: 'addSql',
+                n: 4,
+                detail: 'SELECT * FROM {{cell_1}}',
+            });
+            expect(describeChange(next, ns(duplicateCellToEnd(next.cells, 'c'))).kind).toBe(
+                'addMarkdown',
+            );
+
+            const history = recordEdit(createHistory(), prev, next, 10_000);
+            expect(history.past).toEqual([prev]);
+            const undone = undo(history, next);
+            expect(undone?.state).toBe(prev);
+            const redone = undone && redo(undone.history, undone.state);
+            expect(redone?.state).toBe(next);
         });
 
         it('detects a deleted cell by its old position', () => {

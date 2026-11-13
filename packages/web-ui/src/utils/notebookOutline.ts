@@ -115,3 +115,12 @@ export function extractOutline(cells: NotebookCell[]): OutlineEntry[] {
 
     return entries;
 }
+
+/** Filter outline entries case-insensitively by their displayed text, trimming the search query. */
+export function filterOutlineEntries(entries: OutlineEntry[], query: string): OutlineEntry[] {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+        return entries;
+    }
+    return entries.filter((entry) => entry.text.toLowerCase().includes(trimmed));
+}

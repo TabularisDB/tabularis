@@ -89,6 +89,18 @@ describe('PluginCard compact presentation', () => {
         expect(showReadme).toHaveBeenCalledOnce();
         expect(screen.getByText('12.5k')).toBeInTheDocument();
     });
+    it('puts AI artwork on a theme surface and preserves its fallback on load failure', () => {
+        const {container} = render(
+            <PluginCard {...props} kind="ai-assistant" iconUrl="https://example.test/gemini.svg" />,
+        );
+        const iconBox = container.querySelector('.w-11.h-11');
+        expect(iconBox).toHaveStyle({backgroundColor: 'var(--bg-base)'});
+        expect(iconBox?.querySelector('.text-primary')).not.toBeNull();
+        const image = iconBox?.querySelector('img');
+        expect(image).toHaveAttribute('src', 'https://example.test/gemini.svg');
+        fireEvent.error(image!);
+        expect(iconBox?.querySelector('.lucide-sparkles')).not.toBeNull();
+    });
 
     it('does not duplicate identical registry and homepage links', () => {
         render(

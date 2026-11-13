@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::any::AnyConnectOptions;
 use sqlx::{AnyConnection, Connection};
 use std::str::FromStr;
@@ -11,6 +11,74 @@ use crate::models::{
     DbUserInfo, ExplainQueryOutput, ForeignKey, Index, QueryResult, RoutineCallArg, RoutineInfo,
     RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
+
+/// Plugin-declared native whole-file backup. The host echoes `format` and
+/// takes the file extension and UI labels from the plugin.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct NativeBackupCapability {
+    pub format: String,
+    pub extension: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// Published plugins used `native_backup: true`. Treat that as omitted rather
+/// than failing the whole capabilities call; native dump needs the object.
+fn deserialize_native_backup<'de, D>(
+    deserializer: D,
+) -> Result<Option<NativeBackupCapability>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum NativeBackupField {
+        Flag(bool),
+        Spec(NativeBackupCapability),
+    }
+    Ok(
+        match Option::<NativeBackupField>::deserialize(deserializer)? {
+            None | Some(NativeBackupField::Flag(_)) => None,
+            Some(NativeBackupField::Spec(spec)) => Some(spec),
+        },
+    )
+}
+
+/// Optional whole-database SQL protocol. Other drivers keep the host transfer path.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DatabaseSqlCapabilities {
+    pub format: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_native_backup",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub native_backup: Option<NativeBackupCapability>,
+    pub create_database: bool,
+    pub requires_empty_target: bool,
+    pub target_label: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DatabaseSqlExportOptions {
+    #[serde(default)]
+    pub format: Option<String>,
+    pub structure: bool,
+    pub data: bool,
+    pub tables: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DatabaseSqlExportResult {
+    pub rows: u64,
+    pub tables: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DatabaseSqlImportResult {
+    pub statements: usize,
+}
 
 /// Callback invoked the moment each statement in a batch finishes, with the
 /// statement's zero-based index and its outcome. Drivers call this — when one
@@ -106,6 +174,19 @@ pub struct DriverCapabilities {
     /// the scheme of `connection_string_example` (e.g. `["mongodb+srv"]`).
     #[serde(default, alias = "connectionUriSchemes")]
     pub connection_uri_schemes: Vec<String>,
+    /// The driver reads `ConnectionParams::socks5_proxy_*` and sends every
+    /// database connection through that SOCKS5 proxy. With SSH enabled, the
+    /// host then opens a dynamic forward (`ssh -D`) instead of a fixed one
+    /// and leaves `host`/`port`/`connection_uri` as the user entered them, so
+    /// a connection that names several endpoints (e.g. `mongodb+srv://`)
+    /// reaches all of them. Defaults to `false`: the host keeps rewriting
+    /// `host`/`port` to a fixed forward.
+    #[serde(
+        default,
+        alias = "socks5Proxy",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub socks5_proxy: bool,
     /// Character used to quote identifiers (e.g. `"` for PostgreSQL, `` ` `` for MySQL).
     #[serde(default = "default_double_quote")]
     pub identifier_quote: String,
@@ -142,6 +223,14 @@ pub struct DriverCapabilities {
     /// SQL-compatible drivers and hides the entry for the others.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub column_stats: bool,
+    /// The driver classifies queries in its own query language through the
+    /// optional `classify_query` RPC, so the read-only policies (MCP read-only
+    /// mode, the approval gate and saved read-only connections) stop reading
+    /// them as SQL. Omitted/false keeps the host's SQL classification. A
+    /// `select` verdict only counts when the driver also has an execution
+    /// guarantee: `read_only_queries`, or `readonly`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub query_classification: bool,
     /// Honours `ConnectionParams::query_timeout_secs`: the driver stops a
     /// statement on the server once the limit passes. Omitted/false hides the
     /// query-timeout field in the connection modal. Built-in PostgreSQL sets
@@ -876,9 +965,11 @@ pub trait DatabaseDriver: Send + Sync {
     /// read-only transaction that is always rolled back, and the database
     /// rejects any write the classifier missed.
     ///
-    /// The default implementation delegates to [`Self::execute_query`]:
-    /// plugin drivers have no read-only mode, so for them classification is
-    /// the only safeguard.
+    /// The default implementation delegates to [`Self::execute_query`], so a
+    /// driver that keeps it has classification as its only safeguard. A
+    /// plugin driver closes that gap by declaring
+    /// `capabilities.read_only_queries` and implementing the
+    /// `execute_read_only_query` RPC, which `RpcDriver` then calls instead.
     async fn execute_read_only_query(
         &self,
         params: &ConnectionParams,
@@ -888,6 +979,24 @@ pub trait DatabaseDriver: Send + Sync {
         schema: Option<&str>,
     ) -> Result<QueryResult, String> {
         self.execute_query(params, query, limit, page, schema).await
+    }
+
+    /// Optional: classify `query` in the driver's own query language, for the
+    /// read-only policies: the MCP read-only mode, the MCP approval gate and
+    /// saved read-only connections.
+    ///
+    /// `Ok(None)` means the driver does not classify, and the host reads the
+    /// query as SQL. `Ok(Some(kind))` is one of `"select"`, `"write"`,
+    /// `"ddl"` or `"unknown"`, and has to come from the parser that executes
+    /// the query. An `Err` is a failed classification: callers treat it as
+    /// `"unknown"`, never as a reason to read the query as SQL, because the
+    /// host's SQL classifier knows nothing about this driver's language.
+    async fn classify_query(
+        &self,
+        _params: &ConnectionParams,
+        _query: &str,
+    ) -> Result<Option<&'static str>, String> {
+        Ok(None)
     }
 
     /// `execute_batch` with the caller's connection carried across calls.
@@ -1156,6 +1265,32 @@ pub trait DatabaseDriver: Send + Sync {
         _table: &str,
         _schema: Option<&str>,
     ) -> Result<Option<u64>, String> {
+        Ok(None)
+    }
+
+    /// Optional whole-file transfers; missing methods retain the host implementation.
+    async fn get_database_sql_capabilities(
+        &self,
+        _params: &ConnectionParams,
+    ) -> Result<Option<DatabaseSqlCapabilities>, String> {
+        Ok(None)
+    }
+
+    async fn export_database_sql(
+        &self,
+        _params: &ConnectionParams,
+        _file_path: &str,
+        _options: &DatabaseSqlExportOptions,
+    ) -> Result<Option<DatabaseSqlExportResult>, String> {
+        Ok(None)
+    }
+
+    async fn import_database_sql(
+        &self,
+        _params: &ConnectionParams,
+        _file_path: &str,
+        _create_database: bool,
+    ) -> Result<Option<DatabaseSqlImportResult>, String> {
         Ok(None)
     }
 

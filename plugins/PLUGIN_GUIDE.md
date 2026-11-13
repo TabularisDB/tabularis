@@ -8,6 +8,10 @@ Tabularis supports extending its capabilities via a JSON-RPC based external plug
 
 This guide details how to implement and register a custom external plugin.
 
+AI providers use a separate, declarative `ai-assistant` package contract. See the
+[AI assistant package guide](./ai-assistants/README.md); those packages contain
+HTTP templates and JSON selectors and do not use the executable driver protocol.
+
 Native routine debugging is an optional, versioned capability. See
 [Routine debugger protocol v1](./ROUTINE_DEBUG.md) for the RPC, lifecycle,
 write protections and required native integration evidence.
@@ -163,8 +167,9 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `table_query_templates` | bool | Opts the Generate SQL dialog into the optional `get_table_query_template` RPC for SELECT/UPDATE/DELETE previews. Defaults to `false`; older plugins and built-in drivers keep the existing host templates. See [Table Query Templates](#table-query-templates). |
 | `column_comments` | bool | The DDL generation RPCs honour `ColumnDefinition.comment` (for example `OPTIONS(description=...)` or a `COMMENT` clause), so the column editor shows a description field. Defaults to `false`; the field is hidden otherwise and `comment` is omitted from requests when unset. |
 | `column_stats` | bool | Opts the data grid's **Column statistics** popover into the optional `get_column_stats` RPC. Defaults to `false`: plugins whose `sql_syntax.extends` or `sql_dialect` is `postgres`, `mysql` or `sqlite` keep the host's generic SQL, and the others don't show the menu entry. See [Column Statistics](#column-statistics). |
+| `query_classification` | bool | Opts the read-only policies (the MCP read-only mode, the MCP approval gate and saved read-only connections) into the optional `classify_query` RPC, so a driver whose query language is not SQL can say whether a query only reads. Defaults to `false`: the host reads every query as SQL, which is wrong for a non-SQL language (a plain read usually comes out `unknown`: blocked in read-only mode and needing approval). A `select` verdict only counts together with `read_only_queries` (or `readonly`). See [Query Classification](#query-classification). |
 | `drop_table_sql` | bool | Opts the explorer's **Drop table** action into the optional `get_drop_table_sql` RPC, so the plugin can return its own statement (for example `DROP SNAPSHOT TABLE`). Defaults to `false`: the RPC is never called and the host runs a generic `DROP TABLE` with your `identifier_quote`. See [`get_drop_table_sql`](#get_drop_table_sql). |
-| `sql_dialect` | string | Optional SQL dialect preset: `postgres`, `mysql`, `mssql`, `sqlite`, `oracle`, or `generic`. Drives statement splitting, the AI/MCP read-only check, generated SQL and literals. Oracle-like plugins, including DM/Dameng, should use `"oracle"`. A host loads a dialect it doesn't know as `generic` and logs a warning. For an engine no preset describes, keep the closest preset here and declare `sql_syntax`. |
+| `sql_dialect` | string | Optional SQL dialect preset: `postgres`, `mysql`, `mssql`, `sqlite`, `oracle`, or `generic`. Drives statement splitting, the AI/MCP read-only check, generated SQL and literals. A driver whose query language is not SQL declares `query_classification` instead of relying on the read-only check (see [Query Classification](#query-classification)). Oracle-like plugins, including DM/Dameng, should use `"oracle"`. A host loads a dialect it doesn't know as `generic` and logs a warning. For an engine no preset describes, keep the closest preset here and declare `sql_syntax`. |
 | `sql_syntax` | object | Optional declarative SQL syntax that extends a preset: quotes, comments, triple-quoted and prefixed strings, procedural blocks, string and boolean literals, `LIKE … ESCAPE`, formatter and autocomplete words. Hosts that predate it ignore it and use `sql_dialect`. See [SQL Syntax](#sql-syntax-sql_syntax). |
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
@@ -175,6 +180,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
 | `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL and MySQL set this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
+| `socks5_proxy` | bool | `true` when the driver sends every database connection through the SOCKS5 proxy the host passes in `socks5_proxy_host` / `socks5_proxy_port` (and `socks5_proxy_username` / `socks5_proxy_password` when set). With SSH enabled, the host then opens a dynamic forward instead of rewriting `host` / `port`, so a connection that names several endpoints (an SRV seedlist, a replica set) reaches all of them. Also accepted as camelCase `socks5Proxy`. Defaults to `false`. See [SSH Tunnels through a SOCKS5 Proxy](#ssh-tunnels-through-a-socks5-proxy). |
 
 For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
 
@@ -216,8 +222,10 @@ have the same shape as `execute_query` (a bare `QueryResult` response):
 }
 ```
 
-The host preflights the SQL using the declared dialect, but a keyword filter
-cannot detect side effects in stored functions. The plugin must enforce write
+The host preflights the SQL using the declared dialect (a driver whose query
+language is not SQL declares `query_classification` and the preflight uses the
+driver's own verdict, see [Query Classification](#query-classification)), but a
+keyword filter cannot detect side effects in stored functions. The plugin must enforce write
 protection using its database's transaction, session or equivalent mechanism,
 including for calls whose SQL looks like a read. If protection cannot be enabled,
 return an error. An unsupported method, timeout or protection failure never falls
@@ -947,6 +955,30 @@ The `params.params` object is a `ConnectionParams` — the same values the user 
 
 Optional settings appear only when the user set them. For example, `connect_timeout_secs` is the number of seconds to wait for a new connection. A plugin that supports a connect timeout should honor it and use its own default when it is absent. Likewise, `query_timeout_secs` is the number of seconds a statement may run; 0 or absent means no limit. Declare `capabilities.query_timeout: true` only when the plugin can cancel a running statement and will stop it on the server once the limit passes; the connection modal shows the field solely for that capability.
 
+### SSH Tunnels through a SOCKS5 Proxy
+
+By default, when a connection has SSH enabled, the host forwards one local port to the connection's `host` / `port` and sends the plugin `127.0.0.1` and that port instead. That cannot serve a connection that names several endpoints, such as a `mongodb+srv://` URI or a replica-set seedlist: the driver discovers the other nodes and connects to them directly.
+
+A driver that declares `capabilities.socks5_proxy: true` gets a SOCKS5 proxy through the SSH session instead. The host leaves `host`, `port` and `connection_uri` as the user entered them and adds:
+
+| Field | Type | Description |
+|---|---|---|
+| `socks5_proxy_host` | string | Always `127.0.0.1`. |
+| `socks5_proxy_port` | number | Local port of the proxy. |
+| `socks5_proxy_username` | string | Username the proxy requires (RFC 1929). Absent when the proxy does not authenticate. |
+| `socks5_proxy_password` | string | Password the proxy requires. Absent when the proxy does not authenticate. Treat it as a secret: never log it or show it in an error. |
+
+The fields are only present while SSH is enabled; the host drops any value a client sends. A plugin with this capability must:
+
+- Send every connection to the database through the proxy, passing hostnames unresolved (SOCKS5 domain-name addresses), so the SSH server resolves them.
+- Fail with a clear error when the user's connection already configures a different proxy, rather than picking one of the two silently. Otherwise the SSH tab looks active while the traffic takes another route.
+
+Limits:
+
+- **Authentication depends on the SSH backend.** When the connection uses an SSH password and no key file, the host runs the proxy itself and requires a random username and password, generated per tunnel. Otherwise (a key file, ssh-agent or default keys) the host normally runs the system `ssh -D`, whose listener cannot authenticate clients: the username and password are absent and any local process can use the proxy while the tunnel is open. Always send them when present. In every case the proxy listens on `127.0.0.1` only.
+- **DNS lookups the driver makes itself stay local.** Only the destinations the driver connects to go through the proxy. Lookups it performs before connecting, such as the SRV and TXT queries for a `mongodb+srv://` URI, use this machine's resolver. If those records exist only in the private network's DNS, the connection fails; the user can switch to a seedlist URI that names the nodes.
+- **One tunnel per bastion.** Connections that use the same SSH user, host and port share one proxy. Disconnecting one connection does not close it; it stays open until Tabularis exits or the proxy settings change, and is reopened on the next connection after its SSH session ends.
+
 ### Successful Response
 
 ```json
@@ -1122,6 +1154,7 @@ Get foreign key relationships for a table.
     "column_name": "user_id",
     "ref_table": "users",
     "ref_column": "id",
+    "ref_schema": "auth",
     "on_update": "CASCADE",
     "on_delete": "SET NULL",
     "seq_in_fk": 1
@@ -1130,6 +1163,8 @@ Get foreign key relationships for a table.
 ```
 
 > **Composite foreign keys:** For a multi-column foreign key, return one entry per column, all sharing the same `name`; set `seq_in_fk` to the 1-based position of each column within its constraint. Tabularis groups entries by `name` (ordered by `seq_in_fk`, falling back to row order) and emits a single multi-column `FOREIGN KEY (a, b) REFERENCES t (x, y)` clause. `seq_in_fk` is optional and additive; older plugins may omit it for single-column FKs.
+>
+> **Cross-schema references:** `ref_schema` is an optional additive field (same backward-compatibility rules as `seq_in_fk`) naming the schema of `ref_table`. Drivers with `capabilities.schemas = true` should set it, because a foreign key can reference a table in another schema (`billing.invoices.org_id → core.organizations.id`). The Related Records panel and "Open referenced table" then query `ref_schema.ref_table`; without it, Tabularis assumes the referenced table is in the source table's schema. Omit it or return `null` for drivers without schemas.
 
 ---
 
@@ -1336,6 +1371,16 @@ Get the SQL body of a stored routine.
 
 Set `capabilities.triggers` to `true` when your driver implements the trigger RPCs. Tabularis uses this flag to show trigger-related UI.
 
+Drivers that advertise `triggers` and whose dialect is not postgres, mysql or
+sqlite — including `generic`, `mssql` and `oracle` — use a complete-SQL editor.
+The host sends the entire statement, including procedural bodies, to
+`create_trigger` once. It never drops the existing trigger before saving. Return
+an engine-native edit script from `get_trigger_definition` (for example,
+`CREATE OR ALTER TRIGGER`) when the engine supports one. A failed save leaves
+the editor open; the driver must keep the old trigger intact when the
+replacement statement fails. The new-trigger editor seeds `ON <table>` when a
+table name is supplied.
+
 #### `get_triggers`
 
 List triggers in a schema/database.
@@ -1398,10 +1443,13 @@ Execute a SQL query and return results.
 {
   "params": ConnectionParams,
   "query": "SELECT * FROM users",
+  "limit": 100,
   "page": 1,
-  "page_size": 100
+  "schema": null
 }
 ```
+
+`limit` and `schema` are `null` when the caller did not pick them; `page` is 1-based.
 
 **Result:**
 ```json
@@ -1410,10 +1458,15 @@ Execute a SQL query and return results.
   "rows": [
     [1, "Alice", "alice@example.com"]
   ],
-  "total_count": 1,
-  "execution_time_ms": 12
+  "affected_rows": 0,
+  "truncated": false,
+  "pagination": { "page": 1, "page_size": 100, "total_rows": 1, "has_more": false },
+  "server_time_ms": 10.5,
+  "fetch_time_ms": 1.2
 }
 ```
+
+`columns`, `rows` and `affected_rows` are required. `truncated` defaults to `false`, and `pagination` and the timing fields are optional. Report `truncated: true` when the query produced more rows than you returned, so the caller sees the cut-off instead of a complete-looking result.
 
 ---
 
@@ -1484,6 +1537,117 @@ A plugin returning the raw shape requires a Tabularis host new enough to
 understand raw plugin output and load that bundle, so set `min_runtime_version`
 to the first compatible host release. Older parsed-plan plugins remain
 supported permanently.
+
+---
+
+### Query Classification
+
+Three gates ask the same question of a query: is it a clean read?
+
+- The MCP **read-only mode** rejects anything that is not a read.
+- The MCP **approval gate** asks the user before running anything that is not a
+  read (in the default `writes_only` mode).
+- A connection saved with **Read-only mode** (see
+  [Optional protected read-only queries](#optional-protected-read-only-queries))
+  rejects anything that is not a read before it reaches the driver, in the
+  editor, in exports and for MCP clients alike.
+
+The host enforces all three. A driver only answers the question; the gates, and
+the check of a query the user edited in the approval dialog, stay in the host.
+
+For a SQL driver the host answers by reading the SQL, using `sql_dialect` and
+`sql_syntax`. For any other driver it still reads the text as SQL, which cannot
+work for a query language it does not know (a document store's shell syntax, a
+key-value protocol, a search DSL). A plain `find` comes out `unknown`, so
+read-only mode blocks it, the approval gate asks for it and a saved read-only
+connection rejects it; and text that happens to look like a SQL `SELECT` is
+trusted as one, whatever it means to the driver. A driver takes over with two
+capabilities, one of them the existing database-enforced read-only execution:
+
+| Capability | RPC | The driver |
+|------------|-----|------------|
+| `query_classification` | `classify_query` | says what kind of statement a query is |
+| `read_only_queries` | `execute_read_only_query` | runs a query and refuses anything that is not a read (see [Optional protected read-only queries](#optional-protected-read-only-queries)) |
+
+A non-SQL driver declares both. A `select` verdict from `classify_query` is only
+trusted (allowed in read-only mode, no approval needed, accepted by a saved
+read-only connection) when the driver also declares `read_only_queries`, or is
+`readonly` and cannot write at all. A classifier alone is not an execution-time
+guarantee. The host runs a query it classified as a read through
+`execute_read_only_query` when the connection is read-only or the query skipped
+approval, and a failed protected call is never retried through `execute_query`.
+
+#### `classify_query` *(optional)*
+
+Called only when `capabilities.query_classification` is `true`, with the exact
+text that is about to run: the same string the host then sends to `execute_query`
+or `execute_read_only_query`. The host does not split it into statements, strip
+comments from it or otherwise rewrite it.
+
+**Params:**
+
+```json
+{
+  "params": ConnectionParams,
+  "query": "db.users.find({ \"active\": true })"
+}
+```
+
+**Result:**
+
+```json
+{ "kind": "select" }
+```
+
+| `kind` | Meaning |
+|--------|---------|
+| `select` | Exactly one statement (or command) that only reads. It changes no data, schema, server state or file, and has no side effect: no aggregation stage that writes, no function that writes. |
+| `write` | Changes data. |
+| `ddl` | Changes structure: collections, indexes, tables. |
+| `unknown` | Anything else: text the driver cannot parse, more than one statement, an operation it does not know to be safe. |
+
+Rules for the driver:
+
+- Classify with **the parser `execute_query` uses**, on the same text. A
+  classifier that reads a query differently from the executor can be handed a
+  write that looks like a read, for example when one of them drops comment lines
+  and the other keeps them, or when they split the collection name at different
+  dots.
+- Be conservative: when in doubt, answer `unknown`. Classifying must not run the
+  query.
+- The result is an object, and fields beyond `kind` are ignored.
+
+What the host does:
+
+- Without the capability no RPC is sent and the host reads the query as SQL.
+- With it the host never reads the query as SQL. An RPC error (`-32601`
+  included), a transport error, a timeout, a result that is not an object with a
+  `kind`, and a `kind` other than the four above all count as `unknown`.
+- A `select` counts only when the driver also has an execution guarantee,
+  `read_only_queries` or `readonly`; otherwise the host reports `unknown`. A
+  saved read-only connection requires one of them anyway.
+- Every text is classified on its own. A query the user edits in the approval
+  dialog is classified again before it runs, and the gates apply to the edited
+  text.
+- A saved read-only connection classifies a query in the preflight and again
+  inside the protected execution, which also runs once per statement of a batch
+  and once per page of an export. Keep `classify_query` cheap.
+
+Compatibility:
+
+- Without `query_classification` no new RPC is sent and nothing changes, for
+  plugins and built-in drivers alike.
+- A driver that declared the capability is never read as SQL, so a plugin that
+  declares it without implementing the method reads as `unknown` everywhere.
+- Older hosts ignore the capability and never call the method: they keep reading
+  the queries of a non-SQL driver as SQL, as before. Plugins need not raise
+  `min_runtime_version` solely for this optional feature.
+- The capability is a static manifest opt-in, not a connection-metadata
+  override.
+
+Registry rollout: as for `table_query_templates`, add the optional boolean
+`query_classification` (default false) to the driver kind's
+`capabilities.properties` in Tabularium before publishing a plugin that sets it.
 
 ---
 
@@ -2082,6 +2246,55 @@ that prefix). Answer `-32601` Method not found when you can't.
 
 ---
 
+### Whole-database SQL transfers (optional)
+
+The host negotiates complete database transfers through runtime RPCs, without
+assuming that a table DDL dump reconstructs routines, permissions or dependencies.
+Missing methods (JSON-RPC -32601) and null results retain the existing host path;
+all other errors stop the operation. Built-in drivers default to that path.
+
+- `get_database_sql_capabilities`: `{params: ConnectionParams}` returns null or
+  `{format: string, native_backup?: {format: string, extension: string, label: string, description?: string}, create_database: boolean, requires_empty_target: boolean, target_label: string}`.
+  `format` is the SQL dump format id (typically `"sql"`). The import dialog uses
+  `target_label` as the destination field caption and asks for an explicit start
+  action for this protocol.
+  When the plugin can produce a native whole-file backup, set `native_backup`:
+  - `format`: id the host echoes in `export_database_sql` `options.format`
+  - `extension`: ASCII alphanumeric file extension, 1–16 characters, no leading
+    dot or path separators (for example `"fbk"`). The host rejects anything else.
+  - `label`: dump-dialog option text (for example `"Complete Firebird backup (.fbk)"`)
+  - `description`: optional help shown when that format is selected
+  The host never infers a native format from the driver id. A plugin that omits
+  `native_backup` only offers SQL. A boolean `native_backup` (for example `true`
+  from Firebird plugin v1.0.0) is accepted and treated as omitted: the host
+  still offers SQL, but not a native dump, until the plugin sends the object.
+- `export_database_sql`: `{params, file_path: string, options: {format?: string, structure: boolean, data: boolean, tables: string[] | null}}`
+  returns null or `{rows: number, tables: number}`. `options.format` is omitted or
+  `"sql"` for SQL, or the `native_backup.format` id for a native backup. Do not
+  fall back to SQL when a native format was requested. The path is a private
+  host-owned pending file. Finish and close it before returning success. The host
+  publishes it atomically; errors preserve any previous destination. Reject
+  unsupported partial-schema selections explicitly, or return null to use the
+  host renderer.
+- `import_database_sql`: `{params, file_path: string, create_database: boolean}`
+  returns null for an unrecognized ordinary SQL file, or `{statements: number}`.
+  Validate the complete file before modifying the destination. Own statement
+  boundaries, dependencies, transaction policy, cancellation and cleanup. A new
+  target must never overwrite an existing database. The host never falls back to
+  ordinary SQL execution when creation was requested but the RPC returns null.
+  Native backup files are recognized by `native_backup.extension`.
+
+Connection parameters are supplied directly before metadata specialization, so
+new database creation does not first require a successful attachment to that target.
+Desktop file paths come from the native chooser; browser requests still use opaque
+session-owned upload/download tokens. ZIP imports pass the extracted SQL file
+while retaining its cleanup guard. No browser client supplies a server file path.
+
+Whole-file import/export RPCs do not inherit the ordinary 120-second plugin
+timeout. Explicit global or per-plugin call timeouts still apply, including
+zero to disable them. Transfer cancellation and the client transfer deadline
+remain active.
+
 #### `render_insert_statements` *(optional)*
 
 Renders complete `INSERT` statements for one batch of up to 500 rows, for
@@ -2198,8 +2411,8 @@ fn dispatch(method: &str, params: &Value, id: Value) -> Value {
                 "result": {
                     "columns": ["id", "name"],
                     "rows": [[1, "Alice"]],
-                    "total_count": 1,
-                    "execution_time_ms": 5
+                    "affected_rows": 0,
+                    "truncated": false
                 },
                 "id": id
             })

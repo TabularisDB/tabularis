@@ -43,6 +43,47 @@ export function addCellToCells(
     return result;
 }
 
+/**
+ * A document-only copy of `cell` with a fresh id: same type, content, name,
+ * schema and display/chart configuration, but no result, error, execution
+ * time, loading state or execution history. Markdown copies start in edit
+ * mode and every copy starts expanded. The query plan starts closed: an open
+ * plan fetches EXPLAIN as soon as it mounts, and duplicating must not run
+ * anything against the database. Nothing is shared with the original.
+ */
+export function duplicateCell(cell: NotebookCell): NotebookCell {
+    const {chartConfig, kpiConfig} = cell;
+    return {
+        ...cell,
+        id: generateCellId(),
+        chartConfig: chartConfig
+            ? {...chartConfig, valueColumns: [...chartConfig.valueColumns]}
+            : chartConfig,
+        kpiConfig: kpiConfig ? {...kpiConfig} : kpiConfig,
+        result: null,
+        error: undefined,
+        executionTime: null,
+        isLoading: false,
+        history: undefined,
+        isCollapsed: false,
+        isQueryPlanVisible: false,
+        isPreview: cell.type === 'markdown' ? false : cell.isPreview,
+    };
+}
+
+/**
+ * Append a copy of the cell `cellId` (see {@link duplicateCell}) after the last
+ * cell. Existing cells keep their positions, so position-based `{{cell_N}}`
+ * references are unaffected. Returns `cells` unchanged when the id is unknown.
+ */
+export function duplicateCellToEnd(cells: NotebookCell[], cellId: string): NotebookCell[] {
+    const source = cells.find((c) => c.id === cellId);
+    if (!source) return cells;
+    const copy = duplicateCell(source);
+    while (cells.some((c) => c.id === copy.id)) copy.id = generateCellId();
+    return [...cells, copy];
+}
+
 export function removeCellFromCells(cells: NotebookCell[], cellId: string): NotebookCell[] {
     return cells.filter((c) => c.id !== cellId);
 }

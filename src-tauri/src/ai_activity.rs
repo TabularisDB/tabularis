@@ -682,6 +682,10 @@ fn calls_function(haystack: &str, name: &str) -> bool {
 /// SQLite pragmas that only report information, even when given an argument
 /// (`PRAGMA table_info(t)`). Any other pragma called with an argument sets a
 /// value.
+///
+/// Keep this list and `ACTION_PRAGMAS` in step with the lists of the same
+/// names in `packages/web-ui/src/utils/sqlAnalysis.ts`, which the frontend's
+/// read-only check uses.
 const INTROSPECTION_PRAGMAS: &[&str] = &[
     "TABLE_INFO",
     "TABLE_XINFO",

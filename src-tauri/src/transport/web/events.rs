@@ -218,6 +218,7 @@ impl WebEventBus {
         match event {
             "connection-test-progress"
             | "connection-health-failed"
+            | "connection-lifecycle"
             | "connections:active-changed"
             | "database-dropped"
             | "batch-statement-complete"
@@ -226,12 +227,14 @@ impl WebEventBus {
             | "query-cancelled"
             | "dump_progress"
             | "import_progress"
+            | "table_transfer_progress"
             | "export_progress"
             | "connection-metadata-invalidated"
             | "tabularis://plugin-activated" => Some(AuthorizationLevel::Database),
-            "theme-catalog-changed" | "ui-state://changed" | "tabularis://plugin-installed" => {
-                Some(AuthorizationLevel::Session)
-            }
+            "theme-catalog-changed"
+            | "ui-state://changed"
+            | "tabularis://plugin-installed"
+            | "tabularis://ai-providers-changed" => Some(AuthorizationLevel::Session),
             "plugin-install-progress" | "tabularis://plugin-install" => {
                 Some(AuthorizationLevel::Sensitive)
             }

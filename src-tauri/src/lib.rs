@@ -4,6 +4,7 @@
 #![cfg_attr(not(feature = "desktop"), allow(unused_imports, dead_code))]
 
 pub mod ai;
+pub mod ai_assistants;
 pub mod ai_activity;
 #[cfg(test)]
 pub mod ai_activity_lexer_tests;
@@ -109,9 +110,11 @@ pub mod sql_file_tests;
 pub mod sqlite_database;
 #[cfg(test)]
 pub mod sqlite_database_tests;
+pub mod ssh_socks5;
 pub mod ssh_tunnel;
 pub mod ssm_tunnel;
 pub mod storage_location;
+pub mod table_transfer;
 #[cfg(test)]
 pub mod storage_location_tests;
 
@@ -221,10 +224,13 @@ pub fn run() {
                 application.context.clone(),
                 application_state.clone(),
             );
-            let application_api = std::sync::Arc::new(application::RuntimeApplicationApi::new(
-                application.context,
-                application_state.clone(),
-            ));
+            let application_api = std::sync::Arc::new(
+                application::RuntimeApplicationApi::new(
+                    application.context,
+                    application_state.clone(),
+                )
+                .with_connection_policy(web_args.connection_policy()),
+            );
 
             let server_result =
                 transport::web::server::run(transport::web::server::WebServerOptions {

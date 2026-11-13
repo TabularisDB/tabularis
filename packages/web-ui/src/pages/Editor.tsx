@@ -24,6 +24,9 @@ import {
 import {onActivationKey, isTypingTarget} from '@/utils/keyboardEvents';
 import {
     formatResultForExport,
+    hasUnloadedRows,
+    resolveExportScope,
+    type ExportScope,
     getLoadedRowsExportLimit,
     type ResultExportFormat,
 } from '@/utils/resultExport';
@@ -57,6 +60,8 @@ import {
     speaksGenericSql,
     supportsExplain,
 } from '@/utils/driverCapabilities';
+import {canShowPreviewAction, supportsDmlPreview} from '@/utils/dmlPreview';
+import type {DmlPreview} from '@/api/contract';
 import {useClickOutside} from '@/hooks/useClickOutside';
 import {DANGEROUS_QUERY_I18N} from '@/hooks/useDangerousQueryGuard';
 import {useProductionGuard} from '@/hooks/useProductionGuard';
@@ -116,12 +121,14 @@ import {
     ExternalLink,
     CheckCircle2,
     WrapText,
+    Eye,
 } from 'lucide-react';
 import {invoke} from '@tauri-apps/api/core';
 import {TableToolbar} from '@/components/ui/TableToolbar';
 import {DataGrid, type DataGridCommandTarget} from '@/components/ui/DataGrid';
 import {MultiResultPanel} from '@/components/ui/MultiResultPanel';
 import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
+import {buildFixQueryPrompt} from '@/utils/aiFixPrompt';
 import {PageIndicator} from '@/components/ui/PageIndicator';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
 import {LazyResultChart} from '@/components/ui/LazyResultChart';
@@ -134,6 +141,7 @@ import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {ExplainSelectionModal} from '@/components/modals/ExplainSelectionModal';
+import {DmlPreviewModal} from '@/components/modals/DmlPreviewModal';
 import {useTabSwitcher} from '@/hooks/useTabSwitcher';
 import {TabSwitcherModal} from '@/components/modals/TabSwitcherModal';
 import {QueryModal} from '@/components/modals/QueryModal';
@@ -236,7 +244,7 @@ import {CommandPaletteScopeBridge} from '@/components/layout/CommandPaletteScope
 import type {CommandScope} from '@/types/commands';
 import {ROOT_COMMAND_SCOPE_ID} from '@/utils/commandScopeStore';
 import {createActiveEditorCommands} from '@/utils/editorCommands';
-import {buildForeignKeyFilterClause} from '@/utils/foreignKeys';
+import {buildForeignKeyFilterClause, getReferencedSchema} from '@/utils/foreignKeys';
 import {
     buildCellValueFilterClause,
     combineFilterClauses,
@@ -367,6 +375,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const driverReadonly = isReadonly(activeCapabilities);
     const driverSupportsExplain = supportsExplain(activeCapabilities);
+    const driverSupportsDmlPreview = supportsDmlPreview(activeCapabilities);
     // The connection's resolved SQL syntax (`sql_dialect` preset plus any
     // declared `sql_syntax`), passed wherever a dialect is needed. Cached per
     // capabilities, so it is as stable as the dialect string it replaces.
@@ -522,7 +531,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         parameters: string[];
         pendingPageNum: number;
         pendingTabId?: string;
-        mode: 'run' | 'save' | 'explain';
+        mode: 'run' | 'save' | 'explain' | 'preview';
         pendingMultiQueries?: string[];
     }>({
         isOpen: false,
@@ -534,6 +543,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const [showNewRowModal, setShowNewRowModal] = useState(false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
+    const [exportScopeChoice, setExportScopeChoice] = useState<{
+        target: string;
+        scope: ExportScope;
+    } | null>(null);
     const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
     // Saved across restarts and shared by every editor pane (see utils/editorPanelHeight).
     const [storedEditorHeight, setEditorHeight] = useUiState<unknown>(
@@ -623,6 +636,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     useClickOutside(exportMenuRef, () => setExportMenuOpen(false), exportMenuOpen);
     useClickOutside(dbDropdownRef, () => setIsDbDropdownOpen(false), isDbDropdownOpen);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+    const [aiFixPrompt, setAiFixPrompt] = useState<string | null>(null);
     const [isAiExplainModalOpen, setIsAiExplainModalOpen] = useState(false);
     const [isVisualExplainOpen, setIsVisualExplainOpen] = useState(false);
     const [visualExplainQuery, setVisualExplainQuery] = useState<string | null>(null);
@@ -630,6 +644,15 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [explainSelectableQueries, setExplainSelectableQueries] = useState<
         {query: string; index: number}[]
     >([]);
+    const [isDmlPreviewOpen, setIsDmlPreviewOpen] = useState(false);
+    const [dmlPreview, setDmlPreview] = useState<DmlPreview | null>(null);
+    const [dmlPreviewError, setDmlPreviewError] = useState<string | null>(null);
+    const [dmlPreviewLoading, setDmlPreviewLoading] = useState(false);
+    // The tab the open preview belongs to, so "Run statement" runs there.
+    const [dmlPreviewTabId, setDmlPreviewTabId] = useState<string | undefined>();
+    // Bumped by every preview request and by closing the modal, so a late
+    // response from a superseded request is dropped.
+    const dmlPreviewGenerationRef = useRef(0);
     const [isCountLoading, setIsCountLoading] = useState(false);
     const [applyToAll, setApplyToAll] = useState(false);
     const [copyFormat, setCopyFormat] = useState<CopyFormat>(settings.copyFormat ?? 'csv');
@@ -827,11 +850,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [activeTab?.activeResultId, activeTab?.results],
     );
     const activeExportResult = activeResultEntry?.result ?? activeTab?.result;
-    // A header-only grid can still be saved as HTML. CSV, JSON and Markdown
-    // stay disabled then: with no loaded rows those actions re-run the query.
-    const hasLoadedExportRows = (activeExportResult?.rows.length ?? 0) > 0;
     const canExportActiveResult =
-        hasLoadedExportRows || (activeExportResult?.columns.length ?? 0) > 0;
+        (activeExportResult?.rows.length ?? 0) > 0 || (activeExportResult?.columns.length ?? 0) > 0;
+    // A result set split from a multi-set statement cannot be re-run on its own.
+    const canStreamActiveResult = !activeResultEntry?.fromResultSets;
+    const showExportScope =
+        !!activeExportResult && canStreamActiveResult && hasUnloadedRows(activeExportResult);
+    // The scope choice belongs to the tab and result it was made on. Anywhere
+    // else the export falls back to "All rows", so a "Current results" pick
+    // never silently truncates another result's export.
+    const exportScopeTarget = `${activeTab?.id ?? ''}:${activeResultEntry?.id ?? ''}`;
+    const exportScope: ExportScope =
+        exportScopeChoice?.target === exportScopeTarget ? exportScopeChoice.scope : 'all';
 
     const activeTabFlatDatabase = isMultiDb
         ? resolveFlatMultiDbTabDatabase(activeTab, selectedDatabases)
@@ -924,6 +954,8 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     // action, so it is hidden where the connection declares no SQL dialect.
     const stripCommentsKeysRef = useRef<Map<string, {set(value: boolean): void}>>(new Map());
     const supportsExplainRef = useRef(false);
+    const requestDmlPreviewRef = useRef<(sql: string, tabId?: string) => void>(null!);
+    const supportsDmlPreviewRef = useRef(false);
     const tabScrollRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
@@ -2835,7 +2867,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 runAll: handleRunAll,
                 saveSqlFile: () => handleSaveSqlFile(activeTab),
                 closeTab: () => handleCloseTab(activeTab.id),
-                aiGenerate: () => setIsAiModalOpen(true),
+                aiGenerate: () => {
+                    setAiFixPrompt(null);
+                    setIsAiModalOpen(true);
+                },
                 aiExplain: () => setIsAiExplainModalOpen(true),
             },
         });
@@ -2974,6 +3009,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         for (const key of stripCommentsKeysRef.current.values()) key.set(canStrip);
     }, [activeDialect]);
     supportsExplainRef.current = driverSupportsExplain;
+    supportsDmlPreviewRef.current = driverSupportsDmlPreview;
 
     // Global Ctrl/Command+F5 shortcut for Run (+Shift for Run All)
     useEffect(() => {
@@ -3260,7 +3296,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 sourceType,
             );
 
-            const targetSchema = activeCapabilities?.schemas ? currentTab.schema : undefined;
+            const targetSchema = activeCapabilities?.schemas
+                ? getReferencedSchema(fk, currentTab.schema)
+                : undefined;
 
             const newTabId = addTab({
                 type: 'table',
@@ -4469,6 +4507,97 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         handleSubmitChanges,
     ]);
 
+    const previewDmlChanges = useCallback(
+        async (sql: string, tabId?: string) => {
+            const targetTabId = tabId ?? activeTabIdRef.current;
+            const targetTab = tabsRef.current.find((tab) => tab.id === targetTabId);
+            const connectionId = targetTab?.connectionId ?? activeConnectionId;
+            if (!connectionId || !sql.trim()) return;
+            const schema = targetTab?.schema ?? activeSchema ?? undefined;
+            const database = targetTab?.database;
+            const generation = ++dmlPreviewGenerationRef.current;
+            setDmlPreview(null);
+            setDmlPreviewError(null);
+            setDmlPreviewTabId(targetTab?.id);
+            setDmlPreviewLoading(true);
+            setIsDmlPreviewOpen(true);
+            try {
+                const preview = await client.call('preview_dml_changes', {
+                    connectionId,
+                    sql,
+                    schema,
+                    database,
+                    limit: 100,
+                });
+                if (generation !== dmlPreviewGenerationRef.current) return;
+                setDmlPreview(preview);
+            } catch (error) {
+                if (generation !== dmlPreviewGenerationRef.current) return;
+                setDmlPreviewError(toErrorMessage(error));
+            }
+            setDmlPreviewLoading(false);
+        },
+        [activeConnectionId, activeSchema, client],
+    );
+
+    const requestDmlPreview = useCallback(
+        (rawSql: string, tabId?: string) => {
+            let sql = rawSql.trim();
+            if (!sql) return;
+            if (!canShowPreviewAction(activeCapabilities, sql)) {
+                showAlert(t('editor.dmlPreview.notAvailable'), {kind: 'warning'});
+                return;
+            }
+            const params = extractQueryParams(sql, activeDialect);
+            const targetTabId = tabId ?? activeTabIdRef.current;
+            if (params.length > 0 && targetTabId) {
+                const targetTab = tabsRef.current.find((tab) => tab.id === targetTabId);
+                const storedParams = targetTab?.queryParams || {};
+                const missingParams = params.filter(
+                    (param) =>
+                        storedParams[param] === undefined || storedParams[param].trim() === '',
+                );
+                if (missingParams.length > 0) {
+                    setQueryParamsModal({
+                        isOpen: true,
+                        sql,
+                        parameters: params,
+                        pendingPageNum: 1,
+                        pendingTabId: targetTabId,
+                        mode: 'preview',
+                    });
+                    return;
+                }
+                sql = interpolateQueryParams(sql, storedParams, activeDialect);
+            }
+            void previewDmlChanges(sql, tabId);
+        },
+        [activeCapabilities, activeDialect, previewDmlChanges, showAlert, t],
+    );
+    requestDmlPreviewRef.current = requestDmlPreview;
+
+    const handleDmlPreviewAction = useCallback(() => {
+        if (!activeTab || !activeConnectionId) return;
+        const editor = editorsRef.current[activeTab.id];
+        if (editor) {
+            const selection = editor.getSelection();
+            if (selection && !selection.isEmpty()) {
+                const selectedText = (editor.getModel()?.getValueInRange(selection) ?? '').trim();
+                if (selectedText) {
+                    requestDmlPreview(selectedText, activeTab.id);
+                    return;
+                }
+            }
+            const statement = getStatementAtCursor(editor, activeDialect);
+            if (statement?.text.trim()) {
+                requestDmlPreview(statement.text, activeTab.id);
+                return;
+            }
+        }
+        const text = (activeTab.query ?? '').trim();
+        if (text) requestDmlPreview(text, activeTab.id);
+    }, [activeTab, activeConnectionId, activeDialect, requestDmlPreview]);
+
     const handleParamsSubmit = useCallback(
         (values: Record<string, string>) => {
             const {pendingTabId, mode, sql, pendingPageNum, pendingMultiQueries} = queryParamsModal;
@@ -4493,9 +4622,21 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             } else if (mode === 'explain') {
                 setVisualExplainQuery(interpolateQueryParams(sql, newParams, activeDialect));
                 setIsVisualExplainOpen(true);
+            } else if (mode === 'preview') {
+                void previewDmlChanges(
+                    interpolateQueryParams(sql, newParams, activeDialect),
+                    pendingTabId,
+                );
             }
         },
-        [activeDialect, queryParamsModal, updateTab, runQuery, runMultipleQueries],
+        [
+            activeDialect,
+            queryParamsModal,
+            updateTab,
+            runQuery,
+            runMultipleQueries,
+            previewDmlChanges,
+        ],
     );
 
     const handleEditParams = useCallback(() => {
@@ -4680,6 +4821,42 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     setExplainSelectableQueries(explainable);
                     setIsExplainSelectionOpen(true);
                 }
+            },
+        });
+        editor.addAction({
+            id: 'preview-dml-changes',
+            label: t('editor.dmlPreview.action'),
+            contextMenuGroupId: 'navigation',
+            contextMenuOrder: 1.55,
+            run: (ed) => {
+                if (!supportsDmlPreviewRef.current) {
+                    showAlert(t('editor.dmlPreview.notAvailable'), {kind: 'warning'});
+                    return;
+                }
+                const selection = ed.getSelection();
+                const selectedText =
+                    selection && !selection.isEmpty()
+                        ? ed.getModel()?.getValueInRange(selection)
+                        : undefined;
+                const text = (selectedText || '').trim();
+                if (text) {
+                    requestDmlPreviewRef.current(text, tabId);
+                    return;
+                }
+                const model = ed.getModel();
+                const position = ed.getPosition();
+                if (model && position) {
+                    const statement = findStatementAtOffset(
+                        splitBatches(model.getValue(), activeDialectRef.current),
+                        model.getOffsetAt(position),
+                    );
+                    if (statement?.text.trim()) {
+                        requestDmlPreviewRef.current(statement.text, tabId);
+                        return;
+                    }
+                }
+                const fallback = (ed.getValue() || '').trim();
+                if (fallback) requestDmlPreviewRef.current(fallback, tabId);
             },
         });
         stripCommentsKeysRef.current.set(
@@ -4968,13 +5145,12 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         }
     };
 
-    // HTML only exports the loaded grid (handleExportHtml), never the streaming exporter.
-    const handleExportCommon = async (format: Exclude<ResultExportFormat, 'html'>) => {
-        if (!activeTab || !activeConnectionId) return;
+    const handleExportCommon = async (format: ResultExportFormat) => {
+        if (!activeTab || !activeConnectionId || !activeExportResult) return;
 
-        if (format === 'ndjson') {
-            if (!activeExportResult) return;
-            await handleExportLoadedRows(activeExportResult, 'ndjson');
+        const scope = resolveExportScope(activeExportResult, exportScope, canStreamActiveResult);
+        if (scope === 'loaded') {
+            await handleExportLoadedRows(activeExportResult, format);
             return;
         }
 
@@ -4987,21 +5163,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         }
 
         const extension = format === 'markdown' ? 'md' : format;
-        const multiResult = activeResultEntry?.result;
-        if (multiResult?.rows.length) {
-            await handleExportLoadedRows(multiResult, format);
-            return;
-        }
-
         const effectiveSchema = activeCapabilities?.schemas === true ? activeTab.schema : undefined;
         const tabForQuery = {...activeTab, schema: effectiveSchema};
-        const query =
-            activeTab.type === 'table' && activeTab.activeTable
-                ? reconstructTableQuery(
-                      tabForQuery,
-                      activeCapabilities ?? activeDriver ?? undefined,
-                  )
-                : activeTab.query;
+        // On a multi-result tab, re-run only the active statement.
+        const query = activeResultEntry
+            ? activeResultEntry.query
+            : activeTab.type === 'table' && activeTab.activeTable
+              ? reconstructTableQuery(tabForQuery, activeCapabilities ?? activeDriver ?? undefined)
+              : activeTab.query;
 
         if (!query || !query.trim()) return;
 
@@ -5085,12 +5254,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const handleExportJSON = () => handleExportCommon('json');
     const handleExportNDJSON = () => handleExportCommon('ndjson');
     const handleExportMarkdown = () => handleExportCommon('markdown');
-
-    // Writes the grid already on screen. Never calls the streaming exporter.
-    const handleExportHtml = async () => {
-        if (!activeConnectionId || !activeExportResult) return;
-        await handleExportLoadedRows(activeExportResult, 'html');
-    };
+    const handleExportHtml = () => handleExportCommon('html');
 
     const handleRunDropdownToggle = useCallback(() => {
         if (!isRunDropdownOpen) {
@@ -5605,6 +5769,20 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                         </button>
                     )}
 
+                    {!isTableTab && driverSupportsDmlPreview && (
+                        <button
+                            onClick={handleDmlPreviewAction}
+                            disabled={!activeConnectionId || dmlPreviewLoading}
+                            className="flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                            title={t('editor.dmlPreview.action')}
+                        >
+                            <Eye size={16} />
+                            <span className="hidden @[640px]:inline whitespace-nowrap">
+                                {t('editor.dmlPreview.action')}
+                            </span>
+                        </button>
+                    )}
+
                     {/* Save split button: main action saves the SQL file (or asks for a
             path on a console that has none), the chevron opens the other
             save destinations. */}
@@ -5748,12 +5926,43 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 role="menu"
                                 className="absolute top-full right-0 mt-1 min-w-44 w-max max-w-[calc(100cqw-1rem)] bg-elevated border border-strong rounded-md shadow-xl z-50 flex flex-col py-1 overflow-hidden"
                             >
+                                {showExportScope && (
+                                    <div
+                                        role="group"
+                                        aria-label={t('editor.exportScope')}
+                                        className="flex gap-1 mx-2 mt-1 mb-1.5 p-0.5 rounded bg-surface-secondary border border-strong"
+                                    >
+                                        {(['all', 'loaded'] as const).map((scope) => (
+                                            <button
+                                                key={scope}
+                                                type="button"
+                                                role="menuitemradio"
+                                                aria-checked={exportScope === scope}
+                                                onClick={() =>
+                                                    setExportScopeChoice({
+                                                        target: exportScopeTarget,
+                                                        scope,
+                                                    })
+                                                }
+                                                className={clsx(
+                                                    'flex-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+                                                    exportScope === scope
+                                                        ? 'bg-accent-primary/15 text-accent'
+                                                        : 'text-secondary hover:text-primary',
+                                                )}
+                                            >
+                                                {scope === 'all'
+                                                    ? t('editor.exportScopeAll')
+                                                    : t('editor.exportScopeLoaded')}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                                 <button
                                     type="button"
                                     role="menuitem"
                                     onClick={handleExportCSV}
-                                    disabled={!hasLoadedExportRows}
-                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-accent-primary/15 enabled:hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileText size={14} className="shrink-0 opacity-80" />
                                     <span className="flex-1">CSV</span>
@@ -5763,8 +5972,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                     type="button"
                                     role="menuitem"
                                     onClick={handleExportJSON}
-                                    disabled={!hasLoadedExportRows}
-                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-accent-primary/15 enabled:hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileJson size={14} className="shrink-0 opacity-80" />
                                     <span className="flex-1">JSON</span>
@@ -5774,17 +5982,17 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                     type="button"
                                     role="menuitem"
                                     onClick={handleExportNDJSON}
-                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap"
+                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileJson size={14} className="shrink-0 opacity-80" />
-                                    <span className="flex-1">{t('editor.exportLoadedNdjson')}</span>
+                                    <span className="flex-1">NDJSON</span>
                                     <span className="text-xs text-muted">.ndjson</span>
                                 </button>
                                 <button
+                                    type="button"
                                     role="menuitem"
                                     onClick={handleExportMarkdown}
-                                    disabled={!hasLoadedExportRows}
-                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-accent-primary/15 enabled:hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileText size={14} className="shrink-0 opacity-80" />
                                     <span className="flex-1">Markdown</span>
@@ -5797,7 +6005,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                     className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileCode size={14} className="shrink-0 opacity-80" />
-                                    <span className="flex-1">{t('editor.exportLoadedHtml')}</span>
+                                    <span className="flex-1">HTML</span>
                                     <span className="text-xs text-muted">.html</span>
                                 </button>
                             </div>
@@ -5954,7 +6162,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 {/* AI dropdown — only if AI enabled */}
                                 {settings.aiEnabled && (
                                     <AiDropdownButton
-                                        onGenerate={() => setIsAiModalOpen(true)}
+                                        onGenerate={() => {
+                                            setAiFixPrompt(null);
+                                            setIsAiModalOpen(true);
+                                        }}
                                         onExplain={() => setIsAiExplainModalOpen(true)}
                                         disableAll={!activeConnectionId}
                                         disableExplain={!tab.query?.trim()}
@@ -6190,7 +6401,25 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 <p className="text-sm">{t('editor.executingQuery')}</p>
                             </div>
                         ) : activeTab.error ? (
-                            <ErrorDisplay error={activeTab.error} t={t} />
+                            <ErrorDisplay
+                                error={activeTab.error}
+                                t={t}
+                                onFixWithAi={
+                                    settings.aiEnabled &&
+                                    activeConnectionId &&
+                                    activeTab.query?.trim()
+                                        ? () => {
+                                              setAiFixPrompt(
+                                                  buildFixQueryPrompt(
+                                                      activeTab.query,
+                                                      activeTab.error ?? '',
+                                                  ),
+                                              );
+                                              setIsAiModalOpen(true);
+                                          }
+                                        : undefined
+                                }
+                            />
                         ) : shouldShowStatementSuccess(activeTab) ? (
                             // Non-SELECT statement (INSERT/UPDATE/DELETE/DDL): no result set,
                             // so surface an explicit success message instead of an empty grid.
@@ -6769,7 +6998,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             connectionId={activeConnectionId}
                                             driver={activeDriver}
                                             capabilities={activeCapabilities}
-                                            schema={activeSchema}
+                                            schema={activeTab?.schema ?? activeSchema}
                                             database={
                                                 activeTab?.database ??
                                                 activeDatabaseName ??
@@ -6887,8 +7116,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 connectionId={activeConnectionId ?? undefined}
                 schema={activeTab?.schema ?? activeSchema ?? undefined}
                 database={activeTab?.database}
+                initialPrompt={aiFixPrompt ?? undefined}
                 onInsert={(q) => {
                     updateActiveTab({query: q});
+                    // A fix is only inserted so the user can review it before running.
+                    if (aiFixPrompt !== null) return;
                     // AI-generated SQL uses the same production-first safety pipeline.
                     void runQuery(q, 1);
                 }}
@@ -6917,6 +7149,21 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     openExplainForQuery(q);
                 }}
                 onClose={() => setIsExplainSelectionOpen(false)}
+            />
+            <DmlPreviewModal
+                isOpen={isDmlPreviewOpen}
+                onClose={() => {
+                    dmlPreviewGenerationRef.current++;
+                    setIsDmlPreviewOpen(false);
+                    setDmlPreviewLoading(false);
+                }}
+                preview={dmlPreview}
+                error={dmlPreviewError}
+                loading={dmlPreviewLoading}
+                onRunStatement={(sql) => {
+                    setIsDmlPreviewOpen(false);
+                    void runQuery(sql, 1, dmlPreviewTabId);
+                }}
             />
             {tabContextMenu &&
                 (() => {

@@ -1,6 +1,6 @@
 import {useMemo, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {Columns2, GitCompare} from 'lucide-react';
+import {Columns2, GitCompare, WrapText} from 'lucide-react';
 import {CellCodeEditor} from './CellCodeEditor';
 import {CellDiffEditor} from './CellDiffEditor';
 import {formatTextForEditor} from '@/utils/text';
@@ -32,6 +32,7 @@ export const TextExpansionEditor = ({
     const [prevInitial, setPrevInitial] = useState(initial);
     const [diffEnabled, setDiffEnabled] = useState(false);
     const [sideBySide, setSideBySide] = useState(false);
+    const [wrapLines, setWrapLines] = useState(true);
     const {ref: rootRef, width: containerWidth} = useContainerWidth<HTMLDivElement>();
     const sideBySideFits = containerWidth >= MIN_SIDE_BY_SIDE_WIDTH;
     const renderSideBySide = sideBySide && sideBySideFits;
@@ -96,6 +97,19 @@ export const TextExpansionEditor = ({
                 ) : (
                     <span />
                 )}
+                <button
+                    type="button"
+                    onClick={() => setWrapLines((v) => !v)}
+                    aria-pressed={wrapLines}
+                    className={`px-2 py-1 rounded border transition-colors flex items-center gap-1 mr-auto ${
+                        wrapLines
+                            ? 'bg-accent-primary/30 text-accent border-accent-primary/50'
+                            : 'bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary'
+                    } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus`}
+                >
+                    <WrapText size={12} />
+                    {t('textViewer.wrapLines')}
+                </button>
                 {!readOnly && (
                     <div className="flex items-center gap-2">
                         <button
@@ -124,6 +138,7 @@ export const TextExpansionEditor = ({
                         modified={draft}
                         onChange={setDraft}
                         readOnly={readOnly}
+                        wrapLines={wrapLines}
                         height="100%"
                         renderSideBySide={renderSideBySide}
                     />
@@ -133,6 +148,7 @@ export const TextExpansionEditor = ({
                         value={draft}
                         onChange={setDraft}
                         readOnly={readOnly}
+                        wrapLines={wrapLines}
                         height="100%"
                     />
                 )}

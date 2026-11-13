@@ -7,6 +7,7 @@ mod http_fixture;
 mod identity;
 mod kind_layout;
 mod lifecycle;
+mod lock_grace;
 mod manual_fixture;
 mod metadata;
 mod snapshot;

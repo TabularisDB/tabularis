@@ -226,6 +226,7 @@ fn build_connection(
         appearance: None,
         tag_ids: None,
         environment: None,
+        managed: false,
     };
     (saved, ssh_record)
 }
@@ -250,6 +251,7 @@ mod tests {
             ssh: None,
             ssl: None,
             group_name: Some("Work".to_string()),
+            warnings: Vec::new(),
         }
     }
 

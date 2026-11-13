@@ -5,6 +5,8 @@ import {
     createDefaultNotebookState,
     updateCellInCells,
     addCellToCells,
+    duplicateCell,
+    duplicateCellToEnd,
     removeCellFromCells,
     clearCellOutputs,
     hasCellOutputs,
@@ -240,6 +242,176 @@ describe('notebook utils', () => {
                 makeCell({id: 'a', isLoading: true, executionTime: 5}),
             ]);
             expect(cleared.isLoading).toBe(true);
+        });
+    });
+
+    describe('duplicateCell / duplicateCellToEnd', () => {
+        const result: QueryResult = {columns: ['id'], rows: [[1]], affected_rows: 0};
+        const historyEntry = {
+            query: 'SELECT 1',
+            result,
+            executionTime: 3,
+            timestamp: 1,
+        };
+
+        function ranSqlCell(overrides: Partial<NotebookCell> = {}): NotebookCell {
+            return makeCell({
+                id: 'source',
+                type: 'sql',
+                content: 'SELECT * FROM {{cell_1}} WHERE id > 1',
+                name: 'Top orders',
+                schema: 'sales',
+                result,
+                error: 'old error',
+                executionTime: 42,
+                isLoading: true,
+                history: [historyEntry],
+                chartConfig: {type: 'bar', labelColumn: 'id', valueColumns: ['total', 'count']},
+                resultHeight: 320,
+                isParallel: true,
+                isCollapsed: true,
+                isQueryCollapsed: true,
+                isResultCollapsed: true,
+                isChartVisible: true,
+                isQueryPlanVisible: true,
+                ...overrides,
+            });
+        }
+
+        it('copies the source and configuration of an SQL cell with a fresh id', () => {
+            const source = ranSqlCell();
+            const copy = duplicateCell(source);
+            expect(copy.id).not.toBe(source.id);
+            expect(copy.id).toMatch(/^cell_/);
+            expect(copy).toEqual({
+                ...source,
+                id: copy.id,
+                result: null,
+                error: undefined,
+                executionTime: null,
+                isLoading: false,
+                history: undefined,
+                isCollapsed: false,
+                isQueryPlanVisible: false,
+            });
+        });
+
+        it.each([true, false, undefined])(
+            'starts the copy with the query plan closed (source %s)',
+            (isQueryPlanVisible) => {
+                const source = ranSqlCell({isQueryPlanVisible});
+                expect(duplicateCell(source).isQueryPlanVisible).toBe(false);
+                expect(source.isQueryPlanVisible).toBe(isQueryPlanVisible);
+            },
+        );
+
+        it('keeps cell references verbatim', () => {
+            const copy = duplicateCell(
+                ranSqlCell({content: 'SELECT a FROM {{cell_2}}\nJOIN {{cell_10}}'}),
+            );
+            expect(copy.content).toBe('SELECT a FROM {{cell_2}}\nJOIN {{cell_10}}');
+        });
+
+        it('clears every runtime field', () => {
+            const copy = duplicateCell(ranSqlCell());
+            expect(copy.result).toBeNull();
+            expect(copy.error).toBeUndefined();
+            expect(copy.executionTime).toBeNull();
+            expect(copy.isLoading).toBe(false);
+            expect(copy.history).toBeUndefined();
+        });
+
+        it('does not share the chart configuration with the original', () => {
+            const source = ranSqlCell();
+            const copy = duplicateCell(source);
+            expect(copy.chartConfig).toEqual(source.chartConfig);
+            expect(copy.chartConfig).not.toBe(source.chartConfig);
+            expect(copy.chartConfig?.valueColumns).not.toBe(source.chartConfig?.valueColumns);
+
+            copy.chartConfig?.valueColumns.push('extra');
+            if (copy.chartConfig) copy.chartConfig.labelColumn = 'changed';
+            expect(source.chartConfig).toEqual({
+                type: 'bar',
+                labelColumn: 'id',
+                valueColumns: ['total', 'count'],
+            });
+        });
+
+        it('copies the KPI configuration without sharing it', () => {
+            const source = ranSqlCell({kpiConfig: {column: 'total', label: 'Total', decimals: 2}});
+            const copy = duplicateCell(source);
+            expect(copy.kpiConfig).toEqual(source.kpiConfig);
+            expect(copy.kpiConfig).not.toBe(source.kpiConfig);
+            if (copy.kpiConfig) copy.kpiConfig.label = 'changed';
+            expect(source.kpiConfig?.label).toBe('Total');
+        });
+
+        it.each([null, undefined])('keeps a %s chart configuration as is', (chartConfig) => {
+            expect(duplicateCell(ranSqlCell({chartConfig})).chartConfig).toBe(chartConfig);
+        });
+
+        it('starts a Markdown copy expanded and in edit mode', () => {
+            const source = makeCell({
+                id: 'notes',
+                type: 'markdown',
+                content: '# Notes about {{cell_1}}',
+                name: 'Notes',
+                isPreview: true,
+                isCollapsed: true,
+            });
+            const copy = duplicateCell(source);
+            expect(copy).toEqual({
+                ...source,
+                id: copy.id,
+                isPreview: false,
+                isCollapsed: false,
+                isQueryPlanVisible: false,
+            });
+        });
+
+        it('copies empty and special-character content unchanged', () => {
+            expect(duplicateCell(makeCell({content: ''})).content).toBe('');
+            const special = "SELECT 'Zürich ✓ 東京', '\\', '{{cell_1}}' -- ${x}";
+            expect(duplicateCell(makeCell({content: special})).content).toBe(special);
+        });
+
+        it('appends the copy and leaves existing cells and positions unchanged', () => {
+            const first = makeCell({id: 'first', content: 'SELECT 1'});
+            const second = ranSqlCell({id: 'second'});
+            const third = makeCell({id: 'third', type: 'markdown', content: 'Text'});
+            const cells = [first, second, third];
+
+            const next = duplicateCellToEnd(cells, 'second');
+
+            expect(next).toHaveLength(4);
+            expect(next.slice(0, 3)).toEqual(cells);
+            expect(next[0]).toBe(first);
+            expect(next[1]).toBe(second);
+            expect(next[2]).toBe(third);
+            expect(next[3].content).toBe(second.content);
+            expect(next[3].result).toBeNull();
+            expect(cells).toHaveLength(3);
+            expect(second.result).toEqual(result);
+        });
+
+        it('gives every copy a distinct id', () => {
+            let cells = [makeCell({id: 'only', content: 'SELECT 1'})];
+            for (let i = 0; i < 20; i++) cells = duplicateCellToEnd(cells, 'only');
+            expect(new Set(cells.map((c) => c.id)).size).toBe(21);
+        });
+
+        it('can duplicate the last cell and an earlier copy', () => {
+            const cells = duplicateCellToEnd([makeCell({id: 'a', content: 'A'})], 'a');
+            const again = duplicateCellToEnd(cells, cells[1].id);
+            expect(again.map((c) => c.content)).toEqual(['A', 'A', 'A']);
+            expect(new Set(again.map((c) => c.id)).size).toBe(3);
+        });
+
+        it('returns the same array when the cell is unknown', () => {
+            const cells = [makeCell({id: 'a'})];
+            expect(duplicateCellToEnd(cells, 'missing')).toBe(cells);
+            const empty: NotebookCell[] = [];
+            expect(duplicateCellToEnd(empty, 'a')).toBe(empty);
         });
     });
 

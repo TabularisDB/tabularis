@@ -97,7 +97,7 @@
         "triggers": {
           "type": "boolean",
           "default": false,
-          "description": "true if the driver supports trigger metadata and trigger management RPCs."
+          "description": "true if the driver supports trigger metadata and trigger management RPCs. Generic dialects use a complete-SQL editor and save through create_trigger without dropping first."
         },
         "file_based": {
           "type": "boolean",
@@ -134,6 +134,11 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Additional URI schemes handled by this driver, such as jdbc."
+        },
+        "socks5_proxy": {
+          "type": "boolean",
+          "default": false,
+          "description": "true when the driver sends its connections through the SOCKS5 proxy in socks5_proxy_host/socks5_proxy_port (with socks5_proxy_username/socks5_proxy_password when set). With SSH enabled, the host opens a dynamic forward (ssh -D) and leaves host, port and connection_uri unchanged instead of rewriting them to a fixed forward. Defaults to false."
         },
         "connectionString": {
           "type": "boolean",
@@ -391,6 +396,11 @@
           "default": false,
           "description": "Column statistics popover through the optional get_column_stats RPC. When false, plugins with a postgres, mysql or sqlite sql_dialect keep the host's generic SQL and the others don't show the entry."
         },
+        "query_classification": {
+          "type": "boolean",
+          "default": false,
+          "description": "Classify queries in the driver's own query language through the optional classify_query RPC, for the read-only policies: the MCP read-only mode, the MCP approval gate and saved read-only connections. When false the host reads every query as SQL. A select verdict only counts when the driver also declares read_only_queries (or readonly), because a classifier alone does not stop a write at execution."
+        },
         "query_timeout": {
           "type": "boolean",
           "default": false,
@@ -429,7 +439,7 @@
         "table_export": {
           "type": "boolean",
           "default": true,
-          "description": "Offers Export table to SQL on table nodes. Set false for non-SQL plugins."
+          "description": "Offers Export table to SQL on table nodes. Set false for non-SQL plugins. Whole-database SQL transfers are negotiated separately through get_database_sql_capabilities."
         },
         "table_import": {
           "type": "boolean",

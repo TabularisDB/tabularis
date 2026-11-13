@@ -63,6 +63,13 @@ pub enum QueryCommand {
     GetServerNow {
         connection_id: String,
     },
+    PreviewDml {
+        connection_id: String,
+        sql: String,
+        schema: Option<String>,
+        database: Option<String>,
+        limit: Option<u32>,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -229,6 +236,25 @@ pub async fn execute(
                 .await
                 .and_then(json)
         }
+        QueryCommand::PreviewDml {
+            connection_id,
+            sql,
+            schema,
+            database,
+            limit,
+        } => super::dml_preview::preview(
+            runtime,
+            scope.session_id,
+            super::dml_preview::DmlPreviewRequest {
+                connection_id,
+                sql,
+                schema,
+                database,
+                limit,
+            },
+        )
+        .await
+        .and_then(json),
     };
 
     emit_query_status(
@@ -253,6 +279,7 @@ impl QueryCommand {
             | Self::Count { connection_id, .. }
             | Self::Explain { connection_id, .. }
             | Self::GetServerNow { connection_id }
+            | Self::PreviewDml { connection_id, .. }
             | Self::ReleaseSession { connection_id, .. } => connection_id,
         }
     }
@@ -282,7 +309,7 @@ pub async fn execute_query(
     let (driver, params) =
         driver_and_params(runtime, scope.session_id, &connection_id, database).await?;
 
-    super::read_only::validate_query(&params, &driver.manifest().capabilities, &sanitized_query)?;
+    super::read_only::validate_query(driver.as_ref(), &params, &sanitized_query).await?;
 
     let effective_limit = response_limit(policy, limit);
     let driver_session = query_session_id.as_deref().map(|id| {
@@ -454,7 +481,7 @@ pub async fn execute_query_batch(
 
     // Validate the entire batch before sending its first statement.
     for query in &sanitized_queries {
-        super::read_only::validate_query(&params, &driver.manifest().capabilities, query)?;
+        super::read_only::validate_query(driver.as_ref(), &params, query).await?;
     }
 
     let progress: Option<Arc<BatchProgressFn>> = batch_id.map(|batch_id| {
@@ -786,7 +813,7 @@ fn enforce_response_size<T: Serialize>(
     Ok(())
 }
 
-async fn driver_and_params(
+pub(super) async fn driver_and_params(
     runtime: &RuntimeContext,
     session_id: Option<Uuid>,
     connection_id: &str,
@@ -846,7 +873,7 @@ fn cancellation_slots_for_cancel(
         .collect()
 }
 
-fn sanitize_user_query(query: &str) -> String {
+pub(super) fn sanitize_user_query(query: &str) -> String {
     query
         .trim()
         .trim_end_matches(';')

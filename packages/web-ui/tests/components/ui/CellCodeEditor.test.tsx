@@ -135,8 +135,30 @@ describe('CellCodeEditor', () => {
             automaticLayout: true,
             formatOnPaste: true,
             scrollBeyondLastLine: false,
+            wordWrap: 'on',
             readOnly: false,
         });
+    });
+
+    it('updates word wrap without remounting the mocked editor', () => {
+        const props = {value: 'long line content', onChange: vi.fn()};
+        const {rerender} = render(<CellCodeEditor {...props} />);
+        const editor = screen.getByTestId('monaco-editor') as HTMLTextAreaElement;
+
+        expect(lastProps.current?.options?.wordWrap).toBe('on');
+        // These textarea values only show that the mocked editor node is reused after rerender.
+        editor.focus();
+        editor.scrollTop = 14;
+        editor.setSelectionRange(2, 7);
+
+        rerender(<CellCodeEditor {...props} wrapLines={false} />);
+
+        expect(lastProps.current?.options?.wordWrap).toBe('off');
+        expect(screen.getByTestId('monaco-editor')).toBe(editor);
+        expect(editor.scrollTop).toBe(14);
+        expect(editor.selectionStart).toBe(2);
+        expect(editor.selectionEnd).toBe(7);
+        expect(editor).toHaveValue('long line content');
     });
 
     it('disables formatOnPaste for plaintext', () => {

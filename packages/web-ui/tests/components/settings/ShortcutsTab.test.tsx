@@ -28,6 +28,7 @@ vi.mock('lucide-react', () => {
         Loader2: Icon,
         Lock: Icon,
         RotateCcw: Icon,
+        Search: Icon,
         X: Icon,
     };
 });
@@ -458,5 +459,134 @@ describe('ShortcutsTab', () => {
         saveRecordedShortcut();
         await waitFor(() => expect(saveOverrideMock).toHaveBeenCalled());
         expect(showAlertMock).not.toHaveBeenCalled();
+    });
+
+    describe('search', () => {
+        function search(query: string) {
+            fireEvent.change(
+                screen.getByRole('searchbox', {name: 'settings.shortcuts.searchPlaceholder'}),
+                {target: {value: query}},
+            );
+        }
+
+        it('shows every shortcut for an empty or whitespace-only query', () => {
+            render(<ShortcutsTab />);
+            search('   ');
+
+            expect(screen.getByText('settings.shortcuts.openSettings')).toBeInTheDocument();
+            expect(screen.getByText('settings.shortcuts.runAllEditor')).toBeInTheDocument();
+            expect(screen.getByText('settings.shortcuts.notebookRunAll')).toBeInTheDocument();
+            expect(screen.queryByText('settings.shortcuts.noMatches')).not.toBeInTheDocument();
+        });
+
+        it('filters by action label case-insensitively and hides empty categories', () => {
+            render(<ShortcutsTab />);
+            search('QUICKNAVIGATOR');
+
+            expect(screen.getByText('settings.shortcuts.quickNavigator')).toBeInTheDocument();
+            expect(screen.queryByText('settings.shortcuts.openSettings')).not.toBeInTheDocument();
+            expect(
+                screen.getByText('settings.shortcuts.categories.navigation'),
+            ).toBeInTheDocument();
+            expect(
+                screen.queryByText('settings.shortcuts.categories.editor'),
+            ).not.toBeInTheDocument();
+            expect(
+                screen.queryByText('settings.shortcuts.categories.data_grid'),
+            ).not.toBeInTheDocument();
+        });
+
+        it.each(['Cmd+Shift+Enter', 'command + shift + enter', '⌘+⇧+Enter'])(
+            'matches the macOS key combination for "%s"',
+            (query) => {
+                render(<ShortcutsTab />);
+                search(query);
+
+                expect(screen.getByText('settings.shortcuts.runAllEditor')).toBeInTheDocument();
+                expect(screen.getByText('settings.shortcuts.notebookRunAll')).toBeInTheDocument();
+                expect(
+                    screen.queryByText('settings.shortcuts.openSettings'),
+                ).not.toBeInTheDocument();
+            },
+        );
+
+        it('matches the Windows key combination, including a Cmd alias', () => {
+            isMacMock = false;
+            render(<ShortcutsTab />);
+            search('ctrl+p');
+            expect(screen.getByText('settings.shortcuts.quickNavigator')).toBeInTheDocument();
+            expect(screen.queryByText('settings.shortcuts.toggleSidebar')).not.toBeInTheDocument();
+
+            search('Cmd+P');
+            expect(screen.getByText('settings.shortcuts.quickNavigator')).toBeInTheDocument();
+        });
+
+        it('keeps Ctrl and Cmd apart on macOS', () => {
+            render(<ShortcutsTab />);
+            search('ctrl+p');
+
+            expect(screen.queryByText('settings.shortcuts.quickNavigator')).not.toBeInTheDocument();
+            expect(screen.getByText('settings.shortcuts.noMatches')).toBeInTheDocument();
+        });
+
+        it('matches the effective shortcut after an override and after a reset', () => {
+            overridesMock = {
+                toggle_sidebar: {
+                    mac: {metaKey: true, shiftKey: true, key: 'k'},
+                    win: {ctrlKey: true, shiftKey: true, key: 'k'},
+                },
+            };
+            const {rerender} = render(<ShortcutsTab />);
+            search('cmd+shift+k');
+            expect(screen.getByText('settings.shortcuts.toggleSidebar')).toBeInTheDocument();
+
+            search('cmd+b');
+            expect(screen.queryByText('settings.shortcuts.toggleSidebar')).not.toBeInTheDocument();
+
+            overridesMock = {};
+            rerender(<ShortcutsTab />);
+            expect(screen.getByText('settings.shortcuts.toggleSidebar')).toBeInTheDocument();
+        });
+
+        it('shows an empty state when nothing matches', () => {
+            render(<ShortcutsTab />);
+            search('no such action');
+
+            expect(screen.getByRole('status')).toHaveTextContent('settings.shortcuts.noMatches');
+            expect(
+                screen.queryByText('settings.shortcuts.categories.navigation'),
+            ).not.toBeInTheDocument();
+        });
+
+        it('is keyboard focusable and never saves or resets while typing', () => {
+            render(<ShortcutsTab />);
+            const input = screen.getByRole('searchbox', {
+                name: 'settings.shortcuts.searchPlaceholder',
+            });
+            input.focus();
+            expect(input).toHaveFocus();
+
+            fireEvent.keyDown(input, {key: 'p', metaKey: true});
+            search('open');
+
+            expect(saveOverrideMock).not.toHaveBeenCalled();
+            expect(resetOverrideMock).not.toHaveBeenCalled();
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        });
+
+        it('still edits a shortcut from the filtered list', async () => {
+            render(<ShortcutsTab />);
+            search('openSettings');
+            editShortcut('settings.shortcuts.openSettings');
+            fireEvent.keyDown(screen.getByRole('button', {name: 'settings.shortcuts.pressKeys'}), {
+                key: 'k',
+                code: 'KeyK',
+                metaKey: true,
+                shiftKey: true,
+            });
+            saveRecordedShortcut();
+
+            await waitFor(() => expect(saveOverrideMock).toHaveBeenCalled());
+        });
     });
 });

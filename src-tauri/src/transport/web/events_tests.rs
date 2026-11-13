@@ -158,6 +158,7 @@ fn declares_authorization_for_required_event_groups() {
         "query-status",
         "dump_progress",
         "import_progress",
+        "table_transfer_progress",
         "export_progress",
         "plugin-install-progress",
         "ai://pending_approval",
@@ -170,6 +171,7 @@ fn declares_authorization_for_required_event_groups() {
         "connection-metadata-invalidated",
         "tabularis://plugin-activated",
         "tabularis://plugin-installed",
+        "tabularis://ai-providers-changed",
     ] {
         assert!(WebEventBus::authorization_for(event).is_some(), "{event}");
     }
@@ -182,6 +184,7 @@ fn lets_every_session_follow_shared_catalog_and_ui_state_changes() {
         "theme-catalog-changed",
         "ui-state://changed",
         "tabularis://plugin-installed",
+        "tabularis://ai-providers-changed",
     ] {
         assert_eq!(
             WebEventBus::authorization_for(event),

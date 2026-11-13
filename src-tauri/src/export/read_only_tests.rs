@@ -23,6 +23,7 @@ where
 
 #[tokio::test]
 async fn read_only_plugin_exports_use_protected_rpc_for_every_page_and_format() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
     let calls = Arc::new(Mutex::new(Vec::new()));
     let recorded = calls.clone();
     let params = plugin_params(true, move |rpc| {
@@ -73,10 +74,12 @@ async fn read_only_plugin_exports_use_protected_rpc_for_every_page_and_format() 
             }
         }
     }
+    crate::drivers::registry::unregister_driver(&params.driver).await;
 }
 
 #[tokio::test]
 async fn read_only_plugin_exports_block_writes_and_unsupported_drivers_before_rpc() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
     for support in [true, false] {
         let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let recorded = calls.clone();
@@ -108,11 +111,13 @@ async fn read_only_plugin_exports_block_writes_and_unsupported_drivers_before_rp
             .is_err());
             assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
         }
+        crate::drivers::registry::unregister_driver(&params.driver).await;
     }
 }
 
 #[tokio::test]
 async fn read_only_plugin_exports_never_retry_without_protection() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
     for error in [
         "method not found",
         "database refused a write in SELECT mutate_data()",
@@ -137,11 +142,13 @@ async fn read_only_plugin_exports_never_retry_without_protection() {
         .await
         .is_err());
         assert_eq!(*calls.lock().unwrap(), vec!["execute_read_only_query"]);
+        crate::drivers::registry::unregister_driver(&params.driver).await;
     }
 }
 
 #[tokio::test]
 async fn writable_plugin_exports_preserve_normal_and_session_execution() {
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
     let calls = Arc::new(Mutex::new(Vec::new()));
     let recorded = calls.clone();
     let mut params = plugin_params(false, move |rpc| {
@@ -176,6 +183,7 @@ async fn writable_plugin_exports_preserve_normal_and_session_execution() {
         *calls.lock().unwrap(),
         vec!["execute_query", "execute_query_batch"]
     );
+    crate::drivers::registry::unregister_driver(&params.driver).await;
 }
 
 #[tokio::test]

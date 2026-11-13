@@ -88,3 +88,30 @@ fn out_of_order_completions_keep_later_transaction_registered() {
     );
     assert_eq!(released[0].0, key);
 }
+
+#[tokio::test]
+async fn release_connection_counts_only_that_connections_sessions() {
+    let root = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            root.path().into(),
+            root.path().into(),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let owner = Some(Uuid::new_v4());
+    let driver: Arc<dyn DatabaseDriver> = Arc::new(crate::drivers::sqlite::SqliteDriver::new());
+    register(owner, "release-count-db", "tab-1", driver.clone());
+    register(owner, "release-count-db", "tab-2", driver.clone());
+    register(owner, "release-count-other", "tab-1", driver);
+    assert_eq!(
+        release_connection(&runtime, owner, "release-count-db").await,
+        2
+    );
+    assert_eq!(
+        release_connection(&runtime, owner, "release-count-db").await,
+        0
+    );
+    assert_eq!(take_matching(owner, None).len(), 1);
+}

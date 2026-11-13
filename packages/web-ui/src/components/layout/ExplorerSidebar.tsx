@@ -7,6 +7,7 @@ import {buildDropTableSql} from '@/utils/dropTable';
 import {formatObjectNameForCopy, type ObjectNameCopyFormat} from '@/utils/objectNameCopy';
 import {isPostgresDriver, triggerFunctionName} from '@/utils/triggerSql';
 import {
+    ArrowRightLeft,
     Database,
     Plus,
     FileCode,
@@ -90,11 +91,16 @@ import {CreateForeignKeyModal} from '@/components/modals/CreateForeignKeyModal';
 import {GenerateSQLModal} from '@/components/modals/GenerateSQLModal';
 import {DumpDatabaseModal} from '@/components/modals/DumpDatabaseModal';
 import {ImportDatabaseModal} from '@/components/modals/ImportDatabaseModal';
+import {TableTransferModal} from '@/components/modals/TableTransferModal';
+import {useTableTransferCapabilities} from '@/hooks/useTableTransferCapabilities';
+import {canTransferFrom} from '@/utils/tableRowTransfer';
 import {ExportTableModal} from '@/components/modals/ExportTableModal';
 import {ImportTableModal} from '@/components/modals/ImportTableModal';
 import {ClipboardImportModal} from '@/components/modals/ClipboardImportModal';
 import {ViewEditorModal} from '@/components/modals/ViewEditorModal';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
+import type {DatabaseSqlCapabilities} from '@/types/plugins';
+import {databaseImportFilters} from '@/utils/databaseTransfers';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {RunRoutineModal} from '@/components/modals/RunRoutineModal';
 import {DebugRoutineModal} from '@/components/modals/DebugRoutineModal';
@@ -420,6 +426,12 @@ export const ExplorerSidebar = ({
         query?: SavedQuery;
     }>({isOpen: false});
     const [dumpModal, setDumpModal] = useState<{database: string; schema?: string} | null>(null);
+    const tableTransferCapabilities = useTableTransferCapabilities();
+    const [transferModal, setTransferModal] = useState<{
+        table: string;
+        schema?: string;
+        database?: string;
+    } | null>(null);
     const [importModal, setImportModal] = useState<{
         inputFile: ChosenInputFile;
         database: string;
@@ -986,9 +998,41 @@ export const ExplorerSidebar = ({
                   })
             : undefined;
 
+    const sqlCapabilitiesCacheRef = useRef<{
+        connectionId: string;
+        capabilities: DatabaseSqlCapabilities | null;
+    } | null>(null);
+    useEffect(() => {
+        if (!activeConnectionId) {
+            sqlCapabilitiesCacheRef.current = null;
+            return;
+        }
+        const connectionId = activeConnectionId;
+        let cancelled = false;
+        void Promise.resolve()
+            .then(() => client.call('get_database_sql_capabilities', {connectionId}))
+            .then((capabilities) => {
+                if (!cancelled) {
+                    sqlCapabilitiesCacheRef.current = {connectionId, capabilities};
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    sqlCapabilitiesCacheRef.current = {connectionId, capabilities: null};
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeConnectionId, client]);
+
     const handleImportDatabase = async (database?: string, schema?: string) => {
+        const cached =
+            sqlCapabilitiesCacheRef.current?.connectionId === activeConnectionId
+                ? sqlCapabilitiesCacheRef.current.capabilities
+                : null;
         const inputFile = await platform.chooseInputFile({
-            filters: [{name: 'SQL / Zip File', extensions: ['sql', 'zip']}],
+            filters: databaseImportFilters(cached),
         });
         if (inputFile) {
             setPendingImport({
@@ -3794,6 +3838,23 @@ export const ExplorerSidebar = ({
                                                 },
                                             }
                                           : null,
+                                      tableTransferCapabilities &&
+                                      canTransferFrom(
+                                          tableTransferCapabilities.pairs,
+                                          activeDriver ?? '',
+                                      )
+                                          ? {
+                                                label: t('tableRowTransfer.contextMenuLabel'),
+                                                icon: ArrowRightLeft,
+                                                action: () =>
+                                                    setTransferModal({
+                                                        table: contextMenu.id,
+                                                        schema:
+                                                            ctxSchema ?? activeSchema ?? undefined,
+                                                        database: ctxDatabase,
+                                                    }),
+                                            }
+                                          : null,
                                       supportsTableExport(activeCapabilities)
                                           ? {
                                                 label: t('tableTransfer.exportMenu'),
@@ -5260,6 +5321,17 @@ export const ExplorerSidebar = ({
                     ).map((t) => t.name)}
                     schema={dumpModal.schema}
                     database={dumpModal.schema ? dumpModal.database : undefined}
+                />
+            )}
+
+            {transferModal && activeConnectionId && (
+                <TableTransferModal
+                    isOpen={true}
+                    onClose={() => setTransferModal(null)}
+                    sourceConnectionId={activeConnectionId}
+                    sourceTable={transferModal.table}
+                    sourceSchema={transferModal.schema}
+                    sourceDatabase={transferModal.database}
                 />
             )}
 
