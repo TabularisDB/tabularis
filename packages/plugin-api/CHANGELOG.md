@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/TabularisDB/tabularis/compare/plugin-api-v0.4.0...plugin-api-v0.5.0) (2026-11-13)
+
+
+### Features
+
+* **plugins:** sandbox plugin UI extensions and EXPLAIN parsers in CSP-restricted iframes ([a17be51](https://github.com/TabularisDB/tabularis/commit/a17be51ff38ff7c6f8c88a4ce2a8f1416cb04bdd))
+* **web:** add authenticated browser-hosted Tabularis UI ([833613d](https://github.com/TabularisDB/tabularis/commit/833613dfa9ec65f1705cbd377069f4493dafdffa))
+
+
+### Bug Fixes
+
+* pass sandbox plugin CI checks ([6cc89d8](https://github.com/TabularisDB/tabularis/commit/6cc89d830227342ca732a7d80f5c73856c4e2983))
+
 ## [0.4.0](https://github.com/TabularisDB/tabularis/compare/plugin-api-v0.3.0...plugin-api-v0.4.0) (2026-11-13)
 
 
