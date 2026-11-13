@@ -475,6 +475,93 @@ export interface DatabaseImportRequest extends ConnectionIdRequest {
     uploadToken?: string;
 }
 
+export type TableTransferConflictMode = 'fail' | 'skip';
+
+export interface TableTransferColumnMapping {
+    sourceColumn: string;
+    /** `null` skips the source column explicitly. */
+    targetColumn: string | null;
+}
+
+export interface TableTransferSelection {
+    sourceTable: string;
+    targetTable: string;
+    /** Omitted columns are matched to the target by name. */
+    columns?: TableTransferColumnMapping[];
+}
+
+export interface TableTransferRequest {
+    sourceConnectionId: string;
+    sourceDatabase?: string;
+    sourceSchema?: string;
+    targetConnectionId: string;
+    targetDatabase?: string;
+    targetSchema?: string;
+    tables: TableTransferSelection[];
+    conflict?: TableTransferConflictMode;
+    batchRows?: number;
+    /** Required to run; identifies the job for progress events and cancellation. */
+    transferId?: string;
+}
+
+export interface TableTransferCapabilities {
+    pairs: Array<{source: string; target: string}>;
+    writeModes: string[];
+    conflictModes: TableTransferConflictMode[];
+    maxBatchRows: number;
+    defaultBatchRows: number;
+}
+
+export interface TableTransferIssue {
+    code: string;
+    column?: string;
+}
+
+export interface TableTransferColumnPlan {
+    sourceColumn: string;
+    sourceType: string;
+    targetColumn: string | null;
+    targetType: string | null;
+    rule: 'exact' | 'checked' | null;
+    skipped: boolean;
+    issue: string | null;
+}
+
+export interface TableTransferTablePlan {
+    sourceTable: string;
+    targetTable: string;
+    columns: TableTransferColumnPlan[];
+    issues: TableTransferIssue[];
+    blocking: boolean;
+    estimatedRows: number | null;
+}
+
+export interface TableTransferPlan {
+    tables: TableTransferTablePlan[];
+    issues: TableTransferIssue[];
+    blocking: boolean;
+}
+
+export type TableTransferStatus = 'completed' | 'failed' | 'cancelled' | 'notStarted' | 'running';
+
+export interface TableTransferTableResult {
+    sourceTable: string;
+    targetTable: string;
+    status: TableTransferStatus;
+    rowsRead: number;
+    rowsWritten: number;
+    rowsSkipped: number;
+    /** Rows of the batch that was rolled back when the table failed. */
+    rowsFailed: number;
+    error: string | null;
+}
+
+export interface TableTransferResult {
+    transferId: string;
+    status: TableTransferStatus;
+    tables: TableTransferTableResult[];
+}
+
 export type TableSqlContent = 'structure_and_data' | 'structure_only';
 export type TableSqlStructureSource = 'driver' | 'generated';
 /** What "Import table from SQL" does when the table already exists. */
@@ -831,6 +918,22 @@ export interface CommandMap {
     cancel_dump: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
     import_database: CommandDefinition<DatabaseImportRequest, void, 'sensitive'>;
     cancel_import: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
+    get_table_transfer_capabilities: CommandDefinition<
+        undefined,
+        TableTransferCapabilities,
+        'sensitive'
+    >;
+    plan_table_transfer: CommandDefinition<
+        {request: TableTransferRequest},
+        TableTransferPlan,
+        'sensitive'
+    >;
+    run_table_transfer: CommandDefinition<
+        {request: TableTransferRequest},
+        TableTransferResult,
+        'sensitive'
+    >;
+    cancel_table_transfer: CommandDefinition<{transferId: string}, void, 'sensitive'>;
     export_table_to_sql: CommandDefinition<TableExportRequest, TableExportResult, 'sensitive'>;
     read_table_sql_header: CommandDefinition<
         TableImportFileRequest,

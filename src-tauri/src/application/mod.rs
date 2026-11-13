@@ -26,6 +26,7 @@ pub mod queries;
 pub mod query_sessions;
 pub mod read_only;
 pub mod records;
+pub mod table_row_transfers;
 pub mod routine_debug;
 pub mod table_transfers;
 pub mod themes;

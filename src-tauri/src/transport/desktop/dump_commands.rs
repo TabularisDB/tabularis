@@ -1,5 +1,7 @@
 use crate::application::connection_files::GeneratedFile;
 use crate::application::database_transfers::{self, DumpDestination, ImportSource, JobKind};
+use crate::application::table_row_transfers::{self, TableTransferPlan, TableTransferResult};
+use crate::table_transfer::{TableTransferCapabilities, TableTransferRequest};
 use crate::application::table_transfers;
 use crate::dump_commands::*;
 use crate::runtime::RuntimeContext;
@@ -64,6 +66,36 @@ pub async fn import_database(
         database,
     )
     .await
+}
+
+#[tauri::command]
+pub async fn get_table_transfer_capabilities() -> Result<TableTransferCapabilities, String> {
+    Ok(table_row_transfers::get_capabilities())
+}
+
+#[tauri::command]
+pub async fn plan_table_transfer(
+    runtime: State<'_, RuntimeContext>,
+    request: TableTransferRequest,
+) -> Result<TableTransferPlan, String> {
+    table_row_transfers::plan(runtime.inner(), None, request).await
+}
+
+#[tauri::command]
+pub async fn run_table_transfer(
+    runtime: State<'_, RuntimeContext>,
+    state: State<'_, std::sync::Arc<DumpCancellationState>>,
+    request: TableTransferRequest,
+) -> Result<TableTransferResult, String> {
+    table_row_transfers::run(runtime.inner(), state.inner(), None, request).await
+}
+
+#[tauri::command]
+pub async fn cancel_table_transfer(
+    state: State<'_, std::sync::Arc<DumpCancellationState>>,
+    transfer_id: String,
+) -> Result<(), String> {
+    table_row_transfers::cancel(state.inner(), None, &transfer_id)
 }
 
 #[tauri::command]
