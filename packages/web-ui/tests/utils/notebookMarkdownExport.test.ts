@@ -1,6 +1,10 @@
 import {describe, expect, it} from 'vitest';
 import type {NotebookCell} from '@/types/notebook';
-import {chooseCodeFence, exportNotebookToMarkdown} from '@/utils/notebookMarkdownExport';
+import {
+    chooseCodeFence,
+    exportNotebookToMarkdown,
+    findUnclosedFence,
+} from '@/utils/notebookMarkdownExport';
 
 function sql(id: string, content: string, extra: Partial<NotebookCell> = {}): NotebookCell {
     return {id, type: 'sql', content, ...extra};
@@ -137,6 +141,37 @@ describe('notebookMarkdownExport', () => {
             }
         });
 
+        it('closes a code block left open at the end of a Markdown cell', () => {
+            const out = exportNotebookToMarkdown([
+                markdown('a', 'Notes\n\n```sql\nSELECT 1'),
+                markdown('b', '## Next section'),
+                sql('c', 'SELECT 2'),
+            ]);
+            expect(out).toBe(
+                'Notes\n\n```sql\nSELECT 1\n```\n\n' +
+                    '## Next section\n\n' +
+                    '```sql\nSELECT 2\n```\n',
+            );
+            expect(fencedBlocks(out ?? '')).toEqual([
+                {info: 'sql', body: 'SELECT 1'},
+                {info: 'sql', body: 'SELECT 2'},
+            ]);
+        });
+
+        it('closes an open block with its own fence and indentation', () => {
+            expect(
+                exportNotebookToMarkdown([
+                    markdown('a', '- step\n\n  ~~~~\n  code'),
+                    markdown('b', 'After'),
+                ]),
+            ).toBe('- step\n\n  ~~~~\n  code\n  ~~~~\n\nAfter\n');
+        });
+
+        it('leaves Markdown cells with closed or no code blocks unchanged', () => {
+            const notes = '```\na\n```\n\n~~~\nb\n~~~\n\n    ```\n    indented code';
+            expect(exportNotebookToMarkdown([markdown('a', notes)])).toBe(`${notes}\n`);
+        });
+
         it('skips empty and whitespace-only cells', () => {
             expect(
                 exportNotebookToMarkdown([
@@ -153,6 +188,29 @@ describe('notebookMarkdownExport', () => {
             ['only blank cells', [markdown('a', ' '), sql('b', '\n')]],
         ])('returns null for %s', (_label, cells) => {
             expect(exportNotebookToMarkdown(cells as NotebookCell[])).toBeNull();
+        });
+    });
+
+    describe('findUnclosedFence', () => {
+        it.each([
+            ['no fence', 'Just text', null],
+            ['a closed backtick block', '```sql\nSELECT 1\n```', null],
+            ['a closed tilde block', '~~~\ncode\n~~~', null],
+            ['an open backtick block', 'Notes\n```sql\nSELECT 1', '```'],
+            ['an open tilde block', '~~~~\ncode', '~~~~'],
+            ['an indented open block', '- item\n\n   ```\n   code', '   ```'],
+            ['a shorter closer', '`````\n```\ncode', '`````'],
+            ['the other fence character', '```\n~~~\ncode', '```'],
+            ['a closer with an info string', '```\ncode\n```sql', '```'],
+            ['a longer closer', '```\ncode\n`````  ', null],
+            ['a second block left open', '```\na\n```\n~~~\nb', '~~~'],
+            ['CR and CRLF line endings', 'a\r```\r\ncode', '```'],
+            ['four spaces of indentation', '    ```\n    code', null],
+            ['a backtick in the info string', '``` a`b\ntext', null],
+            ['a block quote', '> ```\n> code', null],
+            ['an inline code span', 'Use ```x``` here', null],
+        ])('handles %s', (_label, markdown, closer) => {
+            expect(findUnclosedFence(markdown)).toBe(closer);
         });
     });
 
