@@ -1,9 +1,13 @@
 import {useState, useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
-import {List, ChevronDown, Sparkles, Loader2} from 'lucide-react';
+import {List, ChevronDown, Sparkles, Loader2, Search, X} from 'lucide-react';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import type {NotebookCell} from '@/types/notebook';
-import {extractOutline, getUnnamedCellsWithContent} from '@/utils/notebookOutline';
+import {
+    extractOutline,
+    filterOutlineEntries,
+    getUnnamedCellsWithContent,
+} from '@/utils/notebookOutline';
 import {useSettings} from '@/hooks/useSettings';
 
 interface NotebookOutlineProps {
@@ -86,6 +90,12 @@ export function NotebookOutline({
     const {t} = useTranslation();
     const entries = useMemo(() => extractOutline(cells), [cells]);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const filteredEntries = useMemo(
+        () => filterOutlineEntries(entries, searchQuery),
+        [entries, searchQuery],
+    );
 
     if (entries.length === 0) return null;
 
@@ -109,19 +119,61 @@ export function NotebookOutline({
                 )}
             </button>
             {!isCollapsed && (
-                <div className="px-3 py-2 space-y-0.5">
-                    {entries.map((entry, i) => (
-                        <button
-                            key={`${entry.cellId}-${i}`}
-                            type="button"
-                            onClick={() => onScrollToCell(entry.cellId)}
-                            className="block w-full text-left text-xs text-secondary hover:text-primary transition-colors truncate"
-                            style={{paddingLeft: `${(entry.level - 1) * 12}px`}}
-                        >
-                            <CellTypeBadge cellType={entry.cellType} />
-                            {entry.text}
-                        </button>
-                    ))}
+                <div className="px-3 py-2 space-y-2">
+                    <div className="relative flex items-center">
+                        <Search
+                            size={11}
+                            className="absolute left-2 text-muted pointer-events-none"
+                        />
+                        <input
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            autoComplete="off"
+                            spellCheck={false}
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Escape' && searchQuery) {
+                                    e.preventDefault();
+                                    setSearchQuery('');
+                                }
+                            }}
+                            placeholder={t('editor.notebook.filterOutline')}
+                            aria-label={t('editor.notebook.filterOutline')}
+                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-focus/50"
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery('')}
+                                aria-label={t('editor.notebook.clearOutlineFilter')}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded transition-colors"
+                            >
+                                <X size={11} />
+                            </button>
+                        )}
+                    </div>
+                    {filteredEntries.length === 0 ? (
+                        <div className="py-2 text-center text-xs text-muted">
+                            {t('editor.notebook.noOutlineMatches')}
+                        </div>
+                    ) : (
+                        <div className="space-y-0.5">
+                            {filteredEntries.map((entry, i) => (
+                                <button
+                                    key={`${entry.cellId}-${entry.cellIndex}-${i}`}
+                                    type="button"
+                                    onClick={() => onScrollToCell(entry.cellId)}
+                                    className="block w-full text-left text-xs text-secondary hover:text-primary transition-colors truncate"
+                                    style={{paddingLeft: `${(entry.level - 1) * 12}px`}}
+                                >
+                                    <CellTypeBadge cellType={entry.cellType} />
+                                    {entry.text}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
