@@ -2153,6 +2153,7 @@
       "copySource": "Copiar código fuente",
       "copiedSource": "Código copiado al portapapeles",
       "copySourceFailed": "No se pudo copiar el código de la celda al portapapeles.",
+      "duplicateCellToEnd": "Duplicar al final",
       "moveCellUp": "Mover Arriba",
       "moveCellDown": "Mover Abajo",
       "export": "Exportar Notebook",

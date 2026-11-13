@@ -2153,6 +2153,7 @@
       "copySource": "复制源代码",
       "copiedSource": "源代码已复制到剪贴板",
       "copySourceFailed": "无法将单元格源代码复制到剪贴板。",
+      "duplicateCellToEnd": "复制到末尾",
       "moveCellUp": "上移",
       "moveCellDown": "下移",
       "export": "导出笔记本",

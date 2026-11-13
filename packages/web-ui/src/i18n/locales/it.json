@@ -2240,6 +2240,7 @@
       "copySource": "Copia sorgente",
       "copiedSource": "Sorgente copiata negli appunti",
       "copySourceFailed": "Impossibile copiare il sorgente della cella negli appunti.",
+      "duplicateCellToEnd": "Duplica in fondo",
       "moveCellUp": "Sposta Su",
       "moveCellDown": "Sposta Giù",
       "export": "Esporta Notebook",

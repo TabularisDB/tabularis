@@ -2251,6 +2251,7 @@
       "copySource": "Copy source",
       "copiedSource": "Source copied to clipboard",
       "copySourceFailed": "Couldn't copy the cell source to the clipboard",
+      "duplicateCellToEnd": "Duplicate to End",
       "moveCellUp": "Move Up",
       "moveCellDown": "Move Down",
       "export": "Export Notebook",

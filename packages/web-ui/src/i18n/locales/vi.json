@@ -2222,6 +2222,7 @@
       "copySource": "Sao chép nguồn",
       "copiedSource": "Đã sao chép nguồn vào clipboard",
       "copySourceFailed": "Không thể sao chép nguồn của ô vào clipboard.",
+      "duplicateCellToEnd": "Nhân bản xuống cuối",
       "moveCellUp": "Chuyển lên",
       "moveCellDown": "Chuyển xuống",
       "export": "Xuất notebook",

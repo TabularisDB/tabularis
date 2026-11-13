@@ -2220,6 +2220,7 @@
       "copySource": "Copier la source",
       "copiedSource": "Source copiée dans le presse-papiers",
       "copySourceFailed": "Impossible de copier la source de la cellule dans le presse-papiers.",
+      "duplicateCellToEnd": "Dupliquer à la fin",
       "moveCellUp": "Monter",
       "moveCellDown": "Descendre",
       "export": "Exporter le notebook",

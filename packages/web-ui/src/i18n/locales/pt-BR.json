@@ -2191,6 +2191,7 @@
       "copySource": "Copiar fonte",
       "copiedSource": "Fonte copiada para a área de transferência",
       "copySourceFailed": "Não foi possível copiar a fonte da célula para a área de transferência.",
+      "duplicateCellToEnd": "Duplicar no final",
       "moveCellUp": "Mover para Cima",
       "moveCellDown": "Mover para Baixo",
       "export": "Exportar Notebook",
