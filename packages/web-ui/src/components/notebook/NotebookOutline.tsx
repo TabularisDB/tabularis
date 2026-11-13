@@ -1,12 +1,22 @@
 import {useState, useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
-import {List, ChevronDown, Sparkles, Loader2, Search, X} from 'lucide-react';
+import {
+    List,
+    ChevronDown,
+    Sparkles,
+    Loader2,
+    Search,
+    X,
+    AlertCircle,
+    CheckCircle2,
+} from 'lucide-react';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import type {NotebookCell} from '@/types/notebook';
 import {
     extractOutline,
     filterOutlineEntries,
     getUnnamedCellsWithContent,
+    type SqlCellExecutionStatus,
 } from '@/utils/notebookOutline';
 import {useSettings} from '@/hooks/useSettings';
 
@@ -80,6 +90,55 @@ function CellTypeBadge({cellType}: {cellType: 'sql' | 'markdown'}) {
         return <span className="text-accent-success mr-1">SQL</span>;
     }
     return <span className="text-accent mr-1">MD</span>;
+}
+
+function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
+    const {t} = useTranslation();
+    if (!status || status === 'idle') return null;
+
+    if (status === 'running') {
+        return (
+            <span
+                className="inline-flex items-center ml-auto pl-1 text-accent-warning shrink-0"
+                title={t('editor.notebook.statusRunning')}
+                role="img"
+                aria-label={t('editor.notebook.statusRunning')}
+            >
+                <Loader2 size={11} className="animate-spin" aria-hidden="true" />
+                <span className="sr-only">{t('editor.notebook.statusRunning')}</span>
+            </span>
+        );
+    }
+
+    if (status === 'failed') {
+        return (
+            <span
+                className="inline-flex items-center ml-auto pl-1 text-accent-error shrink-0"
+                title={t('editor.notebook.statusFailed')}
+                role="img"
+                aria-label={t('editor.notebook.statusFailed')}
+            >
+                <AlertCircle size={11} aria-hidden="true" />
+                <span className="sr-only">{t('editor.notebook.statusFailed')}</span>
+            </span>
+        );
+    }
+
+    if (status === 'has_output') {
+        return (
+            <span
+                className="inline-flex items-center ml-auto pl-1 text-accent-success shrink-0"
+                title={t('editor.notebook.statusOutputAvailable')}
+                role="img"
+                aria-label={t('editor.notebook.statusOutputAvailable')}
+            >
+                <CheckCircle2 size={11} aria-hidden="true" />
+                <span className="sr-only">{t('editor.notebook.statusOutputAvailable')}</span>
+            </span>
+        );
+    }
+
+    return null;
 }
 
 export function NotebookOutline({
@@ -165,11 +224,14 @@ export function NotebookOutline({
                                     key={`${entry.cellId}-${entry.cellIndex}-${i}`}
                                     type="button"
                                     onClick={() => onScrollToCell(entry.cellId)}
-                                    className="block w-full text-left text-xs text-secondary hover:text-primary transition-colors truncate"
+                                    className="flex items-center w-full text-left text-xs text-secondary hover:text-primary transition-colors truncate"
                                     style={{paddingLeft: `${(entry.level - 1) * 12}px`}}
                                 >
                                     <CellTypeBadge cellType={entry.cellType} />
-                                    {entry.text}
+                                    <span className="truncate flex-1">{entry.text}</span>
+                                    {entry.cellType === 'sql' && (
+                                        <SqlStatusIndicator status={entry.status} />
+                                    )}
                                 </button>
                             ))}
                         </div>
