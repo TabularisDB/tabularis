@@ -2226,6 +2226,8 @@
       "exportHtml": "HTML としてエクスポート",
       "exportSql": "SQL ソースをエクスポート",
       "exportSqlEmpty": "このノートブックにはエクスポートする SQL がありません。",
+      "exportMarkdown": "Markdown をエクスポート",
+      "exportMarkdownEmpty": "このノートブックにはエクスポートする内容がありません。",
       "parameters": "パラメータ",
       "paramName": "名前",
       "paramValue": "値",
