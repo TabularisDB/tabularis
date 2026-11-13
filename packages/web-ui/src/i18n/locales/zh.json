@@ -2676,6 +2676,8 @@
     "expandAll": "全部展开",
     "collapseAll": "全部折叠",
     "sortKeys": "排序键",
+    "expandToLevel": "展开到层级",
+    "expandToLevelN": "展开到第 {{level}} 层",
     "search": "搜索",
     "copyPath": "复制路径",
     "copyValue": "复制值",

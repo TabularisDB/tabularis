@@ -2785,6 +2785,8 @@
     "expandAll": "Развернуть все",
     "collapseAll": "Свернуть все",
     "sortKeys": "Сортировать ключи",
+    "expandToLevel": "Развернуть до уровня",
+    "expandToLevelN": "Развернуть до уровня {{level}}",
     "search": "Поиск",
     "copyPath": "Копировать путь",
     "copyValue": "Копировать значение",

@@ -2802,6 +2802,8 @@
     "expandAll": "Tout développer",
     "collapseAll": "Tout réduire",
     "sortKeys": "Trier les clés",
+    "expandToLevel": "Développer jusqu'au niveau",
+    "expandToLevelN": "Développer jusqu'au niveau {{level}}",
     "search": "Rechercher",
     "copyPath": "Copier le chemin",
     "copyValue": "Copier la valeur",

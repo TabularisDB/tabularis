@@ -2833,6 +2833,8 @@
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
     "sortKeys": "Sort keys",
+    "expandToLevel": "Expand to level",
+    "expandToLevelN": "Expand to level {{level}}",
     "search": "Search",
     "copyPath": "Copy Path",
     "copyValue": "Copy Value",

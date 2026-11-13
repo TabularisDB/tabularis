@@ -2768,6 +2768,8 @@
         "expandAll": "全部展開",
         "collapseAll": "全部摺疊",
         "sortKeys": "排序鍵",
+        "expandToLevel": "展開至層級",
+        "expandToLevelN": "展開至第 {{level}} 層",
         "search": "搜尋",
         "copyPath": "複製路徑",
         "copyValue": "複製值",

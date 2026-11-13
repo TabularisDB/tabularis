@@ -2792,6 +2792,8 @@
     "expandAll": "Palawakin lahat",
     "collapseAll": "Tiklupin lahat",
     "sortKeys": "I-sort ang mga key",
+    "expandToLevel": "Palawakin hanggang antas",
+    "expandToLevelN": "Palawakin hanggang antas {{level}}",
     "search": "Maghanap",
     "copyPath": "Kopyahin ang Path",
     "copyValue": "Kopyahin ang Value",

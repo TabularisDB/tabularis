@@ -2729,6 +2729,8 @@
     "expandAll": "모두 펼치기",
     "collapseAll": "모두 접기",
     "sortKeys": "키 정렬",
+    "expandToLevel": "펼칠 수준",
+    "expandToLevelN": "{{level}}단계까지 펼치기",
     "search": "검색",
     "copyPath": "경로 복사",
     "copyValue": "값 복사",

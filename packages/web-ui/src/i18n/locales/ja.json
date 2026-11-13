@@ -2765,7 +2765,9 @@
     "invalid": "無効な JSON",
     "expandAll": "すべて展開",
     "collapseAll": "すべて折りたたむ",
-    "sortKeys": "キーを並べ替え"
+    "sortKeys": "キーを並べ替え",
+    "expandToLevel": "展開するレベル",
+    "expandToLevelN": "レベル {{level}} まで展開"
   },
   "jsonViewer": {
     "close": "閉じる",
