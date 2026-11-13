@@ -12,6 +12,7 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Rejection {
     Empty,
+    TooLarge,
     MultipleStatements,
     NotUpdateOrDelete,
     /// Syntax the first milestone does not support, named for the user.
@@ -29,6 +30,11 @@ impl fmt::Display for Rejection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rejection::Empty => write!(f, "There is no statement to preview."),
+            Rejection::TooLarge => write!(
+                f,
+                "The statement is longer than {} KB, too large to preview.",
+                MAX_SQL_LEN / 1_000
+            ),
             Rejection::MultipleStatements => {
                 write!(f, "Preview works on one statement at a time.")
             }
@@ -88,6 +94,31 @@ impl Statement {
         match self {
             Statement::Update { target, .. } | Statement::Delete { target, .. } => target,
         }
+    }
+
+    /// Every column of the target the statement reads or assigns, deduplicated.
+    pub fn columns(&self) -> Vec<String> {
+        let mut names = Vec::new();
+        let filter = match self {
+            Statement::Update {
+                assignments,
+                filter,
+                ..
+            } => {
+                for assignment in assignments {
+                    names.push(assignment.column.0.clone());
+                    assignment.value.collect_columns(&mut names);
+                }
+                filter
+            }
+            Statement::Delete { filter, .. } => filter,
+        };
+        if let Some(filter) = filter {
+            filter.collect_columns(&mut names);
+        }
+        names.sort();
+        names.dedup();
+        names
     }
 }
 
@@ -216,6 +247,43 @@ pub enum Expr {
         args: Vec<Expr>,
     },
     Coalesce(Vec<Expr>),
+}
+
+impl Expr {
+    fn collect_columns(&self, names: &mut Vec<String>) {
+        match self {
+            Expr::Column { name, .. } => names.push(name.0.clone()),
+            Expr::Number(_) | Expr::String(_) | Expr::Bool(_) | Expr::Null => {}
+            Expr::Negate(inner)
+            | Expr::Not(inner)
+            | Expr::IsNull { expr: inner, .. }
+            | Expr::IsBool { expr: inner, .. }
+            | Expr::Cast { expr: inner, .. } => inner.collect_columns(names),
+            Expr::Binary { left, right, .. }
+            | Expr::Like {
+                expr: left,
+                pattern: right,
+                ..
+            } => {
+                left.collect_columns(names);
+                right.collect_columns(names);
+            }
+            Expr::Between {
+                expr, low, high, ..
+            } => {
+                for e in [expr, low, high] {
+                    e.collect_columns(names);
+                }
+            }
+            Expr::InList { expr, list, .. } => {
+                expr.collect_columns(names);
+                list.iter().for_each(|e| e.collect_columns(names));
+            }
+            Expr::Call { args, .. } | Expr::Coalesce(args) => {
+                args.iter().for_each(|e| e.collect_columns(names));
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------- lexer
@@ -455,7 +523,12 @@ const RESERVED: &[&str] = &[
     "with",
 ];
 
+pub const MAX_SQL_LEN: usize = 100_000;
+
 pub fn parse(sql: &str) -> Result<Statement, Rejection> {
+    if sql.len() > MAX_SQL_LEN {
+        return Err(Rejection::TooLarge);
+    }
     let tokens = lex(sql)?;
     let mut statements = tokens
         .split(|t| *t == Token::Op(";"))

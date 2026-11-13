@@ -639,12 +639,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const [dmlPreview, setDmlPreview] = useState<DmlPreview | null>(null);
     const [dmlPreviewError, setDmlPreviewError] = useState<string | null>(null);
     const [dmlPreviewLoading, setDmlPreviewLoading] = useState(false);
-    const [dmlPreviewContext, setDmlPreviewContext] = useState<{
-        sql: string;
-        connectionId: string;
-        schema?: string | null;
-        database?: string | null;
-    } | null>(null);
+    // The tab the open preview belongs to, so "Run statement" runs there.
+    const [dmlPreviewTabId, setDmlPreviewTabId] = useState<string | undefined>();
+    // Bumped by every preview request and by closing the modal, so a late
+    // response from a superseded request is dropped.
+    const dmlPreviewGenerationRef = useRef(0);
     const [isCountLoading, setIsCountLoading] = useState(false);
     const [applyToAll, setApplyToAll] = useState(false);
     const [copyFormat, setCopyFormat] = useState<CopyFormat>(settings.copyFormat ?? 'csv');
@@ -4489,16 +4488,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const previewDmlChanges = useCallback(
         async (sql: string, tabId?: string) => {
-            const connectionId = activeConnectionId;
-            if (!connectionId || !sql.trim()) return;
             const targetTabId = tabId ?? activeTabIdRef.current;
             const targetTab = tabsRef.current.find((tab) => tab.id === targetTabId);
+            const connectionId = targetTab?.connectionId ?? activeConnectionId;
+            if (!connectionId || !sql.trim()) return;
             const schema = targetTab?.schema ?? activeSchema ?? undefined;
             const database = targetTab?.database;
-            const context = {sql, connectionId, schema, database};
+            const generation = ++dmlPreviewGenerationRef.current;
             setDmlPreview(null);
             setDmlPreviewError(null);
-            setDmlPreviewContext(context);
+            setDmlPreviewTabId(targetTab?.id);
             setDmlPreviewLoading(true);
             setIsDmlPreviewOpen(true);
             try {
@@ -4509,12 +4508,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                     database,
                     limit: 100,
                 });
+                if (generation !== dmlPreviewGenerationRef.current) return;
                 setDmlPreview(preview);
             } catch (error) {
+                if (generation !== dmlPreviewGenerationRef.current) return;
                 setDmlPreviewError(toErrorMessage(error));
-            } finally {
-                setDmlPreviewLoading(false);
             }
+            setDmlPreviewLoading(false);
         },
         [activeConnectionId, activeSchema, client],
     );
@@ -5765,7 +5765,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                         <button
                             onClick={handleDmlPreviewAction}
                             disabled={!activeConnectionId || dmlPreviewLoading}
-                            className="flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary"
+                            className="flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                             title={t('editor.dmlPreview.action')}
                         >
                             <Eye size={16} />
@@ -7091,16 +7091,16 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             <DmlPreviewModal
                 isOpen={isDmlPreviewOpen}
                 onClose={() => {
+                    dmlPreviewGenerationRef.current++;
                     setIsDmlPreviewOpen(false);
                     setDmlPreviewLoading(false);
                 }}
                 preview={dmlPreview}
                 error={dmlPreviewError}
                 loading={dmlPreviewLoading}
-                currentContext={dmlPreviewContext}
                 onRunStatement={(sql) => {
                     setIsDmlPreviewOpen(false);
-                    void runQuery(sql, 1);
+                    void runQuery(sql, 1, dmlPreviewTabId);
                 }}
             />
             {tabContextMenu &&

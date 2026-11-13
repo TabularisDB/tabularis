@@ -22,7 +22,6 @@ pub use statement::Rejection;
 
 pub const DEFAULT_LIMIT: u32 = 100;
 pub const MAX_LIMIT: u32 = 1_000;
-const MAX_SQL_LEN: usize = 100_000;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,9 +79,6 @@ pub async fn preview(
     session_id: Option<Uuid>,
     request: DmlPreviewRequest,
 ) -> Result<DmlPreview, String> {
-    if request.sql.trim().is_empty() || request.sql.len() > MAX_SQL_LEN {
-        return Err(Rejection::Empty.to_string());
-    }
     let (driver, params) = super::queries::driver_and_params(
         runtime,
         session_id,
@@ -93,14 +89,11 @@ pub async fn preview(
     preview_with_driver(driver.as_ref(), &params, request).await
 }
 
-pub(crate) async fn preview_with_driver(
+pub async fn preview_with_driver(
     driver: &dyn DatabaseDriver,
     params: &ConnectionParams,
     request: DmlPreviewRequest,
 ) -> Result<DmlPreview, String> {
-    if request.sql.trim().is_empty() || request.sql.len() > MAX_SQL_LEN {
-        return Err(Rejection::Empty.to_string());
-    }
     let capabilities = &driver.manifest().capabilities;
     if capabilities.sql_dialect != Some(SqlDialect::Postgres) {
         return Err("Preview changes is available for PostgreSQL connections only.".into());
@@ -114,7 +107,7 @@ pub(crate) async fn preview_with_driver(
     let target = render::target_name(parsed.target());
     let schema = request.schema.as_deref();
 
-    let facts = target_facts(driver, params, &target, schema).await?;
+    let facts = target_facts(driver, params, &target, &parsed.columns(), schema).await?;
     let mut result = driver
         .execute_read_only_query(params, &query.sql, None, 1, schema)
         .await?;
@@ -155,9 +148,10 @@ async fn target_facts(
     driver: &dyn DatabaseDriver,
     params: &ConnectionParams,
     target: &str,
+    columns: &[String],
     schema: Option<&str>,
 ) -> Result<TargetFacts, String> {
-    let sql = render::target_facts_query(target);
+    let sql = render::target_facts_query(target, columns);
     let result = driver
         .execute_read_only_query(params, &sql, None, 1, schema)
         .await?;
@@ -175,6 +169,11 @@ async fn target_facts(
         };
         return Err(format!("Preview works on tables only; {target} is {what}."));
     }
+    if let Some(columns) = row.get(3).and_then(|v| v.as_str()) {
+        return Err(format!(
+            "Preview can't model the comparison rules of {columns}. Types from extensions or user schemas, such as citext, can define their own operators, so the built-in ones the preview uses could match different rows."
+        ));
+    }
     Ok(TargetFacts {
         triggers: count(row.get(1)),
         rules: count(row.get(2)),
@@ -189,7 +188,5 @@ fn count(value: Option<&serde_json::Value>) -> u64 {
     }
 }
 
-#[cfg(test)]
-mod live;
 #[cfg(test)]
 mod tests;

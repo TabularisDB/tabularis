@@ -2184,14 +2184,12 @@
       "previewSql": "SQL de l’aperçu",
       "truncated": "Affichage des {{limit}} premières lignes ; d’autres lignes correspondent.",
       "noFilter": "Cette instruction n’a pas de clause WHERE, elle affecterait donc toutes les lignes de {{target}}.",
-      "triggers": "{{target}} a {{triggers}} déclencheurs et {{rules}} règles. Ils s’exécutent lors de l’exécution, pas dans cet aperçu.",
+      "triggers": "Déclencheurs sur {{target}} : {{triggers}}. Règles : {{rules}}. Ils s’exécutent lors de l’exécution, pas dans cet aperçu.",
       "canDiffer": "Des écritures concurrentes et des déclencheurs peuvent faire différer l’effet final de cet aperçu.",
-      "stale": "Le texte de l’éditeur ou la connexion a changé depuis cet aperçu. Relancez Prévisualiser les modifications.",
       "empty": "Aucune ligne ne correspond à cette instruction.",
       "runStatement": "Exécuter l’instruction",
       "close": "Fermer",
-      "notAvailable": "L’aperçu est disponible pour un seul UPDATE ou DELETE PostgreSQL sur une table.",
-      "fillParameters": "Renseignez les paramètres de la requête avant de prévisualiser."
+      "notAvailable": "L’aperçu est disponible pour un seul UPDATE ou DELETE PostgreSQL sur une table."
     },
     "notebook": {
       "addSqlCell": "Ajouter une cellule SQL",

@@ -2215,14 +2215,12 @@
       "previewSql": "Preview SQL",
       "truncated": "Showing the first {{limit}} rows; more rows match.",
       "noFilter": "This statement has no WHERE clause, so it would affect every row in {{target}}.",
-      "triggers": "{{target}} has {{triggers}} triggers and {{rules}} rules. They run when the statement is executed, not in this preview.",
+      "triggers": "Triggers on {{target}}: {{triggers}}. Rules: {{rules}}. They run when the statement is executed, not in this preview.",
       "canDiffer": "Concurrent writes and triggers can make the final effect differ from this preview.",
-      "stale": "The editor text or connection has changed since this preview was built. Run Preview changes again.",
       "empty": "No rows match this statement.",
       "runStatement": "Run statement",
       "close": "Close",
-      "notAvailable": "Preview changes is available for a single PostgreSQL UPDATE or DELETE on one table.",
-      "fillParameters": "Fill in the query parameters before previewing."
+      "notAvailable": "Preview changes is available for a single PostgreSQL UPDATE or DELETE on one table."
     },
     "notebook": {
       "addSqlCell": "Add SQL Cell",

@@ -2,8 +2,10 @@
 //!
 //! Every operator is written as `OPERATOR(pg_catalog.op)` and every function
 //! as `pg_catalog.fn`, so resolution cannot reach a user-defined operator or
-//! function, whatever the search path or the column types are. A column type
-//! without a matching built-in operator makes the preview fail instead.
+//! function, whatever the search path or the column types are. Built-in
+//! operators can still apply to a type outside `pg_catalog` through an
+//! implicit cast (`citext` to `text` compares case-sensitively), so the
+//! `target_facts_query` preflight rejects referenced columns of such types.
 
 use super::statement::{BinaryOp, Expr, Rejection, Statement, Target};
 
@@ -236,17 +238,47 @@ pub fn target_name(target: &Target) -> String {
     }
 }
 
-/// Relation kind plus user trigger and rule counts for `target`, resolved
-/// with the session's search path like the statement itself.
-pub fn target_facts_query(target: &str) -> String {
+/// Relation kind, user trigger and rule counts, and the referenced columns
+/// whose type (through domains and arrays) is neither a `pg_catalog` type
+/// outside an extension nor an enum, for `target`, resolved with the
+/// session's search path like the statement itself.
+pub fn target_facts_query(target: &str, columns: &[String]) -> String {
+    let names: Vec<String> = columns.iter().map(|c| literal(c)).collect();
     format!(
         "SELECT c.relkind::text, \
          (SELECT pg_catalog.count(*) FROM pg_catalog.pg_trigger t \
           WHERE t.tgrelid OPERATOR(pg_catalog.=) c.oid AND NOT t.tgisinternal)::int8, \
          (SELECT pg_catalog.count(*) FROM pg_catalog.pg_rewrite r \
-          WHERE r.ev_class OPERATOR(pg_catalog.=) c.oid)::int8 \
+          WHERE r.ev_class OPERATOR(pg_catalog.=) c.oid)::int8, \
+         (SELECT pg_catalog.string_agg(pg_catalog.quote_ident(a.attname::text) \
+            OPERATOR(pg_catalog.||) ' (' OPERATOR(pg_catalog.||) \
+            pg_catalog.format_type(a.atttypid, a.atttypmod) OPERATOR(pg_catalog.||) ')', \
+            ', ' ORDER BY a.attnum) \
+          FROM pg_catalog.pg_attribute a \
+          WHERE a.attrelid OPERATOR(pg_catalog.=) c.oid AND NOT a.attisdropped \
+          AND a.attname OPERATOR(pg_catalog.=) ANY (ARRAY[{}]::pg_catalog.name[]) \
+          AND EXISTS ( \
+            WITH RECURSIVE ty(oid) AS ( \
+              SELECT a.atttypid \
+              UNION \
+              SELECT CASE WHEN t.typtype OPERATOR(pg_catalog.=) 'd' THEN t.typbasetype ELSE t.typelem END \
+              FROM pg_catalog.pg_type t JOIN ty ON t.oid OPERATOR(pg_catalog.=) ty.oid \
+              WHERE t.typtype OPERATOR(pg_catalog.=) 'd' \
+              OR (t.typcategory OPERATOR(pg_catalog.=) 'A' AND t.typelem OPERATOR(pg_catalog.<>) 0)) \
+            SELECT 1 FROM ty JOIN pg_catalog.pg_type t ON t.oid OPERATOR(pg_catalog.=) ty.oid \
+            WHERE t.typtype OPERATOR(pg_catalog.<>) 'd' AND t.typcategory OPERATOR(pg_catalog.<>) 'A' \
+            AND t.typtype OPERATOR(pg_catalog.<>) 'e' \
+            AND (t.typnamespace OPERATOR(pg_catalog.<>) 'pg_catalog'::pg_catalog.regnamespace \
+              OR EXISTS (SELECT 1 FROM pg_catalog.pg_depend d \
+                WHERE d.classid OPERATOR(pg_catalog.=) 'pg_catalog.pg_type'::pg_catalog.regclass \
+                AND d.objid OPERATOR(pg_catalog.=) t.oid AND d.deptype OPERATOR(pg_catalog.=) 'e')))) \
          FROM pg_catalog.pg_class c \
-         WHERE c.oid OPERATOR(pg_catalog.=) pg_catalog.to_regclass('{}')",
-        target.replace('\'', "''")
+         WHERE c.oid OPERATOR(pg_catalog.=) pg_catalog.to_regclass({})",
+        names.join(", "),
+        literal(target)
     )
+}
+
+fn literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
 }

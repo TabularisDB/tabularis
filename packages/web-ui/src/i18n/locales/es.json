@@ -2117,14 +2117,12 @@
       "previewSql": "SQL de vista previa",
       "truncated": "Se muestran las primeras {{limit}} filas; hay más coincidencias.",
       "noFilter": "Esta sentencia no tiene cláusula WHERE, así que afectaría a todas las filas de {{target}}.",
-      "triggers": "{{target}} tiene {{triggers}} disparadores y {{rules}} reglas. Se ejecutan al correr la sentencia, no en esta vista previa.",
+      "triggers": "Disparadores en {{target}}: {{triggers}}. Reglas: {{rules}}. Se ejecutan al correr la sentencia, no en esta vista previa.",
       "canDiffer": "Las escrituras concurrentes y los disparadores pueden hacer que el efecto final difiera de esta vista previa.",
-      "stale": "El texto del editor o la conexión han cambiado desde esta vista previa. Vuelva a ejecutar Vista previa de cambios.",
       "empty": "Ninguna fila coincide con esta sentencia.",
       "runStatement": "Ejecutar sentencia",
       "close": "Cerrar",
-      "notAvailable": "La vista previa está disponible para un único UPDATE o DELETE de PostgreSQL sobre una tabla.",
-      "fillParameters": "Complete los parámetros de la consulta antes de generar la vista previa."
+      "notAvailable": "La vista previa está disponible para un único UPDATE o DELETE de PostgreSQL sobre una tabla."
     },
     "notebook": {
       "addSqlCell": "Agregar Celda SQL",

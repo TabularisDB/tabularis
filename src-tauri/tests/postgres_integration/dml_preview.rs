@@ -1,43 +1,16 @@
-//! Ignored live PostgreSQL checks for issue #1404.
-//!
-//!   TABULARIS_TEST_PG=1 cargo test --no-default-features --lib \
-//!       application::dml_preview::live -- --ignored
-//!
-//! Override TABULARIS_TEST_PG_{HOST,PORT,USER,PASSWORD,DB} for a non-default
-//! setup. The built-in defaults match the other live Postgres tests (port
-//! 55432, user postgres).
+//! "Preview changes" for PostgreSQL UPDATE and DELETE (issue #1404): each
+//! test previews a statement in its own schema and checks the table was not
+//! written.
 
-use super::{preview_with_driver, DmlKind, DmlPreview, DmlPreviewRequest};
-use crate::drivers::driver_trait::DatabaseDriver;
-use crate::models::{ConnectionParams, DatabaseSelection};
+use crate::helpers::pg_params;
 use std::sync::Arc;
+use tabularis_lib::application::dml_preview::{
+    preview_with_driver, DmlKind, DmlPreview, DmlPreviewRequest,
+};
+use tabularis_lib::drivers::driver_trait::DatabaseDriver;
+use tabularis_lib::drivers::postgres::PostgresDriver;
+use tabularis_lib::models::ConnectionParams;
 use uuid::Uuid;
-
-fn test_params() -> Option<ConnectionParams> {
-    if std::env::var("TABULARIS_TEST_PG").is_err() {
-        return None;
-    }
-    Some(ConnectionParams {
-        driver: "postgres".to_string(),
-        host: Some(
-            std::env::var("TABULARIS_TEST_PG_HOST").unwrap_or_else(|_| "localhost".to_string()),
-        ),
-        port: std::env::var("TABULARIS_TEST_PG_PORT")
-            .ok()
-            .and_then(|p| p.parse().ok())
-            .or(Some(55432)),
-        username: Some(
-            std::env::var("TABULARIS_TEST_PG_USER").unwrap_or_else(|_| "postgres".to_string()),
-        ),
-        password: Some(
-            std::env::var("TABULARIS_TEST_PG_PASSWORD").unwrap_or_else(|_| "postgres".to_string()),
-        ),
-        database: DatabaseSelection::Single(
-            std::env::var("TABULARIS_TEST_PG_DB").unwrap_or_else(|_| "postgres".to_string()),
-        ),
-        ..Default::default()
-    })
-}
 
 fn ident(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
@@ -51,9 +24,12 @@ struct LiveHarness {
 
 impl LiveHarness {
     async fn setup() -> Option<Self> {
-        let params = test_params()?;
-        let driver: Arc<dyn DatabaseDriver> =
-            Arc::new(crate::drivers::postgres::PostgresDriver::new());
+        if !crate::helpers::wait_for_pg().await {
+            eprintln!("SKIPPING: PostgreSQL not available on port 54320");
+            return None;
+        }
+        let params = pg_params();
+        let driver: Arc<dyn DatabaseDriver> = Arc::new(PostgresDriver::new());
         let schema = format!("dmlp_1404_{}", Uuid::new_v4().simple());
         let harness = Self {
             driver,
@@ -127,7 +103,6 @@ macro_rules! live_test {
         #[ignore]
         async fn $name() {
             let Some($h) = LiveHarness::setup().await else {
-                eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
                 return;
             };
             let body = async {
@@ -139,7 +114,7 @@ macro_rules! live_test {
     };
 }
 
-live_test!(live_pg_update_preview_shows_current_and_proposed_values, h,
+live_test!(test_dml_preview_update_preview_shows_current_and_proposed_values, h,
     h.exec(&format!(
         "CREATE TABLE {}.orders (id int PRIMARY KEY, status text, total numeric(10,2), note text, \"My Col\" text)",
         ident(&h.schema)
@@ -200,7 +175,7 @@ live_test!(live_pg_update_preview_shows_current_and_proposed_values, h,
     assert_eq!(rows, "open:", "preview must not write the table");
 );
 
-live_test!(live_pg_delete_preview_and_truncation, h,
+live_test!(test_dml_preview_delete_preview_and_truncation, h,
     h.exec(&format!(
         "CREATE TABLE {}.orders (id int PRIMARY KEY, status text)",
         ident(&h.schema)
@@ -238,7 +213,7 @@ live_test!(live_pg_delete_preview_and_truncation, h,
     assert_eq!(unfiltered.result.rows.len(), 3);
 );
 
-live_test!(live_pg_rejects_unsupported_syntax_and_side_effects, h,
+live_test!(test_dml_preview_rejects_unsupported_syntax_and_side_effects, h,
     h.exec(&format!(
         "CREATE TABLE {}.orders (id int PRIMARY KEY, status text)",
         ident(&h.schema)
@@ -297,7 +272,7 @@ live_test!(live_pg_rejects_unsupported_syntax_and_side_effects, h,
     assert_eq!(count, "0", "rejected preview must not run the function");
 );
 
-live_test!(live_pg_rejects_views_and_reports_triggers, h,
+live_test!(test_dml_preview_rejects_views_and_reports_triggers, h,
     h.exec(&format!(
         "CREATE TABLE {}.orders (id int PRIMARY KEY, status text)",
         ident(&h.schema)
@@ -361,4 +336,53 @@ live_test!(live_pg_rejects_views_and_reports_triggers, h,
         "expected trigger count, got {}",
         preview.triggers
     );
+);
+
+live_test!(test_dml_preview_rejects_columns_whose_type_has_its_own_operators, h,
+    h.exec("CREATE EXTENSION IF NOT EXISTS citext").await.unwrap();
+    let ext = h
+        .query_scalar("SELECT extnamespace::regnamespace::text FROM pg_extension WHERE extname = 'citext'")
+        .await
+        .unwrap();
+    let s = ident(&h.schema);
+    for sql in [
+        "CREATE TYPE {s}.mood AS ENUM ('ok', 'sad')",
+        "CREATE DOMAIN {s}.ci AS {ext}.citext",
+        "CREATE DOMAIN {s}.pos AS int CHECK (VALUE > 0)",
+        "CREATE TABLE {s}.users (id {s}.pos, email {ext}.citext, alias {s}.ci, tags {ext}.citext[], \
+         mood {s}.mood, name text)",
+        "INSERT INTO {s}.users VALUES (1, 'alice@example.com', 'a', '{x}', 'ok', 'n'), \
+         (2, 'ALICE@EXAMPLE.COM', 'b', '{y}', 'sad', 'm')",
+    ] {
+        h.exec(&sql.replace("{s}", &s).replace("{ext}", &ext))
+            .await
+            .unwrap();
+    }
+
+    for (sql, column) in [
+        ("DELETE FROM {s}.users WHERE email = 'Alice@Example.com'", "email ("),
+        ("DELETE FROM {s}.users WHERE alias LIKE 'A%'", "alias ("),
+        ("UPDATE {s}.users SET name = 'x' WHERE tags = '{X}'", "tags ("),
+        ("UPDATE {s}.users SET email = 'x' WHERE id = 1", "email ("),
+    ] {
+        let error = h
+            .preview(&sql.replace("{s}", &s), None)
+            .await
+            .expect_err(sql);
+        assert!(error.contains(column), "{sql}: {error}");
+    }
+
+    let allowed = h
+        .preview(
+            &format!("DELETE FROM {s}.users WHERE mood = 'ok' AND id > 0 AND name = 'n'"),
+            None,
+        )
+        .await
+        .expect("enum, domain over int and text columns are previewed");
+    assert_eq!(allowed.result.rows.len(), 1);
+    let count = h
+        .query_scalar(&format!("SELECT count(*) FROM {s}.users"))
+        .await
+        .unwrap();
+    assert_eq!(count, "2", "preview must not write the table");
 );

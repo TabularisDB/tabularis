@@ -1,7 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {
     canShowPreviewAction,
-    isPreviewStale,
     previewableStatementKind,
     supportsDmlPreview,
 } from '@/utils/dmlPreview';
@@ -17,6 +16,12 @@ describe('dmlPreview', () => {
             supportsDmlPreview({
                 sql_dialect: 'mysql',
                 sql_syntax: {extends: 'postgres'},
+            }),
+        ).toBe(false);
+        expect(
+            supportsDmlPreview({
+                sql_dialect: 'postgres',
+                sql_syntax: {extends: 'mysql'},
             }),
         ).toBe(true);
     });
@@ -41,28 +46,5 @@ describe('dmlPreview', () => {
         expect(canShowPreviewAction({sql_dialect: 'postgres'}, sql)).toBe(true);
         expect(canShowPreviewAction({sql_dialect: 'postgres'}, 'SELECT 1')).toBe(false);
         expect(canShowPreviewAction({sql_dialect: 'mysql'}, sql)).toBe(false);
-    });
-
-    it('marks a preview stale when the source or the connection context changes', () => {
-        const preview = {
-            sourceSql: "UPDATE orders SET status = 'paid' WHERE id = 1",
-            connectionId: 'c1',
-            schema: 'public',
-            database: 'shop',
-        };
-        const context = {
-            sql: preview.sourceSql,
-            connectionId: 'c1',
-            schema: 'public',
-            database: 'shop',
-        };
-        expect(isPreviewStale(preview, context)).toBe(false);
-        expect(isPreviewStale(preview, {...context, sql: preview.sourceSql + ' '})).toBe(true);
-        expect(isPreviewStale(preview, {...context, connectionId: 'c2'})).toBe(true);
-        expect(isPreviewStale(preview, {...context, schema: 'other'})).toBe(true);
-        expect(isPreviewStale(preview, {...context, database: null})).toBe(true);
-        expect(isPreviewStale({...preview, schema: null}, {...context, schema: undefined})).toBe(
-            false,
-        );
     });
 });

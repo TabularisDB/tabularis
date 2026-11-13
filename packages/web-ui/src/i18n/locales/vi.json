@@ -2189,12 +2189,10 @@
       "noFilter": "Câu lệnh này không có mệnh đề WHERE, vì vậy sẽ ảnh hưởng đến mọi hàng trong {{target}}.",
       "triggers": "{{target}} có {{triggers}} trigger và {{rules}} quy tắc. Chúng chạy khi thực thi, không phải trong bản xem trước này.",
       "canDiffer": "Ghi đồng thời và trigger có thể làm kết quả cuối khác với bản xem trước này.",
-      "stale": "Nội dung trình soạn thảo hoặc kết nối đã thay đổi kể từ bản xem trước này. Hãy chạy lại Xem trước thay đổi.",
       "empty": "Không có hàng nào khớp với câu lệnh này.",
       "runStatement": "Chạy câu lệnh",
       "close": "Đóng",
-      "notAvailable": "Xem trước có sẵn cho một câu UPDATE hoặc DELETE PostgreSQL trên một bảng.",
-      "fillParameters": "Điền các tham số truy vấn trước khi xem trước."
+      "notAvailable": "Xem trước có sẵn cho một câu UPDATE hoặc DELETE PostgreSQL trên một bảng."
     },
     "notebook": {
       "addSqlCell": "Thêm ô SQL",

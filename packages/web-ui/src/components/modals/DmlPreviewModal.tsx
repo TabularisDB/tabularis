@@ -3,7 +3,6 @@ import {useTranslation} from 'react-i18next';
 import {Loader2, X} from 'lucide-react';
 import {Modal} from '@/components/ui/Modal';
 import type {DmlPreview} from '@/api/contract';
-import {isPreviewStale, type DmlPreviewContext} from '@/utils/dmlPreview';
 
 interface DmlPreviewModalProps {
     isOpen: boolean;
@@ -11,7 +10,6 @@ interface DmlPreviewModalProps {
     preview: DmlPreview | null;
     error: string | null;
     loading: boolean;
-    currentContext: DmlPreviewContext | null;
     onRunStatement?: (sql: string) => void;
 }
 
@@ -28,13 +26,11 @@ export const DmlPreviewModal = ({
     preview,
     error,
     loading,
-    currentContext,
     onRunStatement,
 }: DmlPreviewModalProps) => {
     const {t} = useTranslation();
     const titleId = useId();
     const closeRef = useRef<HTMLButtonElement>(null);
-    const stale = preview && currentContext ? isPreviewStale(preview, currentContext) : false;
 
     useEffect(() => {
         if (isOpen) closeRef.current?.focus();
@@ -67,7 +63,7 @@ export const DmlPreviewModal = ({
                         ref={closeRef}
                         type="button"
                         onClick={onClose}
-                        className="text-muted hover:text-primary transition-colors p-1 rounded hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary"
+                        className="text-muted hover:text-primary transition-colors p-1 rounded hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                         aria-label={t('editor.dmlPreview.close')}
                     >
                         <X size={18} />
@@ -91,14 +87,6 @@ export const DmlPreviewModal = ({
                     )}
                     {preview && !loading && (
                         <>
-                            {stale && (
-                                <p
-                                    className="text-sm text-accent-warning bg-accent-warning/10 border border-accent-warning/30 rounded px-3 py-2"
-                                    role="status"
-                                >
-                                    {t('editor.dmlPreview.stale')}
-                                </p>
-                            )}
                             {!preview.hasFilter && (
                                 <p
                                     className="text-sm text-accent-warning bg-accent-warning/10 border border-accent-warning/30 rounded px-3 py-2"
@@ -184,16 +172,15 @@ export const DmlPreviewModal = ({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-secondary hover:text-primary hover:bg-surface-secondary rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary"
+                        className="px-4 py-2 text-sm font-medium text-secondary hover:text-primary hover:bg-surface-secondary rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                     >
                         {t('editor.dmlPreview.close')}
                     </button>
                     {onRunStatement && preview && !loading && !error && (
                         <button
                             type="button"
-                            disabled={!!stale}
                             onClick={() => onRunStatement(preview.sourceSql)}
-                            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary"
+                            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                         >
                             {t('editor.dmlPreview.runStatement')}
                         </button>

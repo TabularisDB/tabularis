@@ -2182,12 +2182,10 @@
             "noFilter": "此陳述式沒有 WHERE 子句，因此會影響 {{target}} 中的每一列。",
             "triggers": "{{target}} 有 {{triggers}} 個觸發程序與 {{rules}} 條規則。它們會在執行時執行，而不會在此預覽中執行。",
             "canDiffer": "並行寫入與觸發程序可能使最終效果與此預覽不同。",
-            "stale": "自產生此預覽以來，編輯器文字或連線已變更。請再次執行「預覽變更」。",
             "empty": "沒有列符合此陳述式。",
             "runStatement": "執行陳述式",
             "close": "關閉",
-            "notAvailable": "預覽適用於針對單一資料表的一條 PostgreSQL UPDATE 或 DELETE。",
-            "fillParameters": "預覽前請先填寫查詢參數。"
+            "notAvailable": "預覽適用於針對單一資料表的一條 PostgreSQL UPDATE 或 DELETE。"
         },
         "notebook": {
             "addSqlCell": "新增 SQL 儲存格",

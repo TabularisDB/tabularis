@@ -308,3 +308,32 @@ fn a_negative_number_after_an_operator_still_lexes() {
         .sql
         .contains("(\"b\" OPERATOR(pg_catalog.=) (OPERATOR(pg_catalog.-) 2))"));
 }
+
+#[test]
+fn oversized_statements_are_rejected_as_too_large() {
+    let sql = format!("DELETE FROM t WHERE note = '{}'", "x".repeat(100_000));
+    assert_eq!(rejection(&sql), Rejection::TooLarge);
+}
+
+#[test]
+fn is_binds_looser_than_comparison_like_postgresql() {
+    // PostgreSQL 9.5+ parses `a = b IS NULL` as `(a = b) IS NULL`.
+    let query = preview("DELETE FROM t WHERE a = b IS NULL");
+    assert!(query
+        .sql
+        .ends_with("WHERE ((\"a\" OPERATOR(pg_catalog.=) \"b\") IS NULL) LIMIT 101"));
+}
+
+#[test]
+fn columns_lists_every_assigned_and_referenced_column_once() {
+    let statement = parse(
+        "UPDATE t AS x SET price = x.price * 2, note = coalesce(note, label) \
+         WHERE id IN (1, other) AND price BETWEEN low AND high AND name ILIKE pat",
+    )
+    .unwrap();
+    assert_eq!(
+        statement.columns(),
+        ["high", "id", "label", "low", "name", "note", "other", "pat", "price"]
+    );
+    assert!(parse("DELETE FROM t").unwrap().columns().is_empty());
+}
