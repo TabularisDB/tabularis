@@ -1,14 +1,15 @@
 import {useState} from 'react';
-import {Check, ChevronDown, ChevronUp, Copy} from 'lucide-react';
+import {Check, ChevronDown, ChevronUp, Copy, Sparkles} from 'lucide-react';
 import type {TFunction} from 'i18next';
 import {useCopyFeedback} from '@/hooks/useCopyFeedback';
 
 interface ErrorDisplayProps {
     error: string;
     t: TFunction;
+    onFixWithAi?: () => void;
 }
 
-export function ErrorDisplay({error, t}: ErrorDisplayProps) {
+export function ErrorDisplay({error, t, onFixWithAi}: ErrorDisplayProps) {
     const [showDetails, setShowDetails] = useState(false);
     const {copied, copy} = useCopyFeedback(1500);
 
@@ -23,6 +24,17 @@ export function ErrorDisplay({error, t}: ErrorDisplayProps) {
         <div className="p-4 text-accent-error font-mono text-sm bg-accent-error/5 h-full overflow-auto select-text">
             <div className="flex items-start gap-3">
                 <div className="whitespace-pre-wrap flex-1 min-w-0">Error: {brief}</div>
+                {onFixWithAi && (
+                    <button
+                        type="button"
+                        onClick={onFixWithAi}
+                        className="inline-flex items-center gap-1 rounded border border-accent-error/30 px-2 py-1 text-xs text-accent-error/80 hover:bg-accent-error/10 hover:text-accent-error transition-colors select-none shrink-0"
+                        title={t('editor.fixWithAi')}
+                    >
+                        <Sparkles size={14} />
+                        {t('editor.fixWithAi')}
+                    </button>
+                )}
                 <button
                     type="button"
                     onClick={handleCopy}

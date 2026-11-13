@@ -1951,6 +1951,7 @@
     "dangerousQueryTruncateTitle": "Truncate bảng này?",
     "dangerousQueryTruncateMessage": "TRUNCATE xóa mọi dòng trong bảng. Không thể hoàn tác.",
     "showErrorDetails": "Hiện chi tiết",
+    "fixWithAi": "Sửa bằng AI",
     "hideErrorDetails": "Ẩn chi tiết",
     "errorBoundary": {
       "title": "Trình soạn thảo gặp sự cố bất ngờ",

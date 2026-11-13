@@ -1962,6 +1962,7 @@
         "dangerousQueryTruncateTitle": "清空此資料表？",
         "dangerousQueryTruncateMessage": "TRUNCATE 會刪除資料表中的所有列。此操作無法復原。",
         "showErrorDetails": "顯示詳情",
+        "fixWithAi": "使用 AI 修復",
         "hideErrorDetails": "隱藏詳情",
         "errorBoundary": {
             "title": "編輯器意外崩潰",
