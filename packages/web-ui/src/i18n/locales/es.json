@@ -3262,7 +3262,7 @@
       "alias-conflict": "El mismo alias nombra tablas distintas.",
       "wildcard": "Selecciona todas las columnas (*).",
       "dynamic-sql": "Dentro de SQL dinámico.",
-      "name-case": "El nombre de la tabla difiere en mayúsculas y minúsculas; que sea esta tabla depende de la configuración del servidor.",
+      "name-case": "El nombre difiere en mayúsculas y minúsculas; que sea esta tabla o columna depende de la configuración del servidor.",
       "textual": "No se pudo analizar el SQL; solo coinciden los nombres."
     },
     "fkOutgoing": "Hace referencia a {{object}}.{{column}}",

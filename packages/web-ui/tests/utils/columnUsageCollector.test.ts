@@ -384,6 +384,67 @@ describe('columnUsageCollector', () => {
                 ]);
             });
 
+            it('matches SQLite names without case for ASCII letters only', async () => {
+                // As SQLite reports it: `REFERENCES ORDERS(ID)` keeps the
+                // spelling of the clause, and "Ä" and "ä" are two tables.
+                const tables: TableSchema[] = [
+                    {name: 'Ä', columns: [column('id')], foreign_keys: []},
+                    {name: 'ä', columns: [column('id')], foreign_keys: []},
+                    {name: 'orders', columns: [column('id')], foreign_keys: []},
+                    {
+                        name: 'invoices',
+                        columns: [column('parent_id'), column('o')],
+                        foreign_keys: [
+                            fk('invoices_parent', 'parent_id', 'Ä', 'id'),
+                            fk('invoices_order', 'o', 'ORDERS', 'ID'),
+                        ],
+                    },
+                ];
+                const incoming = async (table: string) =>
+                    (
+                        await collectColumnUsage(fkLookups([], tables), {
+                            target: {table, column: 'id'},
+                            dialect: 'sqlite',
+                            viewsSupported: true,
+                        })
+                    ).evidence.map((e) => e.constraintName);
+                expect(await incoming('ä')).toEqual([]);
+                expect(await incoming('Ä')).toEqual(['invoices_parent']);
+                expect(await incoming('orders')).toEqual(['invoices_order']);
+            });
+
+            it('compares SQL Server catalog names exactly while the collation is unknown', async () => {
+                const target: ColumnUsageTarget = {
+                    database: 'shop',
+                    schema: 'dbo',
+                    table: 'orders',
+                    column: 'customer_id',
+                };
+                for (const dialect of ['mssql', 'generic']) {
+                    const result = await collectColumnUsage(
+                        fkLookups(
+                            [
+                                fk('out_upper', 'CUSTOMER_ID', 'customers', 'id', 'dbo'),
+                                fk('out_exact', 'customer_id', 'customers', 'id', 'dbo'),
+                            ],
+                            [
+                                invoices(
+                                    fk('in_table', 'customer_id', 'Orders', 'customer_id', 'dbo'),
+                                    fk('in_column', 'customer_id', 'orders', 'CUSTOMER_ID', 'dbo'),
+                                    fk('in_schema', 'customer_id', 'orders', 'customer_id', 'DBO'),
+                                    fk('in_exact', 'customer_id', 'orders', 'customer_id', 'dbo'),
+                                ),
+                            ],
+                        ),
+                        {target, dialect, viewsSupported: true},
+                    );
+                    expect(result.evidence.map((e) => e.constraintName)).toEqual([
+                        'out_exact',
+                        'in_exact',
+                    ]);
+                }
+            });
+
             it('marks MySQL history that spells the table in another case as uncertain', async () => {
                 const result = await collectColumnUsage(
                     lookups({

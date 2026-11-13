@@ -14,6 +14,7 @@ import {
     catalogNamesEqual,
     findColumnReferences,
     identifierRulesFor,
+    nameKey,
     strongestMatch,
     type ColumnUsageConfidence,
     type ColumnUsageTarget,
@@ -187,13 +188,14 @@ export async function collectColumnUsage(
 ): Promise<ColumnUsageResult> {
     const {target, dialect, signal} = options;
     // Catalog names compare by the dialect's identifier rules: PostgreSQL's
-    // "Orders" is not orders, and neither is MySQL's Orders on Linux.
+    // "Orders" is not orders, nor is MySQL's Orders on Linux, SQL Server's
+    // under a case-sensitive collation or SQLite's "Ä" for "ä".
     const rules = identifierRulesFor(dialect);
     const sameTable = (a: string | null | undefined, b: string | null | undefined): boolean =>
         catalogNamesEqual(a ?? '', b ?? '', rules.tables);
     const sameColumn = (a: string | null | undefined, b: string | null | undefined): boolean =>
         catalogNamesEqual(a ?? '', b ?? '', rules.columns);
-    const tableKey = (name: string) => (rules.tables === 'insensitive' ? name.toLowerCase() : name);
+    const tableKey = (name: string) => nameKey(name, rules.tables);
     const limits = {...DEFAULT_COLUMN_USAGE_LIMITS, ...options.limits};
     const result: ColumnUsageResult = {
         sources: {

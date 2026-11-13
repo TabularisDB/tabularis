@@ -3464,7 +3464,7 @@
       "alias-conflict": "The same alias names different tables.",
       "wildcard": "Selects all columns (*).",
       "dynamic-sql": "Inside dynamic SQL.",
-      "name-case": "The table name differs in letter case; whether it is this table depends on the server's case settings.",
+      "name-case": "The name differs in letter case; whether it is this table or column depends on the server's settings.",
       "textual": "The SQL could not be parsed; only the names match."
     },
     "fkOutgoing": "References {{object}}.{{column}}",

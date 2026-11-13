@@ -3403,7 +3403,7 @@
       "alias-conflict": "Cùng một bí danh chỉ các bảng khác nhau.",
       "wildcard": "Chọn tất cả các cột (*).",
       "dynamic-sql": "Nằm trong SQL động.",
-      "name-case": "Tên bảng khác về chữ hoa, chữ thường; có phải bảng này hay không tùy thuộc vào cài đặt của máy chủ.",
+      "name-case": "Tên khác về chữ hoa, chữ thường; có phải bảng hoặc cột này hay không tùy thuộc vào cài đặt của máy chủ.",
       "textual": "Không phân tích được SQL; chỉ trùng tên."
     },
     "fkOutgoing": "Tham chiếu {{object}}.{{column}}",

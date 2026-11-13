@@ -288,14 +288,38 @@ describe('columnUsage', () => {
             ]);
             expect(mysql('SELECT customer_id FROM shop.invoices')).toEqual([]);
 
-            // SQL Server and SQLite compare names without case.
+            // SQLite ignores the case of ASCII letters only.
             const dbo: ColumnUsageTarget = {schema: 'dbo', table: 'orders', column: 'customer_id'};
-            for (const dialect of ['mssql', 'sqlite']) {
-                expect(
-                    findColumnReferences('SELECT "CUSTOMER_ID" FROM "DBO"."Orders"', dbo, {
-                        dialect,
-                    }).map((m) => m.confidence),
-                ).toEqual(['parsed']);
+            const inDialect = (dialect: string, sql: string, target = dbo) =>
+                findColumnReferences(sql, target, {dialect}).map((m) =>
+                    m.reason ? `${m.confidence}:${m.reason}` : m.confidence,
+                );
+            expect(inDialect('sqlite', 'SELECT "CUSTOMER_ID" FROM "DBO"."Orders"')).toEqual([
+                'parsed',
+            ]);
+            const umlaut: ColumnUsageTarget = {table: 'ä', column: 'id'};
+            expect(inDialect('sqlite', 'SELECT id FROM "Ä"', umlaut)).toEqual([]);
+            expect(inDialect('sqlite', 'SELECT ID FROM "ä"', umlaut)).toEqual(['parsed']);
+
+            // SQL Server (and a dialect with unknown rules) depends on the
+            // collation: another case is uncertain, the exact spelling parses.
+            for (const dialect of ['mssql', 'generic']) {
+                expect(inDialect(dialect, 'SELECT customer_id FROM dbo.orders')).toEqual([
+                    'parsed',
+                ]);
+                expect(inDialect(dialect, 'SELECT o.customer_id FROM [dbo].[orders] o')).toEqual(
+                    dialect === 'mssql' ? ['parsed'] : [],
+                );
+                expect(inDialect(dialect, 'SELECT customer_id FROM dbo.Orders')).toEqual([
+                    'uncertain:name-case',
+                ]);
+                expect(inDialect(dialect, 'SELECT CUSTOMER_ID FROM dbo.orders')).toEqual([
+                    'uncertain:name-case',
+                ]);
+                expect(inDialect(dialect, 'SELECT o.Customer_Id FROM DBO.orders o')).toEqual([
+                    'uncertain:name-case',
+                ]);
+                expect(inDialect(dialect, 'SELECT customer_id FROM dbo.invoices')).toEqual([]);
             }
         });
 

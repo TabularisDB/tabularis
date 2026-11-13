@@ -3350,7 +3350,7 @@
       "alias-conflict": "Iisang alias ang tumutukoy sa magkakaibang table.",
       "wildcard": "Pinipili ang lahat ng column (*).",
       "dynamic-sql": "Nasa loob ng dynamic SQL.",
-      "name-case": "Iba ang malaki at maliit na titik ng pangalan ng table; kung ito ang table na ito ay nakadepende sa settings ng server.",
+      "name-case": "Iba ang malaki at maliit na titik ng pangalan; kung ito ang table o column na ito ay nakadepende sa settings ng server.",
       "textual": "Hindi ma-parse ang SQL; mga pangalan lang ang tugma."
     },
     "fkOutgoing": "Tumutukoy sa {{object}}.{{column}}",

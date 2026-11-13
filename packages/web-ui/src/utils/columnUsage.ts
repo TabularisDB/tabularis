@@ -222,8 +222,13 @@ const isIdent = (token: LexToken | undefined): token is LexToken =>
 const keyword = (token: LexToken | undefined): string =>
     token?.kind === 'word' ? token.value.toUpperCase() : '';
 
-/** How two names compare: exactly, or without letter case. */
-export type NameMatch = 'exact' | 'insensitive';
+/**
+ * How two names compare: exactly, without letter case, or without the case of
+ * ASCII letters only (SQLite: `"Ä"` and `"ä"` are two tables).
+ */
+export type NameMatch = 'exact' | 'insensitive' | 'ascii-insensitive';
+
+const asciiLower = (name: string): string => name.replace(/[A-Z]+/g, (c) => c.toLowerCase());
 
 /**
  * How a dialect identifies names. `fold` is what an unquoted name becomes in
@@ -231,54 +236,65 @@ export type NameMatch = 'exact' | 'insensitive';
  * both keep quoted names as written. `tables` covers database, schema and
  * table names, `columns` column names.
  *
- * MySQL and MariaDB keep database and table names case-sensitive where the
- * server runs on a case-sensitive file system (`lower_case_table_names=0`,
- * the Linux default) and not elsewhere, while column names never are. That
- * setting is unknown here, so catalog names compare exactly and SQL that
- * spells a table in another case is reported as uncertain
- * (`tableCaseUncertain`). SQL Server and SQLite compare without case.
+ * Where case sensitivity is a server setting, catalog names compare exactly
+ * and SQL that spells a name in another case is reported as uncertain
+ * (`tableCaseUncertain`, `columnCaseUncertain`):
+ * - MySQL and MariaDB keep database and table names case-sensitive on a
+ *   case-sensitive file system (`lower_case_table_names=0`, the Linux
+ *   default); column names never are.
+ * - SQL Server follows the database collation, which may be case-sensitive.
+ *   A dialect with unknown rules is treated the same way.
+ *
+ * SQLite ignores the case of ASCII letters only.
  */
 export interface IdentifierRules {
     fold: 'lower' | 'upper' | 'none';
     tables: NameMatch;
     columns: NameMatch;
     tableCaseUncertain: boolean;
+    columnCaseUncertain: boolean;
 }
 
 export function identifierRulesFor(dialect: DialectInput): IdentifierRules {
     const name = typeof dialect === 'object' ? dialect.dialect : normalizeDialect(dialect);
+    const rules = (
+        fold: IdentifierRules['fold'],
+        tables: NameMatch,
+        columns: NameMatch,
+        tableCaseUncertain: boolean,
+        columnCaseUncertain: boolean,
+    ): IdentifierRules => ({fold, tables, columns, tableCaseUncertain, columnCaseUncertain});
     switch (name) {
         case 'postgres':
-            return {fold: 'lower', tables: 'exact', columns: 'exact', tableCaseUncertain: false};
+            return rules('lower', 'exact', 'exact', false, false);
         case 'oracle':
-            return {fold: 'upper', tables: 'exact', columns: 'exact', tableCaseUncertain: false};
+            return rules('upper', 'exact', 'exact', false, false);
         case 'mysql':
-            return {
-                fold: 'none',
-                tables: 'exact',
-                columns: 'insensitive',
-                tableCaseUncertain: true,
-            };
+            return rules('none', 'exact', 'insensitive', true, false);
+        case 'sqlite':
+            return rules('none', 'ascii-insensitive', 'ascii-insensitive', false, false);
         default:
-            return {
-                fold: 'none',
-                tables: 'insensitive',
-                columns: 'insensitive',
-                tableCaseUncertain: false,
-            };
+            return rules('none', 'exact', 'exact', true, true);
     }
+}
+
+/** A key under which names that compare equal with `match` are the same. */
+export function nameKey(name: string, match: NameMatch): string {
+    if (match === 'insensitive') return name.toLowerCase();
+    if (match === 'ascii-insensitive') return asciiLower(name);
+    return name;
 }
 
 /** Whether two names, both as the catalog reports them, are the same object. */
 export function catalogNamesEqual(a: string, b: string, match: NameMatch): boolean {
-    return match === 'insensitive' ? a.toLowerCase() === b.toLowerCase() : a === b;
+    return nameKey(a, match) === nameKey(b, match);
 }
 
 /** The catalog spelling of an identifier written in SQL. */
 function catalogName(token: LexToken, rules: IdentifierRules): string {
     if (token.kind === 'quoted' && !token.caseInsensitive) return token.value;
     // PostgreSQL only folds ASCII letters.
-    if (rules.fold === 'lower') return token.value.replace(/[A-Z]+/g, (c) => c.toLowerCase());
+    if (rules.fold === 'lower') return asciiLower(token.value);
     if (rules.fold === 'upper') return token.value.toUpperCase();
     return token.value;
 }
@@ -913,12 +929,19 @@ function analyseStatement(
             continue;
         }
 
-        if (
-            !isIdent(token) ||
-            model.nameTokens.has(i) ||
-            !identEquals(token, target.column, rule, rule.columns)
-        )
+        if (!isIdent(token) || model.nameTokens.has(i)) continue;
+        const columnName = catalogName(token, rule);
+        // Where column case is a server setting, another case is uncertain.
+        const columnCaseOnly =
+            !catalogNamesEqual(columnName, target.column, rule.columns) &&
+            rule.columnCaseUncertain &&
+            catalogNamesEqual(columnName, target.column, 'insensitive');
+        if (!columnCaseOnly && !catalogNamesEqual(columnName, target.column, rule.columns))
             continue;
+        const resolved = (): SqlColumnMatch =>
+            columnCaseOnly
+                ? uncertain(token, 'name-case')
+                : {confidence: 'parsed', start: token.start, end: token.end};
         const next = tokens[i + 1];
         if (next?.value === '.') continue; // a qualifier, not a column
         if (next?.value === '(' && token.kind === 'word') continue; // a function call
@@ -938,8 +961,7 @@ function analyseStatement(
                         rule,
                     ),
                 );
-                if (verdict === 'parsed')
-                    matches.push({confidence: 'parsed', start: token.start, end: token.end});
+                if (verdict === 'parsed') matches.push(resolved());
                 else if (verdict) matches.push(uncertain(token, verdict));
                 continue;
             }
@@ -962,7 +984,7 @@ function analyseStatement(
             } else if (relevant[0] === 'derived-table') {
                 if (targetInStatement) matches.push(uncertain(token, 'derived-table'));
             } else if (relevant[0] === 'parsed') {
-                matches.push({confidence: 'parsed', start: token.start, end: token.end});
+                matches.push(resolved());
             } else {
                 matches.push(uncertain(token, relevant[0]));
             }
@@ -1000,7 +1022,7 @@ function analyseStatement(
                 if (shadowed || caseTwin || others.some((o) => o !== 'no')) {
                     matches.push(uncertain(token, 'several-tables'));
                 } else if (best === 'parsed') {
-                    matches.push({confidence: 'parsed', start: token.start, end: token.end});
+                    matches.push(resolved());
                 } else if (best) {
                     matches.push(uncertain(token, best));
                 }

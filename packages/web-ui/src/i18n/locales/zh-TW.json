@@ -3478,7 +3478,7 @@
             "alias-conflict": "同一別名指向不同的資料表。",
             "wildcard": "選取所有欄位 (*)。",
             "dynamic-sql": "位於動態 SQL 中。",
-            "name-case": "資料表名稱的大小寫不同；是否為此資料表取決於伺服器的設定。",
+            "name-case": "名稱的大小寫不同；是否為此資料表或欄位取決於伺服器的設定。",
             "textual": "無法解析 SQL，僅名稱相符。"
         },
         "fkOutgoing": "參照 {{object}}.{{column}}",

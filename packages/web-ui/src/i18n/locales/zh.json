@@ -3270,7 +3270,7 @@
       "alias-conflict": "同一别名指向不同的表。",
       "wildcard": "选择了所有列 (*)。",
       "dynamic-sql": "位于动态 SQL 中。",
-      "name-case": "表名的大小写不同；是否为此表取决于服务器的设置。",
+      "name-case": "名称的大小写不同；是否为此表或列取决于服务器的设置。",
       "textual": "无法解析 SQL，仅名称匹配。"
     },
     "fkOutgoing": "引用 {{object}}.{{column}}",

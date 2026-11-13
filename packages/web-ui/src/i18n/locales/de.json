@@ -3328,7 +3328,7 @@
       "alias-conflict": "Derselbe Alias steht für verschiedene Tabellen.",
       "wildcard": "Wählt alle Spalten aus (*).",
       "dynamic-sql": "Innerhalb von dynamischem SQL.",
-      "name-case": "Der Tabellenname unterscheidet sich in der Groß-/Kleinschreibung; ob es diese Tabelle ist, hängt von den Servereinstellungen ab.",
+      "name-case": "Der Name unterscheidet sich in der Groß-/Kleinschreibung; ob es diese Tabelle oder Spalte ist, hängt von den Servereinstellungen ab.",
       "textual": "Das SQL konnte nicht analysiert werden; nur die Namen stimmen überein."
     },
     "fkOutgoing": "Verweist auf {{object}}.{{column}}",
