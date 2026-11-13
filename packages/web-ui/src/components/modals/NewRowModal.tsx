@@ -5,7 +5,6 @@ import {useDatabase} from '@/hooks/useDatabase';
 import {useProductionGuard} from '@/hooks/useProductionGuard';
 import {Modal} from '@/components/ui/Modal';
 import {quoteTableRef} from '@/utils/identifiers';
-import {getReferencedSchema} from '@/utils/foreignKeys';
 import {isGeometricType} from '@/utils/geometry';
 import {GeometryInput} from '@/components/ui/GeometryInput';
 import type {ForeignKey} from '@/types/schema';
@@ -53,15 +52,14 @@ export const NewRowModal = ({isOpen, onClose, tableName, onSaveSuccess}: NewRowM
             setLoadingFk((prev) => ({...prev, [fk.column_name]: true}));
             setFkErrors((prev) => ({...prev, [fk.column_name]: ''}));
             try {
-                const targetSchema = getReferencedSchema(fk, activeSchema);
-                const quotedTable = quoteTableRef(fk.ref_table, activeDriver, targetSchema);
+                const quotedTable = quoteTableRef(fk.ref_table, activeDriver, activeSchema);
                 // Select * from referenced table to get context
                 const query = `SELECT * FROM ${quotedTable} LIMIT 100`;
 
                 const result = await client.call('execute_query', {
                     connectionId: activeConnectionId,
                     query,
-                    ...(targetSchema ? {schema: targetSchema} : {}),
+                    ...(activeSchema ? {schema: activeSchema} : {}),
                 });
 
                 const options = result.rows.map((rowArray) => {
