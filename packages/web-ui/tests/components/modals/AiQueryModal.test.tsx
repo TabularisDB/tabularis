@@ -120,6 +120,25 @@ describe('AiQueryModal', () => {
         expect(onInsert).toHaveBeenCalledWith('SELECT 1');
     });
 
+    it('clears a cancelled fix prompt when reopened for ordinary Generate, keeping ordinary drafts', () => {
+        const props = {onClose: vi.fn(), onInsert: vi.fn()};
+        const field = () => screen.getByPlaceholderText(/Find all users/i) as HTMLTextAreaElement;
+        invokeMock.mockResolvedValue('');
+        const {rerender} = render(
+            <AiQueryModal isOpen initialPrompt="Fix this query" {...props} />,
+        );
+        expect(field().value).toBe('Fix this query');
+
+        rerender(<AiQueryModal isOpen={false} {...props} />);
+        rerender(<AiQueryModal isOpen {...props} />);
+        expect(field().value).toBe('');
+
+        fireEvent.change(field(), {target: {value: 'my draft'}});
+        rerender(<AiQueryModal isOpen={false} {...props} />);
+        rerender(<AiQueryModal isOpen {...props} />);
+        expect(field().value).toBe('my draft');
+    });
+
     it("does not fall back to the active connection's database when passed a different connectionId", async () => {
         // A caller passing an explicit connectionId for a non-active connection
         // must not silently pull the active connection's database — leave the

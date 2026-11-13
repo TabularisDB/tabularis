@@ -48,9 +48,17 @@ export const AiQueryModal = ({
 
     const [prompt, setPrompt] = useState(initialPrompt ?? '');
     const [wasOpen, setWasOpen] = useState(isOpen);
+    const [promptIsFixDraft, setPromptIsFixDraft] = useState(initialPrompt !== undefined);
     if (isOpen !== wasOpen) {
         setWasOpen(isOpen);
-        if (isOpen && initialPrompt !== undefined) setPrompt(initialPrompt);
+        if (isOpen && initialPrompt !== undefined) {
+            setPrompt(initialPrompt);
+            setPromptIsFixDraft(true);
+        } else if (isOpen && promptIsFixDraft) {
+            // A cancelled fix must not leak into an ordinary Generate draft.
+            setPrompt('');
+            setPromptIsFixDraft(false);
+        }
     }
     const promptId = useId();
     const [isLoading, setIsLoading] = useState(false);
@@ -141,7 +149,10 @@ export const AiQueryModal = ({
                 },
             });
             onInsert(sql);
-            if (initialPrompt !== undefined) setPrompt('');
+            if (initialPrompt !== undefined) {
+                setPrompt('');
+                setPromptIsFixDraft(false);
+            }
             onClose();
         } catch (err) {
             setError(String(err));
