@@ -8,7 +8,7 @@ import type {DriverCapabilities} from '@/types/plugins';
 import type {ForeignKey, Index} from '@/types/schema';
 import type {DatabaseDriver} from './connections';
 import {resolveTypeModifiers} from './columnType';
-import {quoteIdentifier, quoteTableRef} from './identifiers';
+import {quoteIdentifier, quoteIdentifierWith, quoteTableRef} from './identifiers';
 import {toBindParamName} from './queryParameters';
 import type {TableQueryTab} from './tableQueryTemplates';
 
@@ -164,7 +164,7 @@ export function generateColumnDefinition(
             // Inline PK style (e.g. SQLite): "id" INTEGER PRIMARY KEY AUTOINCREMENT
             // The data type is replaced by INTEGER and the PK constraint is inline.
             return appendInlineComment(
-                `  ${q}${column.name}${q} INTEGER PRIMARY KEY ${caps.auto_increment_keyword}`.trimEnd(),
+                `  ${quoteIdentifierWith(column.name, q)} INTEGER PRIMARY KEY ${caps.auto_increment_keyword}`.trimEnd(),
                 column.comment,
                 caps.comment_syntax,
             );
@@ -176,7 +176,7 @@ export function generateColumnDefinition(
             // smallint → SMALLSERIAL, integer → SERIAL, bigint → BIGSERIAL (#840).
             // Drivers that set serial_type to a fixed literal keep using it verbatim.
             const serialType = resolveSerialType(caps.serial_type, column.data_type);
-            let def = `  ${q}${column.name}${q} ${serialType}`;
+            let def = `  ${quoteIdentifierWith(column.name, q)} ${serialType}`;
             if (!column.is_nullable) def += ' NOT NULL';
             if (column.default_value !== null && column.default_value !== undefined) {
                 def += ` DEFAULT ${column.default_value}`;
@@ -185,7 +185,7 @@ export function generateColumnDefinition(
         }
     }
 
-    let def = `  ${q}${column.name}${q} ${resolveTypeModifiers(column)}`;
+    let def = `  ${quoteIdentifierWith(column.name, q)} ${resolveTypeModifiers(column)}`;
 
     if (!column.is_nullable) {
         def += ' NOT NULL';
@@ -217,7 +217,7 @@ export function generatePrimaryKeyConstraint(
 ): string | null {
     const caps = resolveSqlCapabilities(driver);
     const q = caps.quote;
-    const pkColumns = columns.filter((c) => c.is_pk).map((c) => `${q}${c.name}${q}`);
+    const pkColumns = columns.filter((c) => c.is_pk).map((c) => quoteIdentifierWith(c.name, q));
 
     if (pkColumns.length === 0) return null;
     if (caps.inline_pk && columns.some((c) => c.is_auto_increment)) return null;
@@ -273,7 +273,7 @@ export function generateForeignKeyConstraints(foreignKeys: ForeignKey[], quote: 
     });
 
     const renderIdentifiers = (names: string[]) =>
-        names.map((n) => `${quote}${n}${quote}`).join(', ');
+        names.map((n) => quoteIdentifierWith(n, quote)).join(', ');
 
     return [...grouped.entries()].map(([name, group]) => {
         const ordered = [...group.columns].sort((a, b) => {
@@ -285,8 +285,8 @@ export function generateForeignKeyConstraints(foreignKeys: ForeignKey[], quote: 
         const columns = renderIdentifiers(ordered.map((c) => c.name));
         const refColumns = renderIdentifiers(ordered.map((c) => c.ref_column));
         return (
-            `  CONSTRAINT ${quote}${name}${quote} FOREIGN KEY (${columns}) ` +
-            `REFERENCES ${quote}${group.ref_table}${quote} (${refColumns})`
+            `  CONSTRAINT ${quoteIdentifierWith(name, quote)} FOREIGN KEY (${columns}) ` +
+            `REFERENCES ${quoteIdentifierWith(group.ref_table, quote)} (${refColumns})`
         );
     });
 }
@@ -357,7 +357,7 @@ export function generateIndexStatements(
                 if (aSeq !== bSeq) return aSeq - bSeq;
                 return a.position - b.position;
             })
-            .map((col) => (col.is_expression ? col.name : `${quote}${col.name}${quote}`))
+            .map((col) => (col.is_expression ? col.name : quoteIdentifierWith(col.name, quote)))
             .join(', ');
 
     const indexGroups = [...groupedIndexes.values()];
@@ -366,7 +366,7 @@ export function generateIndexStatements(
     const uniqueIndexes = indexGroups.filter((idx) => idx.is_unique && !idx.is_primary);
     uniqueIndexes.forEach((idx) => {
         statements.push(
-            `CREATE UNIQUE INDEX ${quote}${idx.name}${quote} ON ${quote}${tableName}${quote} (${renderColumns(idx.columns)});`,
+            `CREATE UNIQUE INDEX ${quoteIdentifierWith(idx.name, quote)} ON ${quoteIdentifierWith(tableName, quote)} (${renderColumns(idx.columns)});`,
         );
     });
 
@@ -374,7 +374,7 @@ export function generateIndexStatements(
     const nonUniqueIndexes = indexGroups.filter((idx) => !idx.is_unique && !idx.is_primary);
     nonUniqueIndexes.forEach((idx) => {
         statements.push(
-            `CREATE INDEX ${quote}${idx.name}${quote} ON ${quote}${tableName}${quote} (${renderColumns(idx.columns)});`,
+            `CREATE INDEX ${quoteIdentifierWith(idx.name, quote)} ON ${quoteIdentifierWith(tableName, quote)} (${renderColumns(idx.columns)});`,
         );
     });
 
@@ -399,7 +399,7 @@ export function generateCreateTableSQL(
     const lines: string[] = [];
 
     // Start CREATE TABLE
-    lines.push(`CREATE TABLE ${quote}${tableName}${quote} (`);
+    lines.push(`CREATE TABLE ${quoteIdentifierWith(tableName, quote)} (`);
 
     // Column definitions
     const columnDefs = columns.map((col) => generateColumnDefinition(col, driver));
@@ -433,13 +433,13 @@ export function generateCreateTableSQL(
         const commentStatements: string[] = [];
         if (tableComment) {
             commentStatements.push(
-                `COMMENT ON TABLE ${quote}${tableName}${quote} IS '${escapeSqlString(tableComment)}';`,
+                `COMMENT ON TABLE ${quoteIdentifierWith(tableName, quote)} IS '${escapeSqlString(tableComment)}';`,
             );
         }
         columns.forEach((column) => {
             if (column.comment) {
                 commentStatements.push(
-                    `COMMENT ON COLUMN ${quote}${tableName}${quote}.${quote}${column.name}${quote} IS '${escapeSqlString(column.comment)}';`,
+                    `COMMENT ON COLUMN ${quoteIdentifierWith(tableName, quote)}.${quoteIdentifierWith(column.name, quote)} IS '${escapeSqlString(column.comment)}';`,
                 );
             }
         });
