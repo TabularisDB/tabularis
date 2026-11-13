@@ -299,7 +299,7 @@ async fn plan_tables(
     selections: &[TableSelection],
 ) -> Result<(Vec<PlannedTable>, Vec<PlanIssue>), String> {
     let mut issues = Vec::new();
-    if target.drv.manifest().capabilities.readonly {
+    if target.drv.manifest().capabilities.readonly || target.params.read_only {
         issues.push(PlanIssue::new("targetReadOnly", None));
     }
     let mut seen = std::collections::HashSet::new();

@@ -572,6 +572,7 @@ fn runtime_with(a: ConnectionParams, b: ConnectionParams) -> SavedPair {
         appearance: None,
         tag_ids: None,
         environment: None,
+        managed: false,
     };
     let file = crate::models::ConnectionsFile {
         connections: vec![saved("conn-a", a), saved("conn-b", b)],
@@ -670,4 +671,78 @@ fn a_table_with_the_same_name_on_another_server_is_still_allowed() {
     let a = identity(Some("1"), Some(("10.0.0.5", 5432)), "app");
     let b = identity(Some("2"), Some(("10.0.0.6", 5432)), "app");
     assert_eq!(compare_identities(&a, &b), Some(false));
+}
+
+fn read_only(mut params: ConnectionParams) -> ConnectionParams {
+    params.read_only = true;
+    params
+}
+
+fn copy_request(schema: &str, target_schema: Option<&str>) -> TableTransferRequest {
+    TableTransferRequest {
+        source_schema: Some(schema.into()),
+        target_schema: target_schema.map(Into::into),
+        tables: vec![selection()],
+        transfer_id: Some("read-only-target".into()),
+        ..self_copy_request(schema, "src")
+    }
+}
+
+async fn assert_read_only_target_is_rejected(pair: &SavedPair, request: TableTransferRequest) {
+    let plan = plan(&pair.runtime, None, request.clone()).await.unwrap();
+    assert!(plan.blocking);
+    assert!(plan.issues.iter().any(|i| i.code == "targetReadOnly"), "{:?}", plan.issues);
+
+    let error = run(&pair.runtime, &state(), None, request).await.unwrap_err();
+    assert!(error.contains("blocking issues"), "{error}");
+}
+
+#[tokio::test]
+async fn a_saved_read_only_postgres_target_is_rejected_by_plan_and_run() {
+    let schema = "tt_ro_pg";
+    let Some(_fixture) = seed_source(schema).await else {
+        return;
+    };
+    pg_exec(&format!(
+        "CREATE TABLE {schema}.dst (id integer PRIMARY KEY, name text, amount numeric(12,2), big numeric(30,10),
+            payload bytea, note text, created timestamptz, flag boolean, meta jsonb, uid uuid);"
+    ))
+    .await;
+    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new()).await;
+    let pair = runtime_with(pg_params(), read_only(pg_params()));
+    assert_read_only_target_is_rejected(&pair, copy_request(schema, Some(schema))).await;
+    assert_eq!(pg_scalar(&format!("SELECT count(*)::text FROM {schema}.dst")).await, "0");
+    pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
+}
+
+#[tokio::test]
+async fn a_saved_read_only_sqlite_target_is_rejected_by_plan_and_run() {
+    let schema = "tt_ro_sqlite";
+    let Some(_fixture) = seed_source(schema).await else {
+        return;
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("target.db");
+    sqlite_target(&path, SQLITE_DDL).await;
+    let pair = runtime_with(pg_params(), read_only(sqlite_params(&path)));
+    let mut request = copy_request(schema, None);
+    request.target_connection_id = "conn-b".into();
+    assert_read_only_target_is_rejected(&pair, request).await;
+    assert_eq!(sqlite_count(&path).await, 0);
+    pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
+}
+
+#[tokio::test]
+async fn a_saved_read_only_source_stays_usable() {
+    let schema = "tt_ro_source";
+    let Some(_fixture) = seed_source(schema).await else {
+        return;
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("target.db");
+    sqlite_target(&path, SQLITE_DDL).await;
+    let pair = runtime_with(read_only(pg_params()), sqlite_params(&path));
+    let plan = plan(&pair.runtime, None, copy_request(schema, None)).await.unwrap();
+    assert!(!plan.blocking, "{:?}", plan.issues);
+    pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
 }
