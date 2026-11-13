@@ -264,7 +264,7 @@ async fn reject_short_credentials(options: &WebServerOptions) -> Result<(), Stri
     let short = values
         .iter()
         .filter(|value| {
-            !value.trim().is_empty() && crate::application::secret_redaction::is_short_secret(value)
+            !value.is_empty() && crate::application::secret_redaction::is_short_secret(value)
         })
         .count();
     if short == 0 {

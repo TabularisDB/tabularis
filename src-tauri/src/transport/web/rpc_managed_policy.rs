@@ -73,7 +73,9 @@ fn connection_access(command: ConnectionRpcCommand) -> ManagedAccess {
         | ConnectionRpcCommand::GetDriverManifest
         | ConnectionRpcCommand::GetActiveConnections
         | ConnectionRpcCommand::RegisterActiveConnection
-        | ConnectionRpcCommand::DisconnectConnection => Unrestricted,
+        | ConnectionRpcCommand::DisconnectConnection
+        // Takes only a saved connection's id, so it cannot probe a new target.
+        | ConnectionRpcCommand::OpenSavedConnection => Unrestricted,
         ConnectionRpcCommand::SaveConnection => Action(A::Create),
         ConnectionRpcCommand::UpdateConnection => Action(A::Update),
         ConnectionRpcCommand::DeleteConnection => Action(A::Delete),

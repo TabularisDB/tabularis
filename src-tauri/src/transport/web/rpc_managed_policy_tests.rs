@@ -90,6 +90,7 @@ const MATRIX: &[(&str, &str, ManagedAccess)] = &[
     ("get_active_connections", "connection", Unrestricted),
     ("register_active_connection", "connection", Unrestricted),
     ("disconnect_connection", "connection", Unrestricted),
+    ("open_saved_connection", "connection", Unrestricted),
     ("test_connection", "connection", Action(A::TestWithParams)),
     ("list_databases", "connection", Action(A::TestWithParams)),
     ("export_connections_file", "files", Action(A::Export)),

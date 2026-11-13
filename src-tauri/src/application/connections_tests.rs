@@ -1314,3 +1314,51 @@ fn updating_and_duplicating_never_clear_or_copy_the_managed_marker() {
     let duplicate = duplicate_connection(&runtime, &state, &saved.id).unwrap();
     assert!(!duplicate.managed);
 }
+
+#[tokio::test]
+async fn opening_a_saved_connection_validates_its_stored_parameters_by_id() {
+    let (_temp, runtime, state, _secrets) = fixture_with_secrets();
+    let mut params = connection_params("stored-password");
+    params.use_iam_auth = Some(true);
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "IAM".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
+
+    // The stored IAM flag and (absent) token decide the outcome, so the check
+    // ran against the saved parameters rather than anything the caller sent.
+    let error = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::OpenSavedConnection {
+            connection_id: saved.id.clone(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        error.contains("AWS IAM authentication is enabled"),
+        "{error}"
+    );
+}
+
+#[tokio::test]
+async fn opening_an_unknown_saved_connection_fails() {
+    let (_temp, runtime, state) = fixture();
+    let error = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::OpenSavedConnection {
+            connection_id: "missing".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, "Connection not found");
+}

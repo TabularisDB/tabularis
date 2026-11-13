@@ -1440,12 +1440,8 @@ export const DatabaseProvider = ({children}: {children: ReactNode}) => {
             });
 
             try {
-                await client.call('test_connection', {
-                    request: {
-                        params: conn.params,
-                        connection_id: connectionId,
-                    },
-                });
+                // By id: caller-supplied tests are blocked in managed mode.
+                await client.call('open_saved_connection', {connectionId});
             } catch (testError) {
                 const errorMsg = toErrorMessage(testError);
                 updateCurrentConnection(connectionId, {

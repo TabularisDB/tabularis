@@ -105,6 +105,10 @@ async fn managed_connections_stay_usable_for_normal_database_operations() {
             "disconnect_connection",
             json!({"connectionId": "managed-1"}),
         ),
+        (
+            "open_saved_connection",
+            json!({"connectionId": "managed-1"}),
+        ),
         ("get_active_connections", json!(null)),
         ("get_registered_drivers", json!(null)),
     ] {
@@ -317,6 +321,23 @@ async fn driver_errors_cannot_carry_a_short_stored_password_to_the_browser() {
         let (status, body) = failing_call(&dispatcher).await;
         assert_eq!(status, StatusCode::CONFLICT);
         assert_eq!(body["error"]["message"], "[redacted]", "{secret}");
+    }
+}
+
+#[tokio::test]
+async fn driver_errors_cannot_carry_a_whitespace_password_to_the_browser() {
+    for secret in [" ", "   ", "    "] {
+        let dispatcher = failing_dispatcher(
+            &format!("driver rejected password \"{secret}\""),
+            secret,
+            ManagedConnectionPolicy::managed_only(),
+        );
+
+        let (status, body) = failing_call(&dispatcher).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        let message = body["error"]["message"].as_str().unwrap();
+        assert!(!message.contains(secret), "{secret:?}: {message:?}");
+        assert!(message.contains("[redacted]"), "{secret:?}: {message:?}");
     }
 }
 

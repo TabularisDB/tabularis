@@ -506,6 +506,7 @@ enum ConnectionRpcCommand {
     DisconnectConnection,
     TestConnection,
     ListDatabases,
+    OpenSavedConnection,
 }
 
 #[derive(Clone, Copy)]
@@ -2725,6 +2726,7 @@ impl ConnectionRpcCommand {
             "disconnect_connection" => Self::DisconnectConnection,
             "test_connection" => Self::TestConnection,
             "list_databases" => Self::ListDatabases,
+            "open_saved_connection" => Self::OpenSavedConnection,
             _ => return None,
         })
     }
@@ -4480,6 +4482,12 @@ fn decode_connection_command(
             let request: TestRequest = decode_payload(body)?;
             ConnectionCommand::ListDatabases {
                 request: request.request,
+            }
+        }
+        ConnectionRpcCommand::OpenSavedConnection => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ConnectionCommand::OpenSavedConnection {
+                connection_id: request.connection_id,
             }
         }
     })

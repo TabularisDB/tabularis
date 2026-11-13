@@ -48,12 +48,13 @@ impl SecretRedactor {
         redactor
     }
 
-    /// Replace the known secrets. Empty and whitespace-only values carry no
-    /// information a reader could recover, so they are not tracked.
+    /// Replace the known secrets. Empty values carry nothing a reader could
+    /// recover, so they are not tracked. Whitespace-only values are real
+    /// passwords and are tracked like any other.
     pub fn replace(&self, values: impl IntoIterator<Item = String>) {
         let mut secrets = Secrets::default();
         for value in values {
-            if value.trim().is_empty() {
+            if value.is_empty() {
                 continue;
             }
             if is_short_secret(&value) {

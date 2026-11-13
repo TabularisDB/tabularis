@@ -100,7 +100,7 @@ describe('DatabaseProvider', () => {
         // Default mock implementation that handles all invoke calls
         vi.mocked(invoke).mockImplementation((cmd: string) => {
             if (cmd === 'get_connections') return Promise.resolve(mockConnections);
-            if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+            if (cmd === 'open_saved_connection') return Promise.resolve('Connection successful!');
             if (cmd === 'get_tables') return Promise.resolve(mockTables);
             if (cmd === 'get_views') return Promise.resolve(mockViews);
             if (cmd === 'get_routines') return Promise.resolve(mockRoutines);
@@ -249,8 +249,8 @@ describe('DatabaseProvider', () => {
                     capabilities: {...mockMysqlManifest.capabilities, single_database: true},
                 };
             if (
-                command === 'test_connection' &&
-                (args as {request: {connection_id: string}}).request.connection_id === 'broken'
+                command === 'open_saved_connection' &&
+                (args as {connectionId: string}).connectionId === 'broken'
             )
                 throw new Error('offline');
             if (command === 'get_tables') return mockTables;
@@ -380,7 +380,7 @@ describe('DatabaseProvider', () => {
         vi.mocked(invoke).mockImplementation((cmd: string) => {
             if (cmd === 'get_connections') return Promise.resolve(singleDbConnection);
             if (cmd === 'get_driver_manifest') return Promise.resolve(mockMysqlManifest);
-            if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+            if (cmd === 'open_saved_connection') return Promise.resolve('Connection successful!');
             if (cmd === 'register_active_connection') return Promise.resolve(undefined);
             if (cmd === 'get_available_databases') return Promise.resolve(['onlydb', 'otherdb']);
             if (cmd === 'get_tables') return Promise.resolve(mockTables);
@@ -424,7 +424,7 @@ describe('DatabaseProvider', () => {
         vi.mocked(invoke).mockImplementation((cmd: string) => {
             if (cmd === 'get_connections') return Promise.resolve(twoDbConnection);
             if (cmd === 'get_driver_manifest') return Promise.resolve(mockMysqlManifest);
-            if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+            if (cmd === 'open_saved_connection') return Promise.resolve('Connection successful!');
             if (cmd === 'register_active_connection') return Promise.resolve(undefined);
             if (cmd === 'get_available_databases') return Promise.resolve(['firstdb', 'seconddb']);
             if (cmd === 'get_tables') return Promise.resolve(mockTables);
@@ -458,7 +458,7 @@ describe('DatabaseProvider', () => {
         const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
         vi.mocked(invoke).mockImplementation((cmd: string) => {
             if (cmd === 'get_connections') return Promise.resolve(mockConnections);
-            if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+            if (cmd === 'open_saved_connection') return Promise.resolve('Connection successful!');
             if (cmd === 'get_tables') return Promise.resolve(mockTables);
             if (cmd === 'get_views') return Promise.resolve(mockViews);
             if (cmd === 'get_routines')
@@ -523,7 +523,7 @@ describe('DatabaseProvider', () => {
     it('should disconnect and reset state', async () => {
         vi.mocked(invoke).mockImplementation((cmd: string) => {
             if (cmd === 'get_connections') return Promise.resolve(mockConnections);
-            if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+            if (cmd === 'open_saved_connection') return Promise.resolve('Connection successful!');
             if (cmd === 'get_tables') return Promise.resolve(mockTables);
             if (cmd === 'get_views') return Promise.resolve(mockViews);
             if (cmd === 'get_routines') return Promise.resolve(mockRoutines);
@@ -562,7 +562,7 @@ describe('DatabaseProvider', () => {
     it('should keep previous connection open when connecting to a new one', async () => {
         vi.mocked(invoke).mockImplementation((cmd: string, args?: Record<string, unknown>) => {
             if (cmd === 'get_connections') return Promise.resolve(mockConnections);
-            if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+            if (cmd === 'open_saved_connection') return Promise.resolve('Connection successful!');
             if (cmd === 'get_tables') return Promise.resolve(mockTables);
             if (cmd === 'get_views') return Promise.resolve(mockViews);
             if (cmd === 'get_routines') return Promise.resolve(mockRoutines);
@@ -601,7 +601,7 @@ describe('DatabaseProvider', () => {
         vi.mocked(invoke).mockImplementation((cmd: string, args?: Record<string, unknown>) => {
             if (cmd === 'get_connections')
                 return Promise.resolve([...mockConnections, secondConnection]);
-            if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+            if (cmd === 'open_saved_connection') return Promise.resolve('Connection successful!');
             if (cmd === 'get_schemas') return Promise.resolve(['public']);
             if (cmd === 'get_selected_schemas') return Promise.resolve(['public']);
             if (cmd === 'get_schema_preference') return Promise.resolve('public');
@@ -647,7 +647,7 @@ describe('DatabaseProvider', () => {
         const updatedTables = [...mockTables, {name: 'new_table'}];
         vi.mocked(invoke).mockImplementation((cmd: string) => {
             if (cmd === 'get_connections') return Promise.resolve(mockConnections);
-            if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+            if (cmd === 'open_saved_connection') return Promise.resolve('Connection successful!');
             if (cmd === 'get_tables') return Promise.resolve(updatedTables);
             if (cmd === 'get_views') return Promise.resolve(mockViews);
             if (cmd === 'get_routines') return Promise.resolve(mockRoutines);
@@ -774,7 +774,8 @@ describe('DatabaseProvider', () => {
             const updatedViews = [...mockViews, {name: 'new_view'}];
             vi.mocked(invoke).mockImplementation((cmd: string) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_tables') return Promise.resolve(mockTables);
                 if (cmd === 'get_views') return Promise.resolve(updatedViews);
                 if (cmd === 'get_routines') return Promise.resolve(mockRoutines);
@@ -870,7 +871,8 @@ describe('DatabaseProvider', () => {
         it('should set needsSchemaSelection=true when no saved selection exists', async () => {
             vi.mocked(invoke).mockImplementation((cmd: string) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_schemas') return Promise.resolve(mockSchemas);
                 if (cmd === 'get_selected_schemas') return Promise.resolve([]);
@@ -900,7 +902,8 @@ describe('DatabaseProvider', () => {
         it('should load only selected schemas when saved selection exists', async () => {
             vi.mocked(invoke).mockImplementation((cmd: string, args?: Record<string, unknown>) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_schemas') return Promise.resolve(mockSchemas);
                 if (cmd === 'get_selected_schemas') return Promise.resolve(['public']);
@@ -936,7 +939,8 @@ describe('DatabaseProvider', () => {
             // Start with no saved selection (needsSchemaSelection=true)
             vi.mocked(invoke).mockImplementation((cmd: string) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_schemas') return Promise.resolve(mockSchemas);
                 if (cmd === 'get_selected_schemas') return Promise.resolve([]);
@@ -986,7 +990,8 @@ describe('DatabaseProvider', () => {
             const delayBySchema: Record<string, number> = {analytics: 0, public: 20};
             vi.mocked(invoke).mockImplementation((cmd: string, args?: Record<string, unknown>) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_schemas') return Promise.resolve(mockSchemas);
                 if (cmd === 'get_selected_schemas') return Promise.resolve([]);
@@ -1041,7 +1046,8 @@ describe('DatabaseProvider', () => {
             const delayBySchema: Record<string, number> = {public: 0, analytics: 20};
             vi.mocked(invoke).mockImplementation((cmd: string, args?: Record<string, unknown>) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_schemas') return Promise.resolve(mockSchemas);
                 if (cmd === 'get_selected_schemas') return Promise.resolve(['public', 'analytics']);
@@ -1100,7 +1106,8 @@ describe('DatabaseProvider', () => {
         it('should update activeSchema when removed from selection', async () => {
             vi.mocked(invoke).mockImplementation((cmd: string) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_schemas') return Promise.resolve(mockSchemas);
                 if (cmd === 'get_selected_schemas') return Promise.resolve(['public', 'analytics']);
@@ -1137,7 +1144,8 @@ describe('DatabaseProvider', () => {
         it('should reset schema selection state on disconnect', async () => {
             vi.mocked(invoke).mockImplementation((cmd: string) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_schemas') return Promise.resolve(mockSchemas);
                 if (cmd === 'get_selected_schemas') return Promise.resolve(['public']);
@@ -1170,7 +1178,8 @@ describe('DatabaseProvider', () => {
         it('should filter saved selection against available schemas', async () => {
             vi.mocked(invoke).mockImplementation((cmd: string) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_schemas') return Promise.resolve(['public', 'analytics']); // 'deleted_schema' not available
                 if (cmd === 'get_selected_schemas')
@@ -1225,7 +1234,8 @@ describe('DatabaseProvider', () => {
         it("pre-loads the first database's schemas and tables into nestedDatabaseDataMap", async () => {
             vi.mocked(invoke).mockImplementation((cmd: string, args?: Record<string, unknown>) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockNestedPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_available_databases')
                     return Promise.resolve(['analytics', 'reporting']);
@@ -1277,7 +1287,8 @@ describe('DatabaseProvider', () => {
         it('marks needsSchemaSelection on the nested database when it has no saved schema selection', async () => {
             vi.mocked(invoke).mockImplementation((cmd: string) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockNestedPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_available_databases')
                     return Promise.resolve(['analytics', 'reporting']);
@@ -1312,7 +1323,8 @@ describe('DatabaseProvider', () => {
             // nothing checked and no schema ever loaded.
             vi.mocked(invoke).mockImplementation((cmd: string, args?: Record<string, unknown>) => {
                 if (cmd === 'get_connections') return Promise.resolve(mockNestedPgConnections);
-                if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                if (cmd === 'open_saved_connection')
+                    return Promise.resolve('Connection successful!');
                 if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                 if (cmd === 'get_available_databases')
                     return Promise.resolve(['analytics', 'reporting']);
@@ -1373,7 +1385,8 @@ describe('DatabaseProvider', () => {
                 let schemaListCallCount = 0;
                 vi.mocked(invoke).mockImplementation((cmd: string) => {
                     if (cmd === 'get_connections') return Promise.resolve(mockNestedPgConnections);
-                    if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+                    if (cmd === 'open_saved_connection')
+                        return Promise.resolve('Connection successful!');
                     if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
                     if (cmd === 'get_available_databases')
                         return Promise.resolve(['analytics', 'reporting']);

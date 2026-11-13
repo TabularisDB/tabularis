@@ -134,6 +134,11 @@ pub enum ConnectionCommand {
     ListDatabases {
         request: TestConnectionRequest,
     },
+    /// Validates a saved connection by id with its stored parameters. Unlike
+    /// `TestConnection` it accepts no caller-supplied parameters.
+    OpenSavedConnection {
+        connection_id: String,
+    },
     CreateSqliteDatabase {
         path: String,
     },
@@ -355,6 +360,9 @@ pub async fn execute_for_session(
         }
         ConnectionCommand::ListDatabases { request } => {
             json(list_databases(runtime, session_id, request).await?)
+        }
+        ConnectionCommand::OpenSavedConnection { connection_id } => {
+            json(open_saved_connection(runtime, session_id, connection_id).await?)
         }
         ConnectionCommand::CreateSqliteDatabase { path } => {
             json(create_sqlite_database(runtime, state, path).await?)
@@ -1606,6 +1614,25 @@ async fn list_databases(
         .await
         .ok_or_else(|| format!("Driver not found: {}", resolved.driver))?;
     driver.get_databases(&resolved).await
+}
+
+async fn open_saved_connection(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: String,
+) -> Result<String, String> {
+    let saved = find_connection(&load_file(runtime)?, &connection_id)?;
+    test_connection(
+        runtime,
+        session_id,
+        TestConnectionRequest {
+            params: saved.params,
+            connection_id: Some(connection_id),
+            plugin_secret_changes: std::collections::HashMap::new(),
+            progress_id: None,
+        },
+    )
+    .await
 }
 
 async fn test_connection(

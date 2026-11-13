@@ -71,10 +71,35 @@ fn a_four_character_secret_is_still_replaced_in_place() {
 }
 
 #[test]
-fn empty_and_whitespace_only_values_are_not_tracked() {
-    let redactor = SecretRedactor::new([String::new(), " ".to_string(), "  \t".to_string()]);
+fn empty_values_are_not_tracked() {
+    let redactor = SecretRedactor::new([String::new()]);
     assert!(redactor.is_empty());
     assert_eq!(redactor.redact("a plain message"), "a plain message");
+}
+
+#[test]
+fn a_short_whitespace_password_redacts_the_whole_string() {
+    for secret in [" ", "   ", "\t\t"] {
+        let redactor = SecretRedactor::new([secret.to_string()]);
+        assert!(!redactor.is_empty());
+        let text = format!("driver rejected password \"{secret}\"");
+        assert_eq!(redactor.redact(&text), "[redacted]", "{secret:?}");
+        let mut value = serde_json::json!({"error": text, "nested": [format!("x{secret}y")]});
+        redactor.redact_value(&mut value);
+        assert_eq!(
+            value,
+            serde_json::json!({"error": "[redacted]", "nested": ["[redacted]"]})
+        );
+    }
+}
+
+#[test]
+fn a_long_whitespace_password_is_replaced_in_place() {
+    let redactor = SecretRedactor::new(["    ".to_string()]);
+    assert_eq!(
+        redactor.redact("driver rejected password \"    \""),
+        "driver rejected password \"[redacted]\""
+    );
 }
 
 #[test]

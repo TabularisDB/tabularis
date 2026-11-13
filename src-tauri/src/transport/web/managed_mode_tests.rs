@@ -457,6 +457,20 @@ async fn managed_only_refuses_to_start_with_a_short_stored_credential() {
 }
 
 #[tokio::test]
+async fn managed_only_refuses_to_start_with_a_short_whitespace_credential() {
+    for password in [" ", "   "] {
+        let error = start_error(ManagedConnectionPolicy::managed_only(), password).await;
+        assert!(error.contains("shorter than 4 characters"), "{error}");
+    }
+}
+
+#[tokio::test]
+async fn managed_only_accepts_a_whitespace_credential_of_four_characters() {
+    let error = start_error(ManagedConnectionPolicy::managed_only(), "    ").await;
+    assert!(!error.contains("shorter than"), "{error}");
+}
+
+#[tokio::test]
 async fn managed_only_accepts_credentials_of_four_characters_or_more() {
     // It then stops for the missing public URL, not for the credential.
     let error = start_error(ManagedConnectionPolicy::managed_only(), "root").await;
@@ -482,6 +496,49 @@ async fn a_short_credential_that_appears_after_startup_is_still_scrubbed() {
         events.redactor().redact("driver rejected password abc"),
         "[redacted]"
     );
+}
+
+#[tokio::test]
+async fn whitespace_credentials_are_scrubbed_from_events() {
+    let temp = tempfile::tempdir().unwrap();
+    let events = WebEventBus::default();
+
+    for (password, text) in [
+        ("   ", "driver rejected password \"   \""),
+        ("    ", "driver rejected password \"    \""),
+    ] {
+        let application = runtime_with_connection(temp.path(), password);
+        server::refresh_secrets(application.as_ref(), events.redactor()).await;
+        let redacted = events.redactor().redact(text);
+        assert!(!redacted.contains(password), "{password:?}: {redacted:?}");
+    }
+}
+
+#[tokio::test]
+async fn a_managed_connection_opens_by_id_while_caller_supplied_tests_stay_denied() {
+    let server = ManagedServer::start(ManagedConnectionPolicy::managed_only()).await;
+
+    let (status, body) = server
+        .rpc(
+            "test_connection",
+            json!({"request": {"params": base_params(), "connection_id": "file-1"}}),
+        )
+        .await;
+    assert_eq!((status, denied(&body)), (403, true), "{body}");
+
+    // The editor's Connect path. The fixture host does not resolve, so the
+    // request fails at the database, never at the managed policy.
+    let (status, body) = server
+        .rpc("open_saved_connection", json!({"connectionId": "file-1"}))
+        .await;
+    assert!(!denied(&body), "{body}");
+    assert_ne!(status, 403, "{body}");
+    assert_no_secret("open_saved_connection", &body.to_string());
+
+    let (_, body) = server
+        .rpc("open_saved_connection", json!({"connectionId": "missing"}))
+        .await;
+    assert!(!denied(&body), "{body}");
 }
 
 fn options(
