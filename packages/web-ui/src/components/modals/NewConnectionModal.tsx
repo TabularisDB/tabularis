@@ -82,6 +82,7 @@ import {
     supportsQueryTimeout,
 } from '@/utils/driverCapabilities';
 import {toErrorMessage} from '@/utils/errors';
+import {supportsReadOnlyQueries} from '@/utils/connectionPolicy';
 import {classifyConnectionError, type ClassifiedConnectionError} from '@/utils/connectionErrors';
 import {ConnectionDiagnosticsModal} from './connection/ConnectionDiagnosticsModal';
 import {testStepLabelKey, type ConnectionTestLogEntry} from '@/utils/connectionTest';
@@ -126,6 +127,7 @@ const paradigmAccent = (p: string): string => PARADIGM_ACCENT[p] ?? '#64748b';
 
 interface ConnectionParams {
     driver: string;
+    read_only?: boolean;
     host?: string;
     port?: number;
     username?: string;
@@ -2440,6 +2442,12 @@ export const NewConnectionModal = ({
             const params = withoutBlankSslMode(
                 withInlineK8sPaths(paramsBase, inlinePaths.options),
             ) as ConnectionParams;
+            if (params.read_only && !supportsReadOnlyQueries(activeDriver?.capabilities)) {
+                setStatus('error');
+                setMessage(t('readOnly.unsupported'));
+                setTestResult('error');
+                return;
+            }
             // Only drivers with capabilities.query_timeout honour the field;
             // drop a stale value so a plugin connection can't save a no-op.
             if (!showsQueryTimeout) {
@@ -3216,6 +3224,32 @@ export const NewConnectionModal = ({
     // ── rendered Advanced tab content (driver-specific options + startup SQL) ──
     const advancedTabContent = (
         <div className="space-y-4">
+            <div className="space-y-1">
+                <label className="flex items-center gap-2.5 text-sm text-secondary">
+                    <input
+                        type="checkbox"
+                        checked={
+                            formData.read_only === true ||
+                            activeDriver?.capabilities.readonly === true
+                        }
+                        disabled={
+                            activeDriver?.capabilities.readonly === true ||
+                            (!formData.read_only &&
+                                !supportsReadOnlyQueries(activeDriver?.capabilities))
+                        }
+                        onChange={(event) => updateField('read_only', event.target.checked)}
+                        className="accent-accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                    />
+                    {t('readOnly.label')}
+                </label>
+                <p className="text-xs text-muted">
+                    {t(
+                        supportsReadOnlyQueries(activeDriver?.capabilities)
+                            ? 'readOnly.description'
+                            : 'readOnly.unsupported',
+                    )}
+                </p>
+            </div>
             {/* MySQL: PIPES_AS_CONCAT compatibility (Vitess/PlanetScale) */}
             {driver === 'mysql' && (
                 <div className="flex flex-col gap-1">

@@ -64,6 +64,12 @@ import type {
 } from '@/types/linkedFolders';
 import type {RequestId} from './errors';
 import type {
+    LinkedGitStatus,
+    LinkedGitReview,
+    LinkedGitReviewedFile,
+    LinkedGitCommit,
+} from '@/types/linkedFolderGit';
+import type {
     LogEntry,
     LogSettings,
     ProcessInfo,
@@ -156,6 +162,7 @@ export interface ThemePackageRequest {
 export type UiStateEntries = Readonly<Record<string, unknown>>;
 
 export interface ConnectionParameters {
+    read_only?: boolean;
     driver: string;
     database: string | string[];
     default_database?: string;
@@ -629,7 +636,7 @@ export interface TableImportResult {
 export interface QueryExportRequest extends ConnectionIdRequest {
     sessionId?: string;
     query: string;
-    format: 'csv' | 'json' | 'markdown';
+    format: 'csv' | 'json' | 'ndjson' | 'markdown' | 'html';
     csvDelimiter?: string;
     database?: string;
     /** Desktop-only save path. Browser requests omit this and receive a download. */
@@ -1277,6 +1284,12 @@ export interface CommandMap {
     delete_ai_key: CommandDefinition<{provider: string}, void, 'sensitive'>;
     check_ai_key: CommandDefinition<{provider: string}, boolean, 'sensitive'>;
     check_ai_key_status: CommandDefinition<{provider: string}, AiKeyStatus, 'sensitive'>;
+    get_ai_providers: CommandDefinition<
+        undefined,
+        import('@/types/ai').AiProviderCatalog,
+        'sensitive'
+    >;
+    migrate_ai_providers: CommandDefinition<undefined, void, 'local-admin'>;
     get_ai_models: CommandDefinition<
         {forceRefresh?: boolean} | undefined,
         AiProviderModels,
@@ -1454,6 +1467,17 @@ export interface CommandMap {
 
     /** Desktop only: linked folders are never routed through the web server. */
     list_linked_folders: CommandDefinition<undefined, LinkedFolderStatus[], 'local-admin'>;
+    linked_git_status: CommandDefinition<{id: string}, LinkedGitStatus, 'local-admin'>;
+    linked_git_review: CommandDefinition<
+        {id: string; relativePath: string},
+        LinkedGitReview,
+        'local-admin'
+    >;
+    linked_git_commit: CommandDefinition<
+        {id: string; files: LinkedGitReviewedFile[]; message: string},
+        LinkedGitCommit,
+        'local-admin'
+    >;
     link_local_folder: CommandDefinition<{path: string}, LinkedFolder, 'local-admin'>;
     unlink_local_folder: CommandDefinition<{id: string}, void, 'local-admin'>;
     list_linked_directory: CommandDefinition<

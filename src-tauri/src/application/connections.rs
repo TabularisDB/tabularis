@@ -393,6 +393,7 @@ pub(crate) fn resolve_saved_connection_params(
     let driver_id = saved.params.driver.clone();
     let plugin_secrets = load_plugin_secrets(runtime, &saved);
     let mut params = saved.params;
+    super::read_only::prepare_params(&mut params);
     restore_secrets_for_connect(runtime, connection_id, &mut params)?;
     params.extra.extend(plugin_secrets);
     params.connection_id = Some(connection_id.to_string());
@@ -852,6 +853,7 @@ fn save_connection(
             appearance: None,
             tag_ids: None,
             environment,
+            managed: false,
         };
         file.connections.push(connection.clone());
         save_file(runtime, state, &file)?;
@@ -1016,6 +1018,7 @@ fn update_connection(
             appearance: existing.appearance,
             tag_ids: existing.tag_ids,
             environment,
+            managed: existing.managed,
         };
         file.connections[index] = connection.clone();
         save_file(runtime, state, &file)?;
@@ -1165,6 +1168,7 @@ fn duplicate_connection(
             appearance,
             tag_ids: original.tag_ids,
             environment: validate_environment(original.environment).unwrap_or(None),
+            managed: false,
         };
         file.connections.push(duplicate.clone());
         save_file(runtime, state, &file)?;
@@ -1500,6 +1504,7 @@ fn prepare_connection_request(
     runtime: &RuntimeContext,
     request: &mut TestConnectionRequest,
 ) -> Result<(), String> {
+    super::read_only::prepare_params(&mut request.params);
     let iam_auth = request.params.use_iam_auth.unwrap_or(false);
     let mut stored_plugin_secrets = std::collections::HashMap::new();
     let saved = match request.connection_id.as_deref() {
@@ -1640,7 +1645,7 @@ async fn test_connection(
             progress_id.as_deref(),
             step,
             "ok",
-            resolved.port.map(|port| format!("127.0.0.1:{port}")),
+            tunnel_endpoint_detail(&resolved),
         );
     }
 
@@ -1669,6 +1674,7 @@ async fn test_connection(
         Some(db_target),
     );
     let capabilities = &driver.manifest().capabilities;
+    super::read_only::validate_support(&resolved, capabilities)?;
     if capabilities.file_based
         && crate::fs_path::requires_existing_database_file(
             capabilities.in_memory,
@@ -1711,6 +1717,15 @@ async fn test_connection(
         None,
     );
     Ok("Connection successful!".to_string())
+}
+
+/// Local endpoint the test log reports once a tunnel is up. A SOCKS5 tunnel
+/// leaves `host`/`port` on the database, so it reports the proxy listener.
+fn tunnel_endpoint_detail(resolved: &ConnectionParams) -> Option<String> {
+    match (&resolved.socks5_proxy_host, resolved.socks5_proxy_port) {
+        (Some(host), Some(port)) => Some(format!("SOCKS5 {host}:{port}")),
+        _ => resolved.port.map(|port| format!("127.0.0.1:{port}")),
+    }
 }
 
 /// `host:port` for the connection test log. A host that is a URL

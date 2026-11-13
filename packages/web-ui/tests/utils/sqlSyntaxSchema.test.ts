@@ -14,6 +14,12 @@ describe('sql_syntax manifest contract', () => {
             expect(validate(GOOGLESQL_DESCRIPTOR), JSON.stringify(validate.errors)).toBe(true);
         });
 
+        it(`accepts only boolean PSQL declarations in ${name}`, () => {
+            expect(validate({psql_blocks: true})).toBe(true);
+            expect(validate({psql_blocks: false})).toBe(true);
+            expect(validate({psql_blocks: 'true'})).toBe(false);
+        });
+
         it(`rejects out-of-contract values in ${name}`, () => {
             for (const invalid of [
                 {extends: 'bigquery'},

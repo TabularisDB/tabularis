@@ -39,6 +39,7 @@ mod tests {
                 appearance: None,
                 tag_ids: None,
                 environment: None,
+                managed: false,
             }],
             ssh_connections: vec![SshConnection {
                 id: "ssh1".to_string(),

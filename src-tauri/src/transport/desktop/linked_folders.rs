@@ -1,3 +1,4 @@
+use crate::application::linked_folder_git::{self, GitCommit, GitReview, GitStatus, ReviewedFile};
 use crate::application::linked_folders::{
     self, LinkedDirectoryListing, LinkedFileContent, LinkedFileSaved, LinkedFolder,
     LinkedFolderStatus,
@@ -9,6 +10,50 @@ use tokio::task::spawn_blocking;
 
 fn store<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
     linked_folders::links_file_path(app.state::<RuntimeContext>().paths.config_dir())
+}
+
+#[tauri::command]
+pub async fn linked_git_status<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+) -> Result<GitStatus, String> {
+    let store = store(&app);
+    blocking(move || linked_folder_git::status(&linked_folders::linked_git_root(&store, &id)?))
+        .await
+}
+
+#[tauri::command]
+pub async fn linked_git_review<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    relative_path: String,
+) -> Result<GitReview, String> {
+    let store = store(&app);
+    blocking(move || {
+        linked_folder_git::review(
+            &linked_folders::linked_git_root(&store, &id)?,
+            &relative_path,
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn linked_git_commit<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    files: Vec<ReviewedFile>,
+    message: String,
+) -> Result<GitCommit, String> {
+    let store = store(&app);
+    blocking(move || {
+        linked_folder_git::commit(
+            &linked_folders::linked_git_root(&store, &id)?,
+            &files,
+            &message,
+        )
+    })
+    .await
 }
 
 async fn blocking<T, F>(task: F) -> Result<T, String>

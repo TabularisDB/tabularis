@@ -282,6 +282,8 @@ pub async fn execute_query(
     let (driver, params) =
         driver_and_params(runtime, scope.session_id, &connection_id, database).await?;
 
+    super::read_only::validate_query(driver.as_ref(), &params, &sanitized_query).await?;
+
     let effective_limit = response_limit(policy, limit);
     let driver_session = query_session_id.as_deref().map(|id| {
         super::query_sessions::register(scope.session_id, &connection_id, id, driver.clone())
@@ -289,6 +291,21 @@ pub async fn execute_query(
     let session_driver = driver.clone();
     let task_session = driver_session.clone();
     let task = tokio::spawn(async move {
+        if params.read_only {
+            if let Some(id) = task_session.as_deref() {
+                driver.release_session(id).await;
+            }
+            return super::read_only::execute_query(
+                driver.as_ref(),
+                &params,
+                &sanitized_query,
+                effective_limit,
+                page.unwrap_or(1),
+                schema.as_deref(),
+            )
+            .await
+            .map(|result| (result, false));
+        }
         driver
             .execute_query_in_session(
                 &params,
@@ -435,6 +452,11 @@ pub async fn execute_query_batch(
     let (driver, params) =
         driver_and_params(runtime, scope.session_id, &connection_id, database).await?;
 
+    // Validate the entire batch before sending its first statement.
+    for query in &sanitized_queries {
+        super::read_only::validate_query(driver.as_ref(), &params, query).await?;
+    }
+
     let progress: Option<Arc<BatchProgressFn>> = batch_id.map(|batch_id| {
         let events = runtime.events.clone();
         let session_id = scope.session_id;
@@ -457,6 +479,30 @@ pub async fn execute_query_batch(
     let session_driver = driver.clone();
     let task_session = driver_session.clone();
     let task = tokio::spawn(async move {
+        if params.read_only {
+            if let Some(id) = task_session.as_deref() {
+                driver.release_session(id).await;
+            }
+            let mut results = Vec::with_capacity(sanitized_queries.len());
+            for (index, query) in sanitized_queries.iter().enumerate() {
+                let started = std::time::Instant::now();
+                let outcome = super::read_only::execute_query(
+                    driver.as_ref(),
+                    &params,
+                    query,
+                    effective_limit,
+                    page.unwrap_or(1),
+                    schema.as_deref(),
+                )
+                .await;
+                let result = BatchStatementResult::from_outcome(started, outcome);
+                if let Some(callback) = progress.as_deref() {
+                    callback(index, &result);
+                }
+                results.push(result);
+            }
+            return Ok((results, false));
+        }
         driver
             .execute_batch_in_session(
                 &params,
@@ -529,6 +575,9 @@ pub async fn explain_query_plan(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<ExplainQueryOutput, String> {
+    // Visual EXPLAIN uses a separate driver RPC which has no protected
+    // execution contract yet. Raw EXPLAIN can use the protected query path.
+    super::read_only::ensure_writable(runtime, &connection_id)?;
     let sanitized_query = sanitize_user_query(&query);
     let (driver, params) =
         driver_and_params(runtime, scope.session_id, &connection_id, database).await?;
@@ -579,24 +628,36 @@ pub async fn count_query(
 
     let sanitized = query.trim().trim_end_matches(';');
     let count_query = format!("SELECT COUNT(*) FROM ({sanitized}) as count_wrapper");
-    let result = match query_session_id.as_deref() {
-        Some(id) => {
-            let id = super::query_sessions::key(session_id, &connection_id, id);
-            crate::commands::read_in_open_transaction(
-                driver.as_ref(),
-                &params,
-                &count_query,
-                None,
-                1,
-                schema.as_deref(),
-                &id,
-            )
-            .await?
-        }
-        None => {
-            driver
-                .execute_query(&params, &count_query, None, 1, schema.as_deref())
+    let result = if params.read_only {
+        super::read_only::execute_query(
+            driver.as_ref(),
+            &params,
+            &count_query,
+            None,
+            1,
+            schema.as_deref(),
+        )
+        .await?
+    } else {
+        match query_session_id.as_deref() {
+            Some(id) => {
+                let id = super::query_sessions::key(session_id, &connection_id, id);
+                crate::commands::read_in_open_transaction(
+                    driver.as_ref(),
+                    &params,
+                    &count_query,
+                    None,
+                    1,
+                    schema.as_deref(),
+                    &id,
+                )
                 .await?
+            }
+            None => {
+                driver
+                    .execute_query(&params, &count_query, None, 1, schema.as_deref())
+                    .await?
+            }
         }
     };
     Ok(result

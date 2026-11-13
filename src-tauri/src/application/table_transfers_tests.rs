@@ -652,6 +652,7 @@ mod sqlite_round_trip {
                     appearance: None,
                     tag_ids: None,
                     environment: None,
+                    managed: false,
                 }
             })
             .collect();

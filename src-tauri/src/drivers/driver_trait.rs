@@ -106,6 +106,19 @@ pub struct DriverCapabilities {
     /// the scheme of `connection_string_example` (e.g. `["mongodb+srv"]`).
     #[serde(default, alias = "connectionUriSchemes")]
     pub connection_uri_schemes: Vec<String>,
+    /// The driver reads `ConnectionParams::socks5_proxy_*` and sends every
+    /// database connection through that SOCKS5 proxy. With SSH enabled, the
+    /// host then opens a dynamic forward (`ssh -D`) instead of a fixed one
+    /// and leaves `host`/`port`/`connection_uri` as the user entered them, so
+    /// a connection that names several endpoints (e.g. `mongodb+srv://`)
+    /// reaches all of them. Defaults to `false`: the host keeps rewriting
+    /// `host`/`port` to a fixed forward.
+    #[serde(
+        default,
+        alias = "socks5Proxy",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub socks5_proxy: bool,
     /// Character used to quote identifiers (e.g. `"` for PostgreSQL, `` ` `` for MySQL).
     #[serde(default = "default_double_quote")]
     pub identifier_quote: String,
@@ -142,6 +155,14 @@ pub struct DriverCapabilities {
     /// SQL-compatible drivers and hides the entry for the others.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub column_stats: bool,
+    /// The driver classifies queries in its own query language through the
+    /// optional `classify_query` RPC, so the read-only policies (MCP read-only
+    /// mode, the approval gate and saved read-only connections) stop reading
+    /// them as SQL. Omitted/false keeps the host's SQL classification. A
+    /// `select` verdict only counts when the driver also has an execution
+    /// guarantee: `read_only_queries`, or `readonly`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub query_classification: bool,
     /// Honours `ConnectionParams::query_timeout_secs`: the driver stops a
     /// statement on the server once the limit passes. Omitted/false hides the
     /// query-timeout field in the connection modal. Built-in PostgreSQL sets
@@ -197,6 +218,10 @@ pub struct DriverCapabilities {
     /// Defaults to `false`.
     #[serde(default)]
     pub readonly: bool,
+    /// Implements database-enforced `execute_read_only_query`. Unlike `readonly`,
+    /// this allows users to switch a writable connection into read-only mode.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub read_only_queries: bool,
     /// Offers "Export table to SQL" on table nodes (#709). `None` (the
     /// manifest omits it) means enabled; non-SQL plugins set `false`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -872,9 +897,11 @@ pub trait DatabaseDriver: Send + Sync {
     /// read-only transaction that is always rolled back, and the database
     /// rejects any write the classifier missed.
     ///
-    /// The default implementation delegates to [`Self::execute_query`]:
-    /// plugin drivers have no read-only mode, so for them classification is
-    /// the only safeguard.
+    /// The default implementation delegates to [`Self::execute_query`], so a
+    /// driver that keeps it has classification as its only safeguard. A
+    /// plugin driver closes that gap by declaring
+    /// `capabilities.read_only_queries` and implementing the
+    /// `execute_read_only_query` RPC, which `RpcDriver` then calls instead.
     async fn execute_read_only_query(
         &self,
         params: &ConnectionParams,
@@ -884,6 +911,24 @@ pub trait DatabaseDriver: Send + Sync {
         schema: Option<&str>,
     ) -> Result<QueryResult, String> {
         self.execute_query(params, query, limit, page, schema).await
+    }
+
+    /// Optional: classify `query` in the driver's own query language, for the
+    /// read-only policies: the MCP read-only mode, the MCP approval gate and
+    /// saved read-only connections.
+    ///
+    /// `Ok(None)` means the driver does not classify, and the host reads the
+    /// query as SQL. `Ok(Some(kind))` is one of `"select"`, `"write"`,
+    /// `"ddl"` or `"unknown"`, and has to come from the parser that executes
+    /// the query. An `Err` is a failed classification: callers treat it as
+    /// `"unknown"`, never as a reason to read the query as SQL, because the
+    /// host's SQL classifier knows nothing about this driver's language.
+    async fn classify_query(
+        &self,
+        _params: &ConnectionParams,
+        _query: &str,
+    ) -> Result<Option<&'static str>, String> {
+        Ok(None)
     }
 
     /// `execute_batch` with the caller's connection carried across calls.

@@ -46,6 +46,55 @@ vi.mock('@/utils/geometry', () => ({
 }));
 
 describe('FieldEditor', () => {
+    it('edits native Boolean values with a checkbox', () => {
+        const onChange = vi.fn();
+        render(<FieldEditor name="enabled" type="boolean" value={false} onChange={onChange} />);
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        expect(onChange).toHaveBeenCalledWith(true);
+    });
+
+    it('shows the configured NULL label on a nullable Boolean', () => {
+        render(
+            <FieldEditor
+                name="enabled"
+                type="boolean"
+                value={null}
+                isNullable
+                nullLabel="∅"
+                onChange={vi.fn()}
+            />,
+        );
+        expect(screen.getByText('∅')).toBeInTheDocument();
+    });
+
+    it('retains a numeric Boolean representation and allows NULL', () => {
+        const onChange = vi.fn();
+        const {rerender} = render(
+            <FieldEditor
+                name="enabled"
+                type="boolean"
+                value={1}
+                originalValue={1}
+                isNullable
+                onChange={onChange}
+            />,
+        );
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        expect(onChange).toHaveBeenLastCalledWith(0);
+        rerender(
+            <FieldEditor
+                name="enabled"
+                type="boolean"
+                value={0}
+                originalValue={1}
+                isNullable
+                onChange={onChange}
+            />,
+        );
+        fireEvent.click(screen.getByRole('checkbox', {name: 'enabled'}));
+        expect(onChange).toHaveBeenLastCalledWith(null);
+    });
+
     it('should render textarea for non-geometric types', () => {
         const onChange = vi.fn();
         render(<FieldEditor name="name" type="varchar" value="John Doe" onChange={onChange} />);

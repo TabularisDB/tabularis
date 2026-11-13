@@ -131,6 +131,13 @@
     "warnConfirm": "Esegui comunque",
     "warnSnooze": "Non chiedere più per questa connessione (questa sessione)"
   },
+  "readOnly": {
+    "label": "Modalità sola lettura",
+    "description": "Blocca le scritture su questa connessione. Gli script di avvio vengono ignorati in questa modalità.",
+    "unsupported": "Questo driver non supporta query protette in sola lettura.",
+    "writeBlocked": "Questa connessione è in sola lettura. Disattiva questa modalità nelle impostazioni per consentire le scritture.",
+    "banner": "{{name}} — sola lettura"
+  },
   "textStats": {
     "characters": "Caratteri: {{count}}",
     "lines": "Righe: {{count}}",
@@ -372,6 +379,7 @@
     "noQueryHistory": "Nessuna cronologia query",
     "noHistorySearchResults": "Nessuna query corrisponde alla ricerca",
     "searchHistory": "Cerca nella cronologia...",
+    "historySearchErrors": "Includi i messaggi di errore",
     "historyOutcomeFilter": "Filtra per esito",
     "historyOutcomeAny": "Qualsiasi esito",
     "historyOutcomeSucceeded": "Riuscite",
@@ -673,6 +681,14 @@
       "title": "Snippet SQL",
       "subtitle": "Definisci modelli SQL riutilizzabili con prefissi di attivazione e segnaposto tab-stop per il completamento automatico di Monaco.",
       "add": "Nuovo snippet",
+      "exportJson": "Esporta JSON",
+      "exportFailed": "Impossibile esportare gli snippet: {{error}}",
+      "duplicate": "Duplica",
+      "search": "Cerca snippet",
+      "filterScope": "Filtra per ambito",
+      "allScopes": "Tutti gli ambiti",
+      "genericScope": "Generico (tutti i dialetti)",
+      "noMatches": "Nessuno snippet corrispondente.",
       "createTitle": "Crea snippet",
       "editTitle": "Modifica snippet",
       "nameLabel": "Nome snippet",
@@ -836,6 +852,11 @@
     "appearance_editorWordWrapDesc": "Manda a capo le righe lunghe nell'editor invece di scorrere orizzontalmente.",
     "appearance_editorMinimap": "Mostra minimappa",
     "appearance_editorMinimapDesc": "Mostra una panoramica in miniatura degli script SQL per navigare rapidamente.",
+    "appearance_editorRenderWhitespace": "Mostra spazi e tabulazioni",
+    "appearance_editorRenderWhitespaceDesc": "Visualizza spazi e tabulazioni senza modificare il testo SQL.",
+    "appearance_whitespaceNone": "Nessuno",
+    "appearance_whitespaceSelection": "Selezione",
+    "appearance_whitespaceAll": "Tutti",
     "appearance_editorHighlightInvisibleCharacters": "Mostra caratteri invisibili",
     "appearance_editorHighlightInvisibleCharactersDesc": "Evidenzia i caratteri Unicode nascosti e quelli simili in SQL.",
     "appearance_editorShowLineNumbers": "Mostra Numeri di Riga",
@@ -983,7 +1004,24 @@
       "customOpenaiModelDesc": "Inserisci il nome del modello fornito dal tuo servizio compatibile OpenAI.",
       "customOpenaiModelHelp": "Inserisci il nome esatto del modello per il tuo provider compatibile OpenAI.",
       "promptResetSuccess": "Prompt ripristinato al valore predefinito",
-      "apiKeySaved": "Chiave API salvata in modo sicuro"
+      "apiKeySaved": "Chiave API salvata in modo sicuro",
+      "manageProviders": "Sfoglia i provider AI",
+      "retryMigration": "Riprova la configurazione",
+      "pluginMigration": "Ripristino delle impostazioni dei provider AI: {{providers}}.",
+      "providerMissing": "{{provider}} non è installato. Installalo dal Plugin Center per continuare a usare la configurazione salvata.",
+      "availableProviders": "Provider disponibili",
+      "installProviderHelp": "Installa o rimuovi i provider AI esterni senza uscire da queste impostazioni.",
+      "installAndUse": "Installa e usa",
+      "installAndUseProvider": "Installa e usa {{provider}}",
+      "installingProvider": "Installazione del provider…",
+      "providerRegistryOffline": "Il registro dei provider non è disponibile. I provider installati restano disponibili.",
+      "allProvidersInstalled": "Tutti i provider disponibili sono installati.",
+      "providerRequiresUpdate": "Questo provider richiede una versione o una piattaforma compatibile.",
+      "builtinProvider": "Integrato",
+      "removeProvider": "Rimuovi {{provider}}",
+      "removingProvider": "Rimozione del provider…",
+      "noExternalProviders": "Nessun provider esterno disponibile.",
+      "activeProviderRemoved": "Il provider attivo è stato rimosso. L’AI è stata disattivata. Attiva l’AI e seleziona un altro provider per continuare."
     },
     "updates": "Aggiornamenti",
     "openSourceLibraries": "Librerie Open Source",
@@ -1176,7 +1214,9 @@
         }
       },
       "poweredBy": "Powered by",
-      "openHomepage": "Apri homepage"
+      "openHomepage": "Apri homepage",
+      "kindAiAssistant": "Assistente AI",
+      "kindAiAssistants": "Assistenti AI"
     },
     "shortcuts": {
       "title": "Scorciatoie da tastiera",
@@ -1676,6 +1716,7 @@
       "chooseColumns": "Scegli colonne…",
       "title": "Colonne",
       "shown": "{{visible}} di {{total}} visibili",
+      "showOnlyMatching": "Mostra solo corrispondenze",
       "showAll": "Mostra tutte",
       "lastVisible": "Almeno una colonna resta visibile",
       "hiddenCount_one": "{{count}} nascosta",
@@ -1929,6 +1970,7 @@
     "dangerousQueryTruncateTitle": "Svuotare questa tabella?",
     "dangerousQueryTruncateMessage": "TRUNCATE elimina tutte le righe della tabella. L'operazione non può essere annullata.",
     "showErrorDetails": "Mostra dettagli",
+    "fixWithAi": "Correggi con l'IA",
     "hideErrorDetails": "Nascondi dettagli",
     "errorBoundary": {
       "title": "L'editor si è bloccato in modo imprevisto",
@@ -1987,10 +2029,11 @@
     "transactionOpenHint": "Transazione aperta — questa scheda mantiene la sua connessione fino a COMMIT o ROLLBACK",
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
+    "exportScope": "Righe da esportare",
+    "exportScopeAll": "Tutte le righe",
+    "exportScopeLoaded": "Risultati correnti",
     "exportLoadedRowsWarning": "Sono state esportate solo {{loaded}} righe caricate su {{total}} righe totali. Scorri le pagine del risultato o esegui una query più mirata prima di esportare se ti servono più righe.",
     "exportLoadedRowsWarningUnknownTotal": "Sono state esportate solo {{loaded}} righe caricate. Il risultato contiene più righe di quelle caricate. Scorri le pagine del risultato o esegui una query più mirata prima di esportare se ti servono più righe.",
-    "exportLoadedHtml": "Esporta righe caricate come HTML…",
-    "exportLoadedNdjson": "Esporta righe caricate come NDJSON…",
     "queryParameters": "Parametri Query",
     "formatSql": "Formatta SQL",
     "selectCurrentStatement": "Seleziona istruzione corrente",
@@ -2181,7 +2224,12 @@
         "operations": "Operazioni",
         "indexName": "Indice",
         "scans": "Scansioni"
-      }
+      },
+      "copied": "Copiato",
+      "copyDetails": "Copia dettagli",
+      "detailsCopied": "Dettagli del nodo copiati negli appunti",
+      "copyDetailsFailed": "Impossibile copiare i dettagli del nodo negli appunti",
+      "nodeDetails": "Dettagli nodo"
     },
     "notebook": {
       "addSqlCell": "Aggiungi Cella SQL",
@@ -2192,6 +2240,10 @@
       "runAllTooltip": "Esegui tutte le celle SQL dall'alto in basso",
       "runCell": "Esegui Cella",
       "deleteCell": "Elimina Cella",
+      "copySource": "Copia sorgente",
+      "copiedSource": "Sorgente copiata negli appunti",
+      "copySourceFailed": "Impossibile copiare il sorgente della cella negli appunti.",
+      "duplicateCellToEnd": "Duplica in fondo",
       "moveCellUp": "Sposta Su",
       "moveCellDown": "Sposta Giù",
       "export": "Esporta Notebook",
@@ -2486,7 +2538,14 @@
     "exportSuccess": "Diagramma esportato",
     "exportDbml": "Esporta come DBML",
     "exportMarkdown": "Esporta come Markdown",
-    "export": "Esporta"
+    "export": "Esporta",
+    "legend": "Legenda",
+    "primaryKey": "Chiave primaria",
+    "primaryKeyDesc": "Colonna univoca che identifica le righe della tabella",
+    "foreignKey": "Chiave esterna",
+    "foreignKeyDesc": "Fa riferimento a una chiave primaria o univoca in un'altra tabella",
+    "relationship": "Relazione",
+    "relationshipDesc": "Riferimento di chiave esterna tra tabella figlia e genitore"
   },
   "views": {
     "createView": "Crea Vista",
@@ -2724,6 +2783,10 @@
   "jsonCell": {
     "expand": "Espandi/comprimi albero JSON",
     "openViewer": "Apri visualizzatore JSON"
+  },
+  "textViewer": {
+    "save": "Salva",
+    "wrapLines": "A capo automatico"
   },
   "rowEditor": {
     "title": "Modifica Riga",
@@ -3259,6 +3322,10 @@
     },
     "unknown": {
       "summary": "Connessione fallita"
+    },
+    "keychain": {
+      "summary": "Portachiavi di sistema non disponibile",
+      "recovery": "Tabularis non è riuscito a raggiungere l'archivio credenziali del sistema per salvare le password. Su Linux, verifica che un provider Secret Service (GNOME Keyring, KWallet, KeePassXC) sia attivo e sbloccato, oppure disattiva \"Salva password nel Portachiavi\" per questa connessione."
     }
   },
   "connectionTest": {
@@ -3303,6 +3370,22 @@
     "groups": { "builtin": "Integrati · offline", "installed": "Pacchetti installati", "personal": "Temi personali" }, "modes": { "light": "Chiaro", "dark": "Scuro", "high-contrast": "Alto contrasto" },
     "importErrors": { "unrecognized": "Tema VS Code non riconosciuto.", "modeRequired": "Scegli una modalità e ripeti l'anteprima.", "includeOnly": "I temi con soli riferimenti include non sono importabili. Fornisci i colori effettivi.", "noSupportedData": "Nessun colore o regola SQL supportati.", "invalidColor": "Un colore supportato ha un valore non valido.", "invalidRules": "Regole dei token non valide o eccessive." },
     "diagnostics": { "unsupportedKey": "Campo non supportato", "unsupportedColor": "Colore non supportato", "unsupportedScope": "Ambito non supportato", "scopeApproximation": "Mappatura SQL approssimata", "unsupportedStyle": "Stile non supportato", "ignoredInclude": "Include non caricato", "ignoredSemanticTokens": "Token semantici ignorati", "unsupportedReference": "Riferimento esterno non caricato", "unsupportedSetting": "Impostazione non supportata", "tokenAlphaFlattened": "Opacità dei token calcolata sullo sfondo di base", "modeApproximation": "Modalità sostituita o approssimata", "diagnosticsTruncated": "Ulteriori diagnostiche omesse" }
+  },
+  "linkedGit": {
+    "title": "Esamina le modifiche Git",
+    "diskOnly": "I commit usano i file salvati su disco. Le bozze non salvate sono escluse. Saranno inclusi solo gli script selezionati ed esaminati.",
+    "desktopOnly": "Git per le cartelle SQL collegate è disponibile solo nell’app desktop.",
+    "refresh": "Aggiorna modifiche",
+    "commit": "Crea commit degli script selezionati",
+    "committed": "Commit {{commit}} creato.",
+    "renames": "M modificato · A aggiunto · D eliminato · ? non tracciato. Le rinomine appaiono come eliminazione e aggiunta; esamina entrambe.",
+    "empty": "Nessuno script SQL modificato.",
+    "files": "Script SQL modificati",
+    "include": "Includi {{path}} nel commit",
+    "review": "Esamina {{path}}",
+    "diff": "Differenze del file esaminato",
+    "choose": "Seleziona uno script per esaminarne le differenze prima di includerlo.",
+    "message": "Messaggio del commit"
   },
   "aiInline": {
     "title": "Completamento IA in linea",

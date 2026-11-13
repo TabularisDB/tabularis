@@ -128,6 +128,13 @@
         "warnConfirm": "仍然執行",
         "warnSnooze": "此連線不再詢問（本次工作階段）"
     },
+    "readOnly": {
+      "label": "唯讀模式",
+      "description": "阻止透過此連線寫入。啟用時略過啟動指令碼。",
+      "unsupported": "此驅動程式不支援受保護的唯讀查詢。",
+      "writeBlocked": "此連線為唯讀。請在連線設定中停用此模式以允許寫入。",
+      "banner": "{{name}} — 唯讀模式"
+    },
     "textStats": {
       "characters": "字元數:{{count}}",
       "lines": "行數:{{count}}",
@@ -382,6 +389,7 @@
         "noQueryHistory": "暫無查詢歷史",
         "noHistorySearchResults": "沒有符合的查詢",
         "searchHistory": "搜尋歷史...",
+        "historySearchErrors": "包含錯誤訊息",
         "historyOutcomeFilter": "按結果篩選",
         "historyOutcomeAny": "全部結果",
         "historyOutcomeSucceeded": "成功",
@@ -657,6 +665,14 @@
             "title": "SQL 代碼片段",
             "subtitle": "定義可重複使用的 SQL 範本，具有觸發前綴和定位點佔位符，適用於 Monaco 自動完成。",
             "add": "新增代碼片段",
+            "exportJson": "匯出 JSON",
+            "exportFailed": "無法匯出代碼片段：{{error}}",
+            "duplicate": "建立副本",
+            "search": "搜尋代碼片段",
+            "filterScope": "依範圍篩選",
+            "allScopes": "所有範圍",
+            "genericScope": "通用（所有方言）",
+            "noMatches": "找不到相符的代碼片段。",
             "createTitle": "建立代碼片段",
             "editTitle": "編輯代碼片段",
             "nameLabel": "代碼片段名稱",
@@ -832,6 +848,11 @@
         "appearance_editorWordWrapDesc": "在編輯器中將過長的行自動換行，而不是水平捲動。",
         "appearance_editorMinimap": "顯示縮圖",
         "appearance_editorMinimapDesc": "顯示 SQL 指令碼的縮小概覽，方便快速導覽。",
+        "appearance_editorRenderWhitespace": "顯示空格與定位字元",
+        "appearance_editorRenderWhitespaceDesc": "顯示一般空白字元標記，不變更 SQL 文字。",
+        "appearance_whitespaceNone": "無",
+        "appearance_whitespaceSelection": "選取範圍",
+        "appearance_whitespaceAll": "全部",
         "appearance_editorHighlightInvisibleCharacters": "顯示不可見字元",
         "appearance_editorHighlightInvisibleCharactersDesc": "突出顯示 SQL 中隱藏的 Unicode 字元和形似字元。",
         "appearance_editorShowLineNumbers": "顯示行號",
@@ -982,7 +1003,24 @@
             "customOpenaiModelDesc": "輸入您的 OpenAI 相容服務提供的模型名稱。",
             "customOpenaiModelHelp": "輸入您的 OpenAI 相容提供者的確切模型名稱。",
             "promptResetSuccess": "提示詞已重設為預設值",
-            "apiKeySaved": "API 金鑰已安全儲存"
+            "apiKeySaved": "API 金鑰已安全儲存",
+            "manageProviders": "瀏覽 AI 供應商",
+            "retryMigration": "重試還原",
+            "pluginMigration": "正在還原 AI 供應商設定：{{providers}}。",
+            "providerMissing": "尚未安裝 {{provider}}。請從外掛中心安裝，以繼續使用已儲存的設定。",
+            "availableProviders": "可用的供應商",
+            "installProviderHelp": "直接在此設定頁面安裝或移除外部 AI 供應商。",
+            "installAndUse": "安裝並使用",
+            "installAndUseProvider": "安裝並使用 {{provider}}",
+            "installingProvider": "正在安裝供應商…",
+            "providerRegistryOffline": "無法連線至供應商登錄庫。已安裝的供應商仍可使用。",
+            "allProvidersInstalled": "已安裝所有可用的供應商。",
+            "providerRequiresUpdate": "此供應商需要相容的應用程式版本或平台。",
+            "builtinProvider": "內建",
+            "removeProvider": "移除 {{provider}}",
+            "removingProvider": "正在移除供應商…",
+            "noExternalProviders": "沒有可用的外部供應商。",
+            "activeProviderRemoved": "目前使用的供應商已移除。AI 已停用。請啟用 AI 並選擇其他供應商以繼續。"
         },
         "updates": "更新",
         "openSourceLibraries": "開源庫",
@@ -1177,7 +1215,9 @@
                 }
             },
             "poweredBy": "技術支援：",
-            "openHomepage": "開啟主頁"
+            "openHomepage": "開啟主頁",
+            "kindAiAssistant": "AI 助理",
+            "kindAiAssistants": "AI 助理"
         },
         "shortcuts": {
             "title": "鍵盤快速鍵",
@@ -1611,6 +1651,22 @@
         "useShownValue": "使用此值"
     },
     "dataGrid": {
+        "columnVisibility": {
+            "hideColumn": "隱藏欄位",
+            "hideColumns_one": "隱藏 {{count}} 個欄位",
+            "hideColumns_other": "隱藏 {{count}} 個欄位",
+            "showAllColumns": "顯示隱藏的欄位（{{count}}）",
+            "chooseColumns": "選擇欄位…",
+            "title": "欄位",
+            "shown": "已顯示 {{visible}} / {{total}} 個欄位",
+            "showOnlyMatching": "僅顯示相符欄位",
+            "showAll": "顯示全部",
+            "lastVisible": "至少保留一個可見欄位",
+            "hiddenCount_one": "已隱藏 {{count}} 個",
+            "hiddenCount_other": "已隱藏 {{count}} 個",
+            "hiddenLabel_one": "已隱藏 {{count}} 個欄位",
+            "hiddenLabel_other": "已隱藏 {{count}} 個欄位"
+        },
         "jumpToColumn": "跳轉到欄",
         "searchColumns": "搜尋欄",
         "noMatchingColumns": "找不到符合的欄",
@@ -1906,6 +1962,7 @@
         "dangerousQueryTruncateTitle": "清空此資料表？",
         "dangerousQueryTruncateMessage": "TRUNCATE 會刪除資料表中的所有列。此操作無法復原。",
         "showErrorDetails": "顯示詳情",
+        "fixWithAi": "使用 AI 修復",
         "hideErrorDetails": "隱藏詳情",
         "errorBoundary": {
             "title": "編輯器意外崩潰",
@@ -2157,7 +2214,12 @@
                 "operations": "操作",
                 "indexName": "索引",
                 "scans": "掃描次數"
-            }
+            },
+            "copied": "已複製",
+            "copyDetails": "複製詳情",
+            "detailsCopied": "節點詳情已複製到剪貼簿",
+            "copyDetailsFailed": "無法將節點詳情複製到剪貼簿",
+            "nodeDetails": "節點詳情"
         },
         "notebook": {
             "addSqlCell": "新增 SQL 儲存格",
@@ -2168,6 +2230,10 @@
             "runAllTooltip": "從上到下執行所有 SQL 儲存格",
             "runCell": "執行儲存格",
             "deleteCell": "刪除儲存格",
+            "copySource": "複製原始碼",
+            "copiedSource": "原始碼已複製到剪貼簿",
+            "copySourceFailed": "無法將儲存格原始碼複製到剪貼簿。",
+            "duplicateCellToEnd": "複製到末尾",
             "moveCellUp": "上移",
             "moveCellDown": "下移",
             "export": "匯出筆記本",
@@ -2462,7 +2528,14 @@
         "exportSuccess": "圖表已匯出",
         "exportDbml": "匯出為 DBML",
         "exportMarkdown": "匯出為 Markdown",
-        "export": "匯出"
+        "export": "匯出",
+        "legend": "圖例",
+        "primaryKey": "主鍵",
+        "primaryKeyDesc": "唯一識別表中列的欄位",
+        "foreignKey": "外鍵",
+        "foreignKeyDesc": "引用另一個表中的主鍵或唯一鍵",
+        "relationship": "關聯",
+        "relationshipDesc": "連接子表與父表的外鍵引用"
     },
     "views": {
         "createView": "建立檢視",
@@ -2701,7 +2774,8 @@
         "sideBySide": "並排"
     },
     "textViewer": {
-        "save": "儲存"
+        "save": "儲存",
+        "wrapLines": "自動換行"
     },
     "rowEditor": {
         "title": "編輯列",
@@ -3255,6 +3329,10 @@
         },
         "unknown": {
             "summary": "連線失敗"
+        },
+        "keychain": {
+          "summary": "無法使用系統鑰匙圈",
+          "recovery": "Tabularis 無法存取作業系統的認證儲存空間來儲存密碼。在 Linux 上，請確認 Secret Service 提供程式（GNOME Keyring、KWallet、KeePassXC）正在執行且已解鎖，或關閉此連線的「Save passwords in Keychain」選項。"
         }
     },
     "connectionTest": {
@@ -3422,6 +3500,22 @@
         "copied": "已複製到剪貼簿",
         "copyFailed": "無法複製到剪貼簿，請再試一次。"
     },
+    "linkedGit": {
+        "title": "檢視 Git 變更",
+        "diskOnly": "提交使用磁碟上已儲存的檔案，不包含未儲存的編輯器草稿。只有勾選並檢視過的指令碼會被提交。",
+        "desktopOnly": "連結 SQL 資料夾的 Git 功能僅適用於桌面應用程式。",
+        "refresh": "重新整理變更",
+        "commit": "提交選取的指令碼",
+        "committed": "已建立提交 {{commit}}。",
+        "renames": "M 已修改 · A 已新增 · D 已刪除 · ? 未追蹤。重新命名會顯示為刪除及新增，請檢視兩者。",
+        "empty": "沒有變更的 SQL 指令碼。",
+        "files": "已變更的 SQL 指令碼",
+        "include": "將 {{path}} 包含在提交中",
+        "review": "檢視 {{path}}",
+        "diff": "已檢視檔案的差異",
+        "choose": "選取指令碼並檢視差異後，才能將其包含在提交中。",
+        "message": "提交訊息"
+  },
     "aiInline": {
         "title": "AI 行內補全",
         "enable": "輸入時建議 SQL",

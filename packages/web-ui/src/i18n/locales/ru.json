@@ -124,6 +124,13 @@
     "warnConfirm": "Выполнить всё равно",
     "warnSnooze": "Больше не спрашивать для этого подключения (в этой сессии)"
   },
+  "readOnly": {
+    "label": "Режим только для чтения",
+    "description": "Блокирует запись через это подключение. Скрипты запуска в этом режиме пропускаются.",
+    "unsupported": "Этот драйвер не поддерживает защищённые запросы только для чтения.",
+    "writeBlocked": "Это подключение доступно только для чтения. Отключите этот режим в настройках подключения, чтобы разрешить запись.",
+    "banner": "{{name}} — только чтение"
+  },
   "textStats": {
     "characters": "Символов: {{count}}",
     "lines": "Строк: {{count}}",
@@ -378,6 +385,7 @@
     "noQueryHistory": "История запросов пуста",
     "noHistorySearchResults": "Запросы не найдены",
     "searchHistory": "Поиск в истории...",
+    "historySearchErrors": "Искать в сообщениях об ошибках",
     "historyOutcomeFilter": "Фильтр по результату",
     "historyOutcomeAny": "Любой результат",
     "historyOutcomeSucceeded": "Успешные",
@@ -636,6 +644,14 @@
       "title": "SQL-сниппеты",
       "subtitle": "Определяйте шаблоны SQL с префиксами автодополнения и плейсхолдерами табуляции для редактора Monaco.",
       "add": "Новый сниппет",
+      "exportJson": "Экспорт JSON",
+      "exportFailed": "Не удалось экспортировать сниппеты: {{error}}",
+      "duplicate": "Дублировать",
+      "search": "Поиск сниппетов",
+      "filterScope": "Фильтр по области",
+      "allScopes": "Все области",
+      "genericScope": "Общие (все диалекты)",
+      "noMatches": "Подходящих сниппетов нет.",
       "createTitle": "Создать сниппет",
       "editTitle": "Редактировать сниппет",
       "nameLabel": "Название сниппета",
@@ -793,6 +809,11 @@
     "appearance_editorWordWrapDesc": "Переносить длинные строки в редакторе вместо горизонтальной прокрутки.",
     "appearance_editorMinimap": "Показывать мини-карту",
     "appearance_editorMinimapDesc": "Показывает уменьшенный обзор SQL-скриптов для быстрой навигации.",
+    "appearance_editorRenderWhitespace": "Показывать пробелы и табуляцию",
+    "appearance_editorRenderWhitespaceDesc": "Показывать обычные пробелы и табуляцию без изменения текста SQL.",
+    "appearance_whitespaceNone": "Нет",
+    "appearance_whitespaceSelection": "Выделение",
+    "appearance_whitespaceAll": "Все",
     "appearance_editorHighlightInvisibleCharacters": "Показывать невидимые символы",
     "appearance_editorHighlightInvisibleCharactersDesc": "Выделять скрытые символы Unicode и похожие символы в SQL.",
     "appearance_editorShowLineNumbers": "Показывать номера строк",
@@ -918,7 +939,24 @@
       "customOpenaiModelDesc": "Введите название модели, предоставляемой OpenAI-совместимым сервисом.",
       "customOpenaiModelHelp": "Укажите точное название модели вашего OpenAI-совместимого провайдера.",
       "promptResetSuccess": "Промпт сброшен к значению по умолчанию",
-      "apiKeySaved": "API-ключ надёжно сохранён"
+      "apiKeySaved": "API-ключ надёжно сохранён",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Повторить настройку",
+      "pluginMigration": "Восстановление настроек поставщиков ИИ: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Устанавливайте или удаляйте внешних поставщиков ИИ прямо в этих настройках.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "Удалить {{provider}}",
+      "removingProvider": "Удаление поставщика…",
+      "noExternalProviders": "Нет доступных внешних поставщиков.",
+      "activeProviderRemoved": "Активный поставщик удалён. ИИ отключён. Включите ИИ и выберите другого поставщика, чтобы продолжить."
     },
     "updates": "Обновления",
     "openSourceLibraries": "Библиотеки с открытым исходным кодом",
@@ -1109,7 +1147,9 @@
             }
           }
         }
-      }
+      },
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Горячие клавиши",
@@ -1616,6 +1656,7 @@
       "chooseColumns": "Выбрать столбцы…",
       "title": "Столбцы",
       "shown": "Показано {{visible}} из {{total}}",
+      "showOnlyMatching": "Показать только совпадения",
       "showAll": "Показать все",
       "lastVisible": "Хотя бы один столбец остаётся видимым",
       "hiddenCount_one": "Скрыто: {{count}}",
@@ -1898,6 +1939,7 @@
     "dangerousQueryTruncateTitle": "Очистить эту таблицу?",
     "dangerousQueryTruncateMessage": "TRUNCATE удаляет все строки таблицы. Это действие нельзя отменить.",
     "showErrorDetails": "Показать подробности",
+    "fixWithAi": "Исправить с помощью ИИ",
     "hideErrorDetails": "Скрыть подробности",
     "errorBoundary": {
       "title": "Редактор завершился с ошибкой",
@@ -1941,10 +1983,11 @@
     "transactionOpenHint": "Транзакция открыта — эта вкладка удерживает своё соединение до COMMIT или ROLLBACK",
     "exporting": "Экспорт...",
     "rowsProcessed": "Обработано строк",
+    "exportScope": "Строки для экспорта",
+    "exportScopeAll": "Все строки",
+    "exportScopeLoaded": "Текущие результаты",
     "exportLoadedRowsWarning": "Экспортированы только {{loaded}} загруженных строк из {{total}} строк. Если нужны дополнительные строки, пролистайте результат или выполните более узкий запрос перед экспортом.",
     "exportLoadedRowsWarningUnknownTotal": "Экспортированы только {{loaded}} загруженных строк. В результате строк больше, чем загружено. Если нужны дополнительные строки, пролистайте результат или выполните более узкий запрос перед экспортом.",
-    "exportLoadedHtml": "Экспортировать загруженные строки как HTML…",
-    "exportLoadedNdjson": "Экспортировать загруженные строки как NDJSON…",
     "queryParameters": "Параметры запроса",
     "formatSql": "Форматировать SQL",
     "selectCurrentStatement": "Выбрать текущий оператор",
@@ -2135,7 +2178,12 @@
         "operations": "Операции",
         "indexName": "Индекс",
         "scans": "Сканирования"
-      }
+      },
+      "copied": "Скопировано",
+      "copyDetails": "Копировать сведения",
+      "detailsCopied": "Сведения об узле скопированы в буфер обмена",
+      "copyDetailsFailed": "Не удалось скопировать сведения об узле в буфер обмена",
+      "nodeDetails": "Сведения об узле"
     },
     "notebook": {
       "addSqlCell": "Добавить SQL-ячейку",
@@ -2146,6 +2194,10 @@
       "runAllTooltip": "Выполнить все SQL-ячейки сверху вниз",
       "runCell": "Запустить ячейку",
       "deleteCell": "Удалить ячейку",
+      "copySource": "Копировать исходный код",
+      "copiedSource": "Исходный код скопирован в буфер обмена",
+      "copySourceFailed": "Не удалось скопировать исходный код ячейки в буфер обмена.",
+      "duplicateCellToEnd": "Дублировать в конец",
       "moveCellUp": "Переместить вверх",
       "moveCellDown": "Переместить вниз",
       "export": "Экспортировать ноутбук",
@@ -2449,7 +2501,14 @@
     "exportSuccess": "Диаграмма экспортирована",
     "exportDbml": "Экспортировать как DBML",
     "exportMarkdown": "Экспортировать как Markdown",
-    "export": "Экспорт"
+    "export": "Экспорт",
+    "legend": "Легенда",
+    "primaryKey": "Первичный ключ",
+    "primaryKeyDesc": "Уникальный столбец, идентифицирующий строки в таблице",
+    "foreignKey": "Внешний ключ",
+    "foreignKeyDesc": "Ссылается на первичный или уникальный ключ в другой таблице",
+    "relationship": "Связь",
+    "relationshipDesc": "Связь по внешнему ключу между дочерней и родительской таблицами"
   },
   "views": {
     "createView": "Создать представление",
@@ -2732,7 +2791,8 @@
     "sideBySide": "Рядом"
   },
   "textViewer": {
-    "save": "Сохранить"
+    "save": "Сохранить",
+    "wrapLines": "Перенос строк"
   },
   "rowEditor": {
     "title": "Изменить строку",
@@ -3218,6 +3278,10 @@
     },
     "unknown": {
       "summary": "Не удалось подключиться"
+    },
+    "keychain": {
+      "summary": "Системная связка ключей недоступна",
+      "recovery": "Tabularis не удалось обратиться к системному хранилищу учётных данных, чтобы сохранить пароли. В Linux убедитесь, что поставщик Secret Service (GNOME Keyring, KWallet, KeePassXC) запущен и разблокирован, или отключите «Сохранять пароли в Keychain» для этого подключения."
     }
   },
   "connectionTest": {
@@ -3311,6 +3375,22 @@
     "groups": { "builtin": "Встроенные · автономные", "installed": "Установленные пакеты", "personal": "Личные темы" }, "modes": { "light": "Светлый", "dark": "Тёмный", "high-contrast": "Высокая контрастность" },
     "importErrors": { "unrecognized": "Тема VS Code не распознана.", "modeRequired": "Выберите режим и повторите предпросмотр.", "includeOnly": "Темы только с include не импортируются. Предоставьте реальные цвета.", "noSupportedData": "Поддерживаемые цвета и правила SQL не найдены.", "invalidColor": "Неверное значение поддерживаемого цвета.", "invalidRules": "Неверные или слишком многочисленные правила токенов." },
     "diagnostics": { "unsupportedKey": "Неподдерживаемое поле", "unsupportedColor": "Неподдерживаемый цвет", "unsupportedScope": "Неподдерживаемая область", "scopeApproximation": "Приблизительное сопоставление SQL", "unsupportedStyle": "Неподдерживаемый стиль", "ignoredInclude": "Include не загружен", "ignoredSemanticTokens": "Семантические токены пропущены", "unsupportedReference": "Внешняя ссылка не загружена", "unsupportedSetting": "Неподдерживаемая настройка", "tokenAlphaFlattened": "Прозрачность токенов рассчитана относительно базового фона", "modeApproximation": "Режим заменён или приближён", "diagnosticsTruncated": "Дополнительная диагностика пропущена" }
+  },
+  "linkedGit": {
+    "title": "Проверить изменения Git",
+    "diskOnly": "Коммиты используют файлы, сохранённые на диске. Несохранённые черновики не включаются. В коммит попадут только отмеченные и проверенные скрипты.",
+    "desktopOnly": "Git для связанных SQL-папок доступен только в настольном приложении.",
+    "refresh": "Обновить изменения",
+    "commit": "Создать коммит выбранных скриптов",
+    "committed": "Создан коммит {{commit}}.",
+    "renames": "M изменён · A добавлен · D удалён · ? не отслеживается. Переименование показано как удаление и добавление; проверьте оба файла.",
+    "empty": "Нет изменённых SQL-скриптов.",
+    "files": "Изменённые SQL-скрипты",
+    "include": "Включить {{path}} в коммит",
+    "review": "Проверить {{path}}",
+    "diff": "Различия проверенного файла",
+    "choose": "Выберите скрипт и проверьте различия перед включением в коммит.",
+    "message": "Сообщение коммита"
   },
   "aiInline": {
     "title": "Встроенное ИИ-дополнение",

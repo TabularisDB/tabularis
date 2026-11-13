@@ -11,6 +11,7 @@ import {
     Calendar,
     Pause,
     Download,
+    MessageSquareWarning,
 } from 'lucide-react';
 import {groupByDate, formatHistoryTime} from '@/utils/dateGroups';
 import {SqlHighlight} from '@/components/ui/SqlHighlight';
@@ -152,6 +153,7 @@ export function QueryHistorySection({
     // Session-only: search and the new filters reset when the section unmounts
     // (same as the existing search field; nothing is persisted).
     const [search, setSearch] = useState('');
+    const [searchErrors, setSearchErrors] = useState(false);
     const [outcome, setOutcome] = useState<QueryHistoryOutcomeFilter>('any');
     const [timeRange, setTimeRange] = useState<QueryHistoryTimeRange>('all');
     const [from, setFrom] = useState('');
@@ -188,6 +190,7 @@ export function QueryHistorySection({
         () =>
             filterQueryHistoryEntries(entries, {
                 search,
+                searchErrors,
                 outcome,
                 timeRange,
                 database,
@@ -199,6 +202,7 @@ export function QueryHistorySection({
         [
             entries,
             search,
+            searchErrors,
             outcome,
             timeRange,
             database,
@@ -374,6 +378,22 @@ export function QueryHistorySection({
                         className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-focus/50"
                     />
                 </div>
+                {/* Session-only like the search itself: when pressed, the search
+                    also matches the recorded error messages. */}
+                <button
+                    type="button"
+                    onClick={() => setSearchErrors((value) => !value)}
+                    aria-pressed={searchErrors}
+                    className={`p-1 rounded transition-colors shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+                        searchErrors
+                            ? 'text-accent bg-accent-primary/15 hover:bg-accent-primary/25'
+                            : 'text-muted hover:text-primary'
+                    }`}
+                    title={t('sidebar.historySearchErrors')}
+                    aria-label={t('sidebar.historySearchErrors')}
+                >
+                    <MessageSquareWarning size={13} />
+                </button>
                 {pauseToggleButton}
                 <button
                     type="button"
@@ -550,6 +570,7 @@ export function QueryHistorySection({
                         type="button"
                         onClick={() => {
                             setSearch('');
+                            setSearchErrors(false);
                             setOutcome('any');
                             setTimeRange('all');
                             setDatabase('all');

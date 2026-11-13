@@ -124,6 +124,13 @@
     "warnConfirm": "Trotzdem ausführen",
     "warnSnooze": "Für diese Verbindung nicht mehr fragen (diese Sitzung)"
   },
+  "readOnly": {
+    "label": "Schreibgeschützter Modus",
+    "description": "Blockiert Schreibzugriffe auf diese Verbindung. Startskripte werden in diesem Modus übersprungen.",
+    "unsupported": "Dieser Treiber unterstützt keine geschützten schreibgeschützten Abfragen.",
+    "writeBlocked": "Diese Verbindung ist schreibgeschützt. Deaktivieren Sie diesen Modus in den Verbindungseinstellungen, um Schreibzugriffe zu erlauben.",
+    "banner": "{{name}} — schreibgeschützt"
+  },
   "textStats": {
     "characters": "Zeichen: {{count}}",
     "lines": "Zeilen: {{count}}",
@@ -365,6 +372,7 @@
     "noQueryHistory": "Kein Abfrageverlauf",
     "noHistorySearchResults": "Keine Abfragen entsprechen deiner Suche",
     "searchHistory": "Verlauf durchsuchen...",
+    "historySearchErrors": "Fehlermeldungen einbeziehen",
     "historyOutcomeFilter": "Nach Ergebnis filtern",
     "historyOutcomeAny": "Beliebiges Ergebnis",
     "historyOutcomeSucceeded": "Erfolgreich",
@@ -641,6 +649,14 @@
       "title": "SQL-Snippets",
       "subtitle": "Definieren Sie wiederverwendbare SQL-Vorlagen mit Auslösepräfixen und Tab-Stopp-Platzhaltern für die Monaco-Autovervollständigung.",
       "add": "Neues Snippet",
+      "exportJson": "JSON exportieren",
+      "exportFailed": "Snippets konnten nicht exportiert werden: {{error}}",
+      "duplicate": "Duplizieren",
+      "search": "Snippets suchen",
+      "filterScope": "Nach Geltungsbereich filtern",
+      "allScopes": "Alle Geltungsbereiche",
+      "genericScope": "Allgemein (alle Dialekte)",
+      "noMatches": "Keine passenden Snippets.",
       "createTitle": "Snippet erstellen",
       "editTitle": "Snippet bearbeiten",
       "nameLabel": "Snippet-Name",
@@ -798,6 +814,11 @@
     "appearance_editorWordWrapDesc": "Lange Zeilen im Editor umbrechen statt horizontal zu scrollen.",
     "appearance_editorMinimap": "Minimap anzeigen",
     "appearance_editorMinimapDesc": "Zeigt eine verkleinerte Übersicht von SQL-Skripten zur schnellen Navigation an.",
+    "appearance_editorRenderWhitespace": "Leerzeichen und Tabs anzeigen",
+    "appearance_editorRenderWhitespaceDesc": "Zeigt Markierungen für normale Leerzeichen und Tabs, ohne den SQL-Text zu ändern.",
+    "appearance_whitespaceNone": "Keine",
+    "appearance_whitespaceSelection": "Auswahl",
+    "appearance_whitespaceAll": "Alle",
     "appearance_editorHighlightInvisibleCharacters": "Unsichtbare Zeichen anzeigen",
     "appearance_editorHighlightInvisibleCharactersDesc": "Markiert versteckte Unicode-Zeichen und ähnlich aussehende Zeichen in SQL.",
     "appearance_editorShowLineNumbers": "Zeilennummern anzeigen",
@@ -923,7 +944,24 @@
       "customOpenaiModelDesc": "Gib den Modellnamen deines OpenAI-kompatiblen Dienstes ein.",
       "customOpenaiModelHelp": "Gib den exakten Modellnamen für deinen OpenAI-kompatiblen Anbieter ein.",
       "promptResetSuccess": "Prompt auf Standard zurückgesetzt",
-      "apiKeySaved": "API-Schlüssel sicher gespeichert"
+      "apiKeySaved": "API-Schlüssel sicher gespeichert",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Einrichtung erneut versuchen",
+      "pluginMigration": "Deine AI-Provider-Einstellungen werden wiederhergestellt: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Externe KI-Anbieter direkt in diesen Einstellungen installieren oder entfernen.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "{{provider}} entfernen",
+      "removingProvider": "Anbieter wird entfernt…",
+      "noExternalProviders": "Keine externen Anbieter verfügbar.",
+      "activeProviderRemoved": "Der aktive Anbieter wurde entfernt. KI wurde deaktiviert. Aktiviere KI und wähle einen anderen Anbieter, um fortzufahren."
     },
     "updates": "Updates",
     "openSourceLibraries": "Open-Source-Bibliotheken",
@@ -1116,7 +1154,9 @@
         }
       },
       "poweredBy": "Bereitgestellt von",
-      "openHomepage": "Homepage öffnen"
+      "openHomepage": "Homepage öffnen",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Tastenkürzel",
@@ -1613,6 +1653,7 @@
       "chooseColumns": "Spalten auswählen…",
       "title": "Spalten",
       "shown": "{{visible}} von {{total}} sichtbar",
+      "showOnlyMatching": "Nur Treffer anzeigen",
       "showAll": "Alle einblenden",
       "lastVisible": "Mindestens eine Spalte bleibt sichtbar",
       "hiddenCount_one": "{{count}} ausgeblendet",
@@ -1886,6 +1927,7 @@
     "dangerousQueryTruncateTitle": "Diese Tabelle leeren?",
     "dangerousQueryTruncateMessage": "TRUNCATE löscht alle Zeilen der Tabelle. Dies kann nicht rückgängig gemacht werden.",
     "showErrorDetails": "Details anzeigen",
+    "fixWithAi": "Mit KI beheben",
     "hideErrorDetails": "Details ausblenden",
     "errorBoundary": {
       "title": "Der Editor ist unerwartet abgestürzt",
@@ -1927,10 +1969,11 @@
     "transactionOpenHint": "Transaktion offen — dieser Tab behält seine Verbindung bis zum COMMIT oder ROLLBACK",
     "exporting": "Wird exportiert...",
     "rowsProcessed": "Verarbeitete Zeilen",
+    "exportScope": "Zu exportierende Zeilen",
+    "exportScopeAll": "Alle Zeilen",
+    "exportScopeLoaded": "Aktuelle Ergebnisse",
     "exportLoadedRowsWarning": "Es wurden nur {{loaded}} geladene Zeilen von insgesamt {{total}} Zeilen exportiert. Blättere durch das Ergebnis oder führe eine eingeschränktere Abfrage aus, wenn du mehr Zeilen exportieren musst.",
     "exportLoadedRowsWarningUnknownTotal": "Es wurden nur {{loaded}} geladene Zeilen exportiert. Das Ergebnis enthält mehr Zeilen als geladen wurden. Blättere durch das Ergebnis oder führe eine eingeschränktere Abfrage aus, wenn du mehr Zeilen exportieren musst.",
-    "exportLoadedHtml": "Geladene Zeilen als HTML exportieren…",
-    "exportLoadedNdjson": "Geladene Zeilen als NDJSON exportieren…",
     "queryParameters": "Abfrageparameter",
     "formatSql": "SQL formatieren",
     "selectCurrentStatement": "Aktuelle Anweisung auswählen",
@@ -2121,7 +2164,12 @@
         "operations": "Operationen",
         "indexName": "Index",
         "scans": "Scans"
-      }
+      },
+      "copied": "Kopiert",
+      "copyDetails": "Details kopieren",
+      "detailsCopied": "Knotendetails in die Zwischenablage kopiert",
+      "copyDetailsFailed": "Knotendetails konnten nicht in die Zwischenablage kopiert werden",
+      "nodeDetails": "Knotendetails"
     },
     "notebook": {
       "addSqlCell": "SQL-Zelle hinzufügen",
@@ -2132,6 +2180,10 @@
       "runAllTooltip": "Alle SQL-Zellen von oben nach unten ausführen",
       "runCell": "Zelle ausführen",
       "deleteCell": "Zelle löschen",
+      "copySource": "Quelle kopieren",
+      "copiedSource": "Quelle in die Zwischenablage kopiert",
+      "copySourceFailed": "Die Zellquelle konnte nicht in die Zwischenablage kopiert werden.",
+      "duplicateCellToEnd": "Am Ende duplizieren",
       "moveCellUp": "Nach oben",
       "moveCellDown": "Nach unten",
       "export": "Notebook exportieren",
@@ -2426,7 +2478,14 @@
     "exportSuccess": "Diagramm exportiert",
     "exportDbml": "Als DBML exportieren",
     "exportMarkdown": "Als Markdown exportieren",
-    "export": "Exportieren"
+    "export": "Exportieren",
+    "legend": "Legende",
+    "primaryKey": "Primärschlüssel",
+    "primaryKeyDesc": "Eindeutige Spalte zur Zeilenidentifikation in der Tabelle",
+    "foreignKey": "Fremdschlüssel",
+    "foreignKeyDesc": "Verweist auf einen Primär- oder eindeutigen Schlüssel einer anderen Tabelle",
+    "relationship": "Beziehung",
+    "relationshipDesc": "Fremdschlüssel-Referenz zwischen untergeordneter und übergeordneter Tabelle"
   },
   "views": {
     "createView": "Ansicht erstellen",
@@ -2664,6 +2723,10 @@
   "jsonCell": {
     "expand": "JSON-Baum ein-/ausklappen",
     "openViewer": "JSON-Viewer öffnen"
+  },
+  "textViewer": {
+    "save": "Speichern",
+    "wrapLines": "Zeilenumbruch"
   },
   "rowEditor": {
     "title": "Zeile bearbeiten",
@@ -3226,6 +3289,10 @@
     },
     "unknown": {
       "summary": "Verbindung fehlgeschlagen"
+    },
+    "keychain": {
+      "summary": "System-Schlüsselbund nicht verfügbar",
+      "recovery": "Tabularis konnte den Anmeldedatenspeicher des Systems nicht erreichen, um die Passwörter zu speichern. Stelle unter Linux sicher, dass ein Secret-Service-Anbieter (GNOME Keyring, KWallet, KeePassXC) läuft und entsperrt ist, oder deaktiviere \"Passwörter im Keychain speichern\" für diese Verbindung."
     }
   },
   "connectionTest": {
@@ -3270,6 +3337,22 @@
     "groups": { "builtin": "Integriert · offline", "installed": "Installierte Pakete", "personal": "Persönliche Designs" }, "modes": { "light": "Hell", "dark": "Dunkel", "high-contrast": "Hoher Kontrast" },
     "importErrors": { "unrecognized": "Kein erkanntes VS-Code-Design.", "modeRequired": "Modus auswählen und Vorschau erneut öffnen.", "includeOnly": "Reine Include-Designs sind nicht importierbar. Die tatsächlichen Farben bereitstellen.", "noSupportedData": "Keine unterstützten Farben oder SQL-Tokenregeln gefunden.", "invalidColor": "Ungültiger Wert einer unterstützten Farbe.", "invalidRules": "Ungültige oder zu viele Tokenregeln." },
     "diagnostics": { "unsupportedKey": "Nicht unterstütztes Feld", "unsupportedColor": "Nicht unterstützte Farbe", "unsupportedScope": "Nicht unterstützter Bereich", "scopeApproximation": "Angenäherte SQL-Zuordnung", "unsupportedStyle": "Nicht unterstützter Stil", "ignoredInclude": "Include nicht geladen", "ignoredSemanticTokens": "Semantische Tokens ignoriert", "unsupportedReference": "Externe Referenz nicht geladen", "unsupportedSetting": "Nicht unterstützte Einstellung", "tokenAlphaFlattened": "Token-Deckkraft gegen den Basishintergrund berechnet", "modeApproximation": "Modus überschrieben oder angenähert", "diagnosticsTruncated": "Weitere Diagnosen ausgelassen" }
+  },
+  "linkedGit": {
+    "title": "Git-Änderungen prüfen",
+    "diskOnly": "Commits verwenden gespeicherte Dateien auf der Platte. Ungespeicherte Editor-Entwürfe werden nicht einbezogen. Nur markierte, geprüfte Skripte werden committet.",
+    "desktopOnly": "Git für verknüpfte SQL-Ordner ist nur in der Desktop-App verfügbar.",
+    "refresh": "Änderungen aktualisieren",
+    "commit": "Ausgewählte Skripte committen",
+    "committed": "Commit {{commit}} erstellt.",
+    "renames": "M geändert · A hinzugefügt · D gelöscht · ? nicht versioniert. Umbenennungen erscheinen als Löschung und neue Datei; beide prüfen.",
+    "empty": "Keine geänderten SQL-Skripte.",
+    "files": "Geänderte SQL-Skripte",
+    "include": "{{path}} in Commit aufnehmen",
+    "review": "{{path}} prüfen",
+    "diff": "Geprüfter Datei-Diff",
+    "choose": "Wähle ein Skript und prüfe den Diff, bevor du es aufnimmst.",
+    "message": "Commit-Nachricht"
   },
   "aiInline": {
     "title": "KI-Inline-Vervollständigung",

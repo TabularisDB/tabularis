@@ -37,6 +37,8 @@ export function getProviderLabel(id: AiProvider): string {
             return 'OpenRouter';
         case 'requesty':
             return 'Requesty';
+        case 'api-route':
+            return 'API Route';
         case 'ollama':
             return 'Ollama';
         case 'custom-openai':

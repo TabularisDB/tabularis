@@ -79,6 +79,7 @@ export interface EventMap {
         'database'
     >;
     'tabularis://plugin-activated': EventDefinition<{pluginId: string}, 'database'>;
+    'tabularis://ai-providers-changed': EventDefinition<null, 'session'>;
     'tabularis://plugin-installed': EventDefinition<{slug: string}, 'session'>;
     /** Desktop-only: files are waiting in `consume_pending_data_files`. */
     'tabularis://open-data-files': EventDefinition<null, 'local-admin'>;
@@ -128,6 +129,7 @@ export const EVENT_AUTHORIZATION = {
     'ui-state://changed': 'session',
     'connection-metadata-invalidated': 'database',
     'tabularis://plugin-activated': 'database',
+    'tabularis://ai-providers-changed': 'session',
     'tabularis://plugin-installed': 'session',
     'tabularis://open-data-files': 'local-admin',
 } satisfies {[K in EventName]: EventAuthorization<K>};

@@ -5,9 +5,13 @@ mod sink;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+#[path = "export/read_only_tests.rs"]
+mod read_only_tests;
+
 pub use format::{parse_csv_delimiter, value_to_csv_string, ExportFormat, DEFAULT_CSV_DELIMITER};
 pub use progress::{ProgressEmitter, DEFAULT_INTERVAL as DEFAULT_PROGRESS_INTERVAL};
-pub use sink::{CsvSink, JsonSink, MarkdownSink, RowSink};
+pub use sink::{CsvSink, HtmlSink, JsonSink, MarkdownSink, NdjsonSink, RowSink};
 
 use std::collections::HashMap;
 use std::io::Write;
@@ -64,6 +68,16 @@ where
             stream_to_sink(driver, params, query, session_id, &mut sink, &mut progress).await?;
             sink.finish()?;
         }
+        ExportFormat::Ndjson => {
+            let mut sink = NdjsonSink::new(writer);
+            stream_to_sink(driver, params, query, session_id, &mut sink, &mut progress).await?;
+            sink.finish()?;
+        }
+        ExportFormat::Html => {
+            let mut sink = HtmlSink::new(writer);
+            stream_to_sink(driver, params, query, session_id, &mut sink, &mut progress).await?;
+            sink.finish()?;
+        }
     }
 
     progress.finish();
@@ -82,6 +96,13 @@ where
     S: RowSink + Send,
     F: FnMut(u64) + Send,
 {
+    if params.read_only {
+        let driver = crate::drivers::registry::get_connection_driver(params).await?;
+        crate::application::read_only::validate_query(driver.as_ref(), params, query).await?;
+    }
+    // An editor session may still hold a writable transaction opened before
+    // the policy changed. Protected exports must use the isolated pool/RPC.
+    let session_id = if params.read_only { None } else { session_id };
     let mut on_row = |headers: &[String], values: &[Value]| -> Result<(), String> {
         sink.write_row(headers, values)?;
         progress.tick();
@@ -118,23 +139,35 @@ where
 
     let mut page: u32 = 1;
     loop {
-        let result = match session_id {
-            Some(id) => {
-                crate::commands::read_in_open_transaction(
-                    driver.as_ref(),
-                    params,
-                    query,
-                    Some(PAGE_SIZE),
-                    page,
-                    None,
-                    id,
-                )
-                .await?
-            }
-            None => {
-                driver
-                    .execute_query(params, query, Some(PAGE_SIZE), page, None)
+        let result = if params.read_only {
+            crate::application::read_only::execute_query(
+                driver.as_ref(),
+                params,
+                query,
+                Some(PAGE_SIZE),
+                page,
+                None,
+            )
+            .await?
+        } else {
+            match session_id {
+                Some(id) => {
+                    crate::commands::read_in_open_transaction(
+                        driver.as_ref(),
+                        params,
+                        query,
+                        Some(PAGE_SIZE),
+                        page,
+                        None,
+                        id,
+                    )
                     .await?
+                }
+                None => {
+                    driver
+                        .execute_query(params, query, Some(PAGE_SIZE), page, None)
+                        .await?
+                }
             }
         };
 

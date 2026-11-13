@@ -124,6 +124,13 @@
     "warnConfirm": "実行する",
     "warnSnooze": "この接続では今後確認しない（このセッション中）"
   },
+  "readOnly": {
+    "label": "読み取り専用モード",
+    "description": "この接続への書き込みをブロックします。有効な間は起動スクリプトを実行しません。",
+    "unsupported": "このドライバーは保護された読み取り専用クエリに対応していません。",
+    "writeBlocked": "この接続は読み取り専用です。書き込みを許可するには接続設定でこのモードを無効にしてください。",
+    "banner": "{{name}} — 読み取り専用"
+  },
   "textStats": {
     "characters": "文字数: {{count}}",
     "lines": "行数: {{count}}",
@@ -378,6 +385,7 @@
     "noQueryHistory": "クエリ履歴はありません",
     "noHistorySearchResults": "検索に一致するクエリがありません",
     "searchHistory": "履歴を検索...",
+    "historySearchErrors": "エラーメッセージも検索",
     "historyOutcomeFilter": "結果で絞り込み",
     "historyOutcomeAny": "すべての結果",
     "historyOutcomeSucceeded": "成功",
@@ -654,6 +662,14 @@
       "title": "SQLスニペット",
       "subtitle": "Monacoのオートコンプリート用に、トリガープレフィックスとタブストッププレースホルダーを備えた再利用可能なSQLテンプレートを定義します。",
       "add": "新規スニペット",
+      "exportJson": "JSON をエクスポート",
+      "exportFailed": "スニペットのエクスポートに失敗しました: {{error}}",
+      "duplicate": "複製",
+      "search": "スニペットを検索",
+      "filterScope": "スコープで絞り込み",
+      "allScopes": "すべてのスコープ",
+      "genericScope": "汎用（すべての方言）",
+      "noMatches": "一致するスニペットはありません。",
       "createTitle": "スニペットを作成",
       "editTitle": "スニペットを編集",
       "nameLabel": "スニペット名",
@@ -809,6 +825,11 @@
     "appearance_editorWordWrapDesc": "エディタ内の長い行を横スクロールせず折り返します。",
     "appearance_editorMinimap": "ミニマップを表示",
     "appearance_editorMinimapDesc": "SQLスクリプトの縮小表示で素早く移動できます。",
+    "appearance_editorRenderWhitespace": "スペースとタブを表示",
+    "appearance_editorRenderWhitespaceDesc": "SQL テキストを変更せず、通常の空白文字を表示します。",
+    "appearance_whitespaceNone": "なし",
+    "appearance_whitespaceSelection": "選択範囲",
+    "appearance_whitespaceAll": "すべて",
     "appearance_editorHighlightInvisibleCharacters": "不可視文字を表示",
     "appearance_editorHighlightInvisibleCharactersDesc": "SQL内の不可視Unicode文字や紛らわしい文字を強調表示します。",
     "appearance_editorShowLineNumbers": "行番号を表示",
@@ -937,7 +958,24 @@
       "customOpenaiModelDesc": "OpenAI 互換サービスが提供するモデル名を入力してください。",
       "customOpenaiModelHelp": "OpenAI 互換プロバイダの正確なモデル名を入力してください。",
       "promptResetSuccess": "プロンプトをデフォルトにリセットしました",
-      "apiKeySaved": "APIキーを安全に保存しました"
+      "apiKeySaved": "APIキーを安全に保存しました",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "設定を再試行",
+      "pluginMigration": "AI プロバイダーの設定を復元しています: {{providers}}。",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "この設定画面から外部AIプロバイダーをインストールまたは削除できます。",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "{{provider}}を削除",
+      "removingProvider": "プロバイダーを削除中…",
+      "noExternalProviders": "利用可能な外部プロバイダーはありません。",
+      "activeProviderRemoved": "使用中のプロバイダーが削除され、AIが無効になりました。続行するにはAIを有効にして、別のプロバイダーを選択してください。"
     },
     "updates": "アップデート",
     "openSourceLibraries": "オープンソースライブラリ",
@@ -1130,7 +1168,9 @@
         }
       },
       "poweredBy": "提供：",
-      "openHomepage": "ホームページを開く"
+      "openHomepage": "ホームページを開く",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "キーボードショートカット",
@@ -1625,6 +1665,7 @@
       "chooseColumns": "表示するカラムを選択…",
       "title": "カラム",
       "shown": "{{total}} 個中 {{visible}} 個を表示",
+      "showOnlyMatching": "一致する列のみ表示",
       "showAll": "すべて表示",
       "lastVisible": "少なくとも 1 つのカラムは表示されたままです",
       "hiddenCount_one": "{{count}} 個非表示",
@@ -1898,6 +1939,7 @@
     "dangerousQueryTruncateTitle": "このテーブルを空にしますか？",
     "dangerousQueryTruncateMessage": "TRUNCATE はテーブルのすべての行を削除します。この操作は元に戻せません。",
     "showErrorDetails": "詳細を表示",
+    "fixWithAi": "AIで修正",
     "hideErrorDetails": "詳細を非表示",
     "errorBoundary": {
       "title": "エディタが予期せずクラッシュしました",
@@ -1938,10 +1980,11 @@
     "transactionOpenHint": "トランザクション実行中 — このタブは COMMIT または ROLLBACK まで接続を保持します",
     "exporting": "エクスポート中...",
     "rowsProcessed": "処理行数",
+    "exportScope": "エクスポートする行",
+    "exportScopeAll": "すべての行",
+    "exportScopeLoaded": "現在の結果",
     "exportLoadedRowsWarning": "合計 {{total}} 行のうち、読み込み済みの {{loaded}} 行のみをエクスポートしました。さらに多くの行が必要な場合は、結果をページ送りするか、より絞り込んだクエリを実行してからエクスポートしてください。",
     "exportLoadedRowsWarningUnknownTotal": "読み込み済みの {{loaded}} 行のみをエクスポートしました。結果には読み込まれた行より多くの行があります。さらに多くの行が必要な場合は、結果をページ送りするか、より絞り込んだクエリを実行してからエクスポートしてください。",
-    "exportLoadedHtml": "読み込み済みの行を HTML としてエクスポート…",
-    "exportLoadedNdjson": "読み込み済みの行を NDJSON としてエクスポート…",
     "queryParameters": "クエリパラメータ",
     "formatSql": "SQLをフォーマット",
     "selectCurrentStatement": "現在のステートメントを選択",
@@ -2132,7 +2175,12 @@
         "operations": "操作",
         "indexName": "インデックス",
         "scans": "スキャン数"
-      }
+      },
+      "copied": "コピーしました",
+      "copyDetails": "詳細をコピー",
+      "detailsCopied": "ノードの詳細をクリップボードにコピーしました",
+      "copyDetailsFailed": "ノードの詳細をクリップボードにコピーできませんでした",
+      "nodeDetails": "ノードの詳細"
     },
     "notebook": {
       "addSqlCell": "SQL セルを追加",
@@ -2143,6 +2191,10 @@
       "runAllTooltip": "上から下へすべての SQL セルを実行",
       "runCell": "セルを実行",
       "deleteCell": "セルを削除",
+      "copySource": "ソースをコピー",
+      "copiedSource": "ソースをクリップボードにコピーしました",
+      "copySourceFailed": "セルのソースをクリップボードにコピーできませんでした。",
+      "duplicateCellToEnd": "末尾に複製",
       "moveCellUp": "上に移動",
       "moveCellDown": "下に移動",
       "export": "ノートブックをエクスポート",
@@ -2437,7 +2489,14 @@
     "exportSuccess": "図をエクスポートしました",
     "exportDbml": "DBML としてエクスポート",
     "exportMarkdown": "Markdown としてエクスポート",
-    "export": "エクスポート"
+    "export": "エクスポート",
+    "legend": "凡例",
+    "primaryKey": "主キー",
+    "primaryKeyDesc": "テーブル内の行を一意に識別する列",
+    "foreignKey": "外部キー",
+    "foreignKeyDesc": "別のテーブルの主キーまたは一意キーを参照します",
+    "relationship": "リレーション",
+    "relationshipDesc": "子テーブルと親テーブルを結ぶ外部キー参照"
   },
   "views": {
     "createView": "ビューを作成",
@@ -2693,6 +2752,10 @@
   },
   "secondaryWindows": {
     "sessionExpired": "このサブウィンドウのセッションは期限切れです。元の画面に戻って、もう一度開いてください。"
+  },
+  "textViewer": {
+    "save": "保存",
+    "wrapLines": "折り返し"
   },
   "rowEditor": {
     "title": "行を編集",
@@ -3247,6 +3310,10 @@
     },
     "unknown": {
       "summary": "接続に失敗しました"
+    },
+    "keychain": {
+      "summary": "システムのキーチェーンを利用できません",
+      "recovery": "パスワードを保存するための OS の資格情報ストアに接続できませんでした。Linux では Secret Service プロバイダー（GNOME Keyring、KWallet、KeePassXC）が起動してロック解除されていることを確認するか、この接続の「パスワードをキーチェーンに保存」をオフにしてください。"
     }
   },
   "connectionTest": {
@@ -3291,6 +3358,22 @@
     "groups": { "builtin": "内蔵 · オフライン", "installed": "インストール済みパッケージ", "personal": "個人テーマ" }, "modes": { "light": "ライト", "dark": "ダーク", "high-contrast": "ハイコントラスト" },
     "importErrors": { "unrecognized": "VS Code テーマとして認識できません。", "modeRequired": "モードを選択して再度プレビューしてください。", "includeOnly": "include のみのテーマはインポートできません。実際の色データを指定してください。", "noSupportedData": "対応する色や SQL トークン規則がありません。", "invalidColor": "対応する色の値が無効です。", "invalidRules": "トークン規則が無効または多すぎます。" },
     "diagnostics": { "unsupportedKey": "非対応のフィールド", "unsupportedColor": "非対応の色", "unsupportedScope": "非対応のスコープ", "scopeApproximation": "近似的な SQL スコープ変換", "unsupportedStyle": "非対応のスタイル", "ignoredInclude": "include は読み込まれません", "ignoredSemanticTokens": "セマンティックトークンを無視", "unsupportedReference": "外部参照は読み込まれません", "unsupportedSetting": "非対応の設定", "tokenAlphaFlattened": "トークンの不透明度を基本背景に合成", "modeApproximation": "モードを上書きまたは近似", "diagnosticsTruncated": "追加の診断を省略" }
+  },
+  "linkedGit": {
+    "title": "Gitの変更を確認",
+    "diskOnly": "コミットにはディスクに保存されたファイルを使用します。未保存の下書きは含まれません。確認してチェックしたスクリプトのみが対象です。",
+    "desktopOnly": "リンクしたSQLフォルダーのGit機能はデスクトップアプリでのみ利用できます。",
+    "refresh": "変更を更新",
+    "commit": "選択したスクリプトをコミット",
+    "committed": "コミット {{commit}} を作成しました。",
+    "renames": "M 変更 · A 追加 · D 削除 · ? 未追跡。名前変更は削除と追加として表示されるため、両方を確認してください。",
+    "empty": "変更されたSQLスクリプトはありません。",
+    "files": "変更されたSQLスクリプト",
+    "include": "{{path}} をコミットに含める",
+    "review": "{{path}} を確認",
+    "diff": "確認したファイルの差分",
+    "choose": "スクリプトを選択し、含める前に差分を確認してください。",
+    "message": "コミットメッセージ"
   },
   "aiInline": {
     "title": "AIインライン補完",

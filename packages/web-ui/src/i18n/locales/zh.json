@@ -124,6 +124,13 @@
     "warnConfirm": "仍然执行",
     "warnSnooze": "此连接不再询问（本次会话）"
   },
+  "readOnly": {
+    "label": "只读模式",
+    "description": "阻止通过此连接写入。启用时跳过启动脚本。",
+    "unsupported": "此驱动程序不支持受保护的只读查询。",
+    "writeBlocked": "此连接为只读。请在连接设置中关闭此模式以允许写入。",
+    "banner": "{{name}} — 只读模式"
+  },
   "textStats": {
     "characters": "字符数:{{count}}",
     "lines": "行数:{{count}}",
@@ -364,6 +371,7 @@
     "noQueryHistory": "暂无查询历史",
     "noHistorySearchResults": "没有匹配的查询",
     "searchHistory": "搜索历史...",
+    "historySearchErrors": "包含错误信息",
     "historyOutcomeFilter": "按结果筛选",
     "historyOutcomeAny": "全部结果",
     "historyOutcomeSucceeded": "成功",
@@ -641,6 +649,14 @@
       "title": "SQL 代码片段",
       "subtitle": "定义可复用的 SQL 模板，包含触发前缀和制表位占位符，适用于 Monaco 自动完成。",
       "add": "新建代码片段",
+      "exportJson": "导出 JSON",
+      "exportFailed": "无法导出代码片段：{{error}}",
+      "duplicate": "创建副本",
+      "search": "搜索代码片段",
+      "filterScope": "按范围筛选",
+      "allScopes": "所有范围",
+      "genericScope": "通用（所有方言）",
+      "noMatches": "没有匹配的代码片段。",
       "createTitle": "创建代码片段",
       "editTitle": "编辑代码片段",
       "nameLabel": "代码片段名称",
@@ -794,6 +810,11 @@
     "spanish": "Español",
     "appearance_editorMinimap": "显示缩略图",
     "appearance_editorMinimapDesc": "显示 SQL 脚本的缩小概览，方便快速导航。",
+    "appearance_editorRenderWhitespace": "显示空格和制表符",
+    "appearance_editorRenderWhitespaceDesc": "显示普通空白字符标记，不更改 SQL 文本。",
+    "appearance_whitespaceNone": "无",
+    "appearance_whitespaceSelection": "选中范围",
+    "appearance_whitespaceAll": "全部",
     "appearance_editorHighlightInvisibleCharacters": "显示不可见字符",
     "appearance_editorHighlightInvisibleCharactersDesc": "突出显示 SQL 中隐藏的 Unicode 字符和形似字符。",
     "formatter_title": "SQL 格式化",
@@ -888,7 +909,24 @@
       "customOpenaiModelDesc": "输入您的 OpenAI 兼容服务提供的模型名称。",
       "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。",
       "promptResetSuccess": "提示词已重置为默认值",
-      "apiKeySaved": "API 密钥已安全保存"
+      "apiKeySaved": "API 密钥已安全保存",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "重试设置",
+      "pluginMigration": "正在恢复 AI 提供商设置：{{providers}}。",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "无需离开此设置页面即可安装或移除外部 AI 提供商。",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "移除 {{provider}}",
+      "removingProvider": "正在移除提供商…",
+      "noExternalProviders": "没有可用的外部提供商。",
+      "activeProviderRemoved": "当前提供商已移除，AI 已停用。请启用 AI 并选择其他提供商以继续。"
     },
     "updates": "更新",
     "openSourceLibraries": "开源库",
@@ -1077,7 +1115,9 @@
         }
       },
       "poweredBy": "技术支持：",
-      "openHomepage": "打开主页"
+      "openHomepage": "打开主页",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "键盘快捷键",
@@ -1588,6 +1628,7 @@
       "chooseColumns": "选择列…",
       "title": "列",
       "shown": "显示 {{visible}} / {{total}}",
+      "showOnlyMatching": "仅显示匹配列",
       "showAll": "全部显示",
       "lastVisible": "至少保留一列可见",
       "hiddenCount_one": "已隐藏 {{count}}",
@@ -1861,6 +1902,7 @@
     "dangerousQueryTruncateTitle": "清空此表？",
     "dangerousQueryTruncateMessage": "TRUNCATE 会删除表中的所有行。此操作无法撤销。",
     "showErrorDetails": "显示详情",
+    "fixWithAi": "使用 AI 修复",
     "hideErrorDetails": "隐藏详情",
     "errorBoundary": {
       "title": "编辑器意外崩溃",
@@ -1901,10 +1943,11 @@
     "transactionOpenHint": "事务进行中 — 此标签页会保留其连接，直到你执行 COMMIT 或 ROLLBACK",
     "exporting": "导出中...",
     "rowsProcessed": "已处理行数",
+    "exportScope": "要导出的行",
+    "exportScopeAll": "所有行",
+    "exportScopeLoaded": "当前结果",
     "exportLoadedRowsWarning": "仅导出了总计 {{total}} 行中的 {{loaded}} 行已加载数据。如果需要更多行，请先翻页加载结果或运行范围更窄的查询后再导出。",
     "exportLoadedRowsWarningUnknownTotal": "仅导出了已加载的 {{loaded}} 行。结果中的行数多于已加载的行数。如果需要更多行，请先翻页加载结果或运行范围更窄的查询后再导出。",
-    "exportLoadedHtml": "将已加载的行导出为 HTML…",
-    "exportLoadedNdjson": "将已加载的行导出为 NDJSON…",
     "queryParameters": "查询参数",
     "formatSql": "格式化 SQL",
     "selectCurrentStatement": "选择当前语句",
@@ -2094,7 +2137,12 @@
         "operations": "操作",
         "indexName": "索引",
         "scans": "扫描次数"
-      }
+      },
+      "copied": "已复制",
+      "copyDetails": "复制详情",
+      "detailsCopied": "节点详情已复制到剪贴板",
+      "copyDetailsFailed": "无法将节点详情复制到剪贴板",
+      "nodeDetails": "节点详情"
     },
     "notebook": {
       "addSqlCell": "添加 SQL 单元格",
@@ -2105,6 +2153,10 @@
       "runAllTooltip": "从上到下执行所有 SQL 单元格",
       "runCell": "运行单元格",
       "deleteCell": "删除单元格",
+      "copySource": "复制源代码",
+      "copiedSource": "源代码已复制到剪贴板",
+      "copySourceFailed": "无法将单元格源代码复制到剪贴板。",
+      "duplicateCellToEnd": "复制到末尾",
       "moveCellUp": "上移",
       "moveCellDown": "下移",
       "export": "导出笔记本",
@@ -2379,7 +2431,14 @@
     "exportSuccess": "图表已导出",
     "exportDbml": "导出为 DBML",
     "exportMarkdown": "导出为 Markdown",
-    "export": "导出"
+    "export": "导出",
+    "legend": "图例",
+    "primaryKey": "主键",
+    "primaryKeyDesc": "唯一标识表中行的列",
+    "foreignKey": "外键",
+    "foreignKeyDesc": "引用另一个表中的主键或唯一键",
+    "relationship": "关系",
+    "relationshipDesc": "连接子表与父表的外键引用"
   },
   "views": {
     "createView": "创建视图",
@@ -2617,6 +2676,10 @@
   "jsonCell": {
     "expand": "展开/收起 JSON 树",
     "openViewer": "打开 JSON 查看器"
+  },
+  "textViewer": {
+    "save": "保存",
+    "wrapLines": "自动换行"
   },
   "rowEditor": {
     "title": "编辑行",
@@ -3168,6 +3231,10 @@
     },
     "unknown": {
       "summary": "连接失败"
+    },
+    "keychain": {
+      "summary": "系统钥匙串不可用",
+      "recovery": "Tabularis 无法访问系统凭据存储来保存密码。在 Linux 上，请确认 Secret Service 提供程序（GNOME Keyring、KWallet、KeePassXC）正在运行且已解锁，或为此连接关闭“在密钥链中保存密码”。"
     }
   },
   "connectionTest": {
@@ -3212,6 +3279,22 @@
     "groups": { "builtin": "内置 · 离线", "installed": "已安装主题包", "personal": "个人主题" }, "modes": { "light": "浅色", "dark": "深色", "high-contrast": "高对比度" },
     "importErrors": { "unrecognized": "无法识别此 VS Code 主题。", "modeRequired": "请选择模式，然后重新预览。", "includeOnly": "无法导入仅含 include 的主题。请提供实际颜色数据。", "noSupportedData": "未找到支持的颜色或 SQL 词法规则。", "invalidColor": "某个支持的颜色值无效。", "invalidRules": "词法规则无效或过多。" },
     "diagnostics": { "unsupportedKey": "不支持的字段", "unsupportedColor": "不支持的颜色", "unsupportedScope": "不支持的作用域", "scopeApproximation": "近似 SQL 作用域映射", "unsupportedStyle": "不支持的样式", "ignoredInclude": "未加载 include", "ignoredSemanticTokens": "已忽略语义词法标记", "unsupportedReference": "未加载外部引用", "unsupportedSetting": "不支持的设置", "tokenAlphaFlattened": "词法标记不透明度按基础背景计算", "modeApproximation": "模式已覆盖或近似转换", "diagnosticsTruncated": "已省略其他诊断信息" }
+  },
+  "linkedGit": {
+    "title": "查看 Git 更改",
+    "diskOnly": "提交使用磁盘上已保存的文件，不包含未保存的编辑器草稿。只有勾选并查看过的脚本才会被提交。",
+    "desktopOnly": "关联 SQL 文件夹的 Git 功能仅适用于桌面应用。",
+    "refresh": "刷新更改",
+    "commit": "提交选中的脚本",
+    "committed": "已创建提交 {{commit}}。",
+    "renames": "M 已修改 · A 已添加 · D 已删除 · ? 未跟踪。重命名显示为删除和添加，请查看两者。",
+    "empty": "没有已更改的 SQL 脚本。",
+    "files": "已更改的 SQL 脚本",
+    "include": "将 {{path}} 包含在提交中",
+    "review": "查看 {{path}}",
+    "diff": "已查看文件的差异",
+    "choose": "选择脚本并查看差异后，才能将其包含在提交中。",
+    "message": "提交消息"
   },
   "aiInline": {
     "title": "AI 行内补全",

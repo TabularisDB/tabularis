@@ -124,6 +124,13 @@
     "warnConfirm": "Run anyway",
     "warnSnooze": "Don't ask again for this connection (this session)"
   },
+  "readOnly": {
+    "label": "Read-only mode",
+    "description": "Block writes on this connection. Startup scripts are skipped while enabled.",
+    "unsupported": "This driver does not support protected read-only queries.",
+    "writeBlocked": "This connection is read-only. Disable read-only mode in its settings to allow writes.",
+    "banner": "{{name}} — read-only mode"
+  },
   "textStats": {
     "characters": "Characters: {{count}}",
     "lines": "Lines: {{count}}",
@@ -378,6 +385,7 @@
     "noQueryHistory": "No query history",
     "noHistorySearchResults": "No queries match your search",
     "searchHistory": "Search history...",
+    "historySearchErrors": "Include error messages",
     "historyOutcomeFilter": "Filter by outcome",
     "historyOutcomeAny": "Any outcome",
     "historyOutcomeSucceeded": "Succeeded",
@@ -659,6 +667,14 @@
       "title": "SQL Snippets",
       "subtitle": "Define reusable SQL templates with trigger prefixes and tab-stop placeholders for Monaco autocomplete.",
       "add": "New Snippet",
+      "exportJson": "Export JSON",
+      "exportFailed": "Failed to export snippets: {{error}}",
+      "duplicate": "Duplicate",
+      "search": "Search snippets",
+      "filterScope": "Filter by scope",
+      "allScopes": "All scopes",
+      "genericScope": "Generic (all dialects)",
+      "noMatches": "No matching snippets.",
       "createTitle": "Create Snippet",
       "editTitle": "Edit Snippet",
       "nameLabel": "Snippet Name",
@@ -832,6 +848,11 @@
     "appearance_editorTabSize": "Tab Size",
     "appearance_editorWordWrap": "Word Wrap",
     "appearance_editorWordWrapDesc": "Wrap long lines in the editor instead of scrolling horizontally.",
+    "appearance_editorRenderWhitespace": "Show spaces and tabs",
+    "appearance_editorRenderWhitespaceDesc": "Display ordinary whitespace markers without changing the SQL text.",
+    "appearance_whitespaceNone": "None",
+    "appearance_whitespaceSelection": "Selection",
+    "appearance_whitespaceAll": "All",
     "appearance_editorHighlightInvisibleCharacters": "Show invisible characters",
     "appearance_editorHighlightInvisibleCharactersDesc": "Mark hidden Unicode and look-alike characters in SQL.",
     "appearance_editorMinimap": "Show Minimap",
@@ -984,7 +1005,24 @@
       "customOpenaiModelDesc": "Enter the model name provided by your OpenAI-compatible service.",
       "customOpenaiModelHelp": "Enter the exact model name for your OpenAI-compatible provider.",
       "promptResetSuccess": "Prompt reset to default",
-      "apiKeySaved": "API key saved securely"
+      "apiKeySaved": "API key saved securely",
+      "manageProviders": "Browse AI providers",
+      "retryMigration": "Retry setup",
+      "pluginMigration": "Restoring your AI provider settings: {{providers}}.",
+      "providerMissing": "{{provider}} is not installed. Install it from the Plugin Center to continue using your saved configuration.",
+      "availableProviders": "Available providers",
+      "installProviderHelp": "Install or remove external AI providers without leaving these settings.",
+      "installAndUse": "Install and use",
+      "installAndUseProvider": "Install and use {{provider}}",
+      "installingProvider": "Installing provider…",
+      "providerRegistryOffline": "The provider registry is unavailable. Installed providers remain available.",
+      "allProvidersInstalled": "All available providers are installed.",
+      "providerRequiresUpdate": "This provider requires a compatible application version or platform.",
+      "builtinProvider": "Built in",
+      "removeProvider": "Remove {{provider}}",
+      "removingProvider": "Removing provider…",
+      "noExternalProviders": "No external providers are available.",
+      "activeProviderRemoved": "The active provider was removed. AI has been disabled. Enable AI and select another provider to continue."
     },
     "updates": "Updates",
     "openSourceLibraries": "Open Source Libraries",
@@ -1181,7 +1219,9 @@
         }
       },
       "poweredBy": "Powered by",
-      "openHomepage": "Open homepage"
+      "openHomepage": "Open homepage",
+      "kindAiAssistant": "AI assistant",
+      "kindAiAssistants": "AI assistants"
     },
     "shortcuts": {
       "title": "Keyboard Shortcuts",
@@ -1682,6 +1722,7 @@
       "chooseColumns": "Choose columns…",
       "title": "Columns",
       "shown": "{{visible}} of {{total}} shown",
+      "showOnlyMatching": "Show only matching",
       "showAll": "Show all",
       "lastVisible": "At least one column stays visible",
       "hiddenCount_one": "{{count}} hidden",
@@ -1938,6 +1979,7 @@
     "dangerousQueryTruncateTitle": "Truncate this table?",
     "dangerousQueryTruncateMessage": "TRUNCATE deletes every row in the table. This cannot be undone.",
     "showErrorDetails": "Show details",
+    "fixWithAi": "Fix with AI",
     "hideErrorDetails": "Hide details",
     "errorBoundary": {
       "title": "The editor crashed unexpectedly",
@@ -1997,10 +2039,11 @@
     "transactionOpenHint": "Transaction open — this tab keeps its connection until you COMMIT or ROLLBACK",
     "exporting": "Exporting...",
     "rowsProcessed": "Rows Processed",
+    "exportScope": "Rows to export",
+    "exportScopeAll": "All rows",
+    "exportScopeLoaded": "Current results",
     "exportLoadedRowsWarning": "Only {{loaded}} loaded rows were exported out of {{total}} total rows. Page through the result or run a narrower query before exporting if you need more rows.",
     "exportLoadedRowsWarningUnknownTotal": "Only {{loaded}} loaded rows were exported. The result has more rows than were loaded. Page through the result or run a narrower query before exporting if you need more rows.",
-    "exportLoadedHtml": "Export loaded rows as HTML…",
-    "exportLoadedNdjson": "Export loaded rows as NDJSON…",
     "queryParameters": "Query Parameters",
     "formatSql": "Format SQL",
     "selectCurrentStatement": "Select current statement",
@@ -2192,7 +2235,12 @@
         "operations": "Operations",
         "indexName": "Index",
         "scans": "Scans"
-      }
+      },
+      "copied": "Copied",
+      "copyDetails": "Copy Details",
+      "detailsCopied": "Node details copied to clipboard",
+      "copyDetailsFailed": "Failed to copy node details to clipboard",
+      "nodeDetails": "Node Details"
     },
     "notebook": {
       "addSqlCell": "Add SQL Cell",
@@ -2203,6 +2251,10 @@
       "runAllTooltip": "Execute all SQL cells top to bottom",
       "runCell": "Run Cell",
       "deleteCell": "Delete Cell",
+      "copySource": "Copy source",
+      "copiedSource": "Source copied to clipboard",
+      "copySourceFailed": "Couldn't copy the cell source to the clipboard",
+      "duplicateCellToEnd": "Duplicate to End",
       "moveCellUp": "Move Up",
       "moveCellDown": "Move Down",
       "export": "Export Notebook",
@@ -2497,7 +2549,14 @@
     "exportSuccess": "Diagram exported",
     "exportDbml": "Export as DBML",
     "exportMarkdown": "Export as Markdown",
-    "export": "Export"
+    "export": "Export",
+    "legend": "Legend",
+    "primaryKey": "Primary Key",
+    "primaryKeyDesc": "Unique column identifying rows in the table",
+    "foreignKey": "Foreign Key",
+    "foreignKeyDesc": "References a primary or unique key in another table",
+    "relationship": "Relationship",
+    "relationshipDesc": "Foreign key reference connecting child and parent tables"
   },
   "views": {
     "createView": "Create View",
@@ -2780,7 +2839,8 @@
     "sideBySide": "Side by side"
   },
   "textViewer": {
-    "save": "Save"
+    "save": "Save",
+    "wrapLines": "Wrap lines"
   },
   "rowEditor": {
     "title": "Edit Row",
@@ -3336,6 +3396,10 @@
     },
     "unknown": {
       "summary": "Connection failed"
+    },
+    "keychain": {
+      "summary": "System keychain unavailable",
+      "recovery": "Tabularis could not reach the OS credential store to save the passwords. On Linux, make sure a Secret Service provider (GNOME Keyring, KWallet, KeePassXC) is running and unlocked, or turn off \"Save passwords in Keychain\" for this connection."
     }
   },
   "connectionTest": {
@@ -3406,6 +3470,22 @@
     "copyMetadata": "Copy metadata",
     "copied": "Copied to clipboard",
     "copyFailed": "Could not copy to the clipboard. Try again."
+  },
+  "linkedGit": {
+    "title": "Review Git changes",
+    "diskOnly": "Commits use saved files on disk. Unsaved editor drafts are not included. Only checked, reviewed scripts will be committed.",
+    "desktopOnly": "Git for linked SQL folders is available in the desktop app only.",
+    "refresh": "Refresh changes",
+    "commit": "Commit selected scripts",
+    "committed": "Created commit {{commit}}.",
+    "renames": "M modified · A added · D deleted · ? untracked. Renames appear as a deletion and an addition; review both.",
+    "empty": "No changed SQL scripts.",
+    "files": "Changed SQL scripts",
+    "include": "Include {{path}} in commit",
+    "review": "Review {{path}}",
+    "diff": "Reviewed file diff",
+    "choose": "Select a script to review its diff before including it.",
+    "message": "Commit message"
   },
   "aiInline": {
     "title": "AI inline completion",
