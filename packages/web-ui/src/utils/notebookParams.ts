@@ -1,69 +1,76 @@
 import type {NotebookParam} from '@/types/notebook';
+import {maskNonCode} from './queryParameters';
+import type {DialectInput} from './sqlSplitter';
 
-const PARAM_PATTERN = /@(\w+)/g;
-const TEMPLATE_PARAM_PATTERN = /\$\{(\w+)\}/g;
+/**
+ * `@name` and `${name}` references. `@@name` is matched first so a server
+ * variable (`@@version`, `@@identity`) is never read as the parameter `name`.
+ */
+const REFERENCE_PATTERN = /@@\w+|@(\w+)|\$\{(\w+)\}/g;
+
+/**
+ * Calls `onReference` for every parameter reference in `sql`. An `@name`
+ * inside a string literal or comment is text (`'bob@example.com'`, `-- @id`),
+ * so it is skipped when `dialect` is known; `${name}` is a template and is
+ * reported wherever it appears, including inside quotes.
+ */
+function forEachReference(
+    sql: string,
+    dialect: DialectInput,
+    onReference: (match: string, name: string, offset: number) => void,
+): void {
+    const masked = maskNonCode(sql, dialect);
+    for (const m of sql.matchAll(REFERENCE_PATTERN)) {
+        const [match, atName, templateName] = m;
+        const offset = m.index;
+        if (atName !== undefined && masked[offset] === '@') {
+            onReference(match, atName, offset);
+        } else if (templateName !== undefined) {
+            onReference(match, templateName, offset);
+        }
+    }
+}
 
 export interface ParamReference {
     match: string;
     name: string;
 }
 
-export function extractParamReferences(sql: string): ParamReference[] {
+export function extractParamReferences(sql: string, dialect?: DialectInput): ParamReference[] {
     const refs: ParamReference[] = [];
-    let match: RegExpExecArray | null;
-
-    // Extract @name references
-    const atRegex = new RegExp(PARAM_PATTERN.source, 'g');
-    while ((match = atRegex.exec(sql)) !== null) {
-        refs.push({match: match[0], name: match[1]});
-    }
-
-    // Extract ${name} template references
-    const templateRegex = new RegExp(TEMPLATE_PARAM_PATTERN.source, 'g');
-    while ((match = templateRegex.exec(sql)) !== null) {
-        refs.push({match: match[0], name: match[1]});
-    }
-
+    forEachReference(sql, dialect, (match, name) => refs.push({match, name}));
     return refs;
 }
 
-export function hasParamReferences(sql: string): boolean {
-    return (
-        new RegExp(PARAM_PATTERN.source).test(sql) ||
-        new RegExp(TEMPLATE_PARAM_PATTERN.source).test(sql)
-    );
+export function hasParamReferences(sql: string, dialect?: DialectInput): boolean {
+    return extractParamReferences(sql, dialect).length > 0;
 }
 
+/**
+ * Replaces each parameter reference with its value in one pass, so a value
+ * that itself contains `@name` or `${name}` is inserted as is. References
+ * without a value are left in place and listed in `unresolvedParams`.
+ */
 export function resolveParams(
     sql: string,
     params: NotebookParam[],
+    dialect?: DialectInput,
 ): {sql: string; unresolvedParams: string[]} {
-    const refs = extractParamReferences(sql);
-    if (refs.length === 0) return {sql, unresolvedParams: []};
-
     const paramMap = new Map(params.map((p) => [p.name, p.value]));
-    const unresolvedParams: string[] = [];
-    let resolvedSql = sql;
-
-    // Process refs in reverse order to avoid index shifting
-    const uniqueNames = [...new Set(refs.map((r) => r.name))];
-    for (const name of uniqueNames) {
+    const unresolved = new Set<string>();
+    let resolvedSql = '';
+    let cursor = 0;
+    forEachReference(sql, dialect, (match, name, offset) => {
         const value = paramMap.get(name);
         if (value === undefined) {
-            unresolvedParams.push(name);
-            continue;
+            unresolved.add(name);
+            return;
         }
-
-        // Replace @name occurrences. The replacer function
-        // keeps `$&`, `$'` etc. in the value literal instead of being expanded as
-        // replacement patterns.
-        resolvedSql = resolvedSql.replace(new RegExp(`@${name}\\b`, 'g'), () => value);
-
-        // Replace ${name} template occurrences
-        resolvedSql = resolvedSql.replace(new RegExp(`\\$\\{${name}\\}`, 'g'), () => value);
-    }
-
-    return {sql: resolvedSql, unresolvedParams};
+        resolvedSql += sql.slice(cursor, offset) + value;
+        cursor = offset + match.length;
+    });
+    resolvedSql += sql.slice(cursor);
+    return {sql: resolvedSql, unresolvedParams: [...unresolved]};
 }
 
 export function validateParamName(name: string): boolean {
