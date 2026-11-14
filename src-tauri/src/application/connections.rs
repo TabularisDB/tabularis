@@ -1106,6 +1106,9 @@ fn clean_up_deleted_connection(
     {
         log::warn!("Failed to remove query history of deleted connection {id}: {error}");
     }
+    if let Err(error) = super::schema_notes::remove_for_connection(runtime.paths.config_dir(), id) {
+        log::warn!("Failed to remove schema notes of deleted connection {id}: {error}");
+    }
 }
 
 fn duplicate_connection(

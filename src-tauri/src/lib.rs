@@ -102,6 +102,9 @@ pub mod saved_queries_tests;
 pub mod saved_query_folders;
 #[cfg(test)]
 pub mod saved_query_folders_tests;
+pub mod schema_notes;
+#[cfg(test)]
+pub mod schema_notes_tests;
 pub mod secret_store;
 pub mod sql_database_statements;
 pub mod sql_file;
