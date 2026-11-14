@@ -490,6 +490,42 @@ fn test_build_paginated_query_honors_user_limit_offset_before_trailing_semicolon
 }
 
 #[test]
+fn test_strip_limit_offset_comma_form() {
+    for q in [
+        "SELECT * FROM t ORDER BY id LIMIT 5, 10",
+        "SELECT * FROM t ORDER BY id LIMIT 5,10",
+        "SELECT * FROM t ORDER BY id LIMIT 5 , 10",
+        "SELECT * FROM t ORDER BY id LIMIT 5 ,10",
+    ] {
+        assert_eq!(strip_limit_offset(q), "SELECT * FROM t ORDER BY id", "{q}");
+    }
+}
+
+#[test]
+fn test_build_paginated_query_honors_comma_form_limit() {
+    // MySQL/SQLite `LIMIT <offset>, <count>`: 10 rows after the first 5.
+    let q = "SELECT * FROM t ORDER BY id LIMIT 5, 10";
+    assert_eq!(
+        build_paginated_query(q, 100, 1),
+        "SELECT * FROM t ORDER BY id LIMIT 10 OFFSET 5"
+    );
+    let q = "SELECT * FROM t ORDER BY id LIMIT 20,250;";
+    assert_eq!(
+        build_paginated_query(q, 100, 2),
+        "SELECT * FROM t ORDER BY id LIMIT 101 OFFSET 120"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_ignores_comma_limit_in_subquery() {
+    let q = "SELECT * FROM (SELECT * FROM t LIMIT 5, 10) s";
+    assert_eq!(
+        build_paginated_query(q, 100, 1),
+        "SELECT * FROM (SELECT * FROM t LIMIT 5, 10) s LIMIT 101 OFFSET 0"
+    );
+}
+
+#[test]
 fn test_build_paginated_query_replaces_user_limit() {
     let q = "SELECT * FROM t ORDER BY id LIMIT 50";
     let result = build_paginated_query(q, 100, 1);
