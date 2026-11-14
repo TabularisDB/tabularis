@@ -172,6 +172,8 @@ export function parsePostgresText(raw: string): ExplainPlan {
         }
     };
 
+    let planningIndent: number | null = null;
+
     for (const line of raw.split('\n')) {
         const rawLine = line.replace(/\s+$/, '');
         if (rawLine.trim() === '') continue;
@@ -179,6 +181,15 @@ export function parsePostgresText(raw: string): ExplainPlan {
 
         const indent = leadingWidth(rawLine);
         const trimmed = rawLine.trimStart();
+
+        if (planningIndent !== null) {
+            if (indent > planningIndent) continue;
+            planningIndent = null;
+        }
+        if (trimmed === 'Planning:') {
+            planningIndent = indent;
+            continue;
+        }
 
         const planning = stripMsSuffix(trimmed, 'Planning Time:');
         if (planning !== null) {
@@ -352,7 +363,7 @@ function parseActualFields(inner: string): [number | null, number | null, number
     //   "never executed"
     const trimmed = inner.trim();
     if (trimmed.toLowerCase() === 'never executed') {
-        return [null, null, null];
+        return [null, null, 0];
     }
     const rest = trimmed.startsWith('actual ') ? trimmed.slice(7) : trimmed;
 
@@ -394,7 +405,28 @@ function applyTextAttribute(node: ExplainNode, content: string): void {
     } else {
         const sep = content.indexOf(':');
         if (sep !== -1) {
-            node.extra[content.slice(0, sep).trim()] = content.slice(sep + 1).trim();
+            const key = content.slice(0, sep).trim();
+            const value = content.slice(sep + 1).trim();
+            node.extra[key] = value;
+            if (key === 'Buffers') {
+                applySharedBuffers(node, value);
+            }
+        }
+    }
+}
+
+function applySharedBuffers(node: ExplainNode, value: string): void {
+    const shared = value
+        .split(',')
+        .map((group) => group.trim())
+        .find((group) => group.startsWith('shared '));
+    if (shared === undefined) return;
+
+    for (const part of shared.split(/\s+/)) {
+        if (part.startsWith('hit=')) {
+            node.buffers_hit = parseFiniteNumber(part.slice(4));
+        } else if (part.startsWith('read=')) {
+            node.buffers_read = parseFiniteNumber(part.slice(5));
         }
     }
 }
