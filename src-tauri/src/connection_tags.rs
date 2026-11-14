@@ -198,6 +198,7 @@ mod tests {
                     color: "#ff0000".to_string(),
                 })
                 .collect(),
+            ..Default::default()
         }
     }
 

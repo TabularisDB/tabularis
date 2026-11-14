@@ -14,6 +14,9 @@ vi.mock('@/hooks/usePlatformCapabilities', () => ({
         chooseServerPath: vi.fn(),
     }),
 }));
+vi.mock('@/hooks/useCanManageCredentialProfiles', () => ({
+    useCanManageCredentialProfiles: () => true,
+}));
 import {NewConnectionModal} from '@/components/modals/NewConnectionModal';
 import {PluginSlotContext} from '@/contexts/PluginSlotContext';
 import type {PluginSlotRegistryType} from '@/contexts/PluginSlotContext';
@@ -52,6 +55,12 @@ const sshMocks = vi.hoisted(() => ({
     testSshConnection: vi.fn(),
 }));
 
+const credentialProfileMocks = vi.hoisted(() => ({
+    loadCredentialProfiles: vi.fn().mockResolvedValue([]),
+    createCredentialProfile: vi.fn(),
+    deleteCredentialProfile: vi.fn(),
+}));
+
 const eventMocks = vi.hoisted(() => ({
     listen: vi.fn(),
     unlisten: vi.fn(),
@@ -70,13 +79,7 @@ vi.mock('@tauri-apps/api/event', () => ({
     listen: eventMocks.listen,
 }));
 
-vi.mock('@/hooks/useTabularisClient', () => ({
-    useTabularisClient: () => ({
-        call: (command: string, request: unknown) => invoke(command, request),
-        subscribe: (event: string, handler: (payload: unknown) => void) =>
-            eventMocks.listen(event, ({payload}: {payload: unknown}) => handler(payload)),
-    }),
-}));
+vi.mock('@/hooks/useTabularisClient', () => import('../../support/tauriBackedHooks'));
 
 vi.mock('@/hooks/useAlert', () => ({
     useAlert: () => ({showAlert: alertMocks.showAlert}),
@@ -305,6 +308,36 @@ vi.mock('@/hooks/useConnectionCatalogue', () => ({
 vi.mock('@/utils/ssh', () => ({
     loadSshConnections: () => sshMocks.loadSshConnections(),
     testSshConnection: (ssh: unknown, options: unknown) => sshMocks.testSshConnection(ssh, options),
+}));
+
+vi.mock('@/utils/credentialProfiles', () => ({
+    loadCredentialProfiles: async () => {
+        const result = await credentialProfileMocks.loadCredentialProfiles();
+        return Array.isArray(result) ? result : [];
+    },
+    createCredentialProfile: (name: string, username: string, password: string, client?: unknown) =>
+        credentialProfileMocks.createCredentialProfile(name, username, password, client),
+    deleteCredentialProfile: (id: string, client?: unknown) =>
+        credentialProfileMocks.deleteCredentialProfile(id, client),
+    validateCredentialProfileForm: (
+        data: {name?: string; username?: string; password?: string},
+        options: {requirePassword: boolean},
+    ) => {
+        if (!data.name?.trim()) {
+            return {isValid: false, errorKey: 'credentialProfiles.errors.nameRequired'};
+        }
+        if (!data.username?.trim()) {
+            return {isValid: false, errorKey: 'credentialProfiles.errors.usernameRequired'};
+        }
+        if (options.requirePassword && !data.password?.trim()) {
+            return {isValid: false, errorKey: 'credentialProfiles.errors.passwordRequired'};
+        }
+        return {isValid: true};
+    },
+}));
+
+vi.mock('@/components/modals/CredentialProfilesModal', () => ({
+    CredentialProfilesModal: () => null,
 }));
 
 vi.mock('@/utils/k8s', () => ({
@@ -2316,6 +2349,428 @@ describe('NewConnectionModal extra_fields slot plugin secrets', () => {
             expect(invokeArgs('update_connection')).toBeDefined();
         });
         expect(invokeArgs('update_connection')?.pluginSecretChanges).toEqual({});
+    });
+});
+
+describe('NewConnectionModal credential profiles', () => {
+    const profiles = [
+        {id: 'profile-1', name: 'Shared login', username: 'profile_user'},
+        {id: 'profile-2', name: 'Other login', username: 'other_user'},
+    ];
+
+    function profileSelect() {
+        return screen.getByRole('combobox', {name: 'newConnection.selectCredentialProfile'});
+    }
+
+    async function fillNewMysqlConnection() {
+        renderModal();
+        pickEngineFromCatalogue();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.namePlaceholder'), {
+            target: {value: 'Profile DB'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('localhost'), {
+            target: {value: 'localhost'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('newConnection.dbNamePlaceholder'), {
+            target: {value: 'app'},
+        });
+        await waitFor(() => expect(profileSelect()).toBeInTheDocument());
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        driverState.defaultPort = 3306;
+        credentialProfileMocks.loadCredentialProfiles.mockResolvedValue(profiles);
+        sshMocks.loadSshConnections.mockResolvedValue([]);
+        k8sMocks.loadK8sConnections.mockResolvedValue([]);
+        eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+        vi.mocked(invoke).mockImplementation(async (command) => {
+            if (command === 'save_connection') {
+                return {id: 'new-connection', params: {save_in_keychain: true}};
+            }
+            if (command === 'update_connection') {
+                return {id: 'connection-1', params: {save_in_keychain: true}};
+            }
+            if (command === 'get_connection_by_id') {
+                return {
+                    id: 'connection-1',
+                    name: 'Existing',
+                    params: {
+                        driver: 'mysql',
+                        database: 'app',
+                        host: 'localhost',
+                        username: 'profile_user',
+                        credential_profile_id: 'profile-1',
+                        save_in_keychain: true,
+                    },
+                };
+            }
+            return 'ok';
+        });
+    });
+
+    it('renders credential fields while profiles load and updates the picker when they arrive', async () => {
+        let resolveProfiles!: (value: typeof profiles) => void;
+        const pendingProfiles = new Promise<typeof profiles>((resolve) => {
+            resolveProfiles = resolve;
+        });
+        credentialProfileMocks.loadCredentialProfiles.mockReturnValue(pendingProfiles);
+
+        renderModal();
+        pickEngineFromCatalogue();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.namePlaceholder'), {
+            target: {value: 'Profile DB'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('localhost'), {
+            target: {value: 'localhost'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('newConnection.dbNamePlaceholder'), {
+            target: {value: 'app'},
+        });
+        await waitFor(() => expect(profileSelect()).toBeInTheDocument());
+
+        resolveProfiles(profiles);
+        await waitFor(() =>
+            expect(profileSelect().querySelectorAll('option').length).toBeGreaterThan(1),
+        );
+        fireEvent.change(profileSelect(), {target: {value: 'profile-1'}});
+        expect(screen.getByPlaceholderText('newConnection.usernamePlaceholder')).toHaveValue(
+            'profile_user',
+        );
+    });
+
+    it('saves a new connection with a selected credential profile and no inline password', async () => {
+        await fillNewMysqlConnection();
+        fireEvent.change(profileSelect(), {target: {value: 'profile-1'}});
+        expect(screen.getByPlaceholderText('newConnection.usernamePlaceholder')).toHaveValue(
+            'profile_user',
+        );
+        expect(
+            screen.queryByPlaceholderText('newConnection.passwordPlaceholder'),
+        ).not.toBeInTheDocument();
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('save_connection', expect.anything()),
+        );
+        const payload = invokeArgs('save_connection');
+        expect(payload?.params).toMatchObject({
+            credential_profile_id: 'profile-1',
+            username: 'profile_user',
+        });
+        expect(payload?.params).not.toHaveProperty('password');
+    });
+
+    it('reopens an existing profile-linked connection without showing a password field', async () => {
+        renderModal(
+            createInitialConnection({
+                host: 'localhost',
+                username: 'profile_user',
+                credential_profile_id: 'profile-1',
+                save_in_keychain: true,
+            }),
+        );
+        await waitFor(() => expect(profileSelect()).toHaveValue('profile-1'));
+        expect(
+            screen.queryByPlaceholderText('newConnection.passwordPlaceholder'),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('••••••••')).not.toBeInTheDocument();
+    });
+
+    it('switches between profiles and updates the username', async () => {
+        await fillNewMysqlConnection();
+        fireEvent.change(profileSelect(), {target: {value: 'profile-1'}});
+        expect(screen.getByPlaceholderText('newConnection.usernamePlaceholder')).toHaveValue(
+            'profile_user',
+        );
+        fireEvent.change(profileSelect(), {target: {value: 'profile-2'}});
+        expect(screen.getByPlaceholderText('newConnection.usernamePlaceholder')).toHaveValue(
+            'other_user',
+        );
+    });
+
+    it('unlinks a profile and restores inline credential fields on save', async () => {
+        renderModal(
+            createInitialConnection({
+                host: 'localhost',
+                username: 'profile_user',
+                credential_profile_id: 'profile-1',
+                save_in_keychain: true,
+            }),
+        );
+        await waitFor(() => expect(profileSelect()).toHaveValue('profile-1'));
+        fireEvent.change(profileSelect(), {target: {value: ''}});
+        const passwordInput = screen.getByPlaceholderText('••••••••');
+        expect(passwordInput).toBeInTheDocument();
+        fireEvent.change(passwordInput, {
+            target: {value: 'inline-secret'},
+        });
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('update_connection', expect.anything()),
+        );
+        const payload = updateConnectionPayload();
+        expect(payload).toMatchObject({password: 'inline-secret'});
+        expect(payload).not.toHaveProperty('credential_profile_id');
+    });
+
+    it('sends the IAM token on Test Connection when a profile is selected', async () => {
+        await fillNewMysqlConnection();
+        fireEvent.change(profileSelect(), {target: {value: 'profile-1'}});
+        await waitFor(() => expect(profileSelect()).toHaveValue('profile-1'));
+
+        fireEvent.click(screen.getByText('SSL'));
+        const iam = screen.getByRole('checkbox', {name: /newConnection\.useIamAuth/});
+        fireEvent.click(iam);
+        expect(iam).toBeChecked();
+
+        fireEvent.click(screen.getByText('newConnection.general'));
+        fireEvent.change(screen.getByPlaceholderText('newConnection.passwordPlaceholder'), {
+            target: {value: 'rds-token'},
+        });
+        fireEvent.click(screen.getByText('newConnection.testConnection'));
+
+        await waitFor(() => {
+            expect(invokeArgs('test_connection')).toBeDefined();
+        });
+        const request = invokeArgs('test_connection')?.request as {
+            params: Record<string, unknown>;
+        };
+        expect(request.params).toMatchObject({
+            credential_profile_id: 'profile-1',
+            use_iam_auth: true,
+            password: 'rds-token',
+            username: 'profile_user',
+        });
+    });
+
+    it('creates a profile from inline credentials and links the connection on save', async () => {
+        credentialProfileMocks.createCredentialProfile.mockResolvedValue({
+            id: 'profile-new',
+            name: 'From connection',
+            username: 'inline_user',
+        });
+        await fillNewMysqlConnection();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.usernamePlaceholder'), {
+            target: {value: 'inline_user'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('newConnection.passwordPlaceholder'), {
+            target: {value: 'inline-secret'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfile'));
+        fireEvent.change(screen.getByPlaceholderText('credentialProfiles.namePlaceholder'), {
+            target: {value: 'From connection'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfileConfirm'));
+        expect(credentialProfileMocks.createCredentialProfile).not.toHaveBeenCalled();
+        expect(profileSelect()).toHaveValue('');
+        expect(
+            screen.getByText('newConnection.saveAsCredentialProfilePending'),
+        ).toBeInTheDocument();
+        fireEvent.click(screen.getByText('newConnection.save'));
+        await waitFor(() =>
+            expect(credentialProfileMocks.createCredentialProfile).toHaveBeenCalledWith(
+                'From connection',
+                'inline_user',
+                'inline-secret',
+                expect.anything(),
+            ),
+        );
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('save_connection', expect.anything()),
+        );
+        const payload = invokeArgs('save_connection');
+        expect(payload?.params).toMatchObject({
+            credential_profile_id: 'profile-new',
+            username: 'inline_user',
+        });
+        expect(payload?.params).not.toHaveProperty('password');
+    });
+
+    it('cancels save-as-profile without creating a profile or changing the selection', async () => {
+        await fillNewMysqlConnection();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.usernamePlaceholder'), {
+            target: {value: 'inline_user'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('newConnection.passwordPlaceholder'), {
+            target: {value: 'inline-secret'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfile'));
+        fireEvent.click(
+            screen.getByRole('button', {name: 'newConnection.saveAsCredentialProfileCancel'}),
+        );
+        expect(credentialProfileMocks.createCredentialProfile).not.toHaveBeenCalled();
+        expect(profileSelect()).toHaveValue('');
+    });
+
+    it('does not create a profile when save-as is confirmed but the connection modal is closed', async () => {
+        await fillNewMysqlConnection();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.usernamePlaceholder'), {
+            target: {value: 'inline_user'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('newConnection.passwordPlaceholder'), {
+            target: {value: 'inline-secret'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfile'));
+        fireEvent.change(screen.getByPlaceholderText('credentialProfiles.namePlaceholder'), {
+            target: {value: 'Orphan test'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfileConfirm'));
+        fireEvent.click(screen.getByRole('button', {name: 'modal-close'}));
+        expect(credentialProfileMocks.createCredentialProfile).not.toHaveBeenCalled();
+    });
+
+    it('rolls back a created profile when connection save fails before persistence commits', async () => {
+        credentialProfileMocks.createCredentialProfile.mockResolvedValue({
+            id: 'profile-new',
+            name: 'From connection',
+            username: 'inline_user',
+        });
+        credentialProfileMocks.deleteCredentialProfile.mockResolvedValue(undefined);
+        vi.mocked(invoke).mockImplementation(async (command: string) => {
+            if (command === 'save_connection') {
+                throw new Error("Credential profile 'profile-new' not found");
+            }
+            return 'ok';
+        });
+
+        await fillNewMysqlConnection();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.usernamePlaceholder'), {
+            target: {value: 'inline_user'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('newConnection.passwordPlaceholder'), {
+            target: {value: 'inline-secret'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfile'));
+        fireEvent.change(screen.getByPlaceholderText('credentialProfiles.namePlaceholder'), {
+            target: {value: 'From connection'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfileConfirm'));
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(credentialProfileMocks.createCredentialProfile).toHaveBeenCalledTimes(1),
+        );
+        await waitFor(() =>
+            expect(credentialProfileMocks.deleteCredentialProfile).toHaveBeenCalledWith(
+                'profile-new',
+                expect.anything(),
+            ),
+        );
+        expect(invoke).toHaveBeenCalledWith('save_connection', expect.anything());
+    });
+
+    it('keeps a save-as profile when the save RPC rejects after server-side persistence', async () => {
+        credentialProfileMocks.createCredentialProfile.mockResolvedValue({
+            id: 'profile-new',
+            name: 'From connection',
+            username: 'inline_user',
+        });
+        credentialProfileMocks.deleteCredentialProfile.mockResolvedValue(undefined);
+        vi.mocked(invoke).mockImplementation(async (command: string) => {
+            if (command === 'save_connection') {
+                throw new Error('save failed');
+            }
+            return 'ok';
+        });
+
+        await fillNewMysqlConnection();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.usernamePlaceholder'), {
+            target: {value: 'inline_user'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('newConnection.passwordPlaceholder'), {
+            target: {value: 'inline-secret'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfile'));
+        fireEvent.change(screen.getByPlaceholderText('credentialProfiles.namePlaceholder'), {
+            target: {value: 'From connection'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfileConfirm'));
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(credentialProfileMocks.createCredentialProfile).toHaveBeenCalledTimes(1),
+        );
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('save_connection', expect.anything()),
+        );
+        expect(credentialProfileMocks.deleteCredentialProfile).not.toHaveBeenCalled();
+    });
+
+    it('keeps a save-as profile when connection save succeeds but tags persistence fails', async () => {
+        credentialProfileMocks.createCredentialProfile.mockResolvedValue({
+            id: 'profile-new',
+            name: 'From connection',
+            username: 'inline_user',
+        });
+        credentialProfileMocks.deleteCredentialProfile.mockResolvedValue(undefined);
+        vi.mocked(invoke).mockImplementation(async (command: string) => {
+            if (command === 'save_connection') {
+                return {id: 'new-connection', params: {save_in_keychain: true}};
+            }
+            if (command === 'set_connection_tags') {
+                throw new Error('tags failed');
+            }
+            return 'ok';
+        });
+
+        await fillNewMysqlConnection();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.usernamePlaceholder'), {
+            target: {value: 'inline_user'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('newConnection.passwordPlaceholder'), {
+            target: {value: 'inline-secret'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfile'));
+        fireEvent.change(screen.getByPlaceholderText('credentialProfiles.namePlaceholder'), {
+            target: {value: 'From connection'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfileConfirm'));
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(credentialProfileMocks.createCredentialProfile).toHaveBeenCalledTimes(1),
+        );
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('save_connection', expect.anything()),
+        );
+        expect(credentialProfileMocks.deleteCredentialProfile).not.toHaveBeenCalled();
+    });
+
+    it('does not delete a save-as profile when connection save returns an ambiguous response', async () => {
+        credentialProfileMocks.createCredentialProfile.mockResolvedValue({
+            id: 'profile-new',
+            name: 'From connection',
+            username: 'inline_user',
+        });
+        credentialProfileMocks.deleteCredentialProfile.mockResolvedValue(undefined);
+        vi.mocked(invoke).mockImplementation(async (command: string) => {
+            if (command === 'save_connection') {
+                return {params: {save_in_keychain: true}};
+            }
+            return 'ok';
+        });
+
+        await fillNewMysqlConnection();
+        fireEvent.change(screen.getByPlaceholderText('newConnection.usernamePlaceholder'), {
+            target: {value: 'inline_user'},
+        });
+        fireEvent.change(screen.getByPlaceholderText('newConnection.passwordPlaceholder'), {
+            target: {value: 'inline-secret'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfile'));
+        fireEvent.change(screen.getByPlaceholderText('credentialProfiles.namePlaceholder'), {
+            target: {value: 'From connection'},
+        });
+        fireEvent.click(screen.getByText('newConnection.saveAsCredentialProfileConfirm'));
+        fireEvent.click(screen.getByText('newConnection.save'));
+
+        await waitFor(() =>
+            expect(credentialProfileMocks.createCredentialProfile).toHaveBeenCalledTimes(1),
+        );
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('save_connection', expect.anything()),
+        );
+        expect(credentialProfileMocks.deleteCredentialProfile).not.toHaveBeenCalled();
     });
 });
 

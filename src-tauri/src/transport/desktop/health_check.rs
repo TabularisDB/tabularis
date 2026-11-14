@@ -236,7 +236,11 @@ async fn ping_single_connection(app: &tauri::AppHandle, connection_id: &str) -> 
 }
 
 /// Unregister the connection, close its pools, and emit a failure event.
-async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, error: &str) {
+pub(crate) async fn handle_connection_failure<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    connection_id: &str,
+    error: &str,
+) {
     // Unregister first to prevent further pings.
     unregister_connection(connection_id).await;
     close_connection_resources(app, connection_id).await;
@@ -264,12 +268,17 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
 /// and `sqlx::Pool::close` waits for checked-out connections. The pool close
 /// is bounded by `POOL_CLOSE_TIMEOUT` for connections still held by queries on
 /// a dead link.
-async fn close_connection_resources(app: &tauri::AppHandle, connection_id: &str) -> usize {
+async fn close_connection_resources<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    connection_id: &str,
+) -> usize {
     // release_connection_sessions only looks up the driver for rollback, so it
     // needs no tunnel expansion. A dead bastion / unreachable cluster must not
-    // prevent cleanup (#1065).
+    // prevent cleanup (#1065). Metadata-only lookup avoids failing closed on
+    // a missing profile password, which would skip cleanup (#1065).
     let saved_conn =
-        crate::transport::desktop::commands::find_connection_by_id(app, connection_id).ok();
+        crate::transport::desktop::commands::find_connection_metadata_by_id(app, connection_id)
+            .ok();
     let close_params = saved_conn.as_ref().map(|saved_conn| {
         crate::commands::params_for_pool_close(&saved_conn.params, connection_id).unwrap_or_else(
             |e| {
