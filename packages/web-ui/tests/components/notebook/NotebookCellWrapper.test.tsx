@@ -404,3 +404,66 @@ describe('NotebookCellWrapper duplicate action', () => {
         expect(screen.queryByRole('button', {name: label})).not.toBeInTheDocument();
     });
 });
+
+describe('NotebookCellWrapper enable/disable toggle', () => {
+    const disableLabel = 'editor.notebook.disableCell';
+    const enableLabel = 'editor.notebook.enableCell';
+
+    beforeEach(() => {
+        mockInvoke.mockReset();
+        database.getConnectionData.mockReset().mockReturnValue({
+            capabilities: {explain: true},
+            driver: 'postgres',
+        });
+    });
+
+    it('defaults a legacy SQL cell to enabled and disables it through onUpdate', () => {
+        const props = makeProps();
+        render(<NotebookCellWrapper {...props} />);
+        const toggle = screen.getByRole('button', {name: disableLabel});
+        expect(toggle).toHaveAttribute('aria-pressed', 'false');
+        expect(screen.getByRole('button', {name: 'editor.notebook.runCell'})).toBeEnabled();
+        expect(screen.queryByText('editor.notebook.cellDisabled')).not.toBeInTheDocument();
+        fireEvent.click(toggle);
+        expect(props.onUpdate).toHaveBeenCalledExactlyOnceWith({isDisabled: true});
+        expect(props.onRun).not.toHaveBeenCalled();
+    });
+
+    it('shows the disabled state, explains why run is off and re-enables without running', async () => {
+        const props = makeProps();
+        render(
+            <NotebookCellWrapper
+                {...props}
+                cell={{...props.cell, isDisabled: true, isQueryPlanVisible: true}}
+            />,
+        );
+        await settle();
+        const toggle = screen.getByRole('button', {name: enableLabel});
+        expect(toggle).toHaveAttribute('aria-pressed', 'true');
+        const run = screen.getByRole('button', {name: 'editor.notebook.runDisabledReason'});
+        expect(run).toBeDisabled();
+        expect(run).toHaveAttribute('title', 'editor.notebook.runDisabledReason');
+        expect(screen.getByText('editor.notebook.cellDisabled')).toBeInTheDocument();
+        // The plan toggle stays in place but is off, and no EXPLAIN is sent while disabled,
+        // even with the plan left open.
+        expect(screen.getByRole('button', {name: 'editor.notebook.hideQueryPlan'})).toBeDisabled();
+        expect(screen.queryByTestId('explain-view')).not.toBeInTheDocument();
+        expect(mockInvoke).not.toHaveBeenCalled();
+
+        fireEvent.click(toggle);
+        expect(props.onUpdate).toHaveBeenCalledExactlyOnceWith({isDisabled: undefined});
+        expect(props.onRun).not.toHaveBeenCalled();
+    });
+
+    it('offers no toggle on Markdown cells', () => {
+        render(
+            <NotebookCellWrapper
+                {...makeProps()}
+                cell={{id: 'md', type: 'markdown', content: '# Notes', isDisabled: true}}
+            />,
+        );
+        expect(screen.queryByRole('button', {name: disableLabel})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: enableLabel})).not.toBeInTheDocument();
+        expect(screen.queryByText('editor.notebook.cellDisabled')).not.toBeInTheDocument();
+    });
+});

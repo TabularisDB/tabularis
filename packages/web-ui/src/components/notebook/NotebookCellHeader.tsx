@@ -17,6 +17,8 @@ import {
     Network,
     Copy,
     CopyPlus,
+    Power,
+    PowerOff,
 } from 'lucide-react';
 import type {NotebookCellType} from '@/types/notebook';
 import {CellNameAiButton} from './CellNameAiButton';
@@ -47,6 +49,8 @@ interface NotebookCellHeaderProps {
     };
     isParallel?: boolean;
     onToggleParallel?: () => void;
+    isDisabled?: boolean;
+    onToggleDisabled?: () => void;
     historyCount?: number;
     onToggleHistory?: () => void;
     isQueryPlanVisible?: boolean;
@@ -122,6 +126,8 @@ export function NotebookCellHeader({
     dragHandleProps,
     isParallel,
     onToggleParallel,
+    isDisabled,
+    onToggleDisabled,
     historyCount,
     onToggleHistory,
     isQueryPlanVisible,
@@ -146,6 +152,12 @@ export function NotebookCellHeader({
         selectedDatabases.length >= 1 &&
         activeSchema &&
         onSchemaChange;
+    const disableToggleLabel = t(
+        isDisabled ? 'editor.notebook.enableCell' : 'editor.notebook.disableCell',
+    );
+    const runLabel = t(
+        isDisabled ? 'editor.notebook.runDisabledReason' : 'editor.notebook.runCell',
+    );
     const queryPlanToggleLabel = t(
         isQueryPlanVisible ? 'editor.notebook.hideQueryPlan' : 'editor.notebook.toggleQueryPlan',
     );
@@ -210,6 +222,11 @@ export function NotebookCellHeader({
                 </button>
                 <CellTypeBadge cellType={cellType} />
                 <span className="text-[10px] text-muted">#{index + 1}</span>
+                {cellType === 'sql' && isDisabled && (
+                    <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-accent-warning/15 text-accent-warning">
+                        {t('editor.notebook.cellDisabled')}
+                    </span>
+                )}
                 {isEditingName ? (
                     <input
                         autoCorrect="off"
@@ -318,8 +335,9 @@ export function NotebookCellHeader({
                 {cellType === 'sql' && onRun && (
                     <ActionButton
                         onClick={onRun}
-                        title={t('editor.notebook.runCell')}
-                        disabled={isLoading}
+                        title={runLabel}
+                        ariaLabel={runLabel}
+                        disabled={isLoading || isDisabled}
                     >
                         {isLoading ? (
                             <Loader2 size={14} className="animate-spin" />
@@ -344,14 +362,33 @@ export function NotebookCellHeader({
                     </button>
                 )}
 
+                {cellType === 'sql' && onToggleDisabled && (
+                    <button
+                        type="button"
+                        onClick={onToggleDisabled}
+                        title={disableToggleLabel}
+                        aria-label={disableToggleLabel}
+                        aria-pressed={!!isDisabled}
+                        className={`p-1 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                            isDisabled
+                                ? 'text-accent-warning bg-accent-warning/15'
+                                : 'text-muted hover:text-primary hover:bg-surface-secondary'
+                        }`}
+                    >
+                        {isDisabled ? <PowerOff size={14} /> : <Power size={14} />}
+                    </button>
+                )}
+
                 {cellType === 'sql' && onToggleQueryPlan && (
                     <button
                         type="button"
                         onClick={onToggleQueryPlan}
+                        // Kept in place so the header doesn't shift; a disabled cell sends no EXPLAIN.
+                        disabled={isDisabled}
                         title={queryPlanToggleLabel}
                         aria-label={queryPlanToggleLabel}
                         aria-pressed={!!isQueryPlanVisible}
-                        className={`p-1 rounded transition-colors ${
+                        className={`p-1 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
                             isQueryPlanVisible
                                 ? 'text-accent bg-accent-primary/15'
                                 : 'text-muted hover:text-primary hover:bg-surface-secondary'

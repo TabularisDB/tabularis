@@ -48,6 +48,15 @@ export function RunAllSummary({result, onDismiss, onScrollToCell}: RunAllSummary
                                 {result.skipped} {t('editor.notebook.skipped')}
                             </span>
                         )}
+                        {result.blocked > 0 && (
+                            <span className="text-accent-warning">
+                                {(result.succeeded > 0 ||
+                                    result.failed > 0 ||
+                                    result.skipped > 0) &&
+                                    ', '}
+                                {result.blocked} {t('editor.notebook.blocked')}
+                            </span>
+                        )}
                     </span>
                 </div>
                 <button
@@ -71,6 +80,35 @@ export function RunAllSummary({result, onDismiss, onScrollToCell}: RunAllSummary
                                 Cell #{err.cellIndex + 1}
                             </button>
                             <span className="text-muted truncate">{err.error}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {result.blockedCells.length > 0 && (
+                <div className="px-3 pb-2 space-y-1">
+                    {result.blockedCells.map((blocked) => (
+                        <div key={blocked.cellId} className="flex items-start gap-2 text-[11px]">
+                            <button
+                                type="button"
+                                onClick={() => onScrollToCell?.(blocked.cellId)}
+                                className="text-accent-warning underline whitespace-nowrap shrink-0"
+                            >
+                                Cell #{blocked.cellIndex + 1}
+                            </button>
+                            <span className="text-muted">
+                                {t('editor.notebook.blockedWaitsOn')}
+                            </span>
+                            {blocked.disabledCells.map((disabled) => (
+                                <button
+                                    key={disabled.cellId}
+                                    type="button"
+                                    onClick={() => onScrollToCell?.(disabled.cellId)}
+                                    className="text-accent underline whitespace-nowrap shrink-0"
+                                >
+                                    Cell #{disabled.cellIndex + 1}
+                                </button>
+                            ))}
                         </div>
                     ))}
                 </div>

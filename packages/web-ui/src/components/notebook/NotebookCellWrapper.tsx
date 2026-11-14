@@ -104,6 +104,12 @@ export function NotebookCellWrapper({
                 onToggleParallel={
                     cell.type === 'sql' ? () => onUpdate({isParallel: !cell.isParallel}) : undefined
                 }
+                isDisabled={cell.type === 'sql' && !!cell.isDisabled}
+                onToggleDisabled={
+                    cell.type === 'sql'
+                        ? () => onUpdate({isDisabled: cell.isDisabled ? undefined : true})
+                        : undefined
+                }
                 historyCount={cell.type === 'sql' ? getHistorySize(cell) : undefined}
                 onToggleHistory={cell.type === 'sql' ? () => setShowHistory((v) => !v) : undefined}
                 isQueryPlanVisible={cell.isQueryPlanVisible}

@@ -31,6 +31,12 @@ const fixtures = vi.hoisted(() => ({
     mounts: new Map<string, number>(),
 }));
 
+vi.mock('react-i18next', () => {
+    // Stable, like the real hook: NotebookView's callbacks depend on it.
+    const t = (key: string, options?: {refs?: string}) =>
+        options?.refs ? `${key}: ${options.refs}` : key;
+    return {useTranslation: () => ({t})};
+});
 vi.mock('@/hooks/useDatabase', () => ({
     useDatabase: () => fixtures.database,
 }));
@@ -94,7 +100,9 @@ vi.mock('@/components/notebook/NotebookHistoryPanel', () => ({
 vi.mock('@/components/notebook/AddCellButton', () => ({AddCellButton: () => null}));
 vi.mock('@/components/notebook/RunAllSummary', () => ({
     RunAllSummary: ({result}: ComponentProps<typeof RunAllSummary>) => (
-        <output data-testid="run-all-summary">{result.total}</output>
+        <output data-testid="run-all-summary" data-result={JSON.stringify(result)}>
+            {result.total}
+        </output>
     ),
 }));
 vi.mock('@/components/notebook/ParamsPanel', () => ({ParamsPanel: () => null}));
@@ -152,6 +160,7 @@ vi.mock('@/components/notebook/NotebookCellWrapper', async () => {
                     data-schema={activeSchema}
                     data-connection={connectionId}
                     data-loading={!!cell.isLoading}
+                    data-disabled={!!cell.isDisabled}
                 >
                     <output data-testid={`explain-${cell.id}`}>
                         {JSON.stringify(explainQuery ?? null)}
@@ -167,6 +176,9 @@ vi.mock('@/components/notebook/NotebookCellWrapper', async () => {
                         Toggle plan {cell.id}
                     </button>
                     <button onClick={onRun}>Run {cell.id}</button>
+                    <button onClick={() => onUpdate({isDisabled: !cell.isDisabled})}>
+                        Toggle disabled {cell.id}
+                    </button>
                     <button onClick={onMoveDown}>Move down {cell.id}</button>
                     <button onClick={onDuplicate} disabled={!canDuplicate}>
                         Duplicate {cell.id}
@@ -1015,6 +1027,329 @@ describe('NotebookView', () => {
                 finish(queryResult);
             });
             await waitFor(() => expect(duplicateButton('base')).toBeEnabled());
+        });
+    });
+    describe('Disabled SQL cells', () => {
+        const cached: QueryResult = {columns: ['n'], rows: [[1]], affected_rows: 0};
+
+        function summary(): {
+            total: number;
+            succeeded: number;
+            failed: number;
+            skipped: number;
+            blocked: number;
+            blockedCells: Array<{
+                cellId: string;
+                cellIndex: number;
+                disabledCells: Array<{cellId: string; cellIndex: number}>;
+            }>;
+        } {
+            return JSON.parse(
+                screen.getByTestId('run-all-summary').getAttribute('data-result') ?? 'null',
+            );
+        }
+
+        async function click(name: string) {
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name}));
+            });
+        }
+
+        it('does not run a disabled cell directly and keeps its existing output', async () => {
+            renderNotebook({
+                cells: [sqlCell('off', 'SELECT 1', {isDisabled: true, result: cached})],
+            });
+            await click('Run off');
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(fixtures.guardQuery).not.toHaveBeenCalled();
+            expect(savedCell('off')).toMatchObject({isDisabled: true, result: cached});
+        });
+
+        it.each([
+            {label: 'without output', partial: {}},
+            {label: 'with cached output', partial: {result: cached}},
+        ])(
+            'blocks a consumer of a disabled cell $label instead of running or reusing it',
+            async ({partial}) => {
+                renderNotebook({
+                    cells: [
+                        sqlCell('off', 'SELECT 1', {isDisabled: true, ...partial}),
+                        sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+                    ],
+                });
+                await click('Run use');
+                expect(mockInvoke).not.toHaveBeenCalled();
+                expect(fixtures.guardQuery).not.toHaveBeenCalled();
+                expect(savedCell('use').error).toBe(
+                    'editor.notebook.blockedByDisabled: {{cell_1}}',
+                );
+                expect(savedCell('use')).toMatchObject({isLoading: false, result: null});
+                expect(savedCell('off')).toMatchObject({isDisabled: true, ...partial});
+            },
+        );
+
+        it('blocks the end of a dependency chain whose root is disabled', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('off', 'SELECT 1', {isDisabled: true}),
+                    sqlCell('mid', 'SELECT * FROM {{cell_1}}'),
+                    sqlCell('end', 'SELECT * FROM {{cell_2}}'),
+                ],
+            });
+            await click('Run end');
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(savedCell('end').error).toBe('editor.notebook.blockedByDisabled: {{cell_1}}');
+            expect(savedCell('mid').error).toBeUndefined();
+        });
+
+        it('blocks a consumer whose reference comes from a notebook parameter', async () => {
+            renderNotebook({
+                params: [{name: 'source', value: '{{cell_1}}'}],
+                cells: [
+                    sqlCell('off', 'SELECT 1', {isDisabled: true, result: cached}),
+                    sqlCell('use', 'SELECT * FROM @source'),
+                ],
+            });
+            await click('Run use');
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(savedCell('use').error).toBe('editor.notebook.blockedByDisabled: {{cell_1}}');
+        });
+
+        it('Run All skips disabled cells, blocks their consumers and links the disabled prerequisite', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('off', 'SELECT 1', {isDisabled: true, result: cached}),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+                    sqlCell('plain', 'SELECT 3'),
+                    sqlCell('chain', 'SELECT * FROM {{cell_2}}'),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke.mock.calls).toEqual([
+                [
+                    'execute_query',
+                    {connectionId, query: 'SELECT 3', schema: 'tab_schema', limit: 37, page: 1},
+                ],
+            ]);
+            expect(summary()).toMatchObject({
+                total: 4,
+                succeeded: 1,
+                failed: 0,
+                skipped: 1,
+                blocked: 2,
+                blockedCells: [
+                    {cellId: 'use', cellIndex: 1, disabledCells: [{cellId: 'off', cellIndex: 0}]},
+                    {
+                        cellId: 'chain',
+                        cellIndex: 3,
+                        disabledCells: [{cellId: 'off', cellIndex: 0}],
+                    },
+                ],
+            });
+            expect(savedCell('off')).toMatchObject({isDisabled: true, result: cached});
+        });
+
+        it('Run All counts a blocked cell without stopping on error', async () => {
+            renderNotebook({
+                stopOnError: true,
+                cells: [
+                    sqlCell('off', 'SELECT 1', {isDisabled: true}),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}'),
+                    sqlCell('after', 'SELECT 3'),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke).toHaveBeenCalledTimes(1);
+            expect(summary()).toMatchObject({succeeded: 1, failed: 0, skipped: 1, blocked: 1});
+        });
+
+        it('Run All skips parallel disabled cells and blocks parallel consumers', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('off', 'SELECT 1', {isDisabled: true, isParallel: true}),
+                    sqlCell('use', 'SELECT * FROM {{cell_1}}', {isParallel: true}),
+                    sqlCell('fast', 'SELECT 2', {isParallel: true}),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke).toHaveBeenCalledTimes(1);
+            expect(summary()).toMatchObject({succeeded: 1, skipped: 1, blocked: 1});
+        });
+
+        it('re-enabling does not execute, and the toggle is undoable', async () => {
+            renderNotebook({
+                cells: [sqlCell('off', 'SELECT 1', {isDisabled: true, result: cached})],
+            });
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled off'}));
+            await settle();
+            expect(savedCell('off').isDisabled).toBe(false);
+            expect(savedCell('off').result).toEqual(cached);
+            expect(mockInvoke).not.toHaveBeenCalled();
+
+            fireEvent.click(screen.getByRole('button', {name: 'Undo'}));
+            expect(savedCell('off').isDisabled).toBe(true);
+            fireEvent.click(screen.getByRole('button', {name: 'Redo'}));
+            expect(savedCell('off').isDisabled).toBe(false);
+            expect(mockInvoke).not.toHaveBeenCalled();
+
+            await click('Run off');
+            expect(mockInvoke).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps the cell disabled when a query sent before disabling answers', async () => {
+            let finish: (value: QueryResult) => void = () => {};
+            mockInvoke.mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            renderNotebook({cells: [sqlCell('base', 'SELECT 1')]});
+            await click('Run base');
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled base'}));
+            expect(savedCell('base')).toMatchObject({isDisabled: true, isLoading: true});
+
+            await act(async () => {
+                finish(queryResult);
+            });
+            await waitFor(() => expect(savedCell('base').isLoading).toBe(false));
+            expect(savedCell('base')).toMatchObject({isDisabled: true, result: queryResult});
+            expect(screen.getByTestId('cell-base')).toHaveAttribute('data-disabled', 'true');
+        });
+
+        it('Run All skips a cell disabled while earlier cells were running', async () => {
+            let finish: (value: QueryResult) => void = () => {};
+            mockInvoke.mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            renderNotebook({cells: [sqlCell('first', 'SELECT 1'), sqlCell('later', 'SELECT 2')]});
+            await click('Run All');
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled later'}));
+            await act(async () => {
+                finish(queryResult);
+            });
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke).toHaveBeenCalledTimes(1);
+            expect(summary()).toMatchObject({total: 2, succeeded: 1, skipped: 1});
+        });
+
+        it('does not send a consumer disabled while its lazy dependency runs', async () => {
+            let finish: (value: QueryResult) => void = () => {};
+            mockInvoke.mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            renderNotebook({
+                cells: [sqlCell('dep', 'SELECT 1'), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+            await click('Run use');
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled use'}));
+            expect(savedCell('use').isDisabled).toBe(true);
+
+            await act(async () => {
+                finish(sourceResult);
+            });
+            await waitFor(() => expect(savedCell('use').isLoading).toBe(false));
+            await settle();
+            expect(mockInvoke.mock.calls).toEqual([
+                [
+                    'execute_query',
+                    {connectionId, query: 'SELECT 1', schema: 'tab_schema', limit: 37, page: 1},
+                ],
+            ]);
+            expect(fixtures.guardQuery).toHaveBeenCalledExactlyOnceWith('SELECT 1');
+            expect(savedCell('dep').result).toEqual(sourceResult);
+            expect(savedCell('use')).toMatchObject({isDisabled: true, isLoading: false});
+            expect(savedCell('use').error).toBeUndefined();
+        });
+
+        it('does not send a cell disabled while the query guard waits for confirmation', async () => {
+            let confirm: (value: boolean) => void = () => {};
+            fixtures.guardQuery.mockReturnValueOnce(
+                new Promise<boolean>((resolve) => {
+                    confirm = resolve;
+                }),
+            );
+            renderNotebook({cells: [sqlCell('base', 'DELETE FROM t')]});
+            await click('Run base');
+            await waitFor(() => expect(fixtures.guardQuery).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled base'}));
+            await act(async () => {
+                confirm(true);
+            });
+            await waitFor(() => expect(savedCell('base').isLoading).toBe(false));
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(savedCell('base')).toMatchObject({isDisabled: true});
+            expect(savedCell('base').error).toBeUndefined();
+        });
+
+        it('Run All skips a consumer disabled while the parallel cells run', async () => {
+            let finish: (value: QueryResult) => void = () => {};
+            mockInvoke.mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            // The dependency is parallel, so it runs before the sequential consumer starts.
+            renderNotebook({
+                cells: [
+                    sqlCell('use', 'SELECT * FROM {{cell_2}}'),
+                    sqlCell('dep', 'SELECT 1', {isParallel: true}),
+                ],
+            });
+            // Run All starts the parallel dependency first; hold it, then disable the consumer.
+            await click('Run All');
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled use'}));
+            await act(async () => {
+                finish(sourceResult);
+            });
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke).toHaveBeenCalledTimes(1);
+            expect(summary()).toMatchObject({total: 2, succeeded: 1, failed: 0, skipped: 1});
+        });
+
+        it('Run All skips a sequential consumer disabled during its own lazy dependency run', async () => {
+            let finish: (value: QueryResult) => void = () => {};
+            // 'dep' fails first in Run All, so 'use' has to run it again lazily.
+            mockInvoke.mockRejectedValueOnce(new Error('first attempt failed')).mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            renderNotebook({
+                cells: [sqlCell('dep', 'SELECT 1'), sqlCell('use', 'SELECT * FROM {{cell_1}}')],
+            });
+            await click('Run All');
+            // Second call: the consumer's lazy re-run of its dependency.
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled use'}));
+            await act(async () => {
+                finish(sourceResult);
+            });
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke).toHaveBeenCalledTimes(2);
+            expect(mockInvoke.mock.calls.every(([, args]) => args?.query === 'SELECT 1')).toBe(
+                true,
+            );
+            expect(summary()).toMatchObject({total: 2, failed: 1, skipped: 1, succeeded: 0});
+            expect(savedCell('use')).toMatchObject({isDisabled: true, isLoading: false});
+        });
+
+        it('prepares no query plan for a disabled cell', () => {
+            renderNotebook({
+                cells: [sqlCell('off', 'SELECT 1', {isDisabled: true, isQueryPlanVisible: true})],
+            });
+            expect(explainFor('off')).toBeNull();
+            expect(mockInvoke).not.toHaveBeenCalled();
         });
     });
 });

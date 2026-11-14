@@ -188,3 +188,33 @@ describe('SqlCell explain query wiring', () => {
         expect(props.onToggleQueryPlanVisible).not.toHaveBeenCalled();
     });
 });
+
+describe('SqlCell disabled state', () => {
+    it('says the cell is disabled and keeps the plan closed', () => {
+        const props = makeProps();
+        render(<SqlCell {...props} cell={{...props.cell, isDisabled: true}} />);
+        expect(screen.getByRole('status')).toHaveTextContent('editor.notebook.disabledNotice');
+        expect(screen.getByRole('status')).not.toHaveTextContent(
+            'editor.notebook.disabledOutputNotice',
+        );
+        expect(screen.getByTestId('explain')).toHaveAttribute('data-visible', 'false');
+        expect(screen.getByRole('textbox', {name: 'SQL editor'})).toHaveValue(props.cell.content);
+    });
+
+    it.each([
+        {label: 'a result', partial: {result: {columns: ['n'], rows: [[1]], affected_rows: 0}}},
+        {label: 'an error', partial: {error: 'boom'}},
+    ])('labels kept output with $label as not current', ({partial}) => {
+        const props = makeProps();
+        render(<SqlCell {...props} cell={{...props.cell, ...partial, isDisabled: true}} />);
+        expect(screen.getByRole('status')).toHaveTextContent(
+            'editor.notebook.disabledOutputNotice',
+        );
+    });
+
+    it('shows no notice for an enabled cell', () => {
+        render(<SqlCell {...makeProps()} />);
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.getByTestId('explain')).toHaveAttribute('data-visible', 'true');
+    });
+});

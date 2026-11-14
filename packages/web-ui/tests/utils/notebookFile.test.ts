@@ -560,3 +560,72 @@ describe('notebookFile utils', () => {
         });
     });
 });
+
+describe('notebookFile disabled SQL cells', () => {
+    it('keeps the disabled flag through serialize and deserialize', () => {
+        const cells: NotebookCell[] = [
+            {id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: true, isParallel: true},
+            {id: 'b', type: 'sql', content: 'SELECT 2'},
+        ];
+        const file = serializeNotebook('Disabled', cells);
+        expect(file.cells[0].isDisabled).toBe(true);
+        expect(file.cells[1]).not.toHaveProperty('isDisabled');
+        const restored = deserializeNotebook(JSON.stringify(file));
+        expect(restored.cells[0]).toMatchObject({
+            content: 'SELECT 1',
+            isDisabled: true,
+            isParallel: true,
+        });
+        expect(restored.cells[1].isDisabled).toBeUndefined();
+    });
+
+    it('does not write an enabled flag, so enabled cells stay byte-compatible', () => {
+        const file = serializeNotebook('x', [
+            {id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: false},
+        ]);
+        expect(file.cells[0]).not.toHaveProperty('isDisabled');
+    });
+
+    it('loads legacy files without the flag as enabled', () => {
+        const restored = deserializeNotebook(
+            JSON.stringify({
+                version: 1,
+                title: 'Old',
+                createdAt: '2024-01-01',
+                cells: [{type: 'sql', content: 'SELECT 1'}],
+            }),
+        );
+        expect(restored.cells[0].isDisabled).toBeUndefined();
+    });
+
+    it.each([['true'], [1], [null], [{}]])(
+        'ignores a malformed disabled value %j from an untrusted file',
+        (value) => {
+            const restored = deserializeNotebook(
+                JSON.stringify({
+                    version: 2,
+                    title: 'x',
+                    createdAt: '2024-01-01',
+                    cells: [{type: 'sql', content: 'SELECT 1', isDisabled: value}],
+                }),
+            );
+            expect(restored.cells[0].isDisabled).toBeUndefined();
+        },
+    );
+
+    it('never marks a Markdown cell disabled', () => {
+        const file = serializeNotebook('x', [
+            {id: 'a', type: 'markdown', content: '# x', isDisabled: true},
+        ]);
+        expect(file.cells[0]).not.toHaveProperty('isDisabled');
+        const restored = deserializeNotebook(
+            JSON.stringify({
+                version: 2,
+                title: 'x',
+                createdAt: '2024-01-01',
+                cells: [{type: 'markdown', content: '# x', isDisabled: true}],
+            }),
+        );
+        expect(restored.cells[0].isDisabled).toBeUndefined();
+    });
+});

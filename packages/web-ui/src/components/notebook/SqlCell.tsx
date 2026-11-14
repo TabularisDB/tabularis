@@ -53,6 +53,17 @@ export function SqlCell({
                 collapsed={cell.isQueryCollapsed}
                 onToggleCollapse={onToggleQueryCollapse}
             />
+            {cell.isDisabled && (
+                <p
+                    role="status"
+                    className="px-3 py-1.5 border-t border-default bg-accent-warning/5 text-[11px] text-secondary"
+                >
+                    {t('editor.notebook.disabledNotice')}
+                    {(cell.result || cell.error) && (
+                        <> {t('editor.notebook.disabledOutputNotice')}</>
+                    )}
+                </p>
+            )}
             <SqlCellResult
                 result={cell.result ?? null}
                 error={cell.error}
@@ -82,7 +93,8 @@ export function SqlCell({
                 }
                 connectionId={connectionId}
                 schema={schema}
-                visible={!!cell.isQueryPlanVisible}
+                // A disabled cell sends nothing to the database, EXPLAIN included.
+                visible={!!cell.isQueryPlanVisible && !cell.isDisabled}
                 onToggleVisible={onToggleQueryPlanVisible}
             />
         </div>
