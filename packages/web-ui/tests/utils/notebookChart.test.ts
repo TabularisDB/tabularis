@@ -49,6 +49,19 @@ describe('notebookChart', () => {
             expect(getNumericColumns(makeResult({rows: []}))).toEqual([]);
         });
 
+        it('should include columns whose values are all numeric strings', () => {
+            const cols = getNumericColumns(
+                makeResult({
+                    columns: ['region', 'total', 'code'],
+                    rows: [
+                        ['North', '1500.00', 'A1'],
+                        ['South', '-3.5', '42'],
+                    ],
+                }),
+            );
+            expect(cols).toEqual(['total']);
+        });
+
         it('should return empty when no numeric columns exist', () => {
             expect(
                 getNumericColumns(makeResult({columns: ['a', 'b'], rows: [['x', 'y']]})),
@@ -82,6 +95,33 @@ describe('notebookChart', () => {
                 makeResult({columns: ['a', 'b'], rows: [[1, 2]]}),
             );
             expect(config).toBeNull();
+        });
+
+        it('should use a column of numeric strings (DECIMAL) as the value', () => {
+            const config = buildDefaultChartConfig(
+                makeResult({
+                    columns: ['region', 'total'],
+                    rows: [
+                        ['North', '1500.00'],
+                        ['South', '980.50'],
+                        ['East', null],
+                    ],
+                }),
+            );
+            expect(config).toEqual({type: 'bar', labelColumn: 'region', valueColumns: ['total']});
+        });
+
+        it('should keep a text column of digits as the label when nothing else is', () => {
+            const config = buildDefaultChartConfig(
+                makeResult({
+                    columns: ['zip', 'customers'],
+                    rows: [
+                        ['10115', 12],
+                        ['80331', 7],
+                    ],
+                }),
+            );
+            expect(config).toEqual({type: 'bar', labelColumn: 'zip', valueColumns: ['customers']});
         });
 
         it('should return null if no numeric columns', () => {

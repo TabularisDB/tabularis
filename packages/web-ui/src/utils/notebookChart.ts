@@ -10,10 +10,33 @@ export function canRenderChart(result: QueryResult): boolean {
     return result.columns.length >= 2 && result.rows.length > 0;
 }
 
+/**
+ * A string holding a finite number, such as `'1500.00'`. PostgreSQL `NUMERIC`
+ * and MySQL `DECIMAL` values (sums and averages included) arrive as strings to
+ * keep their precision.
+ */
+function isNumericString(value: unknown): value is string {
+    return typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value));
+}
+
+/** Every non-NULL value in the column is a numeric string, and there is one. */
+function hasOnlyNumericStrings(result: QueryResult, colIndex: number): boolean {
+    let found = false;
+    for (const row of result.rows) {
+        const value = row[colIndex];
+        if (value === null || value === undefined) continue;
+        if (!isNumericString(value)) return false;
+        found = true;
+    }
+    return found;
+}
+
 export function getNumericColumns(result: QueryResult): string[] {
     if (result.rows.length === 0) return [];
-    return result.columns.filter((_, colIndex) =>
-        result.rows.some((row) => typeof row[colIndex] === 'number'),
+    return result.columns.filter(
+        (_, colIndex) =>
+            result.rows.some((row) => typeof row[colIndex] === 'number') ||
+            hasOnlyNumericStrings(result, colIndex),
     );
 }
 
@@ -28,12 +51,17 @@ export function buildDefaultChartConfig(result: QueryResult): CellChartConfig | 
     const labelCols = getLabelColumns(result);
     const numericCols = getNumericColumns(result);
 
-    if (labelCols.length === 0 || numericCols.length === 0) return null;
+    // A column of numeric strings (a DECIMAL total) is a better value than label.
+    const labelColumn =
+        labelCols.find((col) => !hasOnlyNumericStrings(result, result.columns.indexOf(col))) ??
+        labelCols[0];
+    const valueColumn = numericCols.find((col) => col !== labelColumn);
+    if (labelColumn === undefined || valueColumn === undefined) return null;
 
     return {
         type: 'bar' as ChartType,
-        labelColumn: labelCols[0],
-        valueColumns: [numericCols[0]],
+        labelColumn,
+        valueColumns: [valueColumn],
     };
 }
 
