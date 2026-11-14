@@ -2248,6 +2248,8 @@
       "exportHtml": "Exportar como HTML",
       "exportSql": "Exportar código SQL",
       "exportSqlEmpty": "Este notebook não tem SQL para exportar.",
+      "exportMarkdown": "Exportar Markdown",
+      "exportMarkdownEmpty": "Este notebook não tem conteúdo para exportar.",
       "parameters": "Parâmetros",
       "paramName": "nome",
       "paramValue": "valor",

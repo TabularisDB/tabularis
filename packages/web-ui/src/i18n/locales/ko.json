@@ -2205,6 +2205,8 @@
       "exportHtml": "HTML로 내보내기",
       "exportSql": "SQL 소스 내보내기",
       "exportSqlEmpty": "이 노트북에는 내보낼 SQL이 없습니다.",
+      "exportMarkdown": "Markdown 내보내기",
+      "exportMarkdownEmpty": "이 노트북에는 내보낼 내용이 없습니다.",
       "parameters": "매개변수",
       "paramName": "이름",
       "paramValue": "값",

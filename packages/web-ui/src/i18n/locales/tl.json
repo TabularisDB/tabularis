@@ -2268,6 +2268,8 @@
       "exportHtml": "I-export bilang HTML",
       "exportSql": "I-export ang SQL source",
       "exportSqlEmpty": "Walang SQL na mai-export sa notebook na ito.",
+      "exportMarkdown": "I-export bilang Markdown",
+      "exportMarkdownEmpty": "Walang nilalamang mai-export sa notebook na ito.",
       "parameters": "Mga Parameter",
       "paramName": "pangalan",
       "paramValue": "halaga",

@@ -2254,6 +2254,8 @@
       "exportHtml": "Экспортировать как HTML",
       "exportSql": "Экспортировать исходный SQL",
       "exportSqlEmpty": "В этом блокноте нет SQL для экспорта.",
+      "exportMarkdown": "Экспортировать в Markdown",
+      "exportMarkdownEmpty": "В этом блокноте нет содержимого для экспорта.",
       "parameters": "Параметры",
       "paramName": "имя",
       "paramValue": "значение",

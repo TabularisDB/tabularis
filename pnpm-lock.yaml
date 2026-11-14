@@ -86,6 +86,9 @@ importers:
       lucide-react:
         specifier: ^0.563.0
         version: 0.563.0(react@19.2.4)
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
       monaco-editor:
         specifier: ^0.55.1
         version: 0.55.1

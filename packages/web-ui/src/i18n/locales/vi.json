@@ -2279,6 +2279,8 @@
       "exportHtml": "Xuất ra HTML",
       "exportSql": "Xuất mã nguồn SQL",
       "exportSqlEmpty": "Sổ tay này không có SQL để xuất.",
+      "exportMarkdown": "Xuất Markdown",
+      "exportMarkdownEmpty": "Sổ tay này không có nội dung để xuất.",
       "parameters": "Tham số",
       "paramName": "tên",
       "paramValue": "giá trị",

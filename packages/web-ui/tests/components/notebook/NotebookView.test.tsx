@@ -1,6 +1,8 @@
 import type {ComponentProps} from 'react';
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
+import {save} from '@tauri-apps/plugin-dialog';
+import {writeFile} from '@tauri-apps/plugin-fs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {NotebookView} from '@/components/notebook/NotebookView';
 import type {ConfirmModal} from '@/components/modals/ConfirmModal';
@@ -109,8 +111,10 @@ vi.mock('@/components/notebook/NotebookToolbar', () => ({
         canUndo,
         onRedo,
         canRedo,
+        onExportMarkdown,
     }: ComponentProps<typeof NotebookToolbar>) => (
         <>
+            <button onClick={onExportMarkdown}>Export Markdown</button>
             <button onClick={onRunAll} disabled={isRunning}>
                 Run All
             </button>
@@ -178,6 +182,8 @@ vi.mock('@/components/notebook/NotebookCellWrapper', async () => {
 });
 
 const mockInvoke = vi.mocked(invoke);
+const mockSave = vi.mocked(save);
+const mockWriteFile = vi.mocked(writeFile);
 const mockResolveParams = vi.mocked(resolveParams);
 const mockResolveVariables = vi.mocked(resolveQueryVariables);
 const notebookId = 'notebook-1';
@@ -1015,6 +1021,123 @@ describe('NotebookView', () => {
                 finish(queryResult);
             });
             await waitFor(() => expect(duplicateButton('base')).toBeEnabled());
+        });
+    });
+    describe('Export Markdown', () => {
+        const exportButton = () => screen.getByRole('button', {name: 'Export Markdown'});
+
+        function notebookWithRuntimeData(): NotebookState {
+            return {
+                params: [{name: 'region', value: 'secret-param-value'}],
+                stopOnError: true,
+                cells: [
+                    {id: 'intro', type: 'markdown', content: '# Intro', isPreview: true},
+                    sqlCell('q', 'SELECT * FROM t WHERE r = @region', {
+                        schema: 'secret_schema',
+                        isCollapsed: true,
+                        result: {columns: ['v'], rows: [['result-value-42']], affected_rows: 0},
+                        error: 'error-text',
+                        chartConfig: {type: 'bar', labelColumn: 'v', valueColumns: ['v']},
+                        history: [
+                            {
+                                query: 'SELECT history_query',
+                                result: null,
+                                executionTime: 1,
+                                timestamp: 1,
+                            },
+                        ],
+                    }),
+                    {id: 'blank', type: 'markdown', content: '   '},
+                ],
+            };
+        }
+
+        async function clickExport() {
+            await act(async () => {
+                fireEvent.click(exportButton());
+            });
+            await settle();
+        }
+
+        it('writes the in-memory source, including collapsed cells, without running or saving anything', async () => {
+            mockSave.mockResolvedValueOnce('/tmp/Notebook.md');
+            mockWriteFile.mockResolvedValueOnce(undefined);
+            const state = notebookWithRuntimeData();
+            renderNotebook(state);
+            await settle();
+            fireEvent.change(screen.getByLabelText('SQL q'), {
+                target: {value: 'SELECT * FROM t WHERE r = @region -- edited'},
+            });
+            vi.mocked(setNotebookState).mockClear();
+            const before = fixtures.notebooks.get(notebookId);
+
+            await clickExport();
+
+            await waitFor(() => expect(mockWriteFile).toHaveBeenCalledOnce());
+            expect(mockSave).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    defaultPath: 'Notebook.md',
+                    filters: [{name: 'Markdown', extensions: ['md']}],
+                }),
+            );
+            const [path, contents] = mockWriteFile.mock.calls[0];
+            expect(path).toBe('/tmp/Notebook.md');
+            expect(new TextDecoder().decode(contents as Uint8Array)).toBe(
+                '# Intro\n\n```sql\nSELECT * FROM t WHERE r = @region -- edited\n```\n',
+            );
+            expect(fixtures.showAlert).toHaveBeenCalledWith('editor.notebook.exportSuccess', {
+                kind: 'info',
+            });
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(setNotebookState).not.toHaveBeenCalled();
+            expect(fixtures.notebooks.get(notebookId)).toBe(before);
+        });
+
+        it('shows a message and opens no save dialog when there is no source', async () => {
+            renderNotebook({
+                cells: [sqlCell('empty', ''), {id: 'md', type: 'markdown', content: ' \n '}],
+            });
+            await settle();
+
+            await clickExport();
+
+            expect(fixtures.showAlert).toHaveBeenCalledWith('editor.notebook.exportMarkdownEmpty', {
+                kind: 'info',
+            });
+            expect(mockSave).not.toHaveBeenCalled();
+            expect(mockWriteFile).not.toHaveBeenCalled();
+        });
+
+        it('does nothing when the save dialog is cancelled', async () => {
+            mockSave.mockResolvedValueOnce(null);
+            renderNotebook(notebookWithRuntimeData());
+            await settle();
+            vi.mocked(setNotebookState).mockClear();
+
+            await clickExport();
+
+            await waitFor(() => expect(mockSave).toHaveBeenCalledOnce());
+            expect(mockWriteFile).not.toHaveBeenCalled();
+            expect(fixtures.showAlert).not.toHaveBeenCalled();
+            expect(setNotebookState).not.toHaveBeenCalled();
+        });
+
+        it('reports a failed write', async () => {
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+            mockSave.mockResolvedValueOnce('/tmp/Notebook.md');
+            mockWriteFile.mockRejectedValueOnce(new Error('disk full'));
+            renderNotebook(notebookWithRuntimeData());
+            await settle();
+
+            await clickExport();
+
+            await waitFor(() =>
+                expect(fixtures.showAlert).toHaveBeenCalledWith('editor.notebook.exportError', {
+                    kind: 'error',
+                }),
+            );
+            expect(consoleError).toHaveBeenCalled();
+            consoleError.mockRestore();
         });
     });
 });

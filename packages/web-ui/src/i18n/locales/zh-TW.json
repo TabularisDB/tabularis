@@ -2287,6 +2287,8 @@
             "exportHtml": "匯出為 HTML",
             "exportSql": "匯出 SQL 原始碼",
             "exportSqlEmpty": "此筆記本沒有可匯出的 SQL。",
+            "exportMarkdown": "匯出 Markdown",
+            "exportMarkdownEmpty": "此筆記本沒有可匯出的內容。",
             "parameters": "引數",
             "paramName": "名稱",
             "paramValue": "值",

@@ -5,6 +5,7 @@ import {
     chooseNotebookImport,
     downloadNotebook,
     downloadNotebookHtml,
+    downloadNotebookMarkdown,
     downloadNotebookSql,
 } from '@/utils/notebookTransfer';
 
@@ -160,5 +161,52 @@ describe('notebookTransfer', () => {
         await downloadNotebookSql(platformFixture({downloadFile}), '', state);
 
         expect(downloadFile.mock.calls[0][0].fileName).toBe('Notebook.sql');
+    });
+
+    it('exports Markdown and SQL cell source through the platform download adapter', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+
+        await expect(
+            downloadNotebookMarkdown(platformFixture({downloadFile}), 'Revenue / été', state),
+        ).resolves.toBe('downloaded');
+
+        const request = downloadFile.mock.calls[0][0];
+        expect(request.fileName).toBe('Revenue____t_.md');
+        expect(request.mimeType).toBe('text/markdown;charset=utf-8');
+        expect(request.filters).toEqual([{name: 'Markdown', extensions: ['md']}]);
+        const markdown = new TextDecoder('utf-8', {fatal: true}).decode(request.contents);
+        expect(markdown).toBe('```sql\nSELECT 42 AS answer\n```\n\n# Results\n');
+        expect(markdown).not.toContain('eu');
+    });
+
+    it('reports a cancelled Markdown save dialog', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(false);
+
+        await expect(
+            downloadNotebookMarkdown(platformFixture({downloadFile}), 'Revenue', state),
+        ).resolves.toBe('cancelled');
+        expect(downloadFile).toHaveBeenCalledOnce();
+    });
+
+    it('does not open a save dialog when there is no Markdown source to export', async () => {
+        const downloadFile = vi.fn().mockResolvedValue(true);
+
+        await expect(
+            downloadNotebookMarkdown(platformFixture({downloadFile}), 'Notes', {
+                cells: [
+                    {id: 'md', type: 'markdown', content: '  '},
+                    {id: 'sql', type: 'sql', content: ''},
+                ],
+            }),
+        ).resolves.toBe('empty');
+        expect(downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('propagates a failed Markdown write to the caller', async () => {
+        const downloadFile = vi.fn().mockRejectedValue(new Error('disk full'));
+
+        await expect(
+            downloadNotebookMarkdown(platformFixture({downloadFile}), 'Revenue', state),
+        ).rejects.toThrow('disk full');
     });
 });

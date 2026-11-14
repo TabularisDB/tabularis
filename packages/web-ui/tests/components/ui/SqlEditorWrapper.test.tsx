@@ -1,6 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {render, screen, fireEvent, act} from '@testing-library/react';
 import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
+import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 import {SettingsContext, DEFAULT_SETTINGS} from '@/contexts/SettingsContext';
 import {CommandPaletteDispatchContext} from '@/contexts/CommandPaletteContext';
 import type {ReactNode} from 'react';
@@ -1275,6 +1276,90 @@ describe('SqlEditorWrapper debounced value sync', () => {
             vi.advanceTimersByTime(300);
         });
         expect(mockOnChange).not.toHaveBeenCalledWith('ab');
+    });
+
+    describe('flushPendingEditorChanges', () => {
+        it('hands a held-back change to onChange at once, and only once', () => {
+            const {rerender} = renderEditor('');
+            const {editor, type} = mountValueEditor('');
+
+            type('SELECT 1');
+            expect(mockOnChange).not.toHaveBeenCalled();
+            act(() => flushPendingEditorChanges());
+            expect(mockOnChange).toHaveBeenCalledTimes(1);
+            expect(mockOnChange).toHaveBeenLastCalledWith('SELECT 1');
+
+            act(() => {
+                vi.advanceTimersByTime(300);
+            });
+            expect(mockOnChange).toHaveBeenCalledTimes(1);
+
+            // The echo of the flushed value is recognized, not written back.
+            rerender(
+                <SqlEditorWrapper
+                    initialValue="SELECT 1"
+                    onChange={mockOnChange}
+                    onRun={mockOnRun}
+                />,
+            );
+            expect(editor.setValue).not.toHaveBeenCalled();
+        });
+
+        it('hands over the latest text when several keystrokes are held back', () => {
+            renderEditor('');
+            const {type} = mountValueEditor('');
+
+            type('S');
+            type('SE');
+            type('SEL');
+            act(() => flushPendingEditorChanges());
+
+            expect(mockOnChange).toHaveBeenCalledTimes(1);
+            expect(mockOnChange).toHaveBeenLastCalledWith('SEL');
+        });
+
+        it('does nothing when no change is held back', () => {
+            renderEditor('');
+            const {type} = mountValueEditor('');
+
+            act(() => flushPendingEditorChanges());
+            expect(mockOnChange).not.toHaveBeenCalled();
+
+            type('x');
+            act(() => {
+                vi.advanceTimersByTime(300);
+            });
+            act(() => flushPendingEditorChanges());
+            expect(mockOnChange).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not resend an edit an external change replaced', () => {
+            const {rerender} = renderEditor('');
+            const {type} = mountValueEditor('');
+
+            type('ab');
+            rerender(
+                <SqlEditorWrapper
+                    initialValue="SELECT 1"
+                    onChange={mockOnChange}
+                    onRun={mockOnRun}
+                />,
+            );
+            act(() => flushPendingEditorChanges());
+
+            expect(mockOnChange).not.toHaveBeenCalled();
+        });
+
+        it('stops flushing once the editor is unmounted', () => {
+            const {unmount} = renderEditor('');
+            const {type} = mountValueEditor('');
+
+            type('x');
+            unmount();
+            flushPendingEditorChanges();
+
+            expect(mockOnChange).not.toHaveBeenCalled();
+        });
     });
 });
 

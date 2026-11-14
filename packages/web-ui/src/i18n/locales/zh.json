@@ -2209,6 +2209,8 @@
       "exportHtml": "导出为 HTML",
       "exportSql": "导出 SQL 源码",
       "exportSqlEmpty": "此笔记本没有可导出的 SQL。",
+      "exportMarkdown": "导出 Markdown",
+      "exportMarkdownEmpty": "此笔记本没有可导出的内容。",
       "parameters": "参数",
       "paramName": "名称",
       "paramValue": "值",
