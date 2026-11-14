@@ -240,6 +240,22 @@ fn tokenize_sql_with_pos(sql: &str) -> Vec<(String, usize)> {
     tokens
 }
 
+/// A trailing `LIMIT <offset>, <count>`, the form MySQL and SQLite also accept,
+/// with any spacing around the comma. Returns the index of the `LIMIT` token,
+/// the offset and the row count.
+fn trailing_comma_limit(tokens: &[(String, usize)]) -> Option<(usize, u64, u64)> {
+    let limit_index = tokens
+        .iter()
+        .rposition(|(token, _)| token.eq_ignore_ascii_case("LIMIT"))?;
+    let tail = &tokens[limit_index + 1..];
+    if tail.is_empty() || tail.len() > 3 {
+        return None;
+    }
+    let joined: String = tail.iter().map(|(token, _)| token.as_str()).collect();
+    let (offset, count) = joined.split_once(',')?;
+    Some((limit_index, offset.parse().ok()?, count.parse().ok()?))
+}
+
 /// Remove trailing LIMIT and OFFSET clauses from a SQL query.
 ///
 /// Returns a substring of the original input so leading comments and
@@ -250,6 +266,9 @@ fn tokenize_sql_with_pos(sql: &str) -> Vec<(String, usize)> {
 pub fn strip_limit_offset(query: &str) -> String {
     let trimmed = query.trim_end();
     let tokens = tokenize_sql_with_pos(trimmed);
+    if let Some((limit_index, _, _)) = trailing_comma_limit(&tokens) {
+        return trimmed[..tokens[limit_index].1].trim_end().to_string();
+    }
     let mut end = tokens.len();
 
     if end >= 2
@@ -280,6 +299,9 @@ pub fn strip_limit_offset(query: &str) -> String {
 /// (e.g. `tapp_appointment_message_event_limit`) is never misidentified.
 pub fn extract_user_limit(query: &str) -> Option<u32> {
     let tokens = tokenize_sql_with_pos(query.trim());
+    if let Some((_, _, count)) = trailing_comma_limit(&tokens) {
+        return count.try_into().ok();
+    }
     let len = tokens.len();
 
     let mut end = len;
@@ -305,6 +327,9 @@ pub fn extract_user_limit(query: &str) -> Option<u32> {
 /// string literal is never misidentified.
 pub fn extract_user_offset(query: &str) -> Option<u32> {
     let tokens = tokenize_sql_with_pos(query.trim());
+    if let Some((_, offset, _)) = trailing_comma_limit(&tokens) {
+        return offset.try_into().ok();
+    }
     let end = tokens.len();
 
     if end >= 2 && tokens[end - 2].0.to_uppercase() == "OFFSET" {
