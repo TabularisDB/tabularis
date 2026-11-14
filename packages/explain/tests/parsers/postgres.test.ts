@@ -1,4 +1,6 @@
 import {describe, expect, it} from 'vitest';
+import {getPlanDiagnostics} from '../../src/diagnostics';
+import {computeExplainMetrics, getAvailableMetricKinds} from '../../src/metrics';
 import {parsePostgresJson, parsePostgresText} from '../../src/parsers/postgres';
 import {detectFormat, parseExplain} from '../../src/parsers/source';
 
@@ -186,6 +188,66 @@ describe('postgres parsers', () => {
         it('rejects output without plan nodes', () => {
             expect(() => parsePostgresText('QUERY PLAN\n---\n(0 rows)\n')).toThrow(/No plan nodes/);
         });
+
+        it('records a never executed node with zero loops', () => {
+            const plan = parsePostgresText(POSTGRES_TEXT_BUFFERS);
+            const skipped = plan.root.children[1];
+            expect(skipped.actual_loops).toBe(0);
+
+            const metrics = computeExplainMetrics(plan);
+            expect(metrics.byId.get(skipped.id)?.neverExecuted).toBe(true);
+            expect(metrics.byId.get(plan.root.id)?.neverExecuted).toBe(false);
+
+            const kinds = getPlanDiagnostics(plan, metrics)
+                .get(skipped.id)
+                ?.map((diagnostic) => diagnostic.kind);
+            expect(kinds).toEqual(['never-executed']);
+        });
+
+        it('reads shared buffers into hit and read counts', () => {
+            const plan = parsePostgresText(POSTGRES_TEXT_BUFFERS);
+            expect(plan.root.buffers_hit).toBe(2);
+            expect(plan.root.buffers_read).toBe(1);
+
+            const metrics = computeExplainMetrics(plan);
+            expect(metrics.byId.get(plan.root.id)?.inclusiveBuffers).toBe(3);
+            expect(getAvailableMetricKinds(metrics)).toContain('buffers');
+        });
+
+        it.each([
+            ['hit only', 'shared hit=7', 7, null],
+            ['read only', 'shared read=5', null, 5],
+            ['other counters', 'shared hit=3 read=1 dirtied=2 written=1', 3, 1],
+            ['other groups', 'shared hit=3, local hit=9 read=8, temp read=4 written=4', 3, null],
+            ['no shared group', 'local hit=9, temp read=4', null, null],
+        ])('reads the Buffers line with %s', (_label, buffers, hit, read) => {
+            const plan = parsePostgresText(
+                ` Seq Scan on t  (cost=0.00..1.00 rows=1 width=4)\n   Buffers: ${buffers}\n`,
+            );
+            expect(plan.root.buffers_hit).toBe(hit);
+            expect(plan.root.buffers_read).toBe(read);
+        });
+
+        it('keeps the Planning section off the plan nodes', () => {
+            const plan = parsePostgresText(POSTGRES_TEXT_BUFFERS);
+            expect(plan.root.children[1].extra).toEqual({});
+            expect(plan.planning_time_ms).toBe(0.241);
+            expect(plan.execution_time_ms).toBe(0.052);
+        });
+
+        it('does not let Planning buffers overwrite the last node', () => {
+            const plan = parsePostgresText(
+                [
+                    ' Seq Scan on t  (cost=0.00..1.00 rows=1 width=4) (actual time=0.01..0.02 rows=1 loops=1)',
+                    '   Buffers: shared hit=5 read=2',
+                    ' Planning:',
+                    '   Buffers: shared hit=4',
+                ].join('\n'),
+            );
+            expect(plan.root.buffers_hit).toBe(5);
+            expect(plan.root.buffers_read).toBe(2);
+            expect(plan.root.extra).not.toHaveProperty('Planning');
+        });
     });
 
     describe('parseExplain routing', () => {
@@ -198,6 +260,20 @@ describe('postgres parsers', () => {
 
 const POSTGRES_TEXT_FLAT =
     ' Seq Scan on users  (cost=0.00..12.34 rows=100 width=80)\n Planning Time: 0.123 ms\n';
+
+const POSTGRES_TEXT_BUFFERS = `Nested Loop  (cost=0.00..153.15 rows=1 width=30) (actual time=0.020..0.025 rows=0.00 loops=1)
+  Join Filter: (b.id = a.id)
+  Buffers: shared hit=2 read=1
+  ->  Seq Scan on a  (cost=0.00..1.02 rows=1 width=5) (actual time=0.014..0.015 rows=0.00 loops=1)
+        Filter: active
+        Rows Removed by Filter: 2
+        Buffers: shared hit=2 read=1
+  ->  Seq Scan on b  (cost=0.00..150.00 rows=10000 width=25) (never executed)
+Planning:
+  Buffers: shared hit=4
+Planning Time: 0.241 ms
+Execution Time: 0.052 ms
+`;
 
 const POSTGRES_TEXT_ANALYZE = `QUERY PLAN
 -----------------------------------------------------------------------------
