@@ -138,6 +138,7 @@
     "charactersHint": "Кодовые точки Unicode, а не кластеры графем"
   },
   "common": {
+    "clear": "Очистить",
     "save": "Сохранить",
     "close": "Закрыть",
     "resizeColumn": "Изменить ширину столбца",
@@ -3287,6 +3288,10 @@
     "clearInput": "Очистить поиск",
     "matchCase": "Учитывать регистр",
     "matchesSummary": "Совпадений: {{count}} в {{files}} файлах",
+
+    "matchesSummary_one": "{{count}} совпадение в {{files}} файлах",
+
+    "matchesSummary_other": "{{count}} совпадений в {{files}} файлах",
     "skippedFiles": "Пропущено: {{count}}",
     "truncatedWarning": "Показаны первые 200 совпадений",
     "typeToSearch": "Введите запрос для поиска по SQL-файлам этой папки",
@@ -3294,7 +3299,9 @@
     "noMatchesMessage": "По запросу «{{query}}» ничего не найдено в этой папке.",
     "resultsListLabel": "Результаты поиска",
     "openInEditor": "Открыть в редакторе",
-    "selectToPreview": "Выберите совпадение из списка для предпросмотра"
+    "selectToPreview": "Выберите совпадение из списка для предпросмотра",
+
+    "linesOmitted": "... {{count}} строк пропущено ..."
   },
   "aiInline": {
     "title": "Встроенное ИИ-дополнение",

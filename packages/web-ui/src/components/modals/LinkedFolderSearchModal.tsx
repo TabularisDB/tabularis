@@ -23,8 +23,19 @@ import type {
 interface LinkedFolderSearchModalProps {
     folder: LinkedFolderStatus;
     onClose: () => void;
-    onOpenFile: (folderId: string, relativePath: string) => void;
+    onOpenFile: (
+        folderId: string,
+        relativePath: string,
+        location?: {lineNumber: number; columnNumber: number},
+    ) => void;
 }
+
+type PreviewCacheEntry =
+    | {status: 'loaded'; lines: string[]}
+    | {status: 'error'; error: string};
+
+const PREVIEW_WINDOW_RADIUS = 150;
+const SNIPPET_HALF_WINDOW = 125;
 
 export function LinkedFolderSearchModal({
     folder,
@@ -43,12 +54,9 @@ export function LinkedFolderSearchModal({
     const [error, setError] = useState<string | null>(null);
     const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
-    const [previewContent, setPreviewContent] = useState<string | null>(null);
-    const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-    const [previewError, setPreviewError] = useState<string | null>(null);
+    const [previewCache, setPreviewCache] = useState<Record<string, PreviewCacheEntry>>({});
 
     const searchRequestId = useRef(0);
-    const previewRequestId = useRef(0);
     const inputRef = useRef<HTMLInputElement>(null);
     const previewLineRef = useRef<HTMLDivElement>(null);
 
@@ -57,16 +65,16 @@ export function LinkedFolderSearchModal({
     const executeSearch = useCallback(
         async (searchQuery: string, isCaseSensitive: boolean) => {
             const trimmed = searchQuery.trim();
+            const reqId = ++searchRequestId.current;
             if (!trimmed) {
+                void client.call('cancel_linked_folder_search', undefined).catch(() => {});
                 setSearchResult(null);
                 setError(null);
                 setIsSearching(false);
                 setSelectedIndex(-1);
-                setPreviewContent(null);
                 return;
             }
 
-            const reqId = ++searchRequestId.current;
             setIsSearching(true);
             setError(null);
 
@@ -103,33 +111,36 @@ export function LinkedFolderSearchModal({
     const selectedMatch: LinkedFolderSearchMatch | undefined =
         selectedIndex >= 0 && searchResult ? searchResult.matches[selectedIndex] : undefined;
 
+    const selectedPath = selectedMatch?.relativePath;
+    const cachedPreview = selectedPath ? previewCache[selectedPath] : undefined;
+    const isLoadingPreview = Boolean(selectedPath && !cachedPreview);
+    const previewError = cachedPreview?.status === 'error' ? cachedPreview.error : null;
+
     useEffect(() => {
-        if (!selectedMatch) {
-            setPreviewContent(null);
-            setPreviewError(null);
-            return;
-        }
+        if (!selectedPath || previewCache[selectedPath]) return;
 
-        const reqId = ++previewRequestId.current;
-        setIsLoadingPreview(true);
-        setPreviewError(null);
-
-        readLinkedSqlFile(client, folder.id, selectedMatch.relativePath)
+        let cancelled = false;
+        readLinkedSqlFile(client, folder.id, selectedPath)
             .then((file) => {
-                if (previewRequestId.current !== reqId) return;
-                setPreviewContent(file.content);
+                if (cancelled) return;
+                const lines = file.content.replace(/\r/g, '').split('\n');
+                setPreviewCache((prev) => ({
+                    ...prev,
+                    [selectedPath]: {status: 'loaded', lines},
+                }));
             })
             .catch((err) => {
-                if (previewRequestId.current !== reqId) return;
-                setPreviewError(toErrorMessage(err));
-                setPreviewContent(null);
-            })
-            .finally(() => {
-                if (previewRequestId.current === reqId) {
-                    setIsLoadingPreview(false);
-                }
+                if (cancelled) return;
+                setPreviewCache((prev) => ({
+                    ...prev,
+                    [selectedPath]: {status: 'error', error: toErrorMessage(err)},
+                }));
             });
-    }, [client, folder.id, selectedMatch]);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [client, folder.id, selectedPath, previewCache]);
 
     useEffect(() => {
         if (previewLineRef.current) {
@@ -138,11 +149,14 @@ export function LinkedFolderSearchModal({
                 behavior: 'smooth',
             });
         }
-    }, [previewContent, selectedMatch?.lineNumber]);
+    }, [cachedPreview, selectedMatch?.lineNumber]);
 
     const handleOpenCurrent = () => {
         if (!selectedMatch) return;
-        onOpenFile(folder.id, selectedMatch.relativePath);
+        onOpenFile(folder.id, selectedMatch.relativePath, {
+            lineNumber: selectedMatch.lineNumber,
+            columnNumber: selectedMatch.columnNumber,
+        });
         onClose();
     };
 
@@ -161,22 +175,22 @@ export function LinkedFolderSearchModal({
         }
     };
 
-    const renderSnippet = (
-        snippet: string,
+    const renderHighlightedSpan = (
+        text: string,
+        match: LinkedFolderSearchMatch,
+        isSnippet: boolean,
         queryStr: string,
         isCaseSensitive: boolean,
-        match?: LinkedFolderSearchMatch,
     ) => {
-        if (!queryStr) return snippet;
+        const chars = Array.from(text);
+        const matchLen = match.matchLength || Array.from(queryStr || '').length;
 
-        if (match && match.columnNumber > 0) {
-            const chars = Array.from(snippet);
+        if (!isSnippet || !text.startsWith('...')) {
             const start = match.columnNumber - 1;
-            const len = match.matchLength || queryStr.length;
-            if (start < chars.length) {
+            if (start >= 0 && start < chars.length) {
                 const before = chars.slice(0, start).join('');
-                const matchedText = chars.slice(start, start + len).join('');
-                const after = chars.slice(start + len).join('');
+                const matchedText = chars.slice(start, start + matchLen).join('');
+                const after = chars.slice(start + matchLen).join('');
                 return (
                     <>
                         {before}
@@ -187,17 +201,37 @@ export function LinkedFolderSearchModal({
                     </>
                 );
             }
+            return text;
         }
 
-        const haystack = isCaseSensitive ? snippet : snippet.toLowerCase();
-        const needle = isCaseSensitive ? queryStr : queryStr.toLowerCase();
-        const index = haystack.indexOf(needle);
-        if (index === -1) return snippet;
-
-        const before = snippet.slice(0, index);
-        const matchedText = snippet.slice(index, index + queryStr.length);
-        const after = snippet.slice(index + queryStr.length);
-
+        // For `...`-prefixed truncated snippets, find the occurrence closest to the
+        // backend's centered window offset (3 + SNIPPET_HALF_WINDOW).
+        if (!queryStr) return text;
+        const targetIdx = 3 + SNIPPET_HALF_WINDOW;
+        const queryChars = Array.from(isCaseSensitive ? queryStr : queryStr.toLowerCase());
+        let bestIdx = -1;
+        let bestDist = Infinity;
+        for (let i = 0; i + matchLen <= chars.length; i++) {
+            let eq = true;
+            for (let j = 0; j < queryChars.length; j++) {
+                const ch = isCaseSensitive ? chars[i + j] : chars[i + j].toLowerCase();
+                if (ch !== queryChars[j]) {
+                    eq = false;
+                    break;
+                }
+            }
+            if (eq) {
+                const dist = Math.abs(i - targetIdx);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx = i;
+                }
+            }
+        }
+        if (bestIdx === -1) return text;
+        const before = chars.slice(0, bestIdx).join('');
+        const matchedText = chars.slice(bestIdx, bestIdx + matchLen).join('');
+        const after = chars.slice(bestIdx + matchLen).join('');
         return (
             <>
                 {before}
@@ -209,8 +243,7 @@ export function LinkedFolderSearchModal({
         );
     };
 
-    const PREVIEW_WINDOW_RADIUS = 150;
-    const allLines = previewContent ? previewContent.replace(/\r/g, '').split('\n') : [];
+    const allLines = cachedPreview?.status === 'loaded' ? cachedPreview.lines : [];
     const matchLineIdx = (selectedMatch?.lineNumber ?? 1) - 1;
     const startLineIdx = Math.max(0, matchLineIdx - PREVIEW_WINDOW_RADIUS);
     const endLineIdx = Math.min(allLines.length, matchLineIdx + PREVIEW_WINDOW_RADIUS + 1);
@@ -392,9 +425,11 @@ export function LinkedFolderSearchModal({
                                                     </span>
                                                 </div>
                                                 <div className="font-mono text-xs text-primary truncate pl-4">
-                                                    {renderSnippet(
+                                                    {renderHighlightedSpan(
                                                         match.lineContent,
-                                                        query.trim(),
+                                                        match,
+                                                        true,
+                                                        searchResult.query ?? query.trim(),
                                                         caseSensitive,
                                                     )}
                                                 </div>
@@ -454,7 +489,9 @@ export function LinkedFolderSearchModal({
                                             <div className="space-y-0.5">
                                                 {startLineIdx > 0 && (
                                                     <div className="text-muted text-center py-1 text-[11px] select-none italic">
-                                                        ... {startLineIdx} lines omitted ...
+                                                        {t('linkedFolderSearch.linesOmitted', {
+                                                            count: startLineIdx,
+                                                        })}
                                                     </div>
                                                 )}
                                                 {previewLines.map((line, lIdx) => {
@@ -480,11 +517,13 @@ export function LinkedFolderSearchModal({
                                                             </span>
                                                             <pre className="flex-1 whitespace-pre-wrap break-all font-mono">
                                                                 {isMatchedLine
-                                                                    ? renderSnippet(
+                                                                    ? renderHighlightedSpan(
                                                                           line,
-                                                                          query.trim(),
-                                                                          caseSensitive,
                                                                           selectedMatch,
+                                                                          false,
+                                                                          searchResult?.query ??
+                                                                              query.trim(),
+                                                                          caseSensitive,
                                                                       )
                                                                     : line || ' '}
                                                             </pre>
@@ -493,8 +532,9 @@ export function LinkedFolderSearchModal({
                                                 })}
                                                 {endLineIdx < allLines.length && (
                                                     <div className="text-muted text-center py-1 text-[11px] select-none italic">
-                                                        ... {allLines.length - endLineIdx} lines
-                                                        omitted ...
+                                                        {t('linkedFolderSearch.linesOmitted', {
+                                                            count: allLines.length - endLineIdx,
+                                                        })}
                                                     </div>
                                                 )}
                                             </div>

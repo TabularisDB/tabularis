@@ -138,6 +138,7 @@
     "charactersHint": "Điểm mã Unicode, không phải cụm grapheme"
   },
   "common": {
+    "clear": "Xóa",
     "save": "Lưu",
     "close": "Đóng",
     "resizeColumn": "Đổi kích thước cột",
@@ -3322,6 +3323,10 @@
     "clearInput": "Xóa tìm kiếm",
     "matchCase": "Phân biệt chữ hoa/thường",
     "matchesSummary": "{{count}} kết quả trong {{files}} tệp",
+
+    "matchesSummary_one": "{{count}} kết quả khớp trong {{files}} tệp",
+
+    "matchesSummary_other": "{{count}} kết quả khớp trong {{files}} tệp",
     "skippedFiles": "Đã bỏ qua {{count}}",
     "truncatedWarning": "Kết quả được giới hạn ở 200 mục khớp",
     "typeToSearch": "Nhập để tìm kiếm trong các tệp SQL của thư mục này",
@@ -3329,7 +3334,9 @@
     "noMatchesMessage": "Không tìm thấy \"{{query}}\" trong thư mục này.",
     "resultsListLabel": "Kết quả tìm kiếm",
     "openInEditor": "Mở trong Trình soạn thảo",
-    "selectToPreview": "Chọn một kết quả để xem trước"
+    "selectToPreview": "Chọn một kết quả để xem trước",
+
+    "linesOmitted": "... đã ẩn {{count}} dòng ..."
   },
   "aiInline": {
     "title": "Hoàn thành AI nội tuyến",

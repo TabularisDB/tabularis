@@ -138,6 +138,7 @@
     "charactersHint": "Unicode-Codepoints, keine Graphem-Cluster"
   },
   "common": {
+    "clear": "Leeren",
     "save": "Speichern",
     "close": "Schließen",
     "resizeColumn": "Spaltenbreite ändern",
@@ -3246,6 +3247,10 @@
     "clearInput": "Suche löschen",
     "matchCase": "Groß-/Kleinschreibung",
     "matchesSummary": "{{count}} Treffer in {{files}} Dateien",
+
+    "matchesSummary_one": "{{count}} Treffer in {{files}} Dateien",
+
+    "matchesSummary_other": "{{count}} Treffer in {{files}} Dateien",
     "skippedFiles": "{{count}} übersprungen",
     "truncatedWarning": "Ergebnisse auf 200 Treffer begrenzt",
     "typeToSearch": "Suchbegriff für SQL-Dateien in diesem Ordner eingeben",
@@ -3253,7 +3258,9 @@
     "noMatchesMessage": "Keine Vorkommen von „{{query}}“ in diesem Ordner gefunden.",
     "resultsListLabel": "Suchergebnisse",
     "openInEditor": "Im Editor öffnen",
-    "selectToPreview": "Wählen Sie einen Treffer für die Vorschau aus"
+    "selectToPreview": "Wählen Sie einen Treffer für die Vorschau aus",
+
+    "linesOmitted": "... {{count}} Zeilen ausgelassen ..."
   },
   "aiInline": {
     "title": "KI-Inline-Vervollständigung",

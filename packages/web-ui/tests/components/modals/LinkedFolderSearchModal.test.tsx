@@ -18,17 +18,20 @@ vi.mock('lucide-react', async () => await vi.importActual('lucide-react'));
 const folder = {id: 'test-folder-1', name: 'Queries', path: '/repo/queries', available: true};
 
 const mockSearchResults = {
+    query: 'users',
     matches: [
         {
             relativePath: 'users.sql',
             lineNumber: 10,
-            columnNumber: 8,
+            columnNumber: 15,
+            matchLength: 5,
             lineContent: 'SELECT * FROM users WHERE active = true;',
         },
         {
             relativePath: 'billing/orders.sql',
             lineNumber: 25,
-            columnNumber: 15,
+            columnNumber: 6,
+            matchLength: 5,
             lineContent: 'JOIN users ON users.id = orders.user_id',
         },
     ],
@@ -44,6 +47,9 @@ describe('LinkedFolderSearchModal', () => {
         client.call.mockImplementation(async (command: string, args?: unknown) => {
             if (command === 'search_linked_folder') {
                 return mockSearchResults;
+            }
+            if (command === 'cancel_linked_folder_search') {
+                return undefined;
             }
             if (command === 'read_linked_sql_file') {
                 const req = args as {relativePath: string};
@@ -95,7 +101,10 @@ describe('LinkedFolderSearchModal', () => {
         const openBtn = screen.getByRole('button', {name: 'linkedFolderSearch.openInEditor'});
         await user.click(openBtn);
 
-        expect(onOpenFile).toHaveBeenCalledWith(folder.id, 'users.sql');
+        expect(onOpenFile).toHaveBeenCalledWith(folder.id, 'users.sql', {
+            lineNumber: 10,
+            columnNumber: 15,
+        });
         expect(onClose).toHaveBeenCalled();
     });
 
@@ -145,7 +154,10 @@ describe('LinkedFolderSearchModal', () => {
 
         // Press Enter to open
         await user.keyboard('{Enter}');
-        expect(onOpenFile).toHaveBeenCalledWith(folder.id, 'billing/orders.sql');
+        expect(onOpenFile).toHaveBeenCalledWith(folder.id, 'billing/orders.sql', {
+            lineNumber: 25,
+            columnNumber: 6,
+        });
         expect(onClose).toHaveBeenCalled();
     });
 
@@ -169,11 +181,13 @@ describe('LinkedFolderSearchModal', () => {
     it('displays truncated warning when results are truncated', async () => {
         const user = userEvent.setup();
         client.call.mockResolvedValueOnce({
+            query: 'SELECT',
             matches: [
                 {
                     relativePath: 'big.sql',
                     lineNumber: 1,
                     columnNumber: 1,
+                    matchLength: 6,
                     lineContent: 'SELECT 1;',
                 },
             ],
@@ -195,5 +209,95 @@ describe('LinkedFolderSearchModal', () => {
         render(<LinkedFolderSearchModal folder={folder} onClose={vi.fn()} onOpenFile={vi.fn()} />);
 
         expect(screen.getByText('linkedFolders.unavailableMessage')).toBeInTheDocument();
+    });
+
+    it('drops stale in-flight results when query is cleared', async () => {
+        const user = userEvent.setup();
+        let resolveSearch!: (val: typeof mockSearchResults) => void;
+        client.call.mockImplementation((command: string) => {
+            if (command === 'search_linked_folder') {
+                return new Promise((resolve) => {
+                    resolveSearch = resolve;
+                });
+            }
+            if (command === 'cancel_linked_folder_search') {
+                return Promise.resolve(undefined);
+            }
+            return Promise.resolve({content: 'dummy', dirty: false});
+        });
+
+        render(<LinkedFolderSearchModal folder={folder} onClose={vi.fn()} onOpenFile={vi.fn()} />);
+        const input = screen.getByRole('textbox', {name: 'linkedFolderSearch.inputPlaceholder'});
+        await user.type(input, 'users');
+
+        await waitFor(() => {
+            expect(client.call).toHaveBeenCalledWith('search_linked_folder', expect.anything());
+        });
+
+        // Clear the query while the first request is still pending
+        await user.clear(input);
+        await waitFor(() => {
+            expect(screen.getByText('linkedFolderSearch.typeToSearch')).toBeInTheDocument();
+        });
+
+        // Resolve the stale request; it must not render old matches
+        resolveSearch(mockSearchResults);
+        await waitFor(() => {
+            expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+        });
+    });
+
+    it('caches file preview by path across matches in the same file', async () => {
+        const user = userEvent.setup();
+        client.call.mockImplementation(async (command: string) => {
+            if (command === 'search_linked_folder') {
+                return {
+                    query: 'users',
+                    matches: [
+                        {
+                            relativePath: 'users.sql',
+                            lineNumber: 1,
+                            columnNumber: 15,
+                            matchLength: 5,
+                            lineContent: 'SELECT * FROM users;',
+                        },
+                        {
+                            relativePath: 'users.sql',
+                            lineNumber: 2,
+                            columnNumber: 15,
+                            matchLength: 5,
+                            lineContent: 'DELETE FROM users;',
+                        },
+                    ],
+                    truncated: false,
+                    filesSearched: 1,
+                    filesSkipped: 0,
+                };
+            }
+            if (command === 'read_linked_sql_file') {
+                return {content: 'SELECT * FROM users;\nDELETE FROM users;', dirty: false};
+            }
+            return undefined;
+        });
+
+        render(<LinkedFolderSearchModal folder={folder} onClose={vi.fn()} onOpenFile={vi.fn()} />);
+        const input = screen.getByRole('textbox', {name: 'linkedFolderSearch.inputPlaceholder'});
+        await user.type(input, 'users');
+
+        await screen.findByRole('listbox');
+        await waitFor(() => {
+            expect(client.call).toHaveBeenCalledWith('read_linked_sql_file', {
+                id: folder.id,
+                relativePath: 'users.sql',
+            });
+        });
+
+        // Select second match in the same file
+        await user.keyboard('{ArrowDown}');
+
+        const readCalls = client.call.mock.calls.filter(
+            ([cmd]) => cmd === 'read_linked_sql_file',
+        );
+        expect(readCalls).toHaveLength(1);
     });
 });

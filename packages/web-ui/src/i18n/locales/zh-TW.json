@@ -142,6 +142,7 @@
       "charactersHint": "依 Unicode 碼位計數,而非字素簇"
     },
     "common": {
+        "clear": "清除",
         "save": "儲存",
         "close": "關閉",
         "resizeColumn": "調整欄寬",
@@ -3397,6 +3398,10 @@
     "clearInput": "清除搜尋",
     "matchCase": "區分大小寫",
     "matchesSummary": "在 {{files}} 個檔案中找到 {{count}} 處相符",
+
+    "matchesSummary_one": "在 {{files}} 個檔案中找到 {{count}} 個相符項目",
+
+    "matchesSummary_other": "在 {{files}} 個檔案中找到 {{count}} 個相符項目",
     "skippedFiles": "略過 {{count}} 個檔案",
     "truncatedWarning": "結果已限制為前 200 處相符",
     "typeToSearch": "輸入文字以在此資料夾的 SQL 檔案中搜尋",
@@ -3404,7 +3409,9 @@
     "noMatchesMessage": "在此資料夾中找不到「{{query}}」。",
     "resultsListLabel": "搜尋結果",
     "openInEditor": "在編輯器中開啟",
-    "selectToPreview": "從清單中選取一項以預覽"
+    "selectToPreview": "從清單中選取一項以預覽",
+
+    "linesOmitted": "... 已省略 {{count}} 行 ..."
   },
     "aiInline": {
         "title": "AI 行內補全",

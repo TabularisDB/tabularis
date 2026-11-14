@@ -108,6 +108,7 @@
     "charactersHint": "유니코드 코드 포인트 기준이며 자소 클러스터가 아닙니다"
   },
   "common": {
+    "clear": "지우기",
     "save": "저장",
     "close": "닫기",
     "resizeColumn": "열 크기 조정",
@@ -3195,6 +3196,10 @@
     "clearInput": "검색 지우기",
     "matchCase": "대소문자 구분",
     "matchesSummary": "{{files}}개 파일에서 {{count}}개 일치",
+
+    "matchesSummary_one": "{{files}}개 파일에서 {{count}}개 일치",
+
+    "matchesSummary_other": "{{files}}개 파일에서 {{count}}개 일치",
     "skippedFiles": "{{count}}개 건너뜀",
     "truncatedWarning": "결과는 최대 200개로 제한됩니다",
     "typeToSearch": "이 폴더의 SQL 파일에서 검색할 단어를 입력하세요",
@@ -3202,7 +3207,9 @@
     "noMatchesMessage": "이 폴더에서 \"{{query}}\"을(를) 찾을 수 없습니다.",
     "resultsListLabel": "검색 결과",
     "openInEditor": "편집기에서 열기",
-    "selectToPreview": "미리 보려면 목록에서 항목을 선택하세요"
+    "selectToPreview": "미리 보려면 목록에서 항목을 선택하세요",
+
+    "linesOmitted": "... {{count}}줄 생략됨 ..."
   },
   "aiInline": {
     "title": "AI 인라인 완성",

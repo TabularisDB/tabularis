@@ -138,6 +138,7 @@
     "charactersHint": "Unicode コードポイント数(書記素クラスターではありません)"
   },
   "common": {
+    "clear": "クリア",
     "save": "保存",
     "close": "閉じる",
     "resizeColumn": "列のサイズを変更",
@@ -3267,6 +3268,10 @@
     "clearInput": "検索をクリア",
     "matchCase": "大文字と小文字を区別",
     "matchesSummary": "{{files}} 個のファイルで {{count}} 件の一致",
+
+    "matchesSummary_one": "{{files}} ファイル中 {{count}} 件の一致",
+
+    "matchesSummary_other": "{{files}} ファイル中 {{count}} 件の一致",
     "skippedFiles": "{{count}} 件スキップ",
     "truncatedWarning": "結果は最大 200 件に制限されています",
     "typeToSearch": "このフォルダー内のSQLファイルを検索するキーワードを入力",
@@ -3274,7 +3279,9 @@
     "noMatchesMessage": "このフォルダー内に「{{query}}」は見つかりませんでした。",
     "resultsListLabel": "検索結果",
     "openInEditor": "エディタで開く",
-    "selectToPreview": "プレビューする項目をリストから選択"
+    "selectToPreview": "プレビューする項目をリストから選択",
+
+    "linesOmitted": "... {{count}} 行省略 ..."
   },
   "aiInline": {
     "title": "AIインライン補完",

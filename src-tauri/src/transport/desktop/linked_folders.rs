@@ -144,3 +144,8 @@ pub async fn search_linked_folder<R: Runtime>(
     })
     .await
 }
+
+#[tauri::command]
+pub fn cancel_linked_folder_search() {
+    linked_folder_search::cancel_active_search();
+}

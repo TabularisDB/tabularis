@@ -138,6 +138,7 @@
     "charactersHint": "Unicode code points, not grapheme clusters"
   },
   "common": {
+    "clear": "Clear",
     "save": "Save",
     "close": "Close",
     "resizeColumn": "Resize column",
@@ -2755,7 +2756,7 @@
     "uploadFile": "Upload File",
     "download": "Download",
     "delete": "Delete",
-    "truncatedWarning": "Preview only - full data not loaded",
+    "truncatedWarning": "Results truncated (limit reached)",
     "downloadDisabledTruncated": "Download unavailable - only preview loaded",
     "downloading": "Downloading...",
     "uploading": "Uploading...",
@@ -3382,6 +3383,10 @@
     "clearInput": "Clear search",
     "matchCase": "Match case",
     "matchesSummary": "{{count}} matches in {{files}} files",
+
+    "matchesSummary_one": "{{count}} match in {{files}} files",
+
+    "matchesSummary_other": "{{count}} matches in {{files}} files",
     "skippedFiles": "{{count}} skipped",
     "truncatedWarning": "Results capped at 200 matches",
     "typeToSearch": "Type to search across SQL files in this folder",
@@ -3389,7 +3394,9 @@
     "noMatchesMessage": "No occurrences of \"{{query}}\" found in this folder.",
     "resultsListLabel": "Search results",
     "openInEditor": "Open in Editor",
-    "selectToPreview": "Select a match from the list to preview"
+    "selectToPreview": "Select a match from the list to preview",
+
+    "linesOmitted": "... {{count}} lines omitted ..."
   },
   "aiInline": {
     "title": "AI inline completion",

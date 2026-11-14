@@ -1402,6 +1402,7 @@ export interface CommandMap {
         LinkedFolderSearchResult,
         'local-admin'
     >;
+    cancel_linked_folder_search: CommandDefinition<undefined, void, 'local-admin'>;
 
     get_connection_metadata: CommandDefinition<
         ConnectionIdRequest,

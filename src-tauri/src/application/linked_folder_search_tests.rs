@@ -160,7 +160,7 @@ fn test_search_exact_200_results_boundary() {
     let dir = tempdir().unwrap();
     let root = dir.path();
 
-    // 4 files with exactly 50 matches each = 200 matches total
+    // 4 files with exactly 50 matches each = 200 matches total, no further matches
     for f in 1..=4 {
         let mut lines = Vec::new();
         for i in 1..=50 {
@@ -171,19 +171,163 @@ fn test_search_exact_200_results_boundary() {
 
     let res = search_linked_folder_root("folder-1", root, "BURST", false).unwrap();
     assert_eq!(res.matches.len(), MAX_SEARCH_RESULTS);
+    assert!(!res.truncated);
+}
+
+#[test]
+fn test_search_201st_match_sets_truncated() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+
+    for f in 1..=4 {
+        let mut lines = Vec::new();
+        for i in 1..=50 {
+            lines.push(format!("SELECT {i} AS val, 'BURST' AS b;"));
+        }
+        fs::write(root.join(format!("batch_{f}.sql")), lines.join("\n")).unwrap();
+    }
+    fs::write(root.join("extra.sql"), "SELECT 'BURST';\n").unwrap();
+
+    let res = search_linked_folder_root("folder-1", root, "BURST", false).unwrap();
+    assert_eq!(res.matches.len(), MAX_SEARCH_RESULTS);
     assert!(res.truncated);
 }
 
 #[test]
-fn test_search_visited_dirs_deduplication() {
+fn test_search_depth_limit() {
     let dir = tempdir().unwrap();
     let root = dir.path();
 
-    let sub = root.join("sub");
-    fs::create_dir(&sub).unwrap();
-    fs::write(sub.join("test.sql"), "SELECT 'DEDUP_TARGET';\n").unwrap();
+    // MAX_RELATIVE_DEPTH is 16: 15 nested directories + file = 16 segments (allowed)
+    let mut allowed_dir = root.to_path_buf();
+    for i in 1..MAX_RELATIVE_DEPTH {
+        allowed_dir = allowed_dir.join(format!("d{i}"));
+    }
+    fs::create_dir_all(&allowed_dir).unwrap();
+    fs::write(allowed_dir.join("ok.sql"), "SELECT 'DEPTH_TARGET';\n").unwrap();
 
-    let res = search_linked_folder_root("folder-1", root, "DEDUP_TARGET", false).unwrap();
+    // One level deeper: 16 directories + file = 17 segments (exceeds MAX_RELATIVE_DEPTH)
+    let too_deep_dir = allowed_dir.join("d16");
+    fs::create_dir_all(&too_deep_dir).unwrap();
+    fs::write(too_deep_dir.join("too_deep.sql"), "SELECT 'DEPTH_TARGET';\n").unwrap();
+
+    let res = search_linked_folder_root("folder-1", root, "DEPTH_TARGET", false).unwrap();
     assert_eq!(res.matches.len(), 1);
+    assert!(res.matches[0].relative_path.ends_with("/ok.sql"));
+}
+
+#[test]
+fn test_search_empty_file() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("empty.sql"), "").unwrap();
+
+    let res = search_linked_folder_root("folder-1", root, "SELECT", false).unwrap();
     assert_eq!(res.files_searched, 1);
+    assert_eq!(res.files_skipped, 0);
+    assert!(res.matches.is_empty());
+    assert!(!res.truncated);
+}
+
+#[test]
+fn test_search_non_utf8_file_skipped() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("bad.sql"), b"\xff\xfe\x00\x80SELECT 1;\n").unwrap();
+    fs::write(root.join("good.sql"), "SELECT 1;\n").unwrap();
+
+    let res = search_linked_folder_root("folder-1", root, "SELECT", false).unwrap();
+    assert_eq!(res.files_searched, 1);
+    assert_eq!(res.files_skipped, 1);
+    assert_eq!(res.matches.len(), 1);
+    assert_eq!(res.matches[0].relative_path, "good.sql");
+}
+
+#[test]
+fn test_search_cancellation() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("a.sql"), "SELECT 'CANCEL_TARGET';\n").unwrap();
+    fs::write(root.join("b.sql"), "SELECT 'CANCEL_TARGET';\n").unwrap();
+
+    let checks = AtomicUsize::new(0);
+    let err = search_linked_folder_root_with_cancel("folder-1", root, "CANCEL_TARGET", false, || {
+        checks.fetch_add(1, Ordering::SeqCst) >= 2
+    })
+    .unwrap_err();
+    assert_eq!(err, LINKED_SEARCH_CANCELLED);
+}
+
+#[cfg(unix)]
+mod symlinks {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn test_search_visited_dirs_deduplication() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let sub = root.join("sub");
+        fs::create_dir(&sub).unwrap();
+        fs::write(sub.join("test.sql"), "SELECT 'DEDUP_TARGET';\n").unwrap();
+        symlink(&sub, root.join("sub_alias")).unwrap();
+
+        let res = search_linked_folder_root("folder-1", root, "DEDUP_TARGET", false).unwrap();
+        assert_eq!(res.matches.len(), 1);
+        assert_eq!(res.files_searched, 1);
+    }
+
+    #[test]
+    fn test_search_symlink_escape_blocked() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("root");
+        let outside = dir.path().join("outside");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+
+        fs::write(outside.join("secret.sql"), "SELECT 'ESCAPE_TARGET';\n").unwrap();
+        fs::write(root.join("local.sql"), "SELECT 'LOCAL_TARGET';\n").unwrap();
+        symlink(&outside, root.join("escape_dir")).unwrap();
+        symlink(outside.join("secret.sql"), root.join("escape_file.sql")).unwrap();
+
+        let res = search_linked_folder_root("folder-1", &root, "ESCAPE_TARGET", false).unwrap();
+        assert!(res.matches.is_empty());
+        assert_eq!(res.files_searched, 1);
+    }
+
+    #[test]
+    fn test_search_symlink_cycles_terminate() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let a = root.join("a");
+        fs::create_dir(&a).unwrap();
+        fs::write(a.join("ok.sql"), "SELECT 'CYCLE_TARGET';\n").unwrap();
+        symlink(root, a.join("loop")).unwrap();
+
+        let res = search_linked_folder_root("folder-1", root, "CYCLE_TARGET", false).unwrap();
+        assert_eq!(res.matches.len(), 1);
+        assert_eq!(res.files_searched, 1);
+    }
+
+    #[test]
+    fn test_search_symlink_non_sql_and_hidden_targets_skipped() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let hidden_dir = root.join(".hidden_dir");
+        fs::create_dir(&hidden_dir).unwrap();
+        fs::write(hidden_dir.join("secret.sql"), "SELECT 'TARGET';\n").unwrap();
+        fs::write(root.join("notes.txt"), "SELECT 'TARGET';\n").unwrap();
+
+        symlink(root.join("notes.txt"), root.join("x.sql")).unwrap();
+        symlink(&hidden_dir, root.join("visible_alias")).unwrap();
+
+        let res = search_linked_folder_root("folder-1", root, "TARGET", false).unwrap();
+        assert!(res.matches.is_empty());
+        assert_eq!(res.files_searched, 0);
+    }
 }

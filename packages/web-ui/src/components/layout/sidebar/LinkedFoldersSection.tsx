@@ -32,7 +32,11 @@ import {LinkedFolderSearchModal} from '@/components/modals/LinkedFolderSearchMod
 interface LinkedFoldersSectionProps {
     /** Open linked files by `folderId:relativePath`; `dirty` marks unsaved edits. */
     openFiles: ReadonlyMap<string, {dirty: boolean}>;
-    onOpenFile: (folderId: string, relativePath: string) => void;
+    onOpenFile: (
+        folderId: string,
+        relativePath: string,
+        location?: {lineNumber: number; columnNumber: number},
+    ) => void;
 }
 
 const rowClassName =

@@ -138,6 +138,7 @@
     "charactersHint": "Puntos de código Unicode, no clústeres de grafemas"
   },
   "common": {
+    "clear": "Limpiar",
     "save": "Guardar",
     "close": "Cerrar",
     "resizeColumn": "Redimensionar columna",
@@ -3180,6 +3181,10 @@
     "clearInput": "Borrar búsqueda",
     "matchCase": "Coincidir mayúsculas y minúsculas",
     "matchesSummary": "{{count}} coincidencias en {{files}} archivos",
+
+    "matchesSummary_one": "{{count}} coincidencia en {{files}} archivos",
+
+    "matchesSummary_other": "{{count}} coincidencias en {{files}} archivos",
     "skippedFiles": "{{count}} omitidos",
     "truncatedWarning": "Resultados limitados a 200 coincidencias",
     "typeToSearch": "Escribe para buscar en los archivos SQL de esta carpeta",
@@ -3187,7 +3192,9 @@
     "noMatchesMessage": "No se encontraron apariciones de \"{{query}}\" en esta carpeta.",
     "resultsListLabel": "Resultados de búsqueda",
     "openInEditor": "Abrir en el editor",
-    "selectToPreview": "Selecciona una coincidencia para previsualizar"
+    "selectToPreview": "Selecciona una coincidencia para previsualizar",
+
+    "linesOmitted": "... {{count}} líneas omitidas ..."
   },
   "aiInline": {
     "title": "Completado de IA en línea",

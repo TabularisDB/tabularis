@@ -145,6 +145,7 @@
     "charactersHint": "Punti di codice Unicode, non cluster di grafemi"
   },
   "common": {
+    "clear": "Cancella",
     "save": "Salva",
     "close": "Chiudi",
     "resizeColumn": "Ridimensiona colonna",
@@ -3279,6 +3280,10 @@
     "clearInput": "Cancella ricerca",
     "matchCase": "Maiuscole/minuscole",
     "matchesSummary": "{{count}} corrispondenze in {{files}} file",
+
+    "matchesSummary_one": "{{count}} corrispondenza in {{files}} file",
+
+    "matchesSummary_other": "{{count}} corrispondenze in {{files}} file",
     "skippedFiles": "{{count}} ignorati",
     "truncatedWarning": "Risultati limitati a 200 corrispondenze",
     "typeToSearch": "Digita per cercare nei file SQL di questa cartella",
@@ -3286,7 +3291,9 @@
     "noMatchesMessage": "Nessuna occorrenza di \"{{query}}\" trovata in questa cartella.",
     "resultsListLabel": "Risultati della ricerca",
     "openInEditor": "Apri nell'editor",
-    "selectToPreview": "Seleziona una corrispondenza per visualizzare l'anteprima"
+    "selectToPreview": "Seleziona una corrispondenza per visualizzare l'anteprima",
+
+    "linesOmitted": "... {{count}} righe omesse ..."
   },
   "aiInline": {
     "title": "Completamento IA in linea",

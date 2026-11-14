@@ -138,6 +138,7 @@
     "charactersHint": "按 Unicode 码点计数,而非字形簇"
   },
   "common": {
+    "clear": "清除",
     "save": "保存",
     "close": "关闭",
     "resizeColumn": "调整列宽",
@@ -3188,6 +3189,10 @@
     "clearInput": "清除搜索",
     "matchCase": "区分大小写",
     "matchesSummary": "在 {{files}} 个文件中找到 {{count}} 处匹配",
+
+    "matchesSummary_one": "在 {{files}} 个文件中找到 {{count}} 个匹配项",
+
+    "matchesSummary_other": "在 {{files}} 个文件中找到 {{count}} 个匹配项",
     "skippedFiles": "跳过 {{count}} 个文件",
     "truncatedWarning": "结果已截断至前 200 处匹配",
     "typeToSearch": "输入内容以在此文件夹的 SQL 文件中搜索",
@@ -3195,7 +3200,9 @@
     "noMatchesMessage": "在此文件夹中未找到 \"{{query}}\"。",
     "resultsListLabel": "搜索结果",
     "openInEditor": "在编辑器中打开",
-    "selectToPreview": "从列表中选择一项以预览"
+    "selectToPreview": "从列表中选择一项以预览",
+
+    "linesOmitted": "... 已省略 {{count}} 行 ..."
   },
   "aiInline": {
     "title": "AI 行内补全",

@@ -138,6 +138,7 @@
     "charactersHint": "Mga Unicode code point, hindi grapheme cluster"
   },
   "common": {
+    "clear": "I-clear",
     "save": "I-save",
     "close": "Isara",
     "resizeColumn": "Baguhin ang laki ng column",
@@ -3268,6 +3269,10 @@
     "clearInput": "I-clear ang paghahanap",
     "matchCase": "Itugma ang case",
     "matchesSummary": "{{count}} tugma sa {{files}} mga file",
+
+    "matchesSummary_one": "{{count}} tugma sa {{files}} file",
+
+    "matchesSummary_other": "{{count}} tugma sa {{files}} file",
     "skippedFiles": "{{count}} nilaktawan",
     "truncatedWarning": "Nililimitahan ang mga resulta sa 200 tugma",
     "typeToSearch": "Mag-type para maghanap sa mga SQL file sa folder na ito",
@@ -3275,7 +3280,9 @@
     "noMatchesMessage": "Walang natagpuang \"{{query}}\" sa folder na ito.",
     "resultsListLabel": "Mga resulta ng paghahanap",
     "openInEditor": "Buksan sa Editor",
-    "selectToPreview": "Pumili ng tugma sa listahan upang i-preview"
+    "selectToPreview": "Pumili ng tugma sa listahan upang i-preview",
+
+    "linesOmitted": "... {{count}} linya ang nilaktawan ..."
   },
   "aiInline": {
     "title": "AI inline completion",
