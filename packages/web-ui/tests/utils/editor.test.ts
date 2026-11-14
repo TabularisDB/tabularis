@@ -980,6 +980,17 @@ describe('editor', () => {
             expect(result).not.toMatch(/\s{2,}/);
         });
 
+        it.each([
+            ['postgres', "name = 'John  Smith'  AND  note = 'a\n b'"],
+            ['mysql', "name = 'it\\'s  here'"],
+        ])('should keep whitespace inside string literals on %s', (driver, filterClause) => {
+            const tab = createMockTab({filterClause});
+            const result = reconstructTableQuery(tab, driver);
+            const literals = filterClause.match(/'(?:\\.|[^'])*'/g) ?? [];
+            for (const literal of literals) expect(result).toContain(literal);
+            expect(result).not.toMatch(/AND {2}/);
+        });
+
         it('should fold macOS smart quotes in the filter to straight ASCII', () => {
             const tab = createMockTab({filterClause: 'status = ‘active’'});
             const result = reconstructTableQuery(tab);
