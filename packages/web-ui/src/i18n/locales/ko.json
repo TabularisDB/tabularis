@@ -3434,6 +3434,7 @@
     "fkIncoming": "{{object}}.{{column}}에서 참조",
     "viewTitle": "뷰 {{view}}",
     "historyTitle": "{{date}}에 실행한 쿼리",
+    "failedRun": "실패한 실행",
     "matchCount": "이 SQL의 참조 수: {{count}}",
     "open": "열기",
     "openHistory": "편집기에서 열기",

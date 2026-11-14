@@ -3553,6 +3553,7 @@
     "fkIncoming": "Được tham chiếu bởi {{object}}.{{column}}",
     "viewTitle": "View {{view}}",
     "historyTitle": "Truy vấn chạy lúc {{date}}",
+    "failedRun": "Lần chạy thất bại",
     "matchCount": "Số tham chiếu trong SQL này: {{count}}",
     "open": "Mở",
     "openHistory": "Mở trong trình soạn thảo",

@@ -27,6 +27,7 @@ import {
     failPendingSources,
     formatColumnUsageSummary,
     formatUsageTarget,
+    isFailedRun,
     isUsageComplete,
     sortEvidence,
     type ColumnUsageEvidence,
@@ -371,7 +372,18 @@ export const ColumnUsageModal = ({
                                                                 {` ${item.constraintName}`}
                                                             </span>
                                                         )}
+                                                        {isFailedRun(item) && (
+                                                            <span className="ml-2 px-1.5 py-0.5 text-[10px] uppercase font-semibold rounded bg-accent-error/15 text-accent-error">
+                                                                {t('columnUsage.failedRun')}
+                                                            </span>
+                                                        )}
                                                     </div>
+                                                    {isFailedRun(item) &&
+                                                        item.historyEntry?.error && (
+                                                            <div className="text-xs text-accent-error font-mono break-all line-clamp-3">
+                                                                {item.historyEntry.error}
+                                                            </div>
+                                                        )}
                                                     {item.reason && (
                                                         <div className="text-xs text-accent-warning">
                                                             {t(`columnUsage.reason.${item.reason}`)}

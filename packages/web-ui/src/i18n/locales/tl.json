@@ -3500,6 +3500,7 @@
     "fkIncoming": "Tinutukoy ng {{object}}.{{column}}",
     "viewTitle": "View {{view}}",
     "historyTitle": "Query na pinatakbo {{date}}",
+    "failedRun": "Nabigong pagtakbo",
     "matchCount": "Mga reference sa SQL na ito: {{count}}",
     "open": "Buksan",
     "openHistory": "Buksan sa editor",

@@ -1,4 +1,5 @@
-import {render, screen} from '@testing-library/react';
+import {fireEvent, render, screen} from '@testing-library/react';
+import type {ComponentProps} from 'react';
 import {describe, it, expect, vi} from 'vitest';
 import {SidebarColumnItem} from '@/components/layout/sidebar/SidebarColumnItem';
 import type {TableColumn} from '@/types/schema';
@@ -13,6 +14,20 @@ vi.mock('@/hooks/useAlert', () => ({
 
 vi.mock('@/hooks/useTabularisClient', () => ({
     useTabularisClient: () => ({call: vi.fn()}),
+}));
+
+// The panel itself has its own tests; here only whether and how it opens.
+vi.mock('@/components/modals/ColumnUsageModal', () => ({
+    ColumnUsageModal: (props: {
+        table: string;
+        column: string;
+        schema?: string;
+        database?: string;
+    }) => (
+        <div data-testid="column-usage">
+            {[props.database, props.schema, props.table, props.column].join('/')}
+        </div>
+    ),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -76,5 +91,54 @@ describe('SidebarColumnItem', () => {
         renderColumn({name: 'bio', data_type: 'text'});
 
         expect(screen.getByText('text')).toBeInTheDocument();
+    });
+
+    describe('context menu', () => {
+        const openMenu = (props: Partial<ComponentProps<typeof SidebarColumnItem>> = {}) => {
+            render(
+                <SidebarColumnItem
+                    column={{...baseColumn, name: 'customer_id'}}
+                    tableName="orders"
+                    connectionId="conn-1"
+                    driver="postgres"
+                    schema="public"
+                    database="shop"
+                    onRefresh={vi.fn()}
+                    onEdit={vi.fn()}
+                    {...props}
+                />,
+            );
+            fireEvent.contextMenu(screen.getByText('customer_id'));
+        };
+
+        it('offers Show Usage next to Modify and Delete on a manageable column', () => {
+            openMenu();
+            expect(screen.getByText('sidebar.modifyColumn')).toBeInTheDocument();
+            expect(screen.getByText('sidebar.showColumnUsage')).toBeInTheDocument();
+            expect(screen.getByText('sidebar.deleteColumn')).toBeInTheDocument();
+        });
+
+        it('opens for a column that cannot be managed, with Show Usage only', () => {
+            openMenu({canManage: false});
+            expect(screen.getByText('sidebar.showColumnUsage')).toBeInTheDocument();
+            expect(screen.getByText('sidebar.copyName')).toBeInTheDocument();
+            expect(screen.queryByText('sidebar.modifyColumn')).toBeNull();
+            expect(screen.queryByText('sidebar.deleteColumn')).toBeNull();
+        });
+
+        it('opens the usage panel for this column, table, schema and database', () => {
+            openMenu({canManage: false});
+            expect(screen.queryByTestId('column-usage')).toBeNull();
+            fireEvent.click(screen.getByText('sidebar.showColumnUsage'));
+            expect(screen.getByTestId('column-usage')).toHaveTextContent(
+                'shop/public/orders/customer_id',
+            );
+            expect(screen.queryByText('sidebar.copyName')).toBeNull();
+        });
+
+        it('has no menu on a view column', () => {
+            openMenu({isView: true});
+            expect(screen.queryByText('sidebar.showColumnUsage')).toBeNull();
+        });
     });
 });
