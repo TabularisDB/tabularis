@@ -4,6 +4,7 @@
 //! This module decides what a ping result means: keep the connection, try one
 //! reconnect, or give it up.
 
+use crate::application::tunnels::TunnelLease;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
@@ -112,6 +113,77 @@ impl HealthTracker {
     pub fn failures(&self, connection_id: &str) -> u32 {
         self.failures.get(connection_id).copied().unwrap_or(0)
     }
+
+    /// Drop the failure count of a connection that is being recovered early.
+    pub fn forget(&mut self, connection_id: &str) {
+        self.failures.remove(connection_id);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PingOutcome {
+    Ok,
+    /// No answer within the ping timeout: the link, or the tunnel under it,
+    /// may be half-open.
+    TimedOut,
+    Error(String),
+}
+
+impl PingOutcome {
+    pub fn error(&self) -> Option<&str> {
+        match self {
+            PingOutcome::Ok => None,
+            PingOutcome::TimedOut => Some("Ping timed out"),
+            PingOutcome::Error(err) => Some(err),
+        }
+    }
+}
+
+/// One connection's ping in a tick, with the SSH tunnel it went through.
+#[derive(Debug, Clone)]
+pub struct TickPing {
+    pub connection_id: String,
+    pub lease: Option<TunnelLease>,
+    pub outcome: PingOutcome,
+    pub verdict: PingVerdict,
+}
+
+/// A shared SSH tunnel to stop, and every connection that was using it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TunnelDiscard {
+    pub lease: TunnelLease,
+    pub recover: Vec<String>,
+}
+
+/// Tunnels that look half-open: no connection through them pinged Ok, at
+/// least one timed out, and one has failed for good. A refused or rejected
+/// ping means the tunnel still carried it, so errors alone never discard.
+///
+/// With auto-reconnect off, a tunnel is discarded only when every connection
+/// using it is being dropped, so none is left on a stopped tunnel.
+pub fn tunnel_discards(tick: &[TickPing], auto_reconnect: bool) -> Vec<TunnelDiscard> {
+    let mut holders: Vec<(&TunnelLease, Vec<&TickPing>)> = Vec::new();
+    for ping in tick {
+        let Some(lease) = &ping.lease else { continue };
+        match holders.iter_mut().find(|(held, _)| *held == lease) {
+            Some((_, pings)) => pings.push(ping),
+            None => holders.push((lease, vec![ping])),
+        }
+    }
+    holders
+        .into_iter()
+        .filter(|(_, pings)| {
+            let failed = |p: &&TickPing| p.verdict == PingVerdict::Failed;
+            pings.iter().all(|p| p.outcome != PingOutcome::Ok)
+                && pings.iter().any(|p| p.outcome == PingOutcome::TimedOut)
+                && pings.iter().any(failed)
+                && (auto_reconnect || pings.iter().all(failed))
+        })
+        .map(|(lease, pings)| TunnelDiscard {
+            lease: lease.clone(),
+            recover: pings.iter().map(|p| p.connection_id.clone()).collect(),
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -188,6 +260,123 @@ mod tests {
         tracker.record("a", false);
         assert!(!tracker.begin_tick(at(10)));
         assert_eq!(tracker.failures("a"), 1);
+    }
+
+    fn lease(generation: u64) -> Option<TunnelLease> {
+        Some(TunnelLease {
+            key: "user@bastion:22:db->5432".into(),
+            generation,
+        })
+    }
+
+    fn ping(
+        id: &str,
+        lease: Option<TunnelLease>,
+        outcome: PingOutcome,
+        verdict: PingVerdict,
+    ) -> TickPing {
+        TickPing {
+            connection_id: id.into(),
+            lease,
+            outcome,
+            verdict,
+        }
+    }
+
+    fn recovered(discards: &[TunnelDiscard]) -> Vec<Vec<&str>> {
+        discards
+            .iter()
+            .map(|d| d.recover.iter().map(String::as_str).collect())
+            .collect()
+    }
+
+    #[test]
+    fn a_timed_out_tunnel_is_discarded_with_every_holder() {
+        let tick = [
+            ping("a", lease(1), PingOutcome::TimedOut, PingVerdict::Failed),
+            ping("b", lease(1), PingOutcome::TimedOut, PingVerdict::Suspect),
+        ];
+        let discards = tunnel_discards(&tick, true);
+        assert_eq!(recovered(&discards), vec![vec!["a", "b"]]);
+        assert_eq!(discards[0].lease, lease(1).unwrap());
+    }
+
+    #[test]
+    fn a_holder_that_pings_ok_keeps_the_tunnel() {
+        let tick = [
+            ping("a", lease(1), PingOutcome::TimedOut, PingVerdict::Failed),
+            ping("b", lease(1), PingOutcome::Ok, PingVerdict::Healthy),
+        ];
+        assert!(tunnel_discards(&tick, true).is_empty());
+    }
+
+    #[test]
+    fn errors_without_a_timeout_keep_the_tunnel() {
+        let refused = PingOutcome::Error("connection refused".into());
+        let tick = [ping("a", lease(1), refused, PingVerdict::Failed)];
+        assert!(tunnel_discards(&tick, true).is_empty());
+    }
+
+    #[test]
+    fn a_tunnel_is_kept_until_a_holder_has_failed() {
+        let tick = [ping(
+            "a",
+            lease(1),
+            PingOutcome::TimedOut,
+            PingVerdict::Suspect,
+        )];
+        assert!(tunnel_discards(&tick, true).is_empty());
+    }
+
+    #[test]
+    fn generations_of_one_key_are_separate_tunnels() {
+        let tick = [
+            ping("a", lease(1), PingOutcome::TimedOut, PingVerdict::Failed),
+            ping("b", lease(2), PingOutcome::Ok, PingVerdict::Healthy),
+        ];
+        let discards = tunnel_discards(&tick, true);
+        assert_eq!(recovered(&discards), vec![vec!["a"]]);
+        assert_eq!(discards[0].lease.generation, 1);
+    }
+
+    #[test]
+    fn connections_without_a_tunnel_are_never_grouped() {
+        let tick = [
+            ping("a", None, PingOutcome::TimedOut, PingVerdict::Failed),
+            ping("b", None, PingOutcome::TimedOut, PingVerdict::Failed),
+        ];
+        assert!(tunnel_discards(&tick, true).is_empty());
+    }
+
+    #[test]
+    fn without_auto_reconnect_every_holder_must_have_failed() {
+        let one_left = [
+            ping("a", lease(1), PingOutcome::TimedOut, PingVerdict::Failed),
+            ping("b", lease(1), PingOutcome::TimedOut, PingVerdict::Suspect),
+        ];
+        assert!(tunnel_discards(&one_left, false).is_empty());
+
+        let all_failed = [
+            ping("a", lease(1), PingOutcome::TimedOut, PingVerdict::Failed),
+            ping(
+                "b",
+                lease(1),
+                PingOutcome::Error("eof".into()),
+                PingVerdict::Failed,
+            ),
+        ];
+        assert_eq!(
+            recovered(&tunnel_discards(&all_failed, false)),
+            vec![vec!["a", "b"]]
+        );
+    }
+
+    #[test]
+    fn forget_clears_a_suspect_count() {
+        let mut tracker = HealthTracker::new(INTERVAL);
+        tracker.record("a", false);
+        tracker.forget("a");
+        assert_eq!(tracker.record("a", false), PingVerdict::Suspect);
     }
 
     #[test]
