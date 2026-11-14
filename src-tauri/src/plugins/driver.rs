@@ -1860,6 +1860,24 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    async fn database_operation(
+        &self,
+        params: &ConnectionParams,
+        operation: crate::database_operations::DatabaseOperation,
+    ) -> Result<(), String> {
+        if params.read_only || !operation.supported(&self.manifest.capabilities) {
+            return Err("Database operation is unsupported or connection is read-only".into());
+        }
+        let params = self.with_primary_database(params);
+        self.process
+            .call(
+                "database_operation",
+                json!({"params": params, "operation": operation}),
+            )
+            .await?;
+        Ok(())
+    }
+
     /// Optional RPC, only called when the manifest declares
     /// `capabilities.drop_table_sql`. A -32601, a `null`/blank result or any
     /// non-string result keeps the host's generic `DROP TABLE`. `database` is

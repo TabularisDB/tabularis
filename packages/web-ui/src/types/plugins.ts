@@ -23,6 +23,10 @@ export interface ConnectionStringExample {
 }
 
 export interface DriverCapabilities {
+    /** Native whole-database operations. Omitted means unsupported. */
+    empty_database?: boolean;
+    truncate_database?: boolean;
+    drop_database?: boolean;
     schemas: boolean;
     views: boolean;
     routines: boolean;

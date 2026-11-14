@@ -379,6 +379,7 @@ enum RecordRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DatabaseObjectRpcCommand {
+    DatabaseOperation,
     RoutineDebug,
     GetTableQueryTemplate,
     GetColumnStats,
@@ -2550,6 +2551,7 @@ impl DatabaseObjectRpcCommand {
             "get_table_query_template" => Self::GetTableQueryTemplate,
             "get_column_stats" => Self::GetColumnStats,
             "get_drop_table_sql" => Self::GetDropTableSql,
+            "database_operation" => Self::DatabaseOperation,
             "get_data_types" => Self::GetDataTypes,
             "map_inferred_column_types" => Self::MapInferredColumnTypes,
             "execute_clipboard_import" => Self::ExecuteClipboardImport,
@@ -3598,6 +3600,23 @@ fn decode_database_object_command(
     body: &[u8],
 ) -> Result<DatabaseObjectCommand, String> {
     Ok(match command {
+        DatabaseObjectRpcCommand::DatabaseOperation => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase", deny_unknown_fields)]
+            struct Request {
+                connection_id: String,
+                database: String,
+                operation: crate::database_operations::DatabaseOperation,
+                confirmation: String,
+            }
+            let request: Request = decode_payload(body)?;
+            DatabaseObjectCommand::DatabaseOperation {
+                connection_id: request.connection_id,
+                database: request.database,
+                operation: request.operation,
+                confirmation: request.confirmation,
+            }
+        }
         DatabaseObjectRpcCommand::RoutineDebug => {
             #[derive(Deserialize)]
             #[serde(rename_all = "camelCase", deny_unknown_fields)]

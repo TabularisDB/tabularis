@@ -3450,5 +3450,16 @@
     "copySummary": "요약 복사",
     "copied": "리터럴 값을 숨기고 요약을 복사했습니다.",
     "copyFailed": "요약을 복사할 수 없습니다."
+  },
+  "databaseOperations": {
+    "menu": "기타 데이터베이스 작업",
+    "drop": "데이터베이스 삭제…",
+    "truncate": "테이블 비우기…",
+    "empty": "모든 객체 삭제…",
+    "dropDescription": "“{{database}}” 및 모든 객체와 데이터를 영구적으로 삭제합니다.",
+    "truncateDescription": "“{{database}}”의 모든 사용자 테이블 행을 삭제하고 구조는 유지합니다. 가능한 경우 ID 카운터를 초기화합니다.",
+    "emptyDescription": "“{{database}}”의 모든 사용자 객체와 데이터를 제거하고 데이터베이스는 유지합니다.",
+    "confirmName": "확인하려면 데이터베이스 이름을 입력하세요: {{database}}",
+    "warning": "숨겨진 스키마를 포함한 전체 데이터베이스에 적용됩니다. 이 연결의 미적용 편집과 결과가 지워집니다. MySQL은 변경 사항이 부분 적용될 수 있으며 SQLite는 DELETE 트리거를 실행합니다. 먼저 백업하세요."
   }
 }

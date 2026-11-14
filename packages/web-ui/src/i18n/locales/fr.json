@@ -3573,5 +3573,16 @@
     "copySummary": "Copier le résumé",
     "copied": "Résumé copié, valeurs littérales masquées.",
     "copyFailed": "Impossible de copier le résumé."
+  },
+  "databaseOperations": {
+    "menu": "Autres opérations sur la base",
+    "drop": "Supprimer la base…",
+    "truncate": "Vider les tables…",
+    "empty": "Supprimer tous les objets…",
+    "dropDescription": "Supprimer définitivement « {{database}} », ses objets et ses données.",
+    "truncateDescription": "Supprimer toutes les lignes des tables utilisateur de « {{database}} » en conservant la structure. Réinitialiser les compteurs si possible.",
+    "emptyDescription": "Supprimer les objets utilisateur et données de « {{database}} » en conservant la base.",
+    "confirmName": "Saisissez le nom pour confirmer : {{database}}",
+    "warning": "Concerne toute la base, y compris les schémas masqués. Les modifications de grille en attente et résultats seront effacés. MySQL peut appliquer des changements partiels ; SQLite exécute les déclencheurs DELETE. Faites une sauvegarde."
   }
 }

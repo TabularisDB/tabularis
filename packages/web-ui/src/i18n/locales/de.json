@@ -3497,5 +3497,16 @@
     "copySummary": "Zusammenfassung kopieren",
     "copied": "Zusammenfassung kopiert, Literalwerte ausgeblendet.",
     "copyFailed": "Zusammenfassung konnte nicht kopiert werden."
+  },
+  "databaseOperations": {
+    "menu": "Weitere Datenbankoperationen",
+    "drop": "Datenbank löschen…",
+    "truncate": "Tabellen leeren…",
+    "empty": "Alle Objekte entfernen…",
+    "dropDescription": "Datenbank „{{database}}“ mit allen Objekten und Daten dauerhaft löschen.",
+    "truncateDescription": "Alle Zeilen aller Benutzertabellen in „{{database}}“ löschen; Struktur bleibt erhalten. Identitätszähler werden soweit möglich zurückgesetzt.",
+    "emptyDescription": "Alle Benutzerobjekte und Daten aus „{{database}}“ entfernen; die Datenbank bleibt erhalten.",
+    "confirmName": "Zum Bestätigen den Datenbanknamen eingeben: {{database}}",
+    "warning": "Betrifft die gesamte Datenbank, auch ausgeblendete Schemas. Ausstehende Tabellenänderungen und Ergebnisse dieser Verbindung werden verworfen. MySQL kann bei Fehlern Teiländerungen behalten; SQLite führt DELETE-Trigger aus. Vorher sichern."
   }
 }

@@ -351,6 +351,93 @@ describe('ExplorerSidebar — database object navigation', () => {
         fireEvent.contextMenu(screen.getByText(name));
     };
 
+    describe('whole-database operations (#827)', () => {
+        const configure = (readOnly = false) => {
+            const capabilities = {
+                schemas: false,
+                file_based: false,
+                views: true,
+                routines: false,
+                empty_database: true,
+                truncate_database: true,
+                drop_database: true,
+            };
+            const refreshDatabaseData = vi.fn().mockResolvedValue(undefined);
+            const disconnect = vi.fn().mockResolvedValue(undefined);
+            vi.mocked(invoke).mockResolvedValue(null);
+            vi.mocked(useDatabase).mockReturnValue({
+                ...databaseState,
+                activeDriver: 'mysql',
+                activeCapabilities: capabilities,
+                activeDatabaseName: 'demo827',
+                activeSchema: 'demo827',
+                selectedDatabases: ['demo827'],
+                connections: [
+                    {
+                        id: 'c1',
+                        name: 'Demo',
+                        params: {driver: 'mysql', database: 'demo827', read_only: readOnly},
+                    },
+                ],
+                connectionDataMap: {
+                    c1: {
+                        capabilities,
+                        selectedDatabases: ['demo827'],
+                        schemaDataMap: {},
+                        nestedDatabaseDataMap: {},
+                    },
+                },
+                databaseDataMap: {
+                    demo827: {tables: [], views: [], routines: [], triggers: [], isLoaded: true},
+                },
+                loadDatabaseData: vi.fn(),
+                refreshDatabaseData,
+                disconnect,
+            } as unknown as ReturnType<typeof useDatabase>);
+            return {refreshDatabaseData, disconnect};
+        };
+
+        it.each(['empty', 'truncate'] as const)(
+            'refreshes a single selected MySQL database after %s without disconnecting',
+            async (operation) => {
+                const {refreshDatabaseData, disconnect} = configure();
+                renderSidebar();
+                fireEvent.contextMenu(screen.getByText('demo827'));
+                fireEvent.click(screen.getByRole('button', {name: 'databaseOperations.menu'}));
+                fireEvent.click(
+                    screen.getByRole('button', {name: `databaseOperations.${operation}`}),
+                );
+                fireEvent.change(
+                    screen.getByRole('textbox', {name: 'databaseOperations.confirmName'}),
+                    {target: {value: 'demo827'}},
+                );
+                fireEvent.click(
+                    screen.getByRole('button', {name: `databaseOperations.${operation}`}),
+                );
+                await waitFor(() =>
+                    expect(refreshDatabaseData).toHaveBeenCalledWith('demo827', 'c1'),
+                );
+                expect(disconnect).not.toHaveBeenCalled();
+                expect(databaseState.connect).not.toHaveBeenCalled();
+                expect(invoke).toHaveBeenCalledWith('database_operation', {
+                    connectionId: 'c1',
+                    database: 'demo827',
+                    operation,
+                    confirmation: 'demo827',
+                });
+            },
+        );
+
+        it('hides all database operations on a saved read-only connection', () => {
+            configure(true);
+            renderSidebar();
+            fireEvent.contextMenu(screen.getByText('demo827'));
+            expect(
+                screen.queryByRole('button', {name: 'databaseOperations.menu'}),
+            ).not.toBeInTheDocument();
+        });
+    });
+
     it('double-clicking a table opens it', () => {
         renderSidebar();
         fireEvent.doubleClick(screen.getByText('orders'));

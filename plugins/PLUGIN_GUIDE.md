@@ -2481,3 +2481,24 @@ The legacy path — a pull request adding an entry to `plugins/registry.json` (f
 > **Note:** `min_tabularis_version` is specified per-release inside the `releases[]` array,
 > not at the root plugin level. This allows older Tabularis installs to install an older
 > compatible release even when a newer release requires a higher app version.
+
+### Whole-database operations
+
+The independent `empty_database`, `truncate_database`, and `drop_database` boolean
+capabilities opt into `database_operation`. All default to false. The host hides
+unsupported actions and blocks read-only connections before invoking the plugin.
+The RPC receives `{params: ConnectionParams, operation: "empty" | "truncate" | "drop"}`;
+`params.database` is the explicit browsed database, never a list. Return `null` on
+success or a JSON-RPC error on failure. No generic SQL fallback is attempted.
+
+* `empty`: remove all user tables and other user objects, preserving the database.
+* `truncate`: remove rows from all user tables, preserve objects, reset generated
+  identities where supported. Respect foreign keys and transaction guarantees.
+* `drop`: remove the database and its objects, using an administrative connection
+  when the engine cannot drop the current database.
+
+Drivers must reject invalid/protected targets, preserve unrelated databases and
+avoid leaking altered session state to pooled connections on error/cancellation.
+MySQL DDL is not atomic; error messages must not imply that prior changes rolled
+back. SQLite exposes empty/truncate (transactional DELETE, including DELETE
+triggers); DROP DATABASE is unavailable and the host never deletes database files.

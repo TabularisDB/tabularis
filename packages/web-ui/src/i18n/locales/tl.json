@@ -3516,5 +3516,16 @@
     "copySummary": "Kopyahin ang buod",
     "copied": "Nakopya ang buod, nakatago ang mga literal na value.",
     "copyFailed": "Hindi makopya ang buod."
+  },
+  "databaseOperations": {
+    "menu": "Iba pang operasyon sa database",
+    "drop": "Tanggalin ang database…",
+    "truncate": "Alisin ang laman ng mga table…",
+    "empty": "Tanggalin lahat ng object…",
+    "dropDescription": "Permanenteng tanggalin ang “{{database}}” at lahat ng object at data nito.",
+    "truncateDescription": "Tanggalin ang lahat ng row sa mga user table ng “{{database}}”, ngunit panatilihin ang istruktura. I-reset ang mga counter kung suportado.",
+    "emptyDescription": "Alisin ang lahat ng user object at data sa “{{database}}”, ngunit panatilihin ang database.",
+    "confirmName": "I-type ang pangalan ng database para kumpirmahin: {{database}}",
+    "warning": "Saklaw ang buong database, pati mga nakatagong schema. Aalisin ang mga nakabinbing edit at resulta ng koneksyong ito. Maaaring bahagyang mailapat ang pagbabago sa MySQL; pinapatakbo ng SQLite ang mga DELETE trigger. Mag-backup muna."
   }
 }

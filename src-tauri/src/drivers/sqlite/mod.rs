@@ -1,3 +1,4 @@
+mod database_operations;
 pub mod export;
 pub mod extract;
 pub mod types;
@@ -1061,6 +1062,9 @@ impl SqliteDriver {
                 description: "SQLite file-based databases".to_string(),
                 default_port: None,
                 capabilities: DriverCapabilities {
+                    empty_database: true,
+                    truncate_database: true,
+                    drop_database: false,
                     schemas: false,
                     single_database: false,
                     views: true,
@@ -1124,6 +1128,14 @@ impl SqliteDriver {
 
 #[async_trait]
 impl DatabaseDriver for SqliteDriver {
+    async fn database_operation(
+        &self,
+        params: &ConnectionParams,
+        operation: crate::database_operations::DatabaseOperation,
+    ) -> Result<(), String> {
+        database_operations::execute(params, operation).await
+    }
+
     fn manifest(&self) -> &PluginManifest {
         &self.manifest
     }

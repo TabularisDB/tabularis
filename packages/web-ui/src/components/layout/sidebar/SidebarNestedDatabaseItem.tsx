@@ -176,6 +176,9 @@ export const SidebarNestedDatabaseItem = ({
                 tabIndex={0}
                 aria-expanded={isExpanded}
                 className="flex items-center justify-between px-2 py-1.5 group/db cursor-pointer hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                onContextMenu={(event) =>
+                    onContextMenu(event, 'database', databaseName, databaseName)
+                }
                 onClick={handleToggle}
                 onKeyDown={(event) => onActivationKey(handleToggle)(event)}
             >

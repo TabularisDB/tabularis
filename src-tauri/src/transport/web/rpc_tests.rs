@@ -3296,3 +3296,19 @@ async fn opens_data_files_only_for_local_admin_upload_sessions() {
         .await;
     assert_eq!(desktop_only_field.status(), StatusCode::BAD_REQUEST);
 }
+
+#[test]
+fn database_operations_web_contract_requires_explicit_target_confirmation_and_known_action() {
+    for operation in ["drop", "truncate", "empty"] {
+        let body = serde_json::to_vec(&serde_json::json!({"connectionId":"c", "database":"db", "operation":operation, "confirmation":"db"})).unwrap();
+        assert!(matches!(decode_database_object_command(DatabaseObjectRpcCommand::DatabaseOperation, &body).unwrap(), DatabaseObjectCommand::DatabaseOperation {database, confirmation, ..} if database == "db" && confirmation == "db"));
+    }
+    for invalid in [
+        serde_json::json!({"connectionId":"c", "database":"db", "operation":"drop"}),
+        serde_json::json!({"connectionId":"c", "database":"db", "operation":"unknown", "confirmation":"db"}),
+        serde_json::json!({"connectionId":"c", "database":"db", "operation":"drop", "confirmation":"db", "params":{"password":"untrusted"}}),
+    ] {
+        assert!(decode_database_object_command(DatabaseObjectRpcCommand::DatabaseOperation, &serde_json::to_vec(&invalid).unwrap()).is_err());
+    }
+    assert!(matches!(RpcCommand::parse("database_operation"), Some(RpcCommand::DatabaseObject(DatabaseObjectRpcCommand::DatabaseOperation))));
+}

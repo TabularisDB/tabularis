@@ -3630,5 +3630,16 @@
     "copySummary": "Copy summary",
     "copied": "Summary copied, with literal values hidden.",
     "copyFailed": "Could not copy the summary."
+  },
+  "databaseOperations": {
+    "menu": "More Database Operations",
+    "drop": "Drop Database…",
+    "truncate": "Truncate Database…",
+    "empty": "Empty Database…",
+    "dropDescription": "Permanently delete database “{{database}}” and all its objects and data.",
+    "truncateDescription": "Delete all rows from all user tables in database “{{database}}”, keeping its structure. Reset identity counters where supported.",
+    "emptyDescription": "Remove all user objects and data from database “{{database}}”, keeping the database itself.",
+    "confirmName": "Type the database name to confirm: {{database}}",
+    "warning": "This affects the entire database, including schemas not currently shown. Pending grid edits and displayed results for this connection will be cleared. MySQL DDL can commit partially on failure; SQLite uses DELETE and runs DELETE triggers. Make a backup before proceeding."
   }
 }

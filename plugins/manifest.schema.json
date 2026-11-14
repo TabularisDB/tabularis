@@ -67,6 +67,21 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "empty_database": {
+          "type": "boolean",
+          "default": false,
+          "description": "Supports native whole-database empty through database_operation RPC."
+        },
+        "truncate_database": {
+          "type": "boolean",
+          "default": false,
+          "description": "Supports native whole-database truncate through database_operation RPC."
+        },
+        "drop_database": {
+          "type": "boolean",
+          "default": false,
+          "description": "Supports native whole-database drop through database_operation RPC."
+        },
         "schemas": {
           "type": "boolean",
           "description": "true if the database supports named schemas (e.g. PostgreSQL). Shows the schema selector in the connection UI."
