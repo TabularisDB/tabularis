@@ -551,4 +551,13 @@ $function$`;
         expect(parts).toHaveLength(2);
         expect(parts[0]).toContain('RETURN NEW; END;');
     });
+
+    it.each(['$fn1$', '$función$'])('does not break %s bodies', (tag) => {
+        const parts = splitSqlStatements(
+            `CREATE FUNCTION f() RETURNS TRIGGER AS ${tag} BEGIN RETURN NEW; END; ${tag} LANGUAGE plpgsql;
+CREATE TRIGGER t AFTER INSERT ON a FOR EACH ROW EXECUTE FUNCTION f();`,
+        );
+        expect(parts).toHaveLength(2);
+        expect(parts[0]).toContain(`RETURN NEW; END; ${tag} LANGUAGE plpgsql`);
+    });
 });

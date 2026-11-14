@@ -90,6 +90,15 @@ describe('splitStatements', () => {
             expect(result[0]).toContain('$body$');
             expect(result[1]).toBe('SELECT 3');
         });
+
+        it('respects tags with non-ASCII letters', () => {
+            const sql =
+                'CREATE FUNCTION f() RETURNS int AS $función$ BEGIN RETURN 1; END; $función$ LANGUAGE plpgsql; SELECT 2;';
+            const result = splitQueries(sql, 'postgres');
+            expect(result).toHaveLength(2);
+            expect(result[0]).toContain('RETURN 1; END; $función$ LANGUAGE plpgsql');
+            expect(result[1]).toBe('SELECT 2');
+        });
     });
 
     describe('mysql custom delimiter round-trip', () => {

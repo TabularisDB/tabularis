@@ -204,7 +204,10 @@ function scanEString(source: string, position: number): Token {
     return {kind: 'string', length: source.length - position};
 }
 
-const DOLLAR_TAG_RE = /\$([A-Za-z0-9_]*)\$/y;
+// A tag follows PostgreSQL's identifier rules (the same pattern as
+// `sqlDiagnostics`): any letter or `_`, then letters, digits or `_`, so
+// `$función$` is a tag too.
+const DOLLAR_TAG_RE = /\$((?:[\p{L}_][\p{L}\p{N}_]*)?)\$/uy;
 
 function scanDollarQuoted(source: string, position: number): Token | null {
     // PostgreSQL requires a dollar quote that follows an identifier or
