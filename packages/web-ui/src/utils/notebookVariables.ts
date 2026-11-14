@@ -2,6 +2,7 @@ import type {NotebookCell} from '@/types/notebook';
 import type {QueryResult} from '@/types/editor';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {getQuoteChar, quoteIdentifierWith} from './identifiers';
+import {stripLeadingComments} from './sqlSplitter';
 import type {BooleanLiteralStyle} from '@/types/plugins';
 import {
     booleanLiteralWithStyle,
@@ -226,7 +227,16 @@ export function resolveQueryVariables(
     );
 
     if (ctes.length > 0) {
-        resolvedSql = `WITH ${ctes.join(',\n')}\n${resolvedSql}`;
+        // A query with its own WITH clause gets the cell CTEs added to the front of
+        // that clause: a second WITH before it would be a syntax error.
+        const body = stripLeadingComments(resolvedSql);
+        const ownWith = /^with(?:\s+recursive)?\s+/i.exec(body);
+        if (ownWith) {
+            const insertAt = resolvedSql.length - body.length + ownWith[0].length;
+            resolvedSql = `${resolvedSql.slice(0, insertAt)}${ctes.join(',\n')},\n${resolvedSql.slice(insertAt)}`;
+        } else {
+            resolvedSql = `WITH ${ctes.join(',\n')}\n${resolvedSql}`;
+        }
     }
 
     return {sql: resolvedSql, unresolvedRefs};

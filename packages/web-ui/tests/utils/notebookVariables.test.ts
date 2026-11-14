@@ -140,6 +140,26 @@ describe('notebookVariables', () => {
             expect(result.unresolvedRefs).toEqual([]);
         });
 
+        it.each([
+            ['WITH x AS (SELECT * FROM {{cell_1}}) SELECT * FROM x', 'WITH '],
+            [
+                '-- totals\nwith recursive x AS (SELECT * FROM {{cell_1}}) SELECT * FROM x',
+                '-- totals\nwith recursive ',
+            ],
+        ])('should add the cell CTE to a query that has its own WITH: %j', (sql, head) => {
+            const cells = [
+                makeCell({
+                    result: {columns: ['id'], rows: [[1]], affected_rows: 0},
+                }),
+            ];
+            const result = resolveQueryVariables(sql, cells);
+
+            expect(result.sql).toBe(
+                `${head}cell_1 AS (\n  SELECT 1 AS "id"\n),\n` +
+                    'x AS (SELECT * FROM cell_1) SELECT * FROM x',
+            );
+        });
+
         it('should replace every identical reference with a single CTE', () => {
             const cells = [
                 makeCell({
