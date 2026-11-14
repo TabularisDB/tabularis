@@ -42,6 +42,8 @@ pub mod task_manager;
 #[cfg(test)]
 mod tests;
 pub mod theme_commands;
+#[cfg(test)]
+mod theme_commands_tests;
 pub mod theme_packages;
 pub mod ui_state_commands;
 pub mod updater;
