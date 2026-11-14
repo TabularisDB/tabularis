@@ -295,9 +295,7 @@ describe('LinkedFolderSearchModal', () => {
         // Select second match in the same file
         await user.keyboard('{ArrowDown}');
 
-        const readCalls = client.call.mock.calls.filter(
-            ([cmd]) => cmd === 'read_linked_sql_file',
-        );
+        const readCalls = client.call.mock.calls.filter(([cmd]) => cmd === 'read_linked_sql_file');
         expect(readCalls).toHaveLength(1);
     });
 });

@@ -30,9 +30,7 @@ interface LinkedFolderSearchModalProps {
     ) => void;
 }
 
-type PreviewCacheEntry =
-    | {status: 'loaded'; lines: string[]}
-    | {status: 'error'; error: string};
+type PreviewCacheEntry = {status: 'loaded'; lines: string[]} | {status: 'error'; error: string};
 
 const PREVIEW_WINDOW_RADIUS = 150;
 const SNIPPET_HALF_WINDOW = 125;
