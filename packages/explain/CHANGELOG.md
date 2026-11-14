@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/TabularisDB/tabularis/compare/explain-v0.3.0...explain-v0.3.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **explain:** parse never-executed nodes and Buffers in Postgres text plans ([#1548](https://github.com/TabularisDB/tabularis/issues/1548)) ([e9b401b](https://github.com/TabularisDB/tabularis/commit/e9b401b1bba45c81330fa1e7161157d59b197e5c))
+
 ## [0.3.0](https://github.com/TabularisDB/tabularis/compare/explain-v0.2.0...explain-v0.3.0) (2026-11-13)
 
 
