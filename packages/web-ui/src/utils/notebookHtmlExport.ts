@@ -1,4 +1,5 @@
 import type {NotebookCell} from '@/types/notebook';
+import {formatCellValue} from './dataGrid';
 import {escapeHtml} from './escape';
 
 function renderMarkdownCell(content: string): string {
@@ -58,7 +59,7 @@ function renderSqlCell(cell: NotebookCell, index: number): string {
         html += `<thead><tr>${cell.result.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>`;
         html += `<tbody>`;
         for (const row of cell.result.rows) {
-            html += `<tr>${row.map((v) => `<td>${v === null ? '<em>NULL</em>' : escapeHtml(String(v))}</td>`).join('')}</tr>`;
+            html += `<tr>${row.map((v) => `<td>${v === null || v === undefined ? '<em>NULL</em>' : escapeHtml(formatCellValue(v))}</td>`).join('')}</tr>`;
         }
         html += `</tbody></table>`;
     }
