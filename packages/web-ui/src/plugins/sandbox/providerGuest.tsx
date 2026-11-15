@@ -14,6 +14,7 @@ import type {UsePluginAccountReturn} from '@/types/pluginAccount';
 import type {UsePluginRpcReturn} from '@/types/pluginRpc';
 import type {OpenPluginWorkspaceOptions} from '@/types/pluginWorkspaceTab';
 import {getPluginNativeBounds} from '@/utils/pluginNativeGeometry';
+import {getPluginExplorerIcon} from '@/utils/pluginExplorerIcons';
 
 type HostCall = (method: string, ...values: unknown[]) => Promise<unknown>;
 type GuestContext = Record<string, unknown>;
@@ -166,24 +167,28 @@ export function createProviderGuestApi(
                 onToggle={() => setOpen((value) => !value)}
                 actions={icon}
             >
-                {items.map((item) => (
-                    <button
-                        key={item.id}
-                        type="button"
-                        aria-pressed={context().activeWorkspaceId === item.id}
-                        disabled={disabled || !context().connectionId}
-                        onClick={() =>
-                            workspace.openWorkspace({
-                                id: item.id,
-                                title: `${providerName} · ${item.label}`,
-                                connectionId,
-                            })
-                        }
-                        className="flex w-full cursor-pointer items-center gap-2 py-1 pl-8 pr-3 text-left text-xs text-secondary hover:bg-surface-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
-                    >
-                        {item.label}
-                    </button>
-                ))}
+                {items.map((item) => {
+                    const Icon = getPluginExplorerIcon(item.icon);
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            aria-pressed={context().activeWorkspaceId === item.id}
+                            disabled={disabled || !context().connectionId}
+                            onClick={() =>
+                                workspace.openWorkspace({
+                                    id: item.id,
+                                    title: `${providerName} · ${item.label}`,
+                                    connectionId,
+                                })
+                            }
+                            className="flex w-full cursor-pointer items-center gap-2 py-1 pl-8 pr-3 text-left text-xs text-secondary hover:bg-surface-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                        >
+                            <Icon size={14} className="shrink-0 text-muted" aria-hidden="true" />
+                            <span className="truncate">{item.label}</span>
+                        </button>
+                    );
+                })}
             </Accordion>
         );
     }

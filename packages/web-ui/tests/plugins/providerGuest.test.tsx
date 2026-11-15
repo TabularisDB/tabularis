@@ -4,6 +4,7 @@ import {createProviderGuestApi} from '@/plugins/sandbox/providerGuest';
 import {useEffect} from 'react';
 
 vi.mock('react-i18next', async (importOriginal) => importOriginal());
+vi.mock('lucide-react', async (importOriginal) => importOriginal());
 
 describe('isolated provider guest facade', () => {
     const context = {
@@ -112,6 +113,38 @@ describe('isolated provider guest facade', () => {
         fireEvent.click(await screen.findByRole('option', {name: 'Development'}));
         expect(onChange).toHaveBeenCalledWith('two');
         expect(call).toHaveBeenLastCalledWith('ui.popover', expect.any(String), false);
+    });
+    it('renders service icons inside the guest with the host document fallback', () => {
+        const call = vi.fn().mockResolvedValue(null);
+        const {api} = createProviderGuestApi('provider', () => context, call);
+        render(
+            <api.PluginExplorerSection
+                pluginId="provider"
+                providerName="Provider"
+                items={[
+                    {id: 'users', label: 'Users', icon: 'users'},
+                    {id: 'branches', label: 'Branches', icon: 'branches'},
+                    {id: 'unknown', label: 'Unknown', icon: 'constructor'},
+                    {id: 'default', label: 'Default'},
+                ]}
+            />,
+        );
+        for (const [label, icon] of [
+            ['Users', 'users'],
+            ['Branches', 'git-branch'],
+            ['Unknown', 'file-text'],
+            ['Default', 'file-text'],
+        ]) {
+            const svg = screen.getByRole('button', {name: label}).querySelector(`.lucide-${icon}`);
+            expect(svg).toBeInTheDocument();
+            expect(svg).toHaveAttribute('aria-hidden', 'true');
+        }
+        fireEvent.click(screen.getByRole('button', {name: 'Users'}));
+        expect(call).toHaveBeenCalledWith('provider.openWorkspace', {
+            id: 'users',
+            title: 'Provider · Users',
+            connectionId: 'own',
+        });
     });
     it('releases the native overlay layer when a popover is dismissed or its component unmounts', () => {
         const call = vi.fn().mockResolvedValue(null);

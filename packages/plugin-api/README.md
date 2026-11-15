@@ -171,14 +171,15 @@ Only the owning plugin's contributions render. The same workspace and connection
 focus the existing tab; other connections are isolated. `connectionId` must match
 the active slot and editor connection; the hook throws on a mismatch. IDs and tab
 metadata are persisted, never React content or runtime service state. Avoid secrets
-in IDs and titles. Content unmounts when backgrounded or closed: effect cleanup
-must cancel polling, subscriptions and pending requests. Use
+in IDs and titles. Background workspaces stay mounted. Content unmounts when its
+tab closes or the plugin is disabled or removed; effect cleanup must cancel
+polling, subscriptions and pending requests. Use
 `usePluginRpc(pluginId, context.connectionId)` for stable service binding.
 
 Use `PluginExplorerSection` in `explorer.services` with `pluginId`, `providerName`,
 optional `connectionId`/`icon`/`disabled`, and `items: [{id, label, icon?}]`. Each
 service opens a separate native main tab titled `Provider · Service`; repeated
-clicks focus it. Supported icons: `overview`, `database`, `users`, `storage`,
+clicks focus it. Supported icons: `overview`, `branches`, `database`, `users`, `storage`,
 `functions`, `ai`, `realtime`, `settings`, `documents`, `security` (unknown: document).
 
 `PluginWorkspaceShell` renders a compact native header and full-width scrolling

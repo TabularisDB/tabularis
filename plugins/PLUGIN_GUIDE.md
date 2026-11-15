@@ -2548,9 +2548,10 @@ switching connections or assigning the workspace to another connection.
 Only tab metadata and the plugin/workspace identifiers are saved. Do not put
 credentials in workspace IDs or titles. SQL controls and query shortcuts are
 unavailable on workspace tabs. Disabled, removed, or unloadable plugins show an
-unavailable state; their tabs can still be closed and reopened. Content unmounts
-when inactive or closed, so clean up polling, subscriptions and pending requests
-in React effect cleanup. Bind service calls with
+unavailable state; their tabs can still be closed and reopened. Background
+workspaces stay mounted and retain their iframe state. Content unmounts when its
+tab closes or the plugin is disabled or removed, so clean up polling,
+subscriptions and pending requests in React effect cleanup. Bind service calls with
 `usePluginRpc(pluginId, context.connectionId)` rather than a changing global selection.
 
 `PluginExplorerSection` renders a native collapsible Explorer section. Pass
@@ -2558,7 +2559,7 @@ in React effect cleanup. Bind service calls with
 `items: [{id, label, icon?}]`. Each row opens its own main tab, titled
 `Provider · Service`, and repeated clicks focus that tab. Selection is scoped to
 the owning plugin, service and connection. Supported item icon names are
-`overview`, `database`, `users`, `storage`, `functions`, `ai`, `realtime`, `settings`,
+`overview`, `branches`, `database`, `users`, `storage`, `functions`, `ai`, `realtime`, `settings`,
 `documents` and `security`; unknown icons use the document icon. Scope errors
 appear inline. The provider mark stays small and uses the native section header.
 
@@ -2583,7 +2584,7 @@ components. Older plugin bundles remain supported by the newer host.
 `usePluginWorkspace`, keeping connection ownership and resource IDs explicit.
 
 `PluginCodeEditor` takes controlled `value`/`onChange`, optional `language`
-(`javascript`, `json`, or `plaintext`), `readOnly`, and an accessible `label`.
+(`javascript`, `typescript`, `json`, or `plaintext`), `readOnly`, and an accessible `label`.
 Its parent supplies the height. It shares the host's lazy Monaco instance,
 editor theme and font preferences, and does not register SQL execution actions.
 Keep provider deployment, secrets and draft persistence policies in the plugin.

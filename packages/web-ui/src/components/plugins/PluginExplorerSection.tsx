@@ -1,36 +1,10 @@
 import {useState} from 'react';
-import {
-    Activity,
-    Brain,
-    Database,
-    FileText,
-    Folder,
-    GitBranch,
-    LayoutDashboard,
-    Settings,
-    Shield,
-    Users,
-    Zap,
-} from 'lucide-react';
 import {Accordion} from '@/components/layout/sidebar/Accordion';
 import {useEditor} from '@/hooks/useEditor';
 import {usePluginConnection} from '@/hooks/usePluginApi';
 import {usePluginWorkspace} from '@/hooks/usePluginWorkspace';
 import type {PluginExplorerSectionProps} from '@/types/pluginExplorerSection';
-
-const itemIcons = {
-    overview: LayoutDashboard,
-    branches: GitBranch,
-    database: Database,
-    users: Users,
-    storage: Folder,
-    functions: Zap,
-    ai: Brain,
-    realtime: Activity,
-    settings: Settings,
-    documents: FileText,
-    security: Shield,
-};
+import {getPluginExplorerIcon} from '@/utils/pluginExplorerIcons';
 
 export function PluginExplorerSection({
     pluginId,
@@ -63,10 +37,7 @@ export function PluginExplorerSection({
             }
         >
             {items.map((item) => {
-                const Icon =
-                    item.icon && Object.hasOwn(itemIcons, item.icon)
-                        ? itemIcons[item.icon as keyof typeof itemIcons]
-                        : FileText;
+                const Icon = getPluginExplorerIcon(item.icon);
                 const selected =
                     activeTab?.type === 'plugin-workspace' &&
                     activeTab.pluginId === pluginId &&
