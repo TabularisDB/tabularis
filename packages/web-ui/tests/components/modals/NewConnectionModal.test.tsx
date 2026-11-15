@@ -3,6 +3,10 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {act, render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 const save = vi.hoisted(() => vi.fn());
+const settingsState = vi.hoisted(() => ({
+    activeExternalDrivers: undefined as string[] | undefined,
+    update: vi.fn(),
+}));
 
 vi.mock('@/hooks/usePlatformCapabilities', () => ({
     usePlatformCapabilities: () => ({
@@ -265,12 +269,13 @@ afterEach(() => {
     driverState.defaultUsername = undefined;
     driverState.connectionFields = undefined;
     driverState.uriPassthrough = false;
+    settingsState.activeExternalDrivers = undefined;
 });
 
 vi.mock('@/hooks/useSettings', () => ({
     useSettings: () => ({
-        settings: {},
-        updateSetting: vi.fn(),
+        settings: {activeExternalDrivers: settingsState.activeExternalDrivers},
+        updateSetting: settingsState.update,
     }),
 }));
 
@@ -304,7 +309,7 @@ vi.mock('@/hooks/useConnectionCatalogue', () => ({
                             installed: true,
                             installedVersion: '1.0.0',
                             latestVersion: '1.0.0',
-                            isBuiltin: true,
+                            isBuiltin: engine !== 'cloud-provider',
                             platformSupported: true,
                             downloads: null,
                             updateAvailable: false,
@@ -2431,6 +2436,24 @@ describe('NewConnectionModal plugin-owned setup', () => {
         expect(
             screen.getByRole('button', {name: 'connectionCatalogue.connectTo'}),
         ).toBeInTheDocument();
+    });
+    it('preserves implicit activation and does not reload unrelated plugin UI when selecting an installed provider', async () => {
+        renderSetup();
+        pickEngineFromCatalogue();
+        await screen.findByText('Provider login');
+        expect(
+            settingsState.update.mock.calls.filter(([name]) => name === 'activeExternalDrivers'),
+        ).toHaveLength(0);
+    });
+    it('only activates a deliberately disabled provider without dropping other enabled plugins', async () => {
+        settingsState.activeExternalDrivers = ['legacy-ui'];
+        renderSetup();
+        pickEngineFromCatalogue();
+        await screen.findByText('Provider login');
+        expect(settingsState.update).toHaveBeenCalledWith('activeExternalDrivers', [
+            'legacy-ui',
+            'cloud-provider',
+        ]);
     });
 
     it('fails closed when the manifest declares setup but the UI is missing', async () => {

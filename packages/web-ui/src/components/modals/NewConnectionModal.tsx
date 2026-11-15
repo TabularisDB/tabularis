@@ -104,6 +104,7 @@ import {DriverVersionPicker} from './connection/DriverVersionPicker';
 import {InstallGate} from './connection/InstallGate';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {PLUGIN_INSTALL_DEADLINE_MS} from '@/api/pluginLifecycle';
+import {withEnabledExternalDriver} from '@/utils/plugins';
 import {
     resolveEngineSelection,
     type EngineGroup,
@@ -360,7 +361,7 @@ export const NewConnectionModal = ({
             // built-in (mysql).
             await updateSetting(
                 'activeExternalDrivers',
-                Array.from(new Set([...(settings.activeExternalDrivers ?? []), slug])),
+                withEnabledExternalDriver(settings.activeExternalDrivers, allDrivers, slug),
             );
             catalogue.refresh();
             refreshDrivers();
@@ -2151,10 +2152,15 @@ export const NewConnectionModal = ({
         // explicit intent to use it — activate it so the form resolves it instead of
         // falling back to a built-in. (Not-installed drivers route through the
         // InstallGate, which activates on install.)
-        if (!d.isBuiltin && d.installed) {
+        if (
+            !d.isBuiltin &&
+            d.installed &&
+            settings.activeExternalDrivers != null &&
+            !settings.activeExternalDrivers.includes(d.slug)
+        ) {
             void updateSetting(
                 'activeExternalDrivers',
-                Array.from(new Set([...(settings.activeExternalDrivers ?? []), d.slug])),
+                withEnabledExternalDriver(settings.activeExternalDrivers, allDrivers, d.slug),
             );
         }
     };

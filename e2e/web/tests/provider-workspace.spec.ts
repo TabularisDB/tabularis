@@ -6,6 +6,10 @@ test('styles provider selectors and scrolls long account setup inside the host m
 }) => {
     await page.setViewportSize({width: 1440, height: 900});
     await page.goto('/connections');
+    const legacy = page
+        .frameLocator('iframe[title="Plugin e2e-ui-extension"]')
+        .getByTestId('e2e-ui-extension');
+    await expect(legacy).toHaveText('E2E UI extension loaded');
     await page.getByRole('button', {name: 'Add Connection', exact: true}).first().click();
     await page.getByRole('button', {name: 'Connect to E2e Provider', exact: true}).click();
     const setup = page.frameLocator(
@@ -29,6 +33,7 @@ test('styles provider selectors and scrolls long account setup inside the host m
     await expect(footer).toBeInViewport();
     await footer.click();
     await expect(setup.getByTestId('provider-import-result')).toHaveText('import-ready');
+    await expect(legacy).toHaveText('E2E UI extension loaded');
 });
 
 test('runs provider setup, connection RPC, workspace and native components through the sandbox', async ({

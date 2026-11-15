@@ -400,7 +400,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     throw new Error('Modal expansion requires a user interaction');
                 }
                 setModalOpen(open);
-                void rpcRef.current?.call('ui.closePopovers').catch(() => undefined);
+                if (open) void rpcRef.current?.call('ui.closePopovers').catch(() => undefined);
             },
             'ui.popover': (value: unknown, open: unknown) => {
                 const id = providerString(value, 'popover ID', 128);

@@ -344,6 +344,16 @@ describe('SandboxedPluginFrame lifecycle', () => {
             expect.objectContaining({__tabularisHostCallbacks: ['onConnectionCreated', 'onClose']}),
         ]);
     });
+    it('does not dismiss a newly opened popover when the initial closed-modal status arrives late', async () => {
+        render(frame());
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        act(() => handlers['ui.popover']('language-select', true));
+        mocks.call.mockClear();
+        act(() => handlers['ui.modal'](false));
+        expect(mocks.call).not.toHaveBeenCalledWith('ui.closePopovers');
+        act(() => handlers['ui.modal'](true));
+        expect(mocks.call).toHaveBeenCalledWith('ui.closePopovers');
+    });
     it('relays bounded events only to this plugin and disposes subscriptions with the frame', async () => {
         const {unmount} = render(frame());
         await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
