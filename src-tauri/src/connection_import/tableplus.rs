@@ -130,6 +130,7 @@ impl ForeignAppImporter for TablePlusImporter {
                 ssh: parse_ssh(dict),
                 ssl: parse_ssl(dict),
                 group_name,
+                warnings: Vec::new(),
             };
             let index = envelope.connections.len();
             envelope.connections.push(conn);

@@ -1,4 +1,7 @@
-use super::{ConnectionRpcCommand, DatabaseObjectRpcCommand, InvocationError, RpcCommand};
+use super::{
+    ConnectionRpcCommand, DatabaseObjectRpcCommand, DatabaseTransferRpcCommand, InvocationError,
+    RpcCommand,
+};
 use crate::application::{
     connections::ConnectionCommand, ApplicationApi, ApplicationRequestContext, AuthorizationLevel,
 };
@@ -84,6 +87,27 @@ pub(super) async fn authorize_saved_access(
         return Ok(());
     }
     let payload: Value = super::decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+    // A table transfer touches two saved connections; both must pass.
+    if matches!(
+        command,
+        RpcCommand::DatabaseTransfer(
+            DatabaseTransferRpcCommand::PlanTableTransfer
+                | DatabaseTransferRpcCommand::RunTableTransfer
+        )
+    ) {
+        for field in ["sourceConnectionId", "targetConnectionId"] {
+            if let Some(id) = payload["request"][field].as_str() {
+                if let Some(params) = application
+                    .connection_params_for_authorization(context.clone(), id)
+                    .await
+                    .map_err(InvocationError::Application)?
+                {
+                    authorize_driver(&params.driver).map_err(InvocationError::Forbidden)?;
+                }
+            }
+        }
+        return Ok(());
+    }
     let reference = match command {
         RpcCommand::Connection(
             ConnectionRpcCommand::GetConnectionById

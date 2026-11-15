@@ -723,3 +723,141 @@ describe('queryHistoryFilter minimum duration (#1397)', () => {
         });
     });
 });
+
+describe('queryHistoryFilter error message search', () => {
+    const ERROR_ENTRIES: QueryHistoryEntry[] = [
+        entry({
+            id: 'denied',
+            sql: 'SELECT * FROM payroll',
+            status: 'error',
+            error: 'ERROR: Permission denied for table payroll',
+            database: 'hr',
+            executionTimeMs: 40,
+        }),
+        entry({
+            id: 'sql-mentions-it',
+            sql: "SELECT 'permission denied' AS note",
+            database: 'hr',
+        }),
+        entry({
+            id: 'other-error',
+            sql: 'SELECT * FROM missing',
+            status: 'error',
+            error: 'relation missing does not exist',
+            database: 'sales',
+        }),
+        entry({id: 'legacy-failure', sql: 'DELETE FROM users', status: 'error', error: null}),
+        entry({
+            id: 'old-denied',
+            sql: 'UPDATE payroll SET paid = true',
+            executedAt: '2026-03-01T10:00:00.000Z',
+            status: 'error',
+            error: 'permission denied for table payroll',
+            database: 'hr',
+            executionTimeMs: 5,
+        }),
+    ];
+
+    const ids = (options: Parameters<typeof filterQueryHistoryEntries>[1]) =>
+        filterQueryHistoryEntries(ERROR_ENTRIES, {now: NOW, timeZone: 'UTC', ...options}).map(
+            (e) => e.id,
+        );
+
+    it('searches the SQL only by default', () => {
+        expect(ids({search: 'permission denied'})).toEqual(['sql-mentions-it']);
+        expect(ids({search: 'permission denied', searchErrors: false})).toEqual([
+            'sql-mentions-it',
+        ]);
+    });
+
+    it('matches the SQL or the recorded error when enabled', () => {
+        expect(ids({search: 'permission denied', searchErrors: true})).toEqual([
+            'denied',
+            'sql-mentions-it',
+            'old-denied',
+        ]);
+    });
+
+    it('matches an entry through its error message alone', () => {
+        expect(ids({search: 'does not exist', searchErrors: true})).toEqual(['other-error']);
+        expect(ids({search: 'does not exist'})).toEqual([]);
+    });
+
+    it('still matches through the SQL when enabled', () => {
+        expect(ids({search: 'from users', searchErrors: true})).toEqual(['legacy-failure']);
+    });
+
+    it('ignores case and surrounding spaces in the error search', () => {
+        expect(ids({search: '  PERMISSION Denied  ', searchErrors: true})).toEqual([
+            'denied',
+            'sql-mentions-it',
+            'old-denied',
+        ]);
+    });
+
+    it('treats a missing error as no match instead of failing', () => {
+        const noError = [
+            entry({id: 'null-error', sql: 'SELECT 1', status: 'error', error: null}),
+            entry({id: 'empty-error', sql: 'SELECT 2', status: 'error', error: ''}),
+            {
+                ...entry({id: 'undefined-error', sql: 'SELECT 3', status: 'error'}),
+                error: undefined as unknown as string | null,
+            },
+        ];
+        expect(
+            filterQueryHistoryEntries(noError, {search: 'denied', searchErrors: true, now: NOW}),
+        ).toEqual([]);
+        expect(
+            filterQueryHistoryEntries(noError, {
+                search: 'select',
+                searchErrors: true,
+                now: NOW,
+            }).map((e) => e.id),
+        ).toEqual(['null-error', 'empty-error', 'undefined-error']);
+    });
+
+    it('matches every entry for an empty or blank query', () => {
+        expect(filterQueryHistoryEntries(ERROR_ENTRIES, {searchErrors: true, now: NOW})).toBe(
+            ERROR_ENTRIES,
+        );
+        expect(
+            filterQueryHistoryEntries(ERROR_ENTRIES, {search: '   ', searchErrors: true, now: NOW}),
+        ).toBe(ERROR_ENTRIES);
+    });
+
+    it('combines the text match with outcome, date, database and duration using AND', () => {
+        expect(ids({search: 'permission denied', searchErrors: true, outcome: 'failed'})).toEqual([
+            'denied',
+            'old-denied',
+        ]);
+        expect(ids({search: 'permission denied', searchErrors: true, timeRange: 'today'})).toEqual([
+            'denied',
+            'sql-mentions-it',
+        ]);
+        expect(
+            ids({
+                search: 'permission denied',
+                searchErrors: true,
+                timeRange: 'custom',
+                from: '2026-03-01',
+                to: '2026-03-01',
+            }),
+        ).toEqual(['old-denied']);
+        expect(
+            ids({
+                search: 'denied',
+                searchErrors: true,
+                database: queryHistoryDatabaseFilterFor('sales'),
+            }),
+        ).toEqual([]);
+        expect(ids({search: 'denied', searchErrors: true, minDurationMs: '20'})).toEqual([
+            'denied',
+        ]);
+    });
+
+    it('leaves the entries untouched', () => {
+        const before = structuredClone(ERROR_ENTRIES);
+        ids({search: 'permission denied', searchErrors: true, outcome: 'failed'});
+        expect(ERROR_ENTRIES).toEqual(before);
+    });
+});

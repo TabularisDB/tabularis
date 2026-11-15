@@ -189,6 +189,7 @@ fn parse_connection(node: Node) -> Option<ImportedConnection> {
         ssh,
         ssl: parse_ssl(&params),
         group_name: None,
+        warnings: Vec::new(),
     })
 }
 

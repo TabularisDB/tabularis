@@ -1,5 +1,20 @@
 use serde_json::json;
 
+#[test]
+fn psql_blocks_is_an_optional_validated_plugin_rule() {
+    let caps = capabilities_from(json!({"sql_syntax":{"psql_blocks":true}}));
+    assert!(SqlSyntax::resolve(&caps).psql_blocks);
+    assert_eq!(
+        serde_json::to_value(caps.sql_syntax).unwrap()["psql_blocks"],
+        true
+    );
+    for value in [json!(null), json!("true"), json!(0)] {
+        let caps = capabilities_from(json!({"sql_syntax":{"psql_blocks":value}}));
+        assert!(!SqlSyntax::resolve(&caps).psql_blocks);
+    }
+    assert!(!SqlSyntax::preset(Some(SqlDialect::Oracle)).psql_blocks);
+}
+
 use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities, SqlDialect};
 use crate::drivers::sql_syntax::{
     quote_string_literal, BooleanLiterals, LiteralStyle, QuoteEscape, QuoteKind, SqlSyntax,

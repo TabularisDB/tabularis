@@ -2,6 +2,7 @@
 // (current delimiter + lineLeading flag) that the splitter owns and mutates.
 
 import type {DialectOptions, QuoteRule, Token} from './index';
+import {readPsqlTerminator} from './psqlBlocks';
 
 export interface TokenizerState {
     delimiter: string;
@@ -63,6 +64,10 @@ export function scanToken(
     }
 
     if (state.lineLeading) {
+        if (options.psqlBlocks && matchesKeyword(source, position, 'SET')) {
+            const token = readPsqlTerminator(source, position, state.delimiter);
+            if (token) return token;
+        }
         if (options.customDelimiter && matchesKeyword(source, position, 'DELIMITER')) {
             const token = readCustomDelimiter(source, position);
             if (token) return token;

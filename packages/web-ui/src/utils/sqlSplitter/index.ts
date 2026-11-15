@@ -134,6 +134,8 @@ export interface DialectOptions {
      * statement, so a whole block runs as one script.
      */
     readonly scriptBlocks: boolean;
+    /** Firebird PSQL units and isql SET TERM directives. */
+    readonly psqlBlocks: boolean;
     /**
      * SQLite `CREATE TRIGGER … BEGIN … END`: a `;` inside the trigger body
      * does not end the statement, so the whole trigger runs as one.
@@ -189,6 +191,7 @@ const POSTGRES: DialectOptions = {
     tripleQuotedStrings: false,
     stringPrefixes: NO_PREFIXES,
     scriptBlocks: false,
+    psqlBlocks: false,
     triggerBodies: false,
     atomicBodies: true,
 };
@@ -215,6 +218,7 @@ const MYSQL: DialectOptions = {
     tripleQuotedStrings: false,
     stringPrefixes: NO_PREFIXES,
     scriptBlocks: false,
+    psqlBlocks: false,
     triggerBodies: false,
     atomicBodies: false,
 };
@@ -246,6 +250,7 @@ const MSSQL: DialectOptions = {
     tripleQuotedStrings: false,
     stringPrefixes: NO_PREFIXES,
     scriptBlocks: false,
+    psqlBlocks: false,
     triggerBodies: false,
     atomicBodies: false,
 };
@@ -273,6 +278,7 @@ const SQLITE: DialectOptions = {
     tripleQuotedStrings: false,
     stringPrefixes: NO_PREFIXES,
     scriptBlocks: false,
+    psqlBlocks: false,
     triggerBodies: true,
     atomicBodies: false,
 };
@@ -295,6 +301,7 @@ const ORACLE: DialectOptions = {
     tripleQuotedStrings: false,
     stringPrefixes: NO_PREFIXES,
     scriptBlocks: false,
+    psqlBlocks: false,
     triggerBodies: false,
     atomicBodies: false,
 };
@@ -317,6 +324,7 @@ const GENERIC: DialectOptions = {
     tripleQuotedStrings: false,
     stringPrefixes: NO_PREFIXES,
     scriptBlocks: false,
+    psqlBlocks: false,
     triggerBodies: false,
     atomicBodies: false,
 };

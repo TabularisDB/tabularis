@@ -3,6 +3,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {ExplainPlan} from '@tabularis/explain';
 import {save} from '@tauri-apps/plugin-dialog';
 import {writeFile} from '@tauri-apps/plugin-fs';
+import {writeText} from '@tauri-apps/plugin-clipboard-manager';
 import {VisualExplainView} from '@/components/explain/VisualExplainView';
 import {AlertContext} from '@/contexts/AlertContext';
 import type {AlertContextType} from '@/contexts/AlertContext';
@@ -11,6 +12,11 @@ import type {ToastContextType} from '@/contexts/ToastContext';
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({save: vi.fn()}));
 vi.mock('@tauri-apps/plugin-fs', () => ({writeFile: vi.fn(), readFile: vi.fn()}));
+vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({
+    writeText: vi.fn(),
+    readText: vi.fn(),
+    writeHtml: vi.fn(),
+}));
 // Saves go through the platform download, which writes the encoded bytes.
 vi.mock('@/hooks/usePlatformCapabilities', () => import('../../support/tauriBackedHooks'));
 vi.mock('lucide-react', () => vi.importActual('lucide-react'));
@@ -35,8 +41,16 @@ vi.mock('@/components/ui/LazyMonaco', () => ({
     ),
 }));
 
+class ResizeObserverMock {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+}
+vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+
 const mockSave = vi.mocked(save);
 const mockWriteFile = vi.mocked(writeFile);
+const mockWriteText = vi.mocked(writeText);
 const encode = (text: string) => new TextEncoder().encode(text);
 const showAlert = vi.fn<AlertContextType['showAlert']>();
 const showToast = vi.fn<ToastContextType['showToast']>();
@@ -389,5 +403,120 @@ describe('VisualExplainView table CSV export', () => {
             'forbidden path: /path/to/plan.csv',
             expect.objectContaining({kind: 'error'}),
         );
+    });
+});
+
+describe('VisualExplainView node details copy', () => {
+    beforeEach(() => {
+        mockWriteText.mockReset();
+        showAlert.mockReset();
+        showToast.mockReset();
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    it('renders disabled Copy Details button when no node is selected', () => {
+        const plan = createTestPlan();
+        render(
+            <AlertContext.Provider value={{showAlert}}>
+                <ToastContext.Provider value={{showToast}}>
+                    <VisualExplainView
+                        plan={plan}
+                        isLoading={false}
+                        error={null}
+                        viewMode="graph"
+                        onViewModeChange={vi.fn()}
+                        selectedNodeId={null}
+                        onSelectNode={vi.fn()}
+                        aiEnabled={false}
+                    />
+                </ToastContext.Provider>
+            </AlertContext.Provider>,
+        );
+
+        const copyButton = screen.getByRole('button', {
+            name: 'editor.visualExplain.copyDetails',
+        });
+        expect(copyButton).toBeInTheDocument();
+        expect(copyButton).toBeDisabled();
+    });
+
+    it('enables Copy Details button and writes formatted text to platform clipboard when a node is selected', async () => {
+        mockWriteText.mockResolvedValue(undefined);
+        const plan = createTestPlan();
+        const rootId = plan.root.id;
+
+        render(
+            <AlertContext.Provider value={{showAlert}}>
+                <ToastContext.Provider value={{showToast}}>
+                    <VisualExplainView
+                        plan={plan}
+                        isLoading={false}
+                        error={null}
+                        viewMode="graph"
+                        onViewModeChange={vi.fn()}
+                        selectedNodeId={rootId}
+                        onSelectNode={vi.fn()}
+                        aiEnabled={false}
+                    />
+                </ToastContext.Provider>
+            </AlertContext.Provider>,
+        );
+
+        const copyButton = screen.getByRole('button', {
+            name: 'editor.visualExplain.copyDetails',
+        });
+        expect(copyButton).toBeEnabled();
+
+        await act(async () => {
+            fireEvent.click(copyButton);
+        });
+
+        expect(mockWriteText).toHaveBeenCalledTimes(1);
+        const [copiedText] = mockWriteText.mock.calls[0];
+        expect(copiedText).toMatch(/(Operation|editor\.visualExplain\.nodeType): Seq Scan/);
+        expect(copiedText).toMatch(/(Table|editor\.visualExplain\.relation): users/);
+
+        expect(showToast).toHaveBeenCalledWith('editor.visualExplain.detailsCopied', {
+            kind: 'success',
+        });
+        expect(screen.getByText('editor.visualExplain.copied')).toBeInTheDocument();
+    });
+
+    it('handles clipboard rejection with error toast and logs the failure', async () => {
+        mockWriteText.mockRejectedValue(new Error('clipboard permission denied'));
+        const plan = createTestPlan();
+        const rootId = plan.root.id;
+
+        render(
+            <AlertContext.Provider value={{showAlert}}>
+                <ToastContext.Provider value={{showToast}}>
+                    <VisualExplainView
+                        plan={plan}
+                        isLoading={false}
+                        error={null}
+                        viewMode="graph"
+                        onViewModeChange={vi.fn()}
+                        selectedNodeId={rootId}
+                        onSelectNode={vi.fn()}
+                        aiEnabled={false}
+                    />
+                </ToastContext.Provider>
+            </AlertContext.Provider>,
+        );
+
+        const copyButton = screen.getByRole('button', {
+            name: 'editor.visualExplain.copyDetails',
+        });
+
+        await act(async () => {
+            fireEvent.click(copyButton);
+        });
+
+        expect(mockWriteText).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledWith('editor.visualExplain.copyDetailsFailed', {
+            kind: 'error',
+        });
+        expect(screen.queryByText('editor.visualExplain.copied')).not.toBeInTheDocument();
+        expect(console.error).toHaveBeenCalled();
     });
 });

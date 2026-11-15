@@ -12,6 +12,7 @@ interface AiQueryModalProps {
     connectionId?: string;
     schema?: string;
     database?: string;
+    initialPrompt?: string;
 }
 
 interface SchemaLoadState {
@@ -27,6 +28,7 @@ export const AiQueryModal = ({
     connectionId,
     schema,
     database,
+    initialPrompt,
 }: AiQueryModalProps) => {
     const {activeConnectionId, activeSchema, activeDatabaseName} = useDatabase();
     const {settings} = useSettings();
@@ -44,7 +46,20 @@ export const AiQueryModal = ({
         undefined;
     const schemaKey = `${resolvedConnectionId ?? ''}:${resolvedDatabase ?? ''}:${resolvedSchema ?? ''}`;
 
-    const [prompt, setPrompt] = useState('');
+    const [prompt, setPrompt] = useState(initialPrompt ?? '');
+    const [wasOpen, setWasOpen] = useState(isOpen);
+    const [promptIsFixDraft, setPromptIsFixDraft] = useState(initialPrompt !== undefined);
+    if (isOpen !== wasOpen) {
+        setWasOpen(isOpen);
+        if (isOpen && initialPrompt !== undefined) {
+            setPrompt(initialPrompt);
+            setPromptIsFixDraft(true);
+        } else if (isOpen && promptIsFixDraft) {
+            // A cancelled fix must not leak into an ordinary Generate draft.
+            setPrompt('');
+            setPromptIsFixDraft(false);
+        }
+    }
     const promptId = useId();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -134,6 +149,10 @@ export const AiQueryModal = ({
                 },
             });
             onInsert(sql);
+            if (initialPrompt !== undefined) {
+                setPrompt('');
+                setPromptIsFixDraft(false);
+            }
             onClose();
         } catch (err) {
             setError(String(err));

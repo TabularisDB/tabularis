@@ -10,7 +10,10 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::{mpsc, oneshot, OnceCell};
 
-use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
+use crate::drivers::driver_trait::{
+    BatchProgressFn, DatabaseDriver, DatabaseSqlCapabilities, DatabaseSqlExportOptions,
+    DatabaseSqlExportResult, DatabaseSqlImportResult, PluginManifest,
+};
 use crate::models::{
     AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
     DatabaseSelection, DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index,
@@ -21,6 +24,10 @@ use crate::plugins::connection_metadata::{ConnectionMetadataCache, ConnectionMet
 use crate::plugins::rpc::{
     cancel_notification_line, JsonRpcRequest, JsonRpcResponse, PluginCallError,
 };
+
+#[path = "call_cancellation.rs"]
+mod call_cancellation;
+use call_cancellation::PendingCallGuard;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -84,6 +91,22 @@ fn parse_query_response(value: Value) -> Result<(QueryResult, bool), String> {
     Ok((parsed, false))
 }
 
+/// Read a `classify_query` response: `{ "kind": "select" | "write" | "ddl" |
+/// "unknown" }`.
+///
+/// Anything else reads as `"unknown"`: another shape, a different spelling
+/// (`"SELECT"`) or a kind this host doesn't know. The verdict decides whether
+/// a query may skip the read-only and approval gates, so a response the host
+/// cannot understand is never read as "this is a read".
+pub(crate) fn parse_query_kind(value: &Value) -> &'static str {
+    match value.get("kind").and_then(Value::as_str) {
+        Some("select") => "select",
+        Some("write") => "write",
+        Some("ddl") => "ddl",
+        _ => "unknown",
+    }
+}
+
 /// A session-aware plugin answers a failed statement with its error and the
 /// transaction state it left (a failed `COMMIT` has ended the transaction).
 fn parse_session_error(value: &Value) -> Option<(String, bool)> {
@@ -93,8 +116,8 @@ fn parse_session_error(value: &Value) -> Option<(String, bool)> {
     Some((error.to_string(), in_transaction))
 }
 
-/// The last `in_transaction` a plugin reported per session, so a failed or
-/// cancelled run can still be answered by `session_in_transaction`.
+/// Last reported transaction state, used as a fallback by legacy plugins
+/// without the optional get_session_state RPC.
 fn plugin_session_states() -> &'static Mutex<HashMap<String, bool>> {
     static STATES: std::sync::OnceLock<Mutex<HashMap<String, bool>>> = std::sync::OnceLock::new();
     STATES.get_or_init(Default::default)
@@ -183,7 +206,7 @@ enum PluginCommand {
         oneshot::Sender<Result<Value, PluginCallError>>,
     ),
     /// Drop the pending entry for `id` because the caller stopped waiting
-    /// (timed out), and send the plugin a `cancel` notification for it.
+    /// (timed out or aborted), and send the plugin a `cancel` notification for it.
     /// Prevents an unbounded leak of orphaned response senders.
     Cancel(u64),
 }
@@ -306,6 +329,10 @@ impl PluginProcess {
                     msg = rx.recv(), if !channel_drained => {
                         match msg {
                             Some(PluginCommand::Call(req, resp_tx)) => {
+                                // A caller aborted before dispatch must not start database work.
+                                if resp_tx.is_closed() {
+                                    continue;
+                                }
                                 let id = req.id;
                                 pending_requests.insert(id, resp_tx);
 
@@ -486,7 +513,12 @@ impl PluginProcess {
                 })
                 .await;
         }
-        let timeout = crate::plugins::call_timeout::for_plugin(&self.plugin_id);
+        let timeout = match method {
+            "export_database_sql" | "import_database_sql" => {
+                crate::plugins::call_timeout::for_database_transfer(&self.plugin_id)
+            }
+            _ => crate::plugins::call_timeout::for_plugin(&self.plugin_id),
+        };
         self.send_request(method, params, timeout).await
     }
 
@@ -528,32 +560,32 @@ impl PluginProcess {
                 .into());
         }
         permit.send(PluginCommand::Call(req, tx));
-
-        let Some(timeout) = timeout else {
-            return rx.await.unwrap_or_else(|_| {
+        let mut pending = PendingCallGuard::new(self.sender.clone(), id);
+        let result = if let Some(timeout) = timeout {
+            match tokio::time::timeout(timeout, rx).await {
+                Ok(Ok(result)) => result,
+                Ok(Err(_)) => Err(dropped_plugin_response_error(
+                    !self.accepting_calls.load(Ordering::Acquire),
+                )),
+                Err(_) => {
+                    let _ = self.sender.send(PluginCommand::Cancel(id)).await;
+                    Err(format!(
+                        "Plugin call '{}' timed out after {}s",
+                        method,
+                        timeout.as_secs()
+                    )
+                    .into())
+                }
+            }
+        } else {
+            rx.await.unwrap_or_else(|_| {
                 Err(dropped_plugin_response_error(
                     !self.accepting_calls.load(Ordering::Acquire),
                 ))
-            });
+            })
         };
-
-        match tokio::time::timeout(timeout, rx).await {
-            Ok(Ok(result)) => result,
-            Ok(Err(_)) => Err(dropped_plugin_response_error(
-                !self.accepting_calls.load(Ordering::Acquire),
-            )),
-            Err(_) => {
-                // Tell the management task to drop the now-orphaned pending
-                // entry so it does not leak one slot per timeout.
-                let _ = self.sender.send(PluginCommand::Cancel(id)).await;
-                Err(format!(
-                    "Plugin call '{}' timed out after {}s",
-                    method,
-                    timeout.as_secs()
-                )
-                .into())
-            }
-        }
+        pending.disarm();
+        result
     }
 }
 
@@ -707,6 +739,27 @@ impl RpcDriver {
 impl DatabaseDriver for RpcDriver {
     async fn call_extension(&self, request: Value) -> Result<Value, String> {
         self.process.call("extension", request).await
+    }
+
+    async fn routine_debug(
+        &self,
+        params: &ConnectionParams,
+        version: u32,
+        command: &crate::routine_debug::DebugCommand,
+    ) -> Result<crate::routine_debug::DebugResponse, String> {
+        if self.manifest.capabilities.routine_debug != Some(crate::routine_debug::PROTOCOL_VERSION)
+        {
+            return Err("Routine debugging is not supported by this driver".into());
+        }
+        command.validate(version, self.manifest.capabilities.readonly)?;
+        // Never retry or fall back to execute_query: a lost reply may follow execution.
+        let value = self.process.call("routine_debug", json!({
+            "params": self.with_primary_database(params), "version": version, "command": command,
+        })).await?;
+        let response: crate::routine_debug::DebugResponse = serde_json::from_value(value)
+            .map_err(|error| format!("Invalid routine debugger response: {error}"))?;
+        response.validate_for(command)?;
+        Ok(response)
     }
 
     fn has_connection_metadata(&self) -> bool {
@@ -1271,6 +1324,57 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    async fn execute_read_only_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<QueryResult, String> {
+        if self.manifest.capabilities.readonly {
+            return self.execute_query(params, query, limit, page, schema).await;
+        }
+        if !self.manifest.capabilities.read_only_queries {
+            // Preserve legacy MCP behaviour when no connection policy was set.
+            if !params.read_only {
+                return self.execute_query(params, query, limit, page, schema).await;
+            }
+            return Err("This plugin does not support protected read-only queries".into());
+        }
+        let result = self
+            .process
+            .call(
+                "execute_read_only_query",
+                json!({
+                    "params": self.with_primary_database(params), "query": query, "limit": limit,
+                    "page": page, "schema": schema,
+                }),
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        // No execute_query fallback: a missing RPC or protection error fails closed.
+        serde_json::from_value(result).map_err(|error| error.to_string())
+    }
+
+    async fn classify_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+    ) -> Result<Option<&'static str>, String> {
+        if !self.manifest.capabilities.query_classification {
+            return Ok(None);
+        }
+        let res = self
+            .process
+            .call(
+                "classify_query",
+                json!({ "params": self.with_primary_database(params), "query": query }),
+            )
+            .await?;
+        Ok(Some(parse_query_kind(&res)))
+    }
+
     async fn execute_batch(
         &self,
         params: &ConnectionParams,
@@ -1405,6 +1509,30 @@ impl DatabaseDriver for RpcDriver {
     }
 
     async fn session_in_transaction(&self, session_id: &str) -> Option<bool> {
+        // A cancelled caller can miss the response that carries the new state.
+        // Older plugins retain the cached-state fallback through -32601.
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            self.process
+                .call_detailed("get_session_state", json!({"session_id": session_id})),
+        )
+        .await
+        {
+            Ok(Ok(value)) => {
+                if let Some(state) = value.get("in_transaction").and_then(Value::as_bool) {
+                    remember_session_state(Some(session_id), state);
+                    return Some(state);
+                }
+                log::warn!("Plugin returned invalid get_session_state response");
+            }
+            Ok(Err(error)) if is_method_not_found(&error) => {}
+            Ok(Err(error)) => {
+                log::warn!("Plugin session state refresh failed: {error}");
+            }
+            Err(_) => {
+                log::warn!("Plugin session state refresh timed out");
+            }
+        }
         let states = plugin_session_states()
             .lock()
             .unwrap_or_else(|e| e.into_inner());
@@ -1585,6 +1713,34 @@ impl DatabaseDriver for RpcDriver {
             }
             Err(e) => Err(e.to_string()),
         }
+    }
+
+    async fn open_data_file(
+        &self,
+        params: &ConnectionParams,
+        path: &str,
+        format: &str,
+        table: &str,
+    ) -> Result<(), String> {
+        let supported = &self.manifest.capabilities.data_files;
+        if !supported.iter().any(|candidate| candidate == format) {
+            return Err(format!(
+                "The {} driver cannot open {format} data files",
+                self.manifest.name
+            ));
+        }
+        self.process
+            .call(
+                "open_data_file",
+                json!({
+                    "params": self.with_primary_database(params),
+                    "path": path,
+                    "format": format,
+                    "table": table,
+                }),
+            )
+            .await?;
+        Ok(())
     }
 
     async fn get_table_query_template(
@@ -1775,6 +1931,51 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    /// Optional whole-file transfers; missing methods retain the host implementation.
+    async fn get_database_sql_capabilities(
+        &self,
+        params: &ConnectionParams,
+    ) -> Result<Option<DatabaseSqlCapabilities>, String> {
+        match self
+            .process
+            .call_detailed(
+                "get_database_sql_capabilities",
+                json!({"params": self.with_primary_database(params)}),
+            )
+            .await
+        {
+            Ok(value) => serde_json::from_value(value).map_err(|error| error.to_string()),
+            Err(error) if is_method_not_found(&error) => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    async fn export_database_sql(
+        &self,
+        params: &ConnectionParams,
+        file_path: &str,
+        options: &DatabaseSqlExportOptions,
+    ) -> Result<Option<DatabaseSqlExportResult>, String> {
+        match self.process.call_detailed("export_database_sql", json!({"params": self.with_primary_database(params), "file_path": file_path, "options": options})).await {
+            Ok(value) => serde_json::from_value(value).map_err(|error| error.to_string()),
+            Err(error) if is_method_not_found(&error) => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    async fn import_database_sql(
+        &self,
+        params: &ConnectionParams,
+        file_path: &str,
+        create_database: bool,
+    ) -> Result<Option<DatabaseSqlImportResult>, String> {
+        match self.process.call_detailed("import_database_sql", json!({"params": self.with_primary_database(params), "file_path": file_path, "create_database": create_database})).await {
+            Ok(value) => serde_json::from_value(value).map_err(|error| error.to_string()),
+            Err(error) if is_method_not_found(&error) => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
     /// Optional RPC method (#709): the table's approximate row count, for
     /// the export dialog. A plugin without it (-32601) shows none.
     async fn get_approximate_row_count(
@@ -1809,8 +2010,7 @@ impl DatabaseDriver for RpcDriver {
         rows: &[Vec<serde_json::Value>],
     ) -> Result<Option<Vec<String>>, String> {
         let res = self
-            .process
-            .call_detailed(
+            .call_with_connection_detailed(
                 "render_insert_statements",
                 json!({ "table": table, "schema": schema, "columns": columns, "rows": rows }),
             )
@@ -2311,6 +2511,74 @@ pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver 
 #[cfg(test)]
 mod tests {
     #[tokio::test]
+    async fn database_sql_methods_fall_back_only_for_missing_methods_or_null() {
+        use super::*;
+        for code in [-32601, -32000] {
+            let driver = test_driver_detailed(move |_| {
+                Err(PluginCallError::Remote(crate::plugins::rpc::JsonRpcError {
+                    code,
+                    message: "localized failure".into(),
+                }))
+            });
+            let params = test_connection_params();
+            assert_eq!(
+                driver.get_database_sql_capabilities(&params).await.is_ok(),
+                code == -32601
+            );
+            assert_eq!(
+                driver
+                    .export_database_sql(
+                        &params,
+                        "owned.tmp",
+                        &DatabaseSqlExportOptions {
+                            format: None,
+                            structure: true,
+                            data: true,
+                            tables: None
+                        }
+                    )
+                    .await
+                    .is_ok(),
+                code == -32601
+            );
+            assert_eq!(
+                driver
+                    .import_database_sql(&params, "owned.sql", true)
+                    .await
+                    .is_ok(),
+                code == -32601
+            );
+        }
+        let driver = test_driver_result(|_| Ok(Value::Null));
+        assert!(driver
+            .get_database_sql_capabilities(&test_connection_params())
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn database_sql_capabilities_ignore_legacy_native_backup_boolean() {
+        use super::*;
+        let driver = test_driver_result(|_| {
+            Ok(json!({
+                "format": "sql",
+                "native_backup": true,
+                "create_database": true,
+                "requires_empty_target": true,
+                "target_label": "Path"
+            }))
+        });
+        let capabilities = driver
+            .get_database_sql_capabilities(&test_connection_params())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(capabilities.native_backup.is_none());
+        assert_eq!(capabilities.format, "sql");
+    }
+
+    #[tokio::test]
     async fn syncing_settings_keeps_the_process_available() {
         use super::*;
         use crate::drivers::driver_trait::DatabaseDriver;
@@ -2571,6 +2839,7 @@ mod tests {
     fn test_connection_params() -> ConnectionParams {
         ConnectionParams {
             driver: "test-plugin".to_string(),
+            read_only: false,
             host: Some("localhost".to_string()),
             port: Some(1234),
             username: Some("user".to_string()),
@@ -2616,6 +2885,10 @@ mod tests {
             extra: HashMap::new(),
             connection_id: Some("conn-1".to_string()),
             proxy: None,
+            socks5_proxy_host: None,
+            socks5_proxy_port: None,
+            socks5_proxy_username: None,
+            socks5_proxy_password: None,
         }
     }
 
@@ -3457,6 +3730,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rpc_driver_insert_renderer_receives_bound_connection() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "render_insert_statements");
+            assert_eq!(request.params["params"]["database"], "export-source");
+            Ok(json!([]))
+        });
+        let mut params = test_connection_params();
+        params.database = crate::models::DatabaseSelection::Single("export-source".into());
+        let bound = driver.bind_connection_params(&params).unwrap();
+        assert_eq!(
+            bound
+                .render_insert_statements("items", None, &["id".into()], &[vec![json!(1)]])
+                .await
+                .unwrap(),
+            Some(vec![])
+        );
+    }
+
+    #[tokio::test]
     async fn rpc_driver_render_insert_statements_reports_other_errors() {
         let driver = test_driver_result(|_| Err("boom".to_string()));
 
@@ -4125,6 +4417,14 @@ mod table_query_template_tests;
 #[cfg(test)]
 #[path = "column_stats_tests.rs"]
 mod column_stats_tests;
+
+#[cfg(test)]
+#[path = "query_classification_tests.rs"]
+mod query_classification_tests;
+
+#[cfg(test)]
+#[path = "read_only_tests.rs"]
+mod read_only_tests;
 
 #[cfg(test)]
 #[path = "startup_tests.rs"]

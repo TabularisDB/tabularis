@@ -297,6 +297,73 @@ WHERE id = 1`;
             ).toBe(false);
         });
 
+        it('flags a DELETE or UPDATE with no WHERE inside a CTE body', () => {
+            // PostgreSQL runs the body even though the final statement is a SELECT.
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS (DELETE FROM users RETURNING *) SELECT count(*) FROM gone',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH reset AS MATERIALIZED (UPDATE accounts SET balance = 0 RETURNING id) SELECT * FROM reset',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH recent AS (SELECT 1), gone AS (DELETE FROM logs RETURNING id) SELECT * FROM gone',
+                ),
+            ).toBe(true);
+            // The WHERE of a subquery does not limit the rows the body deletes.
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS (DELETE FROM users USING (SELECT id FROM t WHERE x) s RETURNING *) SELECT 1',
+                ),
+            ).toBe(true);
+        });
+
+        it('allows a CTE body that filters its DELETE or only inserts', () => {
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS (DELETE FROM users WHERE id = 1 RETURNING *) SELECT * FROM gone',
+                ),
+            ).toBe(false);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH added AS (INSERT INTO audit (msg) VALUES (1) RETURNING id) SELECT id FROM added',
+                ),
+            ).toBe(false);
+        });
+
+        it('flags a CTE body written without a space before its parenthesis', () => {
+            // PostgreSQL accepts `AS(`, `AS MATERIALIZED(` and `x(a)AS(`.
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS(DELETE FROM users RETURNING *) SELECT count(*) FROM gone',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH reset AS(UPDATE accounts SET balance = 0 RETURNING id) SELECT * FROM reset',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH reset AS MATERIALIZED(UPDATE accounts SET balance = 0 RETURNING id) SELECT 1',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'with gone(id)as not materialized(delete from users returning id) select 1',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH gone AS(DELETE FROM users WHERE id = 1 RETURNING *) SELECT * FROM gone',
+                ),
+            ).toBe(false);
+        });
+
         it('flags a statement wrapped in parentheses instead of silently allowing it', () => {
             // The wrapping parens make the WHERE-depth scan treat any WHERE as
             // nested, so a wrapped statement is conservatively flagged either way
@@ -399,10 +466,122 @@ describe('isReadOnlyQuery', () => {
         expect(isReadOnlyQuery('WITH gone AS (SELECT id FROM t) DELETE FROM t')).toBe(false);
     });
 
+    it('flags a CTE body that writes even when the final statement is a SELECT', () => {
+        expect(
+            isReadOnlyQuery('WITH d AS (DELETE FROM t WHERE id = 1 RETURNING *) SELECT * FROM d'),
+        ).toBe(false);
+        expect(
+            isReadOnlyQuery('WITH u AS (UPDATE t SET a = 1 RETURNING id) SELECT id FROM u'),
+        ).toBe(false);
+        expect(
+            isReadOnlyQuery(
+                'WITH i AS (INSERT INTO t (a) VALUES (1) RETURNING id) SELECT id FROM i',
+            ),
+        ).toBe(false);
+        expect(
+            isReadOnlyQuery(
+                'WITH s AS NOT MATERIALIZED (SELECT 1), m AS (MERGE INTO t USING s ON true WHEN MATCHED THEN DELETE) SELECT 1',
+            ),
+        ).toBe(false);
+        expect(
+            isReadOnlyQuery(
+                'EXPLAIN ANALYZE WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d',
+            ),
+        ).toBe(false);
+    });
+
+    it('keeps read-only CTEs read-only', () => {
+        expect(isReadOnlyQuery('WITH x(a) AS (SELECT 1) SELECT a FROM x')).toBe(true);
+        expect(
+            isReadOnlyQuery(
+                'WITH x AS (SELECT CAST(a AS numeric(10, 2)) FROM t WHERE b IN (SELECT 1)) SELECT * FROM x',
+            ),
+        ).toBe(true);
+        expect(isReadOnlyQuery("WITH x AS (SELECT 'DELETE FROM t' AS s) SELECT * FROM x")).toBe(
+            true,
+        );
+        expect(isReadOnlyQuery('WITH RECURSIVE r AS (SELECT 1 UNION ALL SELECT 1) SELECT 1')).toBe(
+            true,
+        );
+        expect(isReadOnlyQuery('WITH x AS(SELECT CAST(a AS integer) FROM t) SELECT * FROM x')).toBe(
+            true,
+        );
+    });
+
+    it('flags a writing CTE body written without a space before its parenthesis', () => {
+        expect(isReadOnlyQuery('WITH gone AS(DELETE FROM t RETURNING *) SELECT * FROM gone')).toBe(
+            false,
+        );
+        expect(isReadOnlyQuery('WITH r AS(UPDATE t SET a = 0 RETURNING id) SELECT * FROM r')).toBe(
+            false,
+        );
+        expect(
+            isReadOnlyQuery('WITH r AS NOT MATERIALIZED(DELETE FROM t RETURNING id) SELECT 1'),
+        ).toBe(false);
+        expect(isReadOnlyQuery('WITH x(a)AS(UPDATE t SET a = 1 RETURNING a) SELECT 1')).toBe(false);
+    });
+
     it('ignores keywords inside comments and string literals', () => {
         expect(isReadOnlyQuery('SELECT * FROM t -- DELETE FROM t')).toBe(true);
         expect(isReadOnlyQuery("SELECT 'DROP TABLE users' AS threat")).toBe(true);
         expect(isReadOnlyQuery('/* UPDATE t */ SELECT 1')).toBe(true);
         expect(isReadOnlyQuery("SELECT ';DELETE FROM t;' FROM dual")).toBe(true);
+    });
+
+    it('flags a PRAGMA that sets a value or does work', () => {
+        expect(isReadOnlyQuery('PRAGMA user_version = 42')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA journal_mode=DELETE')).toBe(false);
+        expect(isReadOnlyQuery('pragma main.user_version = 1;')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA writable_schema = 1')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA\nuser_version\n=\n42')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA "main".user_version = 5')).toBe(false);
+        // The call form sets the value too.
+        expect(isReadOnlyQuery('PRAGMA user_version(42)')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA journal_mode(DELETE)')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA wal_checkpoint(TRUNCATE)')).toBe(false);
+        // A quoted name is not looked up, so it never passes as a read.
+        expect(isReadOnlyQuery('PRAGMA "journal_mode"(WAL)')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA "journal_mode" = WAL')).toBe(false);
+        // Action pragmas work without an argument.
+        expect(isReadOnlyQuery('PRAGMA optimize')).toBe(false);
+        expect(isReadOnlyQuery('PRAGMA incremental_vacuum')).toBe(false);
+        expect(isReadOnlyQuery('SELECT 1; PRAGMA user_version = 42')).toBe(false);
+    });
+
+    it('keeps a PRAGMA that only reads read-only', () => {
+        expect(isReadOnlyQuery('PRAGMA user_version')).toBe(true);
+        expect(isReadOnlyQuery('PRAGMA main.journal_mode;')).toBe(true);
+        expect(isReadOnlyQuery("PRAGMA foreign_key_list('orders')")).toBe(true);
+        expect(isReadOnlyQuery('PRAGMA main.index_list(users)')).toBe(true);
+        expect(isReadOnlyQuery('pragma integrity_check(10)')).toBe(true);
+        expect(isReadOnlyQuery('PRAGMA foreign_key_check')).toBe(true);
+        expect(isReadOnlyQuery('PRAGMA main . table_info ( users )')).toBe(true);
+    });
+
+    it('flags SELECT ... INTO, which creates a table or writes a file', () => {
+        expect(isReadOnlyQuery('SELECT * INTO backup_users FROM users')).toBe(false);
+        expect(isReadOnlyQuery('select * into temp t from users')).toBe(false);
+        expect(isReadOnlyQuery("SELECT * FROM users INTO OUTFILE '/tmp/users.csv'")).toBe(false);
+        expect(isReadOnlyQuery('WITH a AS (SELECT 1) SELECT * INTO t2 FROM a')).toBe(false);
+        expect(isReadOnlyQuery("TABLE users INTO OUTFILE '/tmp/users.csv'")).toBe(false);
+        expect(isReadOnlyQuery('SELECT id INTO@latest FROM users')).toBe(false);
+        expect(isReadOnlyQuery('SELECT 1; SELECT * INTO copy FROM users')).toBe(false);
+        // EXPLAIN is classified by its target, with or without ANALYZE.
+        expect(isReadOnlyQuery('EXPLAIN SELECT * INTO copy FROM users')).toBe(false);
+        expect(isReadOnlyQuery('EXPLAIN ANALYZE SELECT * INTO copy FROM users')).toBe(false);
+    });
+
+    it('does not mistake a name or text containing "into" for SELECT ... INTO', () => {
+        expect(isReadOnlyQuery("SELECT 'INTO' AS word FROM t")).toBe(true);
+        expect(isReadOnlyQuery('SELECT into_count, "into" FROM t')).toBe(true);
+        expect(isReadOnlyQuery('SELECT * FROM t -- INTO backup')).toBe(true);
+    });
+
+    it('asks when only the dialect could tell that an INTO is not code', () => {
+        // A PostgreSQL dollar-quoted string, a SQL Server bracket identifier
+        // and a MySQL `#` comment. Each is code in some other dialect.
+        expect(isReadOnlyQuery('SELECT $$ insert into $$')).toBe(false);
+        expect(isReadOnlyQuery('SELECT [into] FROM t')).toBe(false);
+        expect(isReadOnlyQuery('SELECT 1 # into')).toBe(false);
     });
 });

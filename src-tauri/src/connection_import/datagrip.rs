@@ -442,6 +442,7 @@ fn make_connection(
         ssh: make_ssh(ds.ssh.as_ref(), ssh_configs),
         ssl: ds.ssl.clone(),
         group_name: ds.group_name.clone(),
+        warnings: Vec::new(),
     })
 }
 

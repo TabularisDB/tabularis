@@ -16,9 +16,11 @@ export type AiProvider =
     | 'anthropic'
     | 'openrouter'
     | 'requesty'
+    | 'api-route'
     | 'ollama'
     | 'custom-openai'
-    | 'minimax';
+    | 'minimax'
+    | (string & {});
 export type ERDiagramLayout = 'LR' | 'TB';
 export type WindowDecorationsMode = 'automatic' | 'alwaysShow' | 'alwaysHide';
 
@@ -72,6 +74,7 @@ export interface Settings {
     /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
     resultFontFamily?: string;
     aiEnabled: boolean;
+    aiInlineCompletionEnabled?: boolean;
     aiProvider: AiProvider | null;
     aiModel: string | null;
     aiCustomModels?: Record<string, string[]>;
@@ -112,6 +115,9 @@ export interface Settings {
     editorLineHeight?: number;
     editorTabSize?: number;
     editorWordWrap?: boolean;
+    editorMinimap?: boolean;
+    /** Render ordinary spaces and tabs. Default: selection. */
+    editorRenderWhitespace?: 'none' | 'selection' | 'all';
     /** Highlight invisible Unicode and look-alike characters in SQL. Default: true. */
     editorHighlightInvisibleCharacters?: boolean;
     editorShowLineNumbers?: boolean;
@@ -136,6 +142,7 @@ export interface Settings {
     formatterLinesBetweenQueries?: number;
     formatterDenseOperators?: boolean;
     pingInterval?: number;
+    autoReconnect?: boolean;
     queryHistoryMaxEntries?: number;
     showWelcome?: boolean;
     /** Reconnect to the last active connection on startup. Default: true. */
@@ -249,6 +256,7 @@ export const DEFAULT_SETTINGS: Settings = {
     defaultSortDirection: 'asc',
     resultFontFamily: 'JetBrains Mono',
     aiEnabled: false,
+    aiInlineCompletionEnabled: false,
     aiProvider: null,
     aiModel: null,
     aiCustomModels: undefined,
@@ -268,7 +276,9 @@ export const DEFAULT_SETTINGS: Settings = {
     editorLineHeight: 1.5,
     editorTabSize: 2,
     editorWordWrap: true,
+    editorMinimap: false,
     editorHighlightInvisibleCharacters: true,
+    editorRenderWhitespace: 'selection',
     editorShowLineNumbers: true,
     editorAcceptSuggestionOnEnter: true,
     runStatementUnderCursor: true,
@@ -285,6 +295,7 @@ export const DEFAULT_SETTINGS: Settings = {
     formatterLinesBetweenQueries: 1,
     formatterDenseOperators: false,
     pingInterval: 30,
+    autoReconnect: false,
     queryHistoryMaxEntries: 500,
     autoConnectLastConnection: true,
     startMaximized: false,

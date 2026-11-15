@@ -75,6 +75,11 @@
       "appimage": {
         "bundleMediaFramework": false
       }
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/open-with.nsh"
+      }
     }
   },
   "plugins": {

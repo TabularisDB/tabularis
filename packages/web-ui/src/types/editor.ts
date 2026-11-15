@@ -1,5 +1,6 @@
 import type {ForeignKey} from './schema';
 import type {GridHistory} from '@/utils/gridUndo';
+import type {LinkedFileRef} from './linkedFolders';
 
 export type {ForeignKey};
 
@@ -76,6 +77,9 @@ export interface QueryResultEntry {
     page: number;
     activeTable: string | null;
     pkColumns: string[] | null;
+    /** Set on entries split from one statement's several result sets (e.g. a
+     * MySQL `CALL`): re-running `query` would not yield this set alone. */
+    fromResultSets?: boolean;
     /// Rows a Run All statement returned, captured while the batch's session
     /// state was live. Set for paged batch results: page changes slice this
     /// instead of re-running the statement (#205).
@@ -151,6 +155,8 @@ export interface Tab {
     /** Content last read from / written to `sourceFilePath`; dirty = query differs from it. */
     sourceFileContent?: string;
     sourceFileDirty?: boolean;
+    /** Set when the file was opened from a linked folder: saves go through the link and check `version`. */
+    sourceFileLink?: LinkedFileRef;
     /** Pinned tabs come first in the tab bar, and bulk close actions skip them. */
     pinned?: boolean;
 }

@@ -205,13 +205,27 @@ export const ImportFromAppModal = ({isOpen, onClose, onImported}: ImportFromAppM
             }
 
             let file: ConnectionImportFile | null = null;
+            const canChooseServerPath =
+                typeof platform.supports === 'function'
+                    ? platform.supports('chooseServerPath')
+                    : false;
             const needsManualPath = selectedSource.manualPathSupported && !selectedSource.available;
-            if (needsManualPath) {
+            if (needsManualPath && canChooseServerPath) {
                 const picked = await platform.chooseServerPath({kind: 'directory'});
                 if (!picked) return;
                 file = {kind: 'serverPath', path: picked.reference};
-            } else if (selectedSource.needsFile) {
-                const picked = await platform.chooseInputFile();
+            } else if (selectedSource.needsFile || (needsManualPath && !canChooseServerPath)) {
+                const picked = await platform.chooseInputFile({
+                    filters:
+                        selectedSource.id === 'project_config'
+                            ? [
+                                  {
+                                      name: 'Configuration Files',
+                                      extensions: ['env', 'yaml', 'yml'],
+                                  },
+                              ]
+                            : undefined,
+                });
                 if (!picked) return;
                 file = await prepareConnectionImportFile(client, platform, picked);
             }
@@ -574,6 +588,7 @@ const SourcePicker = ({
 
     const subtitle = (s: ImportSourceInfo) => {
         if (s.id === TABULARIS_SOURCE_ID) return t('connections.importFromApp.tabularisJsonHint');
+        if (s.id === 'project_config') return t('connections.importFromApp.projectConfigHint');
         if (s.needsFile) return t('connections.importFromApp.chooseFile');
         if (!s.available && s.manualPathSupported) {
             return t('connections.importFromApp.chooseConfigPath', {

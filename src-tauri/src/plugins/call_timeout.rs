@@ -7,6 +7,7 @@
 //!
 //! A value of `0` disables the timeout entirely, so long-running statements
 //! (maintenance jobs, index builds, …) are never cut off by the host.
+//! Whole-database SQL transfers have no implicit limit; explicit settings apply.
 //!
 //! The resolved values are kept in a small process-wide snapshot refreshed
 //! whenever the config is loaded or saved, so a change applies to the next
@@ -52,12 +53,16 @@ impl CallTimeoutSettings {
 
     /// Effective timeout for `plugin_id`; `None` means "wait indefinitely".
     pub(crate) fn resolve(&self, plugin_id: &str) -> Option<Duration> {
+        self.resolve_with_default(plugin_id, DEFAULT_PLUGIN_CALL_TIMEOUT_SECS)
+    }
+
+    fn resolve_with_default(&self, plugin_id: &str, default_seconds: u32) -> Option<Duration> {
         let seconds = self
             .per_plugin
             .get(plugin_id)
             .copied()
             .or(self.global)
-            .unwrap_or(DEFAULT_PLUGIN_CALL_TIMEOUT_SECS);
+            .unwrap_or(default_seconds);
         (seconds > 0).then(|| Duration::from_secs(u64::from(seconds)))
     }
 }
@@ -83,6 +88,15 @@ pub fn for_plugin(plugin_id: &str) -> Option<Duration> {
                 DEFAULT_PLUGIN_CALL_TIMEOUT_SECS,
             )))
         })
+}
+
+/// Whole-database transfers can exceed the ordinary RPC default. Explicit user
+/// limits still apply; dropping the transfer future retains RPC cancellation.
+pub fn for_database_transfer(plugin_id: &str) -> Option<Duration> {
+    CURRENT
+        .read()
+        .ok()
+        .and_then(|current| current.resolve_with_default(plugin_id, 0))
 }
 
 #[cfg(test)]

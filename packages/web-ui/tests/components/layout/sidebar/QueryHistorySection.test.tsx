@@ -514,3 +514,105 @@ describe('QueryHistorySection minimum duration filter (#1397)', () => {
         expect(field).toHaveTextContent('sidebar.historyMinDurationUnit');
     });
 });
+
+const searchErrorsToggle = () => screen.getByRole('button', {name: 'sidebar.historySearchErrors'});
+const searchInput = () => screen.getByPlaceholderText('sidebar.searchHistory');
+
+function failedEntry(id: string, error: string | null): QueryHistoryEntry {
+    return {...makeEntry(id, 'main'), status: 'error', error};
+}
+
+const WITH_ERRORS = [
+    failedEntry('denied', 'permission denied for table payroll'),
+    makeEntry('ok', 'main'),
+    failedEntry('legacy', null),
+    failedEntry('missing', 'relation missing does not exist'),
+];
+
+describe('QueryHistorySection error message search (#1489)', () => {
+    it('starts in SQL-only mode with a named, unpressed toggle', () => {
+        renderSection(WITH_ERRORS);
+
+        const toggle = searchErrorsToggle();
+        expect(toggle).toHaveAttribute('aria-pressed', 'false');
+        expect(toggle).toHaveAttribute('title', 'sidebar.historySearchErrors');
+
+        fireEvent.change(searchInput(), {target: {value: 'permission'}});
+        expect(visibleIds()).toEqual([]);
+        expect(screen.getByText('0 / 4')).toBeInTheDocument();
+    });
+
+    it('matches recorded errors while pressed and updates the counter', () => {
+        renderSection(WITH_ERRORS);
+
+        fireEvent.change(searchInput(), {target: {value: 'PERMISSION'}});
+        fireEvent.click(searchErrorsToggle());
+
+        expect(searchErrorsToggle()).toHaveAttribute('aria-pressed', 'true');
+        expect(visibleIds()).toEqual(['denied']);
+        expect(screen.getByText('1 / 4')).toBeInTheDocument();
+
+        fireEvent.click(searchErrorsToggle());
+        expect(searchErrorsToggle()).toHaveAttribute('aria-pressed', 'false');
+        expect(visibleIds()).toEqual([]);
+    });
+
+    it('shows every entry for an empty query even while pressed', () => {
+        renderSection(WITH_ERRORS);
+
+        fireEvent.click(searchErrorsToggle());
+
+        expect(visibleIds()).toEqual(['denied', 'ok', 'legacy', 'missing']);
+        expect(screen.queryByText(/ \/ /)).not.toBeInTheDocument();
+    });
+
+    it('combines with the outcome filter', () => {
+        renderSection([...WITH_ERRORS, makeEntry('select-ok', 'main')]);
+
+        fireEvent.click(searchErrorsToggle());
+        fireEvent.change(searchInput(), {target: {value: "SELECT 'ok"}});
+        expect(visibleIds()).toEqual(['ok']);
+
+        fireEvent.change(screen.getByRole('combobox', {name: 'sidebar.historyOutcomeFilter'}), {
+            target: {value: 'failed'},
+        });
+        expect(visibleIds()).toEqual([]);
+
+        fireEvent.change(searchInput(), {target: {value: 'does not exist'}});
+        expect(visibleIds()).toEqual(['missing']);
+        expect(screen.getByText('1 / 5')).toBeInTheDocument();
+    });
+
+    it('goes back to SQL-only mode when the filters are cleared', () => {
+        renderSection(WITH_ERRORS);
+
+        fireEvent.click(searchErrorsToggle());
+        fireEvent.change(searchInput(), {target: {value: 'payroll'}});
+        expect(visibleIds()).toEqual(['denied']);
+
+        fireEvent.click(clearFiltersButton());
+
+        expect(searchErrorsToggle()).toHaveAttribute('aria-pressed', 'false');
+        expect(visibleIds()).toEqual(['denied', 'ok', 'legacy', 'missing']);
+
+        fireEvent.change(searchInput(), {target: {value: 'payroll'}});
+        expect(visibleIds()).toEqual([]);
+    });
+
+    it('exports only the entries matched through their error', async () => {
+        downloadFile.mockReset().mockResolvedValue(true);
+        renderSection(WITH_ERRORS);
+
+        fireEvent.click(searchErrorsToggle());
+        fireEvent.change(searchInput(), {target: {value: 'permission denied'}});
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'sidebar.exportHistory'}));
+        });
+
+        const contents = new TextDecoder().decode(downloadFile.mock.calls[0][0].contents);
+        expect(contents).toContain("SELECT 'denied'");
+        expect(contents).not.toContain("SELECT 'ok'");
+        expect(contents).not.toContain("SELECT 'missing'");
+    });
+});

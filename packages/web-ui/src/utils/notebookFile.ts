@@ -1,6 +1,7 @@
 import type {NotebookCell, NotebookFile, NotebookParam} from '@/types/notebook';
 import {generateCellId} from './notebook';
 import {validateParamName} from './notebookParams';
+import {sanitizeKpiConfig} from './notebookKpi';
 
 /**
  * Keep only well-formed params from an untrusted notebook file: name must be
@@ -40,6 +41,8 @@ export function serializeNotebook(
             ...(c.isQueryCollapsed ? {isQueryCollapsed: c.isQueryCollapsed} : {}),
             ...(c.isResultCollapsed ? {isResultCollapsed: c.isResultCollapsed} : {}),
             ...(c.isChartVisible != null ? {isChartVisible: c.isChartVisible} : {}),
+            ...(c.kpiConfig ? {kpiConfig: c.kpiConfig} : {}),
+            ...(c.isKpiVisible != null ? {isKpiVisible: c.isKpiVisible} : {}),
             ...(c.isQueryPlanVisible != null ? {isQueryPlanVisible: c.isQueryPlanVisible} : {}),
         })),
         ...(params && params.length > 0 ? {params} : {}),
@@ -98,6 +101,9 @@ export function deserializeNotebook(json: string): {
                 isQueryCollapsed: cellRaw.isQueryCollapsed as boolean | undefined,
                 isResultCollapsed: cellRaw.isResultCollapsed as boolean | undefined,
                 isChartVisible: cellRaw.isChartVisible as boolean | undefined,
+                kpiConfig: sanitizeKpiConfig(cellRaw.kpiConfig),
+                isKpiVisible:
+                    typeof cellRaw.isKpiVisible === 'boolean' ? cellRaw.isKpiVisible : undefined,
                 isQueryPlanVisible: cellRaw.isQueryPlanVisible as boolean | undefined,
                 result: null,
                 error: undefined,

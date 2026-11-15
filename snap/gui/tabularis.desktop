@@ -7,4 +7,4 @@ Icon=${SNAP}/usr/share/icons/hicolor/512x512/apps/tabularis.png
 Terminal=false
 Categories=Development;Database;
 StartupWMClass=tabularis
-MimeType=x-scheme-handler/tabularis;
+MimeType=x-scheme-handler/tabularis;text/csv;text/tab-separated-values;application/json;application/x-ndjson;application/vnd.apache.parquet;

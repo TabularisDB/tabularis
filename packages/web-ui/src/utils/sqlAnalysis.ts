@@ -133,6 +133,40 @@ function finalCteStatementKeyword(cleaned: string): string | null {
     return null;
 }
 
+// The text inside each `AS (...)` of a WITH statement, `[NOT] MATERIALIZED`
+// included, and with or without whitespace before the parenthesis: PostgreSQL
+// also accepts `AS(`. A CTE body can itself write (`WITH d AS (DELETE FROM t
+// RETURNING *) SELECT ...`), and it runs even when the final statement is a
+// SELECT. Such bodies are only allowed at the top level, so nested ones are
+// not searched.
+function cteBodies(cleaned: string): string[] {
+    const bodies: string[] = [];
+    const bodyStart = /\bAS\s*(?:NOT\s+)?(?:MATERIALIZED\s*)?\(/gi;
+    while (bodyStart.exec(cleaned) !== null) {
+        const start = bodyStart.lastIndex;
+        let depth = 1;
+        let end = start;
+        for (; end < cleaned.length && depth > 0; end++) {
+            if (cleaned[end] === '(') depth++;
+            else if (cleaned[end] === ')') depth--;
+        }
+        bodies.push(cleaned.slice(start, depth === 0 ? end - 1 : end));
+        bodyStart.lastIndex = end;
+    }
+    return bodies;
+}
+
+const CTE_WRITE_KEYWORDS = new Set(['INSERT', 'UPDATE', 'DELETE', 'MERGE']);
+
+// The statement keyword of the first CTE body that writes, if any.
+function cteWriteKeyword(cleaned: string): string | null {
+    for (const body of cteBodies(cleaned)) {
+        const keyword = leadingKeyword(body);
+        if (CTE_WRITE_KEYWORDS.has(keyword)) return keyword;
+    }
+    return null;
+}
+
 // True if `WHERE` appears outside of any parenthesized group — a WHERE
 // nested in a subquery (e.g. an UPDATE...SET with a correlated subquery)
 // doesn't count, since it doesn't limit which rows of the target table are
@@ -156,6 +190,12 @@ function hasTopLevelWhere(cleaned: string): boolean {
     return false;
 }
 
+// A DELETE or UPDATE that touches every row of its table.
+function isUnfilteredWrite(statement: string): boolean {
+    const keyword = leadingKeyword(statement);
+    return (keyword === 'DELETE' || keyword === 'UPDATE') && !hasTopLevelWhere(statement);
+}
+
 // The distinct ways a statement can be flagged as dangerous. Each maps to its
 // own confirmation copy so the dialog can explain the specific risk.
 //   - 'no-where':  DELETE/UPDATE with no top-level WHERE (wipes a whole table)
@@ -173,6 +213,7 @@ export const classifyDangerousQuery = (sql: string): DangerousQueryKind | null =
     // MySQL comment it would be rather than letting it hide a DROP.
     let keyword = leadingKeyword(cleaned) || leadingKeyword(cleaned, {hashComments: true});
     if (keyword === 'WITH') {
+        if (cteBodies(cleaned).some(isUnfilteredWrite)) return 'no-where';
         keyword = finalCteStatementKeyword(cleaned) ?? keyword;
     }
 
@@ -219,9 +260,46 @@ function effectiveStatementKeyword(cleaned: string): string | null {
     if (!unwrapped.trim()) return 'SELECT'; // bare EXPLAIN — nothing to run
     let keyword = leadingKeyword(unwrapped);
     if (keyword === 'WITH') {
-        keyword = finalCteStatementKeyword(unwrapped) ?? keyword;
+        keyword = cteWriteKeyword(unwrapped) ?? finalCteStatementKeyword(unwrapped) ?? keyword;
     }
     return keyword;
+}
+
+// SQLite pragmas that only report information, even when given an argument
+// (`PRAGMA table_info(t)`). Any other pragma called with an argument sets a
+// value. Keep both lists in step with `classify_pragma` in
+// `src-tauri/src/ai_activity.rs`.
+const INTROSPECTION_PRAGMAS = new Set([
+    'TABLE_INFO',
+    'TABLE_XINFO',
+    'TABLE_LIST',
+    'INDEX_LIST',
+    'INDEX_INFO',
+    'INDEX_XINFO',
+    'FOREIGN_KEY_LIST',
+    'FOREIGN_KEY_CHECK',
+    'INTEGRITY_CHECK',
+    'QUICK_CHECK',
+]);
+
+// SQLite pragmas that do work even without an argument.
+const ACTION_PRAGMAS = new Set([
+    'OPTIMIZE',
+    'WAL_CHECKPOINT',
+    'INCREMENTAL_VACUUM',
+    'SHRINK_MEMORY',
+]);
+
+// Reading a pragma (`PRAGMA user_version`) or calling an introspection pragma
+// is a read. Assigning one (`PRAGMA user_version = 42`), passing a value to any
+// other pragma (`PRAGMA journal_mode(DELETE)`) or running an action pragma
+// (`PRAGMA optimize`) is a write.
+function isReadOnlyPragma(cleaned: string): boolean {
+    const body = cleaned.replace(/^[\s\S]*?\bpragma\b/i, '').trim();
+    if (body.includes('=')) return false;
+    const name = (body.split('(')[0].split('.').pop() ?? '').trim().toUpperCase();
+    if (!/^\w+$/.test(name) || ACTION_PRAGMAS.has(name)) return false;
+    return !body.includes('(') || INTROSPECTION_PRAGMAS.has(name);
 }
 
 // A quick UI-side filter for statements with obvious write keywords. The host
@@ -234,7 +312,15 @@ export const isReadOnlyQuery = (sql: string): boolean =>
         .filter((s) => s.length > 0)
         .every((s) => {
             const keyword = effectiveStatementKeyword(s);
-            return keyword !== null && READ_ONLY_KEYWORDS.has(keyword);
+            if (keyword === null || !READ_ONLY_KEYWORDS.has(keyword)) return false;
+            if (keyword === 'PRAGMA') return isReadOnlyPragma(s);
+            // `SELECT ... INTO new_table` creates a table, and MySQL's
+            // `INTO OUTFILE` writes a file on the server. The dialect is not
+            // known here, so `$$...$$` strings, `[bracket]` identifiers and
+            // `#` comments are left in: each is code in some other dialect
+            // (`#` is an operator in PostgreSQL), and stripping it could hide
+            // a real statement. An `INTO` inside one therefore asks too.
+            return !/\bINTO\b/i.test(s);
         });
 
 // Optimized statement extractor - avoid full text scan when possible

@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {parsePostgresJson, parsePostgresText} from '../../src/parsers/postgres';
 import {detectFormat, parseExplain} from '../../src/parsers/source';
+import {getPlanDiagnostics} from '../../src/diagnostics';
+import {computeExplainMetrics, getAvailableMetricKinds} from '../../src/metrics';
 
 const POSTGRES_SIMPLE = `[
   {
@@ -181,6 +183,96 @@ describe('postgres parsers', () => {
             const plan = parsePostgresText(raw);
             expect(plan.root.node_type).toBe('Index Scan using users_pkey');
             expect(plan.root.relation).toBe('users');
+        });
+
+        // EXPLAIN (ANALYZE, BUFFERS) from PostgreSQL 13+, see #1546.
+        const ANALYZE_BUFFERS = `Nested Loop  (cost=0.00..153.15 rows=1 width=30) (actual time=0.020..0.025 rows=0.00 loops=1)
+  Join Filter: (b.id = a.id)
+  Buffers: shared hit=2 read=1
+  ->  Seq Scan on a  (cost=0.00..1.02 rows=1 width=5) (actual time=0.014..0.015 rows=0.00 loops=1)
+        Filter: active
+        Rows Removed by Filter: 2
+        Buffers: shared hit=2 read=1
+  ->  Seq Scan on b  (cost=0.00..150.00 rows=10000 width=25) (never executed)
+Planning:
+  Buffers: shared hit=4
+Planning Time: 0.241 ms
+Execution Time: 0.052 ms`;
+
+        it('treats a never-executed node as zero loops, like FORMAT JSON', () => {
+            const plan = parsePostgresText(ANALYZE_BUFFERS);
+            const skipped = plan.root.children[1];
+            expect(skipped.actual_loops).toBe(0);
+            expect(skipped.actual_rows).toBe(0);
+            expect(skipped.actual_time_ms).toBe(0);
+
+            const metrics = computeExplainMetrics(plan);
+            expect(metrics.order.map((n) => n.neverExecuted)).toEqual([false, false, true]);
+            expect(
+                getPlanDiagnostics(plan, metrics)
+                    .get(skipped.id)
+                    ?.map((d) => d.kind),
+            ).toEqual(['never-executed']);
+        });
+
+        it('parses Buffers lines into buffer counts', () => {
+            const plan = parsePostgresText(ANALYZE_BUFFERS);
+            expect(plan.root.buffers_hit).toBe(2);
+            expect(plan.root.buffers_read).toBe(1);
+            expect(plan.root.extra).toEqual({'Join Filter': '(b.id = a.id)'});
+            // No Buffers line: Postgres omits it when a node touched no blocks.
+            expect(plan.root.children[1].buffers_hit).toBe(0);
+            expect(plan.root.children[1].buffers_read).toBe(0);
+
+            const metrics = computeExplainMetrics(plan);
+            expect(metrics.order.map((n) => n.inclusiveBuffers)).toEqual([3, 3, 0]);
+            expect(getAvailableMetricKinds(metrics)).toContain('buffers');
+        });
+
+        it('keeps the statement-level Planning section off the last node', () => {
+            const plan = parsePostgresText(ANALYZE_BUFFERS);
+            expect(plan.root.children[1].extra).toEqual({});
+            expect(plan.planning_time_ms).toBeCloseTo(0.241);
+            expect(plan.execution_time_ms).toBeCloseTo(0.052);
+        });
+
+        it('keeps JIT and Settings sections off the last node', () => {
+            const raw = [
+                ' Seq Scan on users  (cost=0.00..12.34 rows=100 width=80) (actual time=0.01..0.02 rows=100 loops=1)',
+                '   Filter: active',
+                " Settings: work_mem = '64MB'",
+                ' Planning Time: 0.100 ms',
+                ' JIT:',
+                '   Functions: 2',
+                '   Options: Inlining false, Optimization false, Expressions true, Deforming true',
+                ' Execution Time: 0.200 ms',
+            ].join('\n');
+            const plan = parsePostgresText(raw);
+            expect(plan.root.extra).toEqual({});
+            expect(plan.root.filter).toBe('active');
+            expect(plan.execution_time_ms).toBeCloseTo(0.2);
+        });
+
+        it('keeps local, temp, dirtied and written counters under their JSON names', () => {
+            const raw = [
+                'Sort  (cost=1.00..2.00 rows=10 width=4) (actual time=0.10..0.20 rows=10 loops=1)',
+                '  Buffers: shared hit=5 dirtied=1, local read=2, temp read=3 written=4',
+            ].join('\n');
+            const plan = parsePostgresText(raw);
+            expect(plan.root.buffers_hit).toBe(5);
+            expect(plan.root.buffers_read).toBe(0);
+            expect(plan.root.extra).toEqual({
+                'Shared Dirtied Blocks': 1,
+                'Local Read Blocks': 2,
+                'Temp Read Blocks': 3,
+                'Temp Written Blocks': 4,
+            });
+        });
+
+        it('leaves buffer counts null when the plan has no Buffers lines', () => {
+            const plan = parsePostgresText(POSTGRES_TEXT_FLAT);
+            expect(plan.root.buffers_hit).toBeNull();
+            expect(plan.root.buffers_read).toBeNull();
         });
 
         it('rejects output without plan nodes', () => {

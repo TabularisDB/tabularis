@@ -5,6 +5,8 @@ import {
     formatResultForExport,
     formatRowsForExport,
     getLoadedRowsExportLimit,
+    hasUnloadedRows,
+    resolveExportScope,
 } from '@/utils/resultExport';
 
 const result: QueryResult = {
@@ -250,6 +252,15 @@ describe('resultExport', () => {
         ).toBeNull();
     });
 
+    it('warns when a non-paginated result was truncated by the driver limit', () => {
+        expect(
+            getLoadedRowsExportLimit({
+                ...result,
+                truncated: true,
+            }),
+        ).toEqual({loadedRows: 2, totalRows: null});
+    });
+
     it('warns without a total when more pages exist', () => {
         expect(
             getLoadedRowsExportLimit({
@@ -280,6 +291,66 @@ describe('resultExport', () => {
                 },
             }),
         ).toEqual({loadedRows: 2, totalRows: null});
+    });
+
+    describe('hasUnloadedRows', () => {
+        const page = (total_rows: number | null, has_more: boolean) => ({
+            page: 1,
+            page_size: 2,
+            total_rows,
+            has_more,
+        });
+
+        it('is false without pagination', () => {
+            expect(hasUnloadedRows(result)).toBe(false);
+        });
+
+        it('is true when truncated is set without pagination', () => {
+            expect(hasUnloadedRows({...result, truncated: true})).toBe(true);
+        });
+
+        it('is true when fewer rows are loaded than the known total', () => {
+            expect(hasUnloadedRows({...result, pagination: page(10, true)})).toBe(true);
+        });
+
+        it('is false when every row of the known total is loaded', () => {
+            expect(hasUnloadedRows({...result, pagination: page(2, false)})).toBe(false);
+        });
+
+        it('follows has_more and the page number when the total is unknown', () => {
+            expect(hasUnloadedRows({...result, pagination: page(null, true)})).toBe(true);
+            expect(hasUnloadedRows({...result, pagination: page(null, false)})).toBe(false);
+            expect(hasUnloadedRows({...result, pagination: {...page(null, false), page: 2}})).toBe(
+                true,
+            );
+        });
+    });
+
+    describe('resolveExportScope', () => {
+        const partial: QueryResult = {
+            ...result,
+            pagination: {page: 1, page_size: 2, total_rows: 10, has_more: true},
+        };
+        const empty: QueryResult = {columns: ['id'], rows: [], affected_rows: 0};
+
+        it('keeps the requested scope when rows are missing from the grid', () => {
+            expect(resolveExportScope(partial, 'all', true)).toBe('all');
+            expect(resolveExportScope(partial, 'loaded', true)).toBe('loaded');
+        });
+
+        it('writes the grid instead of re-running the query when it is complete', () => {
+            expect(resolveExportScope(result, 'all', true)).toBe('loaded');
+            expect(resolveExportScope(result, 'loaded', true)).toBe('loaded');
+        });
+
+        it('writes an empty, complete result from the grid to keep its header', () => {
+            expect(resolveExportScope(empty, 'all', true)).toBe('loaded');
+        });
+
+        it('uses the grid for result sets that cannot be re-run alone', () => {
+            expect(resolveExportScope(partial, 'all', false)).toBe('loaded');
+            expect(resolveExportScope(result, 'all', false)).toBe('loaded');
+        });
     });
 });
 

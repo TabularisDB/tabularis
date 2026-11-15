@@ -288,6 +288,34 @@ export const SettingsProvider = ({children}: {children: ReactNode}) => {
         };
     }, [client]);
 
+    useEffect(() => {
+        let mounted = true;
+        let cleanup: (() => void) | undefined;
+        void client
+            .subscribe('tabularis://ai-providers-changed', () => {
+                void client
+                    .call('get_config', undefined)
+                    .then((config) => {
+                        if (mounted)
+                            setSettings((previous) => ({...previous, plugins: config.plugins}));
+                    })
+                    .catch((error: unknown) =>
+                        console.error('Failed to refresh AI provider settings:', error),
+                    );
+            })
+            .then((unsubscribe) => {
+                if (mounted) cleanup = unsubscribe;
+                else unsubscribe();
+            })
+            .catch((error: unknown) =>
+                console.error('Failed to subscribe to AI provider settings:', error),
+            );
+        return () => {
+            mounted = false;
+            cleanup?.();
+        };
+    }, [client]);
+
     // Update i18n when language changes
     useEffect(() => {
         if (isLoading || currentLanguageApplied || trackedLanguageState?.settled) {

@@ -1,7 +1,13 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import {
     validateSnippetPrefix,
+    serializeSqlSnippets,
+    CURRENT_STORAGE_VERSION,
+    filterSqlSnippets,
     validateSnippetBody,
+    snippetPrefixConflicts,
+    getSnippetCopyName,
+    getSnippetCopyPrefix,
     normalizeDriverToDialect,
     isSnippetDialectCompatible,
     isOffsetInCommentOrString,
@@ -12,9 +18,112 @@ import {
     resetSqlSnippetsCache,
     DEFAULT_SQL_SNIPPETS,
     SQL_SNIPPETS_STORAGE_KEY,
+    type SqlSnippet,
 } from '@/utils/sqlSnippets';
 
+function snippet(partial: Partial<SqlSnippet> & Pick<SqlSnippet, 'id' | 'prefix'>): SqlSnippet {
+    return {
+        name: partial.name ?? partial.prefix,
+        body: 'SELECT 1;',
+        createdAt: '',
+        updatedAt: '',
+        ...partial,
+    };
+}
+
 describe('sqlSnippets utils', () => {
+    describe('serializeSqlSnippets', () => {
+        it('preserves saved fields, Unicode and literal placeholders while excluding extra fields', () => {
+            const snippet = {
+                ...DEFAULT_SQL_SNIPPETS[0],
+                name: '訂單 – Grüße',
+                body: 'SELECT ${1:列}, $2;\n\t\\${escaped} $0',
+                description: '多行\ntext',
+                dialect: 'driver:offline' as const,
+                connection: {password: 'secret'},
+                parameterValues: {id: 42},
+            };
+            const before = JSON.stringify(snippet);
+            const {connection: _connection, parameterValues: _parameters, ...savedFields} = snippet;
+            expect(JSON.parse(serializeSqlSnippets([snippet]))).toEqual({
+                version: CURRENT_STORAGE_VERSION,
+                snippets: [savedFields],
+            });
+            expect(JSON.stringify(snippet)).toBe(before);
+            expect(serializeSqlSnippets([snippet])).not.toContain('secret');
+        });
+
+        it('serializes empty libraries and configured default templates in order', () => {
+            expect(JSON.parse(serializeSqlSnippets([]))).toEqual({
+                version: CURRENT_STORAGE_VERSION,
+                snippets: [],
+            });
+            expect(JSON.parse(serializeSqlSnippets(DEFAULT_SQL_SNIPPETS))).toEqual({
+                version: CURRENT_STORAGE_VERSION,
+                snippets: DEFAULT_SQL_SNIPPETS,
+            });
+        });
+    });
+
+    describe('filterSqlSnippets', () => {
+        const snippets = [
+            {
+                id: 'generic',
+                name: 'Orders',
+                prefix: 'ord',
+                body: 'secret body',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'pg',
+                name: 'Postgres',
+                prefix: 'pg_orders',
+                description: 'Sales report',
+                dialect: 'postgres' as const,
+                body: 'SELECT 1',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'plugin',
+                name: 'Plugin',
+                prefix: 'plugin',
+                description: 'ORDERS',
+                dialect: 'driver:offline' as const,
+                body: 'SELECT 2',
+                createdAt: '',
+                updatedAt: '',
+            },
+            {
+                id: 'explicit-generic',
+                name: 'Other',
+                prefix: 'other',
+                dialect: 'all' as const,
+                body: 'SELECT 3',
+                createdAt: '',
+                updatedAt: '',
+            },
+        ];
+
+        it('matches name, prefix and optional description without changing order or records', () => {
+            expect(filterSqlSnippets(snippets, '  ORDERS  ', '')).toEqual(snippets.slice(0, 3));
+            expect(filterSqlSnippets(snippets, 'sales', '')).toEqual([snippets[1]]);
+            expect(filterSqlSnippets(snippets, 'secret body', '')).toEqual([]);
+            expect(filterSqlSnippets(snippets, '  ', '')).toEqual(snippets);
+            expect(filterSqlSnippets(snippets, '', '')[0]).toBe(snippets[0]);
+        });
+
+        it('combines exact scope and text filters, including legacy generic and offline plugins', () => {
+            expect(filterSqlSnippets(snippets, 'orders', 'postgres')).toEqual([snippets[1]]);
+            expect(filterSqlSnippets(snippets, 'orders', 'driver:offline')).toEqual([snippets[2]]);
+            expect(filterSqlSnippets(snippets, '', 'all')).toEqual([snippets[0], snippets[3]]);
+            expect(filterSqlSnippets(snippets, 'sales', 'all')).toEqual([]);
+            expect(filterSqlSnippets(snippets, '', 'driver:off')).toEqual([]);
+            expect(filterSqlSnippets([], '', '')).toEqual([]);
+        });
+    });
+
     beforeEach(() => {
         localStorage.clear();
     });
@@ -28,6 +137,49 @@ describe('sqlSnippets utils', () => {
             expect(validateSnippetPrefix('   ').valid).toBe(false);
             expect(validateSnippetPrefix('prefix with spaces').valid).toBe(false);
             expect(validateSnippetPrefix('prefix!@#').valid).toBe(false);
+        });
+
+        it('detects prefix collisions across overlapping dialect scopes', () => {
+            const snippets = [
+                snippet({id: 'all', prefix: 'orders', dialect: 'all'}),
+                snippet({id: 'pg', prefix: 'pgonly', dialect: 'postgres'}),
+            ];
+            expect(snippetPrefixConflicts(snippets, 'orders', 'mysql')).toBe(true);
+            expect(snippetPrefixConflicts(snippets, 'Orders', 'postgres')).toBe(true);
+            expect(snippetPrefixConflicts(snippets, 'pgonly', 'postgres')).toBe(true);
+            expect(snippetPrefixConflicts(snippets, 'pgonly', 'mysql')).toBe(false);
+            expect(snippetPrefixConflicts(snippets, 'pgonly', 'all')).toBe(true);
+            expect(snippetPrefixConflicts(snippets, 'orders', 'all', 'all')).toBe(false);
+        });
+
+        it('treats persisted snippets without a dialect as global for prefix collisions', () => {
+            saveSqlSnippets([snippet({id: 'legacy', prefix: 'Orders_Copy'})]);
+            const saved = loadSqlSnippets();
+
+            expect(snippetPrefixConflicts(saved, 'orders_copy', 'postgres')).toBe(true);
+            expect(snippetPrefixConflicts(saved, 'orders_copy', 'driver:oracle')).toBe(true);
+            expect(snippetPrefixConflicts(saved, 'orders_copy', 'postgres', 'legacy')).toBe(false);
+            expect(getSnippetCopyPrefix('orders', 'postgres', saved)).toBe('orders_copy_2');
+        });
+
+        it('allocates unique copy names and prefixes', () => {
+            expect(getSnippetCopyName('Active orders', [])).toBe('Active orders (copy)');
+            expect(
+                getSnippetCopyName('Active orders', [
+                    snippet({id: 'c', name: 'Active orders (copy)', prefix: 'x'}),
+                ]),
+            ).toBe('Active orders (copy 2)');
+            expect(getSnippetCopyPrefix('orders', 'all', [])).toBe('orders_copy');
+            expect(
+                getSnippetCopyPrefix('orders', 'postgres', [
+                    snippet({id: 'c', prefix: 'orders_copy', dialect: 'postgres'}),
+                ]),
+            ).toBe('orders_copy_2');
+            expect(
+                getSnippetCopyPrefix('orders', 'mysql', [
+                    snippet({id: 'c', prefix: 'orders_copy', dialect: 'postgres'}),
+                ]),
+            ).toBe('orders_copy');
         });
 
         it('validates snippet bodies', () => {

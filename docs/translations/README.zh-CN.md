@@ -6,7 +6,7 @@
 
 # Tabularis
 
-Tabularis 是一款开源的桌面 SQL 工作台，内置 3 种数据库驱动，并提供 29 个已发布插件，包括 DuckDB、ClickHouse、Redis 和 Firestore。其内置的 MCP 服务器可让 Claude、Cursor 和 Devin（原 Windsurf）在你日常使用的同一款应用中读取数据库结构并执行查询。
+Tabularis 是一款开源的桌面 SQL 工作台，内置 3 种数据库驱动，并提供 30 个已发布插件，包括 DuckDB、ClickHouse、Redis 和 Firestore。其内置的 MCP 服务器可让 Claude、Cursor 和 Devin（原 Windsurf）在你日常使用的同一款应用中读取数据库结构并执行查询。
 
 <p align="center">
   <b><a href="https://tabularis.dev">官网</a></b> ·
@@ -92,14 +92,14 @@ sudo snap install tabularis       # Linux
 | 支持**任意语言**编写插件（基于 stdio 的 JSON-RPC）  |            ✅            |       Java/Eclipse 插件        | JavaScript 插件 |        ❌         |
 | 支持**本地模型**（Ollama）的 AI text-to-SQL         |            ✅            |       基于云端的 AI 助手       |       ❌        |        ❌         |
 | 带交互式计划图的可视化 EXPLAIN                      |            ✅            |               ✅               |       ❌        |        ❌         |
-| 开箱即用支持的数据库                                | 3 种内置 + 29 个驱动插件 |              100+              |       20+       |     约 10 种      |
+| 开箱即用支持的数据库                                | 3 种内置 + 30 个驱动插件 |              100+              |       20+       |     约 10 种      |
 
 > [!NOTE]
 > 对比数据截至 2026 年 6 月，其他工具的功能此后可能已有变化。如果你需要几十种驱动，请使用 DBeaver。tabularis 专注于把少数几种数据库做好。
 
 ### 数据库支持
 
-PostgreSQL、MySQL/MariaDB 和 SQLite 为内置支持。内置 PostgreSQL 驱动已弃用，改由 Tabularis 自动安装的 [PostgreSQL 插件](https://github.com/TabularisDB/tabularis-postgresql-plugin)取代。其余均为插件。下面列出当前状态，与网站上的[驱动与插件覆盖](https://tabularis.dev/#driver-coverage)保持一致：
+PostgreSQL、MySQL/MariaDB 和 SQLite 为内置支持。内置 PostgreSQL 驱动已弃用，改由 Tabularis 自动安装的 [PostgreSQL 插件](https://github.com/TabularisDB/tabularis-postgresql-plugin)取代。其余均为插件。下面列出当前状态，与网站上的[驱动与插件覆盖](https://tabularis.dev/plugins/drivers)保持一致：
 
 **已发布**
 
@@ -118,17 +118,17 @@ PostgreSQL、MySQL/MariaDB 和 SQLite 为内置支持。内置 PostgreSQL 驱动
 | IBM Informix             | [tabularis-informix-plugin](https://github.com/danielnuld/tabularis-informix-plugin)            | HackerNews     | [tabularis-hackernews-plugin](https://github.com/TabularisDB/tabularis-hackernews-plugin)       |
 | Cassandra / ScyllaDB     | [tabularis-cassandra-plugin](https://github.com/TabularisDB/tabularis-cassandra-plugin)         | Harper         | [tabularis-harper-plugin](https://github.com/HarperFast/tabularis-harper-plugin)                |
 | PostgreSQL               | [tabularis-postgresql-plugin](https://github.com/TabularisDB/tabularis-postgresql-plugin)       | Trino          | [tabularis-trino-plugin](https://github.com/TabularisDB/tabularis-trino-plugin)                 |
-| Neon                     | [neon-plugin](https://github.com/TabularisDB/neon-plugin)                                       | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
-| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         |                |                                                                                                 |
+| Meilisearch              | [meilisearch-tabularis](https://github.com/NewtTheWolf/meilisearch-tabularis)                   | OpenSearch     | [tabularis-opensearch-plugin-go](https://github.com/Xrondev/tabularis-opensearch-plugin-go)     |
+| SurrealDB                | [tabularis-surrealdb-plugin](https://github.com/TabularisDB/tabularis-surrealdb-plugin)         | Firebird       | [tabularis-firebird-plugin](https://github.com/TabularisDB/tabularis-firebird-plugin)           |
 
 **悬赏看板中**
 
 | 状态     | 数据库                                                                       |
 | -------- | ---------------------------------------------------------------------------- |
-| 开发中            | Meilisearch                  |
+| 开发中            | InfluxDB                     |
 | 即将推出           | Snowflake                    |
 | 已规划            | Amazon Redshift, TiDB        |
-| 开放中            | Etcd, Firebird, SQL Anywhere |
+| 开放中            | Etcd, SQL Anywhere |
 
 > [!NOTE]
 > 标记为**已发布**的驱动可从[插件注册表](https://tabularis.dev/plugins)安装。其余均在[悬赏看板](https://tabularis.dev/plugins/bounties)上：你可以认领、赞助，或[申请新数据库](https://github.com/TabularisDB/tabularis/discussions)。

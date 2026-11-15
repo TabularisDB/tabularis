@@ -1,5 +1,21 @@
 import type {Dialect} from '@/utils/sqlSplitter';
 
+/** Plugin-declared native whole-file backup. The host echoes `format`. */
+export interface NativeBackupCapability {
+    format: string;
+    extension: string;
+    label: string;
+    description?: string;
+}
+
+export interface DatabaseSqlCapabilities {
+    format: string;
+    native_backup?: NativeBackupCapability | null;
+    create_database: boolean;
+    requires_empty_target: boolean;
+    target_label: string;
+}
+
 export interface ConnectionStringExample {
     label: string;
     value: string;
@@ -18,6 +34,10 @@ export interface DriverCapabilities {
     in_memory?: boolean;
     /** CamelCase alias accepted for plugin compatibility. */
     inMemory?: boolean;
+    /** Data file formats (`csv`, `tsv`, `json`, `ndjson`, `parquet`, ...) the driver
+     * exposes as a queryable relation through the optional `open_data_file` RPC.
+     * Requires `file_based`. Omitted or empty: the driver does not open data files. */
+    data_files?: string[];
     /** The driver exposes a single implicit database (e.g. a flat search/document
      * store like Meilisearch). Skips the database tab + database-name field. */
     single_database?: boolean;
@@ -45,6 +65,13 @@ export interface DriverCapabilities {
     connection_uri_schemes?: string[];
     /** CamelCase alias accepted for plugin compatibility. */
     connectionUriSchemes?: string[];
+    /** The driver sends its connections through the SOCKS5 proxy given in
+     * `socks5_proxy_host`/`socks5_proxy_port` (plus `socks5_proxy_username`/
+     * `socks5_proxy_password` when set). With SSH enabled, the host then opens
+     * a dynamic forward instead of rewriting host/port. Defaults to false. */
+    socks5_proxy?: boolean;
+    /** CamelCase alias accepted for plugin compatibility. */
+    socks5Proxy?: boolean;
     identifier_quote: string;
     alter_primary_key: boolean;
     // SQL generation capabilities (optional, default to '' / false when not present)
@@ -61,6 +88,12 @@ export interface DriverCapabilities {
      * Defaults to false: SQL-compatible drivers (see `speaksGenericSql`) keep the
      * host's generic SQL, the others don't show the menu entry. */
     column_stats?: boolean;
+    /** The driver classifies queries in its own query language through the
+     * optional classify_query RPC, for the read-only policies: the MCP read-only
+     * mode, the MCP approval gate and saved read-only connections. Defaults to
+     * false: the host reads every query as SQL. A `select` verdict only counts
+     * when the driver also declares `read_only_queries` (or `readonly`). */
+    query_classification?: boolean;
     /** Honours query_timeout_secs: the driver stops a statement on the server
      * once the limit passes. Shows the query-timeout field in the connection
      * modal. Built-in PostgreSQL sets this; plugins opt in. Defaults to false. */
@@ -74,6 +107,8 @@ export interface DriverCapabilities {
     manage_tables?: boolean;
     /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */
     readonly?: boolean;
+    /** Implements the protected execute_read_only_query RPC. Defaults to false. */
+    read_only_queries?: boolean;
     /** Offers "Export table to SQL" on table nodes. Defaults to true; non-SQL plugins set false. */
     table_export?: boolean;
     /** Offers "Import table from SQL" on database and schema nodes. Defaults to true; ignored (off) when readonly. */
@@ -86,6 +121,8 @@ export interface DriverCapabilities {
     user_management?: boolean;
     /** Supports managing stored routines (run with parameters, create from template, edit, drop). Defaults to false. */
     routine_management?: boolean;
+    /** Versioned native routine debugger protocol. Omitted means unsupported. */
+    routine_debug?: number;
     /** Supports materialized views (e.g. PostgreSQL). When false, the frontend skips fetching materialized views entirely. Defaults to false. */
     materialized_views?: boolean;
     /** Shows the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal.
@@ -138,6 +175,8 @@ export interface SqlSyntaxDescriptor {
     nested_block_comments?: boolean;
     line_comment_requires_space?: boolean;
     script_blocks?: boolean;
+    /** Firebird PSQL bodies, alternative q-quotes and isql SET TERM directives. */
+    psql_blocks?: boolean;
     dollar_quoting?: boolean;
     /** Generated string literals: `standard` (`''`) or `backslash` (`\'`). */
     string_escape?: 'standard' | 'backslash';

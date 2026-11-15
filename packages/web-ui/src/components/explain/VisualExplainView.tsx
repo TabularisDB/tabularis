@@ -310,6 +310,30 @@ export const VisualExplainView = ({
         }
     }, [plan, metrics, platform, showToast, t]);
 
+    const handleCopyNodeDetails = useCallback(
+        async (text: string): Promise<boolean> => {
+            try {
+                await platform.writeClipboard(text);
+                showToast(
+                    t('editor.visualExplain.detailsCopied', 'Node details copied to clipboard'),
+                    {kind: 'success'},
+                );
+                return true;
+            } catch (err) {
+                console.error('Failed to copy node details to clipboard:', err);
+                showToast(
+                    t(
+                        'editor.visualExplain.copyDetailsFailed',
+                        'Failed to copy node details to clipboard',
+                    ),
+                    {kind: 'error'},
+                );
+                return false;
+            }
+        },
+        [platform, showToast, t],
+    );
+
     return (
         <div className="flex flex-col h-full min-h-0">
             <div className="flex items-center justify-between border-b border-default bg-base/50 pr-2">
@@ -430,6 +454,7 @@ export const VisualExplainView = ({
                             isExportingCsv={isExportingCsv}
                             columnOrder={columnOrder}
                             onColumnOrderChange={handleColumnOrderChange}
+                            onCopyDetails={handleCopyNodeDetails}
                         />
                     ) : viewMode === 'diagram' ? (
                         <ExplainDiagramView
@@ -438,6 +463,7 @@ export const VisualExplainView = ({
                             diagnostics={diagnostics}
                             selectedId={selectedNodeId}
                             onSelect={onSelectNode}
+                            onCopyDetails={handleCopyNodeDetails}
                         />
                     ) : viewMode === 'stats' ? (
                         <ExplainStatsView plan={plan} metrics={metrics} />
@@ -464,6 +490,7 @@ export const VisualExplainView = ({
                                     diagnostics={
                                         selectedNode ? (diagnostics.get(selectedNode.id) ?? []) : []
                                     }
+                                    onCopyDetails={handleCopyNodeDetails}
                                 />
                             </div>
                         </div>

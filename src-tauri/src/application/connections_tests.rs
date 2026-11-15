@@ -259,6 +259,23 @@ async fn connection_test_failures_emit_correlated_progress() {
 }
 
 #[test]
+fn tunnel_test_log_reports_the_socks5_listener_instead_of_the_database_port() {
+    let mut resolved = connection_params("");
+    resolved.port = Some(27017);
+    assert_eq!(
+        tunnel_endpoint_detail(&resolved).as_deref(),
+        Some("127.0.0.1:27017")
+    );
+
+    resolved.socks5_proxy_host = Some("127.0.0.1".to_string());
+    resolved.socks5_proxy_port = Some(40123);
+    assert_eq!(
+        tunnel_endpoint_detail(&resolved).as_deref(),
+        Some("SOCKS5 127.0.0.1:40123")
+    );
+}
+
+#[test]
 fn test_log_host_port_keeps_url_hosts_and_named_ports() {
     assert_eq!(display_host_port("localhost", 5432), "localhost:5432");
     assert_eq!(display_host_port("192.168.1.10", 3306), "192.168.1.10:3306");
@@ -787,6 +804,7 @@ fn sql_builder_secrets_bind_stored_plugin_secrets_and_tolerate_missing_ones() {
         appearance: None,
         tag_ids: None,
         environment: None,
+        managed: false,
     };
 
     bind_sql_builder_secrets(&runtime, &mut connection);
@@ -1179,4 +1197,64 @@ fn plugin_service_bundles_are_removed_on_delete_or_connection_retargeting() {
             "service credentials survived {action}"
         );
     }
+}
+
+#[tokio::test]
+async fn opening_data_files_saves_one_workspace_connection_and_reuses_it() {
+    // The driver is looked up in the process-wide registry.
+    let _registry = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    let (temp, runtime, state) = fixture();
+    let mut manifest = crate::plugins::driver::test_manifest();
+    manifest.id = "data-file-workspace-test".to_string();
+    manifest.capabilities.file_based = true;
+    manifest.capabilities.data_files = vec!["parquet".to_string()];
+    crate::drivers::registry::register_driver(crate::plugins::driver::test_driver_with_manifest(
+        manifest,
+        |_| Ok(Value::Null),
+    ))
+    .await;
+    let open = |file_name: &'static str, workspace_name: &'static str| {
+        let path = temp.path().join(file_name);
+        fs::write(&path, b"PAR1").unwrap();
+        execute(
+            &runtime,
+            &state,
+            ConnectionCommand::OpenDataFile {
+                source: crate::application::data_files::DataFileSource::ServerPath(path),
+                workspace_name: workspace_name.to_string(),
+            },
+        )
+    };
+
+    let first = open("metrics.parquet", "Data files").await.unwrap();
+    let second = open("events.parquet", "Renamed later").await.unwrap();
+    let unnamed_reuse = open("more.parquet", " ").await.unwrap();
+
+    let connections = load_file(&runtime).unwrap().connections;
+    assert_eq!(connections.len(), 1);
+    assert_eq!(connections[0].name, "Data files");
+    assert_eq!(connections[0].params.driver, "data-file-workspace-test");
+    assert_eq!(first["connectionId"], connections[0].id);
+    assert_eq!(first["driver"], "data-file-workspace-test");
+    assert_eq!(first["table"], "metrics");
+    assert_eq!(first["format"], "parquet");
+    assert_eq!(second["connectionId"], first["connectionId"]);
+    assert_eq!(second["table"], "events");
+    assert_eq!(unnamed_reuse["connectionId"], first["connectionId"]);
+
+    let unsupported = temp.path().join("report.xlsx");
+    fs::write(&unsupported, b"PK").unwrap();
+    let error = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::OpenDataFile {
+            source: crate::application::data_files::DataFileSource::ServerPath(unsupported),
+            workspace_name: "Data files".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, "No installed driver can open xlsx data files");
+
+    crate::drivers::registry::unregister_driver("data-file-workspace-test").await;
 }

@@ -652,6 +652,7 @@ mod sqlite_round_trip {
                     appearance: None,
                     tag_ids: None,
                     environment: None,
+                    managed: false,
                 }
             })
             .collect();
@@ -1396,6 +1397,7 @@ mod sqlite_round_trip {
             let runtime = self.runtime.clone();
             let task_state = DumpCancellationState {
                 handles: state.handles.clone(),
+                ..Default::default()
             };
             let task_path = path.to_path_buf();
             let import = tokio::spawn(async move {

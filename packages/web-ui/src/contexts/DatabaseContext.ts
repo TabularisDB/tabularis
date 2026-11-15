@@ -54,6 +54,7 @@ export interface SavedConnection {
     plugin_secret_keys?: string[];
     params: {
         driver: string;
+        read_only?: boolean;
         host?: string;
         database: string | string[];
         default_database?: string;
@@ -90,6 +91,8 @@ export interface SavedConnection {
     tag_ids?: string[];
     /** Deployment environment; production drives warnings and visuals. */
     environment?: 'development' | 'staging' | 'production';
+    /** Set on administrator-provisioned connections; absent means false. */
+    managed?: boolean;
 }
 
 export interface ConnectionGroup {

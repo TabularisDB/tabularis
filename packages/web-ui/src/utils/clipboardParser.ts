@@ -69,7 +69,10 @@ function parseTsv(text: string): string[][] {
     const rows: string[][] = [];
     let cells: string[] = [];
     let current = '';
-    const input = text.trim();
+    // Strip only surrounding line breaks: a leading or trailing tab is an empty
+    // cell (a range copied with an empty top-left cell starts with one), and
+    // trimming it would shift that row's cells one column to the left.
+    const input = text.replace(/^[\r\n]+|[\r\n]+$/g, '');
     for (let i = 0; i < input.length; i++) {
         const ch = input[i];
         const quoted = ch === '"' && current === '' ? readQuotedTsvField(input, i) : null;

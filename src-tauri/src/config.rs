@@ -5,6 +5,10 @@ use std::sync::RwLock;
 
 use std::collections::HashMap;
 
+#[cfg(test)]
+#[path = "config/whitespace_tests.rs"]
+mod whitespace_tests;
+
 fn default_true() -> bool {
     true
 }
@@ -118,6 +122,8 @@ pub struct AppConfig {
     /// or `"both"`.
     pub cell_double_click_action: Option<String>,
     pub ai_enabled: Option<bool>,
+    /// Opt-in SQL ghost text. Missing values remain disabled.
+    pub ai_inline_completion_enabled: Option<bool>,
     pub ai_provider: Option<String>,
     pub ai_model: Option<String>,
     pub ai_custom_models: Option<HashMap<String, Vec<String>>>,
@@ -172,6 +178,9 @@ pub struct AppConfig {
     pub editor_line_height: Option<f32>,
     pub editor_tab_size: Option<u32>,
     pub editor_word_wrap: Option<bool>,
+    pub editor_minimap: Option<bool>,
+    /// Ordinary space/tab markers: "none", "selection" (default), or "all".
+    pub editor_render_whitespace: Option<String>,
     /// Highlight hidden Unicode and look-alike characters in the SQL editor.
     pub editor_highlight_invisible_characters: Option<bool>,
     pub editor_show_line_numbers: Option<bool>,
@@ -201,6 +210,9 @@ pub struct AppConfig {
     pub sql_diagnostics_enabled: Option<bool>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
+    /// Try one reconnect before dropping a connection that failed its health
+    /// check. Default: false.
+    pub auto_reconnect: Option<bool>,
     /// Maximum number of query history entries per connection. Default: 500.
     pub query_history_max_entries: Option<u32>,
     /// Whether to show the welcome screen on startup. Default: true (first launch).

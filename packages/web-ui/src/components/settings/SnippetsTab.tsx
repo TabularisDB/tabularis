@@ -1,28 +1,37 @@
-import {useState, useCallback, useEffect, useRef} from 'react';
+import {useState, useEffect, useLayoutEffect, useRef} from 'react';
 import type {BeforeMount} from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
 import {MonacoEditor} from '@/components/ui/LazyMonaco';
 import {Select} from '@/components/ui/Select';
 import {useEditorTheme} from '@/hooks/useEditorTheme';
 import {useDrivers} from '@/hooks/useDrivers';
+import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {useAlert} from '@/hooks/useAlert';
 import type {PluginManifest} from '@/types/plugins';
 import {loadMonacoTheme} from '@/themes/themeUtils';
 import {getMonacoThemeId} from '@/themes/themeRuntime';
 import {useTranslation} from 'react-i18next';
 import {
     loadSqlSnippets,
+    serializeSqlSnippets,
+    filterSqlSnippets,
     upsertSqlSnippet,
     deleteSqlSnippet,
     validateSnippetPrefix,
     validateSnippetBody,
+    snippetPrefixConflicts,
+    getSnippetCopyName,
+    getSnippetCopyPrefix,
     type SqlSnippet,
     type SqlDialectScope,
     normalizeDriverToDialect,
 } from '@/utils/sqlSnippets';
-import {Plus, Trash2, Edit2, Code2, AlertCircle, Check} from 'lucide-react';
+import {Plus, Trash2, Edit2, Copy, Download, Code2, AlertCircle, Check} from 'lucide-react';
 import clsx from 'clsx';
 import DOMPurify from 'dompurify';
 import {ensureMonaco} from '@/utils/monaco';
+import {toErrorMessage} from '@/utils/errors';
+import {downloadTextFile} from '@/utils/fileDownloads';
 
 function snippetLanguage(dialect: SqlDialectScope | undefined, drivers: PluginManifest[]): string {
     if (dialect?.startsWith('driver:')) {
@@ -70,7 +79,13 @@ export function SnippetsTab() {
     const {t} = useTranslation();
     const editorTheme = useEditorTheme();
     const {drivers} = useDrivers();
+    const platform = usePlatformCapabilities();
+    const {showAlert} = useAlert();
+    const [isExporting, setIsExporting] = useState(false);
     const monacoRef = useRef<typeof Monaco | null>(null);
+    const formRef = useRef<HTMLFormElement>(null);
+    const nameInputRef = useRef<HTMLInputElement>(null);
+    const [formRevealKey, setFormRevealKey] = useState(0);
 
     useEffect(() => {
         if (monacoRef.current) loadMonacoTheme(editorTheme, monacoRef.current);
@@ -81,6 +96,11 @@ export function SnippetsTab() {
         loadMonacoTheme(editorTheme, monaco);
     };
     const [snippets, setSnippets] = useState<SqlSnippet[]>(() => loadSqlSnippets());
+    const [query, setQuery] = useState('');
+    const [scopeFilter, setScopeFilter] = useState('');
+    const filterScopes = [...new Set(snippets.map((snippet) => snippet.dialect ?? 'all'))];
+    const effectiveScope = filterScopes.some((scope) => scope === scopeFilter) ? scopeFilter : '';
+    const filteredSnippets = filterSqlSnippets(snippets, query, effectiveScope);
     const [editingSnippet, setEditingSnippet] = useState<SqlSnippet | null>(null);
     const [isCreating, setIsCreating] = useState(false);
 
@@ -111,9 +131,23 @@ export function SnippetsTab() {
     }
     const [formError, setFormError] = useState<string | null>(null);
 
-    const refresh = useCallback(() => {
-        setSnippets(loadSqlSnippets());
-    }, []);
+    const applyLibrary = (next: SqlSnippet[]) => {
+        setSnippets(next);
+        if (
+            scopeFilter !== '' &&
+            !next.some((snippet) => (snippet.dialect ?? 'all') === scopeFilter)
+        ) {
+            setScopeFilter('');
+        }
+    };
+
+    const revealForm = () => setFormRevealKey((key) => key + 1);
+
+    useLayoutEffect(() => {
+        if (formRevealKey === 0) return;
+        formRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});
+        nameInputRef.current?.focus();
+    }, [formRevealKey]);
 
     const handleStartCreate = () => {
         setEditingSnippet(null);
@@ -124,6 +158,7 @@ export function SnippetsTab() {
         setDialect('all');
         setFormError(null);
         setIsCreating(true);
+        revealForm();
     };
 
     const handleStartEdit = (snippet: SqlSnippet) => {
@@ -135,6 +170,19 @@ export function SnippetsTab() {
         setDescription(snippet.description || '');
         setDialect(snippet.dialect || 'all');
         setFormError(null);
+        revealForm();
+    };
+
+    const handleDuplicate = (snippet: SqlSnippet) => {
+        setEditingSnippet(null);
+        setName(getSnippetCopyName(snippet.name, snippets));
+        setPrefix(getSnippetCopyPrefix(snippet.prefix, snippet.dialect || 'all', snippets));
+        setBody(snippet.body);
+        setDescription(snippet.description || '');
+        setDialect(snippet.dialect || 'all');
+        setFormError(null);
+        setIsCreating(true);
+        revealForm();
     };
 
     const handleCancel = () => {
@@ -163,14 +211,7 @@ export function SnippetsTab() {
             return;
         }
 
-        // Check for duplicate prefix collision within the same dialect scope (excluding current snippet if editing)
-        const duplicate = snippets.some(
-            (s) =>
-                s.id !== editingSnippet?.id &&
-                s.prefix.toLowerCase() === trimmedPrefix.toLowerCase() &&
-                (s.dialect === dialect || s.dialect === 'all' || dialect === 'all'),
-        );
-        if (duplicate) {
+        if (snippetPrefixConflicts(snippets, trimmedPrefix, dialect, editingSnippet?.id)) {
             setFormError(
                 t(
                     'settings.snippets.duplicatePrefix',
@@ -192,7 +233,7 @@ export function SnippetsTab() {
         setIsCreating(false);
         setEditingSnippet(null);
         setFormError(null);
-        refresh();
+        applyLibrary(loadSqlSnippets());
     };
 
     const handleDelete = (id: string) => {
@@ -200,7 +241,31 @@ export function SnippetsTab() {
         if (editingSnippet?.id === id) {
             handleCancel();
         }
-        refresh();
+        applyLibrary(loadSqlSnippets());
+    };
+
+    const handleExport = async () => {
+        if (snippets.length === 0 || isExporting) return;
+        setIsExporting(true);
+        try {
+            await downloadTextFile(platform, {
+                fileName: 'tabularis-snippets.json',
+                contents: serializeSqlSnippets(snippets),
+                mimeType: 'application/json',
+                title: t('settings.snippets.exportJson', 'Export JSON'),
+                filters: [{name: 'JSON', extensions: ['json']}],
+            });
+        } catch (failure) {
+            showAlert(
+                t('settings.snippets.exportFailed', {
+                    defaultValue: 'Failed to export snippets: {{error}}',
+                    error: toErrorMessage(failure),
+                }),
+                {kind: 'error'},
+            );
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     return (
@@ -217,21 +282,33 @@ export function SnippetsTab() {
                         )}
                     </p>
                 </div>
-                {!isCreating && !editingSnippet && (
+                <div className="flex items-center gap-2 shrink-0">
                     <button
                         type="button"
-                        onClick={handleStartCreate}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-primary hover:bg-accent-primary/90 text-inverse font-medium text-xs transition-colors shadow-sm"
+                        onClick={handleExport}
+                        disabled={snippets.length === 0 || isExporting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-secondary text-secondary hover:text-primary border border-default text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                     >
-                        <Plus size={14} />
-                        {t('settings.snippets.add', 'New Snippet')}
+                        <Download size={14} aria-hidden="true" />
+                        {t('settings.snippets.exportJson', 'Export JSON')}
                     </button>
-                )}
+                    {!isCreating && !editingSnippet && (
+                        <button
+                            type="button"
+                            onClick={handleStartCreate}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-primary hover:bg-accent-primary/90 text-inverse font-medium text-xs transition-colors shadow-sm"
+                        >
+                            <Plus size={14} />
+                            {t('settings.snippets.add', 'New Snippet')}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Create / Edit Form */}
             {(isCreating || editingSnippet) && (
                 <form
+                    ref={formRef}
                     onSubmit={handleSave}
                     className="flex flex-col gap-4 p-4 rounded-xl border border-default bg-elevated/60 shadow-sm"
                 >
@@ -260,6 +337,7 @@ export function SnippetsTab() {
                             </label>
                             <input
                                 id="snippet-name-input"
+                                ref={nameInputRef}
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
@@ -388,6 +466,37 @@ export function SnippetsTab() {
             )}
 
             {/* Snippets List */}
+            {snippets.length > 0 && (
+                <div className="flex flex-wrap gap-3">
+                    <input
+                        type="search"
+                        aria-label={t('settings.snippets.search', 'Search snippets')}
+                        placeholder={t('settings.snippets.search', 'Search snippets')}
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        className="min-w-0 flex-1 px-3 py-1.5 rounded-lg bg-base border border-default text-primary placeholder:text-muted text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                    />
+                    <Select
+                        ariaLabel={t('settings.snippets.filterScope', 'Filter by scope')}
+                        placeholder={t('settings.snippets.allScopes', 'All scopes')}
+                        value={effectiveScope}
+                        options={['', ...filterScopes]}
+                        labels={{
+                            ...Object.fromEntries(
+                                filterScopes.map((scope) => [
+                                    scope,
+                                    labels[scope] ?? scope.replace(/^driver:/, ''),
+                                ]),
+                            ),
+                            '': t('settings.snippets.allScopes', 'All scopes'),
+                            all: t('settings.snippets.genericScope', 'Generic (all dialects)'),
+                        }}
+                        onChange={setScopeFilter}
+                        searchable={false}
+                        className="min-w-48"
+                    />
+                </div>
+            )}
             <div className="flex flex-col gap-2.5">
                 {snippets.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-muted gap-2 border border-dashed border-default rounded-xl bg-surface/30">
@@ -396,8 +505,12 @@ export function SnippetsTab() {
                             {t('settings.snippets.noSnippets', 'No SQL snippets configured yet.')}
                         </span>
                     </div>
+                ) : filteredSnippets.length === 0 ? (
+                    <p className="py-8 text-center text-xs text-muted">
+                        {t('settings.snippets.noMatches', 'No matching snippets.')}
+                    </p>
                 ) : (
-                    snippets.map((snippet) => (
+                    filteredSnippets.map((snippet) => (
                         <div
                             key={snippet.id}
                             className={clsx(
@@ -431,6 +544,15 @@ export function SnippetsTab() {
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => handleDuplicate(snippet)}
+                                    className="p-1.5 rounded-lg text-secondary hover:text-primary hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                    title={t('settings.snippets.duplicate', 'Duplicate')}
+                                    aria-label={t('settings.snippets.duplicate', 'Duplicate')}
+                                >
+                                    <Copy size={14} />
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => handleStartEdit(snippet)}

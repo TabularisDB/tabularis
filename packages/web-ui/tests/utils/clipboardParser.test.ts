@@ -260,6 +260,25 @@ describe('cells copied from a spreadsheet', () => {
         ]);
     });
 
+    it('keeps an empty first cell so the first row stays aligned', () => {
+        const text = '\tname\tage\n1\tAlice\t30\n2\tBob\t41';
+        const result = parseClipboardText(text);
+        expect(result.headers.slice(1)).toEqual(['name', 'age']);
+        expect(result.rows).toEqual([
+            ['1', 'Alice', '30'],
+            ['2', 'Bob', '41'],
+        ]);
+
+        const reparsed = reParseWithHeaderOption(text, false, result);
+        expect(reparsed.rows[0]).toEqual(['', 'name', 'age']);
+    });
+
+    it('still ignores line breaks around the copied range', () => {
+        const result = parseClipboardText('\r\nname\tage\r\nAlice\t30\r\n');
+        expect(result.headers).toEqual(['name', 'age']);
+        expect(result.rows).toEqual([['Alice', '30']]);
+    });
+
     it('treats a quote that does not wrap the whole cell as text', () => {
         const result = parseClipboardText('size\tlabel\n5"\t"quoted" text\n6"\tplain');
         expect(result.rows).toEqual([

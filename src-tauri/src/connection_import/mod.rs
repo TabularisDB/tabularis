@@ -21,6 +21,7 @@ mod dbeaver;
 mod heidisql;
 mod mysql_workbench;
 mod navicat;
+pub mod project_config;
 mod sequelace;
 mod tableplus;
 
@@ -110,6 +111,7 @@ pub fn all_importers() -> Vec<Box<dyn ForeignAppImporter>> {
         Box::new(heidisql::HeidiSqlImporter::default()),
         Box::new(mysql_workbench::MySqlWorkbenchImporter::default()),
         Box::new(navicat::NavicatImporter::default()),
+        Box::new(project_config::ProjectConfigImporter::default()),
     ]
 }
 

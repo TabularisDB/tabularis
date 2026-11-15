@@ -169,6 +169,7 @@ enum RpcCommand {
     ResolveServerSaveTarget,
     CreateSqliteFile,
     CreateSqliteDatabase,
+    OpenDataFile,
     ReadSqlFile,
     WriteSqlFile,
     Theme(ThemeRpcCommand),
@@ -238,12 +239,16 @@ enum PluginRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum AiRpcCommand {
+    GetProviders,
+    MigrateProviders,
     SetKey,
     DeleteKey,
     CheckKey,
     CheckKeyStatus,
     GetModels,
     GenerateQuery,
+    CompleteInline,
+    CancelInline,
     ExplainQuery,
     AnalyzeExplainPlan,
     AnalyzeCrashReport,
@@ -261,10 +266,15 @@ enum AiRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DatabaseTransferRpcCommand {
+    Capabilities,
     Dump,
     CancelDump,
     Import,
     CancelImport,
+    GetTableTransferCapabilities,
+    PlanTableTransfer,
+    RunTableTransfer,
+    CancelTableTransfer,
     PreviewTableImport,
     ImportTable,
     CancelTableImport,
@@ -359,6 +369,7 @@ enum QueryRpcCommand {
     Count,
     Explain,
     GetServerNow,
+    PreviewDml,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -373,6 +384,7 @@ enum RecordRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DatabaseObjectRpcCommand {
+    RoutineDebug,
     GetTableQueryTemplate,
     GetColumnStats,
     GetDropTableSql,
@@ -526,6 +538,13 @@ struct SqlitePathRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OpenDataFileRequest {
+    upload_token: String,
+    workspace_name: String,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GetLogsRpcRequest {
     request: GetLogsRequest,
@@ -657,8 +676,22 @@ struct DumpDatabaseRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TableTransferRpcRequest {
+    request: crate::table_transfer::TableTransferRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CancelTableTransferRequest {
+    transfer_id: String,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ImportDatabaseRequest {
+    #[serde(default)]
+    create_database: bool,
     connection_id: String,
     upload_token: String,
     schema: Option<String>,
@@ -1117,6 +1150,16 @@ struct ExecuteQueryRequest {
     schema: Option<String>,
     session_id: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PreviewDmlChangesRequest {
+    connection_id: String,
+    sql: String,
+    schema: Option<String>,
+    database: Option<String>,
+    limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1754,6 +1797,28 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::OpenDataFile => {
+                let request: OpenDataFileRequest =
+                    decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                let owner = context.session_id.ok_or_else(|| {
+                    InvocationError::InvalidPayload(
+                        "An authenticated upload session is required".to_string(),
+                    )
+                })?;
+                self.application
+                    .execute_connection_command(
+                        context,
+                        ConnectionCommand::OpenDataFile {
+                            source: crate::application::data_files::DataFileSource::SessionUpload {
+                                owner,
+                                token: request.upload_token,
+                            },
+                            workspace_name: request.workspace_name,
+                        },
+                    )
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Query(command) => {
                 let command =
                     decode_query_command(command, body).map_err(InvocationError::InvalidPayload)?;
@@ -1993,6 +2058,7 @@ impl RpcCommand {
             "resolve_server_save_target" => Some(Self::ResolveServerSaveTarget),
             "create_sqlite_file" => Some(Self::CreateSqliteFile),
             "create_sqlite_database" => Some(Self::CreateSqliteDatabase),
+            "open_data_file" => Some(Self::OpenDataFile),
             "read_sql_file" => Some(Self::ReadSqlFile),
             "write_sql_file" => Some(Self::WriteSqlFile),
             name => QueryRpcCommand::parse(name)
@@ -2050,6 +2116,13 @@ impl RpcCommand {
                 application_error_code: "SQLITE_DATABASE_CREATE_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            // The workspace is a file-backed database whose SQL can read host
+            // files, like the other local-path drivers.
+            Self::OpenDataFile => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "DATA_FILE_OPEN_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
             Self::Query(_) => CommandMetadata {
                 authorization: AuthorizationLevel::Database,
                 application_error_code: "QUERY_FAILED",
@@ -2076,7 +2149,9 @@ impl RpcCommand {
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Ai(command) => CommandMetadata {
-                authorization: if command == AiRpcCommand::GetSchemaContext {
+                authorization: if command == AiRpcCommand::MigrateProviders {
+                    AuthorizationLevel::LocalAdmin
+                } else if command == AiRpcCommand::GetSchemaContext {
                     AuthorizationLevel::Database
                 } else {
                     AuthorizationLevel::Sensitive
@@ -2249,12 +2324,16 @@ impl PluginRpcCommand {
 impl AiRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "get_ai_providers" => Self::GetProviders,
+            "migrate_ai_providers" => Self::MigrateProviders,
             "set_ai_key" => Self::SetKey,
             "delete_ai_key" => Self::DeleteKey,
             "check_ai_key" => Self::CheckKey,
             "check_ai_key_status" => Self::CheckKeyStatus,
             "get_ai_models" => Self::GetModels,
             "generate_ai_query" => Self::GenerateQuery,
+            "complete_ai_inline" => Self::CompleteInline,
+            "cancel_ai_inline" => Self::CancelInline,
             "explain_ai_query" => Self::ExplainQuery,
             "analyze_ai_explain_plan" => Self::AnalyzeExplainPlan,
             "analyze_ai_crash_report" => Self::AnalyzeCrashReport,
@@ -2276,10 +2355,15 @@ impl AiRpcCommand {
 impl DatabaseTransferRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "get_database_sql_capabilities" => Self::Capabilities,
             "dump_database" => Self::Dump,
             "cancel_dump" => Self::CancelDump,
             "import_database" => Self::Import,
             "cancel_import" => Self::CancelImport,
+            "get_table_transfer_capabilities" => Self::GetTableTransferCapabilities,
+            "plan_table_transfer" => Self::PlanTableTransfer,
+            "run_table_transfer" => Self::RunTableTransfer,
+            "cancel_table_transfer" => Self::CancelTableTransfer,
             "read_table_sql_header" => Self::PreviewTableImport,
             "import_table_from_sql" => Self::ImportTable,
             "cancel_table_import" => Self::CancelTableImport,
@@ -2453,6 +2537,7 @@ impl QueryRpcCommand {
             "count_query" => Self::Count,
             "explain_query_plan" => Self::Explain,
             "get_server_now" => Self::GetServerNow,
+            "preview_dml_changes" => Self::PreviewDml,
             _ => return None,
         })
     }
@@ -2475,6 +2560,7 @@ impl RecordRpcCommand {
 impl DatabaseObjectRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "routine_debug" => Self::RoutineDebug,
             "get_table_query_template" => Self::GetTableQueryTemplate,
             "get_column_stats" => Self::GetColumnStats,
             "get_drop_table_sql" => Self::GetDropTableSql,
@@ -2623,6 +2709,14 @@ impl ConnectionRpcCommand {
 
 fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, String> {
     Ok(match command {
+        AiRpcCommand::GetProviders => {
+            decode_payload::<Option<Value>>(body)?;
+            AiCommand::GetProviders
+        }
+        AiRpcCommand::MigrateProviders => {
+            decode_payload::<Option<Value>>(body)?;
+            AiCommand::MigrateProviders
+        }
         AiRpcCommand::SetKey => {
             let request: SetAiKeyRequest = decode_payload(body)?;
             AiCommand::SetKey {
@@ -2654,6 +2748,21 @@ fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, St
         AiRpcCommand::GenerateQuery => {
             let request: AiRequest<crate::ai::AiGenerateRequest> = decode_payload(body)?;
             AiCommand::GenerateQuery(request.req)
+        }
+        AiRpcCommand::CompleteInline => {
+            let request: AiRequest<crate::ai::inline::InlineRequest> = decode_payload(body)?;
+            AiCommand::CompleteInline(request.req)
+        }
+        AiRpcCommand::CancelInline => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase", deny_unknown_fields)]
+            struct Cancel {
+                request_id: String,
+            }
+            let request: Cancel = decode_payload(body)?;
+            AiCommand::CancelInline {
+                request_id: request.request_id,
+            }
         }
         AiRpcCommand::ExplainQuery => {
             let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
@@ -2728,6 +2837,12 @@ fn decode_database_transfer_command(
     body: &[u8],
 ) -> Result<DatabaseTransferCommand, String> {
     Ok(match command {
+        DatabaseTransferRpcCommand::Capabilities => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            DatabaseTransferCommand::Capabilities {
+                connection_id: request.connection_id,
+            }
+        }
         DatabaseTransferRpcCommand::Dump => {
             let request: DumpDatabaseRequest = decode_payload(body)?;
             DatabaseTransferCommand::Dump {
@@ -2750,6 +2865,7 @@ fn decode_database_transfer_command(
                 upload_token: request.upload_token,
                 schema: request.schema,
                 database: request.database,
+                create_database: request.create_database,
             }
         }
         DatabaseTransferRpcCommand::CancelImport => {
@@ -2757,6 +2873,22 @@ fn decode_database_transfer_command(
             DatabaseTransferCommand::CancelImport {
                 connection_id: request.connection_id,
             }
+        }
+        DatabaseTransferRpcCommand::GetTableTransferCapabilities => {
+            decode_empty_payload(body)?;
+            DatabaseTransferCommand::GetTableTransferCapabilities
+        }
+        DatabaseTransferRpcCommand::PlanTableTransfer => {
+            let request: TableTransferRpcRequest = decode_payload(body)?;
+            DatabaseTransferCommand::PlanTableTransfer { request: request.request }
+        }
+        DatabaseTransferRpcCommand::RunTableTransfer => {
+            let request: TableTransferRpcRequest = decode_payload(body)?;
+            DatabaseTransferCommand::RunTableTransfer { request: request.request }
+        }
+        DatabaseTransferRpcCommand::CancelTableTransfer => {
+            let request: CancelTableTransferRequest = decode_payload(body)?;
+            DatabaseTransferCommand::CancelTableTransfer { transfer_id: request.transfer_id }
         }
         DatabaseTransferRpcCommand::PreviewTableImport => {
             let request: ReadTableSqlHeaderRequest = decode_payload(body)?;
@@ -3416,6 +3548,16 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
                 connection_id: request.connection_id,
             }
         }
+        QueryRpcCommand::PreviewDml => {
+            let request: PreviewDmlChangesRequest = decode_payload(body)?;
+            QueryCommand::PreviewDml {
+                connection_id: request.connection_id,
+                sql: request.sql,
+                schema: request.schema,
+                database: request.database,
+                limit: request.limit,
+            }
+        }
     })
 }
 
@@ -3484,6 +3626,21 @@ fn decode_database_object_command(
     body: &[u8],
 ) -> Result<DatabaseObjectCommand, String> {
     Ok(match command {
+        DatabaseObjectRpcCommand::RoutineDebug => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase", deny_unknown_fields)]
+            struct Request {
+                connection_id: String,
+                version: u32,
+                command: crate::routine_debug::DebugCommand,
+            }
+            let request: Request = decode_payload(body)?;
+            DatabaseObjectCommand::RoutineDebug {
+                connection_id: request.connection_id,
+                version: request.version,
+                command: request.command,
+            }
+        }
         DatabaseObjectRpcCommand::GetColumnStats => {
             let request: ColumnStatsRpcRequest = decode_payload(body)?;
             DatabaseObjectCommand::GetColumnStats {

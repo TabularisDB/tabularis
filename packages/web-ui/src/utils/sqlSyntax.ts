@@ -206,6 +206,8 @@ function applyDescriptor(
             preset.lineCommentRequiresSpace,
         ),
         scriptBlocks: flag(descriptor.script_blocks, preset.scriptBlocks),
+        psqlBlocks: flag(descriptor.psql_blocks, preset.psqlBlocks),
+        qQuoting: preset.qQuoting || descriptor.psql_blocks === true,
         dollarQuoting: flag(descriptor.dollar_quoting, preset.dollarQuoting),
     };
     const stringEscape = declaredStringEscape(descriptor.string_escape, base.stringEscape);

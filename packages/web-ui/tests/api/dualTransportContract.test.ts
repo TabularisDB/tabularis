@@ -532,6 +532,41 @@ defineTransportContractSuite('Tauri adapter mock', serializationFixture, async (
                 },
             };
         }
+        if (command === 'preview_dml_changes') {
+            expect(request).toEqual({
+                connectionId: 'query-fixture',
+                sql: "UPDATE orders SET status = 'paid' WHERE id = 1",
+                limit: 100,
+            });
+            return {
+                kind: 'update',
+                target: '"public"."orders"',
+                sourceSql: "UPDATE orders SET status = 'paid' WHERE id = 1",
+                connectionId: 'query-fixture',
+                schema: null,
+                database: null,
+                previewSql:
+                    'SELECT "status" AS "status (current)", \'paid\' AS "status (proposed)", "orders".* FROM "orders" WHERE ("id" OPERATOR(pg_catalog.=) 1) LIMIT 101',
+                assignedColumns: ['status'],
+                hasFilter: true,
+                limit: 100,
+                truncated: false,
+                triggers: 0,
+                rules: 0,
+                result: {
+                    columns: ['value'],
+                    rows: [[1]],
+                    affected_rows: 0,
+                    truncated: false,
+                    pagination: {
+                        page: 1,
+                        page_size: 100,
+                        total_rows: null,
+                        has_more: false,
+                    },
+                },
+            };
+        }
         if (command === 'contract_serialization_fixture') {
             expect(request).toEqual({fixture: 'complex-query-result'});
             return serializationFixture;

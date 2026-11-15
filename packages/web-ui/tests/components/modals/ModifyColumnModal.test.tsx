@@ -40,7 +40,7 @@ const driversMock = vi.hoisted(() => ({allDrivers: []}));
 const databaseMock = vi.hoisted(() => ({
     activeSchema: null,
     connectionDataMap: {
-        conn: {capabilities: {alter_column: true, alter_primary_key: true}},
+        conn: {capabilities: {alter_column: true, alter_primary_key: true, column_comments: false}},
     },
 }));
 
@@ -110,6 +110,7 @@ describe('ModifyColumnModal', () => {
     beforeEach(() => {
         clientMock.call.mockReset();
         clientMock.call.mockResolvedValue(['ALTER TABLE ...']);
+        databaseMock.connectionDataMap.conn.capabilities.column_comments = false;
     });
 
     it('keeps the length and the default when renaming (#271)', async () => {
@@ -180,5 +181,125 @@ describe('ModifyColumnModal', () => {
         await waitFor(() => expect(lastAlterRequest().newColumn.name).toBe('state'));
         expect(lastAlterRequest().newColumn.default_value).toBeNull();
         expect(lastAlterRequest().oldColumn.default_value).toBeNull();
+    });
+
+    it('hides comments when the driver does not advertise support', () => {
+        renderModal(column({comment: 'existing'}));
+        expect(screen.queryByLabelText('modifyColumn.comment')).not.toBeInTheDocument();
+    });
+
+    it.each(["  Customer's email\n日本語  ", ''])(
+        'previews and saves a comment-only edit (%s) through plugin capabilities',
+        async (comment) => {
+            databaseMock.connectionDataMap.conn.capabilities.column_comments = true;
+            const onSuccess = vi.fn();
+            const onClose = vi.fn();
+            const sql = 'COMMENT ON COLUMN "sales"."orders"."status" IS NULL';
+            clientMock.call.mockResolvedValue([sql]);
+            render(
+                <ModifyColumnModal
+                    isOpen
+                    onClose={onClose}
+                    onSuccess={onSuccess}
+                    connectionId="conn"
+                    tableName="orders"
+                    driver="custom-postgres-plugin"
+                    schema="sales"
+                    database="crm"
+                    column={column({comment: 'original', default_sql: "'pending'"})}
+                />,
+            );
+            const input = screen.getByLabelText('modifyColumn.comment');
+            expect(input.tagName).toBe('TEXTAREA');
+            expect(input).toHaveValue('original');
+            fireEvent.change(input, {target: {value: comment}});
+            await waitFor(() =>
+                expect(lastAlterRequest().newColumn.comment).toBe(comment || undefined),
+            );
+            expect(screen.getByText(`${sql};`)).toBeInTheDocument();
+            const previewRequest = lastAlterRequest();
+            expect(previewRequest.newColumn).toEqual({
+                ...previewRequest.oldColumn,
+                comment: comment || undefined,
+            });
+            expect(clientMock.call).not.toHaveBeenCalledWith('execute_query', expect.anything());
+            fireEvent.click(screen.getByRole('button', {name: 'modifyColumn.save'}));
+            await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
+            expect(lastAlterRequest()).toEqual(previewRequest);
+            expect(clientMock.call).toHaveBeenCalledWith('execute_query', {
+                connectionId: 'conn',
+                query: sql,
+                schema: 'sales',
+                database: 'crm',
+            });
+            expect(onClose).toHaveBeenCalledOnce();
+        },
+    );
+
+    it('includes a comment when adding a column', async () => {
+        databaseMock.connectionDataMap.conn.capabilities.column_comments = true;
+        render(
+            <ModifyColumnModal
+                isOpen
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                connectionId="conn"
+                tableName="orders"
+                driver="custom-postgres-plugin"
+            />,
+        );
+        fireEvent.change(screen.getByPlaceholderText('column_name'), {target: {value: 'email'}});
+        fireEvent.change(screen.getByLabelText('modifyColumn.comment'), {
+            target: {value: 'Contact'},
+        });
+        await waitFor(() =>
+            expect(clientMock.call).toHaveBeenCalledWith(
+                'get_add_column_sql',
+                expect.objectContaining({
+                    column: expect.objectContaining({name: 'email', comment: 'Contact'}),
+                }),
+            ),
+        );
+    });
+
+    it('does not execute changes when the user cancels', () => {
+        databaseMock.connectionDataMap.conn.capabilities.column_comments = true;
+        renderModal(column({comment: 'original'}));
+        fireEvent.change(screen.getByLabelText('modifyColumn.comment'), {
+            target: {value: 'edited'},
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'modifyColumn.cancel'}));
+        expect(clientMock.call).not.toHaveBeenCalledWith('execute_query', expect.anything());
+    });
+
+    it('shows a database permission error without reporting success', async () => {
+        databaseMock.connectionDataMap.conn.capabilities.column_comments = true;
+        const onSuccess = vi.fn();
+        const onClose = vi.fn();
+        clientMock.call.mockImplementation(async (command: string) => {
+            if (command === 'execute_query') throw new Error('permission denied');
+            return ['COMMENT ON COLUMN "public"."orders"."status" IS NULL'];
+        });
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            render(
+                <ModifyColumnModal
+                    isOpen
+                    onClose={onClose}
+                    onSuccess={onSuccess}
+                    connectionId="conn"
+                    tableName="orders"
+                    driver="postgres"
+                    column={column({comment: 'original'})}
+                />,
+            );
+            fireEvent.change(screen.getByLabelText('modifyColumn.comment'), {target: {value: ''}});
+            fireEvent.click(screen.getByRole('button', {name: 'modifyColumn.save'}));
+            expect(await screen.findByText(/permission denied/)).toBeInTheDocument();
+            expect(onSuccess).not.toHaveBeenCalled();
+            expect(onClose).not.toHaveBeenCalled();
+        } finally {
+            consoleError.mockRestore();
+        }
     });
 });

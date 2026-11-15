@@ -1,3 +1,4 @@
+import {normalizeWebBasePath} from '@/utils/webBasePath';
 import type {TabularisTransport} from '@/api/client';
 import type {
     CommandCallOptions,
@@ -88,7 +89,9 @@ export class HttpTransport implements TabularisTransport {
     private intentionalClose = false;
 
     constructor(options: HttpTransportOptions = {}) {
-        this.baseUrl = normalizeBaseUrl(options.baseUrl ?? browserOrigin());
+        this.baseUrl = normalizeBaseUrl(
+            options.baseUrl ?? new URL(import.meta.env.BASE_URL, browserOrigin()).toString(),
+        );
         this.fetchRequest = options.fetch ?? globalThis.fetch.bind(globalThis);
         this.createSocket = options.createWebSocket ?? ((url) => new WebSocket(url));
         this.reconnectDelayMs = options.reconnectDelayMs ?? DEFAULT_RECONNECT_DELAY_MS;
@@ -523,7 +526,10 @@ export class HttpTransport implements TabularisTransport {
 
         const requestId = response.headers.get('x-request-id') ?? createRequestId();
         // Password mode answers a missing session with a redirect to its login form.
-        if (response.redirected && new URL(response.url).pathname === LOGIN_PATH) {
+        if (
+            response.redirected &&
+            new URL(response.url).pathname === new URL(this.url(LOGIN_PATH)).pathname
+        ) {
             this.openLogin(this.url(LOGIN_PATH));
             throw clientError('LOGIN_REQUIRED', 'Log in to Tabularis Web again', requestId);
         }
@@ -654,7 +660,7 @@ export class HttpTransport implements TabularisTransport {
         session: SessionNegotiation,
         requestId: string,
     ): Promise<void> {
-        if (!isSessionRejection(response)) return;
+        if (!isSessionRejection(response, new URL(this.url(LOGIN_PATH)).pathname)) return;
         await this.renewSession(session);
         throw clientError(
             'SESSION_EXPIRED',
@@ -857,13 +863,13 @@ export class HttpTransport implements TabularisTransport {
     }
 
     private websocketUrl(): string {
-        const url = new URL('/api/v1/events', this.baseUrl);
+        const url = new URL(this.url('/api/v1/events'));
         url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
         return url.toString();
     }
 
     private url(path: string): string {
-        return new URL(path, this.baseUrl).toString();
+        return new URL(path.replace(/^\//, ''), this.baseUrl).toString();
     }
 }
 
@@ -874,12 +880,12 @@ function encodeAssetPath(assetPath: string): string {
 const LOGIN_PATH = '/login';
 
 /** The security gate rejects with an empty 401, or an empty 403 for a stale CSRF token. */
-function isSessionRejection(response: Response): boolean {
+function isSessionRejection(response: Response, loginPath: string): boolean {
     const json = response.headers.get('content-type')?.includes('application/json') ?? false;
     return (
         response.status === 401 ||
         (response.status === 403 && !json) ||
-        (response.redirected && new URL(response.url).pathname === LOGIN_PATH)
+        (response.redirected && new URL(response.url).pathname === loginPath)
     );
 }
 
@@ -900,7 +906,7 @@ function browserOrigin(): string {
 
 function normalizeBaseUrl(baseUrl: string): string {
     const url = new URL(baseUrl);
-    url.pathname = '/';
+    url.pathname = normalizeWebBasePath(url.pathname);
     url.search = '';
     url.hash = '';
     return url.toString();

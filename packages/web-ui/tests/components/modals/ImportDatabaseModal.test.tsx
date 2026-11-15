@@ -4,6 +4,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {ImportDatabaseModal} from '@/components/modals/ImportDatabaseModal';
 
 const mocks = vi.hoisted(() => ({
+    capabilities: null as import('@/types/plugins').DatabaseSqlCapabilities | null,
     call: vi.fn(),
     uploadFile: vi.fn(),
     showAlert: vi.fn(),
@@ -13,7 +14,16 @@ const mocks = vi.hoisted(() => ({
         readInputBlob: vi.fn().mockResolvedValue(new Blob(['SELECT 1;'])),
     },
 }));
-vi.mock('@/hooks/useTabularisClient', () => ({useTabularisClient: () => mocks}));
+vi.mock('@/hooks/useTabularisClient', () => {
+    const client = {
+        ...mocks,
+        call: (command: string, ...args: unknown[]) =>
+            command === 'get_database_sql_capabilities'
+                ? Promise.resolve(mocks.capabilities)
+                : mocks.call(command, ...args),
+    };
+    return {useTabularisClient: () => client};
+});
 vi.mock('@/hooks/usePlatformCapabilities', () => ({usePlatformCapabilities: () => mocks.platform}));
 vi.mock('@/hooks/useDatabase', () => ({useDatabase: () => ({activeSchema: 'public'})}));
 vi.mock('@/hooks/useAlert', () => ({useAlert: () => ({showAlert: mocks.showAlert})}));
@@ -40,12 +50,98 @@ const props = () => ({
 });
 
 describe('ImportDatabaseModal cancellation', () => {
+    it('requires a new destination for a native backup file', async () => {
+        mocks.capabilities = {
+            format: 'sql',
+            native_backup: {
+                format: 'opaque',
+                extension: 'bin',
+                label: 'Opaque backup (.bin)',
+            },
+            create_database: true,
+            requires_empty_target: true,
+            target_label: 'Path',
+        };
+        mocks.platform.negotiation.environment = 'tauri';
+        render(
+            <ImportDatabaseModal
+                {...props()}
+                inputFile={{reference: 'native-file', name: 'backup.bin'}}
+            />,
+        );
+        await act(async () => {});
+        expect(screen.getByRole('checkbox')).toBeChecked();
+        expect(screen.getByRole('checkbox')).toBeDisabled();
+        expect(screen.getByText('Path')).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'dump.startRestore'})).toBeDisabled();
+        fireEvent.change(screen.getByRole('textbox'), {target: {value: '/server/new.fdb'}});
+        fireEvent.click(screen.getByRole('button', {name: 'dump.startRestore'}));
+        await act(async () => {});
+        expect(mocks.call).toHaveBeenCalledWith(
+            'import_database',
+            expect.objectContaining({
+                filePath: 'native-file',
+                database: '/server/new.fdb',
+                createDatabase: true,
+            }),
+            expect.any(Object),
+        );
+    });
     beforeEach(() => {
+        mocks.capabilities = null;
         mocks.call.mockReset().mockResolvedValue(undefined);
         mocks.uploadFile.mockReset();
         mocks.showAlert.mockClear();
         mocks.subscribe.mockClear();
         mocks.platform.negotiation.environment = 'browser';
+    });
+
+    it('requires a destination and explicit restore before creating a database', async () => {
+        mocks.capabilities = {
+            format: 'test-v1',
+            create_database: true,
+            requires_empty_target: true,
+            target_label: 'Server database',
+        };
+        mocks.platform.negotiation.environment = 'tauri';
+        render(<ImportDatabaseModal {...props()} />);
+        await act(async () => {});
+        expect(mocks.call).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('checkbox'));
+        expect(screen.getByText('Server database')).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'dump.startRestore'})).toBeDisabled();
+        fireEvent.change(screen.getByRole('textbox'), {target: {value: '/server/new.fdb'}});
+        fireEvent.click(screen.getByRole('button', {name: 'dump.startRestore'}));
+        await act(async () => {});
+        expect(mocks.call).toHaveBeenCalledExactlyOnceWith(
+            'import_database',
+            expect.objectContaining({
+                database: '/server/new.fdb',
+                createDatabase: true,
+                filePath: 'file-1',
+            }),
+            expect.anything(),
+        );
+    });
+
+    it('allows an explicit restore into the selected empty database', async () => {
+        mocks.capabilities = {
+            format: 'test-v1',
+            create_database: true,
+            requires_empty_target: true,
+            target_label: 'Server database',
+        };
+        mocks.platform.negotiation.environment = 'tauri';
+        render(<ImportDatabaseModal {...props()} />);
+        await act(async () => {});
+        expect(screen.getByRole('checkbox')).not.toBeChecked();
+        fireEvent.click(screen.getByRole('button', {name: 'dump.startRestore'}));
+        await act(async () => {});
+        expect(mocks.call).toHaveBeenCalledWith(
+            'import_database',
+            expect.objectContaining({database: 'app', createDatabase: false}),
+            expect.anything(),
+        );
     });
 
     it('keeps native imports on the file path without uploading', async () => {

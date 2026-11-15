@@ -186,6 +186,7 @@ fn parse_connection(dict: &plist::Dictionary, group_name: Option<&str>) -> Impor
         ssh: parse_ssh(dict, connection_type),
         ssl: parse_ssl(dict),
         group_name: group_name.map(|s| s.to_string()),
+        warnings: Vec::new(),
     }
 }
 

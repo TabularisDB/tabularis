@@ -402,6 +402,24 @@ pub async fn create_sqlite_database<R: Runtime>(
     .await
 }
 
+#[tauri::command]
+pub async fn open_data_file<R: Runtime>(
+    app: AppHandle<R>,
+    file_path: String,
+    workspace_name: String,
+) -> Result<serde_json::Value, String> {
+    execute_connection_command(
+        &app,
+        crate::application::connections::ConnectionCommand::OpenDataFile {
+            source: crate::application::data_files::DataFileSource::ServerPath(PathBuf::from(
+                file_path,
+            )),
+            workspace_name,
+        },
+    )
+    .await
+}
+
 pub fn get_config_path<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf, String> {
     let config_dir = crate::paths::get_app_config_dir();
     if !config_dir.exists() {
@@ -599,6 +617,23 @@ pub async fn get_routine_parameters<R: Runtime>(
         schema,
         database,
         identity_args,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn routine_debug<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    version: u32,
+    command: crate::routine_debug::DebugCommand,
+) -> Result<crate::routine_debug::DebugResponse, String> {
+    crate::application::routine_debug::execute(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        version,
+        command,
     )
     .await
 }
@@ -1490,13 +1525,13 @@ pub(crate) async fn release_connection_sessions<R: Runtime>(
     app: &AppHandle<R>,
     connection_id: &str,
     _params: Option<&ConnectionParams>,
-) {
+) -> usize {
     crate::application::query_sessions::release_connection(
         &app.state::<crate::runtime::RuntimeContext>(),
         None,
         connection_id,
     )
-    .await;
+    .await
 }
 
 #[tauri::command]
@@ -1575,6 +1610,29 @@ pub async fn explain_query_plan<R: Runtime>(
         analyze,
         schema,
         database,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn preview_dml_changes<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    sql: String,
+    schema: Option<String>,
+    database: Option<String>,
+    limit: Option<u32>,
+) -> Result<crate::application::dml_preview::DmlPreview, String> {
+    crate::application::dml_preview::preview(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        crate::application::dml_preview::DmlPreviewRequest {
+            connection_id,
+            sql,
+            schema,
+            database,
+            limit,
+        },
     )
     .await
 }

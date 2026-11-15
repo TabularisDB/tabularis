@@ -14,6 +14,7 @@ export const PLATFORM_CAPABILITY_NAMES = [
     'requestAttention',
     'restartApplication',
     'openStorageLocation',
+    'linkLocalFolders',
 ] as const;
 
 export type PlatformCapabilityName = (typeof PLATFORM_CAPABILITY_NAMES)[number];

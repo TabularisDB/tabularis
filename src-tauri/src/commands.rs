@@ -339,6 +339,7 @@ mod tests {
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         }
     }
 
@@ -373,6 +374,7 @@ mod tests {
             }),
             tag_ids: None,
             environment: None,
+            managed: false,
         };
 
         // Simulate the pattern used in update_connection after the fix.
@@ -389,6 +391,7 @@ mod tests {
             appearance: original_appearance,
             tag_ids: None,
             environment: None,
+            managed: false,
         };
 
         let app = updated
@@ -1338,6 +1341,7 @@ mod tests {
             tag_ids: None,
             environment: None,
             plugin_secret_keys: Vec::new(),
+            managed: false,
         }
     }
 
@@ -1779,6 +1783,7 @@ pub(crate) fn sql_builder_params(
     database: Option<String>,
 ) -> ConnectionParams {
     let mut params = saved.params.clone();
+    crate::application::read_only::prepare_params(&mut params);
     params.connection_id = Some(saved.id.clone());
     if crate::drivers::registry::is_local_path_driver(&params.driver) {
         params.database = crate::fs_path::sanitize_database_selection(&params.database);

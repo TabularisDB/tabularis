@@ -137,6 +137,11 @@ pub enum ConnectionCommand {
     CreateSqliteDatabase {
         path: String,
     },
+    OpenDataFile {
+        source: crate::application::data_files::DataFileSource,
+        /// Name for the workspace connection when this call creates it.
+        workspace_name: String,
+    },
 }
 
 pub async fn execute(
@@ -354,6 +359,10 @@ pub async fn execute_for_session(
         ConnectionCommand::CreateSqliteDatabase { path } => {
             json(create_sqlite_database(runtime, state, path).await?)
         }
+        ConnectionCommand::OpenDataFile {
+            source,
+            workspace_name,
+        } => json(open_data_file(runtime, state, source, workspace_name).await?),
     }
 }
 
@@ -384,6 +393,7 @@ pub(crate) fn resolve_saved_connection_params(
     let driver_id = saved.params.driver.clone();
     let plugin_secrets = load_plugin_secrets(runtime, &saved);
     let mut params = saved.params;
+    super::read_only::prepare_params(&mut params);
     restore_secrets_for_connect(runtime, connection_id, &mut params)?;
     params.extra.extend(plugin_secrets);
     params.connection_id = Some(connection_id.to_string());
@@ -861,6 +871,7 @@ pub(super) fn save_provider_connection(
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         };
         file.connections.push(connection.clone());
         save_file(runtime, state, &file)?;
@@ -907,6 +918,7 @@ fn save_connection(
             appearance: None,
             tag_ids: None,
             environment,
+            managed: false,
         };
         file.connections.push(connection.clone());
         save_file(runtime, state, &file)?;
@@ -957,6 +969,50 @@ async fn create_sqlite_database(
         Err(cleanup_error) => format!(
             "Failed to save the SQLite connection: {error}. The new database could not be removed: {cleanup_error}"
         ),
+    })
+}
+
+/// Opens a data file as a table and returns the connection that holds it. The
+/// workspace connection is saved the first time a driver opens a file and
+/// reused afterwards.
+async fn open_data_file(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    source: crate::application::data_files::DataFileSource,
+    workspace_name: String,
+) -> Result<crate::application::data_files::OpenedDataFile, String> {
+    use crate::application::data_files;
+
+    let prepared = data_files::open(runtime, source).await?;
+    let driver = prepared.params.driver.clone();
+    let existing = load_file(runtime)?
+        .connections
+        .into_iter()
+        .find(|connection| data_files::is_same_workspace(&connection.params, &prepared.params));
+    let connection_id = match existing {
+        Some(connection) => connection.id,
+        None => {
+            let name = workspace_name.trim();
+            if name.is_empty() {
+                return Err("The data file workspace needs a name".to_string());
+            }
+            save_connection(
+                runtime,
+                state,
+                name.to_string(),
+                prepared.params,
+                PluginSecretChanges::default(),
+                None,
+                None,
+            )?
+            .id
+        }
+    };
+    Ok(data_files::OpenedDataFile {
+        connection_id,
+        driver,
+        table: prepared.table,
+        format: prepared.format.to_string(),
     })
 }
 
@@ -1047,6 +1103,7 @@ fn update_connection(
             appearance: existing.appearance,
             tag_ids: existing.tag_ids,
             environment,
+            managed: existing.managed,
         };
         file.connections[index] = connection.clone();
         save_file(runtime, state, &file)?;
@@ -1196,6 +1253,7 @@ fn duplicate_connection(
             appearance,
             tag_ids: original.tag_ids,
             environment: validate_environment(original.environment).unwrap_or(None),
+            managed: false,
         };
         file.connections.push(duplicate.clone());
         save_file(runtime, state, &file)?;
@@ -1488,6 +1546,7 @@ pub async fn disconnect_connection(
     connection_id: &str,
 ) -> Result<(), String> {
     super::query_sessions::release_connection(runtime, session_id, connection_id).await;
+    super::routine_debug::release(session_id, Some(connection_id)).await;
     let still_owned = if let (Some(state), Some(session_id)) = (state, session_id) {
         let mut sessions = state
             .web_active_connections
@@ -1530,6 +1589,7 @@ fn prepare_connection_request(
     runtime: &RuntimeContext,
     request: &mut TestConnectionRequest,
 ) -> Result<(), String> {
+    super::read_only::prepare_params(&mut request.params);
     let iam_auth = request.params.use_iam_auth.unwrap_or(false);
     let mut stored_plugin_secrets = std::collections::HashMap::new();
     let saved = match request.connection_id.as_deref() {
@@ -1670,7 +1730,7 @@ async fn test_connection(
             progress_id.as_deref(),
             step,
             "ok",
-            resolved.port.map(|port| format!("127.0.0.1:{port}")),
+            tunnel_endpoint_detail(&resolved),
         );
     }
 
@@ -1699,6 +1759,7 @@ async fn test_connection(
         Some(db_target),
     );
     let capabilities = &driver.manifest().capabilities;
+    super::read_only::validate_support(&resolved, capabilities)?;
     if capabilities.file_based
         && crate::fs_path::requires_existing_database_file(
             capabilities.in_memory,
@@ -1741,6 +1802,15 @@ async fn test_connection(
         None,
     );
     Ok("Connection successful!".to_string())
+}
+
+/// Local endpoint the test log reports once a tunnel is up. A SOCKS5 tunnel
+/// leaves `host`/`port` on the database, so it reports the proxy listener.
+fn tunnel_endpoint_detail(resolved: &ConnectionParams) -> Option<String> {
+    match (&resolved.socks5_proxy_host, resolved.socks5_proxy_port) {
+        (Some(host), Some(port)) => Some(format!("SOCKS5 {host}:{port}")),
+        _ => resolved.port.map(|port| format!("127.0.0.1:{port}")),
+    }
 }
 
 /// `host:port` for the connection test log. A host that is a URL

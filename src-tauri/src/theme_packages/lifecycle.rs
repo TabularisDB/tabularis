@@ -152,7 +152,7 @@ fn lock_namespace(namespace: &Path) -> Result<File, String> {
         .truncate(false)
         .open(path)
         .map_err(|e| e.to_string())?;
-    FileExt::try_lock_exclusive(&file)
+    files::lock_within_grace(|| FileExt::try_lock_exclusive(&file))
         .map_err(|_| "Another theme operation is in progress".to_string())?;
     Ok(file)
 }

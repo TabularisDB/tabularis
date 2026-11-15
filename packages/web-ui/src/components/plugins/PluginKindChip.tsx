@@ -1,4 +1,4 @@
-import {Palette, Plug} from 'lucide-react';
+import {Palette, Plug, Sparkles} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
 import type {PluginKind} from '@/utils/plugins';
 import {Chip} from '@/components/ui/Chip';
@@ -9,6 +9,12 @@ import {Chip} from '@/components/ui/Chip';
  */
 export function PluginKindChip({kind}: {kind: PluginKind}) {
     const {t} = useTranslation();
+    if (kind === 'ai-assistant')
+        return (
+            <Chip icon={<Sparkles size={9} aria-hidden="true" />}>
+                {t('settings.plugins.kindAiAssistant')}
+            </Chip>
+        );
     return kind === 'theme' ? (
         <Chip tone="theme" icon={<Palette size={9} aria-hidden="true" />}>
             {t('settings.plugins.kindTheme')}

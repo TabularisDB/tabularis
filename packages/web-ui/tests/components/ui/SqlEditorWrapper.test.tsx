@@ -11,10 +11,12 @@ interface MonacoEditorMockProps {
     onMount?: (editor: unknown, monaco: unknown) => void;
     defaultValue?: string;
     options?: {
+        minimap?: {enabled?: boolean};
         acceptSuggestionOnEnter?: string;
         folding?: boolean;
         showFoldingControls?: string;
         renderControlCharacters?: boolean;
+        renderWhitespace?: string;
         unicodeHighlight?: {invisibleCharacters?: boolean; ambiguousCharacters?: boolean};
     };
 }
@@ -60,10 +62,12 @@ vi.mock('@/components/ui/LazyMonaco', async () => {
             return (
                 <textarea
                     data-testid="monaco-editor"
+                    data-minimap={String(options?.minimap?.enabled)}
                     data-accept-suggestion-on-enter={options?.acceptSuggestionOnEnter}
                     data-folding={String(options?.folding)}
                     data-folding-controls={options?.showFoldingControls}
                     data-render-control-characters={String(options?.renderControlCharacters)}
+                    data-render-whitespace={options?.renderWhitespace}
                     data-highlight-invisible={String(
                         options?.unicodeHighlight?.invisibleCharacters,
                     )}
@@ -418,6 +422,50 @@ describe('SqlEditorWrapper', () => {
         });
     });
 
+    it.each(['none', 'selection', 'all', undefined] as const)(
+        'updates whitespace markers live for %s without changing Unicode settings or text',
+        (mode) => {
+            const sql = 'SELECT  1;\n\t';
+            settingsValue.settings = {
+                ...DEFAULT_SETTINGS,
+                editorRenderWhitespace: undefined,
+                editorHighlightInvisibleCharacters: false,
+            };
+            const {rerender} = render(
+                <SqlEditorWrapper initialValue={sql} onChange={mockOnChange} onRun={mockOnRun} />,
+                {wrapper},
+            );
+            const editor = screen.getByTestId('monaco-editor') as HTMLTextAreaElement;
+            expect(editor).toHaveAttribute('data-render-whitespace', 'selection');
+            editor.setSelectionRange(2, 5);
+            mockOnChange.mockClear();
+            mockOnRun.mockClear();
+            for (const highlight of [false, true]) {
+                settingsValue.settings = {
+                    ...DEFAULT_SETTINGS,
+                    editorRenderWhitespace: mode,
+                    editorHighlightInvisibleCharacters: highlight,
+                };
+                rerender(
+                    <SqlEditorWrapper
+                        initialValue={sql}
+                        onChange={mockOnChange}
+                        onRun={mockOnRun}
+                    />,
+                );
+                expect(screen.getByTestId('monaco-editor')).toBe(editor);
+                expect(editor).toHaveAttribute('data-render-whitespace', mode ?? 'selection');
+                expect(editor).toHaveAttribute('data-highlight-invisible', String(highlight));
+                expect(editor).toHaveAttribute('data-highlight-ambiguous', String(highlight));
+                expect(editor).toHaveAttribute('data-render-control-characters', String(highlight));
+                expect(editor).toHaveValue(sql);
+                expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 5]);
+            }
+            expect(mockOnChange).not.toHaveBeenCalled();
+            expect(mockOnRun).not.toHaveBeenCalled();
+        },
+    );
+
     it('highlights hidden Unicode by default and honors the saved editor setting', () => {
         const {unmount} = render(
             <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />,
@@ -668,6 +716,39 @@ describe('SqlEditorWrapper', () => {
         const monaco = {};
         monacoRenderState.beforeMount?.(monaco);
         expect(registerSqlFoldingProviderMock).toHaveBeenCalledWith(monaco);
+    });
+
+    it('keeps the minimap off for older profiles and updates mounted editors both ways', () => {
+        settingsValue.settings = {...DEFAULT_SETTINGS, editorMinimap: undefined};
+        const editor = (
+            <SqlEditorWrapper initialValue="SELECT 1" onChange={mockOnChange} onRun={mockOnRun} />
+        );
+        const {rerender} = render(editor, {wrapper});
+        const mountedEditor = screen.getByTestId('monaco-editor');
+        expect(mountedEditor).toHaveAttribute('data-minimap', 'false');
+
+        for (const enabled of [true, false]) {
+            settingsValue.settings = {...DEFAULT_SETTINGS, editorMinimap: enabled};
+            rerender(editor);
+            expect(screen.getByTestId('monaco-editor')).toBe(mountedEditor);
+            expect(mountedEditor).toHaveAttribute('data-minimap', String(enabled));
+            expect(mountedEditor).toHaveValue('SELECT 1');
+        }
+    });
+
+    it('allows embedded editors to keep the minimap disabled', () => {
+        settingsValue.settings = {...DEFAULT_SETTINGS, editorMinimap: true};
+        render(
+            <SqlEditorWrapper
+                initialValue="SELECT 1"
+                onChange={mockOnChange}
+                onRun={mockOnRun}
+                height="150px"
+                options={{minimap: {enabled: false}}}
+            />,
+            {wrapper},
+        );
+        expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-minimap', 'false');
     });
 
     it('installs fold previews only when requested', () => {

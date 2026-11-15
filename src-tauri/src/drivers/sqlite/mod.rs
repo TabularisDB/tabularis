@@ -170,6 +170,7 @@ pub async fn get_foreign_keys(
                 column_name: r.try_get("from").unwrap_or_default(),
                 ref_table: r.try_get("table").unwrap_or_default(),
                 ref_column: r.try_get("to").unwrap_or_default(),
+                ref_schema: None,
                 on_update: r.try_get("on_update").ok(),
                 on_delete: r.try_get("on_delete").ok(),
                 seq_in_fk: Some(seq + 1),
@@ -232,6 +233,7 @@ pub async fn get_all_foreign_keys_batch(
                     column_name: r.try_get("from").unwrap_or_default(),
                     ref_table: r.try_get("table").unwrap_or_default(),
                     ref_column: r.try_get("to").unwrap_or_default(),
+                    ref_schema: None,
                     on_update: r.try_get("on_update").ok(),
                     on_delete: r.try_get("on_delete").ok(),
                     seq_in_fk: Some(seq + 1),
@@ -806,11 +808,12 @@ pub async fn execute_read_only_query(
         .await
         .map_err(|e| e.to_string())?;
     let outcome = exec_on_sqlite_conn(guard.conn(), query, limit, page).await;
-    match guard
-        .conn()
-        .execute(sqlx::raw_sql("ROLLBACK; PRAGMA query_only = OFF"))
-        .await
-    {
+    let cleanup = if params.read_only {
+        "ROLLBACK"
+    } else {
+        "ROLLBACK; PRAGMA query_only = OFF"
+    };
+    match guard.conn().execute(sqlx::raw_sql(cleanup)).await {
         Ok(_) => guard.release(),
         Err(e) => log::warn!("SQLite: resetting after a read-only query failed: {e}"),
     }
@@ -1064,15 +1067,18 @@ impl SqliteDriver {
                     materialized_views: false,
                     routines: false,
                     routine_management: false,
+                    routine_debug: None,
                     file_based: true,
                     folder_based: false,
                     // sqlx pools several connections; each would get its own `:memory:` database.
                     in_memory: false,
+                    data_files: Vec::new(),
                     connection_string: false,
                     connection_string_example: String::new(),
                     connection_string_examples: Vec::new(),
                     connection_uri: false,
                     connection_uri_schemes: Vec::new(),
+                    socks5_proxy: false,
                     identifier_quote: "\"".into(),
                     alter_primary_key: true,
                     auto_increment_keyword: "AUTOINCREMENT".into(),
@@ -1082,6 +1088,7 @@ impl SqliteDriver {
                     column_comments: false,
                     drop_table_sql: false,
                     column_stats: false,
+                    query_classification: false,
                     query_timeout: false,
                     alter_column: false,
                     create_foreign_keys: false,
@@ -1089,6 +1096,7 @@ impl SqliteDriver {
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    read_only_queries: true,
                     table_export: None,
                     table_import: None,
                     triggers: true,

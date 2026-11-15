@@ -2,11 +2,13 @@ import {useTranslation} from 'react-i18next';
 import {DataGrid} from '@/components/ui/DataGrid';
 import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
 import type {QueryResult} from '@/types/editor';
-import type {CellChartConfig} from '@/types/notebook';
+import type {CellChartConfig, CellKpiConfig} from '@/types/notebook';
 import {canRenderChart, buildDefaultChartConfig} from '@/utils/notebookChart';
+import {buildDefaultKpiConfig} from '@/utils/notebookKpi';
 import {ResultToolbar} from './ResultToolbar';
 import {ResizeHandle} from './ResizeHandle';
 import {CellChart} from './CellChart';
+import {CellKpi} from './CellKpi';
 import {CellSectionHeader} from './CellSectionHeader';
 
 interface SqlCellResultProps {
@@ -22,6 +24,10 @@ interface SqlCellResultProps {
     onToggleResultCollapse: () => void;
     isChartVisible?: boolean;
     onToggleChartVisible: (visible: boolean) => void;
+    kpiConfig?: CellKpiConfig | null;
+    onKpiConfigChange?: (config: CellKpiConfig | null) => void;
+    isKpiVisible?: boolean;
+    onToggleKpiVisible?: (visible: boolean) => void;
 }
 
 export function SqlCellResult({
@@ -37,9 +43,46 @@ export function SqlCellResult({
     onToggleResultCollapse,
     isChartVisible,
     onToggleChartVisible,
+    kpiConfig,
+    onKpiConfigChange,
+    isKpiVisible,
+    onToggleKpiVisible,
 }: SqlCellResultProps) {
     const {t} = useTranslation();
     const height = resultHeight ?? 300;
+    // Like charts, a KPI defaults to visible when a configuration was saved.
+    const kpiVisible = isKpiVisible ?? !!kpiConfig;
+
+    const handleToggleKpi = () => {
+        const next = !kpiVisible;
+        if (next && !kpiConfig) {
+            const defaultConfig = buildDefaultKpiConfig(result);
+            if (defaultConfig && onKpiConfigChange) {
+                onKpiConfigChange(defaultConfig);
+            }
+        }
+        onToggleKpiVisible?.(next);
+    };
+
+    // Changing the KPI only updates its configuration: it never runs the query.
+    const kpiSection = (canConfigure: boolean) =>
+        onKpiConfigChange && onToggleKpiVisible && (canConfigure || kpiConfig) ? (
+            <>
+                <CellSectionHeader
+                    label={t('editor.notebook.sectionKpi')}
+                    collapsed={!kpiVisible}
+                    onToggle={handleToggleKpi}
+                />
+                {kpiVisible && kpiConfig && (
+                    <CellKpi
+                        result={result}
+                        error={error}
+                        config={kpiConfig}
+                        onConfigChange={onKpiConfigChange}
+                    />
+                )}
+            </>
+        ) : null;
 
     if (isLoading) {
         return (
@@ -52,13 +95,16 @@ export function SqlCellResult({
 
     if (error) {
         return (
-            <div className="max-h-[120px] overflow-auto border-t border-default">
-                <ErrorDisplay error={error} t={t} />
-            </div>
+            <>
+                <div className="max-h-[120px] overflow-auto border-t border-default">
+                    <ErrorDisplay error={error} t={t} />
+                </div>
+                {kpiSection(false)}
+            </>
         );
     }
 
-    if (!result) return null;
+    if (!result) return kpiSection(false);
 
     const chartCapable = canRenderChart(result);
     // Charts default to visible when a config was previously saved, preserving
@@ -118,6 +164,8 @@ export function SqlCellResult({
                     onConfigChange={onChartConfigChange}
                 />
             )}
+
+            {kpiSection(result.columns.length > 0)}
         </>
     );
 }

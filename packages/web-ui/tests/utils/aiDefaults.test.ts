@@ -34,6 +34,19 @@ describe('detectAiDefaults', () => {
 
     it('preserves provider priority even if a key lookup fails', async () => {
         call.mockImplementation(async (command: string, args: {provider?: string} | undefined) => {
+            if (command === 'get_ai_providers')
+                return {
+                    providers: [
+                        {
+                            id: 'openai',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 10},
+                        },
+                        {
+                            id: 'anthropic',
+                            ai_assistant: {authentication: 'api-key', auto_select_priority: 20},
+                        },
+                    ],
+                };
             const provider = args?.provider;
             if (command === 'check_ai_key') {
                 if (provider === 'openai') throw new Error('key unavailable');

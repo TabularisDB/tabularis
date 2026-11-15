@@ -82,6 +82,88 @@ describe('HttpTransport', () => {
         vi.useRealTimers();
     });
 
+    it.each(['/tabularis', '/tools/database/'])(
+        'keeps session, RPC, transfer, plugin and event URLs under %s',
+        async (mount) => {
+            const prefix = mount.replace(/\/$/, '');
+            const session = {
+                ...SESSION,
+                capabilities: {
+                    ...SESSION.capabilities,
+                    uploads: true,
+                    downloads: true,
+                    pluginAssets: true,
+                },
+            };
+            const fetchRequest = vi
+                .fn<typeof fetch>()
+                .mockResolvedValueOnce(jsonResponse(session))
+                .mockResolvedValueOnce(jsonResponse({ok: true, data: true}))
+                .mockResolvedValueOnce(new Response('plugin'))
+                .mockResolvedValueOnce(new Response('download'));
+            const socket = new FakeWebSocket();
+            const createSocket = vi.fn(() => socket);
+            const transport = new HttpTransport({
+                baseUrl: `https://db.example.com${mount}`,
+                fetch: fetchRequest,
+                createWebSocket: createSocket,
+            });
+            await transport.initialize();
+            await transport.call('is_debug_mode', undefined);
+            await transport.readPluginAsset('driver', 'ui/index.js');
+            await transport.consumeDownload('file-token');
+            expect(transport.uploadedBlobUrl('blob-token')).toBe(
+                `https://db.example.com${prefix}/api/v1/uploads/blobs/blob-token`,
+            );
+            const subscribed = transport.subscribe('connection-health-failed', vi.fn());
+            await Promise.resolve();
+            socket.open();
+            const unsubscribe = await subscribed;
+            expect(fetchRequest.mock.calls.map(([url]) => url)).toEqual([
+                `https://db.example.com${prefix}/api/v1/session`,
+                `https://db.example.com${prefix}/api/v1/rpc/is_debug_mode`,
+                `https://db.example.com${prefix}/api/v1/assets/plugins/driver/ui/index.js`,
+                `https://db.example.com${prefix}/api/v1/downloads/file-token`,
+            ]);
+            expect(createSocket).toHaveBeenCalledWith(
+                `wss://db.example.com${prefix}/api/v1/events`,
+            );
+            unsubscribe();
+        },
+    );
+
+    it('uses the configured build prefix when no transport URL is supplied', async () => {
+        vi.stubEnv('BASE_URL', '/tools/database/');
+        try {
+            const fetchRequest = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse(SESSION));
+            const transport = new HttpTransport({fetch: fetchRequest});
+            await transport.initialize();
+            expect(fetchRequest.mock.calls[0]?.[0]).toBe(
+                `${window.location.origin}/tools/database/api/v1/session`,
+            );
+        } finally {
+            vi.unstubAllEnvs();
+        }
+    });
+
+    it('recognizes a login redirect under the mount path', async () => {
+        const response = new Response('<html>login</html>', {
+            headers: {'content-type': 'text/html'},
+        });
+        Object.defineProperties(response, {
+            redirected: {value: true},
+            url: {value: 'https://db.example.com/tools/database/login'},
+        });
+        const openLogin = vi.fn();
+        const transport = new HttpTransport({
+            baseUrl: 'https://db.example.com/tools/database/',
+            fetch: vi.fn<typeof fetch>().mockResolvedValueOnce(response),
+            openLogin,
+        });
+        await expect(transport.initialize()).rejects.toMatchObject({code: 'LOGIN_REQUIRED'});
+        expect(openLogin).toHaveBeenCalledWith('https://db.example.com/tools/database/login');
+    });
+
     it('bootstraps one cookie-backed session and performs typed RPC calls', async () => {
         const fetchRequest = vi
             .fn<typeof fetch>()

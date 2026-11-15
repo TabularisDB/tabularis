@@ -16,6 +16,10 @@ import {
  * on MemoRow only sees a new `ctx` reference when one of these actually changes.
  */
 export interface RowCtx {
+    booleanTypeMap?: Map<string, string>;
+    changeBooleanCell?: (rowIndex: number, colIndex: number, value: unknown) => void;
+    tableName?: string | null;
+    generatedColumns?: Set<string> | null;
     columns: string[];
     autoIncrementColumns?: string[];
     defaultValueColumns?: string[];

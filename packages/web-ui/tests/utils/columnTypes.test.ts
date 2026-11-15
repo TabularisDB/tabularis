@@ -392,7 +392,7 @@ describe('columnTypes utils', () => {
             expect(result.data_type).toBe('NUMERIC(10,2)');
         });
 
-        it('should include a trimmed comment when one is given', () => {
+        it('should preserve comment whitespace when one is given', () => {
             const result = buildColumnDefinition({
                 name: 'email',
                 type: 'STRING',
@@ -401,7 +401,7 @@ describe('columnTypes utils', () => {
                 isAutoInc: false,
                 comment: '  Primary contact  ',
             });
-            expect(result).toHaveProperty('comment', 'Primary contact');
+            expect(result).toHaveProperty('comment', '  Primary contact  ');
         });
 
         it('should omit the comment key when it is blank or missing', () => {

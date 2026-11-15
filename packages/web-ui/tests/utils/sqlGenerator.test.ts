@@ -1120,6 +1120,73 @@ describe('sqlGenerator utils', () => {
             expect(result).not.toContain('PRIMARY KEY ("id")');
         });
 
+        describe('names that contain the quote character', () => {
+            const oddColumns: TableColumn[] = [
+                {
+                    name: 'my"id',
+                    data_type: 'INT',
+                    is_pk: true,
+                    is_nullable: false,
+                    is_auto_increment: false,
+                    default_value: null,
+                },
+                {
+                    name: 'a`b]c',
+                    data_type: 'INT',
+                    is_pk: false,
+                    is_nullable: true,
+                    is_auto_increment: false,
+                    default_value: null,
+                },
+            ];
+            const fks: ForeignKey[] = [
+                {name: 'fk"x', column_name: 'a`b]c', ref_table: 'par"ent', ref_column: 'i"d'},
+            ];
+            const idx: Index[] = [
+                {name: 'ix"1', column_name: 'a`b]c', is_unique: false, is_primary: false},
+            ];
+
+            it('doubles a double quote inside double-quoted names', () => {
+                const result = generateCreateTableSQL(
+                    'odd"table',
+                    oddColumns,
+                    fks,
+                    idx,
+                    makeCaps({identifier_quote: '"'}),
+                );
+                expect(result).toContain('CREATE TABLE "odd""table" (');
+                expect(result).toContain('"my""id" INT NOT NULL');
+                expect(result).toContain('PRIMARY KEY ("my""id")');
+                expect(result).toContain(
+                    'CONSTRAINT "fk""x" FOREIGN KEY ("a`b]c") REFERENCES "par""ent" ("i""d")',
+                );
+                expect(result).toContain('CREATE INDEX "ix""1" ON "odd""table" ("a`b]c");');
+            });
+
+            it('doubles a backtick inside backtick-quoted names', () => {
+                const result = generateCreateTableSQL('t`1', oddColumns, [], idx, 'mysql');
+                expect(result).toContain('CREATE TABLE `t``1` (');
+                expect(result).toContain('`a``b]c` INT');
+                expect(result).toContain('CREATE INDEX `ix"1` ON `t``1` (`a``b]c`);');
+            });
+
+            it('closes bracket-quoted names with ] and doubles ] inside them', () => {
+                const result = generateCreateTableSQL(
+                    'users',
+                    oddColumns,
+                    fks,
+                    idx,
+                    makeCaps({identifier_quote: '['}),
+                );
+                expect(result).toContain('CREATE TABLE [users] (');
+                expect(result).toContain('[my"id] INT NOT NULL');
+                expect(result).toContain('[a`b]]c] INT');
+                expect(result).toContain('PRIMARY KEY ([my"id])');
+                expect(result).toContain('REFERENCES [par"ent] ([i"d])');
+                expect(result).toContain('CREATE INDEX [ix"1] ON [users] ([a`b]]c]);');
+            });
+        });
+
         it('should generate SQL for unknown driver with no auto-increment capabilities', () => {
             const caps = makeCaps({identifier_quote: '"'});
             const result = generateCreateTableSQL('items', columns, [], [], caps);

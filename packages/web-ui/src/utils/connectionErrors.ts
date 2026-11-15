@@ -11,6 +11,7 @@ export type ConnectionErrorKind =
     | 'ssh-unreachable'
     | 'ssh'
     | 'ssm'
+    | 'keychain'
     | 'db-auth'
     | 'network'
     | 'db-not-found'
@@ -33,6 +34,7 @@ export function sanitizeErrorDetail(raw: string): string {
         .replace(/(password\s*=\s*)[^\s&;,]+/gi, '$1[redacted]');
 }
 
+const KEYCHAIN = /secure storage|keychain|keyring|secret service|org\.freedesktop\.secrets/i;
 const SSH_CONTEXT = /\bssh\b|tunnel/i;
 const SSH_AUTH =
     /auth|password|passphrase|credential|permission denied|publickey|keyboard-interactive/i;
@@ -69,6 +71,7 @@ export function classifyConnectionError(
         detail,
     });
 
+    if (KEYCHAIN.test(raw)) return build('keychain');
     if (SSH_CONTEXT.test(raw)) {
         if (SSH_AUTH.test(raw)) return build('ssh-auth');
         if (SSH_UNREACHABLE.test(raw)) return build('ssh-unreachable');

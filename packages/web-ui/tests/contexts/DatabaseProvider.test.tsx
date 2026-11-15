@@ -115,6 +115,64 @@ describe('DatabaseProvider', () => {
         vi.restoreAllMocks();
     });
 
+    it('scopes read-only capabilities per connection and keeps their identity stable', async () => {
+        const records = [
+            {
+                ...mockConnections[0],
+                id: 'protected',
+                params: {...mockConnections[0].params, read_only: true},
+            },
+            {...mockConnections[0], id: 'writable'},
+        ];
+        const manifest = {
+            ...mockMysqlManifest,
+            capabilities: {
+                ...mockMysqlManifest.capabilities,
+                single_database: true,
+                read_only_queries: true,
+                manage_tables: true,
+            },
+        };
+        vi.mocked(invoke).mockImplementation(async (command) => {
+            if (command === 'get_connections') return records;
+            if (command === 'get_connections_with_groups')
+                return {
+                    connections: records.map((connection) => ({
+                        ...connection,
+                        params: {...connection.params},
+                    })),
+                    groups: [],
+                };
+            if (command === 'get_driver_manifest') return manifest;
+            return [];
+        });
+        const wrapper = ({children}: {children: React.ReactNode}) =>
+            React.createElement(DatabaseProvider, null, children);
+        const {result} = renderHook(useDatabase, {wrapper});
+        await act(async () => {
+            await result.current.loadConnections();
+            await result.current.connect('protected');
+        });
+        const protectedData = result.current.getConnectionData('protected');
+        expect(result.current.connectionDataMap.protected).toBe(protectedData);
+        expect(protectedData?.capabilities).toMatchObject({readonly: true, manage_tables: false});
+        expect(result.current.getConnectionData('protected')).toBe(protectedData);
+        expect(result.current.activeCapabilities?.readonly).toBe(true);
+        await act(async () => {
+            await result.current.connect('writable', {activate: false});
+        });
+        expect(result.current.getConnectionData('writable')?.capabilities?.readonly).not.toBe(true);
+        expect(result.current.activeCapabilities?.readonly).toBe(true);
+        expect(manifest.capabilities.manage_tables).toBe(true);
+        records[0].params.read_only = false;
+        await act(async () => {
+            await result.current.loadConnections();
+        });
+        expect(result.current.getConnectionData('protected')?.capabilities?.readonly).not.toBe(
+            true,
+        );
+    });
+
     it('shares concurrent connection-list loads but refreshes on a later call', async () => {
         const wrapper = ({children}: {children: React.ReactNode}) =>
             React.createElement(DatabaseProvider, null, children);

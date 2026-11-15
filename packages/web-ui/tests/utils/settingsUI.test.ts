@@ -56,6 +56,10 @@ describe('settingsUI', () => {
             expect(getProviderLabel('requesty' as AiProvider)).toBe('Requesty');
         });
 
+        it('should return the API Route brand name', () => {
+            expect(getProviderLabel('api-route')).toBe('API Route');
+        });
+
         it('should return correct label for MiniMax', () => {
             expect(getProviderLabel('minimax' as AiProvider)).toBe('MiniMax');
         });

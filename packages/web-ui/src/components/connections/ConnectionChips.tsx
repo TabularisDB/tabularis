@@ -1,5 +1,5 @@
 import type {SyntheticEvent} from 'react';
-import {Shield, PlugZap} from 'lucide-react';
+import {Shield, PlugZap, LockKeyhole} from 'lucide-react';
 import {Link} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
 import type {SavedConnection} from '@/contexts/DatabaseContext';
@@ -84,6 +84,11 @@ export const ConnectionChips = ({
                 </UpdateTooltip>
             )}
             <EnvironmentBadge environment={conn.environment} />
+            {(conn.params.read_only || driverManifest?.capabilities.readonly) && (
+                <Chip tone="warning" icon={<LockKeyhole size={8} />}>
+                    {t('readOnly.label')}
+                </Chip>
+            )}
             <TagChips tagIds={conn.tag_ids} tags={tags} />
             {conn.params.ssh_enabled && (
                 <Chip tone="success" icon={<Shield size={8} />}>

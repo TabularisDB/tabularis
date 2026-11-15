@@ -155,6 +155,8 @@ pub struct SqlSyntaxDescriptor {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub script_blocks: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub psql_blocks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub dollar_quoting: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub string_escape: Option<StringEscape>,
@@ -188,6 +190,7 @@ impl SqlSyntaxDescriptor {
             nested_block_comments: field(map, "nested_block_comments", parse_bool),
             line_comment_requires_space: field(map, "line_comment_requires_space", parse_bool),
             script_blocks: field(map, "script_blocks", parse_bool),
+            psql_blocks: field(map, "psql_blocks", parse_bool),
             dollar_quoting: field(map, "dollar_quoting", parse_bool),
             string_escape: field(map, "string_escape", parse_string_escape),
             like_escape: field(map, "like_escape", parse_bool),
@@ -398,6 +401,7 @@ pub struct SqlSyntax {
     pub nested_block_comments: bool,
     pub line_comment_requires_space: bool,
     pub script_blocks: bool,
+    pub psql_blocks: bool,
     pub dollar_quoting: bool,
     /// PostgreSQL `E'…'` escape strings (preset only).
     pub e_strings: bool,
@@ -434,6 +438,7 @@ impl SqlSyntax {
             nested_block_comments: false,
             line_comment_requires_space: false,
             script_blocks: false,
+            psql_blocks: false,
             dollar_quoting: false,
             e_strings: false,
             executable_comments: false,
@@ -515,6 +520,7 @@ impl SqlSyntax {
                 &mut syntax.line_comment_requires_space,
             ),
             (desc.script_blocks, &mut syntax.script_blocks),
+            (desc.psql_blocks, &mut syntax.psql_blocks),
             (desc.dollar_quoting, &mut syntax.dollar_quoting),
             (desc.like_escape, &mut syntax.like_escape),
         ];

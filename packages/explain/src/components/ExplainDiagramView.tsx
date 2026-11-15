@@ -28,6 +28,7 @@ interface ExplainDiagramViewProps {
     diagnostics: Map<string, ExplainDiagnostic[]>;
     selectedId: string | null;
     onSelect: (id: string) => void;
+    onCopyDetails?: (text: string) => Promise<boolean | void> | boolean | void;
 }
 
 const METRIC_LABEL_KEYS: Record<ExplainMetricKind, string> = {
@@ -60,6 +61,7 @@ export function ExplainDiagramView({
     diagnostics,
     selectedId,
     onSelect,
+    onCopyDetails,
 }: ExplainDiagramViewProps) {
     const {t} = useTranslation();
 
@@ -208,6 +210,7 @@ export function ExplainDiagramView({
                     hasAnalyzeData={plan.has_analyze_data}
                     metrics={selectedNode ? (metrics.byId.get(selectedNode.id) ?? null) : null}
                     diagnostics={selectedNode ? (diagnostics.get(selectedNode.id) ?? []) : []}
+                    onCopyDetails={onCopyDetails}
                 />
             </div>
         </div>

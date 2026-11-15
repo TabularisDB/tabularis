@@ -5,11 +5,14 @@ pub mod extract;
 
 mod binding;
 mod client;
+mod column_comments;
 mod explain;
 mod helpers;
 mod routines;
 pub mod session;
 
+#[cfg(test)]
+mod column_ddl_tests;
 #[cfg(test)]
 mod tests;
 
@@ -291,6 +294,7 @@ pub async fn get_foreign_keys(
             column_name: r.try_get("column_name").unwrap_or_default(),
             ref_table: r.try_get("foreign_table_name").unwrap_or_default(),
             ref_column: r.try_get("foreign_column_name").unwrap_or_default(),
+            ref_schema: r.try_get("foreign_schema_name").ok(),
             on_update: r.try_get("update_rule").ok(),
             on_delete: r.try_get("delete_rule").ok(),
             // WITH ORDINALITY yields the position within conkey/confkey — the
@@ -490,6 +494,7 @@ pub async fn get_all_foreign_keys_batch(
             column_name: row.try_get("column_name").unwrap_or_default(),
             ref_table: row.try_get("foreign_table_name").unwrap_or_default(),
             ref_column: row.try_get("foreign_column_name").unwrap_or_default(),
+            ref_schema: row.try_get("foreign_schema_name").ok(),
             on_update: row.try_get("update_rule").ok(),
             on_delete: row.try_get("delete_rule").ok(),
             seq_in_fk: row
@@ -2318,23 +2323,27 @@ impl PostgresDriver {
                     materialized_views: true,
                     routines: true,
                     routine_management: true,
+                    routine_debug: None,
                     file_based: false,
                     folder_based: false,
                     in_memory: false,
+                    data_files: Vec::new(),
                     connection_string: true,
                     connection_string_example: "postgres://user:pass@localhost:5432/db".into(),
                     connection_string_examples: Vec::new(),
                     connection_uri: false,
                     connection_uri_schemes: Vec::new(),
+                    socks5_proxy: false,
                     identifier_quote: "\"".into(),
                     alter_primary_key: true,
                     auto_increment_keyword: String::new(),
                     serial_type: "SERIAL".into(),
                     inline_pk: false,
                     table_query_templates: false,
-                    column_comments: false,
+                    column_comments: true,
                     drop_table_sql: false,
                     column_stats: false,
+                    query_classification: false,
                     query_timeout: true,
                     alter_column: true,
                     create_foreign_keys: true,
@@ -2342,6 +2351,7 @@ impl PostgresDriver {
                     manage_tables: true,
                     explain: true,
                     readonly: false,
+                    read_only_queries: true,
                     table_export: None,
                     table_import: None,
                     triggers: true,
@@ -3006,7 +3016,15 @@ impl DatabaseDriver for PostgresDriver {
                 def.push_str(&format!(" DEFAULT {}", default));
             }
         }
-        Ok(vec![def])
+        let mut stmts = vec![def];
+        if let Some(comment) = column.comment.as_deref().filter(|value| !value.is_empty()) {
+            stmts.push(column_comments::comment_sql(
+                &tbl,
+                &column.name,
+                Some(comment),
+            ));
+        }
+        Ok(stmts)
     }
 
     async fn get_alter_column_sql(
@@ -3078,6 +3096,16 @@ impl DatabaseDriver for PostgresDriver {
                     tbl, col_ref
                 ));
             }
+        }
+
+        if old_column.comment.as_deref().unwrap_or("")
+            != new_column.comment.as_deref().unwrap_or("")
+        {
+            stmts.push(column_comments::comment_sql(
+                &tbl,
+                &new_column.name,
+                new_column.comment.as_deref(),
+            ));
         }
 
         if stmts.is_empty() {

@@ -1,4 +1,4 @@
-export const WEB_UI_BASE_PATH = '/';
+export const WEB_UI_BASE_PATH = import.meta.env.BASE_URL;
 
 export const BROWSER_ROUTES = {
     root: '/',

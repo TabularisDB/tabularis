@@ -2,7 +2,7 @@
 //!
 //! Keeping this in its own module means `lib.rs` does not have to know about
 //! clap, and the command surface (`--mcp`, `web`, `--debug`, `--explain`,
-//! `--help`, `--version`) lives in one place.
+//! data files to open, `--help`, `--version`) lives in one place.
 
 use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
@@ -18,8 +18,22 @@ pub enum WebAuthMode {
     Proxy,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum WebConnectionMode {
+    /// Users manage their own connections (default).
+    Standalone,
+    /// Every connection on the instance is supplied by an administrator.
+    ManagedOnly,
+}
+
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None, args_conflicts_with_subcommands = true)]
+#[command(
+    version,
+    about,
+    long_about = None,
+    args_conflicts_with_subcommands = true,
+    after_help = "Open data files as tables by passing them on their own:\n  tabularis orders.csv trips.parquet"
+)]
 pub struct Args {
     /// Start in MCP Server mode (Model Context Protocol)
     #[arg(long)]
@@ -36,6 +50,12 @@ pub struct Args {
     /// (Postgres `EXPLAIN (FORMAT JSON)` output).
     #[arg(long, value_name = "FILE")]
     pub explain: Option<String>,
+
+    /// Data files to open as tables: set when the arguments are nothing but
+    /// data files, which is how a file manager's "Open with" starts the app.
+    /// Not a clap positional, which would swallow a misplaced `web`.
+    #[arg(skip)]
+    pub files: Vec<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -92,6 +112,21 @@ pub struct WebArgs {
     #[arg(long, requires = "auth")]
     pub allow_high_risk: bool,
 
+    /// Who controls connections on this instance. In `managed-only` mode every
+    /// authenticated user shares all of the instance's connections; run a
+    /// separate instance for each group of users. Enforcement is not active
+    /// yet: this does not restrict anything today
+    #[arg(long, value_name = "MODE", value_enum)]
+    pub connection_mode: Option<WebConnectionMode>,
+
+    /// In managed-only mode, let users change connection appearance and icons
+    #[arg(long, requires = "connection_mode")]
+    pub managed_allow_branding: bool,
+
+    /// In managed-only mode, let users change connection groups and tags
+    #[arg(long, requires = "connection_mode")]
+    pub managed_allow_organization: bool,
+
     /// Allow the Web UI to browse this server directory; repeat as needed
     #[arg(
         long = "server-file-browser-root",
@@ -99,6 +134,23 @@ pub struct WebArgs {
         action = clap::ArgAction::Append
     )]
     pub server_file_browser_roots: Vec<PathBuf>,
+}
+
+impl WebArgs {
+    /// Standalone unless `--connection-mode managed-only` is given. The two
+    /// switches only apply in managed-only mode.
+    pub fn connection_policy(&self) -> crate::application::ManagedConnectionPolicy {
+        match self.connection_mode {
+            Some(WebConnectionMode::ManagedOnly) => {
+                crate::application::ManagedConnectionPolicy::managed_only()
+                    .with_branding_allowed(self.managed_allow_branding)
+                    .with_organization_allowed(self.managed_allow_organization)
+            }
+            Some(WebConnectionMode::Standalone) | None => {
+                crate::application::ManagedConnectionPolicy::standalone()
+            }
+        }
+    }
 }
 
 impl Args {
@@ -119,6 +171,7 @@ impl Args {
             command: None,
             debug: false,
             explain: None,
+            files: Vec::new(),
         }
     }
 }
@@ -138,10 +191,41 @@ where
     T: Into<std::ffi::OsString>,
 {
     let arguments: Vec<std::ffi::OsString> = arguments.into_iter().map(Into::into).collect();
+    if let Some(files) = data_file_launch(&arguments) {
+        return Ok(Args {
+            files,
+            ..Args::defaults()
+        });
+    }
     match Args::try_parse_from(arguments.clone()) {
         Err(_) if has_only_platform_launch_arguments(&arguments) => Ok(Args::defaults()),
         result => result,
     }
+}
+
+fn is_platform_launch_argument(argument: &std::ffi::OsStr) -> bool {
+    argument
+        .to_str()
+        .is_some_and(|value| value.starts_with("-psn_") || value.starts_with("tabularis:"))
+}
+
+/// The data files of an "Open with" launch: every argument is a data file
+/// (a path or a `file://` URL, by its extension) or a platform launch
+/// argument, and at least one is a data file. Anything else is left to clap.
+fn data_file_launch(arguments: &[std::ffi::OsString]) -> Option<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for argument in arguments.iter().skip(1) {
+        if is_platform_launch_argument(argument) {
+            continue;
+        }
+        let name = argument.to_str()?;
+        if name.starts_with('-') || crate::application::data_files::data_file_format(name).is_none()
+        {
+            return None;
+        }
+        files.push(PathBuf::from(argument));
+    }
+    (!files.is_empty()).then_some(files)
 }
 
 fn has_only_platform_launch_arguments(arguments: &[std::ffi::OsString]) -> bool {
@@ -152,11 +236,7 @@ fn has_only_platform_launch_arguments(arguments: &[std::ffi::OsString]) -> bool 
 
     std::iter::once(first)
         .chain(launch_arguments)
-        .all(|argument| {
-            argument
-                .to_str()
-                .is_some_and(|value| value.starts_with("-psn_") || value.starts_with("tabularis:"))
-        })
+        .all(|argument| is_platform_launch_argument(argument))
 }
 
 #[cfg(test)]

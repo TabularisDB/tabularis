@@ -113,7 +113,7 @@ export function buildColumnDefinition(form: ColumnFormData): ColumnDefinition {
         is_auto_increment: form.isAutoInc,
         // The default field is disabled for auto-increment columns, which can't have one.
         default_value: (!form.isAutoInc && form.defaultValue) || null,
-        ...(form.comment?.trim() ? {comment: form.comment.trim()} : {}),
+        ...(form.comment?.trim() ? {comment: form.comment} : {}),
         // ON UPDATE only applies to TIMESTAMP / DATETIME; drop it if the type changed.
         ...(form.onUpdate && /^(timestamp|datetime)\b/i.test(form.type)
             ? {on_update: form.onUpdate}

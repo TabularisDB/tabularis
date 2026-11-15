@@ -182,6 +182,13 @@ pub struct SshTestParams {
 #[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq, Eq)]
 pub struct ConnectionParams {
     pub driver: String,
+    /// User-selected connection policy. Missing in older saved connections.
+    #[serde(
+        default,
+        alias = "readOnly",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub read_only: bool,
     pub host: Option<String>,
     pub port: Option<u16>,
     pub username: Option<String>,
@@ -321,6 +328,21 @@ pub struct ConnectionParams {
         skip_serializing_if = "crate::proxy::types::skip_optional_proxy_override"
     )]
     pub proxy: Option<crate::proxy::ProxyOverride>,
+    /// Local SOCKS5 proxy the host opened through the SSH tunnel for a
+    /// driver with the `socks5_proxy` capability. Set at runtime only, by
+    /// tunnel resolution, which clears any value a caller sent; the driver
+    /// routes every endpoint through it (e.g. all nodes of a
+    /// `mongodb+srv://` cluster).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_host: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_port: Option<u16>,
+    /// RFC 1929 credentials the local SOCKS5 proxy requires. Generated per
+    /// tunnel; absent when the listener cannot authenticate (system `ssh -D`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_password: Option<String>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
@@ -370,6 +392,11 @@ pub struct SavedConnection {
     /// write-confirmation warning and the visual identity in the UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
+    /// Set on connections provisioned by an administrator. A missing value
+    /// reads as `false`. The Web instance policy decides what the marker
+    /// protects: managed-only mode protects every connection regardless of it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub managed: bool,
 }
 
 /// A user-defined colored label. Tags are purely organizational: a
@@ -532,6 +559,12 @@ pub struct ForeignKey {
     pub column_name: String,
     pub ref_table: String,
     pub ref_column: String,
+    /// Schema of the referenced table, for drivers with schemas (PostgreSQL).
+    /// The referenced table can live in another schema than the source table,
+    /// so callers must not qualify `ref_table` with the source schema when this
+    /// is set. `None` means "same schema as the source table".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ref_schema: Option<String>,
     pub on_delete: Option<String>,
     pub on_update: Option<String>,
     /// 1-based position of this column within its (possibly composite) foreign

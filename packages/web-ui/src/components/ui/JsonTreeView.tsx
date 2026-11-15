@@ -1,4 +1,4 @@
-import {useContext, useMemo, useState} from 'react';
+import {useContext, useId, useMemo, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {ArrowDownAZ, ChevronsDownUp, ChevronsUpDown, ExternalLink, Search} from 'lucide-react';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
@@ -15,7 +15,13 @@ import {
 } from 'json-edit-react';
 import {ThemeContext} from '@/contexts/ThemeContext';
 import type {Theme} from '@/types/theme';
-import {buildCollapseTrigger, compareJsonKeys, hasCollapsibleNodes} from '@/utils/jsonTree';
+import {
+    JSON_TREE_EXPAND_LEVELS,
+    buildCollapseTrigger,
+    buildExpandToLevelTrigger,
+    compareJsonKeys,
+    hasCollapsibleNodes,
+} from '@/utils/jsonTree';
 import {isColorString, isLinkString} from '@/utils/jsonValueDecorators';
 
 export interface JsonTreeViewProps {
@@ -157,10 +163,19 @@ interface TreeControlsProps {
     onCollapseAll: () => void;
     /** Shown only for read-only trees: an editable tree keeps the document's own key order. */
     sortKeys?: {pressed: boolean; onToggle: () => void};
+    /** Shown only for read-only trees: opens collections down to the chosen level. */
+    onExpandToLevel?: (level: number) => void;
 }
 
-const TreeControls = ({disabled, onExpandAll, onCollapseAll, sortKeys}: TreeControlsProps) => {
+const TreeControls = ({
+    disabled,
+    onExpandAll,
+    onCollapseAll,
+    sortKeys,
+    onExpandToLevel,
+}: TreeControlsProps) => {
     const {t} = useTranslation();
+    const levelLabelId = useId();
     return (
         <div className="flex items-center gap-1 flex-shrink-0">
             <button
@@ -194,6 +209,30 @@ const TreeControls = ({disabled, onExpandAll, onCollapseAll, sortKeys}: TreeCont
                     <ArrowDownAZ size={14} aria-hidden="true" />
                     {t('jsonInput.sortKeys')}
                 </button>
+            )}
+            {onExpandToLevel && (
+                <div
+                    role="group"
+                    aria-labelledby={levelLabelId}
+                    className="flex items-center gap-1"
+                >
+                    <span id={levelLabelId} className="text-xs text-muted pl-1">
+                        {t('jsonInput.expandToLevel')}
+                    </span>
+                    {JSON_TREE_EXPAND_LEVELS.map((level) => (
+                        <button
+                            key={level}
+                            type="button"
+                            onClick={() => onExpandToLevel(level)}
+                            disabled={disabled}
+                            aria-label={t('jsonInput.expandToLevelN', {level})}
+                            title={t('jsonInput.expandToLevelN', {level})}
+                            className={CONTROL_BUTTON_CLASS}
+                        >
+                            {level}
+                        </button>
+                    ))}
+                </div>
             )}
         </div>
     );
@@ -239,6 +278,11 @@ export const JsonTreeView = ({
             sortKeys={
                 isViewOnly
                     ? {pressed: sortKeys, onToggle: () => setSortKeys((on) => !on)}
+                    : undefined
+            }
+            onExpandToLevel={
+                isViewOnly
+                    ? (level) => setExternalTriggers(buildExpandToLevelTrigger(value, level))
                     : undefined
             }
         />

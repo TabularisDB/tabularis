@@ -4,6 +4,7 @@
     "column_name": "user_id",
     "ref_table": "all_types",
     "ref_column": "id",
+    "ref_schema": "test_schema",
     "on_delete": "CASCADE",
     "on_update": "NO ACTION",
     "seq_in_fk": 1

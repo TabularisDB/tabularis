@@ -32,6 +32,9 @@ test('the Web operator guide covers every Web CLI option', () => {
         '--allowed-origin',
         '--trusted-proxy',
         '--allow-high-risk',
+        '--connection-mode',
+        '--managed-allow-branding',
+        '--managed-allow-organization',
         '--server-file-browser-root',
     ]);
     assert.ok(guide.includes('`web`'), 'web subcommand is undocumented');

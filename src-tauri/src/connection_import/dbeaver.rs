@@ -265,6 +265,7 @@ fn parse_connection(
         ssh: config.and_then(parse_ssh),
         ssl: config.and_then(parse_ssl),
         group_name,
+        warnings: Vec::new(),
     }
 }
 
