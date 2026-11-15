@@ -231,6 +231,36 @@ describe('SandboxedPluginFrame lifecycle', () => {
         expect(projectedFrame.style.clipPath).toBe('');
         expect(screen.getByTitle('Plugin google-sheets')).toBe(iframe);
     });
+    it('allocates a definite workspace canvas independent of guest content sizing', async () => {
+        const {container} = render(
+            <div style={{height: 720, display: 'flex', flexDirection: 'column'}}>
+                <SandboxedPluginFrame
+                    pluginId="provider"
+                    module="ui/workspace.js"
+                    context={{
+                        __tabularisSlot: 'editor.workspace.content',
+                        workspaceId: 'functions-new',
+                        workspaceActive: true,
+                    }}
+                />
+            </div>,
+        );
+        const anchor = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+        let canvasHeight = 720;
+        vi.spyOn(anchor, 'getBoundingClientRect').mockImplementation(() =>
+            DOMRect.fromRect({x: 312, y: 30, width: 1000, height: canvasHeight}),
+        );
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        const iframe = screen.getByTitle('Plugin provider');
+        const canvas = iframe.parentElement as HTMLElement;
+        expect(iframe).toHaveAttribute('data-plugin-slot', 'editor.workspace.content');
+        expect(iframe).toHaveAttribute('data-plugin-workspace', 'functions-new');
+        await waitFor(() => expect(canvas.style.height).toBe('720px'));
+        act(() => handlers['ui.resize'](170));
+        expect(canvas.style.height).toBe('720px');
+        canvasHeight = 600;
+        await waitFor(() => expect(canvas.style.height).toBe('600px'));
+    });
 
     it('projects only approved native editor props inside the clipped frame and returns edits', async () => {
         render(frame());
@@ -255,6 +285,11 @@ describe('SandboxedPluginFrame lifecycle', () => {
             'change',
             {value: 'const value = 2;', generation: 0, revision: 1},
         ]);
+        act(() => handlers['ui.popover']('language-select', true));
+        expect(screen.queryByRole('textbox', {name: 'Function source'})).not.toBeInTheDocument();
+        expect(source.isConnected).toBe(true);
+        act(() => handlers['ui.popover']('language-select', false));
+        expect(screen.getByRole('textbox', {name: 'Function source'})).toBe(source);
         act(() => handlers['ui.modal'](true));
         expect(screen.queryByRole('textbox', {name: 'Function source'})).not.toBeInTheDocument();
         act(() =>

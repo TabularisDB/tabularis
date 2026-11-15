@@ -119,9 +119,22 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     const [height, setHeight] = useState(0);
     const [intrinsicWidth, setIntrinsicWidth] = useState(0);
     const [modalOpen, setModalOpen] = useState(false);
+    const [openPopovers, setOpenPopovers] = useState<ReadonlySet<string>>(() => new Set());
+    const workspace = context.__tabularisSlot === 'editor.workspace.content';
     const frameVisible = context.workspaceActive !== false;
     const expanded = modalOpen && frameVisible;
-    const [frameRect, setFrameRect] = useState({left: 0, top: 0, width: 0, clip: 'none'});
+    const [frameRect, setFrameRect] = useState({
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+        clip: 'none',
+        visibleTop: 0,
+        visibleBottom: 0,
+        visibleLeft: 0,
+        visibleRight: 0,
+    });
+    const viewportRef = useRef({top: 0, bottom: 0, left: 0, right: 0});
     const [portalRoot] = useState(() => document.createElement('div'));
     const [resolvedFrame, setResolvedFrame] = useState<{
         pluginId: string;
@@ -162,13 +175,14 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     useLayoutEffect(() => {
         const anchor = anchorRef.current;
         if (!anchor) return;
-        let last: {left: number; top: number; width: number; clip: string} | null = null;
+        let last: typeof frameRect | null = null;
         const updatePosition = () => {
             const rect = anchor.getBoundingClientRect();
+            const canvasHeight = workspace ? rect.height : height;
             let left = rect.left;
             let right = rect.right;
             let top = rect.top;
-            let bottom = rect.top + height;
+            let bottom = rect.top + canvasHeight;
             for (
                 let parent = anchor.parentElement;
                 parent && parent !== document.body;
@@ -196,9 +210,9 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             }
             const clamp = (value: number, size: number) => Math.min(size, Math.max(0, value));
             const insets = [
-                clamp(top - rect.top, height),
+                clamp(top - rect.top, canvasHeight),
                 clamp(rect.right - right, rect.width),
-                clamp(rect.top + height - bottom, height),
+                clamp(rect.top + canvasHeight - bottom, canvasHeight),
                 clamp(left - rect.left, rect.width),
             ];
             const clip = insets.every((inset) => inset === 0)
@@ -208,10 +222,21 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 last?.left === rect.left &&
                 last.top === rect.top &&
                 last.width === rect.width &&
+                last.height === canvasHeight &&
                 last.clip === clip
             )
                 return;
-            last = {left: rect.left, top: rect.top, width: rect.width, clip};
+            last = {
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: canvasHeight,
+                clip,
+                visibleTop: insets[0],
+                visibleBottom: canvasHeight - insets[2],
+                visibleLeft: insets[3],
+                visibleRight: rect.width - insets[1],
+            };
             setFrameRect(last);
         };
         updatePosition();
@@ -220,7 +245,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             updatePosition();
             animationFrame = window.requestAnimationFrame(trackLayout);
         };
-        if (height > 0) animationFrame = window.requestAnimationFrame(trackLayout);
+        if (height > 0 || workspace) animationFrame = window.requestAnimationFrame(trackLayout);
         const resizeObserver = new ResizeObserver(updatePosition);
         resizeObserver.observe(anchor);
         window.addEventListener('resize', updatePosition);
@@ -231,7 +256,26 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             window.removeEventListener('resize', updatePosition);
             window.removeEventListener('scroll', updatePosition, true);
         };
-    }, [height]);
+    }, [height, workspace]);
+
+    useEffect(() => {
+        const sendViewport = () => {
+            const viewport = expanded
+                ? {top: 0, bottom: window.innerHeight, left: 0, right: window.innerWidth}
+                : {
+                      top: frameRect.visibleTop,
+                      bottom: frameRect.visibleBottom,
+                      left: frameRect.visibleLeft,
+                      right: frameRect.visibleRight,
+                  };
+            if (viewport.bottom <= viewport.top || viewport.right <= viewport.left) return;
+            viewportRef.current = viewport;
+            void rpcRef.current?.call('ui.viewport', [viewport]).catch(() => undefined);
+        };
+        sendViewport();
+        window.addEventListener('resize', sendViewport);
+        return () => window.removeEventListener('resize', sendViewport);
+    }, [expanded, frameRect]);
 
     useEffect(() => {
         const frame = frameRef.current;
@@ -356,8 +400,24 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     throw new Error('Modal expansion requires a user interaction');
                 }
                 setModalOpen(open);
+                void rpcRef.current?.call('ui.closePopovers').catch(() => undefined);
+            },
+            'ui.popover': (value: unknown, open: unknown) => {
+                const id = providerString(value, 'popover ID', 128);
+                if (typeof open !== 'boolean') throw new Error('Popover state must be a boolean');
+                if (open && contextRef.current.workspaceActive === false)
+                    throw new Error('Inactive workspaces cannot open popovers');
+                setOpenPopovers((previous) => {
+                    if (previous.has(id) === open || (open && previous.size >= 32)) return previous;
+                    const next = new Set(previous);
+                    if (open) next.add(id);
+                    else next.delete(id);
+                    return next;
+                });
+                return null;
             },
             'ui.resize': (value: unknown, width: unknown) => {
+                if (contextRef.current.__tabularisSlot === 'editor.workspace.content') return;
                 const requested = typeof value === 'number' && Number.isFinite(value) ? value : 0;
                 setHeight(Math.min(MAX_HEIGHT, Math.max(0, requested)));
                 if (
@@ -603,6 +663,8 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     await rpc.call('slot.context', [
                         serializePluginSlotContext(contextRef.current),
                     ]);
+                    if (viewportRef.current.bottom > viewportRef.current.top)
+                        await rpc.call('ui.viewport', [viewportRef.current]);
                 } catch (error) {
                     console.error(`[PluginSlot] Failed to initialize ${pluginId}/${module}`, error);
                 }
@@ -621,6 +683,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             rpcRef.current?.close();
             rpcRef.current = null;
             setNativeComponents([]);
+            setOpenPopovers(new Set());
         };
     }, [module, pluginId, frameUrl]);
 
@@ -670,7 +733,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                           left: frameRect.left,
                           top: frameRect.top,
                           width: frameRect.width,
-                          height,
+                          height: workspace ? frameRect.height : height,
                           clipPath: frameRect.clip,
                           border: 0,
                           zIndex: 1,
@@ -683,6 +746,15 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             <iframe
                 ref={frameRef}
                 title={`Plugin ${pluginId}`}
+                data-plugin-slot={
+                    typeof context.__tabularisSlot === 'string'
+                        ? context.__tabularisSlot
+                        : undefined
+                }
+                data-plugin-workspace={
+                    typeof context.workspaceId === 'string' ? context.workspaceId : undefined
+                }
+                data-plugin-active={frameVisible ? 'true' : 'false'}
                 sandbox="allow-scripts"
                 referrerPolicy="no-referrer"
                 src={frameUrl}
@@ -699,7 +771,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 <NativePluginComponent
                     key={component.id}
                     component={component}
-                    hidden={Boolean(component.modal) !== expanded}
+                    hidden={Boolean(component.modal) !== expanded || openPopovers.size > 0}
                     emit={(id, event, value) => {
                         void rpcRef.current
                             ?.call('ui.native.event', [id, event, value])
@@ -718,7 +790,9 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     width: '100%',
                     minWidth: intrinsicWidth || undefined,
                     maxWidth: '100%',
-                    height,
+                    height: workspace ? '100%' : height,
+                    flex: workspace ? '1 1 0%' : undefined,
+                    minHeight: workspace ? 0 : undefined,
                     pointerEvents: 'none',
                 }}
             />

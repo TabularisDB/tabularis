@@ -1,6 +1,7 @@
 import {act, fireEvent, render, renderHook, screen, waitFor} from '@testing-library/react';
 import {describe, expect, it, vi} from 'vitest';
 import {createProviderGuestApi} from '@/plugins/sandbox/providerGuest';
+import {useEffect} from 'react';
 
 vi.mock('react-i18next', async (importOriginal) => importOriginal());
 
@@ -36,6 +37,44 @@ describe('isolated provider guest facade', () => {
         await expect(result.current.call('read_status')).rejects.toBe(failure);
         expect(call).toHaveBeenCalledWith('provider.connection', 'call', 'own', 'read_status', {});
     });
+    it('retains account callback identities when importing refreshes the host connection list', async () => {
+        let snapshot = {...context};
+        const call = vi.fn().mockResolvedValue(null);
+        const reload = vi.fn();
+        const {api} = createProviderGuestApi('provider', () => snapshot, call);
+        const {result, rerender} = renderHook(() => {
+            const account = api.usePluginAccount('provider');
+            useEffect(() => {
+                reload();
+            }, [account.call, account.secretFields, account.importConnection]);
+            return account;
+        });
+        const before = result.current;
+        snapshot = {
+            ...context,
+            providerConnections: [
+                ...context.providerConnections,
+                {id: 'imported', name: 'Imported database'},
+            ],
+        };
+        rerender();
+        expect(result.current).not.toBe(before);
+        expect(result.current.connections).toHaveLength(2);
+        for (const name of [
+            'openConnection',
+            'callConnection',
+            'prepare',
+            'connect',
+            'secretFields',
+            'disconnect',
+            'call',
+            'importConnection',
+        ] as const)
+            expect(result.current[name]).toBe(before[name]);
+        expect(reload).toHaveBeenCalledOnce();
+        await result.current.call('account_status');
+        expect(call).toHaveBeenCalledWith('provider.account', 'call', 'account_status', {});
+    });
     it('uses stable workspace reservations and reports asynchronous host failures', async () => {
         const call = vi.fn().mockImplementation(async (method: string) => {
             if (method === 'provider.openWorkspace') throw new Error('Connection is inactive');
@@ -54,11 +93,8 @@ describe('isolated provider guest facade', () => {
     });
     it('renders the shared searchable selection inside the guest', async () => {
         const onChange = vi.fn();
-        const {api} = createProviderGuestApi(
-            'provider',
-            () => context,
-            vi.fn().mockResolvedValue(null),
-        );
+        const call = vi.fn().mockResolvedValue(null);
+        const {api} = createProviderGuestApi('provider', () => context, call);
         render(
             <api.PluginSelect
                 ariaLabel="Branch"
@@ -71,9 +107,31 @@ describe('isolated provider guest facade', () => {
             />,
         );
         fireEvent.click(screen.getByRole('combobox'));
+        expect(call).toHaveBeenCalledWith('ui.popover', expect.any(String), true);
         fireEvent.change(screen.getByRole('combobox'), {target: {value: 'Develop'}});
         fireEvent.click(await screen.findByRole('option', {name: 'Development'}));
         expect(onChange).toHaveBeenCalledWith('two');
+        expect(call).toHaveBeenLastCalledWith('ui.popover', expect.any(String), false);
+    });
+    it('releases the native overlay layer when a popover is dismissed or its component unmounts', () => {
+        const call = vi.fn().mockResolvedValue(null);
+        const {api} = createProviderGuestApi('provider', () => context, call);
+        const {unmount} = render(
+            <api.PluginSelect
+                ariaLabel="Language"
+                value="js"
+                options={[{value: 'js', label: 'JavaScript'}]}
+                onChange={vi.fn()}
+            />,
+        );
+        fireEvent.click(screen.getByRole('combobox'));
+        expect(call).toHaveBeenLastCalledWith('ui.popover', expect.any(String), true);
+        act(() => window.dispatchEvent(new Event('tabularis:close-popovers')));
+        expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+        expect(call).toHaveBeenLastCalledWith('ui.popover', expect.any(String), false);
+        fireEvent.click(screen.getByRole('combobox'));
+        unmount();
+        expect(call).toHaveBeenLastCalledWith('ui.popover', expect.any(String), false);
     });
     it('projects native editor data and receives host change and diagnostics callbacks', async () => {
         const call = vi.fn().mockResolvedValue(null);
@@ -163,6 +221,47 @@ describe('isolated provider guest facade', () => {
             expect.objectContaining({editorState: {generation: 2, revision: 0}}),
         );
         expect(onChange).toHaveBeenCalledWith('const');
+    });
+    it('seeds a language or filename model switch with the edited draft', () => {
+        const call = vi.fn().mockResolvedValue(null);
+        const bridge = createProviderGuestApi('provider', () => context, call);
+        const view = (value: string, language: 'javascript' | 'typescript', fileName: string) => (
+            <bridge.api.PluginCodeEditor
+                value={value}
+                language={language}
+                fileName={fileName}
+                onChange={vi.fn()}
+            />
+        );
+        const {rerender} = render(view('initial source', 'javascript', 'index.js'));
+        const first = call.mock.calls.find(([method]) => method === 'ui.native.set')?.[1] as {
+            id: string;
+        };
+        act(() =>
+            bridge.nativeEvent(first.id, 'change', {
+                value: 'edited source marker',
+                generation: 0,
+                revision: 1,
+            }),
+        );
+        rerender(view('edited source marker', 'javascript', 'index.js'));
+        rerender(view('edited source marker', 'typescript', 'index.ts'));
+        expect(call).toHaveBeenLastCalledWith(
+            'ui.native.set',
+            expect.objectContaining({
+                props: expect.objectContaining({
+                    value: 'edited source marker',
+                    language: 'typescript',
+                    fileName: 'index.ts',
+                }),
+                editorState: {generation: 1, revision: 0},
+            }),
+        );
+        rerender(view('edited source marker', 'typescript', 'renamed.ts'));
+        expect(call).toHaveBeenLastCalledWith(
+            'ui.native.set',
+            expect.objectContaining({editorState: {generation: 2, revision: 0}}),
+        );
     });
     it('subscribes once per event name, uses the latest listener and rejects cross-plugin publishers', async () => {
         const call = vi.fn().mockResolvedValue(null);

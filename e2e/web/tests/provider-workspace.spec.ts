@@ -1,6 +1,36 @@
 import {expect, test} from '@playwright/test';
 import {rpc} from './rpc';
 
+test('styles provider selectors and scrolls long account setup inside the host modal', async ({
+    page,
+}) => {
+    await page.setViewportSize({width: 1440, height: 900});
+    await page.goto('/connections');
+    await page.getByRole('button', {name: 'Add Connection', exact: true}).first().click();
+    await page.getByRole('button', {name: 'Connect to E2e Provider', exact: true}).click();
+    const setup = page.frameLocator(
+        'iframe[title="Plugin e2e-provider"][data-plugin-slot="connection-modal.setup"]',
+    );
+    await expect(setup.getByTestId('provider-long-setup')).toBeVisible();
+    const select = setup.getByRole('combobox', {name: 'Provider database'});
+    await expect(select).toHaveCSS('width', /[3-9]\d\d(?:\.\d+)?px/);
+    await select.click();
+    const popup = setup.getByRole('listbox', {name: 'Provider database'});
+    await expect(popup).toHaveCSS('position', 'fixed');
+    const option = setup.getByRole('option', {name: 'Disposable database'});
+    await expect(option).toBeInViewport();
+    await option.click();
+    await expect(setup.getByTestId('provider-database')).toHaveText('neondb');
+    const bounds = await select.boundingBox();
+    if (!bounds) throw new Error('Provider database selector has no visible bounds');
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.wheel(0, 1000);
+    const footer = setup.getByTestId('provider-import-footer');
+    await expect(footer).toBeInViewport();
+    await footer.click();
+    await expect(setup.getByTestId('provider-import-result')).toHaveText('import-ready');
+});
+
 test('runs provider setup, connection RPC, workspace and native components through the sandbox', async ({
     page,
     browserName,
@@ -50,20 +80,26 @@ test('runs provider setup, connection RPC, workspace and native components throu
         await expect(page).toHaveURL(new RegExp(`/connections/${connection.id}/editor`), {
             timeout: 15_000,
         });
-        const service = page.locator('iframe[title="Plugin e2e-provider"]').first().contentFrame();
+        const service = page.frameLocator(
+            'iframe[title="Plugin e2e-provider"][data-plugin-slot="explorer.services"]',
+        );
         await service.getByTestId('provider-call').click();
         await expect(service.getByTestId('provider-result')).toContainText(connection.id);
         await expect(service.getByTestId('provider-result')).toContainText(
             'saved-provider.example',
         );
         await service.getByTestId('provider-open').click();
-        const workspace = page.locator('iframe[title="Plugin e2e-provider"]').nth(1).contentFrame();
+        const workspace = page.frameLocator(
+            'iframe[title="Plugin e2e-provider"][data-plugin-slot="editor.workspace.content"][data-plugin-workspace="services"]',
+        );
         await expect(workspace.getByTestId('provider-workspace')).toBeVisible();
         await expect(page.getByRole('region', {name: 'Provider result grid'})).toContainText(
             'native-grid-ok',
         );
         const editor = page.getByRole('region', {name: 'Provider source editor'});
         await expect(editor.locator('.monaco-editor')).toBeVisible();
+        const editorBounds = await editor.boundingBox();
+        expect(editorBounds?.height).toBeGreaterThan(300);
         await editor.locator('.view-lines').click();
         // Monaco follows the emulated browser platform (Desktop Safari advertises macOS).
         const selectAll = await page.evaluate(() =>
@@ -72,6 +108,13 @@ test('runs provider setup, connection RPC, workspace and native components throu
         await page.keyboard.press(selectAll);
         await page.keyboard.type('const revision = 2;');
         await expect(workspace.getByTestId('provider-source')).toHaveText('const revision = 2;');
+        await workspace.getByRole('combobox', {name: 'Provider source language'}).click();
+        await workspace.getByRole('option', {name: 'TypeScript'}).click();
+        await expect(
+            workspace.getByRole('combobox', {name: 'Provider source language'}),
+        ).toHaveValue('TypeScript');
+        await expect(workspace.getByTestId('provider-source')).toHaveText('const revision = 2;');
+        await expect(editor.locator('.view-lines')).toContainText('const revision = 2;');
         await workspace.getByTestId('provider-publish').click();
         await expect(service.getByTestId('provider-result')).toHaveText('event:sibling-refresh-ok');
         await workspace.getByTestId('provider-modal').click();

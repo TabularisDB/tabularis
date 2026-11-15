@@ -96,9 +96,8 @@ export function createProviderGuestApi(
         ownPlugin(requested);
         const connections = context().providerConnections as
             UsePluginAccountReturn['connections'] | undefined;
-        return useMemo(
+        const methods = useMemo(
             () => ({
-                connections: connections ?? [],
                 openConnection: (id: string, source?: string) =>
                     call('provider.openConnection', id, source).then(() => undefined),
                 callConnection: <T,>(
@@ -119,7 +118,11 @@ export function createProviderGuestApi(
                         UsePluginAccountReturn['importConnection']
                     >,
             }),
-            [connections],
+            [],
+        );
+        return useMemo(
+            () => ({...methods, connections: connections ?? []}),
+            [methods, connections],
         );
     }
     function usePluginWorkspace(requested: string) {
@@ -205,6 +208,7 @@ export function createProviderGuestApi(
             generation: 0,
             revision: 0,
             newestGeneration: 0,
+            modelKey: '',
         });
         const dataKey = JSON.stringify(data);
         useLayoutEffect(() => {
@@ -247,8 +251,20 @@ export function createProviderGuestApi(
             const props = JSON.parse(dataKey) as Record<string, unknown>;
             let editorState;
             if (kind === 'codeEditor' && typeof props.value === 'string') {
+                const modelKey = JSON.stringify([
+                    props.language ?? 'javascript',
+                    props.fileName ?? null,
+                ]);
+                const modelChanged =
+                    source.current.initialized && source.current.modelKey !== modelKey;
                 const echo = edits.current.get(props.value);
-                if (echo) {
+                if (modelChanged) {
+                    // Monaco changes models when the filename/language changes. Seed the
+                    // replacement with the current draft rather than its initial source.
+                    source.current.generation = ++source.current.newestGeneration;
+                    source.current.revision = 0;
+                    edits.current.clear();
+                } else if (echo) {
                     source.current.generation = echo.generation;
                     source.current.revision = echo.revision;
                     // Older echoes already carry their revision on the wire; forget settled
@@ -266,6 +282,7 @@ export function createProviderGuestApi(
                     edits.current.clear();
                 }
                 source.current.initialized = true;
+                source.current.modelKey = modelKey;
                 source.current.value = props.value;
                 source.current.newestGeneration = Math.max(
                     source.current.newestGeneration,
@@ -350,9 +367,16 @@ export function createProviderGuestApi(
         );
     }
     function GuestSelect(props: PluginSelectProps) {
+        const id = useId();
+        const onOpenChange = useCallback(
+            (open: boolean) => {
+                void call('ui.popover', id, open).catch(report);
+            },
+            [id],
+        );
         return (
             <I18nextProvider i18n={i18n}>
-                <PluginSelect {...props} />
+                <PluginSelect {...props} onOpenChange={onOpenChange} />
             </I18nextProvider>
         );
     }

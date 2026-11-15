@@ -48,6 +48,11 @@
       "slot": "editor.workspace.content",
       "module": "ui/provider.js",
       "api_version": "0.4.1"
+    },
+    {
+      "slot": "connection-modal.setup",
+      "module": "ui/provider.js",
+      "api_version": "0.4.1"
     }
   ]
 }

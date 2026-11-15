@@ -365,6 +365,36 @@ function start(port: MessagePort): void {
             window.dispatchEvent(new Event('tabularis:close-modal'));
             return null;
         }
+        if (method === 'ui.closePopovers') {
+            window.dispatchEvent(new Event('tabularis:close-popovers'));
+            return null;
+        }
+        if (method === 'ui.viewport') {
+            const value: unknown = Array.isArray(args) ? args[0] : args;
+            if (!value || typeof value !== 'object') throw new Error('Invalid guest viewport');
+            const viewport = value as Record<string, unknown>;
+            for (const key of ['top', 'bottom', 'left', 'right']) {
+                if (
+                    typeof viewport[key] !== 'number' ||
+                    !Number.isFinite(viewport[key]) ||
+                    (viewport[key] as number) < 0 ||
+                    (viewport[key] as number) > 100_000
+                )
+                    throw new Error('Invalid guest viewport bounds');
+            }
+            if (
+                (viewport.bottom as number) <= (viewport.top as number) ||
+                (viewport.right as number) <= (viewport.left as number)
+            )
+                return null;
+            for (const key of ['top', 'bottom', 'left', 'right'])
+                document.documentElement.style.setProperty(
+                    `--tabularis-plugin-visible-${key}`,
+                    `${viewport[key]}px`,
+                );
+            window.dispatchEvent(new Event('resize'));
+            return null;
+        }
         if (method === 'ui.native.event') {
             const values = Array.isArray(args) ? args : [];
             if (typeof values[0] !== 'string' || typeof values[1] !== 'string')
@@ -385,6 +415,12 @@ function start(port: MessagePort): void {
                     next as Record<string, unknown>,
                     (callback, ...values) => rpc.call(callback, values),
                 );
+                document.documentElement.dataset.tabularisLayout =
+                    currentContext.__tabularisSlot === 'editor.workspace.content'
+                        ? 'workspace'
+                        : 'inline';
+                if (currentContext.workspaceActive === false)
+                    window.dispatchEvent(new Event('tabularis:close-popovers'));
                 providerBridge.updateContext(currentContext);
                 applyGuestTheme();
                 renderPlugin?.();

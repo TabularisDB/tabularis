@@ -4,6 +4,7 @@ import {
     useId,
     useRef,
     useState,
+    useLayoutEffect,
     type InputHTMLAttributes,
     type RefObject,
 } from 'react';
@@ -11,12 +12,11 @@ import {createPortal} from 'react-dom';
 import {Check, ChevronDown, Loader2} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
-import {
-    computeDropdownPosition,
-    dropdownPositionStyle,
-    type DropdownPosition,
-} from '@/utils/dropdownPosition';
+import {dropdownPositionStyle, type DropdownPosition} from '@/utils/dropdownPosition';
+import {pluginSelectPosition} from '@/utils/pluginSelectViewport';
 import type {PluginSelectProps} from '@/types/pluginSelect';
+
+type InternalSelectProps = PluginSelectProps & {onOpenChange?: (open: boolean) => void};
 
 function SelectInput({
     inputRef,
@@ -58,7 +58,7 @@ function SelectInput({
 }
 
 /** Provider selection owns its themed popup, search and accessible keyboard interaction. */
-export function PluginSelect(props: PluginSelectProps) {
+export function PluginSelect(props: InternalSelectProps) {
     const {t} = useTranslation();
     const label = props.options.find((option) => option.value === props.value)?.label ?? '';
     if (props.disabled || props.loading) {
@@ -96,7 +96,8 @@ function SelectableField({
     onChange,
     placeholder,
     displayLabel,
-}: PluginSelectProps & {displayLabel: string}) {
+    onOpenChange,
+}: InternalSelectProps & {displayLabel: string}) {
     const {t} = useTranslation();
     const listId = useId();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -114,10 +115,14 @@ function SelectableField({
     const optionId = (index: number) => `${listId}-${index}`;
     const close = useCallback(() => setPosition(null), []);
     useEscapeKey(open, close);
+    useLayoutEffect(() => {
+        onOpenChange?.(open);
+    }, [open, onOpenChange]);
+    useEffect(() => () => onOpenChange?.(false), [onOpenChange]);
 
     const updatePosition = useCallback(() => {
         if (inputRef.current)
-            setPosition(computeDropdownPosition(inputRef.current.getBoundingClientRect()));
+            setPosition(pluginSelectPosition(inputRef.current.getBoundingClientRect()));
     }, []);
     const show = () => {
         setQuery('');
@@ -146,10 +151,12 @@ function SelectableField({
         document.addEventListener('mousedown', outside);
         window.addEventListener('scroll', updatePosition, true);
         window.addEventListener('resize', updatePosition);
+        window.addEventListener('tabularis:close-popovers', close);
         return () => {
             document.removeEventListener('mousedown', outside);
             window.removeEventListener('scroll', updatePosition, true);
             window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('tabularis:close-popovers', close);
         };
     }, [open, close, updatePosition]);
     useEffect(() => {
