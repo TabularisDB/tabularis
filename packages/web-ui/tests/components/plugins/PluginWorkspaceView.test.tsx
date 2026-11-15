@@ -24,6 +24,34 @@ const settingsValue = {
 };
 
 describe('PluginWorkspaceView', () => {
+    it('enables registered workspaces when the activation preference is absent', () => {
+        const registry = {
+            contributions: [],
+            register: () => () => {},
+            registerAll: () => () => {},
+            getSlotContributions: () => [
+                {
+                    pluginId: 'provider',
+                    slot: 'editor.workspace.content' as const,
+                    component: () => <div>Provider services</div>,
+                },
+            ],
+        };
+        render(
+            <SettingsContext.Provider
+                value={{
+                    ...settingsValue,
+                    settings: {...DEFAULT_SETTINGS, activeExternalDrivers: undefined},
+                }}
+            >
+                <PluginSlotContext.Provider value={registry}>
+                    <PluginWorkspaceView tab={tab} driver="provider" schema={null} />
+                </PluginSlotContext.Provider>
+            </SettingsContext.Provider>,
+        );
+        expect(screen.getByText('Provider services')).toBeInTheDocument();
+    });
+
     it('shows a clear unavailable state for missing plugin contributions', () => {
         render(
             <SettingsContext.Provider value={settingsValue}>

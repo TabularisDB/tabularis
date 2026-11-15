@@ -19,6 +19,8 @@ export {
 } from './hooks/usePluginApi';
 
 export {usePluginRpc} from './hooks/usePluginRpc';
+export {usePluginEvent} from './hooks/usePluginEvent';
+export {publishPluginEvent} from './utils/pluginEvents';
 export type {UsePluginRpcReturn} from './types/pluginRpc';
 
 // Types

@@ -20,6 +20,8 @@ export {
     openUrl,
     copyText,
     exchangeGoogleOAuthToken,
+    publishPluginEvent,
+    usePluginEvent,
 } from './hooks';
 
 export {getHost, assertHostCompat} from './host';

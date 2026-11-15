@@ -619,16 +619,16 @@ Add an optional `ui_extensions` array to your manifest:
 | `sidebar.footer.actions` | Narrow navigation icon rail footer (icon-sized controls) | `connectionId`, `driver` | Status indicators, quick actions |
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
 | `settings.plugin.before_settings` | Content above plugin settings form | `targetPluginId` | OAuth panels, status banners |
-| `connection-modal.setup` | Add Connection after choosing the driver; General when editing | `driver`, `connectionId`, `isEditing`, `onConnectionCreated`, `onClose` | Provider-owned login and connection import; only the selected driver plugin renders. Requires runtime API `0.2.2` |
+| `connection-modal.setup` | Add Connection after choosing the driver; General when editing | `driver`, `connectionId`, `isEditing`, `onConnectionCreated`, `onClose` | Provider-owned login and connection import; only the selected driver plugin renders. Requires runtime API `0.4.1` |
 | `connection-modal.connection_content` | Inside the connection form | `driver`, `database`, `connectionName`, `onDatabaseChange` | Custom connection fields; the callback is bridged over host RPC |
 | `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `credentialFieldsHidden`, `setCredentialFieldsHidden`, `secretFields`, `setSecretField` | Plugin-specific connection fields (e.g. AWS region), including values stored per connection in the OS keychain. `setCredentialFieldsHidden(true)` hides and clears the host username/password inputs for drivers that authenticate without a login; while hidden the host also ignores the login of an imported connection string and drops the stored password on save. These callbacks are host RPC methods; callback functions are not cloned into the guest context. |
 
 ### Provider-owned connection setup
 
-> Prototype API `0.2.7` is awaiting migration to the sandbox API `0.4.0`. The host skips these provider UI bundles; the executable SQL driver remains independent. Do not relabel an old provider bundle as `0.4.0` without implementing its scoped guest bridge.
+> Provider UI bundles use sandbox API `0.4.1`. The guest facade exposes scoped account, connection-service and workspace hooks. Native Monaco editors and read-only grids are rendered by trusted host components, clipped to the owning frame, with callbacks transported over its MessagePort. Plugin code never executes in the host window. Prototype API `0.2.7` bundles remain rejected; rebuild them against the current SDK.
 
 An external driver can own its Add Connection flow by declaring a
-`connection-modal.setup` entry in `ui_extensions` with `api_version: "0.2.2"`.
+`connection-modal.setup` entry in `ui_extensions` with `api_version: "0.4.1"`.
 Use this for provider login, project/branch selection and connection import.
 This is a UI opt-in; it does not require `no_connection_required` or a new
 backend capability. Declare the driver's real database capabilities normally.
@@ -2528,7 +2528,7 @@ The legacy path — a pull request adding an entry to `plugins/registry.json` (f
 ### Connection-bound editor workspaces
 
 Account prerequisites and interactive sign-in setup can use
-`usePluginAccount(pluginId).prepare(method, args)` (API `0.2.3`). Like account
+`usePluginAccount(pluginId).prepare(method, args)` (API `0.4.1`). Like account
 calls, it requires local-admin authorization. The host forwards no stored
 account/SQL credentials, only `{method,args,secrets:{},context:{plugin_id,
 scope:"account-setup"}}` to the enabled external plugin. Keep an explicit setup
@@ -2540,7 +2540,7 @@ host-native clipboard access for commands and diagnostic text.
 Use `usePluginWorkspace(pluginId).openWorkspace({id, title, connectionId?})` from an
 `explorer.services` contribution to open a provider service as a main
 editor tab. Register its content in `editor.workspace.content` (with `api_version:
-"0.2.0"`). Reopening the same plugin/workspace/connection focuses the existing tab;
+"0.4.1"`). Reopening the same plugin/workspace/connection focuses the existing tab;
 other connections keep separate tabs. The optional connection ID must match both
 the current slot connection and the editor connection. Mismatches throw instead of
 switching connections or assigning the workspace to another connection.
@@ -2574,8 +2574,8 @@ Pass `columns: string[]`, `rows: unknown[][]`, optional `connectionId`, and opti
 accessible `label`. It has a bounded height and uses native copy preferences,
 selection and column resizing. It exposes no mutation callbacks or generated SQL.
 
-API `0.2.1` adds `PluginResourceList` and `PluginCodeEditor`. Declare at least
-`api_version: "0.2.1"` before using them; API `0.2.0` hosts do not expose these
+API `0.4.1` adds `PluginResourceList` and `PluginCodeEditor`. Declare at least
+`api_version: "0.4.1"` before using them; Earlier sandbox hosts do not expose these
 components. Older plugin bundles remain supported by the newer host.
 
 `PluginResourceList` takes `items: [{id, title, subtitle?, status?}]`, `onOpen(id)`,
@@ -2590,8 +2590,8 @@ Keep provider deployment, secrets and draft persistence policies in the plugin.
 
 ### Searchable provider form controls
 
-API `0.2.7` exposes a themed, searchable `PluginSelect` popup for provider forms.
-Declare `api_version: "0.2.7"` before using `placeholder`, `loading`, `loadingLabel`
+API `0.4.1` exposes a themed, searchable `PluginSelect` popup for sandboxed provider forms.
+Declare `api_version: "0.4.1"` before using `placeholder`, `loading`, `loadingLabel`
 and option descriptions. Pass `value`, `onChange(value)` and
 `options: [{value, label, description?}]`. Empty-string values remain valid for a
 personal account; placeholders are separate from selectable values.

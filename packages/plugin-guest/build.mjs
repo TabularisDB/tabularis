@@ -25,5 +25,7 @@ await esbuild.build({
     target: 'es2022',
     minify: true,
     legalComments: 'none',
+    alias: {'@': path.join(root, 'packages/web-ui/src')},
+    jsx: 'automatic',
     define: {'process.env.NODE_ENV': '"production"'},
 });

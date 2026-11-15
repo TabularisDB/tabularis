@@ -81,6 +81,20 @@ export async function copyText(text: string): Promise<void> {
     return getHost().copyText(text);
 }
 
+/** Notify other mounted views of the same plugin with a JSON payload of at most 64 KiB. */
+export function publishPluginEvent(pluginId: string, name: string, detail: unknown): Promise<void> {
+    return getHost().publishPluginEvent(pluginId, name, detail);
+}
+
+/** Subscribe to this plugin's events; the host removes the listener when the component unmounts. */
+export function usePluginEvent(
+    pluginId: string,
+    name: string,
+    listener: (detail: unknown) => void,
+): void {
+    return getHost().usePluginEvent(pluginId, name, listener);
+}
+
 /** Connection-scoped services; stored secret values cannot be read through this API. */
 export function usePluginRpc(pluginId: string, connectionId?: string): UsePluginRpcReturn {
     return getHost().usePluginRpc(pluginId, connectionId);

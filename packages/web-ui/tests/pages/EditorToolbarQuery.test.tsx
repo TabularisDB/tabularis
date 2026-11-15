@@ -789,7 +789,7 @@ describe('plugin workspace editor isolation', () => {
         ).toEqual([]);
         expect(mocks.guard).not.toHaveBeenCalled();
     });
-    it('unmounts provider content when switching tabs or closing the workspace', () => {
+    it('preserves provider content while backgrounded and unmounts it on editor close', () => {
         const cleanup = vi.fn();
         const Content = ({context}: SlotComponentProps) => {
             useEffect(() => cleanup, []);
@@ -830,11 +830,11 @@ describe('plugin workspace editor isolation', () => {
         );
         expect(screen.getByText('Provider connection: connection-1')).toBeInTheDocument();
         act(() => screen.getByRole('button', {name: 'console-1'}).click());
-        expect(screen.queryByText('Provider connection: connection-1')).not.toBeInTheDocument();
-        expect(cleanup).toHaveBeenCalledOnce();
+        expect(screen.getByText('Provider connection: connection-1')).not.toBeVisible();
+        expect(cleanup).not.toHaveBeenCalled();
         act(() => screen.getByRole('button', {name: 'workspace'}).click());
         expect(screen.getByText('Provider connection: connection-1')).toBeInTheDocument();
         unmount();
-        expect(cleanup).toHaveBeenCalledTimes(2);
+        expect(cleanup).toHaveBeenCalledOnce();
     });
 });

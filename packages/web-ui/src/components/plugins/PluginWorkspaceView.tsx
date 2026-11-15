@@ -9,6 +9,7 @@ interface PluginWorkspaceViewProps {
     driver: string | null;
     schema: string | null;
     connectionName?: string | null;
+    workspaceActive?: boolean;
 }
 
 export function PluginWorkspaceView({
@@ -16,6 +17,7 @@ export function PluginWorkspaceView({
     driver,
     schema,
     connectionName,
+    workspaceActive = true,
 }: PluginWorkspaceViewProps) {
     const {t} = useTranslation();
     const settings = useContext(SettingsContext);
@@ -30,7 +32,8 @@ export function PluginWorkspaceView({
     if (
         !tab.pluginId ||
         !tab.workspaceId ||
-        !settings?.settings.activeExternalDrivers?.includes(tab.pluginId)
+        (settings?.settings.activeExternalDrivers != null &&
+            !settings.settings.activeExternalDrivers.includes(tab.pluginId))
     )
         return unavailable;
     return (
@@ -44,6 +47,7 @@ export function PluginWorkspaceView({
                 driver,
                 schema,
                 connectionName,
+                workspaceActive,
             }}
             className="flex flex-1 flex-col min-h-0 overflow-hidden"
             fallback={unavailable}

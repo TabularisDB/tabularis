@@ -137,6 +137,9 @@ export type PluginTranslator = (key: string, options?: Record<string, unknown>) 
  * import the named hooks/helpers from `@tabularis/plugin-api` instead.
  */
 export interface TabularisHostApi {
+    /** Notify other mounted views of this plugin with a JSON payload of at most 64 KiB. */
+    publishPluginEvent: (pluginId: string, name: string, detail: unknown) => Promise<void>;
+    usePluginEvent: (pluginId: string, name: string, listener: (detail: unknown) => void) => void;
     PluginSelect: ComponentType<PluginSelectProps>;
     copyText: (text: string) => Promise<void>;
     PluginResourceList: ComponentType<PluginResourceListProps>;

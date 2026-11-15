@@ -4,7 +4,7 @@ Public API surface for [Tabularis](https://github.com/TabularisDB/tabularis) plu
 
 Plugin bundles import hooks, the `defineSlot` helper, and shared types from this package. The Tabularis host injects the actual runtime implementation — the published package ships as thin stubs, so your bundle stays small and the host remains the single source of truth.
 
-> The host and sandbox now use API `0.4.0`. The provider prototype API `0.2.7` is not sandbox-compatible: its account/service/workspace hooks and native resources still need a scoped guest bridge. Those bundles are skipped by the compatibility gate. Keep the Neon preview on its documented pinned Core revision until that migration is complete.
+> API `0.4.1` adds sandboxed provider account, connection-service and workspace hooks, plus native editor/grid projections. Calls are bound to the owning plugin and saved connection; credentials remain in the host. Rebuild provider bundles for `0.4.1`. Prototype `0.2.7` bundles remain incompatible and are skipped by the compatibility gate.
 
 ## Install
 
@@ -76,7 +76,7 @@ All hooks must run inside a React component loaded by Tabularis. Calling them ou
 ## Provider account connections
 
 `connection-modal.setup` lets a driver own login and import inside Add Connection
-(runtime API `0.2.2`). Its manifest declaration hides generic SQL fields even
+(runtime API `0.4.1`). Its manifest declaration hides generic SQL fields even
 when the UI cannot load. It receives `{driver, connectionId, isEditing,
 onConnectionCreated, onClose}`; refresh after import with `onConnectionCreated`,
 then close with `onClose`. Editing keeps host metadata controls and Save.
@@ -97,7 +97,7 @@ connection state after import, including when launched from Settings. The option
 `onConnectionCreated()` callback lets an entry point refresh additional local state. Disconnecting an
 account does not revoke remote credentials or remove previously imported connections.
 
-API `0.2.3` adds `prepare(method, args)` for prerequisite detection and interactive
+API `0.4.1` adds `prepare(method, args)` for prerequisite detection and interactive
 sign-in setup before account credentials exist. It requires local-admin access
 and forwards an empty secret object with `context.scope: "account-setup"` to the
 enabled owning plugin. Plugins must allowlist setup methods and return only safe
@@ -136,6 +136,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 | Prototype snapshot (unreleased) | `0.2.7` | Provider hooks and native resources; awaiting sandbox migration |
 | `0.3.0`         | `0.3.0` | Sandboxed UI API and callback RPC |
 | `0.4.0`         | `0.4.0` | Secret-field slot callback and fixed Google OAuth exchange |
+| `0.4.1`         | `0.4.1` | Scoped provider accounts, service RPCs, workspaces and native component bridge |
 
 ## Slot reference
 
@@ -146,6 +147,18 @@ See the full slot list and context contracts in [`plugins/PLUGIN_GUIDE.md` § 3b
 Apache-2.0, same as Tabularis.
 
 ## Provider workspaces
+
+In the sandbox, `openWorkspace` returns a stable local reservation while the host
+opens or reactivates the matching tab. Async host failures appear as plugin error
+toasts; the reservation is not a host tab ID. Background workspace tabs retain
+their iframe state and cannot open visible overlays.
+
+Use `publishPluginEvent(pluginId, name, detail)` and
+`usePluginEvent(pluginId, name, listener)` to invalidate sibling plugin views.
+Events stay within the same plugin and carry bounded JSON data (64 KiB), not
+React elements or credentials. Include resource identifiers in the payload and
+filter them in the listener. Each frame has its own `window`; ordinary DOM events
+do not reach sibling frames.
 
 Register an `editor.workspace.content` slot and open it from a connection action:
 
@@ -181,8 +194,8 @@ mutation callbacks or SQL generation. `PluginConnectionAction` remains supported
 `PluginResourceList` provides ordinary host navigation for `{id,title,subtitle?,status?}`
 items and an `onOpen(id)` callback. `PluginCodeEditor` provides controlled non-SQL
 Monaco editing through `value`, `onChange`, `language`, `readOnly` and `label`; its
-parent supplies the height. Both require runtime API 0.2.1 and share host theme
-and accessibility behavior. API 0.2.4 adds `typescript`, an optional `fileName`
+parent supplies the height. Both require runtime API 0.4.1 and share host theme
+and accessibility behavior. API 0.4.1 adds `typescript`, an optional `fileName`
 (display name, with an isolated host model), and `onDiagnostics(items)` where
 items contain `severity`, `message`, `line` and `column`. JS/TS syntax, completion,
 and type checking use the bundled Monaco worker and local Node.js declarations;
@@ -190,7 +203,7 @@ no CDN or automatic npm package/type downloads are needed. Models are disposed
 when the editor closes or changes language.
 
 
-### Provider connection navigation (API 0.2.5)
+### Provider connection navigation (API 0.4.1)
 
 `usePluginAccount(pluginId)` exposes `connections: [{id, name}]` for that driver's
 saved connections, `callConnection<T>(id, method, args?)` for the existing scoped
@@ -202,7 +215,7 @@ editor URL. It never changes another connection's target, credentials or SQL tab
 Use provider-owned metadata methods to match exact project/environment/database/
 role identities before reusing an existing connection.
 
-### Provider form selection (API 0.2.7)
+### Provider form selection (API 0.4.1)
 
 `PluginSelect` provides a searchable, themed combobox and popup. Pass controlled
 `value`, `onChange(value)` and `options: [{value, label, description?}]`; empty-string

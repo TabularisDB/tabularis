@@ -23,7 +23,6 @@ cp -R "$FIXTURE_PLUGINS"/. "$APP_DATA_DIR/plugins/"
 
 cat >"$APP_CONFIG_DIR/config.json" <<'JSON'
 {
-  "activeExternalDrivers": ["e2e-driver", "e2e-ui-extension"],
   "showWelcome": false,
   "checkForUpdates": false,
   "autoCheckUpdatesOnStartup": false,

@@ -6066,14 +6066,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 const isActive = tab.id === activeTabId;
 
                 if (tab.type === 'plugin-workspace') {
-                    if (!isActive) return null;
                     return (
-                        <div key={tab.id} className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                        <div
+                            key={tab.id}
+                            style={{display: isActive ? 'flex' : 'none'}}
+                            className="flex flex-1 flex-col min-h-0 overflow-hidden"
+                        >
                             <PluginWorkspaceView
                                 tab={tab}
                                 driver={activeDriver}
                                 schema={activeSchema ?? null}
                                 connectionName={activeConnectionName}
+                                workspaceActive={isActive}
                             />
                         </div>
                     );
