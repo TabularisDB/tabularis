@@ -47,6 +47,15 @@ function main(): void {
     const hostSource = readFileSync(HOST_BARREL, 'utf8');
     const pkgSource = readFileSync(PACKAGE_BARREL, 'utf8');
 
+    const hostVersion = readFileSync(
+        resolve(REPO_ROOT, 'packages/web-ui/src/pluginApiVersion.ts'),
+        'utf8',
+    );
+    const packageVersion = readFileSync(resolve(__dirname, '../src/version.ts'), 'utf8');
+    const version = /API_VERSION = ['"]([^'"]+)['"]/;
+    if (version.exec(hostVersion)?.[1] !== version.exec(packageVersion)?.[1]) {
+        throw new Error('Host and package API_VERSION differ');
+    }
     const host = extractExports(hostSource);
     const pkg = extractExports(pkgSource);
 

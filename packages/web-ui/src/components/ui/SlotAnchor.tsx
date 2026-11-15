@@ -1,4 +1,5 @@
 import {useContext, useMemo} from 'react';
+import type {ReactNode} from 'react';
 
 import {PluginSlotContext} from '@/contexts/PluginSlotContext';
 import {SlotErrorBoundary} from './SlotErrorBoundary';
@@ -11,6 +12,10 @@ interface SlotAnchorProps<S extends SlotName> {
     context: SlotAnchorContext<S>;
     /** Optional CSS class for the wrapper div (only rendered when contributions exist) */
     className?: string;
+    /** Limit this anchor to contributions owned by one plugin. */
+    pluginId?: string;
+    /** Content shown when no matching contribution is available. */
+    fallback?: ReactNode;
 }
 
 /**
@@ -18,15 +23,23 @@ interface SlotAnchorProps<S extends SlotName> {
  * Place this at each extension point in the UI.
  * Renders nothing when no contributions are registered.
  */
-export const SlotAnchor = <S extends SlotName>({name, context, className}: SlotAnchorProps<S>) => {
+export const SlotAnchor = <S extends SlotName>({
+    name,
+    context,
+    className,
+    pluginId,
+    fallback,
+}: SlotAnchorProps<S>) => {
     const registry = useContext(PluginSlotContext);
 
     const contributions = useMemo(() => {
         if (!registry) return [];
-        return registry.getSlotContributions(name, context);
-    }, [registry, name, context]);
+        return registry
+            .getSlotContributions(name, context)
+            .filter((contribution) => !pluginId || contribution.pluginId === pluginId);
+    }, [registry, name, context, pluginId]);
 
-    if (contributions.length === 0) return null;
+    if (contributions.length === 0) return fallback ?? null;
 
     return (
         <div className={className} data-slot={name}>

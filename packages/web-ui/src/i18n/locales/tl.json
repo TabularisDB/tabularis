@@ -3516,5 +3516,8 @@
     "copySummary": "Kopyahin ang buod",
     "copied": "Nakopya ang buod, nakatago ang mga literal na value.",
     "copyFailed": "Hindi makopya ang buod."
+  },
+  "pluginWorkspace": {
+    "unavailable": "Hindi available ang workspace na ito. I-enable o muling i-install ang plugin nito sa Mga Setting."
   }
 }

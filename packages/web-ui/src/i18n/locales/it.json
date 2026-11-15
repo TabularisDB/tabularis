@@ -3530,5 +3530,8 @@
     "copySummary": "Copia riepilogo",
     "copied": "Riepilogo copiato, con i valori letterali nascosti.",
     "copyFailed": "Impossibile copiare il riepilogo."
+  },
+  "pluginWorkspace": {
+    "unavailable": "Questo spazio di lavoro non è disponibile. Attiva o reinstalla il suo plugin nelle impostazioni."
   }
 }

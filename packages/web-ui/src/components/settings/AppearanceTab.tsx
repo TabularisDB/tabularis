@@ -2,6 +2,8 @@ import {useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Monitor, Code2} from 'lucide-react';
 import clsx from 'clsx';
+import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {INTERFACE_SCALE_OPTIONS, normalizeInterfaceScale} from '@/utils/interfaceScale';
 import {useSettings} from '@/hooks/useSettings';
 import {
     EDITOR_FONT_SIZE_DEFAULT,
@@ -26,6 +28,7 @@ import {ResultColorsSection} from './ResultColorsSection';
 export function AppearanceTab() {
     const {t} = useTranslation();
     const {settings, updateSetting} = useSettings();
+    const platform = usePlatformCapabilities();
     const {allThemes} = useTheme();
     const [subTab, setSubTab] = useState<'general' | 'editor'>('general');
 
@@ -62,6 +65,37 @@ export function AppearanceTab() {
             {/* General sub-tab */}
             {subTab === 'general' && (
                 <>
+                    <SettingSection title={t('settings.interfaceScale')}>
+                        <SettingRow
+                            label={t('settings.interfaceScale')}
+                            description={t('settings.interfaceScaleDesc')}
+                        >
+                            {platform.setInterfaceScale ? (
+                                <select
+                                    aria-label={t('settings.interfaceScale')}
+                                    className="rounded-lg border border-default bg-base px-3 py-2 text-sm text-primary focus:border-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                                    value={normalizeInterfaceScale(settings.interfaceScale)}
+                                    onChange={(event) =>
+                                        void updateSetting(
+                                            'interfaceScale',
+                                            Number(event.target.value),
+                                        )
+                                    }
+                                >
+                                    {INTERFACE_SCALE_OPTIONS.map((value) => (
+                                        <option key={value} value={value}>
+                                            {value}%
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <p className="text-sm text-secondary">
+                                    {t('settings.interfaceScaleBrowser')}
+                                </p>
+                            )}
+                        </SettingRow>
+                    </SettingSection>
+
                     <ThemeManager />
 
                     <SettingSection title={t('settings.fontFamily')}>

@@ -9,17 +9,20 @@ import * as monaco from 'monaco-editor';
 import {loader} from '@monaco-editor/react';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import TypeScriptWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+import {configurePluginCodeLanguage} from './utils/pluginCodeLanguage';
 import {installMonacoInputAreaSelectionFix} from './utils/monacoInputArea';
 
 self.MonacoEnvironment = {
     getWorker(_workerId: string, label: string): Worker {
-        // SQL and plaintext only need the base editor worker; JSON is the only
-        // language service the app uses (config and MCP editors).
+        if (label === 'javascript' || label === 'typescript') return new TypeScriptWorker();
+        // SQL/plaintext use the base editor worker; config uses the JSON service.
         return label === 'json' ? new JsonWorker() : new EditorWorker();
     },
 };
 
 loader.config({monaco});
+configurePluginCodeLanguage(monaco);
 
 installMonacoInputAreaSelectionFix();
 

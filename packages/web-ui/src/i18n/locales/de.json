@@ -1343,7 +1343,10 @@
       "databaseBackupErrorInvalidRetention": "Es muss mindestens 1 Sicherung aufbewahrt werden.",
       "databaseBackupErrorInvalidTime": "Die tägliche Uhrzeit muss im Format HH:mm angegeben werden.",
       "databaseBackupErrorUnsupportedDriver": "Die ausgewählte Verbindung verwendet einen Treiber, der keine Datenbank-Dumps unterstützt."
-    }
+    },
+    "interfaceScale": "Oberflächenskalierung",
+    "interfaceScaleDesc": "Vergrößert die gesamte Desktop-Oberfläche samt Tabs, Symbolen, Dialogen und Editoren. Für große Monitore sind 125 % ein guter Ausgangspunkt.",
+    "interfaceScaleBrowser": "Verwende die Zoomfunktion deines Browsers, um die Weboberfläche zu vergrößern."
   },
   "update": {
     "badges": {
@@ -1949,7 +1952,10 @@
       "analyzeWithAi": "Mit KI analysieren",
       "aiAnalyzing": "Wird analysiert…",
       "aiAnalysisTitle": "KI-Analyse",
-      "aiAnalysisFailed": "Die KI-Analyse ist fehlgeschlagen. Kopiere stattdessen den Bericht oder erstelle ein Issue."
+      "aiAnalysisFailed": "Die KI-Analyse ist fehlgeschlagen. Kopiere stattdessen den Bericht oder erstelle ein Issue.",
+      "loadTitle": "Der Editor konnte nicht geladen werden",
+      "loadDescription": "Einige Editor-Dateien konnten nicht geladen werden. Lade die App neu, um sie erneut abzurufen. Gespeicherte Tabs und Entwürfe bleiben erhalten.",
+      "reloadApp": "App neu laden"
     },
     "newVisualQuery": "Neue visuelle Abfrage",
     "activeDatabase": "Aktive Datenbank",
@@ -3497,5 +3503,8 @@
     "copySummary": "Zusammenfassung kopieren",
     "copied": "Zusammenfassung kopiert, Literalwerte ausgeblendet.",
     "copyFailed": "Zusammenfassung konnte nicht kopiert werden."
+  },
+  "pluginWorkspace": {
+    "unavailable": "Dieser Arbeitsbereich ist nicht verfügbar. Aktiviere das Plugin in den Einstellungen oder installiere es neu."
   }
 }

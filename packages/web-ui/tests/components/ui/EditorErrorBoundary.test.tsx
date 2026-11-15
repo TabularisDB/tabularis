@@ -4,6 +4,11 @@ import {MemoryRouter, Routes, Route} from 'react-router-dom';
 import {EditorErrorBoundary} from '@/components/ui/EditorErrorBoundary';
 import {EditorContext} from '@/contexts/EditorContext';
 import type {EditorContextType} from '@/contexts/EditorContext';
+import {LazyConnectionEditorRoute} from '@/components/ui/LazyConnectionEditorRoute';
+
+vi.mock('@/pages/ConnectionEditorRoute', async () => {
+    throw new TypeError('Importing a module script failed.');
+});
 
 vi.mock('@/components/layout/CommandPaletteScopeBridge', () => ({
     CommandPaletteScopeBridge: ({scopeId}: {scopeId: string}) => (
@@ -75,14 +80,22 @@ const buildEditorContext = (overrides: Partial<EditorContextType> = {}): EditorC
     ...overrides,
 });
 
-const renderAtEditor = (children: React.ReactNode, ctx: EditorContextType = buildEditorContext()) =>
+const renderAtEditor = (
+    children: React.ReactNode,
+    ctx: EditorContextType = buildEditorContext(),
+    onReload?: () => void,
+) =>
     render(
         <EditorContext.Provider value={ctx}>
             <MemoryRouter initialEntries={['/editor']}>
                 <Routes>
                     <Route
                         path="/editor"
-                        element={<EditorErrorBoundary>{children}</EditorErrorBoundary>}
+                        element={
+                            <EditorErrorBoundary onReload={onReload}>
+                                {children}
+                            </EditorErrorBoundary>
+                        }
                     />
                     <Route
                         path="/connections"
@@ -114,6 +127,29 @@ describe('EditorErrorBoundary', () => {
     it('renders children when no error is thrown', () => {
         renderAtEditor(<HappyChild />);
         expect(screen.getByTestId('happy')).toBeInTheDocument();
+    });
+
+    it('catches a rejected editor route import before the editor can mount', async () => {
+        render(
+            <EditorContext.Provider value={buildEditorContext()}>
+                <MemoryRouter>
+                    <LazyConnectionEditorRoute />
+                </MemoryRouter>
+            </EditorContext.Provider>,
+        );
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+        expect(screen.getByText('editor.errorBoundary.backToConnections')).toBeInTheDocument();
+    });
+
+    it('reloads failed modules without closing the active SQL draft', () => {
+        crashMessage = 'Importing a module script failed.';
+        const reload = vi.fn();
+        const closeTab = vi.fn();
+        renderAtEditor(<Crasher />, buildEditorContext({closeTab}), reload);
+        expect(screen.queryByText('editor.errorBoundary.closeCurrentTab')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByText('editor.errorBoundary.reloadApp'));
+        expect(reload).toHaveBeenCalledOnce();
+        expect(closeTab).not.toHaveBeenCalled();
     });
 
     it('renders fallback UI with the error message when a child throws', () => {
