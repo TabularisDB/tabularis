@@ -1,0 +1,58 @@
+{
+  "id": "deepseek",
+  "name": "DeepSeek",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "DeepSeek AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "deepseek-chat",
+      "deepseek-reasoner"
+    ],
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://api.deepseek.com/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0
+          },
+          "append_path": "/chat/completions"
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://api.deepseek.com/v1",
+            "append_path": "/models"
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        }
+      ],
+      "cache_seconds": 86400
+    },
+    "auto_select_priority": 50
+  },
+  "settings": [],
+  "license": "Apache-2.0",
+  "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzRkNmJmZSIgLz48c3ZnIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmZmZmZiIgeD0iNCIgeT0iNCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0Ij48cGF0aCBkPSJNMTkuNTQgMTEuNDVjLS4zOC0yLjY2LTIuMDYtNC45LTQuNDItNS45NS0xLjE2LS41Mi0yLjQ2LS43My0zLjczLS41OC0xLjQ5LjE3LTIuODkuODQtMy45NiAxLjg4LS4zMi4zMS0uNjEuNjUtLjg2IDEuMDItLjE0LjIxLS40MS4yOS0uNjUuMi0uNTctLjIyLTEuMi0uMjgtMS44Mi0uMTQtMS4wOC4yNC0xLjkzIDEuMDktMi4xNyAyLjE3LS4yMyAxLjA1LjEyIDIuMTMuOSAyLjg2LjE3LjE2LjI1LjQuMTkuNjMtLjIxLjgyLS4yIDEuNjkuMDYgMi41Mi42NiAyLjA5IDIuNSAzLjYzIDQuNjggMy45Mi44MS4xMSAxLjYzLjA1IDIuNDEtLjE1LjIyLS4wNi40NSAwIC42Mi4xNSAxLjE1IDEuMDIgMi42NiAxLjU0IDQuMjEgMS40NCAyLjgxLS4xOCA1LjE0LTIuMjkgNS41Ni01LjA3LjE1LS45OC4wOC0xLjk3LS4xOS0yLjkyLS4wNS0uMTgtLjAyLS4zNy4wOS0uNTIuNDUtLjYzLjczLTEuMzYuNzktMi4xMy4wNi0uNzgtLjA3LTEuNTYtLjM3LTIuMjhhLjQ4LjQ4IDAgMCAwLS4zNi45NXptLTMuMjEgMy43NGMtLjY5IDEuMDgtMS44OSAxLjc1LTMuMTcgMS43Ni0uODYgMC0xLjY5LS4yOS0yLjM2LS44Mi0uMTktLjE1LS40NC0uMTgtLjY2LS4wOS0uNjUuMjctMS4zNy4zNC0yLjA3LjE4LTEuMzMtLjMtMi4zNi0xLjM3LTIuNi0yLjcxLS4xMi0uNjctLjA0LTEuMzYuMjMtMS45OC4xMS0uMjUuMDQtLjU0LS4xNy0uNzEtLjQyLS4zNS0uNjEtLjkxLS40Ny0xLjQ1LjE0LS41NS41OS0uOTcgMS4xNC0xLjA3LjM3LS4wNy43NSAwIDEuMDguMTkuMjMuMTMuNTIuMDguNjktLjEyLjY2LS43NiAxLjU3LTEuMjYgMi41OC0xLjM4IDEuNTMtLjE5IDMuMDQuNDcgMy45NCAxLjcyLjczIDEuMDEuOTQgMi4zLjU3IDMuNS0uMTkuNjMtLjUzIDEuMjEtMS4wMSAxLjY2LS4xNi4xNS0uMjEuMzktLjEyLjU5LjE3LjM5LjIxLjgyLjEyIDEuMjQtLjA5LjQtLjI4Ljc3LS41NSAxLjA4bC44My0uNTd6IiAvPjxjaXJjbGUgY3g9IjE1LjIiIGN5PSIxMS4yIiByPSIxLjEiIC8+PC9zdmc+PC9zdmc+"
+}

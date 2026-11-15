@@ -37,6 +37,7 @@ describe('AI provider icons', () => {
         'custom-openai',
         'anthropic',
         'minimax',
+        'deepseek',
         'ollama',
         'openrouter',
         'requesty',

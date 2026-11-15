@@ -76,6 +76,7 @@ async fn every_provider_generates_through_the_same_declarative_http_runtime() {
         "openrouter",
         "requesty",
         "minimax",
+        "deepseek",
         "custom-openai",
         "api-route",
         "opper",

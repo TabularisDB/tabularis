@@ -31,6 +31,7 @@ fn validates_every_provider_as_data_and_rejects_executable_extensions() {
         "openrouter",
         "requesty",
         "minimax",
+        "deepseek",
         "custom-openai",
         "api-route",
         "gemini",

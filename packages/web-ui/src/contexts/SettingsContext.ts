@@ -20,6 +20,7 @@ export type AiProvider =
     | 'ollama'
     | 'custom-openai'
     | 'minimax'
+    | 'deepseek'
     | (string & {});
 export type ERDiagramLayout = 'LR' | 'TB';
 export type WindowDecorationsMode = 'automatic' | 'alwaysShow' | 'alwaysHide';

@@ -1,6 +1,6 @@
 # Declarative AI assistants
 
-OpenAI, Anthropic, OpenRouter, Requesty, MiniMax, Ollama, OpenAI Compatible and API Route
+OpenAI, Anthropic, OpenRouter, Requesty, MiniMax, DeepSeek, Ollama, OpenAI Compatible and API Route
 are **built into Tabularis**. Their definitions and icons are embedded in the
 application binary; they remain available without a registry or an initial
 download. ChatGPT account login remains built in as well.

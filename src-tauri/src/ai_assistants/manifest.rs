@@ -238,6 +238,7 @@ pub const BUILTIN_IDS: &[&str] = &[
     "openrouter",
     "requesty",
     "minimax",
+    "deepseek",
     "custom-openai",
     "api-route",
 ];
@@ -260,6 +261,7 @@ fn builtin_manifest(id: &str) -> Option<Result<AssistantManifest, String>> {
             include_bytes!("../../../plugins/ai-assistants/packages/requesty/.tabularium")
         }
         "minimax" => include_bytes!("../../../plugins/ai-assistants/packages/minimax/.tabularium"),
+        "deepseek" => include_bytes!("../../../plugins/ai-assistants/packages/deepseek/.tabularium"),
         "custom-openai" => {
             include_bytes!("../../../plugins/ai-assistants/packages/custom-openai/.tabularium")
         }

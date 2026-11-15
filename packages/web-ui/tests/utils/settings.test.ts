@@ -334,6 +334,24 @@ describe('settings', () => {
             expect(result.model).toBe('MiniMax-M3');
         });
 
+        it('should detect deepseek when openai/anthropic/openrouter/minimax not available', () => {
+            const keyStatus: Record<AiProvider, boolean> = {
+                openai: false,
+                anthropic: false,
+                openrouter: false,
+                minimax: false,
+                deepseek: true,
+            };
+            const models: Record<string, string[]> = {
+                deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+            };
+
+            const result = detectAIProviderFromKeys(keyStatus, models);
+
+            expect(result.provider).toBe('deepseek');
+            expect(result.model).toBe('deepseek-chat');
+        });
+
         it('should return null when no keys available', () => {
             const keyStatus: Record<AiProvider, boolean> = {
                 openai: false,
