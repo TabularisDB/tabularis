@@ -128,3 +128,22 @@ export function extractSqlFromCells(cells: NotebookCell[]): string {
         .map((c) => c.content.trim())
         .join('\n\n');
 }
+
+/** Whether a cell participates in Report view (defaults to true for existing cells). */
+export function isCellIncludedInReport(cell: Pick<NotebookCell, 'includeInReport'>): boolean {
+    return cell.includeInReport !== false;
+}
+
+/**
+ * Whether a cell's displayed output is outdated relative to its current SQL
+ * or notebook parameters. Returns false while loading or when there is no output.
+ */
+export function isCellOutputOutdated(
+    cell: Pick<NotebookCell, 'content' | 'result' | 'error' | 'isLoading' | 'history'>,
+    paramsOutdated?: boolean,
+): boolean {
+    if (cell.isLoading || (!cell.result && !cell.error)) return false;
+    if (paramsOutdated) return true;
+    const lastEntry = cell.history?.[0];
+    return !!lastEntry && lastEntry.query !== cell.content.trim();
+}

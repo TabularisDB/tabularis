@@ -5,8 +5,9 @@ import type {NotebookCell} from '@/types/notebook';
 
 interface MarkdownCellProps {
     cell: NotebookCell;
-    onContentChange: (content: string) => void;
-    onTogglePreview: () => void;
+    onContentChange?: (content: string) => void;
+    onTogglePreview?: () => void;
+    readOnly?: boolean;
 }
 
 function MarkdownPreview({content}: {content: string}) {
@@ -71,8 +72,18 @@ function MarkdownEditor({
     );
 }
 
-export function MarkdownCell({cell, onContentChange, onTogglePreview}: MarkdownCellProps) {
+export function MarkdownCell({
+    cell,
+    onContentChange,
+    onTogglePreview,
+    readOnly = false,
+}: MarkdownCellProps) {
     const {t} = useTranslation();
+
+    if (readOnly) {
+        if (!cell.content.trim()) return null;
+        return <MarkdownPreview content={cell.content} />;
+    }
 
     if (cell.isPreview) {
         if (!cell.content.trim()) {
@@ -96,7 +107,7 @@ export function MarkdownCell({cell, onContentChange, onTogglePreview}: MarkdownC
     return (
         <MarkdownEditor
             content={cell.content}
-            onContentChange={onContentChange}
+            onContentChange={(content) => onContentChange?.(content)}
             placeholder={t('editor.notebook.markdownPlaceholder')}
         />
     );

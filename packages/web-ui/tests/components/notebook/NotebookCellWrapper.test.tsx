@@ -404,3 +404,25 @@ describe('NotebookCellWrapper duplicate action', () => {
         expect(screen.queryByRole('button', {name: label})).not.toBeInTheDocument();
     });
 });
+
+describe('NotebookCellWrapper report inclusion toggle', () => {
+    it('defaults to included and toggles includeInReport via onUpdate', () => {
+        const props = makeProps();
+        const {rerender} = render(<NotebookCellWrapper {...props} />);
+
+        const toggle = screen.getByRole('button', {name: 'editor.notebook.includedInReport'});
+        expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+        fireEvent.click(toggle);
+        expect(props.onUpdate).toHaveBeenCalledWith({includeInReport: false});
+
+        rerender(<NotebookCellWrapper {...props} cell={{...props.cell, includeInReport: false}} />);
+        const excludedToggle = screen.getByRole('button', {
+            name: 'editor.notebook.excludedFromReport',
+        });
+        expect(excludedToggle).toHaveAttribute('aria-pressed', 'false');
+
+        fireEvent.click(excludedToggle);
+        expect(props.onUpdate).toHaveBeenCalledWith({includeInReport: true});
+    });
+});

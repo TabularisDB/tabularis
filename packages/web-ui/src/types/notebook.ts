@@ -2,6 +2,8 @@ import type {QueryResult} from './editor';
 
 export type NotebookCellType = 'sql' | 'markdown';
 
+export type NotebookViewMode = 'edit' | 'report';
+
 export type ChartType = 'bar' | 'line' | 'pie';
 
 export interface CellChartConfig {
@@ -62,6 +64,7 @@ export interface NotebookCell {
     kpiConfig?: CellKpiConfig | null; // SQL only: KPI card configuration
     isKpiVisible?: boolean; // SQL only: KPI section visible (defaults to whether kpiConfig is set)
     isQueryPlanVisible?: boolean; // SQL only: query plan (EXPLAIN) section visible, off by default
+    includeInReport?: boolean; // Whether cell participates in Report view (defaults to true)
     history?: CellExecutionEntry[]; // Last N executions
 }
 
@@ -91,6 +94,7 @@ export interface NotebookFile {
         kpiConfig?: CellKpiConfig | null;
         isKpiVisible?: boolean;
         isQueryPlanVisible?: boolean;
+        includeInReport?: boolean;
     }>;
     params?: NotebookParam[];
     stopOnError?: boolean;

@@ -119,7 +119,8 @@ function ChartTypeSelector({config, result, onConfigChange}: ChartTypeSelectorPr
 interface CellChartProps {
     result: QueryResult;
     config: CellChartConfig;
-    onConfigChange: (config: CellChartConfig) => void;
+    onConfigChange?: (config: CellChartConfig) => void;
+    readOnly?: boolean;
 }
 
 interface ChartViewProps {
@@ -203,7 +204,7 @@ function PieChartView({data, valueColumns, palette}: ChartViewProps) {
     );
 }
 
-export function CellChart({result, config, onConfigChange}: CellChartProps) {
+export function CellChart({result, config, onConfigChange, readOnly = false}: CellChartProps) {
     const palette = useChartPalette();
     if (!canRenderChart(result)) return null;
 
@@ -212,7 +213,13 @@ export function CellChart({result, config, onConfigChange}: CellChartProps) {
 
     return (
         <div className="border-t border-default">
-            <ChartTypeSelector config={config} result={result} onConfigChange={onConfigChange} />
+            {!readOnly && onConfigChange && (
+                <ChartTypeSelector
+                    config={config}
+                    result={result}
+                    onConfigChange={onConfigChange}
+                />
+            )}
             <div className="h-[250px] p-2">
                 {config.type === 'bar' && (
                     <BarChartView

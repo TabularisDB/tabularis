@@ -445,6 +445,31 @@ describe('notebookFile utils', () => {
             expect(result.cells[0].schema).toBe('production_db');
         });
 
+        it('should persist includeInReport when false and default existing cells to included', () => {
+            const cells = makeCells();
+            cells[0].includeInReport = false;
+            cells[1].includeInReport = true;
+
+            const serialized = serializeNotebook('Report', cells);
+            expect(serialized.cells[0].includeInReport).toBe(false);
+            expect(serialized.cells[1]).not.toHaveProperty('includeInReport');
+
+            const restored = deserializeNotebook(JSON.stringify(serialized));
+            expect(restored.cells[0].includeInReport).toBe(false);
+            expect(restored.cells[1].includeInReport).toBeUndefined();
+
+            // Legacy cells without includeInReport default to included
+            const legacy = deserializeNotebook(
+                JSON.stringify({
+                    version: 1,
+                    title: 'Legacy',
+                    createdAt: '2025-01-01',
+                    cells: [{type: 'sql', content: 'SELECT 1'}],
+                }),
+            );
+            expect(legacy.cells[0].includeInReport).toBeUndefined();
+        });
+
         it('should handle notebook without params', () => {
             const serialized = serializeNotebook('Bare', makeCells());
             const json = JSON.stringify(serialized);
