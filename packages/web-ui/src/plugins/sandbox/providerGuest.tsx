@@ -198,24 +198,89 @@ export function createProviderGuestApi(
         const id = useId();
         const element = useRef<HTMLDivElement>(null);
         const eventRef = useRef(onEvent);
+        const edits = useRef(new Map<string, {generation: number; revision: number}>());
+        const source = useRef({
+            initialized: false,
+            value: '',
+            generation: 0,
+            revision: 0,
+            newestGeneration: 0,
+        });
         const dataKey = JSON.stringify(data);
         useLayoutEffect(() => {
             eventRef.current = onEvent;
         }, [onEvent]);
         useEffect(() => {
-            nativeEvents.set(id, (event, value) => eventRef.current(event, value));
+            nativeEvents.set(id, (event, value) => {
+                if (
+                    kind === 'codeEditor' &&
+                    event === 'change' &&
+                    value &&
+                    typeof value === 'object' &&
+                    'value' in value &&
+                    typeof value.value === 'string' &&
+                    'generation' in value &&
+                    typeof value.generation === 'number' &&
+                    Number.isSafeInteger(value.generation) &&
+                    value.generation >= 0 &&
+                    'revision' in value &&
+                    typeof value.revision === 'number' &&
+                    Number.isSafeInteger(value.revision) &&
+                    value.revision >= 0
+                ) {
+                    if (value.generation < source.current.newestGeneration) return;
+                    edits.current.set(value.value, {
+                        generation: value.generation,
+                        revision: value.revision,
+                    });
+                    eventRef.current(event, value.value);
+                } else eventRef.current(event, value);
+            });
             return () => {
                 nativeEvents.delete(id);
                 void call('ui.native.remove', id).catch(() => undefined);
             };
-        }, [id]);
+        }, [id, kind]);
         useLayoutEffect(() => {
             if (!element.current) return;
             const bounds = getPluginNativeBounds(element.current);
+            const props = JSON.parse(dataKey) as Record<string, unknown>;
+            let editorState;
+            if (kind === 'codeEditor' && typeof props.value === 'string') {
+                const echo = edits.current.get(props.value);
+                if (echo) {
+                    source.current.generation = echo.generation;
+                    source.current.revision = echo.revision;
+                    // Older echoes already carry their revision on the wire; forget settled
+                    // values so an intentional reset to an earlier source remains possible.
+                    for (const [value, edit] of edits.current) {
+                        if (
+                            edit.generation < echo.generation ||
+                            (edit.generation === echo.generation && edit.revision <= echo.revision)
+                        )
+                            edits.current.delete(value);
+                    }
+                } else if (source.current.initialized && source.current.value !== props.value) {
+                    source.current.generation = ++source.current.newestGeneration;
+                    source.current.revision = 0;
+                    edits.current.clear();
+                }
+                source.current.initialized = true;
+                source.current.value = props.value;
+                source.current.newestGeneration = Math.max(
+                    source.current.newestGeneration,
+                    source.current.generation,
+                );
+                editorState = {
+                    generation: source.current.generation,
+                    revision: source.current.revision,
+                };
+            }
             void call('ui.native.set', {
                 id,
                 kind,
-                props: JSON.parse(dataKey),
+                props,
+                ...(editorState ? {editorState} : {}),
                 ...bounds,
             }).catch(report);
         }, [dataKey, id, kind]);

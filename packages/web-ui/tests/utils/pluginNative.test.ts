@@ -63,4 +63,29 @@ describe('sandbox native component protocol', () => {
         expect(() => parsePluginNativeRect({...rect, height: -1})).toThrow('size');
         expect(() => parsePluginNativeRect({...rect, left: 1_000_000})).toThrow('bounds');
     });
+    it('accepts editor acknowledgements and rejects invalid revision metadata', () => {
+        const component = {
+            id: 'editor',
+            kind: 'codeEditor',
+            rect,
+            props: {value: 'source'},
+            editorState: {generation: 2, revision: 10},
+        };
+        expect(parsePluginNativeComponent(component, 'own').editorState).toEqual({
+            generation: 2,
+            revision: 10,
+        });
+        expect(() =>
+            parsePluginNativeComponent(
+                {...component, editorState: {generation: 0, revision: -1}},
+                'own',
+            ),
+        ).toThrow('revision');
+        expect(() =>
+            parsePluginNativeComponent(
+                {...component, editorState: {generation: 1, revision: Number.NaN}},
+                'own',
+            ),
+        ).toThrow('revision');
+    });
 });

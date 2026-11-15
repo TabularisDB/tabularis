@@ -695,19 +695,18 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     pointerEvents: 'auto',
                 }}
             />
-            {nativeComponents
-                .filter((component) => Boolean(component.modal) === expanded)
-                .map((component) => (
-                    <NativePluginComponent
-                        key={component.id}
-                        component={component}
-                        emit={(id, event, value) => {
-                            void rpcRef.current
-                                ?.call('ui.native.event', [id, event, value])
-                                .catch(() => undefined);
-                        }}
-                    />
-                ))}
+            {nativeComponents.map((component) => (
+                <NativePluginComponent
+                    key={component.id}
+                    component={component}
+                    hidden={Boolean(component.modal) !== expanded}
+                    emit={(id, event, value) => {
+                        void rpcRef.current
+                            ?.call('ui.native.event', [id, event, value])
+                            .catch(() => undefined);
+                    }}
+                />
+            ))}
         </div>
     );
     return (

@@ -100,7 +100,13 @@ describe('isolated provider guest facade', () => {
         const message = call.mock.calls.find(([method]) => method === 'ui.native.set')?.[1] as {
             id: string;
         };
-        act(() => bridge.nativeEvent(message.id, 'change', 'const value = 2;'));
+        act(() =>
+            bridge.nativeEvent(message.id, 'change', {
+                value: 'const value = 2;',
+                generation: 0,
+                revision: 1,
+            }),
+        );
         expect(onChange).toHaveBeenCalledWith('const value = 2;');
         act(() =>
             bridge.nativeEvent(message.id, 'diagnostics', [
@@ -110,6 +116,53 @@ describe('isolated provider guest facade', () => {
         expect(onDiagnostics).toHaveBeenCalledOnce();
         unmount();
         expect(call).toHaveBeenCalledWith('ui.native.remove', message.id);
+    });
+    it('acknowledges host edits while assigning new generations to intentional source replacements', () => {
+        const call = vi.fn().mockResolvedValue(null);
+        const bridge = createProviderGuestApi('provider', () => context, call);
+        const onChange = vi.fn();
+        const view = (value: string) => (
+            <bridge.api.PluginCodeEditor value={value} onChange={onChange} />
+        );
+        const {rerender} = render(view(''));
+        const first = call.mock.calls.find(([method]) => method === 'ui.native.set')?.[1] as {
+            id: string;
+        };
+        act(() => {
+            bridge.nativeEvent(first.id, 'change', {value: 'c', generation: 0, revision: 1});
+            bridge.nativeEvent(first.id, 'change', {value: 'const', generation: 0, revision: 2});
+        });
+        rerender(view('const'));
+        expect(call).toHaveBeenCalledWith(
+            'ui.native.set',
+            expect.objectContaining({
+                props: {value: 'const'},
+                editorState: {generation: 0, revision: 2},
+            }),
+        );
+        // A deliberate reset to an intermediate typed value is a replacement, not an old echo.
+        rerender(view('c'));
+        expect(call).toHaveBeenLastCalledWith(
+            'ui.native.set',
+            expect.objectContaining({
+                props: {value: 'c'},
+                editorState: {generation: 1, revision: 0},
+            }),
+        );
+        act(() =>
+            bridge.nativeEvent(first.id, 'change', {
+                value: 'older host edit',
+                generation: 0,
+                revision: 3,
+            }),
+        );
+        expect(onChange).not.toHaveBeenCalledWith('older host edit');
+        rerender(view('new document'));
+        expect(call).toHaveBeenLastCalledWith(
+            'ui.native.set',
+            expect.objectContaining({editorState: {generation: 2, revision: 0}}),
+        );
+        expect(onChange).toHaveBeenCalledWith('const');
     });
     it('subscribes once per event name, uses the latest listener and rejects cross-plugin publishers', async () => {
         const call = vi.fn().mockResolvedValue(null);

@@ -46,6 +46,19 @@ export function parsePluginNativeComponent(
     const id = providerString(input.id, 'native component ID', 128);
     const props = providerRecord(input.props);
     const kind = input.kind;
+    let editorState: PluginNativeComponent['editorState'];
+    if (input.editorState !== undefined) {
+        const state = providerRecord(input.editorState);
+        if (
+            kind !== 'codeEditor' ||
+            !Number.isSafeInteger(state.generation) ||
+            (state.generation as number) < 0 ||
+            !Number.isSafeInteger(state.revision) ||
+            (state.revision as number) < 0
+        )
+            throw new Error('Invalid native editor revision');
+        editorState = {generation: state.generation as number, revision: state.revision as number};
+    }
     if (input.modal !== undefined && typeof input.modal !== 'boolean')
         throw new Error('Invalid native component layer');
     const allowed =
@@ -98,5 +111,6 @@ export function parsePluginNativeComponent(
         rect: parsePluginNativeRect(input.rect),
         props,
         modal: input.modal === true,
+        ...(editorState ? {editorState} : {}),
     };
 }

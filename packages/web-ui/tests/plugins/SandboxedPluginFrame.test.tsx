@@ -253,7 +253,7 @@ describe('SandboxedPluginFrame lifecycle', () => {
         expect(mocks.call).toHaveBeenCalledWith('ui.native.event', [
             'source',
             'change',
-            'const value = 2;',
+            {value: 'const value = 2;', generation: 0, revision: 1},
         ]);
         act(() => handlers['ui.modal'](true));
         expect(screen.queryByRole('textbox', {name: 'Function source'})).not.toBeInTheDocument();
@@ -276,7 +276,7 @@ describe('SandboxedPluginFrame lifecycle', () => {
             clipPath: 'inset(20px 0px 30px 0px)',
         });
         act(() => handlers['ui.modal'](false));
-        expect(screen.getByRole('textbox', {name: 'Function source'})).toBeInTheDocument();
+        expect(screen.getByRole('textbox', {name: 'Function source'})).toBe(source);
         expect(screen.queryByRole('textbox', {name: 'Modal source'})).not.toBeInTheDocument();
         expect(() =>
             handlers['ui.native.set']({

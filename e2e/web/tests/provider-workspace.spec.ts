@@ -3,8 +3,33 @@ import {rpc} from './rpc';
 
 test('runs provider setup, connection RPC, workspace and native components through the sandbox', async ({
     page,
+    browserName,
 }) => {
     test.setTimeout(90_000);
+    if (browserName === 'chromium') {
+        const session = await page.context().newCDPSession(page);
+        await session.send('Emulation.setCPUThrottlingRate', {rate: 4});
+    }
+    // Exercise stale/reordered guest echoes without slowing the user's keystrokes.
+    await page.addInitScript(() => {
+        const original = MessagePort.prototype.postMessage;
+        let sequence = 0;
+        MessagePort.prototype.postMessage = function (
+            message: unknown,
+            transfer?: Transferable[] | StructuredSerializeOptions,
+        ) {
+            const send = () =>
+                original.call(this, message, Array.isArray(transfer) ? {transfer} : transfer);
+            if (
+                message &&
+                typeof message === 'object' &&
+                'method' in message &&
+                message.method === 'ui.native.set'
+            ) {
+                window.setTimeout(send, [30, 5, 60][sequence++ % 3]);
+            } else send();
+        };
+    });
     await page.goto('/connections');
     const setup = page.frameLocator('iframe[title="Plugin e2e-provider"]');
     await setup.getByTestId('provider-prepare').click();
@@ -22,7 +47,9 @@ test('runs provider setup, connection RPC, workspace and native components throu
     try {
         await page.reload();
         await page.getByText('Sandbox provider fixture', {exact: true}).dblclick();
-        await expect(page).toHaveURL(new RegExp(`/connections/${connection.id}/editor`));
+        await expect(page).toHaveURL(new RegExp(`/connections/${connection.id}/editor`), {
+            timeout: 15_000,
+        });
         const service = page.locator('iframe[title="Plugin e2e-provider"]').first().contentFrame();
         await service.getByTestId('provider-call').click();
         await expect(service.getByTestId('provider-result')).toContainText(connection.id);
@@ -38,7 +65,11 @@ test('runs provider setup, connection RPC, workspace and native components throu
         const editor = page.getByRole('region', {name: 'Provider source editor'});
         await expect(editor.locator('.monaco-editor')).toBeVisible();
         await editor.locator('.view-lines').click();
-        await page.keyboard.press('ControlOrMeta+A');
+        // Monaco follows the emulated browser platform (Desktop Safari advertises macOS).
+        const selectAll = await page.evaluate(() =>
+            navigator.userAgent.includes('Macintosh') ? 'Meta+A' : 'Control+A',
+        );
+        await page.keyboard.press(selectAll);
         await page.keyboard.type('const revision = 2;');
         await expect(workspace.getByTestId('provider-source')).toHaveText('const revision = 2;');
         await workspace.getByTestId('provider-publish').click();
