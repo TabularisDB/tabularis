@@ -13,6 +13,36 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "ui_extensions": {
+      "type": "array",
+      "description": "Optional plugin UI contributions. Provider onboarding inside Add Connection uses connection-modal.setup (runtime API 0.2.2): declaring it replaces generic SQL fields even if the UI is unavailable; it supplies driver, connectionId, isEditing, onConnectionCreated and onClose and renders only the owning plugin. New connections have no host Save/Test actions; editing retains host name/environment and Appearance/Privacy metadata with Save. Optional global actions use connections.actions; service sections belong in explorer.services; compact connection actions use explorer.connection.actions; persistent main editor workspaces use editor.workspace.content; sidebar.footer.actions is the narrow icon rail.",
+      "items": {
+        "type": "object",
+        "required": [
+          "slot",
+          "module"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "slot": {
+            "type": "string"
+          },
+          "module": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "driver": {
+            "type": "string"
+          },
+          "api_version": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9-]+$",

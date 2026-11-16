@@ -1,3 +1,20 @@
+/** An absent preference enables every installed external plugin, including UI-only packages. */
+export function withEnabledExternalDriver(
+    active: readonly string[] | undefined,
+    installed: readonly {id: string; is_builtin?: boolean}[],
+    id: string,
+): string[] {
+    return Array.from(
+        new Set([
+            ...(active ??
+                installed
+                    .filter((plugin) => plugin.is_builtin !== true)
+                    .map((plugin) => plugin.id)),
+            id,
+        ]),
+    );
+}
+
 export function parseAuthor(author: string): {name: string; url?: string} {
     const match = author.match(/^(.+?)\s*<(.+?)>$/);
     if (match) {

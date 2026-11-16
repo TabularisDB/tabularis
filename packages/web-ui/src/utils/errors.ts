@@ -19,6 +19,13 @@ export function toErrorMessage(err: unknown): string {
     return String(err);
 }
 
+/** A rejected lazy import stays rejected until the document loads fresh modules. */
+export function isModuleLoadError(error: unknown): boolean {
+    return /importing a module script failed|failed to fetch dynamically imported module|error loading dynamically imported module/i.test(
+        toErrorMessage(error),
+    );
+}
+
 /**
  * Separator used when composing a user-facing error banner as
  * `${summary}\n\nError: ${technicalDetail}`.

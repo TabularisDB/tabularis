@@ -1409,7 +1409,10 @@
       "databaseBackupErrorInvalidRetention": "Retention must be at least 1 backup.",
       "databaseBackupErrorInvalidTime": "Daily time must be in HH:mm format.",
       "databaseBackupErrorUnsupportedDriver": "The selected connection uses a driver that does not support database dumps."
-    }
+    },
+    "interfaceScale": "Interface scale",
+    "interfaceScaleDesc": "Resize the entire desktop interface, including tabs, icons, dialogs and editors. Try 125% on a large display.",
+    "interfaceScaleBrowser": "Use your browser’s zoom controls to resize the web interface."
   },
   "update": {
     "badges": {
@@ -2008,7 +2011,10 @@
       "analyzeWithAi": "Analyze with AI",
       "aiAnalyzing": "Analyzing…",
       "aiAnalysisTitle": "AI analysis",
-      "aiAnalysisFailed": "The AI analysis failed. Copy the report or create an issue instead."
+      "aiAnalysisFailed": "The AI analysis failed. Copy the report or create an issue instead.",
+      "loadTitle": "The editor could not be loaded",
+      "loadDescription": "Some editor files could not be loaded. Reload the app to fetch them again. Your saved tabs and drafts are kept.",
+      "reloadApp": "Reload app"
     },
     "newVisualQuery": "New Visual Query",
     "activeDatabase": "Active database",
@@ -3637,5 +3643,8 @@
     "copySummary": "Copy summary",
     "copied": "Summary copied, with literal values hidden.",
     "copyFailed": "Could not copy the summary."
+  },
+  "pluginWorkspace": {
+    "unavailable": "This workspace is unavailable. Enable or reinstall its plugin in Settings."
   }
 }

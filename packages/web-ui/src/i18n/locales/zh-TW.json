@@ -1467,6 +1467,13 @@
         "configError": "請在設定中設定 AI 提供者並輸入提示詞。"
     },
     "newConnection": {
+        "socketPath": "Socket 路徑（選填）",
+        "socketPathHint": "透過此電腦上的 Unix socket 連線，取代主機與連接埠。",
+        "socketPathActive": "此連線使用這個 socket，取代主機與連接埠。資料庫 TLS 已關閉，因為本機 socket 流量不會離開此電腦。",
+        "socketPathForwardHint": "設定此路徑以存取僅在 Unix socket 上接聽的資料庫。",
+        "socketPathForwardActive": "SSH 伺服器會連線至此 socket，取代主機與連接埠。資料庫 socket 無法協商 TLS，因此已關閉 TLS；SSH 通道仍會加密整段連線。",
+        "socketPathNotAbsolute": "請輸入連線至 socket 的電腦上所使用的絕對路徑。",
+        "socketPathDirectory": "請指向 socket 檔案本身，而非所在目錄。",
         "ssmForwardHint": "解析為 {{document}}：通過託管節點轉發到 {{host}}:{{port}}。在“常規”選項卡中修改目標位址；迴環位址表示節點自身。",
         "ssmIamHint": "需要對目標和解析出的文件具有 ssm:StartSession 權限。",
         "ssmNotAvailable": "此驅動程式不支援 AWS SSM。",

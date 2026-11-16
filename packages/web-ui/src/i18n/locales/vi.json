@@ -1457,6 +1457,13 @@
     "configError": "Hãy cấu hình nhà cung cấp AI trong Cài đặt và nhập prompt."
   },
   "newConnection": {
+    "socketPath": "Đường dẫn socket (tùy chọn)",
+    "socketPathHint": "Kết nối qua Unix socket trên máy này thay cho máy chủ và cổng.",
+    "socketPathActive": "Kết nối dùng socket này thay cho máy chủ và cổng. TLS cơ sở dữ liệu bị tắt vì lưu lượng socket cục bộ không rời khỏi máy.",
+    "socketPathForwardHint": "Đặt đường dẫn để truy cập cơ sở dữ liệu chỉ lắng nghe trên Unix socket.",
+    "socketPathForwardActive": "Máy chủ SSH kết nối tới socket này thay cho máy chủ và cổng. Socket cơ sở dữ liệu không hỗ trợ TLS nên TLS bị tắt; đường hầm SSH vẫn mã hóa toàn bộ kết nối.",
+    "socketPathNotAbsolute": "Nhập đường dẫn tuyệt đối trên máy kết nối tới socket.",
+    "socketPathDirectory": "Trỏ tới chính tệp socket, không phải thư mục chứa nó.",
     "ssmForwardHint": "Ánh xạ tới {{document}} - chuyển tiếp tới {{host}}:{{port}} qua managed node. Đổi địa chỉ đích ở tab Chung; host loopback nghĩa là chính node đó.",
     "ssmIamHint": "Cần quyền ssm:StartSession trên node đích và trên document đã ánh xạ.",
     "ssmNotAvailable": "Driver này không hỗ trợ AWS SSM.",
@@ -3569,5 +3576,8 @@
     "copySummary": "Sao chép tóm tắt",
     "copied": "Đã sao chép tóm tắt, các giá trị literal được ẩn.",
     "copyFailed": "Không sao chép được tóm tắt."
+  },
+  "pluginWorkspace": {
+    "unavailable": "Không thể sử dụng không gian làm việc này. Hãy bật hoặc cài đặt lại plugin trong Cài đặt."
   }
 }

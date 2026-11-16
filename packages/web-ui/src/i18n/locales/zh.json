@@ -3441,5 +3441,8 @@
     "copySummary": "复制摘要",
     "copied": "已复制摘要，字面值已隐藏。",
     "copyFailed": "无法复制摘要。"
+  },
+  "pluginWorkspace": {
+    "unavailable": "此工作区不可用。请在设置中启用或重新安装其插件。"
   }
 }

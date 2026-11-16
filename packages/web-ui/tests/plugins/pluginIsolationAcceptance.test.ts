@@ -139,7 +139,9 @@ describe('plugin isolation acceptance contract', () => {
             'usePluginTheme',
             'openUrl',
         ]) {
-            expect(guest).toContain(api);
+            expect(
+                guest + projectFile('packages/web-ui/src/plugins/sandbox/guestHooks.ts'),
+            ).toContain(api);
             expect(apiTypes).toContain(api);
         }
         expect(guest).toContain('__TABULARIS_API__');
@@ -189,8 +191,8 @@ describe('plugin isolation acceptance contract', () => {
         expect(explainDesign).toContain('migration');
         expect(guide).toContain('UI_SANDBOX_DESIGN.md');
         expect(apiReadme).toContain('has no direct Tauri `invoke` access');
-        expect(apiVersion).toMatch(/API_VERSION = ["']0\.4\.0["']/);
-        expect(apiVersion).toMatch(/MIN_HOST_VERSION = ["']0\.4\.0["']/);
+        expect(apiVersion).toMatch(/API_VERSION = ["']0\.4\.1["']/);
+        expect(apiVersion).toMatch(/MIN_HOST_VERSION = ["']0\.4\.1["']/);
         expect(uiDesign).toContain('database-enforced read-only context');
         expect(uiDesign).toContain('Related connection-export hardening');
         expect(uiDesign).toContain('exchangeGoogleOAuthToken');
