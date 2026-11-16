@@ -205,14 +205,17 @@ pub struct PluginReadme {
 }
 
 pub fn get_current_platform() -> String {
-    let os = std::env::consts::OS;
-    let arch = std::env::consts::ARCH;
+    platform_key(std::env::consts::OS, std::env::consts::ARCH)
+}
+
+fn platform_key(os: &str, arch: &str) -> String {
     match (os, arch) {
         ("linux", "x86_64") => "linux-x64".to_string(),
         ("linux", "aarch64") => "linux-arm64".to_string(),
         ("macos", "aarch64") => "darwin-arm64".to_string(),
         ("macos", "x86_64") => "darwin-x64".to_string(),
         ("windows", "x86_64") => "win-x64".to_string(),
+        ("windows", "aarch64") => "win-arm64".to_string(),
         _ => format!("{}-{}", os, arch),
     }
 }
@@ -272,6 +275,25 @@ pub async fn resolve_tabularium_asset(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn platform_keys_match_native_release_assets() {
+        for (os, arch, expected) in [
+            ("linux", "x86_64", "linux-x64"),
+            ("linux", "aarch64", "linux-arm64"),
+            ("macos", "x86_64", "darwin-x64"),
+            ("macos", "aarch64", "darwin-arm64"),
+            ("windows", "x86_64", "win-x64"),
+            ("windows", "aarch64", "win-arm64"),
+        ] {
+            assert_eq!(platform_key(os, arch), expected, "{os}/{arch}");
+        }
+    }
+
+    #[test]
+    fn unknown_platform_keys_retain_os_and_architecture() {
+        assert_eq!(platform_key("freebsd", "x86_64"), "freebsd-x86_64");
+    }
 
     #[test]
     fn classify_not_installed_is_install() {

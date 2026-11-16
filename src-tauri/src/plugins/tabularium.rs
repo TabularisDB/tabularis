@@ -37,6 +37,7 @@ fn normalise_platform_key(raw: &str) -> String {
         "darwin-amd64" | "darwin-x86_64" | "macos-x64" => "darwin-x64".to_string(),
         "darwin-aarch64" | "macos-arm64" => "darwin-arm64".to_string(),
         "windows-x64" | "win-amd64" | "windows-amd64" => "win-x64".to_string(),
+        "windows-arm64" | "windows-aarch64" | "win-aarch64" => "win-arm64".to_string(),
         _ => raw.to_string(),
     }
 }
@@ -660,6 +661,10 @@ mod tests {
         assert_eq!(normalise_platform_key("linux-aarch64"), "linux-arm64");
         assert_eq!(normalise_platform_key("darwin-aarch64"), "darwin-arm64");
         assert_eq!(normalise_platform_key("windows-x64"), "win-x64");
+        assert_eq!(normalise_platform_key("win-arm64"), "win-arm64");
+        assert_eq!(normalise_platform_key("windows-arm64"), "win-arm64");
+        assert_eq!(normalise_platform_key("windows-aarch64"), "win-arm64");
+        assert_eq!(normalise_platform_key("win-aarch64"), "win-arm64");
         assert_eq!(normalise_platform_key("universal"), "universal");
         assert_eq!(normalise_platform_key("freebsd-x64"), "freebsd-x64");
     }
