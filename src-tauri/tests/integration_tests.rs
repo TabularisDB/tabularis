@@ -785,3 +785,83 @@ async fn test_postgres_foreign_keys_via_pg_catalog() {
         let _ = postgres::execute_query(&params, sql, None, 1, None).await;
     }
 }
+
+/// Live Unix socket regression test for PostgreSQL.
+/// Verifies that test_connection, pool checkout, query execution, and startup-script preflight
+/// succeed over a Unix domain socket without TLS / InvalidDnsNameError.
+#[cfg(unix)]
+#[tokio::test]
+#[ignore]
+async fn test_postgres_unix_socket_live_regression() {
+    let socket_path = std::env::var("PG_UNIX_SOCKET").unwrap_or_else(|_| {
+        let candidates = [
+            "/var/run/postgresql/.s.PGSQL.5432",
+            "/tmp/.s.PGSQL.5432",
+            "/tmp/.s.PGSQL.54320",
+        ];
+        for candidate in candidates {
+            if std::path::Path::new(candidate).exists() {
+                return candidate.to_string();
+            }
+        }
+        String::new()
+    });
+
+    if socket_path.is_empty() {
+        eprintln!("SKIPPING: No PG_UNIX_SOCKET or standard .s.PGSQL socket file found");
+        return;
+    }
+
+    let mut params = get_postgres_params();
+    params.host = None;
+    params.port = None;
+    params.unix_socket_path = Some(socket_path);
+
+    // 1. Verify test_connection works over Unix socket
+    use tabularis_lib::drivers::driver_trait::DatabaseDriver;
+    let driver = tabularis_lib::drivers::postgres::PostgresDriver::new();
+    driver
+        .test_connection(&params)
+        .await
+        .expect("test_connection over Unix socket should succeed");
+
+    // 2. Verify pool creation and checkout with a query
+    let conn_id = format!("test-pg-socket-{}", uuid::Uuid::new_v4());
+    let pool = tabularis_lib::pool_manager::get_postgres_pool_with_id(&params, Some(&conn_id))
+        .await
+        .expect("get_postgres_pool_with_id over Unix socket should succeed");
+    let client = pool
+        .get()
+        .await
+        .expect("pool checkout over Unix socket must not fail with InvalidDnsNameError");
+    let row = client
+        .query_one("SELECT 1 + 1 AS sum", &[])
+        .await
+        .expect("query_one should succeed over Unix socket");
+    let sum: i32 = row.get("sum");
+    assert_eq!(sum, 2);
+
+    // 3. Verify startup script preflight and post_create hook over Unix socket
+    let mut script_params = params.clone();
+    script_params.startup_script = Some("SET client_min_messages = warning;".to_string());
+    let script_conn_id = format!("test-pg-socket-script-{}", uuid::Uuid::new_v4());
+    let script_pool = tabularis_lib::pool_manager::get_postgres_pool_with_id(
+        &script_params,
+        Some(&script_conn_id),
+    )
+    .await
+    .expect("pool with startup script over Unix socket should succeed");
+    let script_client = script_pool
+        .get()
+        .await
+        .expect("checkout with startup script over Unix socket should succeed");
+    let test_row = script_client
+        .query_one("SELECT 42", &[])
+        .await
+        .expect("query with startup script should succeed");
+    let val: i32 = test_row.get(0);
+    assert_eq!(val, 42);
+
+    tabularis_lib::pool_manager::close_pool_with_id(&params, Some(&conn_id)).await;
+    tabularis_lib::pool_manager::close_pool_with_id(&script_params, Some(&script_conn_id)).await;
+}
