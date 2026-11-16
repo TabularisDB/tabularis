@@ -24,14 +24,24 @@ export function useSshAskpass(): UseSshAskpassResult {
     const [queue, setQueue] = useState<SshAskpassRequest[]>([]);
 
     useEffect(() => {
-        const unlistenRequest = client.subscribe(REQUEST_EVENT, (payload) => {
-            setQueue((prev) => [...prev, payload]);
-        });
+        const unlistenRequest = client
+            .subscribe(REQUEST_EVENT, (payload) => {
+                setQueue((prev) => [...prev, payload]);
+            })
+            .catch((error: unknown) => {
+                console.error('Failed to subscribe to SSH askpass requests:', error);
+                return () => {};
+            });
         // The backend dismisses prompts that timed out or whose security-key
         // notification was satisfied (key touched).
-        const unlistenDismiss = client.subscribe(DISMISS_EVENT, (id) => {
-            setQueue((prev) => prev.filter((request) => request.id !== id));
-        });
+        const unlistenDismiss = client
+            .subscribe(DISMISS_EVENT, (id) => {
+                setQueue((prev) => prev.filter((request) => request.id !== id));
+            })
+            .catch((error: unknown) => {
+                console.error('Failed to subscribe to SSH askpass dismissals:', error);
+                return () => {};
+            });
         return () => {
             unlistenRequest.then((fn) => fn()).catch(() => {});
             unlistenDismiss.then((fn) => fn()).catch(() => {});
