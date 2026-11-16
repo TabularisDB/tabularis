@@ -1409,6 +1409,30 @@ async fn security_gate(
         return next.run(request).await;
     }
 
+    // A session cookie identifies the browser but never proves that this
+    // request passed through the trusted gateway. Apply this before cookie
+    // authentication, including the WebSocket upgrade path.
+    if state.security.proxy_authentication() {
+        let secret = request
+            .headers()
+            .get(PROXY_SECRET_HEADER_NAME)
+            .and_then(|v| v.to_str().ok());
+        let user = request
+            .headers()
+            .get(PROXY_USER_HEADER_NAME)
+            .and_then(|v| v.to_str().ok());
+        if !matches!((secret, user), (Some(secret), Some(user)) if state.security.verify_proxy_request(secret, user))
+        {
+            audit_event(
+                "authentication",
+                request_id,
+                None,
+                "method=proxy outcome=denied reason=gateway",
+            );
+            return status_response(StatusCode::UNAUTHORIZED);
+        }
+    }
+
     let mut issued_session = None;
     let session = session_cookie_value(request.headers().get(COOKIE))
         .and_then(|cookie_value| state.security.authenticate(cookie_value));

@@ -3538,6 +3538,8 @@ async fn rejects_new_proxy_sessions_at_capacity_without_logging_out_existing_cli
     let existing = client
         .get(format!("http://{address}/api/v1/session"))
         .header(HOST, "review.example")
+        .header("x-tabularis-proxy-secret", secret)
+        .header("x-tabularis-user", "alice")
         .header(
             COOKIE,
             format!(

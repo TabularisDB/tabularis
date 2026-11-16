@@ -191,3 +191,28 @@ Use the official images and their Compose and Helm setups described in [Running 
 5. Confirm a default remote session receives HTTP 403 for a local-administrator RPC.
 6. Confirm WebSocket events reconnect through the proxy.
 7. Confirm audit logs contain request and opaque session IDs but no configured secrets or SQL payloads.
+
+## Proxy verification on existing sessions
+
+In `--auth proxy` mode, every protected browser HTTP request and WebSocket
+upgrade must carry the configured `X-Tabularis-Proxy-Secret` and a nonempty,
+valid `X-Tabularis-User`, even when `tabularis_session` is valid. A cookie alone
+never authorizes direct upstream access. Missing/wrong gateway credentials
+return 401 without creating or extending a session. Correct gateway credentials
+reuse the cookie's session and CSRF token. The gateway must replace untrusted
+incoming identity/secret headers and recheck the external user's rights on every
+request and for active streams; the backend does not bind the forwarded identity
+to per-user grants within the shared instance.
+
+Two deliberately narrow routes retain their existing behavior: `/healthz`
+provides readiness without session or proxy credentials, and GET/HEAD under
+`/api/v1/sandbox/plugins/` use an expiring, session-bound, plugin-scoped asset
+capability. Opaque sandbox frames cannot use the session cookie; invalid tickets
+still return 401 and these routes cannot execute RPC or queries. Host validation
+continues to apply. Gateways may impose stronger access checks on these routes.
+
+The opt-in provisioning routes are outside browser session middleware and still
+require their independent bearer token, with no proxy-header or cookie fallback.
+See [machine provisioning](WEB_PROVISIONING.md). Keeping the upstream private
+remains recommended; this per-request check prevents a locally reachable backend
+from accepting a stolen/reused browser cookie as gateway authorization.
