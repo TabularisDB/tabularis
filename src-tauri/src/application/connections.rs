@@ -1,5 +1,7 @@
 #[path = "connection_secret_writes.rs"]
 mod connection_secret_writes;
+#[path = "connection_provisioning.rs"]
+pub mod provisioning;
 use connection_secret_writes::SecretWrites;
 
 use crate::models::{

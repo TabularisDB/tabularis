@@ -1751,7 +1751,7 @@ impl RpcDispatcher {
             return error;
         }
         if let Ok(values) = self.application.connection_secret_values(context).await {
-            self.access_policy.secret_redactor.replace(values);
+            self.access_policy.secret_redactor.extend(values);
         }
         error.message = self.access_policy.secret_redactor.redact(&error.message);
         if let Some(details) = error.details.as_mut() {

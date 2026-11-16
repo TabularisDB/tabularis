@@ -50,6 +50,13 @@ impl ApplicationError {
 
 #[async_trait]
 pub trait ApplicationApi: Send + Sync {
+    async fn provision_connection(
+        &self,
+        _command: super::provisioning::ProvisionCommand,
+    ) -> Result<Value, ApplicationError> {
+        Err(ApplicationError::new("provisioning_unavailable"))
+    }
+
     fn clear_session(&self, session_id: Uuid);
 
     async fn is_debug_mode(
@@ -221,6 +228,15 @@ impl RuntimeApplicationApi {
 
 #[async_trait]
 impl ApplicationApi for RuntimeApplicationApi {
+    async fn provision_connection(
+        &self,
+        command: super::provisioning::ProvisionCommand,
+    ) -> Result<Value, ApplicationError> {
+        connections::provisioning::execute(&self.runtime, &self.state, command)
+            .await
+            .map_err(ApplicationError::new)
+    }
+
     fn clear_session(&self, session_id: Uuid) {
         self.state.import_envelope_cache.clear_session(session_id);
         queries::cancel_session_queries(&self.state.query_cancellation, session_id);
@@ -312,6 +328,7 @@ impl ApplicationApi for RuntimeApplicationApi {
         context: ApplicationRequestContext,
         command: connections::ConnectionCommand,
     ) -> Result<Value, ApplicationError> {
+        let _guard = self.state.provisioning_lock.lock().await;
         connections::execute_for_session(&self.runtime, &self.state, context.session_id, command)
             .await
             .map_err(ApplicationError::new)

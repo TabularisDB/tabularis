@@ -72,6 +72,32 @@ impl SecretRedactor {
         *self.secrets.write().unwrap_or_else(|e| e.into_inner()) = Arc::new(secrets);
     }
 
+    /// Retain rotated credentials until shutdown to scrub delayed events too.
+    pub fn extend(&self, values: impl IntoIterator<Item = String>) {
+        let mut guard = self.secrets.write().unwrap_or_else(|e| e.into_inner());
+        let mut secrets = Secrets {
+            long: guard.long.clone(),
+            short: guard.short.clone(),
+        };
+        for value in values {
+            if value.is_empty() {
+                continue;
+            }
+            if is_short_secret(&value) {
+                secrets.short.push(value);
+            } else {
+                secrets.long.push(value);
+            }
+        }
+        secrets
+            .long
+            .sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
+        secrets.long.dedup();
+        secrets.short.sort();
+        secrets.short.dedup();
+        *guard = Arc::new(secrets);
+    }
+
     pub fn is_empty(&self) -> bool {
         let secrets = self.snapshot();
         secrets.long.is_empty() && secrets.short.is_empty()
