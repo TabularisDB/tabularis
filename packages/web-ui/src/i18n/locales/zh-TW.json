@@ -861,6 +861,8 @@
         "appearance_editorShowLineNumbersDesc": "在編輯器左側邊欄顯示行號。",
         "appearance_editorAcceptSuggestionOnEnter": "按 Enter 接受建議",
         "appearance_editorAcceptSuggestionOnEnterDesc": "允許使用 Enter（除了 Tab 之外）接受目前的自動完成建議。關閉時，Enter 一律插入換行。",
+        "appearance_editorVimMode": "Vim 模式",
+        "appearance_editorVimModeDesc": "在 SQL 編輯器中啟用 Vim 按鍵綁定（一般、視覺及插入模式）。",
         "queryExecution": "查詢執行",
         "runStatementUnderCursor": "執行游標所在的語句",
         "runStatementUnderCursorDesc": "當指令碼包含多條語句時，執行游標所在的語句，而不顯示查詢選擇器。選取文字可執行指定範圍。",

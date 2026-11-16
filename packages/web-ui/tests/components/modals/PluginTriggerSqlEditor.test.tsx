@@ -4,7 +4,11 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
 import type {DriverCapabilities} from '@/types/plugins';
 
-const mocks = vi.hoisted(() => ({call: vi.fn(), editorValue: undefined as string | undefined}));
+const mocks = vi.hoisted(() => ({
+    call: vi.fn(),
+    editorValue: undefined as string | undefined,
+    editorMounted: vi.fn(),
+}));
 vi.mock('@/hooks/useTabularisClient', () => ({useTabularisClient: () => mocks}));
 vi.mock('@/hooks/useDatabase', () => ({useDatabase: () => ({activeSchema: undefined})}));
 vi.mock('@/hooks/useAlert', () => ({useAlert: () => ({showAlert: vi.fn()})}));
@@ -22,6 +26,7 @@ vi.mock('@/components/ui/SqlEditorWrapper', () => ({
     }) => {
         useEffect(() => {
             onMount?.({getValue: () => mocks.editorValue ?? initialValue});
+            mocks.editorMounted();
         }, [initialValue, onMount]);
         return (
             <textarea
@@ -58,6 +63,8 @@ describe('plugin trigger SQL editor', () => {
         );
         render(<TriggerEditorModal {...props} />);
         await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(sql));
+        // A visible mock field does not imply Monaco has delivered its editor yet.
+        await waitFor(() => expect(mocks.editorMounted).toHaveBeenCalled());
         mocks.editorValue = sql.replace('NEW.N=1', 'NEW.N=99');
         fireEvent.click(screen.getByRole('button', {name: 'triggers.save'}));
         await waitFor(() => expect(props.onClose).toHaveBeenCalledOnce());

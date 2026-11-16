@@ -338,6 +338,15 @@ export function AppearanceTab() {
                                 onChange={(v) => updateSetting('editorAcceptSuggestionOnEnter', v)}
                             />
                         </SettingRow>
+                        <SettingRow
+                            label={t('settings.appearance_editorVimMode')}
+                            description={t('settings.appearance_editorVimModeDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.editorVimMode ?? false}
+                                onChange={(v) => updateSetting('editorVimMode', v)}
+                            />
+                        </SettingRow>
                     </SettingSection>
 
                     <SettingSection title={t('settings.autocomplete_title')}>
