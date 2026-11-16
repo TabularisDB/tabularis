@@ -1,8 +1,9 @@
-import {useCallback, useState} from 'react';
+import {useCallback, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import clsx from 'clsx';
 import {Check, ChevronDown} from 'lucide-react';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
+import {useClickOutside} from '@/hooks/useClickOutside';
 
 const ENVIRONMENTS = ['', 'development', 'staging', 'production'] as const;
 
@@ -31,15 +32,17 @@ interface EnvironmentSelectProps {
 export function EnvironmentSelect({value, onChange}: EnvironmentSelectProps) {
     const {t} = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
     const close = useCallback(() => setIsOpen(false), []);
     // Escape closes the menu only; the modal stays open (topmost handler wins).
     useEscapeKey(isOpen, close);
+    useClickOutside(containerRef, close, isOpen);
 
     const labelFor = (env: string) =>
         env === '' ? t('environment.none') : t(`environment.${env}`);
 
     return (
-        <div className="relative shrink-0">
+        <div ref={containerRef} className="relative shrink-0">
             <button
                 type="button"
                 onClick={() => setIsOpen((v) => !v)}
@@ -57,8 +60,6 @@ export function EnvironmentSelect({value, onChange}: EnvironmentSelectProps) {
 
             {isOpen && (
                 <>
-                    {/* Click-outside catcher; keyboard users close the menu with Escape. */}
-                    <div role="presentation" className="fixed inset-0 z-40" onClick={close} />
                     <div
                         role="listbox"
                         className="absolute right-0 top-full mt-1 z-50 min-w-[150px] bg-elevated border border-strong rounded-lg shadow-xl py-1"

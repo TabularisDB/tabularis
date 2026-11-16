@@ -885,6 +885,8 @@
     "appearance_editorShowLineNumbersDesc": "Hiển thị số dòng ở lề trình soạn thảo.",
     "appearance_editorAcceptSuggestionOnEnter": "Chấp nhận gợi ý bằng Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Cho phép dùng Enter (ngoài Tab) để chấp nhận gợi ý tự động hoàn thành. Khi tắt, Enter luôn xuống dòng.",
+    "appearance_editorVimMode": "Chế độ Vim",
+    "appearance_editorVimModeDesc": "Bật phím tắt Vim (chế độ normal, visual và insert) trong trình soạn thảo SQL.",
     "queryExecution": "Thực thi truy vấn",
     "runStatementUnderCursor": "Chạy câu lệnh tại con trỏ",
     "runStatementUnderCursorDesc": "Khi script có nhiều câu lệnh, chạy câu lệnh tại vị trí con trỏ thay vì hiện hộp chọn truy vấn. Bôi đen văn bản để chạy một đoạn cụ thể.",

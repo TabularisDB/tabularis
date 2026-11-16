@@ -6965,6 +6965,39 @@
       border-radius: 0.25rem;
     }
   }
+  .\[\&_input\]\:border-0 {
+    & input {
+      border-style: var(--tw-border-style);
+      border-width: 0px;
+    }
+  }
+  .\[\&_input\]\:bg-transparent {
+    & input {
+      background-color: transparent;
+    }
+  }
+  .\[\&_input\]\:font-mono {
+    & input {
+      font-family: var(--font-mono);
+    }
+  }
+  .\[\&_input\]\:text-xs {
+    & input {
+      font-size: var(--text-xs);
+      line-height: var(--tw-leading, var(--text-xs--line-height));
+    }
+  }
+  .\[\&_input\]\:text-primary {
+    & input {
+      color: var(--color-primary);
+    }
+  }
+  .\[\&_input\]\:outline-none {
+    & input {
+      --tw-outline-style: none;
+      outline-style: none;
+    }
+  }
   .\[\&_li\]\:mb-1 {
     & li {
       margin-bottom: calc(var(--spacing) * 1);
