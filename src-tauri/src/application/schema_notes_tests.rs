@@ -164,3 +164,28 @@ fn prompt_section_only_when_enabled() {
     set_ai_context(directory.path(), "conn", false).unwrap();
     assert!(prompt_section(directory.path(), "conn", &tables, None, Some("public")).is_none());
 }
+
+#[test]
+fn overlapping_saves_keep_every_change() {
+    let directory = tempfile::tempdir().unwrap();
+    let config_dir = directory.path().to_path_buf();
+    let handles: Vec<_> = (0..16)
+        .map(|index| {
+            let config_dir = config_dir.clone();
+            std::thread::spawn(move || {
+                set_note(
+                    &config_dir,
+                    "conn",
+                    Some(target(&format!("t{index:02}"), None)),
+                    None,
+                    format!("note {index}"),
+                )
+                .unwrap();
+            })
+        })
+        .collect();
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    assert_eq!(load(&config_dir, "conn").unwrap().notes.notes.len(), 16);
+}

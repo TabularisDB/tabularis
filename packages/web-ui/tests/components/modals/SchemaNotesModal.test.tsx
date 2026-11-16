@@ -92,6 +92,20 @@ describe('SchemaNotesModal', () => {
         expect(screen.getByText('schemaNotes.columnNotFound')).toBeInTheDocument();
     });
 
+    it('does not report documented columns as missing when only the columns fail to load', async () => {
+        backend({
+            get_columns: () => {
+                throw new Error('permission denied for table orders');
+            },
+        });
+        renderModal();
+        expect(await screen.findByDisplayValue('removed last year')).toBeInTheDocument();
+        expect(await screen.findByText('schemaNotes.metadataUnavailable')).toBeInTheDocument();
+        expect(screen.getByText('Customer orders')).toBeInTheDocument();
+        expect(screen.queryByText('schemaNotes.columnNotFound')).not.toBeInTheDocument();
+        expect(screen.queryByText('schemaNotes.tableNotFound')).not.toBeInTheDocument();
+    });
+
     it('saves only changed notes with the qualified identity', async () => {
         renderModal();
         const status = await screen.findByRole('textbox', {
