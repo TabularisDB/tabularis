@@ -167,6 +167,27 @@ pub enum ProductivityCommand {
     GetQueryHistoryInsights {
         request: QueryHistoryInsightsRequest,
     },
+    GetSchemaNotes {
+        connection_id: String,
+    },
+    /// `target: None` sets the connection-wide note.
+    SetSchemaNote {
+        connection_id: String,
+        target: Option<crate::schema_notes::SchemaNoteTarget>,
+        domain: Option<String>,
+        note: String,
+    },
+    SetSchemaNotesAiContext {
+        connection_id: String,
+        enabled: bool,
+    },
+    ImportSchemaNotes {
+        connection_id: String,
+        contents: String,
+    },
+    ExportSchemaNotes {
+        connection_id: String,
+    },
 }
 
 pub async fn execute(config_dir: &Path, command: ProductivityCommand) -> Result<Value, String> {
@@ -303,6 +324,40 @@ pub async fn execute(config_dir: &Path, command: ProductivityCommand) -> Result<
         }
         ProductivityCommand::GetQueryHistoryInsights { request } => {
             json(get_query_history_insights(config_dir, &request)?)
+        }
+        ProductivityCommand::GetSchemaNotes { connection_id } => {
+            json(super::schema_notes::load(config_dir, &connection_id)?)
+        }
+        ProductivityCommand::SetSchemaNote {
+            connection_id,
+            target,
+            domain,
+            note,
+        } => json(super::schema_notes::set_note(
+            config_dir,
+            &connection_id,
+            target,
+            domain,
+            note,
+        )?),
+        ProductivityCommand::SetSchemaNotesAiContext {
+            connection_id,
+            enabled,
+        } => json(super::schema_notes::set_ai_context(
+            config_dir,
+            &connection_id,
+            enabled,
+        )?),
+        ProductivityCommand::ImportSchemaNotes {
+            connection_id,
+            contents,
+        } => json(super::schema_notes::import(
+            config_dir,
+            &connection_id,
+            &contents,
+        )?),
+        ProductivityCommand::ExportSchemaNotes { connection_id } => {
+            json(super::schema_notes::export(config_dir, &connection_id)?)
         }
     }
 }
@@ -1013,7 +1068,7 @@ fn query_history_executions_path(
     Ok(directory.join(format!("{connection_id}.executions.json")))
 }
 
-fn validate_storage_key(value: &str) -> Result<(), String> {
+pub(crate) fn validate_storage_key(value: &str) -> Result<(), String> {
     let mut components = Path::new(value).components();
     let is_single_normal =
         matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none();
