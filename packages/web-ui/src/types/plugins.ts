@@ -103,6 +103,10 @@ export interface DriverCapabilities {
     create_foreign_keys?: boolean;
     /** true for API-based plugins that need no host/port/credentials (e.g. public REST APIs). Hides the entire connection form. */
     no_connection_required?: boolean;
+    /** Supports connecting through a Unix socket on this machine instead of host:port
+     * (shows the local Socket Path field in the connection modal).
+     * Built-in network drivers (postgres, mysql) set this; plugins opt in via their manifest. Defaults to false. */
+    unix_socket?: boolean;
     /** Whether the driver supports table and column management (CREATE TABLE, ADD/MODIFY/DROP COLUMN, DROP TABLE). Does not control index or FK operations. Defaults to true. */
     manage_tables?: boolean;
     /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */
@@ -276,7 +280,8 @@ export interface PluginManifest {
     /** Optional map of generic inferred type names to driver-specific types.
      * Used during paste/import to resolve map_inferred_type() locally. */
     type_mappings?: Record<string, string>;
-    /** UI extension declarations for slot-based rendering (Phase 2). */
+    /** UI slot declarations. External drivers declaring `connection-modal.setup`
+     * own onboarding and hide generic SQL fields even when their UI fails to load. */
     ui_extensions?: UIExtensionManifestEntry[];
     /** Deprecation notice for a built-in driver being retired in favour of a
      * plugin. Absent/undefined for non-deprecated drivers. */

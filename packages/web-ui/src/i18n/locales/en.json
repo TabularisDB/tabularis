@@ -469,7 +469,37 @@
     "movePanel": "Move panel",
     "refreshDatabaseList": "Refresh database list",
     "databaseListUpToDate": "Database list is up to date",
-    "allDatabasesRefreshed": "Databases updated: {{names}}"
+    "allDatabasesRefreshed": "Databases updated: {{names}}",
+    "historyViewList": "Entries",
+    "historyViewInsights": "Insights",
+    "historyInsightsWindowFilter": "Comparison time window",
+    "historyInsightsWindow24h": "Last 24h vs prior 24h",
+    "historyInsightsWindow7d": "Last 7d vs prior 7d",
+    "historyInsightsWindow30d": "Last 30d vs prior 30d",
+    "historyInsightsSortFilter": "Sort query shapes",
+    "historyInsightsSortRegressions": "Regressions first",
+    "historyInsightsSortTotalDuration": "Total time",
+    "historyInsightsSortAvgDuration": "Average time",
+    "historyInsightsSortCallCount": "Call count",
+    "historyInsightsRegressionsOnly": "Regressions only",
+    "historyInsightsClientObservedNote": "Client-observed timings from queries executed in Tabularis ({{executions}} in window, {{stored}}/{{maxStored}} retained).",
+    "historyInsightsMissingDurationsNote": "{{count}} execution(s) in this window have no recorded duration and are excluded from timing averages.",
+    "historyInsightsRetentionCapWarning": "History retention cap ({{maxStored}}) reached; the prior comparison window may be partially truncated.",
+    "historyInsightsEmptyWindow": "No query executions recorded in the selected comparison window.",
+    "historyInsightsNoRegressions": "No performance regressions detected in the selected window.",
+    "historyInsightsCalls": "{{count}} calls",
+    "historyInsightsAvg": "Avg {{value}}",
+    "historyInsightsTotal": "Total {{value}}",
+    "historyInsightsFailureRate": "{{rate}}% failed",
+    "historyInsightsNoTimedSamples": "No timed samples",
+    "historyInsightsPriorAvg": "Prior avg {{value}} (n={{count}})",
+    "historyInsightsPriorNoSamples": "No prior timed samples",
+    "historyInsightsStatusRegressed": "Regressed",
+    "historyInsightsStatusImproved": "Improved",
+    "historyInsightsStatusStable": "Stable",
+    "historyInsightsStatusInsufficient": "Insufficient samples (n={{current}}/{{prior}}, min {{min}})",
+    "historyInsightsContributingExecutions": "Contributing executions ({{count}})",
+    "historyInsightsBackendError": "Could not load server insights ({{error}}); showing local preview."
   },
   "mcp": {
     "title": "MCP Server Integration",
@@ -867,6 +897,8 @@
     "appearance_editorShowLineNumbersDesc": "Display line numbers in the editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Accept Suggestion with Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline.",
+    "appearance_editorVimMode": "Vim Mode",
+    "appearance_editorVimModeDesc": "Enable Vim keybindings (normal, visual and insert modes) in SQL editors. Run shortcuts such as Ctrl/Cmd+Enter keep working.",
     "queryExecution": "Query Execution",
     "runStatementUnderCursor": "Run statement under cursor",
     "runStatementUnderCursorDesc": "When a script has multiple statements, run the one under the cursor instead of showing the query picker. Select text to run a specific range.",
@@ -1413,7 +1445,10 @@
       "databaseBackupErrorInvalidRetention": "Retention must be at least 1 backup.",
       "databaseBackupErrorInvalidTime": "Daily time must be in HH:mm format.",
       "databaseBackupErrorUnsupportedDriver": "The selected connection uses a driver that does not support database dumps."
-    }
+    },
+    "interfaceScale": "Interface scale",
+    "interfaceScaleDesc": "Resize the entire desktop interface, including tabs, icons, dialogs and editors. Try 125% on a large display.",
+    "interfaceScaleBrowser": "Use your browser’s zoom controls to resize the web interface."
   },
   "update": {
     "badges": {
@@ -1541,6 +1576,13 @@
     "sshKeyPassphrase": "SSH Key Passphrase (Optional)",
     "sshKeyPassphrasePlaceholder": "Enter key passphrase if encrypted",
     "allowSshPrompt": "Allow SSH password/PIN prompt",
+    "socketPath": "Socket Path (Optional)",
+    "socketPathHint": "Connect through a Unix socket on this machine instead of Host and Port.",
+    "socketPathActive": "The connection uses this socket instead of Host and Port. Database TLS is turned off — local socket traffic never leaves this machine.",
+    "socketPathForwardHint": "Set this to reach a database that only listens on a Unix socket.",
+    "socketPathForwardActive": "The SSH server connects to this socket instead of Host and Port. A database on a socket cannot negotiate TLS, so it is turned off; the SSH tunnel still encrypts the whole path.",
+    "socketPathNotAbsolute": "Enter an absolute path, as it appears on the machine that connects to the socket.",
+    "socketPathDirectory": "Point at the socket file itself, not the directory holding it.",
     "saveKeychain": "Save passwords in Keychain",
     "secretsStoredInPlainText": "Passwords will be stored in plain text in the connection file.",
     "testConnection": "Test Connection",
@@ -2005,7 +2047,10 @@
       "analyzeWithAi": "Analyze with AI",
       "aiAnalyzing": "Analyzing…",
       "aiAnalysisTitle": "AI analysis",
-      "aiAnalysisFailed": "The AI analysis failed. Copy the report or create an issue instead."
+      "aiAnalysisFailed": "The AI analysis failed. Copy the report or create an issue instead.",
+      "loadTitle": "The editor could not be loaded",
+      "loadDescription": "Some editor files could not be loaded. Reload the app to fetch them again. Your saved tabs and drafts are kept.",
+      "reloadApp": "Reload app"
     },
     "newVisualQuery": "New Visual Query",
     "activeDatabase": "Active database",
@@ -3750,5 +3795,8 @@
     "copySummary": "Copy summary",
     "copied": "Summary copied, with literal values hidden.",
     "copyFailed": "Could not copy the summary."
+  },
+  "pluginWorkspace": {
+    "unavailable": "This workspace is unavailable. Enable or reinstall its plugin in Settings."
   }
 }

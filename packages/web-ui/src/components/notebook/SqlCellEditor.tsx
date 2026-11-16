@@ -1,3 +1,4 @@
+import {VIM_STATUS_LINE_HEIGHT} from '@/utils/editorLayout';
 import {useState, useCallback} from 'react';
 import {useTranslation} from 'react-i18next';
 import type {OnMount} from '@monaco-editor/react';
@@ -45,7 +46,13 @@ export function SqlCellEditor({
                 divider={false}
             />
             {!collapsed && (
-                <div className="relative" style={{height: editorHeight}}>
+                <div
+                    className="relative"
+                    style={{
+                        height:
+                            editorHeight + (settings.editorVimMode ? VIM_STATUS_LINE_HEIGHT : 0),
+                    }}
+                >
                     <SqlEditorWrapper
                         height="100%"
                         initialValue={content}

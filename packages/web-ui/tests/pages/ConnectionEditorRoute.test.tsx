@@ -1,5 +1,4 @@
 import {render, waitFor} from '@testing-library/react';
-import type {ReactNode} from 'react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {ConnectionEditorRoute} from '@/pages/ConnectionEditorRoute';
@@ -29,10 +28,6 @@ vi.mock('@/hooks/useDatabase', () => ({
 
 vi.mock('@/pages/Editor', () => ({
     Editor: () => <div>editor</div>,
-}));
-
-vi.mock('@/components/ui/EditorErrorBoundary', () => ({
-    EditorErrorBoundary: ({children}: {children: ReactNode}) => children,
 }));
 
 describe('ConnectionEditorRoute', () => {

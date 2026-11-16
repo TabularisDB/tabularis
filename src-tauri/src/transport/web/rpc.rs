@@ -215,6 +215,11 @@ enum OperationalRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PluginRpcCommand {
+    Account,
+    CallExtension,
+    SetSecrets,
+    SecretFields,
+    DeleteSecrets,
     GetRuntimeWarnings,
     FetchRegistry,
     FetchPreview,
@@ -330,6 +335,7 @@ enum ProductivityRpcCommand {
     AddQueryHistoryEntry,
     DeleteQueryHistoryEntry,
     ClearQueryHistory,
+    GetQueryHistoryInsights,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -891,6 +897,24 @@ struct AddQueryHistoryEntryRequest {
     rows_affected: Option<i64>,
     error: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct GetQueryHistoryInsightsRpcRequest {
+    connection_id: String,
+    #[serde(default)]
+    database: Option<String>,
+    #[serde(default)]
+    window_hours: Option<u32>,
+    #[serde(default)]
+    dialect: Option<String>,
+    #[serde(default)]
+    now: Option<String>,
+    #[serde(default)]
+    max_groups: Option<usize>,
+    #[serde(default)]
+    max_executions_per_group: Option<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -2204,8 +2228,12 @@ impl RpcCommand {
                 application_error_code: "NOTEBOOK_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
-            Self::Plugin(_) => CommandMetadata {
-                authorization: AuthorizationLevel::LocalAdmin,
+            Self::Plugin(command) => CommandMetadata {
+                authorization: if command == PluginRpcCommand::SecretFields {
+                    AuthorizationLevel::Database
+                } else {
+                    AuthorizationLevel::LocalAdmin
+                },
                 application_error_code: "PLUGIN_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
@@ -2287,6 +2315,11 @@ impl OperationalRpcCommand {
 impl PluginRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "plugin_account" => Self::Account,
+            "call_plugin_extension" => Self::CallExtension,
+            "set_plugin_secrets" => Self::SetSecrets,
+            "get_plugin_secret_fields" => Self::SecretFields,
+            "delete_plugin_secrets" => Self::DeleteSecrets,
             "get_plugin_runtime_warnings" => Self::GetRuntimeWarnings,
             "fetch_plugin_registry" => Self::FetchRegistry,
             "fetch_tabularium_plugin_preview" => Self::FetchPreview,
@@ -2455,6 +2488,7 @@ impl ProductivityRpcCommand {
             "add_query_history_entry" => Self::AddQueryHistoryEntry,
             "delete_query_history_entry" => Self::DeleteQueryHistoryEntry,
             "clear_query_history" => Self::ClearQueryHistory,
+            "get_query_history_insights" => Self::GetQueryHistoryInsights,
             _ => return None,
         })
     }
@@ -3153,7 +3187,21 @@ fn decode_mcp_host_command(
 }
 
 fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<PluginCommand, String> {
+    use crate::application::plugin_extensions::ExtensionCommand;
     Ok(match command {
+        PluginRpcCommand::Account => PluginCommand::Account(decode_payload(body)?),
+        PluginRpcCommand::CallExtension => {
+            PluginCommand::Extension(ExtensionCommand::Call(decode_payload(body)?))
+        }
+        PluginRpcCommand::SetSecrets => {
+            PluginCommand::Extension(ExtensionCommand::SetSecrets(decode_payload(body)?))
+        }
+        PluginRpcCommand::SecretFields => {
+            PluginCommand::Extension(ExtensionCommand::SecretFields(decode_payload(body)?))
+        }
+        PluginRpcCommand::DeleteSecrets => {
+            PluginCommand::Extension(ExtensionCommand::DeleteSecrets(decode_payload(body)?))
+        }
         PluginRpcCommand::FetchRegistry => {
             decode_empty_payload(body)?;
             PluginCommand::FetchRegistry
@@ -3363,6 +3411,20 @@ fn decode_productivity_command(
             let request: ConnectionIdRequest = decode_payload(body)?;
             ProductivityCommand::ClearQueryHistory {
                 connection_id: request.connection_id,
+            }
+        }
+        ProductivityRpcCommand::GetQueryHistoryInsights => {
+            let request: GetQueryHistoryInsightsRpcRequest = decode_payload(body)?;
+            ProductivityCommand::GetQueryHistoryInsights {
+                request: crate::query_history::QueryHistoryInsightsRequest {
+                    connection_id: request.connection_id,
+                    database: request.database,
+                    window_hours: request.window_hours,
+                    dialect: request.dialect,
+                    now: request.now,
+                    max_groups: request.max_groups,
+                    max_executions_per_group: request.max_executions_per_group,
+                },
             }
         }
     })

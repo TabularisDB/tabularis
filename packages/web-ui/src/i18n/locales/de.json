@@ -215,6 +215,36 @@
     }
   },
   "sidebar": {
+    "historyViewList": "Einträge",
+    "historyViewInsights": "Statistiken",
+    "historyInsightsWindowFilter": "Vergleichszeitraum",
+    "historyInsightsWindow24h": "Letzte 24 Std. gegenüber den vorherigen 24 Std.",
+    "historyInsightsWindow7d": "Letzte 7 Tage gegenüber den vorherigen 7 Tagen",
+    "historyInsightsWindow30d": "Letzte 30 Tage gegenüber den vorherigen 30 Tagen",
+    "historyInsightsSortFilter": "Abfragetypen sortieren",
+    "historyInsightsSortRegressions": "Verschlechterungen zuerst",
+    "historyInsightsSortTotalDuration": "Gesamtzeit",
+    "historyInsightsSortAvgDuration": "Durchschnittliche Zeit",
+    "historyInsightsSortCallCount": "Anzahl der Ausführungen",
+    "historyInsightsRegressionsOnly": "Nur Verschlechterungen",
+    "historyInsightsClientObservedNote": "Vom Client gemessene Zeiten für in Tabularis ausgeführte Abfragen ({{executions}} im Zeitraum, {{stored}}/{{maxStored}} gespeichert).",
+    "historyInsightsMissingDurationsNote": "Für {{count}} Ausführungen in diesem Zeitraum wurde keine Dauer erfasst; sie werden bei Zeitdurchschnitten ausgeschlossen.",
+    "historyInsightsRetentionCapWarning": "Speicherlimit für den Verlauf ({{maxStored}}) erreicht; der vorherige Vergleichszeitraum ist möglicherweise teilweise abgeschnitten.",
+    "historyInsightsEmptyWindow": "Keine Ausführungen im ausgewählten Vergleichszeitraum erfasst.",
+    "historyInsightsNoRegressions": "Keine Leistungsverschlechterungen im ausgewählten Zeitraum erkannt.",
+    "historyInsightsCalls": "{{count}} Ausführungen",
+    "historyInsightsAvg": "Ø {{value}}",
+    "historyInsightsTotal": "Gesamt {{value}}",
+    "historyInsightsFailureRate": "{{rate}}% fehlgeschlagen",
+    "historyInsightsNoTimedSamples": "Keine Zeitmessungen",
+    "historyInsightsPriorAvg": "Vorheriger Ø {{value}} (n={{count}})",
+    "historyInsightsPriorNoSamples": "Keine vorherigen Zeitmessungen",
+    "historyInsightsStatusRegressed": "Verschlechtert",
+    "historyInsightsStatusImproved": "Verbessert",
+    "historyInsightsStatusStable": "Stabil",
+    "historyInsightsStatusInsufficient": "Unzureichende Stichprobe (n={{current}}/{{prior}}, min. {{min}})",
+    "historyInsightsContributingExecutions": "Berücksichtigte Ausführungen ({{count}})",
+    "historyInsightsBackendError": "Serverstatistiken konnten nicht geladen werden ({{error}}); lokale Vorschau wird angezeigt.",
     "connections": "Verbindungen",
     "settings": "Einstellungen",
     "savedQueries": "Gespeicherte Abfragen",
@@ -831,6 +861,8 @@
     "appearance_editorShowLineNumbersDesc": "Zeigt Zeilennummern im Rand des Editors an.",
     "appearance_editorAcceptSuggestionOnEnter": "Vorschlag mit Eingabetaste übernehmen",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein.",
+    "appearance_editorVimMode": "Vim-Modus",
+    "appearance_editorVimModeDesc": "Aktiviert Vim-Tastenbelegungen (Normal-, Visual- und Einfügemodus) in SQL-Editoren. Ausführen-Shortcuts wie Strg/Cmd+Enter funktionieren weiterhin.",
     "queryExecution": "Abfrageausführung",
     "runStatementUnderCursor": "Anweisung unter dem Cursor ausführen",
     "runStatementUnderCursorDesc": "Wenn ein Skript mehrere Anweisungen enthält, wird die Anweisung unter dem Cursor ausgeführt, statt die Abfrageauswahl anzuzeigen. Markiere Text, um einen bestimmten Bereich auszuführen.",
@@ -1347,7 +1379,10 @@
       "databaseBackupErrorInvalidRetention": "Es muss mindestens 1 Sicherung aufbewahrt werden.",
       "databaseBackupErrorInvalidTime": "Die tägliche Uhrzeit muss im Format HH:mm angegeben werden.",
       "databaseBackupErrorUnsupportedDriver": "Die ausgewählte Verbindung verwendet einen Treiber, der keine Datenbank-Dumps unterstützt."
-    }
+    },
+    "interfaceScale": "Oberflächenskalierung",
+    "interfaceScaleDesc": "Vergrößert die gesamte Desktop-Oberfläche samt Tabs, Symbolen, Dialogen und Editoren. Für große Monitore sind 125 % ein guter Ausgangspunkt.",
+    "interfaceScaleBrowser": "Verwende die Zoomfunktion deines Browsers, um die Weboberfläche zu vergrößern."
   },
   "update": {
     "badges": {
@@ -1474,6 +1509,13 @@
     "sshKeyPassphrase": "Passphrase für SSH-Schlüssel (optional)",
     "sshKeyPassphrasePlaceholder": "Passphrase eingeben, falls der Schlüssel verschlüsselt ist",
     "allowSshPrompt": "SSH-Passwort/PIN-Eingabeaufforderung erlauben",
+    "socketPath": "Socket-Pfad (Optional)",
+    "socketPathHint": "Über einen Unix-Socket auf diesem Rechner verbinden statt über Host und Port.",
+    "socketPathActive": "Die Verbindung nutzt diesen Socket statt Host und Port. Datenbank-TLS ist deaktiviert — Verkehr über einen lokalen Socket verlässt diesen Rechner nie.",
+    "socketPathForwardHint": "Setzen, um eine Datenbank zu erreichen, die nur auf einem Unix-Socket lauscht.",
+    "socketPathForwardActive": "Der SSH-Server verbindet sich mit diesem Socket statt mit Host und Port. Eine Datenbank auf einem Socket kann kein TLS aushandeln, daher ist es deaktiviert; der SSH-Tunnel verschlüsselt weiterhin den gesamten Pfad.",
+    "socketPathNotAbsolute": "Absoluten Pfad eingeben, wie er auf dem Rechner erscheint, der sich mit dem Socket verbindet.",
+    "socketPathDirectory": "Die Socket-Datei selbst angeben, nicht das Verzeichnis, das sie enthält.",
     "saveKeychain": "Passwörter im Keychain speichern",
     "secretsStoredInPlainText": "Passwörter werden im Klartext in der Verbindungsdatei gespeichert.",
     "testConnection": "Verbindung testen",
@@ -1953,7 +1995,10 @@
       "analyzeWithAi": "Mit KI analysieren",
       "aiAnalyzing": "Wird analysiert…",
       "aiAnalysisTitle": "KI-Analyse",
-      "aiAnalysisFailed": "Die KI-Analyse ist fehlgeschlagen. Kopiere stattdessen den Bericht oder erstelle ein Issue."
+      "aiAnalysisFailed": "Die KI-Analyse ist fehlgeschlagen. Kopiere stattdessen den Bericht oder erstelle ein Issue.",
+      "loadTitle": "Der Editor konnte nicht geladen werden",
+      "loadDescription": "Einige Editor-Dateien konnten nicht geladen werden. Lade die App neu, um sie erneut abzurufen. Gespeicherte Tabs und Entwürfe bleiben erhalten.",
+      "reloadApp": "App neu laden"
     },
     "newVisualQuery": "Neue visuelle Abfrage",
     "activeDatabase": "Aktive Datenbank",
@@ -3618,5 +3663,8 @@
     "copySummary": "Zusammenfassung kopieren",
     "copied": "Zusammenfassung kopiert, Literalwerte ausgeblendet.",
     "copyFailed": "Zusammenfassung konnte nicht kopiert werden."
+  },
+  "pluginWorkspace": {
+    "unavailable": "Dieser Arbeitsbereich ist nicht verfügbar. Aktiviere das Plugin in den Einstellungen oder installiere es neu."
   }
 }

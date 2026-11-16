@@ -145,6 +145,11 @@
           "default": false,
           "description": "Driver honours query_timeout_secs (stops a statement on the server once the limit passes). Shows the query-timeout field in the connection modal."
         },
+        "unix_socket": {
+          "type": "boolean",
+          "default": false,
+          "description": "true if the driver supports connecting through a local Unix socket file instead of TCP host:port."
+        },
         "no_connection_required": {
           "type": "boolean",
           "description": "API-based driver with no host/port/credentials. Hides the connection form entirely."
@@ -421,7 +426,7 @@
           "slot": {
             "type": "string",
             "maxLength": 80,
-            "description": "Target slot identifier (e.g. `row-edit-modal.field.after`)."
+            "description": "Target slot identifier. Use explorer.services for native service sections and explorer.connection.actions for compact connection tools; sidebar.footer.actions is the narrow icon rail."
           },
           "module": {
             "type": "string",

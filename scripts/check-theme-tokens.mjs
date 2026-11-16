@@ -25,7 +25,7 @@
  *   --github  also print GitHub Actions annotations, so findings show up on
  *             the pull request diff (the CI workflow passes it).
  */
-import {readdirSync, readFileSync, statSync} from 'node:fs';
+import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {join, relative, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -231,6 +231,12 @@ function checkFile(full, rel, ext) {
 }
 
 walk(SRC);
+// Plugin UI runs inside the host and must follow the same theme contract.
+for (const plugin of readdirSync(join(ROOT, 'plugins'), {withFileTypes: true})) {
+    if (!plugin.isDirectory()) continue;
+    const source = join(ROOT, 'plugins', plugin.name, 'ui', 'src');
+    if (existsSync(source)) walk(source);
+}
 
 if (findings.length > 0) {
     console.error(`Theme token check: ${findings.length} problem(s)\n`);
@@ -247,7 +253,7 @@ if (findings.length > 0) {
 }
 if (verbose) {
     console.log(
-        `Theme token check: scanned packages/web-ui/src/, allowlist has ${Object.keys(ALLOWLIST).length} file(s).`,
+        `Theme token check: scanned packages/web-ui/src/ and plugins/*/ui/src/, allowlist has ${Object.keys(ALLOWLIST).length} file(s).`,
     );
 }
 console.log('Theme token check: OK');

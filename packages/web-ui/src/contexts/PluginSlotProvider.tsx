@@ -63,15 +63,18 @@ async function loadExternalPluginContributions(
 
     const contributions: SlotContribution[] = [];
     for (const [modulePath, entries] of byModule) {
-        const component: SlotContribution['component'] = ({context, pluginId}) => (
-            <SandboxedPluginFrame pluginId={pluginId} module={modulePath} context={context} />
-        );
         for (const entry of entries) {
             if (!VALID_SLOTS.has(entry.slot)) continue;
             contributions.push({
                 pluginId: manifest.id,
                 slot: entry.slot as SlotName,
-                component,
+                component: ({context, pluginId}) => (
+                    <SandboxedPluginFrame
+                        pluginId={pluginId}
+                        module={modulePath}
+                        context={{...context, __tabularisSlot: entry.slot}}
+                    />
+                ),
                 order: entry.order,
                 when: entry.driver ? (ctx: SlotContext) => ctx.driver === entry.driver : undefined,
             });

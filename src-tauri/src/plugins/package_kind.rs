@@ -1,4 +1,5 @@
 //! Explicit legacy rule: absent kind means driver (including UI-only drivers).
+//! Cloud integrations share the executable driver contract.
 //! Declarative themes must never reach executable permissions or registration.
 use std::io::{Read, Seek};
 
@@ -15,7 +16,7 @@ pub fn require_driver_kind(source: &[u8]) -> Result<(), String> {
     }
     match value.get("kind") {
         None => Ok(()),
-        Some(serde_json::Value::String(kind)) if kind == "driver" => Ok(()),
+        Some(serde_json::Value::String(kind)) if kind == "driver" || kind == "cloud" => Ok(()),
         _ => Err(KIND_ERROR.into()),
     }
 }

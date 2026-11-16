@@ -467,7 +467,37 @@
     "movePanel": "Di chuyển bảng",
     "refreshDatabaseList": "Làm mới danh sách cơ sở dữ liệu",
     "databaseListUpToDate": "Danh sách cơ sở dữ liệu đã mới nhất",
-    "allDatabasesRefreshed": "Đã cập nhật cơ sở dữ liệu: {{names}}"
+    "allDatabasesRefreshed": "Đã cập nhật cơ sở dữ liệu: {{names}}",
+    "historyViewList": "Mục lịch sử",
+    "historyViewInsights": "Phân tích",
+    "historyInsightsWindowFilter": "Khoảng thời gian so sánh",
+    "historyInsightsWindow24h": "24 giờ qua so với 24 giờ trước",
+    "historyInsightsWindow7d": "7 ngày qua so với 7 ngày trước",
+    "historyInsightsWindow30d": "30 ngày qua so với 30 ngày trước",
+    "historyInsightsSortFilter": "Sắp xếp mẫu truy vấn",
+    "historyInsightsSortRegressions": "Suy giảm trước",
+    "historyInsightsSortTotalDuration": "Tổng thời gian",
+    "historyInsightsSortAvgDuration": "Thời gian trung bình",
+    "historyInsightsSortCallCount": "Số lần gọi",
+    "historyInsightsRegressionsOnly": "Chỉ hiện suy giảm",
+    "historyInsightsClientObservedNote": "Thời gian quan sát phía client từ các truy vấn chạy trong Tabularis ({{executions}} trong khung, lưu {{stored}}/{{maxStored}}).",
+    "historyInsightsMissingDurationsNote": "{{count}} lần chạy trong khung này không có thời lượng được ghi nhận và được loại khỏi trung bình.",
+    "historyInsightsRetentionCapWarning": "Đã đạt giới hạn lưu trữ lịch sử ({{maxStored}}); khung so sánh trước đó có thể bị cắt bớt.",
+    "historyInsightsEmptyWindow": "Không có lần chạy truy vấn nào trong khung thời gian đã chọn.",
+    "historyInsightsNoRegressions": "Không phát hiện suy giảm hiệu năng trong khung thời gian đã chọn.",
+    "historyInsightsCalls": "{{count}} lần gọi",
+    "historyInsightsAvg": "TB {{value}}",
+    "historyInsightsTotal": "Tổng {{value}}",
+    "historyInsightsFailureRate": "{{rate}}% lỗi",
+    "historyInsightsNoTimedSamples": "Không có mẫu thời gian",
+    "historyInsightsPriorAvg": "TB trước {{value}} (n={{count}})",
+    "historyInsightsPriorNoSamples": "Không có mẫu trước đó",
+    "historyInsightsStatusRegressed": "Suy giảm",
+    "historyInsightsStatusImproved": "Cải thiện",
+    "historyInsightsStatusStable": "Ổn định",
+    "historyInsightsStatusInsufficient": "Chưa đủ mẫu (n={{current}}/{{prior}}, tối thiểu {{min}})",
+    "historyInsightsContributingExecutions": "Các lần chạy đóng góp ({{count}})",
+    "historyInsightsBackendError": "Không thể tải thông tin chi tiết từ máy chủ ({{error}}); hiển thị bản xem trước cục bộ."
   },
   "mcp": {
     "title": "Tích hợp MCP Server",
@@ -855,6 +885,8 @@
     "appearance_editorShowLineNumbersDesc": "Hiển thị số dòng ở lề trình soạn thảo.",
     "appearance_editorAcceptSuggestionOnEnter": "Chấp nhận gợi ý bằng Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Cho phép dùng Enter (ngoài Tab) để chấp nhận gợi ý tự động hoàn thành. Khi tắt, Enter luôn xuống dòng.",
+    "appearance_editorVimMode": "Chế độ Vim",
+    "appearance_editorVimModeDesc": "Bật phím tắt Vim (chế độ normal, visual và insert) trong trình soạn thảo SQL.",
     "queryExecution": "Thực thi truy vấn",
     "runStatementUnderCursor": "Chạy câu lệnh tại con trỏ",
     "runStatementUnderCursorDesc": "Khi script có nhiều câu lệnh, chạy câu lệnh tại vị trí con trỏ thay vì hiện hộp chọn truy vấn. Bôi đen văn bản để chạy một đoạn cụ thể.",
@@ -1461,6 +1493,13 @@
     "configError": "Hãy cấu hình nhà cung cấp AI trong Cài đặt và nhập prompt."
   },
   "newConnection": {
+    "socketPath": "Đường dẫn socket (tùy chọn)",
+    "socketPathHint": "Kết nối qua Unix socket trên máy này thay cho máy chủ và cổng.",
+    "socketPathActive": "Kết nối dùng socket này thay cho máy chủ và cổng. TLS cơ sở dữ liệu bị tắt vì lưu lượng socket cục bộ không rời khỏi máy.",
+    "socketPathForwardHint": "Đặt đường dẫn để truy cập cơ sở dữ liệu chỉ lắng nghe trên Unix socket.",
+    "socketPathForwardActive": "Máy chủ SSH kết nối tới socket này thay cho máy chủ và cổng. Socket cơ sở dữ liệu không hỗ trợ TLS nên TLS bị tắt; đường hầm SSH vẫn mã hóa toàn bộ kết nối.",
+    "socketPathNotAbsolute": "Nhập đường dẫn tuyệt đối trên máy kết nối tới socket.",
+    "socketPathDirectory": "Trỏ tới chính tệp socket, không phải thư mục chứa nó.",
     "ssmForwardHint": "Ánh xạ tới {{document}} - chuyển tiếp tới {{host}}:{{port}} qua managed node. Đổi địa chỉ đích ở tab Chung; host loopback nghĩa là chính node đó.",
     "ssmIamHint": "Cần quyền ssm:StartSession trên node đích và trên document đã ánh xạ.",
     "ssmNotAvailable": "Driver này không hỗ trợ AWS SSM.",
@@ -3689,5 +3728,8 @@
     "copySummary": "Sao chép tóm tắt",
     "copied": "Đã sao chép tóm tắt, các giá trị literal được ẩn.",
     "copyFailed": "Không sao chép được tóm tắt."
+  },
+  "pluginWorkspace": {
+    "unavailable": "Không thể sử dụng không gian làm việc này. Hãy bật hoặc cài đặt lại plugin trong Cài đặt."
   }
 }

@@ -100,6 +100,8 @@ pub struct AppConfig {
     pub result_page_size: Option<u32>,
     pub font_family: Option<String>,
     pub font_size: Option<u32>,
+    /// Native desktop interface zoom percentage. Missing values retain 100%.
+    pub interface_scale: Option<u32>,
     /// Colorize query result cell values by their data type (number, string,
     /// date, boolean). Default: false — values render in the primary text color.
     pub result_color_by_type: Option<bool>,
@@ -187,6 +189,8 @@ pub struct AppConfig {
     /// becomes `"smart"` (the safer variant), `false` becomes `"off"`.
     /// Default: `true` — matches the behaviour users expect from most editors.
     pub editor_accept_suggestion_on_enter: Option<bool>,
+    /// Enable Vim keybindings (normal/visual/insert modes) in SQL editors. Default: false.
+    pub editor_vim_mode: Option<bool>,
     pub run_statement_under_cursor: Option<bool>,
     /// Delay destructive-query and production-write confirmations for five seconds. Default: false.
     pub safety_confirmation_delay_enabled: Option<bool>,
@@ -671,6 +675,7 @@ mod tests {
         assert!(config.editor_highlight_invisible_characters.is_none());
         assert!(config.editor_show_line_numbers.is_none());
         assert!(config.editor_accept_suggestion_on_enter.is_none());
+        assert!(config.editor_vim_mode.is_none());
     }
 
     #[test]
@@ -686,6 +691,7 @@ mod tests {
         config.editor_show_line_numbers = Some(true);
         config.editor_theme = Some("tabularis-light".to_string());
         config.editor_accept_suggestion_on_enter = Some(true);
+        config.editor_vim_mode = Some(true);
         config.safety_confirmation_delay_enabled = Some(true);
         config.notify_long_queries = Some(true);
         config.notify_long_queries_threshold_sec = Some(20);
@@ -702,6 +708,7 @@ mod tests {
         assert!(json.contains("editorShowLineNumbers"));
         assert!(json.contains("editorTheme"));
         assert!(json.contains("editorAcceptSuggestionOnEnter"));
+        assert!(json.contains("editorVimMode"));
         assert!(json.contains("safetyConfirmationDelayEnabled"));
         assert!(json.contains("notifyLongQueries"));
         assert!(json.contains("notifyLongQueriesThresholdSec"));
@@ -710,6 +717,7 @@ mod tests {
         assert!(!json.contains("editor_font_family"));
         assert!(!json.contains("result_font_family"));
         assert!(!json.contains("editor_accept_suggestion_on_enter"));
+        assert!(!json.contains("editor_vim_mode"));
         assert!(!json.contains("safety_confirmation_delay_enabled"));
         assert!(!json.contains("notify_long_queries"));
         assert!(!json.contains("notify_long_queries_threshold_sec"));
@@ -729,6 +737,7 @@ mod tests {
             "editorShowLineNumbers": true,
             "editorTheme": "tabularis-dark",
             "editorAcceptSuggestionOnEnter": true,
+            "editorVimMode": true,
             "safetyConfirmationDelayEnabled": true,
             "notifyLongQueries": true,
             "notifyLongQueriesThresholdSec": 30,
@@ -745,6 +754,7 @@ mod tests {
         assert_eq!(config.editor_show_line_numbers, Some(true));
         assert_eq!(config.editor_theme.as_deref(), Some("tabularis-dark"));
         assert_eq!(config.editor_accept_suggestion_on_enter, Some(true));
+        assert_eq!(config.editor_vim_mode, Some(true));
         assert_eq!(config.safety_confirmation_delay_enabled, Some(true));
         assert_eq!(config.notify_long_queries, Some(true));
         assert_eq!(config.notify_long_queries_threshold_sec, Some(30));
@@ -1002,3 +1012,7 @@ mod tests {
         assert!(config.column_masking_overrides.is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "config/interface_scale_tests.rs"]
+mod interface_scale_tests;
