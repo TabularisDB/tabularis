@@ -1916,6 +1916,8 @@ export const ExplorerSidebar = ({
                     {sidebarTab === 'history' && (
                         <div className="animate-fade-in">
                             <QueryHistorySection
+                                connectionId={activeConnectionId}
+                                dialect={activeCapabilities?.sql_dialect ?? activeDriver ?? null}
                                 entries={historyEntries}
                                 isLoading={isHistoryLoading}
                                 isPaused={isHistoryPaused}

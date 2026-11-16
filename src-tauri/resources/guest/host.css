@@ -1913,6 +1913,9 @@
     -moz-column-gap: calc(var(--spacing) * 6);
          column-gap: calc(var(--spacing) * 6);
   }
+  .gap-y-0\.5 {
+    row-gap: calc(var(--spacing) * 0.5);
+  }
   .gap-y-1 {
     row-gap: calc(var(--spacing) * 1);
   }
@@ -1949,6 +1952,14 @@
       border-color: var(--color-default);
       @supports (color: color-mix(in lab, red, red)) {
         border-color: color-mix(in oklab, var(--color-default) 30%, transparent);
+      }
+    }
+  }
+  .divide-default\/40 {
+    :where(& > :not(:last-child)) {
+      border-color: var(--color-default);
+      @supports (color: color-mix(in lab, red, red)) {
+        border-color: color-mix(in oklab, var(--color-default) 40%, transparent);
       }
     }
   }
@@ -3004,6 +3015,12 @@
     background-color: var(--color-surface-secondary);
     @supports (color: color-mix(in lab, red, red)) {
       background-color: color-mix(in oklab, var(--color-surface-secondary) 60%, transparent);
+    }
+  }
+  .bg-surface-secondary\/70 {
+    background-color: var(--color-surface-secondary);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-surface-secondary) 70%, transparent);
     }
   }
   .bg-surface-tertiary {

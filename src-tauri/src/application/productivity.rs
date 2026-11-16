@@ -1,4 +1,8 @@
 use crate::config::AppConfig;
+use crate::query_history::{
+    compute_query_history_insights, QueryHistoryExecutionRecord, QueryHistoryInsightsRequest,
+    QueryHistoryInsightsResponse, MAX_INSIGHTS_EXECUTIONS,
+};
 use crate::saved_query_folders::{self, SavedQueryFolder};
 use chrono::Utc;
 use once_cell::sync::Lazy;
@@ -67,7 +71,7 @@ pub struct SavedQueryVersion {
     pub saved_at: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryHistoryEntry {
     pub id: String,
@@ -159,6 +163,9 @@ pub enum ProductivityCommand {
     },
     ClearQueryHistory {
         connection_id: String,
+    },
+    GetQueryHistoryInsights {
+        request: QueryHistoryInsightsRequest,
     },
 }
 
@@ -294,6 +301,9 @@ pub async fn execute(config_dir: &Path, command: ProductivityCommand) -> Result<
             clear_query_history(config_dir, &connection_id)?;
             Ok(Value::Null)
         }
+        ProductivityCommand::GetQueryHistoryInsights { request } => {
+            json(get_query_history_insights(config_dir, &request)?)
+        }
     }
 }
 
@@ -351,6 +361,25 @@ pub fn backfill_query_history_for_connection(
     let updated = backfill_history_entries(&mut entries, database);
     if updated > 0 {
         write_query_history(config_dir, connection_id, &entries)?;
+    }
+    if let Ok(mut executions) = read_query_history_executions(config_dir, connection_id) {
+        let mut exec_updated = 0usize;
+        for exec in &mut executions {
+            if exec.database.is_none() {
+                exec.database = Some(database.to_string());
+                exec_updated += 1;
+            }
+        }
+        if exec_updated > 0 {
+            if let Err(err) = write_query_history_executions(config_dir, connection_id, &executions)
+            {
+                log::warn!(
+                    "Could not update backfilled executions for '{}': {}",
+                    connection_id,
+                    err
+                );
+            }
+        }
     }
     Ok(updated)
 }
@@ -635,6 +664,16 @@ fn get_query_history(
     })
 }
 
+fn get_query_history_insights(
+    config_dir: &Path,
+    request: &QueryHistoryInsightsRequest,
+) -> Result<QueryHistoryInsightsResponse, String> {
+    let max_stored = load_history_limit(config_dir).min(MAX_INSIGHTS_EXECUTIONS);
+    let entries =
+        read_query_history_executions_for_insights(config_dir, &request.connection_id, max_stored)?;
+    compute_query_history_insights(&entries, max_stored, request)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn add_query_history_entry(
     config_dir: &Path,
@@ -649,6 +688,7 @@ fn add_query_history_entry(
 ) -> Result<QueryHistoryEntry, String> {
     let mut entries = read_query_history(config_dir, connection_id)?;
     let max_entries = load_history_limit(config_dir);
+    let max_executions = max_entries.min(MAX_INSIGHTS_EXECUTIONS);
 
     if let Some(first) = entries.first_mut() {
         if first.sql == sql && first.database == database {
@@ -659,6 +699,28 @@ fn add_query_history_entry(
             first.error = error;
             let updated = first.clone();
             write_query_history(config_dir, connection_id, &entries)?;
+            if let Err(err) = append_query_history_execution(
+                config_dir,
+                connection_id,
+                QueryHistoryExecutionRecord {
+                    id: Uuid::new_v4().to_string(),
+                    entry_id: Some(updated.id.clone()),
+                    sql: updated.sql.clone(),
+                    executed_at: updated.executed_at.clone(),
+                    execution_time_ms: updated.execution_time_ms,
+                    status: updated.status.clone(),
+                    rows_affected: updated.rows_affected,
+                    error: updated.error.clone(),
+                    database: updated.database.clone(),
+                },
+                max_executions,
+            ) {
+                log::warn!(
+                    "Could not record duplicate query history execution for '{}': {}",
+                    connection_id,
+                    err
+                );
+            }
             return Ok(updated);
         }
     }
@@ -676,6 +738,28 @@ fn add_query_history_entry(
     entries.insert(0, entry.clone());
     entries.truncate(max_entries);
     write_query_history(config_dir, connection_id, &entries)?;
+    if let Err(err) = append_query_history_execution(
+        config_dir,
+        connection_id,
+        QueryHistoryExecutionRecord {
+            id: entry.id.clone(),
+            entry_id: Some(entry.id.clone()),
+            sql: entry.sql.clone(),
+            executed_at: entry.executed_at.clone(),
+            execution_time_ms: entry.execution_time_ms,
+            status: entry.status.clone(),
+            rows_affected: entry.rows_affected,
+            error: entry.error.clone(),
+            database: entry.database.clone(),
+        },
+        max_executions,
+    ) {
+        log::warn!(
+            "Could not record query history execution for '{}': {}",
+            connection_id,
+            err
+        );
+    }
     Ok(entry)
 }
 
@@ -687,16 +771,39 @@ fn delete_query_history_entry(
     let mut entries = read_query_history(config_dir, connection_id)?;
     let original_len = entries.len();
     entries.retain(|entry| entry.id != id);
-    if entries.len() == original_len {
+    let mut removed_execution = false;
+    if let Ok(mut executions) = read_query_history_executions(config_dir, connection_id) {
+        let exec_len = executions.len();
+        executions.retain(|exec| exec.id != id && exec.entry_id.as_deref() != Some(id));
+        if executions.len() != exec_len {
+            removed_execution = true;
+            if let Err(err) = write_query_history_executions(config_dir, connection_id, &executions)
+            {
+                log::warn!(
+                    "Could not prune deleted executions for '{}': {}",
+                    connection_id,
+                    err
+                );
+            }
+        }
+    }
+    if entries.len() == original_len && !removed_execution {
         return Err("History entry not found".to_string());
     }
-    write_query_history(config_dir, connection_id, &entries)
+    if entries.len() != original_len {
+        write_query_history(config_dir, connection_id, &entries)?;
+    }
+    Ok(())
 }
 
 fn clear_query_history(config_dir: &Path, connection_id: &str) -> Result<(), String> {
     let path = query_history_path(config_dir, connection_id)?;
     if path.exists() {
         fs::remove_file(path).map_err(|error| error.to_string())?;
+    }
+    let exec_path = query_history_executions_path(config_dir, connection_id)?;
+    if exec_path.exists() {
+        fs::remove_file(exec_path).map_err(|error| error.to_string())?;
     }
     Ok(())
 }
@@ -795,6 +902,79 @@ fn write_query_history(
     atomic_write(&path, &content)
 }
 
+fn read_query_history_executions(
+    config_dir: &Path,
+    connection_id: &str,
+) -> Result<Vec<QueryHistoryExecutionRecord>, String> {
+    let path = query_history_executions_path(config_dir, connection_id)?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    match serde_json::from_str(&content) {
+        Ok(records) => Ok(records),
+        Err(parse_error) => {
+            let backup = backup_corrupt_file(&path)?;
+            log::warn!(
+                "Query history executions file for connection '{}' was corrupt ({}); moved to {}",
+                connection_id,
+                parse_error,
+                backup.display()
+            );
+            Ok(Vec::new())
+        }
+    }
+}
+
+fn write_query_history_executions(
+    config_dir: &Path,
+    connection_id: &str,
+    records: &[QueryHistoryExecutionRecord],
+) -> Result<(), String> {
+    let path = query_history_executions_path(config_dir, connection_id)?;
+    let content = serde_json::to_vec_pretty(records).map_err(|error| error.to_string())?;
+    atomic_write(&path, &content)
+}
+
+fn append_query_history_execution(
+    config_dir: &Path,
+    connection_id: &str,
+    record: QueryHistoryExecutionRecord,
+    max_records: usize,
+) -> Result<(), String> {
+    if max_records == 0 {
+        return Ok(());
+    }
+    let mut records = read_query_history_executions(config_dir, connection_id)?;
+    records.insert(0, record);
+    records.truncate(max_records);
+    write_query_history_executions(config_dir, connection_id, &records)
+}
+
+fn read_query_history_executions_for_insights(
+    config_dir: &Path,
+    connection_id: &str,
+    max_records: usize,
+) -> Result<Vec<QueryHistoryEntry>, String> {
+    let executions = read_query_history_executions(config_dir, connection_id)?;
+    let entries = read_query_history(config_dir, connection_id)?;
+    let mut merged: Vec<QueryHistoryEntry> = executions
+        .iter()
+        .map(QueryHistoryExecutionRecord::to_history_entry)
+        .collect();
+    for entry in entries {
+        let already_covered = executions
+            .iter()
+            .any(|exec| exec.id == entry.id || exec.entry_id.as_deref() == Some(entry.id.as_str()));
+        if !already_covered {
+            merged.push(entry);
+        }
+    }
+    merged.sort_by(|a, b| b.executed_at.cmp(&a.executed_at));
+    merged.truncate(max_records);
+    Ok(merged)
+}
+
 fn saved_queries_dir(config_dir: &Path) -> Result<PathBuf, String> {
     let path = config_dir.join(SAVED_QUERIES_DIR);
     fs::create_dir_all(&path).map_err(|error| error.to_string())?;
@@ -821,6 +1001,16 @@ fn query_history_path(config_dir: &Path, connection_id: &str) -> Result<PathBuf,
     let directory = config_dir.join(QUERY_HISTORY_DIR);
     fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
     Ok(directory.join(format!("{connection_id}.json")))
+}
+
+fn query_history_executions_path(
+    config_dir: &Path,
+    connection_id: &str,
+) -> Result<PathBuf, String> {
+    validate_storage_key(connection_id)?;
+    let directory = config_dir.join(QUERY_HISTORY_DIR);
+    fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    Ok(directory.join(format!("{connection_id}.executions.json")))
 }
 
 fn validate_storage_key(value: &str) -> Result<(), String> {
