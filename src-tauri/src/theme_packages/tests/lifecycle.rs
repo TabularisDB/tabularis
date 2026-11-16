@@ -36,7 +36,12 @@ fn disable_uninstall_and_reinstall_keep_source_identity_and_configuration() {
     assert_eq!(initial.id, disabled.id);
     assert!(!disabled.available);
     remove_package(temp.path(), &key, "fixture-theme").unwrap();
-    assert_eq!(read_theme_catalog(temp.path(), temp.path(), "0.99.0").themes.len(), 12);
+    assert_eq!(
+        read_theme_catalog(temp.path(), temp.path(), "0.99.0")
+            .themes
+            .len(),
+        12
+    );
     assert!(storage.join("themes/.lock").exists());
     install_validated_theme(&storage, &key, &package, &|| Ok(())).unwrap();
     let restored = read_theme_catalog(temp.path(), temp.path(), "0.99.0")

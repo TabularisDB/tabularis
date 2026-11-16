@@ -155,7 +155,12 @@ fn import_issues_distinct_native_ids_and_preserves_source_metadata() {
     assert_eq!(a["extra"], value["extra"]);
     assert_eq!(a["isPreset"], false);
     assert_eq!(a["isReadOnly"], false);
-    assert_eq!(read_theme_catalog(temp.path(), temp.path(), "0.99.0").themes.len(), 14);
+    assert_eq!(
+        read_theme_catalog(temp.path(), temp.path(), "0.99.0")
+            .themes
+            .len(),
+        14
+    );
 }
 
 #[test]
@@ -196,7 +201,12 @@ fn definitions_are_additive_and_stale_updates_do_not_replace_them() {
         "Changed"
     );
     remove_personal_theme(temp.path(), &created.id).unwrap();
-    assert_eq!(read_theme_catalog(temp.path(), temp.path(), "0.99.0").themes.len(), 12);
+    assert_eq!(
+        read_theme_catalog(temp.path(), temp.path(), "0.99.0")
+            .themes
+            .len(),
+        12
+    );
 }
 
 #[test]
@@ -219,7 +229,12 @@ fn installed_catalog_uses_host_identity_and_never_activates_or_recovers() {
         .join(".staging-00000000-0000-0000-0000-000000000000")
         .exists());
     assert!(!temp.path().join("config.json").exists());
-    assert_eq!(read_theme_catalog(temp.path(), temp.path(), "0.24.0").themes.len(), 12);
+    assert_eq!(
+        read_theme_catalog(temp.path(), temp.path(), "0.24.0")
+            .themes
+            .len(),
+        12
+    );
 }
 
 #[test]
@@ -242,7 +257,8 @@ fn duplication_is_independent_and_issued_by_native_context() {
     let temp = temp_dir();
     let key = install(temp.path());
     let id = format!("theme:{key}:fixture-theme:dark");
-    let copy = duplicate_personal_theme(temp.path(), temp.path(), "0.99.0", &id, "My copy", None).unwrap();
+    let copy =
+        duplicate_personal_theme(temp.path(), temp.path(), "0.99.0", &id, "My copy", None).unwrap();
     assert_ne!(copy.id, id);
     assert_eq!(copy.origin["kind"], "personal");
     assert!(!copy.read_only);
@@ -252,7 +268,10 @@ fn duplication_is_independent_and_issued_by_native_context() {
         .iter()
         .any(|t| t.id == copy.id));
     let editor = json!({"base":"vs-dark","inherit":true,"rules":[],"colors":{"editor.background":"#123456"}});
-    let snapshot = duplicate_personal_theme(temp.path(), temp.path(), "0.99.0",
+    let snapshot = duplicate_personal_theme(
+        temp.path(),
+        temp.path(),
+        "0.99.0",
         "tabularis-dark",
         "Snapshot",
         Some(editor.clone()),

@@ -1,1 +1,1 @@
-export { applyThemeToCSS } from "../../../../../src/themes/themeUtils";
+export { applyThemeToCSS } from "../../../../../packages/web-ui/src/themes/themeUtils";

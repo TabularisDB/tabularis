@@ -1,0 +1,27 @@
+# Tabularis Web on this machine: http://localhost:8080
+#
+#   cp .env.example .env    # optional: set a password and a secret key
+#   docker compose up -d
+#   docker compose logs tabularis   # shows the generated password on first start
+#
+# For a public HTTPS deployment add the Caddy override:
+#   docker compose -f compose.yaml -f compose.tls.yaml up -d
+name: tabularis
+
+services:
+  tabularis:
+    image: ghcr.io/tabularisdb/tabularis:${TABULARIS_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      # Loopback only: the plain-HTTP URL below is accepted for localhost alone.
+      - '127.0.0.1:${TABULARIS_HTTP_PORT:-8080}:8080'
+    environment:
+      TABULARIS_PUBLIC_URL: ${TABULARIS_PUBLIC_URL:-http://localhost:${TABULARIS_HTTP_PORT:-8080}}
+      TABULARIS_WEB_PASSWORD: ${TABULARIS_WEB_PASSWORD:-}
+      TABULARIS_SECRET_KEY: ${TABULARIS_SECRET_KEY:-}
+      TABULARIS_ALLOW_HIGH_RISK: ${TABULARIS_ALLOW_HIGH_RISK:-false}
+    volumes:
+      - tabularis-data:/data
+
+volumes:
+  tabularis-data:

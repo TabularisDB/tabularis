@@ -127,8 +127,10 @@ fn cli_log_level_prefers_the_flag_over_the_environment() {
     // it, so the two cannot fight.
     let args = crate::cli::Args {
         mcp: false,
+        command: None,
         debug: true,
         explain: None,
+        files: Vec::new(),
     };
     with_rust_log(Some("error"), || {
         assert_eq!(args.log_level(), LevelFilter::Debug);
@@ -139,8 +141,10 @@ fn cli_log_level_prefers_the_flag_over_the_environment() {
 fn cli_log_level_falls_back_to_the_environment_without_the_flag() {
     let args = crate::cli::Args {
         mcp: false,
+        command: None,
         debug: false,
         explain: None,
+        files: Vec::new(),
     };
     with_rust_log(Some("warn"), || {
         assert_eq!(args.log_level(), LevelFilter::Warn);

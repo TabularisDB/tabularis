@@ -1,0 +1,73 @@
+{
+  "id": "openai",
+  "name": "OpenAI",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "OpenAI AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.4-nano",
+      "gpt-4o",
+      "gpt-4o-mini",
+      "gpt-oss-120B",
+      "gpt-oss-20B"
+    ],
+    "api_key_env": "OPENAI_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://api.openai.com/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.0
+          },
+          "append_path": "/chat/completions"
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://api.openai.com/v1",
+            "append_path": "/models"
+          },
+          "items_path": "/data",
+          "id_path": "/id",
+          "filters": [
+            {
+              "path": "/id",
+              "prefixes": [
+                "gpt",
+                "o1"
+              ]
+            }
+          ]
+        }
+      ],
+      "cache_seconds": 86400
+    },
+    "auto_select_priority": 10
+  },
+  "settings": [],
+  "license": "Apache-2.0",
+  "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzEwYTM3ZiIgLz48c3ZnIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0iI2ZmZmZmZiIgeD0iNCIgeT0iNCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0Ij48cGF0aCBkPSJNMTQuOTQ5IDYuNTQ3YTMuOTQgMy45NCAwIDAgMC0uMzQ4LTMuMjczIDQuMTEgNC4xMSAwIDAgMC00LjQtMS45MzRBNC4xIDQuMSAwIDAgMCA4LjQyMy4yIDQuMTUgNC4xNSAwIDAgMCA2LjMwNS4wODZhNC4xIDQuMSAwIDAgMC0xLjg5MS45NDggNC4wNCA0LjA0IDAgMCAwLTEuMTU4IDEuNzUzIDQuMSA0LjEgMCAwIDAtMS41NjMuNjc5QTQgNCAwIDAgMCAuNTU0IDQuNzJhMy45OSAzLjk5IDAgMCAwIC41MDIgNC43MzEgMy45NCAzLjk0IDAgMCAwIC4zNDYgMy4yNzQgNC4xMSA0LjExIDAgMCAwIDQuNDAyIDEuOTMzYy4zODIuNDI1Ljg1Mi43NjQgMS4zNzcuOTk1LjUyNi4yMzEgMS4wOTUuMzUgMS42Ny4zNDYgMS43OC4wMDIgMy4zNTgtMS4xMzIgMy45MDEtMi44MDRhNC4xIDQuMSAwIDAgMCAxLjU2My0uNjggNCA0IDAgMCAwIDEuMTQtMS4yNTMgMy45OSAzLjk5IDAgMCAwLS41MDYtNC43MTZtLTYuMDk3IDguNDA2YTMuMDUgMy4wNSAwIDAgMS0xLjk0NS0uNjk0bC4wOTYtLjA1NCAzLjIzLTEuODM4YS41My41MyAwIDAgMCAuMjY1LS40NTV2LTQuNDlsMS4zNjYuNzc4cS4wMi4wMTEuMDI1LjAzNXYzLjcyMmMtLjAwMyAxLjY1My0xLjM2MSAyLjk5Mi0zLjAzNyAyLjk5Nm0tNi41My0yLjc1YTIuOTUgMi45NSAwIDAgMS0uMzYtMi4wMWwuMDk1LjA1N0w1LjI5IDEyLjA5YS41My41MyAwIDAgMCAuNTI3IDBsMy45NDktMi4yNDZ2MS41NTVhLjA1LjA1IDAgMCAxLS4wMjIuMDQxTDYuNDczIDEzLjNjLTEuNDU0LjgyNi0zLjMxMS4zMzUtNC4xNS0xLjA5OG0tLjg1LTYuOTRBMy4wMiAzLjAyIDAgMCAxIDMuMDcgMy45NDl2My43ODVhLjUxLjUxIDAgMCAwIC4yNjIuNDUxbDMuOTMgMi4yMzctMS4zNjYuNzc5YS4wNS4wNSAwIDAgMS0uMDQ4IDBMMi41ODUgOS4zNDJhMi45OCAyLjk4IDAgMCAxLTEuMTEzLTQuMDk0em0xMS4yMTYgMi41NzFMOC43NDcgNS41NzZsMS4zNjItLjc3NmEuMDUuMDUgMCAwIDEgLjA0OCAwbDMuMjY1IDEuODZhMyAzIDAgMCAxIDEuMTczIDEuMjA3IDIuOTYgMi45NiAwIDAgMS0uMjcgMy4yIDMuMDUgMy4wNSAwIDAgMS0xLjM2Ljk5N1Y4LjI3OWEuNTIuNTIgMCAwIDAtLjI3Ni0uNDQ1bTEuMzYtMi4wMTUtLjA5Ny0uMDU3LTMuMjI2LTEuODU1YS41My41MyAwIDAgMC0uNTMgMEw2LjI0OSA2LjE1M1Y0LjU5OGEuMDQuMDQgMCAwIDEgLjAxOS0uMDRMOS41MzMgMi43YTMuMDcgMy4wNyAwIDAgMSAzLjI1Ny4xMzljLjQ3NC4zMjUuODQzLjc3OCAxLjA2NiAxLjMwMy4yMjMuNTI2LjI4OSAxLjEwMy4xOTEgMS42NjR6TTUuNTAzIDguNTc1IDQuMTM5IDcuOGEuMDUuMDUgMCAwIDEtLjAyNi0uMDM3VjQuMDQ5YzAtLjU3LjE2Ni0xLjEyNy40NzYtMS42MDdzLjc1Mi0uODY0IDEuMjc1LTEuMTA1YTMuMDggMy4wOCAwIDAgMSAzLjIzNC40MWwtLjA5Ni4wNTQtMy4yMyAxLjgzOGEuNTMuNTMgMCAwIDAtLjI2NS40NTV6bS43NDItMS41NzcgMS43NTgtMSAxLjc2MiAxdjJsLTEuNzU1IDEtMS43NjItMXoiIC8+PC9zdmc+PC9zdmc+Cg=="
+}

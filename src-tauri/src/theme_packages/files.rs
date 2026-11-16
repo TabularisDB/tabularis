@@ -3,6 +3,7 @@ use fs2::FileExt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 pub(super) fn check_path(path: &Path) -> Result<(), String> {
     for ancestor in path.ancestors() {
@@ -134,9 +135,40 @@ pub(super) fn write_lock(root: &Path) -> Result<File, String> {
         options.mode(0o600);
     }
     let file = options.open(path).map_err(|e| e.to_string())?;
-    FileExt::try_lock_exclusive(&file)
+    lock_within_grace(|| FileExt::try_lock_exclusive(&file))
         .map_err(|_| "Another theme operation is in progress".to_string())?;
     Ok(file)
+}
+
+/// How long a lock that looks held is waited for before it is reported as
+/// held, and how often it is tried meanwhile.
+///
+/// A flock belongs to an open file description, and a child process started by
+/// another thread inherits a copy of every descriptor that is open at that
+/// moment until it execs. A lock released just before such a spawn therefore
+/// stays held for a few milliseconds, and a bare `try_lock` reports an
+/// operation in progress that is already over.
+const LOCK_GRACE: Duration = Duration::from_millis(250);
+const LOCK_POLL: Duration = Duration::from_millis(5);
+
+/// Runs `try_lock`, and while the lock is contended runs it again every
+/// [`LOCK_POLL`] for at most [`LOCK_GRACE`]. Any other error is returned at
+/// once.
+pub(super) fn lock_within_grace(
+    mut try_lock: impl FnMut() -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    let deadline = Instant::now() + LOCK_GRACE;
+    loop {
+        match try_lock() {
+            Err(error)
+                if error.raw_os_error() == fs2::lock_contended_error().raw_os_error()
+                    && Instant::now() < deadline =>
+            {
+                std::thread::sleep(LOCK_POLL);
+            }
+            result => return result,
+        }
+    }
 }
 
 pub(super) fn package_read_lock(namespace: &Path) -> Result<Option<File>, String> {
@@ -154,6 +186,7 @@ pub(super) fn package_read_lock(namespace: &Path) -> Result<Option<File>, String
     if !file.metadata().map_err(|e| e.to_string())?.is_file() {
         return Err("Invalid theme namespace lock".into());
     }
-    FileExt::try_lock_shared(&file).map_err(|_| "Theme storage is being updated".to_string())?;
+    lock_within_grace(|| FileExt::try_lock_shared(&file))
+        .map_err(|_| "Theme storage is being updated".to_string())?;
     Ok(Some(file))
 }

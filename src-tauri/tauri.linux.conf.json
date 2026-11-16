@@ -1,0 +1,55 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "bundle": {
+    "fileAssociations": [
+      {
+        "ext": [
+          "csv"
+        ],
+        "name": "CSV data file",
+        "mimeType": "text/csv",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": [
+          "tsv",
+          "tab"
+        ],
+        "name": "TSV data file",
+        "mimeType": "text/tab-separated-values",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": [
+          "json"
+        ],
+        "name": "JSON data file",
+        "mimeType": "application/json",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": [
+          "ndjson",
+          "jsonl"
+        ],
+        "name": "NDJSON data file",
+        "mimeType": "application/x-ndjson",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": [
+          "parquet",
+          "pq"
+        ],
+        "name": "Parquet data file",
+        "mimeType": "application/vnd.apache.parquet",
+        "role": "Viewer",
+        "rank": "Alternate"
+      }
+    ]
+  }
+}

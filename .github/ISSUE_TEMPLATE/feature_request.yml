@@ -37,3 +37,34 @@ body:
       description: An example for how this feature would be used. Make sure you place example code inside a code (```) block to avoid linking unrelated issues.
     validations:
       required: false
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: Describe observable outcomes, relevant checks, and compatibility expectations. Keep this proposal focused on one capability.
+      placeholder: |
+        - [ ] The intended user flow works as described.
+        - [ ] Relevant edge cases are covered.
+        - [ ] Existing behavior remains compatible outside the new feature.
+    validations:
+      required: true
+  - type: textarea
+    id: where_to_start
+    attributes:
+      label: Where to start
+      description: Optional verified implementation pointers or related issues. Leave blank if you have not checked the code.
+    validations:
+      required: false
+  - type: textarea
+    id: contributor_notes
+    attributes:
+      label: Contributor notes
+      description: Keep this footer, adapting implementation and validation notes to the scope of the proposal.
+      value: |
+        - Follow the repo rules in [`.rules/`](https://github.com/TabularisDB/tabularis/tree/main/.rules) (Rust, TypeScript, React, design tokens, accessibility, testing).
+        - Add any new UI strings to every locale under `packages/web-ui/src/i18n/locales/`.
+        - Keep shared backend logic in `src-tauri/src/application/` and transport-specific code in the corresponding transport module; preserve the desktop-free build.
+        - Run the relevant tests and repository checks, including `cargo check --no-default-features` from `src-tauri/` for backend changes.
+        - Questions? Ask here or on [Discord](https://discord.com/invite/K2hmhfHRSt).
+    validations:
+      required: true

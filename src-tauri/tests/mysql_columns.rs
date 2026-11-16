@@ -18,8 +18,9 @@ use std::future::Future;
 use std::net::IpAddr;
 use std::panic::AssertUnwindSafe;
 use std::time::Duration;
+use tabularis_lib::drivers::driver_trait::DatabaseDriver;
 use tabularis_lib::drivers::mysql;
-use tabularis_lib::models::{ConnectionParams, DatabaseSelection, TableColumn};
+use tabularis_lib::models::{ColumnDefinition, ConnectionParams, DatabaseSelection, TableColumn};
 use tabularis_lib::pool_manager::close_pool;
 
 fn required_env(suffix: &str) -> String {
@@ -125,6 +126,263 @@ async fn exercise_column_lengths(
     }
 }
 
+/// Each column as `name data_type full_type`, with `-` when there is no full type.
+fn types(columns: &[TableColumn]) -> Vec<String> {
+    columns
+        .iter()
+        .map(|column| {
+            let full_type = column.full_type.as_deref().unwrap_or("-");
+            format!("{} {} {full_type}", column.name, column.data_type)
+        })
+        .collect()
+}
+
+/// `data_type` keeps the base name and `full_type` carries `COLUMN_TYPE` (#1277).
+/// Only types whose `COLUMN_TYPE` is the same on MySQL 5.7 and 8.x are listed:
+/// 8.0.19+ drops the display width of `int` (`int(11)` on 5.7), but keeps `tinyint(1)`.
+async fn exercise_full_types(
+    connection: &mut MySqlConnection,
+    params: &ConnectionParams,
+    schema: &str,
+) {
+    let db = quoted(schema);
+    execute(
+        connection,
+        &format!(
+            "CREATE TABLE {db}.typed (name VARCHAR(255), code CHAR(10), price DECIMAL(10,2), \
+             flag TINYINT(1), status ENUM('pending','done'), note TEXT, born DATETIME(3))"
+        ),
+    )
+    .await;
+    execute(
+        connection,
+        &format!("CREATE VIEW {db}.typed_view AS SELECT name, price FROM {db}.typed"),
+    )
+    .await;
+
+    let table = [
+        "name varchar varchar(255)",
+        "code char char(10)",
+        "price decimal decimal(10,2)",
+        "flag tinyint tinyint(1)",
+        "status enum('pending','done') -",
+        "note text -",
+        "born datetime datetime(3)",
+    ];
+    for text_protocol in [false, true] {
+        let selected = params_for_protocol(params, text_protocol);
+        let columns = discover(
+            "get_columns",
+            mysql::get_columns(&selected, "typed", Some(schema)),
+        )
+        .await;
+        assert_eq!(
+            types(&columns),
+            table,
+            "get_columns (text protocol: {text_protocol})"
+        );
+        let batch = discover(
+            "get_all_columns_batch",
+            mysql::get_all_columns_batch(&selected, Some(schema)),
+        )
+        .await;
+        assert_eq!(
+            types(&batch["typed"]),
+            table,
+            "get_all_columns_batch (text protocol: {text_protocol})"
+        );
+        let view = discover(
+            "get_view_columns",
+            mysql::get_view_columns(&selected, "typed_view", Some(schema)),
+        )
+        .await;
+        assert_eq!(
+            types(&view),
+            ["name varchar varchar(255)", "price decimal decimal(10,2)"],
+            "get_view_columns (text protocol: {text_protocol})"
+        );
+    }
+}
+
+/// Each column as `name default on_update`, with `-` where there is none.
+fn defaults(columns: &[TableColumn]) -> Vec<String> {
+    columns
+        .iter()
+        .map(|column| {
+            format!(
+                "{} {} {}",
+                column.name,
+                column.default_sql.as_deref().unwrap_or("-"),
+                column.on_update.as_deref().unwrap_or("-")
+            )
+        })
+        .collect()
+}
+
+/// The column as the column editor sends it back for an ALTER.
+fn as_definition(column: &TableColumn, name: &str) -> ColumnDefinition {
+    ColumnDefinition {
+        name: name.to_string(),
+        data_type: column
+            .full_type
+            .clone()
+            .unwrap_or_else(|| column.data_type.clone()),
+        is_nullable: column.is_nullable,
+        is_pk: column.is_pk,
+        is_auto_increment: column.is_auto_increment,
+        default_value: column.default_sql.clone(),
+        comment: None,
+        on_update: column.on_update.clone(),
+    }
+}
+
+/// `default_sql` and `on_update` are SQL that `get_alter_column_sql` can
+/// restate, so renaming a column keeps its default and ON UPDATE (#271).
+/// Only defaults that MySQL 5.7 and 8.x both accept are used.
+async fn exercise_defaults_survive_rename(
+    connection: &mut MySqlConnection,
+    params: &ConnectionParams,
+    schema: &str,
+) {
+    rename_keeps_defaults(
+        connection,
+        params,
+        schema,
+        "defaults",
+        "label VARCHAR(20) NOT NULL DEFAULT 'new', \
+         qty INT DEFAULT 5, quote VARCHAR(20) DEFAULT 'it''s', \
+         stamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, \
+         phrase VARCHAR(20) DEFAULT 'CURRENT_TIMESTAMP', blank VARCHAR(5) NOT NULL DEFAULT '', \
+         nothing VARCHAR(5) NULL",
+        &[
+            "label 'new' -",
+            "qty '5' -",
+            "quote 'it\\'s' -",
+            "stamp CURRENT_TIMESTAMP CURRENT_TIMESTAMP",
+            "phrase 'CURRENT_TIMESTAMP' -",
+            "blank '' -",
+            "nothing - -",
+        ],
+    )
+    .await;
+
+    // Expression defaults exist from MySQL 8.0.13. information_schema
+    // reports their string literals with escaped quotes and backslashes.
+    let version: String = sqlx::query_scalar("SELECT VERSION()")
+        .fetch_one(&mut *connection)
+        .await
+        .expect("SELECT VERSION()");
+    if !supports_expression_defaults(&version) {
+        return;
+    }
+    rename_keeps_defaults(
+        connection,
+        params,
+        schema,
+        "expression_defaults",
+        "pair VARCHAR(20) DEFAULT (concat('a','b')), \
+         doc JSON DEFAULT (JSON_OBJECT('a','it''s')), \
+         list JSON DEFAULT (JSON_ARRAY('x\\\\y')), \
+         total INT DEFAULT (1 + 1)",
+        &[
+            "pair (concat(_utf8mb4'a',_utf8mb4'b')) -",
+            "doc (json_object(_utf8mb4'a',_utf8mb4'it\\'s')) -",
+            "list (json_array(_utf8mb4'x\\\\y')) -",
+            "total ((1 + 1)) -",
+        ],
+    )
+    .await;
+}
+
+fn supports_expression_defaults(version: &str) -> bool {
+    if version.to_ascii_lowercase().contains("mariadb") {
+        return false;
+    }
+    let mut parts = version
+        .split(|c: char| !c.is_ascii_digit())
+        .map(|part| part.parse::<u32>().unwrap_or(0));
+    let (major, minor, patch) = (
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+    );
+    (major, minor, patch) >= (8, 0, 13)
+}
+
+async fn rename_keeps_defaults(
+    connection: &mut MySqlConnection,
+    params: &ConnectionParams,
+    schema: &str,
+    table: &str,
+    columns_sql: &str,
+    expected: &[&str],
+) {
+    let db = quoted(schema);
+    execute(
+        connection,
+        &format!("CREATE TABLE {db}.{} ({columns_sql})", quoted(table)),
+    )
+    .await;
+    for text_protocol in [false, true] {
+        let selected = params_for_protocol(params, text_protocol);
+        let columns = discover(
+            "get_columns",
+            mysql::get_columns(&selected, table, Some(schema)),
+        )
+        .await;
+        assert_eq!(
+            defaults(&columns),
+            expected,
+            "{table}: get_columns (text protocol: {text_protocol})"
+        );
+        let batch = discover(
+            "get_all_columns_batch",
+            mysql::get_all_columns_batch(&selected, Some(schema)),
+        )
+        .await;
+        assert_eq!(
+            defaults(&batch[table]),
+            expected,
+            "{table}: get_all_columns_batch (text protocol: {text_protocol})"
+        );
+    }
+
+    let columns = discover(
+        "get_columns",
+        mysql::get_columns(params, table, Some(schema)),
+    )
+    .await;
+    let driver = mysql::MysqlDriver::new();
+    for column in &columns {
+        let renamed = format!("{}_renamed", column.name);
+        let statements = driver
+            .get_alter_column_sql(
+                table,
+                as_definition(column, &column.name),
+                as_definition(column, &renamed),
+                None,
+            )
+            .await
+            .expect("get_alter_column_sql");
+        for sql in statements {
+            execute(connection, &format!("USE {db}; {sql}")).await;
+        }
+    }
+    let renamed = discover(
+        "get_columns",
+        mysql::get_columns(params, table, Some(schema)),
+    )
+    .await;
+    let expected_renamed: Vec<String> = expected
+        .iter()
+        .map(|line| {
+            let (name, rest) = line.split_once(' ').unwrap();
+            format!("{name}_renamed {rest}")
+        })
+        .collect();
+    assert_eq!(defaults(&renamed), expected_renamed, "{table}: after renaming");
+}
+
 #[tokio::test]
 #[ignore = "requires an explicitly configured disposable local MySQL/MariaDB server with TLS"]
 async fn column_lengths_are_reported() {
@@ -177,6 +435,9 @@ async fn column_lengths_are_reported() {
         .await;
         created = true;
         exercise_column_lengths(&mut connection, &params, &schema).await;
+        exercise_full_types(&mut connection, &params, &schema).await;
+        exercise_defaults_survive_rename(&mut connection, &params, &schema).await;
+        exercise_column_comments(&mut connection, &params, &schema).await;
     })
     .catch_unwind()
     .await;
@@ -200,4 +461,99 @@ async fn column_lengths_are_reported() {
         cleanup_error.is_none(),
         "fixture cleanup failed: {cleanup_error:?}"
     );
+}
+
+async fn exercise_column_comments(
+    connection: &mut MySqlConnection,
+    params: &ConnectionParams,
+    schema: &str,
+) {
+    let driver = mysql::MysqlDriver::new();
+    for no_backslash in [false, true] {
+        let table = if no_backslash {
+            "comments_ansi"
+        } else {
+            "comments_default"
+        };
+        execute(connection, &format!("CREATE TABLE {}.{} (id INT PRIMARY KEY, stamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)", quoted(schema), quoted(table))).await;
+        let mut selected = params.clone();
+        selected.startup_script = Some(format!(
+            "SET SESSION sql_mode = '{}'",
+            if no_backslash {
+                "NO_BACKSLASH_ESCAPES"
+            } else {
+                ""
+            }
+        ));
+        let before = mysql::get_columns(&selected, table, Some(schema))
+            .await
+            .unwrap();
+        let original = as_definition(before.iter().find(|c| c.name == "stamp").unwrap(), "stamp");
+        let mut previous = original.clone();
+        for text in [
+            Some("Customer's note\\path\n日本語"),
+            Some("replacement"),
+            None,
+        ] {
+            let mut new = original.clone();
+            new.comment = text.map(str::to_string);
+            for sql in driver
+                .get_alter_column_sql_for_connection(
+                    &selected,
+                    table,
+                    previous,
+                    new.clone(),
+                    Some(schema),
+                )
+                .await
+                .unwrap()
+            {
+                mysql::execute_query(&selected, &sql, None, 1, Some(schema))
+                    .await
+                    .unwrap();
+            }
+            let mut columns = mysql::get_columns(&selected, table, Some(schema))
+                .await
+                .unwrap();
+            let actual = columns.iter_mut().find(|c| c.name == "stamp").unwrap();
+            assert_eq!(actual.comment.as_deref(), text);
+            actual.comment = None;
+            assert_eq!(
+                serde_json::to_value(&columns).unwrap(),
+                serde_json::to_value(&before).unwrap()
+            );
+            previous = new;
+        }
+        let added = ColumnDefinition {
+            name: "notes".into(),
+            data_type: "TEXT".into(),
+            is_nullable: true,
+            default_value: None,
+            on_update: None,
+            comment: Some("New column's note\\path".into()),
+            ..original
+        };
+        for sql in driver
+            .get_add_column_sql_for_connection(&selected, table, added, Some(schema))
+            .await
+            .unwrap()
+        {
+            mysql::execute_query(&selected, &sql, None, 1, Some(schema))
+                .await
+                .unwrap();
+        }
+        let columns = mysql::get_columns(&selected, table, Some(schema))
+            .await
+            .unwrap();
+        assert_eq!(
+            columns
+                .iter()
+                .find(|c| c.name == "notes")
+                .unwrap()
+                .comment
+                .as_deref(),
+            Some("New column's note\\path")
+        );
+        close_pool(&selected).await;
+    }
 }

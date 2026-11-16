@@ -117,9 +117,10 @@ async fn test_get_routine_definition() {
     require_pg!();
     let params = pg_params();
 
-    let def = postgres::get_routine_definition(&params, "get_user", "FUNCTION", "test_schema", None)
-        .await
-        .expect("get_routine_definition should succeed");
+    let def =
+        postgres::get_routine_definition(&params, "get_user", "FUNCTION", "test_schema", None)
+            .await
+            .expect("get_routine_definition should succeed");
 
     assert!(
         def.to_lowercase().contains("select") || def.to_lowercase().contains("function"),

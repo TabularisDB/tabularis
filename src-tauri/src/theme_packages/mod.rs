@@ -1,12 +1,12 @@
 //! Declarative theme contracts. No executable plugin activation belongs here.
 mod archive;
-mod catalog;
+pub(crate) mod catalog;
 mod catalog_models;
 pub mod commands;
 mod files;
 mod json;
 mod legacy;
-mod lifecycle;
+pub(crate) mod lifecycle;
 mod locations;
 mod personal;
 pub(crate) use json::parse_bounded_json;

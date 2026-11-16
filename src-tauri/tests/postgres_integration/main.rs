@@ -34,9 +34,11 @@ macro_rules! require_pg {
 }
 
 mod blob;
+mod column_comments;
 mod column_metadata;
 mod crud;
 mod ddl_generation;
+mod dml_preview;
 mod explain;
 mod foreign_keys;
 mod golden;
@@ -71,5 +73,6 @@ mod query_execution;
 mod read_only;
 mod routines;
 mod schema_discovery;
+mod table_transfer;
 mod triggers;
 mod views;

@@ -1,0 +1,516 @@
+/**
+ * Connection utilities for database connections
+ * Extracted from Connections.tsx for testability
+ */
+
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import type {ConnectionGroup, SavedConnection} from '@/contexts/DatabaseContext';
+import type {ProxyOverride} from '@/types/proxy';
+import {isLocalDriver} from './driverCapabilities';
+import {hasOptedIntoDatabaseSelection} from './database';
+
+export type DatabaseDriver = string;
+
+export const BUILTIN_DRIVER_IDS = ['postgres', 'mysql', 'sqlite'] as const;
+export type BuiltinDriverId = (typeof BUILTIN_DRIVER_IDS)[number];
+
+/** Which direction a per-connection migration action would go, or `null` if
+ * migration isn't applicable to this connection's current driver. */
+export type MigrationDirection = 'to-plugin' | 'to-builtin' | null;
+
+/**
+ * Built-in/plugin driver pairs with a wired `useBuiltinDriverMigration` hook
+ * instance today. A manifest can carry `deprecated` before its migration UI
+ * is wired up (e.g. the Rust `deprecation_for_builtin` table gaining a mysql
+ * entry ahead of a frontend hook call site) — gating on this list, not just
+ * on the manifest's `deprecated` field, keeps the button/badge from
+ * triggering an action for a driver nothing actually handles yet. Add a pair
+ * here in the same commit that wires its `useBuiltinDriverMigration` call.
+ */
+const MIGRATABLE_DRIVER_PAIRS: ReadonlySet<string> = new Set(['postgres:postgresql']);
+
+/**
+ * Determine whether a connection's current driver is a deprecated built-in
+ * (offer "Switch to plugin") or the declared replacement of some deprecated
+ * built-in (offer "Switch back to built-in"). Returns `null` when neither
+ * applies, or when the pair has no wired migration hook yet — so the action
+ * stays hidden until both the manifest and the UI are ready together.
+ *
+ * Pure — no side effects, driven entirely by the driver id and the set of
+ * registered manifests.
+ */
+export function migrationDirectionForDriver(
+    driverId: string,
+    allDrivers: PluginManifest[],
+): MigrationDirection {
+    const currentManifest = allDrivers.find((d) => d.id === driverId);
+    if (currentManifest?.deprecated?.replacement_id) {
+        const pair = `${driverId}:${currentManifest.deprecated.replacement_id}`;
+        if (MIGRATABLE_DRIVER_PAIRS.has(pair)) return 'to-plugin';
+        return null;
+    }
+    const deprecatedBuiltin = allDrivers.find((d) => d.deprecated?.replacement_id === driverId);
+    if (deprecatedBuiltin) {
+        const pair = `${deprecatedBuiltin.id}:${driverId}`;
+        if (MIGRATABLE_DRIVER_PAIRS.has(pair)) return 'to-builtin';
+        return null;
+    }
+    return null;
+}
+
+export interface ConnectionParams {
+    driver: DatabaseDriver;
+    host?: string;
+    database: string;
+    port?: number;
+    username?: string;
+    password?: string;
+    /** TLS mode selected for the server connection. */
+    ssl_mode?: string;
+    /** Raw driver-specific connection URI, forwarded verbatim to the driver.
+     * Never persisted in connections.json: it embeds credentials and is stored
+     * in the OS keychain instead. */
+    connection_uri?: string;
+    /** True when the URI can be restored from the OS keychain. */
+    connection_uri_in_keychain?: boolean;
+    ssh_enabled?: boolean;
+    ssh_connection_id?: string;
+    // Legacy fields (for backward compatibility)
+    ssh_host?: string;
+    ssh_port?: number;
+    ssh_user?: string;
+    ssh_password?: string;
+    ssh_key_file?: string;
+    ssh_key_passphrase?: string;
+    ssh_allow_passphrase_prompt?: boolean;
+    // K8s
+    k8s_enabled?: boolean;
+    k8s_connection_id?: string;
+    k8s_context?: string;
+    k8s_namespace?: string;
+    k8s_resource_type?: string;
+    k8s_resource_name?: string;
+    k8s_port?: number;
+    // AWS SSM
+    ssm_enabled?: boolean;
+    ssm_target?: string;
+    ssm_profile?: string;
+    ssm_region?: string;
+    /** SQL run on every new connection to this data source (e.g. SET / set_config). */
+    startup_script?: string;
+    /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
+    pooler_mode?: string;
+    /** Seconds to wait for a new connection; unset keeps the driver default. */
+    connect_timeout_secs?: number;
+    /** Seconds a statement may run before it is cancelled on the server; unset or 0 means no limit. */
+    query_timeout_secs?: number;
+    /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
+     * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
+    extra?: Record<string, string>;
+    /** Optional proxy override for this connection. */
+    proxy?: ProxyOverride;
+}
+
+/** Upper bound for `connect_timeout_secs`; the backend reads it as a u32. */
+export const MAX_CONNECT_TIMEOUT_SECS = 3600;
+
+/** Upper bound for `query_timeout_secs`: one day. */
+export const MAX_QUERY_TIMEOUT_SECS = 86400;
+
+/**
+ * Parse a seconds field into whole seconds in [0, max]. Empty or non-numeric
+ * input (including overflow such as `1e999`) returns undefined, which leaves
+ * the setting unset.
+ */
+function parseWholeSecs(raw: string, max: number): number | undefined {
+    if (raw.trim() === '') return undefined;
+    const secs = Number(raw);
+    if (!Number.isFinite(secs)) return undefined;
+    return Math.min(max, Math.max(0, Math.floor(secs)));
+}
+
+/** Parse the connect timeout field. Unset keeps the driver default. */
+export function parseConnectTimeoutSecs(raw: string): number | undefined {
+    return parseWholeSecs(raw, MAX_CONNECT_TIMEOUT_SECS);
+}
+
+/** Parse the query timeout field. Unset or 0 means no limit. */
+export function parseQueryTimeoutSecs(raw: string): number | undefined {
+    return parseWholeSecs(raw, MAX_QUERY_TIMEOUT_SECS);
+}
+
+/**
+ * Drop blank `ssl_mode` so the backend applies the driver default. The backend
+ * persists an omitted mode as `null`, so a connection loaded from disk can
+ * carry `null` here as well as `undefined`.
+ */
+export function withoutBlankSslMode<T extends {ssl_mode?: string | null}>(
+    params: T,
+): Omit<T, 'ssl_mode'> | T {
+    if (params.ssl_mode == null || params.ssl_mode.trim() === '') {
+        const rest = {...params};
+        delete rest.ssl_mode;
+        return rest;
+    }
+    return params;
+}
+
+/**
+ * Update one entry of the opaque `extra` connection fields map.
+ *
+ * Pure function — returns a new map, never mutates its input.
+ * - Blank keys are ignored (the input is returned unchanged).
+ * - An empty value removes the key, and the map collapsing to empty yields
+ *   `undefined` so nothing extra is persisted or sent to the backend.
+ *
+ * @param extra - Current extra fields map (may be undefined)
+ * @param key - Field name owned by the plugin
+ * @param value - New value; empty string clears the field
+ */
+export function updateExtraField(
+    extra: Record<string, string> | undefined,
+    key: string,
+    value: string,
+): Record<string, string> | undefined {
+    const trimmedKey = key.trim();
+    if (!trimmedKey) return extra;
+    const next = {...(extra ?? {})};
+    if (value === '') {
+        delete next[trimmedKey];
+    } else {
+        next[trimmedKey] = value;
+    }
+    return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Format a connection string for display.
+ * When capabilities are provided, uses file_based/folder_based to determine local vs remote.
+ * Falls back to driver === "sqlite" when capabilities are not available.
+ * @param params - Connection parameters
+ * @param capabilities - Optional driver capabilities
+ * @returns Formatted connection string
+ */
+export function formatConnectionString(
+    params: ConnectionParams,
+    capabilities?: DriverCapabilities | null,
+): string {
+    const local = capabilities != null ? isLocalDriver(capabilities) : params.driver === 'sqlite';
+
+    if (local) {
+        return params.database;
+    }
+
+    const host = params.host || 'localhost';
+    const port = params.port || getDefaultPort(params.driver);
+
+    return `${host}:${port}/${params.database}`;
+}
+
+/**
+ * Get the default port for a database driver.
+ * Accepts a driver id string, or a PluginManifest — when a manifest is
+ * given, its own declared `default_port` is used verbatim (issue #614:
+ * this lets a plugin driver like the standalone PostgreSQL plugin, id
+ * "postgresql", report the correct port instead of falling through to the
+ * literal-id switch below, which only recognizes the builtin ids).
+ * @param driver - Database driver type, or a resolved PluginManifest
+ * @returns Default port number
+ */
+export function getDefaultPort(driver: DatabaseDriver | PluginManifest): number {
+    if (typeof driver === 'object') {
+        return driver.default_port ?? 0;
+    }
+    switch (driver) {
+        case 'postgres':
+            return 5432;
+        case 'mysql':
+            return 3306;
+        case 'sqlite':
+            return 0; // SQLite doesn't use ports
+        default:
+            return 0;
+    }
+}
+
+/**
+ * Validate connection parameters.
+ * When capabilities are provided, uses file_based/folder_based to determine local vs remote.
+ * Falls back to driver === "sqlite" when capabilities are not available.
+ * @param params - Connection parameters to validate
+ * @param capabilities - Optional driver capabilities
+ * @returns Object with isValid flag and optional error message
+ */
+export function validateConnectionParams(
+    params: Partial<ConnectionParams>,
+    capabilities?: DriverCapabilities | null,
+): {
+    isValid: boolean;
+    error?: string;
+} {
+    if (!params.driver) {
+        return {isValid: false, error: 'Driver is required'};
+    }
+
+    if (!params.database) {
+        return {isValid: false, error: 'Database name is required'};
+    }
+
+    // For remote drivers, host is required
+    const local = capabilities != null ? isLocalDriver(capabilities) : params.driver === 'sqlite';
+    if (!local && !params.host) {
+        return {isValid: false, error: 'Host is required for remote databases'};
+    }
+
+    // Validate port if provided
+    if (params.port !== undefined) {
+        if (!Number.isInteger(params.port) || params.port < 1 || params.port > 65535) {
+            return {isValid: false, error: 'Port must be between 1 and 65535'};
+        }
+    }
+
+    // SSH validation
+    if (params.ssh_enabled) {
+        if (!params.ssh_host) {
+            return {
+                isValid: false,
+                error: 'SSH host is required when SSH is enabled',
+            };
+        }
+
+        if (!params.ssh_user) {
+            return {
+                isValid: false,
+                error: 'SSH user is required when SSH is enabled',
+            };
+        }
+
+        // Either password or key file must be provided
+        if (!params.ssh_password && !params.ssh_key_file) {
+            return {
+                isValid: false,
+                error: 'SSH password or key file is required',
+            };
+        }
+
+        // Validate SSH port if provided
+        if (params.ssh_port !== undefined) {
+            if (
+                !Number.isInteger(params.ssh_port) ||
+                params.ssh_port < 1 ||
+                params.ssh_port > 65535
+            ) {
+                return {
+                    isValid: false,
+                    error: 'SSH port must be between 1 and 65535',
+                };
+            }
+        }
+    }
+
+    return {isValid: true};
+}
+
+/**
+ * Get a human-readable label for a database driver.
+ * Accepts a driver id string, or a PluginManifest — when a manifest is
+ * given, its own declared `name` is used verbatim (issue #614: a plugin
+ * driver like the standalone PostgreSQL plugin, id "postgresql", gets its
+ * real display name instead of falling through to an all-caps rendering
+ * of its id).
+ * @param driver - Database driver type, or a resolved PluginManifest
+ * @returns Display label for the driver
+ */
+export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string {
+    if (typeof driver === 'object') {
+        return driver.name;
+    }
+    switch (driver) {
+        case 'postgres':
+            return 'PostgreSQL';
+        case 'mysql':
+            return 'MySQL';
+        case 'sqlite':
+            return 'SQLite';
+        default:
+            return String(driver).toUpperCase();
+    }
+}
+
+const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
+// `name:port` or `[ipv6]:port`
+const HOST_WITH_PORT_RE = /^(?:\[[^\]]*\]|[^:[\]]+):\d+$/;
+
+/**
+ * Format a host and port for display as `host:port`.
+ * A host that is a URL (`ws://127.0.0.1:8010`) or already names a port
+ * (`db:5433`, `[::1]:5433`) is shown as typed, and a bare IPv6 address is
+ * bracketed so its colons stay apart from the port.
+ * @param host - Host as entered in the connection form
+ * @param port - Port, or nothing to show the host alone
+ * @returns Display string
+ */
+export function formatHostPort(host: string, port: number | null | undefined): string {
+    if (port == null || URL_SCHEME_RE.test(host) || HOST_WITH_PORT_RE.test(host)) {
+        return host;
+    }
+    const isBareIpv6 = !host.startsWith('[') && host.split(':').length > 2;
+    return `${isBareIpv6 ? `[${host}]` : host}:${port}`;
+}
+
+/**
+ * Build the subtitle shown below a connection name (host:port · db or file path).
+ *
+ * `labels` carries the translated strings the subtitle may need: the
+ * "all databases" label (multi-db connection with no explicit selection)
+ * and the "{{n}} databases" counter for two or more selected databases (a
+ * single selected one is shown by name). Untranslated fallbacks apply when
+ * omitted.
+ *
+ * "All databases" is detected with `hasOptedIntoDatabaseSelection`, the same
+ * gate the connect flow uses, so it covers flat multi-db drivers (MySQL) and
+ * schema-based ones (PostgreSQL) alike.
+ */
+export function connectionSubtitle(
+    conn: SavedConnection,
+    capabilities: DriverCapabilities | null | undefined,
+    labels?: {allDatabases?: string; databaseCount?: (count: number) => string},
+): string {
+    if (isLocalDriver(capabilities)) {
+        const db = conn.params.database;
+        return Array.isArray(db) ? (db[0] ?? '') : (db ?? '');
+    }
+    const db = conn.params.database;
+    const selection = Array.isArray(db) ? db : typeof db === 'string' ? db.trim() : '';
+    const isAllDatabases =
+        selection.length === 0 && hasOptedIntoDatabaseSelection(capabilities, selection);
+    let dbStr: string;
+    if (isAllDatabases) dbStr = labels?.allDatabases ?? 'All databases';
+    else if (!Array.isArray(db)) dbStr = db;
+    // A single selected database is named, as when it is stored as a string.
+    else if (db.length === 1) dbStr = db[0];
+    else dbStr = labels?.databaseCount?.(db.length) ?? `${db.length} databases`;
+    return `${formatHostPort(conn.params.host ?? 'localhost', conn.params.port)}  ·  ${dbStr}`;
+}
+
+/**
+ * Resting look shared by connection cards and plugin cards: `primary` accent
+ * on hover, state tints (active/open) are layered on top by `getCardClass`.
+ */
+export const CARD_IDLE_CLASS =
+    'border-strong bg-elevated hover:border-accent-primary/30 hover:bg-surface-primary hover:shadow-md hover:shadow-black/10';
+
+/** Resting look for cards that are not themselves clickable (plugins): no accent on hover. */
+export const CARD_RESTING_CLASS = 'border-strong bg-elevated hover:shadow-md hover:shadow-black/10';
+
+/**
+ * CSS class string for a connection card/row based on its active/open state.
+ */
+export function getCardClass(
+    connId: string,
+    activeConnectionId: string | null,
+    isConnectionOpen: (id: string) => boolean,
+): string {
+    if (activeConnectionId === connId)
+        return 'border-accent-primary/40 bg-accent-primary/5 ring-1 ring-accent-primary/20 shadow-lg shadow-accent-primary/10';
+    if (isConnectionOpen(connId))
+        return 'border-accent-success/35 bg-accent-success/5 ring-1 ring-accent-success/15 shadow-md shadow-accent-success/10';
+    return CARD_IDLE_CLASS;
+}
+
+/**
+ * Create a connection display name from parameters.
+ * When capabilities are provided, uses file_based/folder_based to determine local vs remote.
+ * Falls back to driver === "sqlite" when capabilities are not available.
+ * @param params - Connection parameters
+ * @param capabilities - Optional driver capabilities
+ * @returns Display name for the connection
+ */
+export function generateConnectionName(
+    params: ConnectionParams,
+    capabilities?: DriverCapabilities | null,
+): string {
+    const local = capabilities != null ? isLocalDriver(capabilities) : params.driver === 'sqlite';
+
+    if (local) {
+        // Extract filename or folder name from path
+        const parts = params.database.split('/');
+        return parts[parts.length - 1] || params.database;
+    }
+
+    const host = params.host || 'localhost';
+    return `${params.database}@${host}`;
+}
+
+export type ConnectionDropPosition = 'before' | 'after';
+
+export function connectionOrderAfterMove(
+    ids: string[],
+    fromId: string,
+    toId: string,
+    position: ConnectionDropPosition,
+): Array<[string, number]> | null {
+    if (fromId === toId) return null;
+    const next = ids.filter((id) => id !== fromId);
+    const toIdx = next.indexOf(toId);
+    if (toIdx === -1) return null;
+    next.splice(toIdx + (position === 'after' ? 1 : 0), 0, fromId);
+    if (next.length === ids.length && next.every((id, i) => id === ids[i])) {
+        return null;
+    }
+    return next.map((id, i) => [id, i]);
+}
+
+export type GroupDropPosition = 'before' | 'after' | 'inside';
+
+export function planGroupDrop(
+    groups: ConnectionGroup[],
+    sourceId: string,
+    targetId: string,
+    position: GroupDropPosition,
+): {parentId: string | null; order: Array<[string, number]>} | 'cycle' | null {
+    const target = groups.find((g) => g.id === targetId);
+    if (sourceId === targetId || !target) return null;
+    const parentId = position === 'inside' ? targetId : (target.parent_id ?? null);
+
+    for (let cur: string | null = parentId; cur;) {
+        if (cur === sourceId) return 'cycle';
+        cur = groups.find((g) => g.id === cur)?.parent_id ?? null;
+    }
+
+    const current = groups
+        .filter((g) => (g.parent_id ?? null) === parentId)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((g) => g.id);
+    const siblings = current.filter((id) => id !== sourceId);
+    const at =
+        position === 'inside'
+            ? siblings.length
+            : siblings.indexOf(targetId) + (position === 'after' ? 1 : 0);
+    siblings.splice(at, 0, sourceId);
+    if (siblings.length === current.length && siblings.every((id, i) => id === current[i])) {
+        return null;
+    }
+    return {parentId, order: siblings.map((id, i) => [id, i])};
+}
+
+export function connectionDropZone(
+    rect: {top: number; left: number; width: number; height: number},
+    x: number,
+    y: number,
+    axis: 'x' | 'y',
+): ConnectionDropPosition {
+    const before = axis === 'x' ? x < rect.left + rect.width / 2 : y < rect.top + rect.height / 2;
+    return before ? 'before' : 'after';
+}
+
+export function groupDropZone(
+    rect: {top: number; height: number},
+    y: number,
+    allowAfter: boolean,
+): GroupDropPosition {
+    const edge = rect.height * 0.3;
+    if (y < rect.top + edge) return 'before';
+    if (allowAfter && y > rect.top + rect.height - edge) return 'after';
+    return 'inside';
+}

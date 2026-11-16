@@ -4,9 +4,9 @@
 //!
 //! On macOS a generic password is keyed by (service, account); the `keyring`
 //! crate's `Entry::new(service, account)` maps to exactly that. Reading another
-//! app's item triggers a per-item access prompt — expected behaviour, mirrored
-//! from TablePro. On non-macOS platforms these source apps don't use a shared
-//! keychain, so we report `NotFound` without touching the local store.
+//! app's item triggers a per-item access prompt — expected behaviour. On
+//! non-macOS platforms these source apps don't use a shared keychain, so we
+//! report `NotFound` without touching the local store.
 
 /// Outcome of a single keychain lookup. `Cancelled` means the user denied the
 /// access prompt; callers stop prompting for the rest of the import.

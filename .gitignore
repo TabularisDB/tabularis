@@ -40,3 +40,6 @@ AGENTS.override.md
 .claude/*
 !.claude/skills/
 !.claude/skills/**
+
+# TypeScript incremental build info
+*.tsbuildinfo

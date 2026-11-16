@@ -165,7 +165,7 @@ fn serve_connection(
                 Ok(_) if line == "\r\n" || line == "\n" => {
                     complete_headers = true;
                     break;
-                },
+                }
                 Ok(_) => {}
             }
         }
@@ -240,9 +240,7 @@ mod concurrency_tests {
     fn get_kinds(base: &str, timeout: Duration) -> String {
         let address = base.strip_prefix("http://").unwrap();
         let mut connection = TcpStream::connect(address).expect("connect to loopback fixture");
-        connection
-            .set_read_timeout(Some(timeout))
-            .unwrap();
+        connection.set_read_timeout(Some(timeout)).unwrap();
         connection
             .write_all(b"GET /api/kinds HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
             .unwrap();

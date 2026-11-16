@@ -22,7 +22,10 @@ fn catalog_read_budget_counts_invalid_sources_without_writing_them() {
 fn duplicated_legacy_snapshots_remain_editable_and_exportable() {
     let root = temp_dir();
     let editor = serde_json::json!({"base":"vs-dark","inherit":true,"colors":{"editor.background":"#123456"},"rules":[]});
-    let duplicate = super::super::duplicate_personal_theme(root.path(), root.path(), "0.99.0",
+    let duplicate = super::super::duplicate_personal_theme(
+        root.path(),
+        root.path(),
+        "0.99.0",
         "monokai",
         "Copy",
         Some(editor.clone()),

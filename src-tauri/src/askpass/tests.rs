@@ -144,6 +144,91 @@ mod response_codec_tests {
 }
 
 #[cfg(unix)]
+mod scoped_ui_tests {
+    use super::super::{respond_for_session, AskpassUi, FrontendUi, PromptKind};
+    use crate::runtime::events::RuntimeEvents;
+    use serde_json::Value;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+    use uuid::Uuid;
+
+    #[derive(Default)]
+    struct RecordingEvents {
+        events: Mutex<Vec<(Uuid, String, Value)>>,
+    }
+
+    impl RuntimeEvents for RecordingEvents {
+        fn emit(&self, _event: &str, _payload: Value) -> Result<(), String> {
+            Err("unscoped event".to_string())
+        }
+
+        fn emit_to(&self, session_id: Uuid, event: &str, payload: Value) -> Result<(), String> {
+            self.events
+                .lock()
+                .unwrap()
+                .push((session_id, event.to_string(), payload));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn prompt_responses_are_bound_to_the_initiating_session() {
+        let events = Arc::new(RecordingEvents::default());
+        let owner = Uuid::new_v4();
+        let ui = Arc::new(FrontendUi {
+            events: events.clone(),
+            session_id: Some(owner),
+            response_timeout: Duration::from_secs(1),
+        });
+        let worker = std::thread::spawn(move || ui.request(PromptKind::Secret, "Enter PIN"));
+
+        let id = wait_for_request(&events);
+        let other = Uuid::new_v4();
+        assert!(
+            respond_for_session(Some(other), id, Some("wrong".to_string()))
+                .unwrap_err()
+                .contains("another session")
+        );
+        respond_for_session(Some(owner), id, Some("1234".to_string())).unwrap();
+        assert_eq!(worker.join().unwrap().as_deref(), Some("1234"));
+    }
+
+    #[test]
+    fn unattended_prompts_time_out_and_emit_a_scoped_dismissal() {
+        let events = Arc::new(RecordingEvents::default());
+        let owner = Uuid::new_v4();
+        let ui = FrontendUi {
+            events: events.clone(),
+            session_id: Some(owner),
+            response_timeout: Duration::from_millis(10),
+        };
+
+        assert!(ui.request(PromptKind::Confirm, "Continue?").is_none());
+        let recorded = events.events.lock().unwrap();
+        assert_eq!(recorded[0].0, owner);
+        assert_eq!(recorded[0].1, "ssh-askpass://request");
+        assert_eq!(recorded[1].0, owner);
+        assert_eq!(recorded[1].1, "ssh-askpass://dismiss");
+    }
+
+    fn wait_for_request(events: &RecordingEvents) -> u64 {
+        for _ in 0..100 {
+            if let Some(id) = events
+                .events
+                .lock()
+                .unwrap()
+                .first()
+                .and_then(|(_, _, payload)| payload["id"].as_u64())
+            {
+                return id;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!("askpass request was not emitted");
+    }
+}
+
+#[cfg(unix)]
 mod server_tests {
     use super::super::protocol::{decode_response, encode_request, PromptKind};
     use super::super::server::{AskpassServer, AskpassUi};

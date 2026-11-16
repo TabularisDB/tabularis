@@ -60,8 +60,13 @@ async fn test_get_foreign_keys_cross_schema() {
     let lookup_fk = lookup_fk.unwrap();
     assert_eq!(lookup_fk.ref_table, "lookup");
     assert_eq!(lookup_fk.ref_column, "code");
-    // TODO: Once PR #402 merges and ForeignKey gains `ref_schema`, assert:
-    // assert_eq!(lookup_fk.ref_schema.as_deref(), Some("other_schema"));
+    assert_eq!(lookup_fk.ref_schema.as_deref(), Some("other_schema"));
+
+    let batch = postgres::get_all_foreign_keys_batch(&params, "test_schema")
+        .await
+        .expect("get_all_foreign_keys_batch should succeed");
+    let batch_fk = &batch["with_cross_schema_fk"][0];
+    assert_eq!(batch_fk.ref_schema.as_deref(), Some("other_schema"));
 }
 
 #[tokio::test]

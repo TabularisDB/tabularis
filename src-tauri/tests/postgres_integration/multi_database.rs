@@ -80,7 +80,6 @@ async fn test_empty_string_filter_prevents_maintenance_db_override() {
     );
 }
 
-
 #[tokio::test]
 #[ignore]
 async fn test_get_databases_lists_both() {

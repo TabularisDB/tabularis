@@ -1,35 +1,41 @@
-import { getHost } from "./host";
+import {getHost} from './host';
 import type {
-  UsePluginConnectionReturn,
-  UsePluginModalReturn,
-  UsePluginQueryReturn,
-  UsePluginSettingReturn,
-  UsePluginThemeReturn,
-  UsePluginToastReturn,
-  PluginTranslator,
-} from "./types";
+    UsePluginConnectionReturn,
+    UsePluginWorkspaceReturn,
+    UsePluginRpcReturn,
+    UsePluginAccountReturn,
+    UsePluginModalReturn,
+    UsePluginQueryReturn,
+    UsePluginSettingReturn,
+    UsePluginThemeReturn,
+    UsePluginToastReturn,
+    PluginTranslator,
+    GoogleOAuthTokenRequest,
+    GoogleOAuthTokenResponse,
+} from './types';
 
 /**
- * Execute read-only SQL queries against the active connection.
+ * Execute SQL against the active connection after a best-effort statement filter.
+ * This is not a security boundary; use read-only database grants for that guarantee.
  * Returns `{ executeQuery, loading, error }` — `executeQuery` resolves with
  * `{ columns, rows }` or throws a plain Error with the host's error message.
  */
 export function usePluginQuery(): UsePluginQueryReturn {
-  return getHost().usePluginQuery();
+    return getHost().usePluginQuery();
 }
 
 /**
  * Active connection metadata. Fields are null when no connection is active.
  */
 export function usePluginConnection(): UsePluginConnectionReturn {
-  return getHost().usePluginConnection();
+    return getHost().usePluginConnection();
 }
 
 /**
  * Show system-level info/warning/error notifications.
  */
 export function usePluginToast(): UsePluginToastReturn {
-  return getHost().usePluginToast();
+    return getHost().usePluginToast();
 }
 
 /**
@@ -37,7 +43,7 @@ export function usePluginToast(): UsePluginToastReturn {
  * Pass your plugin id (the one declared in the `.tabularium` manifest).
  */
 export function usePluginSetting(pluginId: string): UsePluginSettingReturn {
-  return getHost().usePluginSetting(pluginId);
+    return getHost().usePluginSetting(pluginId);
 }
 
 /**
@@ -45,21 +51,21 @@ export function usePluginSetting(pluginId: string): UsePluginSettingReturn {
  * namespace — the host registers it automatically from locales/*.json.
  */
 export function usePluginTranslation(pluginId: string): PluginTranslator {
-  return getHost().usePluginTranslation(pluginId);
+    return getHost().usePluginTranslation(pluginId);
 }
 
 /**
  * Open and close host-managed modals with custom content.
  */
 export function usePluginModal(): UsePluginModalReturn {
-  return getHost().usePluginModal();
+    return getHost().usePluginModal();
 }
 
 /**
  * Current theme metadata plus the full design-token color map.
  */
 export function usePluginTheme(): UsePluginThemeReturn {
-  return getHost().usePluginTheme();
+    return getHost().usePluginTheme();
 }
 
 /**
@@ -67,5 +73,46 @@ export function usePluginTheme(): UsePluginThemeReturn {
  * Plugin components should use this instead of window.open for external URLs.
  */
 export async function openUrl(url: string): Promise<void> {
-  return getHost().openUrl(url);
+    return getHost().openUrl(url);
+}
+
+/** Copy a command or diagnostic through the host clipboard. */
+export async function copyText(text: string): Promise<void> {
+    return getHost().copyText(text);
+}
+
+/** Notify other mounted views of the same plugin with a JSON payload of at most 64 KiB. */
+export function publishPluginEvent(pluginId: string, name: string, detail: unknown): Promise<void> {
+    return getHost().publishPluginEvent(pluginId, name, detail);
+}
+
+/** Subscribe to this plugin's events; the host removes the listener when the component unmounts. */
+export function usePluginEvent(
+    pluginId: string,
+    name: string,
+    listener: (detail: unknown) => void,
+): void {
+    return getHost().usePluginEvent(pluginId, name, listener);
+}
+
+/** Connection-scoped services; stored secret values cannot be read through this API. */
+export function usePluginRpc(pluginId: string, connectionId?: string): UsePluginRpcReturn {
+    return getHost().usePluginRpc(pluginId, connectionId);
+}
+
+/** Open or focus a plugin-owned workspace on the current editor connection. */
+export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
+    return getHost().usePluginWorkspace(pluginId);
+}
+
+/** Provider account operations that do not require a saved database connection. */
+export function usePluginAccount(pluginId: string): UsePluginAccountReturn {
+    return getHost().usePluginAccount(pluginId);
+}
+
+/** Exchange or refresh Google OAuth tokens through the host's fixed token endpoint. */
+export function exchangeGoogleOAuthToken(
+    request: GoogleOAuthTokenRequest,
+): Promise<GoogleOAuthTokenResponse> {
+    return getHost().exchangeGoogleOAuthToken(request);
 }

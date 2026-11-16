@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 pub(super) const PERSONAL_DIR: &str = "theme-personal-v1";
 /// Installed packages live in `plugins/<kind-folder>/<package>/`. Flat packages
 /// remain a read fallback; manifests keep declarative themes out of drivers.
-pub(super) const PACKAGES_DIR: &str = "plugins";
+pub(crate) const PACKAGES_DIR: &str = "plugins";
 const CATALOG_BYTES: usize = 32 * 1024 * 1024;
 
 pub(super) fn revision(source: &str) -> String {
@@ -172,10 +172,16 @@ fn package_entries(
     let version = label(&manifest, "version")?;
     let mut paths = BTreeSet::new();
     package_files(folder, folder, &mut paths, &mut 0)?;
-    let mut allowed: HashSet<String> = [".tabularium", "readme.md", "license", "license.txt", super::locations::ORIGIN_FILE]
-        .into_iter()
-        .map(String::from)
-        .collect();
+    let mut allowed: HashSet<String> = [
+        ".tabularium",
+        "readme.md",
+        "license",
+        "license.txt",
+        super::locations::ORIGIN_FILE,
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
     let variants = manifest["theme_variants"]
         .as_array()
         .ok_or("Missing variants")?;
@@ -308,9 +314,16 @@ pub fn read_theme_catalog(root: &Path, data_root: &Path, host_version: &str) -> 
     // Hold the canonical lock across BOTH scans: mutations of flat bundles
     // also serialize here, so a migration cannot expose stale fallback data.
     let catalog_lock = files::package_read_lock(&plugins.join(super::locations::directory_name()));
-    if let Err(error) = &catalog_lock { issue(&mut catalog, error); }
-    for (parent, typed) in [(plugins.join(super::locations::directory_name()), true), (plugins, false)] {
-        if catalog_lock.is_err() { break; }
+    if let Err(error) = &catalog_lock {
+        issue(&mut catalog, error);
+    }
+    for (parent, typed) in [
+        (plugins.join(super::locations::directory_name()), true),
+        (plugins, false),
+    ] {
+        if catalog_lock.is_err() {
+            break;
+        }
         let _lock = match files::package_read_lock(&parent) {
             Ok(lock) => lock,
             Err(error) => {
@@ -322,32 +335,56 @@ pub fn read_theme_catalog(root: &Path, data_root: &Path, host_version: &str) -> 
         match files::directory(&parent) {
             Ok(packages) => {
                 for package in packages.into_iter().take(4096) {
-                    if read_budget == 0 { break; }
+                    if read_budget == 0 {
+                        break;
+                    }
                     let name = package.file_name().to_string_lossy().into_owned();
-                    if name.starts_with('.') || packages_seen.contains(&name) { continue; }
+                    if name.starts_with('.') || packages_seen.contains(&name) {
+                        continue;
+                    }
                     if !typed {
-                        if crate::plugins::layout::is_kind_directory(&name) { continue; }
+                        if crate::plugins::layout::is_kind_directory(&name) {
+                            continue;
+                        }
                         let manifest = package.path().join(".tabularium");
-                        if !manifest.exists() { continue; }
-                        let kind = files::read_budgeted_file(&manifest, 64 * 1024, &mut read_budget)
-                            .and_then(|source| super::json::parse_bounded_json(source.as_bytes(), 64 * 1024, 128, 262_144));
+                        if !manifest.exists() {
+                            continue;
+                        }
+                        let kind =
+                            files::read_budgeted_file(&manifest, 64 * 1024, &mut read_budget)
+                                .and_then(|source| {
+                                    super::json::parse_bounded_json(
+                                        source.as_bytes(),
+                                        64 * 1024,
+                                        128,
+                                        262_144,
+                                    )
+                                });
                         match kind {
                             Ok(value) if value["kind"] == "theme" => (),
                             Ok(_) => continue,
-                            Err(error) => { issue(&mut catalog, &error); continue; }
+                            Err(error) => {
+                                issue(&mut catalog, &error);
+                                continue;
+                            }
                         }
                     }
                     // Canonical names shadow the fallback even when invalid.
                     packages_seen.insert(name);
                     match package_entries(&package.path(), host_version, &mut read_budget) {
                         Ok(entries) => {
-                            for entry in entries { append(&mut catalog, &mut remaining, entry); }
+                            for entry in entries {
+                                append(&mut catalog, &mut remaining, entry);
+                            }
                         }
                         Err(error) => issue(&mut catalog, &error),
                     }
                 }
             }
-            Err(error) => { issue(&mut catalog, &error); break; }
+            Err(error) => {
+                issue(&mut catalog, &error);
+                break;
+            }
         }
     }
     let mut seen = HashSet::new();

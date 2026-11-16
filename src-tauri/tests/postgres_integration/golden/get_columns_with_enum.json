@@ -16,6 +16,7 @@
     "is_nullable": false,
     "is_auto_increment": false,
     "is_generated": false,
-    "default_value": "'neutral'::test_schema.mood"
+    "default_value": "'neutral'::test_schema.mood",
+    "default_sql": "'neutral'::test_schema.mood"
   }
 ]

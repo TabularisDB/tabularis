@@ -30,11 +30,7 @@ fn forwards() -> &'static Mutex<HashMap<String, ProxyTcpForward>> {
 /// Cache key for a forward. Includes protocol and username so rotating
 /// credentials / switching HTTP↔SOCKS5 does not reuse a stale listener.
 /// Password changes are handled by [`stop_all_forwards`] on proxy config save.
-pub fn build_forward_key(
-    proxy: &ProxyEndpoint,
-    target_host: &str,
-    target_port: u16,
-) -> String {
+pub fn build_forward_key(proxy: &ProxyEndpoint, target_host: &str, target_port: u16) -> String {
     let proto = match proxy.protocol {
         ProxyProtocol::Http => "http",
         ProxyProtocol::Socks5 => "socks5",
@@ -346,8 +342,7 @@ fn socks5_connect(
         .map_err(|e| format!("SOCKS5 connect write: {e}"))?;
 
     let mut hdr = [0u8; 4];
-    Read::read_exact(&mut stream, &mut hdr)
-        .map_err(|e| format!("SOCKS5 connect response: {e}"))?;
+    Read::read_exact(&mut stream, &mut hdr).map_err(|e| format!("SOCKS5 connect response: {e}"))?;
     if hdr[0] != 0x05 {
         return Err("SOCKS5: invalid version in connect response".into());
     }

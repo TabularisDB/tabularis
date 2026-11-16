@@ -92,6 +92,27 @@
         "ssh_connection_id": null,
         "save_in_keychain": true
       }
+    },
+    {
+      "id": "tabularis-demo-postgres-crm",
+      "name": "Demo · PostgreSQL (crm_demo)",
+      "group_id": "tabularis-demo-group",
+      "sort_order": 4,
+      "params": {
+        "driver": "postgres",
+        "host": "127.0.0.1",
+        "port": 5432,
+        "username": "postgres",
+        "password": "Tabularis_Demo_2026!",
+        "database": "crm_demo",
+        "ssl_mode": null,
+        "ssl_ca": null,
+        "ssl_cert": null,
+        "ssl_key": null,
+        "ssh_enabled": false,
+        "ssh_connection_id": null,
+        "save_in_keychain": true
+      }
     }
   ],
   "ssh_connections": []

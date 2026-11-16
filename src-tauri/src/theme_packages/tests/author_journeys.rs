@@ -28,13 +28,8 @@ fn author_generated_original_and_imported_archives_complete_local_lifecycle_with
         assert!(
             validate_theme_archive(first, "fixture-theme", "1.0.0", "0.23.0", &|| Ok(())).is_err()
         );
-        install_validated_theme(
-            &root.path().join("plugins"),
-            &key,
-            &validated,
-            &|| Ok(()),
-        )
-        .unwrap();
+        install_validated_theme(&root.path().join("plugins"), &key, &validated, &|| Ok(()))
+            .unwrap();
         let installed: Vec<_> = read_theme_catalog(root.path(), root.path(), "0.24.0")
             .themes
             .into_iter()
@@ -47,16 +42,20 @@ fn author_generated_original_and_imported_archives_complete_local_lifecycle_with
         let dark = installed.iter().find(|entry| entry.mode == "dark").unwrap();
         let prefs = json!({"theme":dark.id,"editorTheme":dark.id,"themeSettings":{"activeThemeId":dark.id,"darkThemeId":dark.id,"followSystemTheme":true}}).to_string();
         std::fs::write(root.path().join("config.json"), &prefs).unwrap();
-        let copy =
-            duplicate_personal_theme(root.path(), root.path(), "0.24.0", &dark.id, "Independent", None).unwrap();
+        let copy = duplicate_personal_theme(
+            root.path(),
+            root.path(),
+            "0.24.0",
+            &dark.id,
+            "Independent",
+            None,
+        )
+        .unwrap();
         let edited = update_personal_definition(root.path(), &copy.id, "Edited", "{\"schemaVersion\":1,\"mode\":\"dark\",\"colors\":{\"accent\":{\"primary\":\"#ff00aa\"}}}", &copy.revision).unwrap();
         assert_eq!(edited.origin["kind"], "personal");
         let update =
             validate_theme_archive(second, "fixture-theme", "2.0.0", "0.24.0", &|| Ok(())).unwrap();
-        install_validated_theme(&root.path().join("plugins"), &key, &update, &|| {
-            Ok(())
-        })
-        .unwrap();
+        install_validated_theme(&root.path().join("plugins"), &key, &update, &|| Ok(())).unwrap();
         let catalog = read_theme_catalog(root.path(), root.path(), "0.24.0");
         for entry in &installed {
             assert!(catalog.themes.iter().any(

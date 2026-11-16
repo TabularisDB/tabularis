@@ -1,11 +1,11 @@
 # Modal Styling Rules
 
-This document defines the standard styling and structural patterns for all modal components in Tabularis. Colors, radii and fonts follow the theme tokens in [DESIGN.md](../DESIGN.md) and [design.md](./design.md); never use Tailwind palette classes or `text-white`.
+This document defines the standard styling and structural patterns for all modal components in Tabularis. Colors, radii and fonts follow the theme tokens in [DESIGN.md](../docs/DESIGN.md) and [design.md](./design.md); never use Tailwind palette classes or `text-white`.
 
 ## File Location
 
-- **Primary location**: `src/components/modals/*.tsx` - for standalone modals
-- **Secondary location**: `src/components/ui/*.tsx` - when modal is part of a larger UI component set
+- **Primary location**: `packages/web-ui/src/components/modals/*.tsx` - for standalone modals
+- **Secondary location**: `packages/web-ui/src/components/ui/*.tsx` - when modal is part of a larger UI component set
 
 ## Component Structure
 
@@ -28,7 +28,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2 } from "lucide-react";  // Close icon + loading spinner
 import { invoke } from "@tauri-apps/api/core";  // If using Tauri commands
-import { useAlert } from "../../hooks/useAlert";  // For notifications (showAlert)
+import { useAlert } from "@/hooks/useAlert";  // For notifications (showAlert)
 ```
 
 ### 3. Render Pattern
@@ -265,7 +265,7 @@ export const CreateModal = ({ isOpen, onClose, onSubmit }: CreateModalProps) => 
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-accent-primary/15 rounded-lg">
-              <Plus size={20} className="text-accent-primary" />
+              <Plus size={20} className="text-accent" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">{t("create.title")}</h2>

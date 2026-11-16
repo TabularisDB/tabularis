@@ -1,6 +1,4 @@
-use crate::sql_file::{
-    read_sql_file_from_disk, validate_sql_file_path, write_sql_file_to_disk,
-};
+use crate::sql_file::{read_sql_file_from_disk, validate_sql_file_path, write_sql_file_to_disk};
 use std::path::Path;
 
 #[test]

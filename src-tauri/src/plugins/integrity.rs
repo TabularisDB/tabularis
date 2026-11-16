@@ -80,8 +80,7 @@ fn b64url(segment: &str) -> Result<Vec<u8>, String> {
 /// doesn't break in-flight installs).
 pub async fn fetch_jwks(base_url: &str) -> Result<Vec<Jwk>, String> {
     let url = format!("{}{}", base_url.trim_end_matches('/'), JWKS_PATH);
-    let client = crate::proxy::app_http_client()
-        .map_err(|e| format!("JWKS fetch failed: {e}"))?;
+    let client = crate::proxy::app_http_client().map_err(|e| format!("JWKS fetch failed: {e}"))?;
     let resp = client
         .get(&url)
         .send()
@@ -138,8 +137,8 @@ pub fn verify_jws(
         .ok_or_else(|| format!("no JWKS key for kid '{}'", header.kid))?;
     let key = verifying_key(jwk)?;
 
-    let sig = Signature::from_slice(&b64url(s)?)
-        .map_err(|e| format!("invalid signature bytes: {e}"))?;
+    let sig =
+        Signature::from_slice(&b64url(s)?).map_err(|e| format!("invalid signature bytes: {e}"))?;
 
     // The JWS signing input is the ASCII string "<header>.<payload>".
     let signing_input = format!("{h}.{p}");
@@ -214,11 +213,24 @@ mod tests {
     #[test]
     fn verifies_and_returns_signed_asset_hash() {
         let (jws, jwks) = sign(&payload());
-        let p = verify_jws(&jws, &jwks, "firestore", "0.5.0", "https://registry.tabularis.dev")
-            .expect("should verify");
+        let p = verify_jws(
+            &jws,
+            &jwks,
+            "firestore",
+            "0.5.0",
+            "https://registry.tabularis.dev",
+        )
+        .expect("should verify");
         assert_eq!(p.sha256_for("firestore-linux-x64.zip"), Some("deadbeef"));
         // Trailing-slash difference on the registry must not fail the guard.
-        assert!(verify_jws(&jws, &jwks, "firestore", "0.5.0", "https://registry.tabularis.dev/").is_ok());
+        assert!(verify_jws(
+            &jws,
+            &jwks,
+            "firestore",
+            "0.5.0",
+            "https://registry.tabularis.dev/"
+        )
+        .is_ok());
     }
 
     #[test]
@@ -229,15 +241,36 @@ mod tests {
         let mutated = seg[1].to_string() + "A";
         seg[1] = &mutated;
         let bad = seg.join(".");
-        assert!(verify_jws(&bad, &jwks, "firestore", "0.5.0", "https://registry.tabularis.dev").is_err());
+        assert!(verify_jws(
+            &bad,
+            &jwks,
+            "firestore",
+            "0.5.0",
+            "https://registry.tabularis.dev"
+        )
+        .is_err());
     }
 
     #[test]
     fn rejects_wrong_release_identity() {
         let (jws, jwks) = sign(&payload());
         // Correct signature, wrong slug / version / registry → all rejected.
-        assert!(verify_jws(&jws, &jwks, "postgres", "0.5.0", "https://registry.tabularis.dev").is_err());
-        assert!(verify_jws(&jws, &jwks, "firestore", "9.9.9", "https://registry.tabularis.dev").is_err());
+        assert!(verify_jws(
+            &jws,
+            &jwks,
+            "postgres",
+            "0.5.0",
+            "https://registry.tabularis.dev"
+        )
+        .is_err());
+        assert!(verify_jws(
+            &jws,
+            &jwks,
+            "firestore",
+            "9.9.9",
+            "https://registry.tabularis.dev"
+        )
+        .is_err());
         assert!(verify_jws(&jws, &jwks, "firestore", "0.5.0", "https://evil.example").is_err());
     }
 
@@ -251,12 +284,26 @@ mod tests {
             x: b64(other.verifying_key().as_bytes()),
             kid: "some-other-kid".into(),
         }];
-        assert!(verify_jws(&jws, &wrong, "firestore", "0.5.0", "https://registry.tabularis.dev").is_err());
+        assert!(verify_jws(
+            &jws,
+            &wrong,
+            "firestore",
+            "0.5.0",
+            "https://registry.tabularis.dev"
+        )
+        .is_err());
     }
 
     #[test]
     fn rejects_malformed_jws() {
         let jwks = sign(&payload()).1;
-        assert!(verify_jws("only.two", &jwks, "firestore", "0.5.0", "https://registry.tabularis.dev").is_err());
+        assert!(verify_jws(
+            "only.two",
+            &jwks,
+            "firestore",
+            "0.5.0",
+            "https://registry.tabularis.dev"
+        )
+        .is_err());
     }
 }

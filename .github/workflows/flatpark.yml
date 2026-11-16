@@ -19,7 +19,7 @@ jobs:
   flatpark-publish:
     # Prereleases never reach FlatPark (same gate as Snap/Winget/AUR).
     if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     continue-on-error: true
     permissions: {}
     steps:

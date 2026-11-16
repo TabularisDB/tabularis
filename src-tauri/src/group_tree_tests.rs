@@ -41,11 +41,7 @@ mod tests {
 
     #[test]
     fn cycle_check_deep_descendant_is_rejected() {
-        let groups = vec![
-            g("a", Some("b")),
-            g("b", Some("c")),
-            g("c", None),
-        ];
+        let groups = vec![g("a", Some("b")), g("b", Some("c")), g("c", None)];
         let err = reject_if_would_create_cycle(&groups, "c", Some("a")).unwrap_err();
         assert!(err.to_lowercase().contains("cycle"));
     }
@@ -115,10 +111,7 @@ mod tests {
     #[test]
     fn find_child_group_scopes_to_parent() {
         // Two groups named the same, but with different parents.
-        let groups = vec![
-            g("alpha", Some("parent-1")),
-            g("alpha", Some("parent-2")),
-        ];
+        let groups = vec![g("alpha", Some("parent-1")), g("alpha", Some("parent-2"))];
         // Only the one under "parent-1" is found.
         let found = find_child_group(&groups, "alpha", &Some("parent-1".to_string()));
         assert!(found.is_some());
@@ -130,11 +123,18 @@ mod tests {
 
     #[test]
     fn group_ancestors_walks_up_to_the_root() {
-        let groups = vec![g("root", None), g("mid", Some("root")), g("leaf", Some("mid"))];
+        let groups = vec![
+            g("root", None),
+            g("mid", Some("root")),
+            g("leaf", Some("mid")),
+        ];
         let kept = collect_group_ancestors(&groups, ["leaf"]);
         assert_eq!(
             kept,
-            ["root", "mid", "leaf"].iter().map(|s| s.to_string()).collect()
+            ["root", "mid", "leaf"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
         );
     }
 

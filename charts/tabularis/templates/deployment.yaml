@@ -1,0 +1,155 @@
+{{- $fullname := include "tabularis.fullname" . -}}
+{{- $publicHost := include "tabularis.publicHost" . -}}
+{{- if not (has .Values.auth.mode (list "password" "proxy")) }}
+{{- fail "auth.mode must be password or proxy" }}
+{{- end }}
+{{- if and (eq .Values.auth.mode "proxy") (not .Values.auth.existingSecret) (not .Values.auth.proxySecret) }}
+{{- fail "auth.mode=proxy needs auth.proxySecret or auth.existingSecret: the proxy must send the same secret" }}
+{{- end }}
+{{- $mountSecret := or .Values.auth.existingSecret (include "tabularis.chartSecret" .) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "tabularis.labels" . | nindent 4 }}
+spec:
+  # Sessions and the data volume are local to one process.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "tabularis.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tabularis.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- if and (not .Values.auth.existingSecret) (include "tabularis.chartSecret" .) }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: tabularis
+          image: {{ include "tabularis.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: TABULARIS_PUBLIC_URL
+              value: {{ include "tabularis.publicUrl" . | quote }}
+            - name: TABULARIS_AUTH
+              value: {{ .Values.auth.mode | quote }}
+            {{- if and (eq .Values.auth.mode "password") (include "tabularis.hasSecretKey" (list .Values "web-password")) }}
+            - name: TABULARIS_WEB_PASSWORD_FILE
+              value: /run/secrets/tabularis/web-password
+            {{- else if eq .Values.auth.mode "proxy" }}
+            - name: TABULARIS_WEB_PROXY_SECRET_FILE
+              value: /run/secrets/tabularis/proxy-secret
+            {{- end }}
+            {{- if include "tabularis.hasSecretKey" (list .Values "secret-key") }}
+            - name: TABULARIS_SECRET_KEY_FILE
+              value: /run/secrets/tabularis/secret-key
+            {{- end }}
+            {{- with .Values.allowedOrigins }}
+            - name: TABULARIS_ALLOWED_ORIGINS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.trustedProxies }}
+            - name: TABULARIS_TRUSTED_PROXIES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.serverFileBrowserRoots }}
+            - name: TABULARIS_SERVER_FILE_ROOTS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            - name: TABULARIS_ALLOW_HIGH_RISK
+              value: {{ .Values.allowHighRisk | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+          # /healthz still checks the Host header against the public URL.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ $publicHost | quote }}
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ $publicHost | quote }}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ $publicHost | quote }}
+            periodSeconds: 10
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+            {{- if $mountSecret }}
+            - name: secrets
+              mountPath: /run/secrets/tabularis
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default $fullname }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- if $mountSecret }}
+        - name: secrets
+          secret:
+            secretName: {{ include "tabularis.secretName" . }}
+            defaultMode: 0440
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,6 +1,6 @@
 //! Annotates an [`ImportEnvelope`] against the user's existing connections and
 //! the set of registered drivers, producing the serializable [`ImportPreview`]
-//! the frontend renders. Ported from TablePro's `ConnectionImportAnalyzer`.
+//! the frontend renders.
 
 use serde::Serialize;
 
@@ -62,13 +62,7 @@ pub fn analyze(
 ) -> ImportPreview {
     let existing_keys: Vec<(DupKey, String, String)> = existing
         .iter()
-        .map(|c| {
-            (
-                dup_key_existing(c),
-                c.id.clone(),
-                c.name.clone(),
-            )
-        })
+        .map(|c| (dup_key_existing(c), c.id.clone(), c.name.clone()))
         .collect();
 
     let items = envelope
@@ -131,7 +125,7 @@ fn collect_warnings(
     driver_id: &str,
     file_exists: &dyn Fn(&str) -> bool,
 ) -> Vec<String> {
-    let mut warnings = Vec::new();
+    let mut warnings = conn.warnings.clone();
 
     if let Some(ssh) = &conn.ssh {
         if let Some(key) = ssh.private_key_path.as_deref().filter(|s| !s.is_empty()) {
@@ -154,7 +148,10 @@ fn collect_warnings(
         }
     }
     if !driver_installed {
-        warnings.push(format!("Database driver \"{}\" is not installed", driver_id));
+        warnings.push(format!(
+            "Database driver \"{}\" is not installed",
+            driver_id
+        ));
     }
     warnings
 }
@@ -190,7 +187,14 @@ mod tests {
     use crate::connection_import::types::ImportedConnection;
     use crate::models::{ConnectionParams, DatabaseSelection};
 
-    fn conn(name: &str, host: &str, port: u16, db: &str, user: &str, driver: &str) -> ImportedConnection {
+    fn conn(
+        name: &str,
+        host: &str,
+        port: u16,
+        db: &str,
+        user: &str,
+        driver: &str,
+    ) -> ImportedConnection {
         ImportedConnection {
             name: name.to_string(),
             host: host.to_string(),
@@ -201,6 +205,7 @@ mod tests {
             ssh: None,
             ssl: None,
             group_name: None,
+            warnings: Vec::new(),
         }
     }
 
@@ -216,12 +221,14 @@ mod tests {
                 database: DatabaseSelection::Single(db.to_string()),
                 ..Default::default()
             },
+            plugin_secret_keys: Vec::new(),
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         }
     }
 

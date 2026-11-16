@@ -1,0 +1,96 @@
+import type {Theme} from '@/types/theme';
+
+export const githubDark: Theme = {
+    id: 'github-dark',
+    name: 'GitHub Dark',
+    author: 'GitHub',
+    isPreset: true,
+    isReadOnly: true,
+    colors: {
+        bg: {
+            base: '#24292e',
+            elevated: '#1f2428',
+            overlay: '#2f363d',
+            input: '#24292e',
+            tooltip: '#1f2428',
+        },
+        surface: {
+            primary: '#1f2428',
+            secondary: '#2f363d',
+            tertiary: '#444d56',
+            hover: '#2f363d',
+            active: '#0366d6',
+            disabled: '#1f2428',
+        },
+        text: {
+            primary: '#f6f8fa',
+            secondary: '#a6adb3',
+            muted: '#969ea6',
+            disabled: '#444d56',
+            accent: '#4ea0fd',
+            inverse: '#24292e',
+        },
+        accent: {
+            primary: '#2f8ffc',
+            secondary: '#b392f0',
+            success: '#28a745',
+            warning: '#fb8532',
+            error: '#ed606e',
+            info: '#79b8ff',
+        },
+        border: {
+            subtle: '#1f2428',
+            default: '#444d56',
+            strong: '#6a737d',
+            focus: '#036de4',
+        },
+        semantic: {
+            string: '#79b8ff',
+            number: '#c8e1ff',
+            boolean: '#b392f0',
+            date: '#7bcc72',
+            null: '#879099',
+            primaryKey: '#fb8532',
+            foreignKey: '#79b8ff',
+            index: '#b392f0',
+            connectionActive: '#28a745',
+            connectionInactive: '#6a737d',
+            modified: '#2f8ffc',
+            deleted: '#e16a75',
+            new: '#28a745',
+        },
+    },
+    typography: {
+        fontFamily: {
+            base: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif',
+            mono: 'SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
+        },
+        fontSize: {
+            xs: '0.75rem',
+            sm: '0.875rem',
+            base: '1rem',
+            lg: '1.125rem',
+            xl: '1.25rem',
+        },
+    },
+    layout: {
+        borderRadius: {
+            sm: '0.25rem',
+            base: '0.5rem',
+            lg: '0.75rem',
+            xl: '1rem',
+        },
+        spacing: {
+            xs: '0.25rem',
+            sm: '0.5rem',
+            base: '1rem',
+            lg: '1.5rem',
+            xl: '2rem',
+        },
+    },
+    monacoTheme: {
+        base: 'vs-dark',
+        inherit: true,
+        themeName: 'GitHub Dark',
+    },
+};

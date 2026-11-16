@@ -25,7 +25,8 @@
     "is_nullable": true,
     "is_auto_increment": false,
     "is_generated": false,
-    "character_maximum_length": 255
+    "character_maximum_length": 255,
+    "full_type": "character varying(255)"
   },
   {
     "name": "col_int",
@@ -83,7 +84,8 @@
     "is_auto_increment": false,
     "is_generated": false,
     "numeric_precision": 10,
-    "numeric_scale": 2
+    "numeric_scale": 2,
+    "full_type": "numeric(10,2)"
   },
   {
     "name": "col_bool",
@@ -195,7 +197,8 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "full_type": "integer[]"
   },
   {
     "name": "col_text_array",
@@ -203,7 +206,8 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "full_type": "text[]"
   },
   {
     "name": "col_int4range",

@@ -1,4 +1,5 @@
 use super::*;
+use crate::drivers::driver_trait::DriverCapabilities;
 
 #[test]
 fn import_identifiers_use_the_connection_quote_and_escape_delimiters() {
@@ -39,6 +40,8 @@ fn column(name: &str, data_type: &str) -> ColumnDefinition {
         is_pk: false,
         is_auto_increment: false,
         default_value: None,
+        comment: None,
+        on_update: None,
     }
 }
 
@@ -81,7 +84,12 @@ fn mysql_import_sends_booleans_in_created_columns_as_literals() {
     ]
     .map(|v| Some(v.to_string()));
     assert_eq!(
-        row_to_values_clause(&row, &boolean_columns),
+        row_to_values_clause(
+            &row,
+            &boolean_columns,
+            BooleanLiterals::Keywords,
+            LiteralStyle::Standard
+        ),
         "('KB-101', 'Mechanical Keyboard', '89.90', TRUE, '2026-09-02')"
     );
 }
@@ -98,7 +106,12 @@ fn boolean_literals_cover_the_values_the_parser_accepts() {
     ]
     .map(|v| v.map(String::from));
     assert_eq!(
-        row_to_values_clause(&row, &[true; 6]),
+        row_to_values_clause(
+            &row,
+            &[true; 6],
+            BooleanLiterals::Keywords,
+            LiteralStyle::Standard
+        ),
         "(FALSE, TRUE, FALSE, NULL, NULL, 'maybe')"
     );
 }
@@ -148,6 +161,9 @@ fn table_column(name: &str, data_type: &str) -> TableColumn {
         numeric_precision: None,
         numeric_scale: None,
         comment: None,
+        full_type: None,
+        default_sql: None,
+        on_update: None,
     }
 }
 
@@ -182,5 +198,83 @@ fn existing_tinyint_columns_are_found_by_type() {
     assert_eq!(
         tinyint_column_names(&columns),
         HashSet::from(["in_stock".to_string(), "archived".to_string()])
+    );
+}
+
+#[test]
+fn string_literals_follow_the_resolved_literal_style() {
+    let value = "O'Brien \\ a\nb";
+    let style_of = |caps: &DriverCapabilities| SqlSyntax::resolve(caps).string_escape;
+    let postgres = crate::drivers::postgres::PostgresDriver::new();
+    let mysql = crate::drivers::mysql::MysqlDriver::new();
+    // Built-in drivers keep the doubled quote, MySQL included.
+    for caps in [
+        DriverCapabilities::default(),
+        postgres.manifest().capabilities.clone(),
+        mysql.manifest().capabilities.clone(),
+    ] {
+        assert_eq!(
+            escape_sql_string(value, style_of(&caps)),
+            "'O''Brien \\ a\nb'"
+        );
+    }
+    let googlesql = crate::drivers::sql_syntax_tests::googlesql_capabilities();
+    assert_eq!(style_of(&googlesql), LiteralStyle::Backslash);
+    assert_eq!(
+        escape_sql_string(value, style_of(&googlesql)),
+        "'O\\'Brien \\\\ a\\nb'"
+    );
+    let row = vec![Some("it's".to_string()), None];
+    assert_eq!(
+        row_to_values_clause(
+            &row,
+            &[false, false],
+            BooleanLiterals::Keywords,
+            LiteralStyle::Backslash
+        ),
+        "('it\\'s', NULL)"
+    );
+}
+
+#[test]
+fn declared_boolean_literals_cover_columns_the_import_created() {
+    let googlesql = crate::drivers::sql_syntax_tests::googlesql_capabilities();
+    assert_eq!(
+        SqlSyntax::resolve(&googlesql).boolean_literals,
+        Some(BooleanLiterals::Keywords)
+    );
+    // A new table: its BOOLEAN column gets literals.
+    let created = declared_boolean_columns(&new_arrivals_import(Vec::new()), true);
+    assert_eq!(created, [false, false, false, true, false]);
+    // An added BOOLEAN column too; existing columns keep quoted values.
+    assert_eq!(
+        declared_boolean_columns(
+            &new_arrivals_import(vec![column("in_stock", "BOOLEAN")]),
+            false
+        ),
+        [false, false, false, true, false]
+    );
+    assert_eq!(
+        declared_boolean_columns(&new_arrivals_import(Vec::new()), false),
+        [false; 5]
+    );
+    let row = ["KB-101", "Keyboard", "89.90", "yes", "2026-09-02"].map(|v| Some(v.to_string()));
+    assert_eq!(
+        row_to_values_clause(
+            &row,
+            &created,
+            BooleanLiterals::Keywords,
+            LiteralStyle::Backslash
+        ),
+        "('KB-101', 'Keyboard', '89.90', TRUE, '2026-09-02')"
+    );
+    assert_eq!(
+        row_to_values_clause(
+            &row,
+            &created,
+            BooleanLiterals::Numeric,
+            LiteralStyle::Standard
+        ),
+        "('KB-101', 'Keyboard', '89.90', 1, '2026-09-02')"
     );
 }

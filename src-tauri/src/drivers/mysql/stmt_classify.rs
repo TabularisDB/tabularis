@@ -1,3 +1,13 @@
+use once_cell::sync::Lazy;
+
+use crate::drivers::driver_trait::SqlDialect;
+use crate::drivers::sql_syntax::SqlSyntax;
+
+/// Whether the MySQL driver's resolved syntax reads `#` as a line comment
+/// (it does), so a leading `# note` line is skipped like `-- note`.
+pub(super) static HASH_COMMENTS: Lazy<bool> =
+    Lazy::new(|| SqlSyntax::preset(Some(SqlDialect::Mysql)).hash_comments);
+
 /// For `CREATE [OR REPLACE] DEFINER = …` statements the object-type
 /// keyword (`PROCEDURE`/`FUNCTION`/`VIEW`/`TRIGGER`/`EVENT`/`TABLE`)
 /// follows the definer clause. Returns the slice starting at that
@@ -187,14 +197,16 @@ fn token_matches(tok: &str, kw: &str) -> bool {
     }
     match tok.strip_prefix(kw) {
         None => false,
-        Some(rest) => rest.chars().next().map_or(true, |c| {
-            !(c.is_ascii_alphanumeric() || c == '_')
-        }),
+        Some(rest) => rest
+            .chars()
+            .next()
+            .map_or(true, |c| !(c.is_ascii_alphanumeric() || c == '_')),
     }
 }
 
 pub(super) fn is_text_protocol_stmt(query: &str) -> bool {
-    let head = crate::drivers::common::strip_leading_sql_comments(query).to_uppercase();
+    let head = crate::drivers::common::strip_leading_sql_comments_for(query, *HASH_COMMENTS)
+        .to_uppercase();
     let is_create_definer_routine =
         starts_with_keywords(&head, &["CREATE", "DEFINER"]) && definer_stmt_is_routine(&head);
     // MariaDB allows `CREATE OR REPLACE [DEFINER = …] PROCEDURE|FUNCTION`,
