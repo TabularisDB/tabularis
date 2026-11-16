@@ -169,6 +169,33 @@ try {
                     document.querySelector('base')?.getAttribute('href'),
             );
             await page.waitForTimeout(1500);
+            // Database-only sessions cannot write server config. Welcome
+            // dismissal must survive a reload of this exact public URL anyway.
+            const welcome = page.getByRole('heading', {name: 'Join the Community', exact: true});
+            await welcome.waitFor({state: 'visible'});
+            const configWrites = () => requests.filter((p) => p.endsWith('/save_config')).length;
+            const writesBeforeDismiss = configWrites();
+            await page.getByRole('button', {name: 'Maybe later', exact: true}).click();
+            await welcome.waitFor({state: 'hidden'});
+            assert.equal(
+                await page.evaluate(() =>
+                    localStorage.getItem('tabularis:web:community-welcome-dismissed'),
+                ),
+                'true',
+            );
+            const exactUrl = page.url();
+            await page.reload();
+            await page
+                .locator('.monaco-editor')
+                .first()
+                .waitFor({state: 'visible', timeout: 45000});
+            assert.equal(page.url(), exactUrl);
+            assert.equal(await welcome.count(), 0, 'welcome stays dismissed after reload');
+            assert.equal(
+                configWrites(),
+                writesBeforeDismiss,
+                'dismissal does not write host config',
+            );
             assert.equal(await page.locator('base').getAttribute('href'), prefix);
             assert.equal(
                 new URL(page.url()).pathname,
@@ -228,7 +255,7 @@ try {
             );
             assert.deepEqual(failures, []);
             console.log(
-                `PASS ${prefix}: production assets, login retry, direct route/refresh, API, WebSocket, blob upload, sandbox guest, cookie scope`,
+                `PASS ${prefix}: production assets, login retry, welcome dismissal/reload without admin config, visible editor, direct route/refresh, API, WebSocket, blob upload, sandbox guest, cookie scope`,
             );
         } finally {
             await context.close();

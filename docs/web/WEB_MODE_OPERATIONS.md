@@ -163,6 +163,7 @@ The browser uses the same React UI and Rust services as desktop, but native oper
 - Save dialogs become browser downloads. File placement and overwrite behavior are controlled by the browser.
 - Secondary result, diagram, explain, task, and connection windows become routes or browser tabs. Popup blockers can prevent opening a new tab.
 - External links are validated before opening and may still be blocked by browser popup policy.
+- Dismissing the central community welcome dialog stores one non-sensitive boolean in browser localStorage for the current origin. It survives reloads and fresh workspaces without changing server configuration or sharing workspace preferences. A fresh browser still shows the welcome; clearing site data resets the choice. If storage is blocked, dismissal lasts for the current page only. Desktop continues to use its saved `showWelcome` setting; the sidebar Discord callout uses its existing shared UI state.
 - Deep-link plugin installation becomes a validated `/install-plugin` route with explicit confirmation.
 - The desktop updater, native restart, window attention, title-bar controls, and native DevTools lifecycle do not apply. The Info page reports server build data and directs the user to an administrator for upgrades.
 - MCP configuration is a local-host operation and is unavailable to remote browser sessions.
