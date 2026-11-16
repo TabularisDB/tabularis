@@ -52,13 +52,14 @@ export function addCellToCells(
  * anything against the database. Nothing is shared with the original.
  */
 export function duplicateCell(cell: NotebookCell): NotebookCell {
-    const {chartConfig} = cell;
+    const {chartConfig, kpiConfig} = cell;
     return {
         ...cell,
         id: generateCellId(),
         chartConfig: chartConfig
             ? {...chartConfig, valueColumns: [...chartConfig.valueColumns]}
             : chartConfig,
+        kpiConfig: kpiConfig ? {...kpiConfig} : kpiConfig,
         result: null,
         error: undefined,
         executionTime: null,

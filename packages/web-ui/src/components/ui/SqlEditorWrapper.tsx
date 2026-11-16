@@ -1,3 +1,5 @@
+import {useMonacoVimMode} from '@/hooks/useMonacoVimMode';
+import {VIM_STATUS_LINE_HEIGHT} from '@/utils/editorLayout';
 import React, {useRef, useCallback, useContext, useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import type {OnMount, BeforeMount} from '@monaco-editor/react';
@@ -140,6 +142,8 @@ const SqlEditorInternal = ({
     const {t} = useTranslation();
     const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
     const monacoRef = useRef<typeof Monaco | null>(null);
+    const [mountedEditor, setMountedEditor] = useState<Parameters<OnMount>[0] | null>(null);
+    const [vimStatusNode, setVimStatusNode] = useState<HTMLDivElement | null>(null);
     const foldPreviewRef = useRef<Monaco.IDisposable | null>(null);
     // The status is per editor instance: two mounted editors never share it.
     const [editorCursorStatus, setEditorCursorStatus] = useState<EditorCursorStatus | null>(null);
@@ -174,6 +178,16 @@ const SqlEditorInternal = ({
     matchesShortcutRef.current = matchesShortcut;
     const togglePaletteRef = useRef(commandPaletteDispatch?.togglePalette);
     togglePaletteRef.current = commandPaletteDispatch?.togglePalette;
+    const vimEnabled = settings.editorVimMode ?? false;
+    const isRunShortcut = useCallback(
+        (event: KeyboardEvent) =>
+            ['run_query', 'run_query_editor', 'run_all', 'run_all_editor'].some((id) =>
+                matchesShortcutRef.current(event, id),
+            ),
+        [],
+    );
+    useMonacoVimMode(mountedEditor, vimStatusNode, vimEnabled, isRunShortcut);
+
     // Read from the zoom shortcuts, so they always step from the saved size.
     const editorFontSizeRef = useRef(settings.editorFontSize);
     editorFontSizeRef.current = settings.editorFontSize;
@@ -370,6 +384,7 @@ const SqlEditorInternal = ({
 
     const handleEditorMount: OnMount = (editor, monaco) => {
         editorRef.current = editor;
+        setMountedEditor(editor);
         monacoRef.current = monaco;
         setDiagnosticsTarget({editor, monaco});
         setSqlFoldingDialect(editor.getModel(), dialectRef.current);
@@ -809,7 +824,7 @@ const SqlEditorInternal = ({
     const monacoElement = (
         <MonacoEditor
             // With the indicator, the wrapper below takes the height instead.
-            height={cursorStatus ? '100%' : height}
+            height={cursorStatus || vimEnabled ? '100%' : height}
             defaultLanguage="sql"
             theme={getMonacoThemeId(editorTheme.id)}
             defaultValue={initialValue}
@@ -862,14 +877,25 @@ const SqlEditorInternal = ({
         />
     );
 
-    // Consumers without the indicator get the editor element exactly as
-    // before, so their own overlays and sizing are unaffected.
-    if (!cursorStatus) return monacoElement;
+    if (!cursorStatus && !vimEnabled) return monacoElement;
 
     return (
-        <div className="relative" style={{height}}>
-            {monacoElement}
-            {editorCursorStatus && <SqlEditorCursorStatus status={editorCursorStatus} />}
+        <div className="flex min-h-0 w-full flex-col" style={{height}}>
+            <div className="relative min-h-0 w-full flex-1">
+                {monacoElement}
+                {cursorStatus && editorCursorStatus && (
+                    <SqlEditorCursorStatus status={editorCursorStatus} />
+                )}
+            </div>
+            {vimEnabled && (
+                <div
+                    ref={setVimStatusNode}
+                    role="status"
+                    data-testid="vim-status-line"
+                    style={{height: VIM_STATUS_LINE_HEIGHT}}
+                    className="shrink-0 select-none overflow-hidden border-t border-default px-2 py-0.5 font-mono text-xs whitespace-nowrap text-muted [&_input]:bg-transparent [&_input]:text-primary [&_input]:font-mono [&_input]:text-xs [&_input]:border-0 [&_input]:outline-none"
+                />
+            )}
         </div>
     );
 };

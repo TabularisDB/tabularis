@@ -59,6 +59,8 @@ export interface Settings {
     displayTimezone?: string;
     fontFamily: string;
     fontSize: number;
+    /** Whole desktop interface scale in percent; separate from font preferences. */
+    interfaceScale?: number;
     /** Colorize query result cell values by their data type. Default: false. */
     resultColorByType?: boolean;
     /** Per-type hex color overrides for result cell values (keys: number, string, date, boolean). */
@@ -120,6 +122,8 @@ export interface Settings {
     editorHighlightInvisibleCharacters?: boolean;
     editorShowLineNumbers?: boolean;
     editorAcceptSuggestionOnEnter?: boolean;
+    /** Enable Vim keybindings in SQL editors. Default: false. */
+    editorVimMode?: boolean;
     runStatementUnderCursor?: boolean;
     /** Case of SQL keywords inserted by autocomplete. Default: "match". */
     autocompleteKeywordCase?: AutocompleteKeywordCase;
@@ -246,6 +250,7 @@ export const DEFAULT_SETTINGS: Settings = {
     displayTimezone: 'auto',
     fontFamily: 'System',
     fontSize: 14,
+    interfaceScale: 100,
     resultColorByType: false,
     resultTypeColors: {},
     stickyColumnHeaders: true,
@@ -278,6 +283,7 @@ export const DEFAULT_SETTINGS: Settings = {
     editorRenderWhitespace: 'selection',
     editorShowLineNumbers: true,
     editorAcceptSuggestionOnEnter: true,
+    editorVimMode: false,
     runStatementUnderCursor: true,
     autocompleteKeywordCase: 'match',
     sqlDiagnosticsEnabled: false,

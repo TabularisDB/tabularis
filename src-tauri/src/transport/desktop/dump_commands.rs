@@ -9,6 +9,14 @@ use std::path::PathBuf;
 use tauri::State;
 
 #[tauri::command]
+pub async fn get_database_sql_capabilities(
+    runtime: State<'_, RuntimeContext>,
+    connection_id: String,
+) -> Result<Option<crate::drivers::driver_trait::DatabaseSqlCapabilities>, String> {
+    database_transfers::database_sql_capabilities(runtime.inner(), None, &connection_id).await
+}
+
+#[tauri::command]
 pub async fn cancel_dump(
     state: State<'_, std::sync::Arc<DumpCancellationState>>,
     connection_id: String,
@@ -55,6 +63,7 @@ pub async fn import_database(
     file_path: String,
     schema: Option<String>,
     database: Option<String>,
+    create_database: Option<bool>,
 ) -> Result<(), String> {
     database_transfers::import_database(
         runtime.inner(),
@@ -64,6 +73,7 @@ pub async fn import_database(
         ImportSource::ServerPath(PathBuf::from(file_path)),
         schema,
         database,
+        create_database.unwrap_or(false),
     )
     .await
 }

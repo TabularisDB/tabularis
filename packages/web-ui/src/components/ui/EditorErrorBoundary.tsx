@@ -17,6 +17,7 @@ import {APP_VERSION} from '@/version';
 import {ROOT_COMMAND_SCOPE_ID} from '@/utils/commandScopeStore';
 import {CommandPaletteScopeBridge} from '@/components/layout/CommandPaletteScopeBridge';
 import {CrashAiAnalysis} from '@/components/ui/CrashAiAnalysis';
+import {isModuleLoadError} from '@/utils/errors';
 
 interface InnerProps {
     t: TFunction;
@@ -24,6 +25,7 @@ interface InnerProps {
     onCloseActiveTab: (() => void) | null;
     mode: CrashReportMode;
     openExternalUrl: (url: string) => Promise<void>;
+    onReload: () => void;
     children: ReactNode;
 }
 
@@ -94,6 +96,10 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
     }
 
     reset = () => {
+        if (this.state.error && isModuleLoadError(this.state.error)) {
+            this.props.onReload();
+            return;
+        }
         this.setState({error: null, componentStack: null});
     };
 
@@ -109,6 +115,7 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
         }
 
         const {t, onBackToConnections, onCloseActiveTab, mode, openExternalUrl} = this.props;
+        const moduleLoadFailed = isModuleLoadError(error);
         const details = [error.stack, componentStack].filter(Boolean).join('\n\n');
         const report: EditorCrashReport = {
             message: error.message || error.name,
@@ -133,10 +140,18 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h2 className="text-lg font-semibold text-primary">
-                                    {t('editor.errorBoundary.title')}
+                                    {t(
+                                        moduleLoadFailed
+                                            ? 'editor.errorBoundary.loadTitle'
+                                            : 'editor.errorBoundary.title',
+                                    )}
                                 </h2>
                                 <p className="mt-1 text-sm text-secondary">
-                                    {t('editor.errorBoundary.description')}
+                                    {t(
+                                        moduleLoadFailed
+                                            ? 'editor.errorBoundary.loadDescription'
+                                            : 'editor.errorBoundary.description',
+                                    )}
                                 </p>
 
                                 <div className="mt-3 rounded-md border border-accent-error/20 bg-accent-error/5 px-3 py-2">
@@ -163,9 +178,13 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-md text-sm font-medium transition-colors"
                                     >
                                         <RotateCcw size={14} />
-                                        {t('editor.errorBoundary.retry')}
+                                        {t(
+                                            moduleLoadFailed
+                                                ? 'editor.errorBoundary.reloadApp'
+                                                : 'editor.errorBoundary.retry',
+                                        )}
                                     </button>
-                                    {onCloseActiveTab && (
+                                    {onCloseActiveTab && !moduleLoadFailed && (
                                         <button
                                             type="button"
                                             onClick={this.closeActiveTabAndReset}
@@ -200,9 +219,13 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
 
 interface EditorErrorBoundaryProps {
     children: ReactNode;
+    onReload?: () => void;
 }
 
-export function EditorErrorBoundary({children}: EditorErrorBoundaryProps) {
+export function EditorErrorBoundary({
+    children,
+    onReload = () => window.location.reload(),
+}: EditorErrorBoundaryProps) {
     const {t} = useTranslation();
     const navigate = useNavigate();
     const {activeTabId, closeTab} = useEditor();
@@ -217,6 +240,7 @@ export function EditorErrorBoundary({children}: EditorErrorBoundaryProps) {
             onCloseActiveTab={onCloseActiveTab}
             mode={platform.negotiation.environment === 'tauri' ? 'desktop' : 'web'}
             openExternalUrl={(url) => platform.openExternalUrl(url)}
+            onReload={onReload}
         >
             {children}
         </EditorErrorBoundaryInner>

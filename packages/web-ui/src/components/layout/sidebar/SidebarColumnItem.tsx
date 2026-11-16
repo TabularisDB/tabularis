@@ -3,7 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {confirmPlatformDialog} from '@/platform/dialogs';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {useAlert} from '@/hooks/useAlert';
-import {Key, Columns, Edit, Copy, Trash2} from 'lucide-react';
+import {Key, Columns, Edit, Copy, Trash2, Network} from 'lucide-react';
 import clsx from 'clsx';
 import {ContextMenu} from '@/components/ui/ContextMenu';
 import type {TableColumn} from '@/types/schema';
@@ -11,6 +11,7 @@ import type {DriverCapabilities} from '@/types/plugins';
 import {formatColumnType} from '@/utils/columnType';
 import {quoteIdentifier, quoteTableRef} from '@/utils/identifiers';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
+import {ColumnUsageModal} from '@/components/modals/ColumnUsageModal';
 
 interface SidebarColumnItemProps {
     column: TableColumn;
@@ -52,6 +53,8 @@ export const SidebarColumnItem = ({
         x: number;
         y: number;
     } | null>(null);
+    const [showUsage, setShowUsage] = useState(false);
+    const canManageColumn = !isView && canManage !== false;
 
     const handleContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -99,8 +102,8 @@ export const SidebarColumnItem = ({
             <div
                 title={column.comment || undefined}
                 className="flex items-center gap-2 px-3 py-1 text-xs text-secondary hover:bg-surface-secondary hover:text-primary cursor-pointer group font-mono"
-                onContextMenu={!isView && canManage !== false ? handleContextMenu : undefined}
-                onDoubleClick={!isView && canManage !== false ? () => onEdit(column) : undefined}
+                onContextMenu={!isView ? handleContextMenu : undefined}
+                onDoubleClick={canManageColumn ? () => onEdit(column) : undefined}
             >
                 {column.is_pk ? (
                     <Key size={12} className="text-semantic-pk shrink-0" />
@@ -122,29 +125,55 @@ export const SidebarColumnItem = ({
                     {columnType}
                 </span>
             </div>
-            {contextMenu && !isView && canManage !== false && (
+            {contextMenu && !isView && (
                 <ContextMenu
                     x={contextMenu.x}
                     y={contextMenu.y}
                     onClose={() => setContextMenu(null)}
                     items={[
+                        ...(canManageColumn
+                            ? [
+                                  {
+                                      label: t('sidebar.modifyColumn'),
+                                      icon: Edit,
+                                      action: () => onEdit(column),
+                                  },
+                              ]
+                            : []),
                         {
-                            label: t('sidebar.modifyColumn'),
-                            icon: Edit,
-                            action: () => onEdit(column),
+                            label: t('sidebar.showColumnUsage'),
+                            icon: Network,
+                            action: () => setShowUsage(true),
                         },
                         {
                             label: t('sidebar.copyName'),
                             icon: Copy,
                             action: () => navigator.clipboard.writeText(column.name),
                         },
-                        {
-                            label: t('sidebar.deleteColumn'),
-                            icon: Trash2,
-                            danger: true,
-                            action: handleDelete,
-                        },
+                        ...(canManageColumn
+                            ? [
+                                  {
+                                      label: t('sidebar.deleteColumn'),
+                                      icon: Trash2,
+                                      danger: true,
+                                      action: handleDelete,
+                                  },
+                              ]
+                            : []),
                     ]}
+                />
+            )}
+            {showUsage && (
+                <ColumnUsageModal
+                    isOpen={showUsage}
+                    onClose={() => setShowUsage(false)}
+                    connectionId={connectionId}
+                    driver={driver}
+                    capabilities={capabilities}
+                    table={tableName}
+                    column={column.name}
+                    schema={schema}
+                    database={database}
                 />
             )}
         </>

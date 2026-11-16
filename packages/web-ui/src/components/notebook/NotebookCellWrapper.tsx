@@ -142,6 +142,8 @@ export function NotebookCellWrapper({
                         onUpdate({isResultCollapsed: !cell.isResultCollapsed})
                     }
                     onToggleChartVisible={(visible) => onUpdate({isChartVisible: visible})}
+                    onKpiConfigChange={(config) => onUpdate({kpiConfig: config})}
+                    onToggleKpiVisible={(visible) => onUpdate({isKpiVisible: visible})}
                     onToggleQueryPlanVisible={toggleQueryPlan}
                     connectionId={connectionId}
                     explainQuery={explainQuery}

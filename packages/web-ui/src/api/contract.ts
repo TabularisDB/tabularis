@@ -1,3 +1,4 @@
+import type {PluginAccountRequest} from '@/types/pluginAccount';
 import type {DatabaseBackupStatus} from '@/types/databaseBackup';
 import type {DebugCommand, DebugResponse} from '@/types/routineDebug';
 import type {ChatGptModel, ChatGptSession} from '@/types/chatgpt';
@@ -15,6 +16,7 @@ import type {
 } from '@/contexts/DatabaseContext';
 import type {
     InstalledPluginInfo,
+    DatabaseSqlCapabilities,
     PluginLoadError,
     PluginManifest,
     PluginReadme,
@@ -36,7 +38,12 @@ import type {MonacoThemeDefinition, Theme} from '@/types/theme';
 import type {Settings} from '@/contexts/SettingsContext';
 import type {SavedQuery, SavedQueryFolder, SavedQueryVersion} from '@/contexts/SavedQueriesContext';
 import type {ColumnStatsRequest, PluginColumnStats} from '@/utils/columnStats';
-import type {QueryHistoryEntry, QueryHistoryResponse} from '@/types/queryHistory';
+import type {
+    QueryHistoryEntry,
+    QueryHistoryInsightsRequest,
+    QueryHistoryInsightsResponse,
+    QueryHistoryResponse,
+} from '@/types/queryHistory';
 import type {UserOverrides} from '@/utils/keybindings';
 import type {NotebookMetadata} from '@/types/notebook';
 import type {
@@ -475,6 +482,8 @@ export interface BackupRunResult {
 }
 
 export interface DumpOptions {
+    /** `"sql"` (default) or the plugin's `native_backup.format` id. */
+    format?: string;
     structure: boolean;
     data: boolean;
     tables?: string[] | null;
@@ -489,6 +498,7 @@ export interface DatabaseDumpRequest extends ConnectionIdRequest {
 }
 
 export interface DatabaseImportRequest extends ConnectionIdRequest {
+    createDatabase?: boolean;
     schema?: string;
     database?: string;
     /** Desktop-only source path. */
@@ -846,6 +856,28 @@ export interface CommandMap {
     // access configured registries, mutate the server plugin directory, and
     // start or stop subprocesses. Raw plugin paths and files are intentionally
     // excluded from the browser RPC contract.
+    /** Opaque extension methods can mutate resources and require administrator access. */
+    plugin_account: CommandDefinition<PluginAccountRequest, unknown, 'local-admin'>;
+    call_plugin_extension: CommandDefinition<
+        {pluginId: string; connectionId: string; method: string; args: Record<string, unknown>},
+        unknown,
+        'local-admin'
+    >;
+    set_plugin_secrets: CommandDefinition<
+        {pluginId: string; connectionId: string; secrets: Record<string, string>},
+        void,
+        'local-admin'
+    >;
+    get_plugin_secret_fields: CommandDefinition<
+        {pluginId: string; connectionId: string},
+        string[],
+        'database'
+    >;
+    delete_plugin_secrets: CommandDefinition<
+        {pluginId: string; connectionId: string},
+        void,
+        'local-admin'
+    >;
     fetch_plugin_registry: CommandDefinition<undefined, RegistryPluginWithStatus[], 'local-admin'>;
     fetch_tabularium_plugin_preview: CommandDefinition<
         {
@@ -937,6 +969,11 @@ export interface CommandMap {
     >;
     run_connections_backup: CommandDefinition<undefined, BackupRunResult, 'sensitive'>;
 
+    get_database_sql_capabilities: CommandDefinition<
+        ConnectionIdRequest,
+        DatabaseSqlCapabilities | null,
+        'sensitive'
+    >;
     dump_database: CommandDefinition<DatabaseDumpRequest, GeneratedFile | null, 'sensitive'>;
     cancel_dump: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
     import_database: CommandDefinition<DatabaseImportRequest, void, 'sensitive'>;
@@ -1270,6 +1307,11 @@ export interface CommandMap {
         'database'
     >;
     clear_query_history: CommandDefinition<ConnectionIdRequest, void, 'database'>;
+    get_query_history_insights: CommandDefinition<
+        QueryHistoryInsightsRequest,
+        QueryHistoryInsightsResponse,
+        'database'
+    >;
 
     create_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;
     save_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;

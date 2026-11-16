@@ -362,6 +362,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         editor_minimap,
         editor_show_line_numbers,
         editor_accept_suggestion_on_enter,
+        editor_vim_mode,
         run_statement_under_cursor,
         safety_confirmation_delay_enabled,
         notify_long_queries,

@@ -83,9 +83,22 @@ impl client::Handler for RusshClientHandler {
 pub enum ForwardTarget {
     /// Like `ssh -L`: every connection goes to one `host:port`.
     Fixed { host: String, port: u16 },
+    /// Like `ssh -L <localPort>:/path/to/socket`: every connection opens a
+    /// `direct-streamlocal@openssh.com` channel to a remote Unix socket.
+    UnixSocket { path: String },
     /// Like `ssh -D`: the local port is a SOCKS5 proxy and each connection
     /// names its own destination, resolved on the SSH server side.
     Socks5,
+}
+
+impl ForwardTarget {
+    pub fn log_description(&self) -> String {
+        match self {
+            Self::Fixed { host, port } => format!("{}:{}", host, port),
+            Self::UnixSocket { path } => path.clone(),
+            Self::Socks5 => "socks5".to_string(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -182,8 +195,9 @@ impl SshTunnel {
     }
 
     /// Like [`Self::new_with_askpass`], but forwards to `target`: one fixed
-    /// destination (`ssh -L`) or a SOCKS5 proxy (`ssh -D`) for drivers that
-    /// declare the `socks5_proxy` capability.
+    /// destination (`ssh -L`), a remote Unix socket (`ssh -L <port>:<path>`),
+    /// or a SOCKS5 proxy (`ssh -D`) for drivers that declare the `socks5_proxy`
+    /// capability.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_with_target(
         ssh_host: &str,
@@ -202,8 +216,15 @@ impl SshTunnel {
         let connect_host = tcp_host.unwrap_or(ssh_host);
         let connect_port = tcp_port.unwrap_or(ssh_port);
         eprintln!(
-            "[SSH Tunnel] New Request: Host={}, Port={}, Connect={}:{}, User={}, UseSystemSSH={}, AllowPrompt={}",
-            ssh_host, ssh_port, connect_host, connect_port, ssh_user, use_system_ssh, ssh_allow_passphrase_prompt
+            "[SSH Tunnel] New Request: Host={}, Port={}, Connect={}:{}, User={}, Destination={}, UseSystemSSH={}, AllowPrompt={}",
+            ssh_host,
+            ssh_port,
+            connect_host,
+            connect_port,
+            ssh_user,
+            target.log_description(),
+            use_system_ssh,
+            ssh_allow_passphrase_prompt
         );
 
         let local_port = {
@@ -606,8 +627,24 @@ impl SshTunnel {
                     tokio::spawn(async move {
                         let mut stream = stream;
                         let socks5 = target == ForwardTarget::Socks5;
-                        let (r_host, r_port) = match (target, credentials) {
-                            (ForwardTarget::Fixed { host, port }, _) => (host, port),
+                        let (channel_result, target_desc) = match (target, credentials) {
+                            (ForwardTarget::Fixed { host, port }, _) => {
+                                let desc = format!("{}:{}", host, port);
+                                let res = handle
+                                    .channel_open_direct_tcpip(
+                                        host.as_str(),
+                                        u32::from(port),
+                                        "127.0.0.1",
+                                        0,
+                                    )
+                                    .await;
+                                (res, desc)
+                            }
+                            (ForwardTarget::UnixSocket { path }, _) => {
+                                let res =
+                                    handle.channel_open_direct_streamlocal(path.as_str()).await;
+                                (res, path)
+                            }
                             (ForwardTarget::Socks5, None) => return,
                             (ForwardTarget::Socks5, Some(credentials)) => {
                                 let request = tokio::time::timeout(
@@ -623,7 +660,7 @@ impl SshTunnel {
                                         "handshake timed out".to_string(),
                                     ))
                                 });
-                                match request {
+                                let (r_host, r_port) = match request {
                                     Ok(destination) => {
                                         log::debug!(
                                             "[SSH Tunnel] SOCKS5 CONNECT {}:{}",
@@ -636,24 +673,26 @@ impl SshTunnel {
                                         eprintln!("[SSH Tunnel Error] {}", e);
                                         return;
                                     }
-                                }
+                                };
+                                let desc = format!("{}:{}", r_host, r_port);
+                                let res = handle
+                                    .channel_open_direct_tcpip(
+                                        r_host.as_str(),
+                                        u32::from(r_port),
+                                        "127.0.0.1",
+                                        0,
+                                    )
+                                    .await;
+                                (res, desc)
                             }
                         };
 
-                        let channel = match handle
-                            .channel_open_direct_tcpip(
-                                r_host.as_str(),
-                                u32::from(r_port),
-                                "127.0.0.1",
-                                0,
-                            )
-                            .await
-                        {
+                        let channel = match channel_result {
                             Ok(c) => c,
                             Err(e) => {
                                 eprintln!(
-                                    "[SSH Tunnel Error] Failed to open SSH channel to {}:{}: {}",
-                                    r_host, r_port, e
+                                    "[SSH Tunnel Error] Failed to open SSH channel to {}: {}",
+                                    target_desc, e
                                 );
                                 if socks5 {
                                     let _ = crate::ssh_socks5::send_reply(
@@ -1233,6 +1272,10 @@ pub fn forward_args(target: &ForwardTarget, local_port: u16) -> [String; 2] {
             "-L".to_string(),
             format!("127.0.0.1:{}:{}:{}", local_port, host, port),
         ],
+        ForwardTarget::UnixSocket { path } => [
+            "-L".to_string(),
+            format!("127.0.0.1:{}:{}", local_port, path),
+        ],
         ForwardTarget::Socks5 => ["-D".to_string(), format!("127.0.0.1:{}", local_port)],
     }
 }
@@ -1251,13 +1294,17 @@ pub fn build_tunnel_key(
     ssh_user: &str,
     ssh_host: &str,
     ssh_port: u16,
-    remote_host: &str,
-    remote_port: u16,
+    target: &ForwardTarget,
 ) -> String {
-    format!(
-        "{}@{}:{}:{}->{}",
-        ssh_user, ssh_host, ssh_port, remote_host, remote_port
-    )
+    match target {
+        ForwardTarget::Fixed { host, port } => {
+            format!("{}@{}:{}:{}->{}", ssh_user, ssh_host, ssh_port, host, port)
+        }
+        ForwardTarget::UnixSocket { path } => {
+            format!("{}@{}:{}:socket->{}", ssh_user, ssh_host, ssh_port, path)
+        }
+        ForwardTarget::Socks5 => build_socks5_tunnel_key(ssh_user, ssh_host, ssh_port),
+    }
 }
 
 /// Check if a string is empty or contains only whitespace.
@@ -1333,22 +1380,49 @@ mod tests {
     mod build_tunnel_key_tests {
         use super::*;
 
+        fn tcp(host: &str, port: u16) -> ForwardTarget {
+            ForwardTarget::Fixed {
+                host: host.to_string(),
+                port,
+            }
+        }
+
         #[test]
         fn test_basic_key_format() {
-            let key = build_tunnel_key("user", "host.example.com", 22, "db.internal", 3306);
+            let key = build_tunnel_key("user", "host.example.com", 22, &tcp("db.internal", 3306));
             assert_eq!(key, "user@host.example.com:22:db.internal->3306");
         }
 
         #[test]
         fn test_non_standard_port() {
-            let key = build_tunnel_key("admin", "jump.server", 2222, "localhost", 5432);
+            let key = build_tunnel_key("admin", "jump.server", 2222, &tcp("localhost", 5432));
             assert_eq!(key, "admin@jump.server:2222:localhost->5432");
         }
 
         #[test]
         fn test_empty_user() {
-            let key = build_tunnel_key("", "host", 22, "remote", 80);
+            let key = build_tunnel_key("", "host", 22, &tcp("remote", 80));
             assert_eq!(key, "@host:22:remote->80");
+        }
+
+        #[test]
+        fn test_unix_socket_destination() {
+            let target = ForwardTarget::UnixSocket {
+                path: "/var/run/mysqld/mysqld.sock".to_string(),
+            };
+            let key = build_tunnel_key("user", "host", 22, &target);
+            assert_eq!(key, "user@host:22:socket->/var/run/mysqld/mysqld.sock");
+        }
+
+        #[test]
+        fn test_socket_and_tcp_keys_differ() {
+            let socket = ForwardTarget::UnixSocket {
+                path: "/tmp/db.sock".to_string(),
+            };
+            assert_ne!(
+                build_tunnel_key("user", "host", 22, &socket),
+                build_tunnel_key("user", "host", 22, &tcp("/tmp/db.sock", 0))
+            );
         }
     }
 
@@ -1364,6 +1438,17 @@ mod tests {
             assert_eq!(
                 forward_args(&target, 40000),
                 ["-L", "127.0.0.1:40000:db.internal:5432"]
+            );
+        }
+
+        #[test]
+        fn unix_socket_target_is_a_streamlocal_forward() {
+            let target = ForwardTarget::UnixSocket {
+                path: "/var/run/postgresql/.s.PGSQL.5432".to_string(),
+            };
+            assert_eq!(
+                forward_args(&target, 15000),
+                ["-L", "127.0.0.1:15000:/var/run/postgresql/.s.PGSQL.5432"]
             );
         }
 
@@ -1397,7 +1482,15 @@ mod tests {
             assert_eq!(socks5, "user@jump:22->socks5");
             assert_ne!(
                 socks5,
-                build_tunnel_key("user", "jump", 22, "localhost", 27017)
+                build_tunnel_key(
+                    "user",
+                    "jump",
+                    22,
+                    &ForwardTarget::Fixed {
+                        host: "localhost".to_string(),
+                        port: 27017,
+                    },
+                )
             );
         }
     }

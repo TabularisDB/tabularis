@@ -2,8 +2,25 @@ import {describe, it, expect, beforeAll} from 'vitest';
 import i18n from 'i18next';
 import en from '@/i18n/locales/en.json';
 import de from '@/i18n/locales/de.json';
-import {toErrorMessage, splitErrorDetails, isManagedConnectionDenied} from '@/utils/errors';
+import {
+    toErrorMessage,
+    splitErrorDetails,
+    isManagedConnectionDenied,
+    isModuleLoadError,
+} from '@/utils/errors';
 import {TabularisClientError} from '@/api/errors';
+
+describe('isModuleLoadError', () => {
+    it('recognizes WebKit and Chromium module loading failures', () => {
+        expect(isModuleLoadError(new TypeError('Importing a module script failed.'))).toBe(true);
+        expect(
+            isModuleLoadError(
+                new TypeError('Failed to fetch dynamically imported module: /assets/Editor.js'),
+            ),
+        ).toBe(true);
+        expect(isModuleLoadError(new Error('SQL execution failed'))).toBe(false);
+    });
+});
 
 describe('toErrorMessage', () => {
     it('returns strings unchanged', () => {

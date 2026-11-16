@@ -35,11 +35,16 @@ impl RuntimeSecrets for NoSecrets {
 }
 
 fn runtime(temp: &tempfile::TempDir) -> (RuntimeContext, Arc<RecordingEvents>) {
+    // Theme storage refuses any path that passes through a symlink, and macOS
+    // keeps temporary files under /var, a symlink to /private/var.
+    let root = temp.path().to_path_buf();
+    #[cfg(unix)]
+    let root = root.canonicalize().unwrap();
     let events = Arc::new(RecordingEvents::default());
     let runtime = RuntimeContext::new(
         Arc::new(FixedRuntimePaths::new(
-            temp.path().join("config"),
-            temp.path().join("data"),
+            root.join("config"),
+            root.join("data"),
         )),
         events.clone(),
         Arc::new(NoSecrets),

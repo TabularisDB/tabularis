@@ -10,6 +10,15 @@ export interface CellChartConfig {
     valueColumns: string[];
 }
 
+/** Presentation of one value of a single-row result as a large KPI number. */
+export interface CellKpiConfig {
+    column: string;
+    label?: string;
+    decimals?: number | null; // null/undefined: keep the value's own fraction digits
+    prefix?: string;
+    suffix?: string;
+}
+
 export interface RunAllResult {
     total: number;
     executed: number;
@@ -50,6 +59,8 @@ export interface NotebookCell {
     isQueryCollapsed?: boolean; // SQL only: query editor section hidden when collapsed
     isResultCollapsed?: boolean; // SQL only: result grid section hidden when collapsed
     isChartVisible?: boolean; // SQL only: chart section visible (defaults to whether chartConfig is set)
+    kpiConfig?: CellKpiConfig | null; // SQL only: KPI card configuration
+    isKpiVisible?: boolean; // SQL only: KPI section visible (defaults to whether kpiConfig is set)
     isQueryPlanVisible?: boolean; // SQL only: query plan (EXPLAIN) section visible, off by default
     history?: CellExecutionEntry[]; // Last N executions
 }
@@ -77,6 +88,8 @@ export interface NotebookFile {
         isQueryCollapsed?: boolean;
         isResultCollapsed?: boolean;
         isChartVisible?: boolean;
+        kpiConfig?: CellKpiConfig | null;
+        isKpiVisible?: boolean;
         isQueryPlanVisible?: boolean;
     }>;
     params?: NotebookParam[];

@@ -11,8 +11,13 @@ export type SlotName =
     | 'data-grid.toolbar.actions'
     | 'data-grid.context-menu.items'
     | 'sidebar.footer.actions'
+    | 'connections.actions'
+    | 'explorer.services'
+    | 'explorer.connection.actions'
+    | 'editor.workspace.content'
     | 'settings.plugin.actions'
     | 'settings.plugin.before_settings'
+    | 'connection-modal.setup'
     | 'connection-modal.connection_content'
     | 'connection-modal.extra_fields';
 
@@ -28,8 +33,13 @@ export const VALID_SLOTS: ReadonlySet<string> = new Set<SlotName>([
     'data-grid.toolbar.actions',
     'data-grid.context-menu.items',
     'sidebar.footer.actions',
+    'connections.actions',
+    'explorer.services',
+    'explorer.connection.actions',
+    'editor.workspace.content',
     'settings.plugin.actions',
     'settings.plugin.before_settings',
+    'connection-modal.setup',
     'connection-modal.connection_content',
     'connection-modal.extra_fields',
 ]);
@@ -121,6 +131,35 @@ export interface UIExtensionDeclaration {
  * `SlotAnchor` uses these requirements for the slots listed here.
  */
 export type HostSlotContextRequirements = {
+    'connection-modal.setup': {
+        driver: string;
+        connectionId: string | null;
+        isEditing: boolean;
+        onConnectionCreated: () => void | Promise<void>;
+        onClose: () => void;
+    };
+    'connections.actions': {onConnectionCreated: () => void | Promise<void>};
+    'editor.workspace.content': {
+        pluginId: string;
+        workspaceId: string;
+        connectionId: string;
+        driver: string | null;
+        schema: string | null;
+        connectionName?: string | null;
+    };
+    'explorer.connection.actions': {
+        connectionId: string | null;
+        connectionName: string | null;
+        driver: string | null;
+        schema: string | null;
+    };
+
+    'explorer.services': {
+        connectionId: string | null;
+        connectionName: string | null;
+        driver: string | null;
+        schema: string | null;
+    };
     'data-grid.toolbar.actions': {
         connectionId: string | null;
         tableName: string | null;

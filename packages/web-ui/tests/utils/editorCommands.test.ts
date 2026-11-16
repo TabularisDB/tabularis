@@ -141,4 +141,19 @@ describe('createActiveEditorCommands', () => {
         expect(commands.aiGenerate).toBeUndefined();
         expect(commands.aiExplain).toBeUndefined();
     });
+    it('disables SQL, AI and save commands for a plugin workspace even with stale SQL state', () => {
+        const commands = createActiveEditorCommands({
+            tabType: 'plugin-workspace',
+            hasConnection: true,
+            hasRunnableQuery: true,
+            isReadOnly: false,
+            isLoading: false,
+            canSaveSqlFile: true,
+            statementCount: 3,
+            aiEnabled: true,
+            labels,
+            actions: actions(),
+        });
+        expect(Object.keys(commands)).toEqual(['closeTab']);
+    });
 });

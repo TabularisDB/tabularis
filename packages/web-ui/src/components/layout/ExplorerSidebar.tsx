@@ -1,3 +1,4 @@
+import {SlotAnchor} from '@/components/ui/SlotAnchor';
 import {useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import {copyTextToClipboard} from '@/utils/clipboard';
 import {useNavigate} from 'react-router-dom';
@@ -99,6 +100,8 @@ import {ImportTableModal} from '@/components/modals/ImportTableModal';
 import {ClipboardImportModal} from '@/components/modals/ClipboardImportModal';
 import {ViewEditorModal} from '@/components/modals/ViewEditorModal';
 import {TriggerEditorModal} from '@/components/modals/TriggerEditorModal';
+import type {DatabaseSqlCapabilities} from '@/types/plugins';
+import {databaseImportFilters} from '@/utils/databaseTransfers';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {RunRoutineModal} from '@/components/modals/RunRoutineModal';
 import {DebugRoutineModal} from '@/components/modals/DebugRoutineModal';
@@ -996,9 +999,41 @@ export const ExplorerSidebar = ({
                   })
             : undefined;
 
+    const sqlCapabilitiesCacheRef = useRef<{
+        connectionId: string;
+        capabilities: DatabaseSqlCapabilities | null;
+    } | null>(null);
+    useEffect(() => {
+        if (!activeConnectionId) {
+            sqlCapabilitiesCacheRef.current = null;
+            return;
+        }
+        const connectionId = activeConnectionId;
+        let cancelled = false;
+        void Promise.resolve()
+            .then(() => client.call('get_database_sql_capabilities', {connectionId}))
+            .then((capabilities) => {
+                if (!cancelled) {
+                    sqlCapabilitiesCacheRef.current = {connectionId, capabilities};
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    sqlCapabilitiesCacheRef.current = {connectionId, capabilities: null};
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeConnectionId, client]);
+
     const handleImportDatabase = async (database?: string, schema?: string) => {
+        const cached =
+            sqlCapabilitiesCacheRef.current?.connectionId === activeConnectionId
+                ? sqlCapabilitiesCacheRef.current.capabilities
+                : null;
         const inputFile = await platform.chooseInputFile({
-            filters: [{name: 'SQL / Zip File', extensions: ['sql', 'zip']}],
+            filters: databaseImportFilters(cached),
         });
         if (inputFile) {
             setPendingImport({
@@ -1504,6 +1539,17 @@ export const ExplorerSidebar = ({
                     </div>
                 </div>
 
+                <SlotAnchor
+                    name="explorer.connection.actions"
+                    context={{
+                        connectionId: activeConnectionId,
+                        connectionName: activeConnectionName ?? null,
+                        driver: activeDriver,
+                        schema: activeSchema,
+                    }}
+                    className="shrink-0 min-w-0 flex flex-col gap-2 px-3 py-2 border-b border-default"
+                />
+
                 {/* Tab bar */}
                 <div className="flex items-center border-b border-default bg-base px-1">
                     {[
@@ -1870,6 +1916,8 @@ export const ExplorerSidebar = ({
                     {sidebarTab === 'history' && (
                         <div className="animate-fade-in">
                             <QueryHistorySection
+                                connectionId={activeConnectionId}
+                                dialect={activeCapabilities?.sql_dialect ?? activeDriver ?? null}
                                 entries={historyEntries}
                                 isLoading={isHistoryLoading}
                                 isPaused={isHistoryPaused}
@@ -1913,6 +1961,18 @@ export const ExplorerSidebar = ({
                             onOpen={handleOpenNotebook}
                             onRename={handleRenameNotebook}
                             onDelete={handleDeleteNotebook}
+                        />
+                    )}
+
+                    {sidebarTab === 'structure' && (
+                        <SlotAnchor
+                            name="explorer.services"
+                            context={{
+                                connectionId: activeConnectionId,
+                                connectionName: activeConnectionName ?? null,
+                                driver: activeDriver,
+                                schema: activeSchema,
+                            }}
                         />
                     )}
 

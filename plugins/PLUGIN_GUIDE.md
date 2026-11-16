@@ -178,6 +178,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `table_export` | bool | Offers **Export table to SQL...** on table nodes. Defaults to `true`; set `false` for non-SQL plugins. See [Table Export and Import](#table-export-and-import). |
 | `table_import` | bool | Offers **Import table from SQL...** on database and schema nodes. Defaults to `true`; set `false` for non-SQL plugins. Always off when `readonly` is `true`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
+| `unix_socket` | bool | `true` if the driver supports connecting through a local Unix socket file instead of TCP host:port. When enabled, the connection form allows toggling between Host/Port and Socket Path. When connecting over a local socket, the plugin receives the socket path in `unix_socket_path` in `ConnectionParams` (and `host`/`port` are omitted or bypassed). Over an SSH tunnel, the SSH server forwards the connection to the socket path, and the plugin receives an established local TCP forward port without seeing `unix_socket_path`. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
 | `query_timeout` | bool | `true` when the driver honours `query_timeout_secs` — stops a statement on the server once the limit passes. Shows the query-timeout field in the connection modal. Built-in PostgreSQL and MySQL set this; plugins that can cancel a running statement should opt in. Defaults to `false`. |
 | `socks5_proxy` | bool | `true` when the driver sends every database connection through the SOCKS5 proxy the host passes in `socks5_proxy_host` / `socks5_proxy_port` (and `socks5_proxy_username` / `socks5_proxy_password` when set). With SSH enabled, the host then opens a dynamic forward instead of rewriting `host` / `port`, so a connection that names several endpoints (an SRV seedlist, a replica set) reaches all of them. Also accepted as camelCase `socks5Proxy`. Defaults to `false`. See [SSH Tunnels through a SOCKS5 Proxy](#ssh-tunnels-through-a-socks5-proxy). |
@@ -613,11 +614,54 @@ Add an optional `ui_extensions` array to your manifest:
 | `row-editor-sidebar.header.actions` | Sidebar header action buttons | `connectionId`, `tableName`, `schema`, `driver`, `rowData`, `rowIndex` | "Copy as JSON", audit links |
 | `data-grid.toolbar.actions` | Table toolbar (right side) | `connectionId`, `tableName`, `schema`, `driver` | Export buttons, analysis tools |
 | `data-grid.context-menu.items` | Right-click context menu on grid rows | `connectionId`, `tableName`, `schema`, `driver`, `columnName`, `rowIndex`, `rowData` | Row-level custom actions |
-| `sidebar.footer.actions` | Explorer sidebar footer | `connectionId`, `driver` | Status indicators, quick actions |
+| `editor.workspace.content` | Full-height main editor workspace | `pluginId`, `workspaceId`, `connectionId`, `driver`, `schema`, `connectionName?` | Provider-owned service UI; only the owning plugin renders |
+| `explorer.services` | Scrollable Explorer Structure body, before schema/tree sections | `connectionId`, `connectionName`, `driver`, `schema` | Native provider service rows opening main tabs |
+| `explorer.connection.actions` | Connection explorer, below its header | `connectionId`, `connectionName`, `driver`, `schema` | Connection-specific service tools |
+| `sidebar.footer.actions` | Narrow navigation icon rail footer (icon-sized controls) | `connectionId`, `driver` | Status indicators, quick actions |
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
 | `settings.plugin.before_settings` | Content above plugin settings form | `targetPluginId` | OAuth panels, status banners |
+| `connection-modal.setup` | Add Connection after choosing the driver; General when editing | `driver`, `connectionId`, `isEditing`, `onConnectionCreated`, `onClose` | Provider-owned login and connection import; only the selected driver plugin renders. Requires runtime API `0.4.1` |
 | `connection-modal.connection_content` | Inside the connection form | `driver`, `database`, `connectionName`, `onDatabaseChange` | Custom connection fields; the callback is bridged over host RPC |
 | `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `credentialFieldsHidden`, `setCredentialFieldsHidden`, `secretFields`, `setSecretField` | Plugin-specific connection fields (e.g. AWS region), including values stored per connection in the OS keychain. `setCredentialFieldsHidden(true)` hides and clears the host username/password inputs for drivers that authenticate without a login; while hidden the host also ignores the login of an imported connection string and drops the stored password on save. These callbacks are host RPC methods; callback functions are not cloned into the guest context. |
+
+### Provider-owned connection setup
+
+> Provider UI bundles use sandbox API `0.4.1`. The guest facade exposes scoped account, connection-service and workspace hooks. Native Monaco editors and read-only grids are rendered by trusted host components, clipped to the owning frame, with callbacks transported over its MessagePort. Plugin code never executes in the host window. Prototype API `0.2.7` bundles remain rejected; rebuild them against the current SDK.
+
+An external driver can own its Add Connection flow by declaring a
+`connection-modal.setup` entry in `ui_extensions` with `api_version: "0.4.1"`.
+Use this for provider login, project/branch selection and connection import.
+This is a UI opt-in; it does not require `no_connection_required` or a new
+backend capability. Declare the driver's real database capabilities normally.
+
+The host reads the selected driver's manifest, so a missing or incompatible
+bundle shows an unavailable message instead of generic SQL fields. The slot
+only accepts contributions owned by that driver. Existing `connection_content`
+and `extra_fields` integrations keep their current behavior.
+
+```tsx
+import {defineSlot} from "@tabularis/plugin-api";
+
+export default defineSlot("connection-modal.setup", ({context}) => {
+  // context: {driver: string, connectionId: string | null, isEditing: boolean,
+  //   onConnectionCreated: () => void | Promise<void>, onClose: () => void}
+  return <ProviderSetup context={context} />;
+}).component;
+```
+
+For a new connection, the plugin replaces the full form body and supplies its
+own actions; host name/environment inputs, tabs and Test/Save are hidden. Keep
+login and imports inside the plugin, for example through `usePluginAccount`.
+After a successful import, await `context.onConnectionCreated()` to refresh the
+host list. This marks the session saved without closing it, allowing success or
+warning messages. Call `context.onClose()` when the user finishes. The catalogue
+and Change database navigation stay available.
+
+When `context.isEditing` is true, display the existing binding identified by
+`connectionId` and offer account reconnection as needed; do not import another
+connection. The host renders the setup in General, retains name/environment,
+Appearance and Privacy, and saves metadata with existing connection parameters
+and secrets intact. Generic SQL/network fields and Test stay hidden.
 
 ### SlotContext
 
@@ -1370,6 +1414,16 @@ Get the SQL body of a stored routine.
 ### Triggers
 
 Set `capabilities.triggers` to `true` when your driver implements the trigger RPCs. Tabularis uses this flag to show trigger-related UI.
+
+Drivers that advertise `triggers` and whose dialect is not postgres, mysql or
+sqlite — including `generic`, `mssql` and `oracle` — use a complete-SQL editor.
+The host sends the entire statement, including procedural bodies, to
+`create_trigger` once. It never drops the existing trigger before saving. Return
+an engine-native edit script from `get_trigger_definition` (for example,
+`CREATE OR ALTER TRIGGER`) when the engine supports one. A failed save leaves
+the editor open; the driver must keep the old trigger intact when the
+replacement statement fails. The new-trigger editor seeds `ON <table>` when a
+table name is supplied.
 
 #### `get_triggers`
 
@@ -2236,6 +2290,55 @@ that prefix). Answer `-32601` Method not found when you can't.
 
 ---
 
+### Whole-database SQL transfers (optional)
+
+The host negotiates complete database transfers through runtime RPCs, without
+assuming that a table DDL dump reconstructs routines, permissions or dependencies.
+Missing methods (JSON-RPC -32601) and null results retain the existing host path;
+all other errors stop the operation. Built-in drivers default to that path.
+
+- `get_database_sql_capabilities`: `{params: ConnectionParams}` returns null or
+  `{format: string, native_backup?: {format: string, extension: string, label: string, description?: string}, create_database: boolean, requires_empty_target: boolean, target_label: string}`.
+  `format` is the SQL dump format id (typically `"sql"`). The import dialog uses
+  `target_label` as the destination field caption and asks for an explicit start
+  action for this protocol.
+  When the plugin can produce a native whole-file backup, set `native_backup`:
+  - `format`: id the host echoes in `export_database_sql` `options.format`
+  - `extension`: ASCII alphanumeric file extension, 1–16 characters, no leading
+    dot or path separators (for example `"fbk"`). The host rejects anything else.
+  - `label`: dump-dialog option text (for example `"Complete Firebird backup (.fbk)"`)
+  - `description`: optional help shown when that format is selected
+  The host never infers a native format from the driver id. A plugin that omits
+  `native_backup` only offers SQL. A boolean `native_backup` (for example `true`
+  from Firebird plugin v1.0.0) is accepted and treated as omitted: the host
+  still offers SQL, but not a native dump, until the plugin sends the object.
+- `export_database_sql`: `{params, file_path: string, options: {format?: string, structure: boolean, data: boolean, tables: string[] | null}}`
+  returns null or `{rows: number, tables: number}`. `options.format` is omitted or
+  `"sql"` for SQL, or the `native_backup.format` id for a native backup. Do not
+  fall back to SQL when a native format was requested. The path is a private
+  host-owned pending file. Finish and close it before returning success. The host
+  publishes it atomically; errors preserve any previous destination. Reject
+  unsupported partial-schema selections explicitly, or return null to use the
+  host renderer.
+- `import_database_sql`: `{params, file_path: string, create_database: boolean}`
+  returns null for an unrecognized ordinary SQL file, or `{statements: number}`.
+  Validate the complete file before modifying the destination. Own statement
+  boundaries, dependencies, transaction policy, cancellation and cleanup. A new
+  target must never overwrite an existing database. The host never falls back to
+  ordinary SQL execution when creation was requested but the RPC returns null.
+  Native backup files are recognized by `native_backup.extension`.
+
+Connection parameters are supplied directly before metadata specialization, so
+new database creation does not first require a successful attachment to that target.
+Desktop file paths come from the native chooser; browser requests still use opaque
+session-owned upload/download tokens. ZIP imports pass the extracted SQL file
+while retaining its cleanup guard. No browser client supplies a server file path.
+
+Whole-file import/export RPCs do not inherit the ordinary 120-second plugin
+timeout. Explicit global or per-plugin call timeouts still apply, including
+zero to disable them. Transfer cancellation and the client transfer deadline
+remain active.
+
 #### `render_insert_statements` *(optional)*
 
 Renders complete `INSERT` statements for one batch of up to 500 rows, for
@@ -2422,3 +2525,82 @@ The legacy path — a pull request adding an entry to `plugins/registry.json` (f
 > **Note:** `min_tabularis_version` is specified per-release inside the `releases[]` array,
 > not at the root plugin level. This allows older Tabularis installs to install an older
 > compatible release even when a newer release requires a higher app version.
+
+### Connection-bound editor workspaces
+
+Account prerequisites and interactive sign-in setup can use
+`usePluginAccount(pluginId).prepare(method, args)` (API `0.4.1`). Like account
+calls, it requires local-admin authorization. The host forwards no stored
+account/SQL credentials, only `{method,args,secrets:{},context:{plugin_id,
+scope:"account-setup"}}` to the enabled external plugin. Keep an explicit setup
+method allowlist, bound any child processes or polling, start login only after
+a user action, and return metadata rather than credentials or raw process output.
+`account_import` cannot be called through preparation. `copyText(text)` provides
+host-native clipboard access for commands and diagnostic text.
+
+Use `usePluginWorkspace(pluginId).openWorkspace({id, title, connectionId?})` from an
+`explorer.services` contribution to open a provider service as a main
+editor tab. Register its content in `editor.workspace.content` (with `api_version:
+"0.4.1"`). Reopening the same plugin/workspace/connection focuses the existing tab;
+other connections keep separate tabs. The optional connection ID must match both
+the current slot connection and the editor connection. Mismatches throw instead of
+switching connections or assigning the workspace to another connection.
+
+Only tab metadata and the plugin/workspace identifiers are saved. Do not put
+credentials in workspace IDs or titles. SQL controls and query shortcuts are
+unavailable on workspace tabs. Disabled, removed, or unloadable plugins show an
+unavailable state; their tabs can still be closed and reopened. Background
+workspaces stay mounted and retain their iframe state. Content unmounts when its
+tab closes or the plugin is disabled or removed, so clean up polling,
+subscriptions and pending requests in React effect cleanup. Bind service calls with
+`usePluginRpc(pluginId, context.connectionId)` rather than a changing global selection.
+
+`PluginExplorerSection` renders a native collapsible Explorer section. Pass
+`pluginId`, `providerName`, optional `connectionId`/`icon`/`disabled`, and
+`items: [{id, label, icon?}]`. Each row opens its own main tab, titled
+`Provider · Service`, and repeated clicks focus that tab. Selection is scoped to
+the owning plugin, service and connection. Supported item icon names are
+`overview`, `branches`, `database`, `users`, `storage`, `functions`, `ai`, `realtime`, `settings`,
+`documents` and `security`; unknown icons use the document icon. Scope errors
+appear inline. The provider mark stays small and uses the native section header.
+
+`PluginWorkspaceShell` supplies a compact native header and bounded scrolling
+content. Pass `title`, optional `subtitle`/`icon`/`actions`, and `children` for the
+current service. It renders full-width content with no internal navigation by
+default. Existing callers can still pass `tabs: [{id, label, icon?}]`, `activeTab`,
+`onTabChange`, and optional `brandColor` for the navigation indicator.
+`PluginConnectionAction` remains supported for existing connection actions.
+
+`PluginDataGrid` renders the actual host data grid for read-only provider results.
+Pass `columns: string[]`, `rows: unknown[][]`, optional `connectionId`, and optional
+accessible `label`. It has a bounded height and uses native copy preferences,
+selection and column resizing. It exposes no mutation callbacks or generated SQL.
+
+API `0.4.1` adds `PluginResourceList` and `PluginCodeEditor`. Declare at least
+`api_version: "0.4.1"` before using them; Earlier sandbox hosts do not expose these
+components. Older plugin bundles remain supported by the newer host.
+
+`PluginResourceList` takes `items: [{id, title, subtitle?, status?}]`, `onOpen(id)`,
+`emptyMessage`, and an optional accessible `label`. Open resource details with
+`usePluginWorkspace`, keeping connection ownership and resource IDs explicit.
+
+`PluginCodeEditor` takes controlled `value`/`onChange`, optional `language`
+(`javascript`, `typescript`, `json`, or `plaintext`), `readOnly`, and an accessible `label`.
+Its parent supplies the height. It shares the host's lazy Monaco instance,
+editor theme and font preferences, and does not register SQL execution actions.
+Keep provider deployment, secrets and draft persistence policies in the plugin.
+
+### Searchable provider form controls
+
+API `0.4.1` exposes a themed, searchable `PluginSelect` popup for sandboxed provider forms.
+Declare `api_version: "0.4.1"` before using `placeholder`, `loading`, `loadingLabel`
+and option descriptions. Pass `value`, `onChange(value)` and
+`options: [{value, label, description?}]`. Empty-string values remain valid for a
+personal account; placeholders are separate from selectable values.
+
+Link a translated label with `id`, or pass `ariaLabel`; use `disabled` and
+`ariaDescribedBy` for prerequisites. Set `loading` and a translated `loadingLabel`
+while fetching dependent options. The host renders the spinner, announces the
+loading state and closes any stale popup. It also handles search, keyboard
+navigation, Escape layering, scrolling and theme colors instead of delegating
+the popup to the operating system.

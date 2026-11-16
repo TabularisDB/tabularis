@@ -385,6 +385,7 @@ async fn run_plan_once(
     let slot_key = db_backup_slot_key(&plan.connection_id);
     *RUNTIME_STATE.active_slot.lock().unwrap() = Some(slot_key.clone());
     let options = DumpOptions {
+        format: None,
         structure: plan.include_structure,
         data: plan.include_data,
         tables: plan.tables.clone(),

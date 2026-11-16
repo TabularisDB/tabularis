@@ -1,10 +1,11 @@
 import {useState, useCallback} from 'react';
 import {useTranslation} from 'react-i18next';
-import {Keyboard, Lock, RotateCcw} from 'lucide-react';
+import {Keyboard, Lock, RotateCcw, Search} from 'lucide-react';
 import {useKeybindings} from '@/hooks/useKeybindings';
 import {useAlert} from '@/hooks/useAlert';
 import {formatShortcut, keyMatchesOverlap, matchesReservedShortcut} from '@/utils/keybindings';
 import type {KeyMatch} from '@/utils/keybindings';
+import {matchesShortcutSearch} from '@/utils/shortcutSearch';
 import {ShortcutsEditModal} from '@/components/modals/ShortcutsEditModal';
 import {SettingSection} from './SettingControls';
 
@@ -21,7 +22,19 @@ export function ShortcutsTab() {
     const {showAlert} = useAlert();
     const {shortcuts, saveOverride, resetOverride, overrides, isMac} = useKeybindings();
     const [editingShortcut, setEditingShortcut] = useState<EditingShortcut | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
     const categories = ['editor', 'navigation', 'data_grid', 'notebook'] as const;
+
+    const visibleShortcuts = shortcuts.filter((s) =>
+        matchesShortcutSearch(
+            {
+                label: t(s.i18nKey as Parameters<typeof t>[0]),
+                shortcut: formatShortcut(s, overrides, isMac),
+            },
+            searchQuery,
+            isMac,
+        ),
+    );
 
     const openEdit = useCallback(
         (s: (typeof shortcuts)[number]) => {
@@ -127,8 +140,31 @@ export function ShortcutsTab() {
                 }
             >
                 <div className="space-y-4 pt-3">
+                    <div className="relative">
+                        <Search
+                            size={12}
+                            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted"
+                        />
+                        <input
+                            type="search"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            autoComplete="off"
+                            spellCheck={false}
+                            aria-label={t('settings.shortcuts.searchPlaceholder')}
+                            placeholder={t('settings.shortcuts.searchPlaceholder')}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full rounded-lg border border-default bg-base py-1.5 pl-7 pr-3 text-xs text-primary placeholder:text-muted focus:border-focus focus:outline-none focus-visible:ring-1 focus-visible:ring-focus"
+                        />
+                    </div>
+                    {visibleShortcuts.length === 0 && (
+                        <p role="status" className="px-1 py-6 text-center text-sm text-muted">
+                            {t('settings.shortcuts.noMatches')}
+                        </p>
+                    )}
                     {categories.map((cat) => {
-                        const items = shortcuts.filter((s) => s.category === cat);
+                        const items = visibleShortcuts.filter((s) => s.category === cat);
                         if (!items.length) return null;
                         return (
                             <div

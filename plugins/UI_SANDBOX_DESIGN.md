@@ -46,10 +46,29 @@ when the guest times out. Internal guest resources use reserved
 `__runtime__.js` and `__host.css__` paths so plugin files named `runtime.js` or
 `host.css` remain addressable.
 
+## Provider bridge (API 0.4.1)
+
+Provider account and connection-service hooks use dedicated, allowlisted
+MessagePort methods. The host binds every request to the owning plugin, validates
+saved connection ownership and requires the active connection for connection-slot
+calls. Account calls retain the backend's LocalAdmin requirement. Credentials
+are stored in the host secret store and never included in slot context.
+
+Provider Monaco editors and read-only data grids are native host projections.
+Only bounded, validated component props and rectangle data cross the port; the
+projection is clipped to its owning frame and supports only explicit change and
+diagnostic callbacks. Plugin code and React elements are never evaluated in the
+parent window. Other provider UI renders within the plugin iframe.
+
+Workspace opening remains synchronous in the guest: it returns a stable local
+reservation identifier while the host opens or reactivates the matching tab.
+Asynchronous host failures are reported through the plugin error toast. The
+reservation is not a host tab identifier and must not be used to control tabs.
+
 ## Plugin migration
 
 Plugins continue to import hooks from `@tabularis/plugin-api`; rebuild against
-API `0.4.0` and require host API `0.4.0`. A restricted `getHost()` shim
+API `0.4.1` and require host API `0.4.1`. A restricted `getHost()` shim
 remains available to older bundles and returns only the guest API facade.
 `setSetting` and `setSettings` now
 return promises, so await them when subsequent work depends on persistence.

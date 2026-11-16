@@ -55,6 +55,27 @@ describe('notebookUndo', () => {
         });
     });
 
+    describe('KPI configuration', () => {
+        it('is part of the document, so KPI changes can be undone and redone', () => {
+            const prev = state('SELECT 1');
+            const next: NotebookState = {
+                cells: [{...prev.cells[0], kpiConfig: {column: 'n', label: 'Users'}}],
+            };
+            expect(documentSignature(next)).not.toBe(documentSignature(prev));
+            const history = recordEdit(createHistory(), prev, next, 10_000);
+            const back = undo(history, next);
+            expect(back?.state.cells[0].kpiConfig).toBeUndefined();
+            const forward = redo(back!.history, back!.state);
+            expect(forward?.state.cells[0].kpiConfig).toEqual({column: 'n', label: 'Users'});
+        });
+
+        it('ignores KPI visibility like chart visibility', () => {
+            const prev = state('SELECT 1');
+            const next: NotebookState = {cells: [{...prev.cells[0], isKpiVisible: true}]};
+            expect(documentSignature(next)).toBe(documentSignature(prev));
+        });
+    });
+
     describe('recordEdit', () => {
         it('does not record runtime-only changes', () => {
             const h = createHistory();
@@ -207,6 +228,12 @@ describe('notebookUndo', () => {
                 n: 1,
                 detail: 'SELECT 2',
             });
+        });
+
+        it('detects a changed KPI configuration', () => {
+            const prev = ns([cell('a'), cell('b', {kpiConfig: {column: 'n'}})]);
+            const next = ns([cell('a'), cell('b', {kpiConfig: {column: 'n', decimals: 2}})]);
+            expect(describeChange(prev, next)).toMatchObject({kind: 'kpiCell', n: 2});
         });
 
         it('detects an added SQL cell at its position', () => {

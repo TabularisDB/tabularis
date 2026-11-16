@@ -11,6 +11,7 @@ import {
     buildCreateTriggerStatements,
     parseTriggerDefinition,
     resolveTriggerDialect,
+    usesCompleteTriggerSqlEditor,
     normalizeSelection,
     splitSqlStatements,
     type TriggerSqlInput,
@@ -446,6 +447,36 @@ $function$`;
                 }),
             ).toBeNull();
             expect(resolveTriggerDialect({})).toBeNull();
+        });
+    });
+
+    describe('usesCompleteTriggerSqlEditor', () => {
+        it('is true for trigger-capable dialects without a guided editor', () => {
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'generic', triggers: true},
+                }),
+            ).toBe(true);
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'mssql', triggers: true},
+                }),
+            ).toBe(true);
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'oracle', triggers: true},
+                }),
+            ).toBe(true);
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'postgres', triggers: true},
+                }),
+            ).toBe(false);
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'mssql', triggers: false},
+                }),
+            ).toBe(false);
         });
     });
 

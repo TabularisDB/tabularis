@@ -19,6 +19,7 @@ import {
     normalizeSelection,
     parseTriggerDefinition,
     resolveTriggerDialect,
+    usesCompleteTriggerSqlEditor,
     splitSqlStatements,
     type TriggerDialect,
     type TriggerEvent,
@@ -28,8 +29,9 @@ import {
 import {quoteIdentifier} from '@/utils/identifiers';
 import type {DriverCapabilities} from '@/types/plugins';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
+import {PluginTriggerSqlEditor} from './PluginTriggerSqlEditor';
 
-interface TriggerEditorModalProps {
+export interface TriggerEditorModalProps {
     isOpen: boolean;
     onClose: () => void;
     connectionId: string;
@@ -72,7 +74,7 @@ function parseTriggerSql(sql: string, dialect: TriggerDialect): ParsedTrigger {
         : {timing, events, body: rest, tail: null, forEach};
 }
 
-export const TriggerEditorModal = ({
+const DialectTriggerEditor = ({
     isOpen,
     onClose,
     connectionId,
@@ -772,3 +774,13 @@ export const TriggerEditorModal = ({
         </Modal>
     );
 };
+
+export const TriggerEditorModal = (props: TriggerEditorModalProps) =>
+    usesCompleteTriggerSqlEditor({driver: props.driver, capabilities: props.capabilities}) ? (
+        <PluginTriggerSqlEditor
+            key={`${props.connectionId}:${props.database ?? ''}:${props.tableName ?? ''}:${props.triggerName ?? ''}:${props.isNewTrigger}`}
+            {...props}
+        />
+    ) : (
+        <DialectTriggerEditor {...props} />
+    );

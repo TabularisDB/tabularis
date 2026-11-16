@@ -5,6 +5,8 @@ import * as explainApi from '@tabularis/explain';
 import {pluginGuestThemeVariables} from '../../web-ui/src/utils/pluginGuestTheme';
 import {RpcPort} from '../../web-ui/src/plugins/sandbox/rpc';
 import {hydratePluginSlotContext} from '../../web-ui/src/plugins/sandbox/slotContext';
+import {createProviderGuestApi} from '../../web-ui/src/plugins/sandbox/providerGuest';
+import {createGuestSettingsApi} from '../../web-ui/src/plugins/sandbox/guestHooks';
 
 type PluginComponent = React.ComponentType<{context: Record<string, unknown>; pluginId: string}>;
 type GuestGlobal = Window & Record<string, unknown>;
@@ -38,6 +40,16 @@ interface GuestModalApi {
 }
 
 const GuestModalContext = React.createContext<GuestModalApi | null>(null);
+const providerBridge = createProviderGuestApi(pluginId, () => currentContext, callHostResult);
+const settingsApi = createGuestSettingsApi(
+    pluginId,
+    () => currentContext,
+    (value) => {
+        currentContext = value;
+        renderPlugin?.();
+    },
+    callHostResult,
+);
 
 function defineSlot(slot: string, component: unknown) {
     return {__slot: slot, component} as const;
@@ -45,6 +57,8 @@ function defineSlot(slot: string, component: unknown) {
 
 /** The UI extension API deliberately contains no Tauri or generic invoke access. */
 const guestApi = Object.freeze({
+    ...providerBridge.api,
+    ...settingsApi,
     // Compatibility for bundles built against older plugin-api versions that
     // called getHost() for host APIs. Return only this restricted guest facade.
     getHost: () => guestApi,
@@ -81,48 +95,6 @@ const guestApi = Object.freeze({
         showError: (text: string) => callHost('api.toast', 'error', text),
         showWarning: (text: string) => callHost('api.toast', 'warning', text),
     }),
-    usePluginSetting: (requestedPluginId: string) => {
-        if (requestedPluginId !== pluginId)
-            throw new Error('Plugins may only access their own settings');
-        const settings = asRecord(currentContext.pluginSettings);
-        const getSetting = <T>(key: string, defaultValue?: T): T =>
-            (Object.hasOwn(settings, key) ? settings[key] : defaultValue) as T;
-        const setSetting = async (key: string, value: unknown): Promise<void> => {
-            await callHost('api.setting.set', key, value);
-            currentContext = {
-                ...currentContext,
-                pluginSettings: {...asRecord(currentContext.pluginSettings), [key]: value},
-            };
-            renderPlugin?.();
-        };
-        const setSettings = async (updates: Record<string, unknown>): Promise<void> => {
-            for (const [key, value] of Object.entries(updates)) await setSetting(key, value);
-            if (pluginId === 'google-sheets' && Object.hasOwn(updates, 'access_token')) {
-                await callHost('api.oauth.googleSync');
-            }
-        };
-        return {getSetting, setSetting, setSettings};
-    },
-    usePluginTranslation: (requestedPluginId: string) => {
-        if (requestedPluginId !== pluginId)
-            throw new Error('Plugins may only access their own translations');
-        const translations = asRecord(currentContext.translations);
-        return (key: string, options?: Record<string, unknown>): string => {
-            let value: unknown = translations;
-            for (const part of key.split('.')) value = asRecord(value)[part];
-            const {defaultValue, ...interpolations} = options ?? {};
-            let translated =
-                typeof value === 'string'
-                    ? value
-                    : typeof defaultValue === 'string'
-                      ? defaultValue
-                      : key;
-            for (const [name, replacement] of Object.entries(interpolations)) {
-                translated = translated.replaceAll(`{{${name}}}`, String(replacement));
-            }
-            return translated;
-        };
-    },
     usePluginModal: () => {
         const api = React.useContext(GuestModalContext);
         if (!api) throw new Error('Plugin modal API must be used inside a plugin component');
@@ -265,6 +237,7 @@ function GuestRoot({component: Component}: {component: PluginComponent}) {
                     {
                         id: dialogId,
                         role: 'dialog',
+                        'data-tabularis-guest-modal': true,
                         'aria-modal': true,
                         'aria-labelledby': `${dialogId}-title`,
                         style: dialogStyle,
@@ -323,7 +296,7 @@ Object.assign(guestWindow, {
     ReactJSXRuntime,
     __TABULARIS_EXPLAIN__: explainApi,
     __TABULARIS_API__: guestApi,
-    __TABULARIS_API_VERSION__: '0.4.0',
+    __TABULARIS_API_VERSION__: '0.4.1',
 });
 
 function loadExplainModule(): Promise<Record<string, unknown>[]> {
@@ -392,15 +365,63 @@ function start(port: MessagePort): void {
             window.dispatchEvent(new Event('tabularis:close-modal'));
             return null;
         }
+        if (method === 'ui.closePopovers') {
+            window.dispatchEvent(new Event('tabularis:close-popovers'));
+            return null;
+        }
+        if (method === 'ui.viewport') {
+            const value: unknown = Array.isArray(args) ? args[0] : args;
+            if (!value || typeof value !== 'object') throw new Error('Invalid guest viewport');
+            const viewport = value as Record<string, unknown>;
+            for (const key of ['top', 'bottom', 'left', 'right']) {
+                if (
+                    typeof viewport[key] !== 'number' ||
+                    !Number.isFinite(viewport[key]) ||
+                    (viewport[key] as number) < 0 ||
+                    (viewport[key] as number) > 100_000
+                )
+                    throw new Error('Invalid guest viewport bounds');
+            }
+            if (
+                (viewport.bottom as number) <= (viewport.top as number) ||
+                (viewport.right as number) <= (viewport.left as number)
+            )
+                return null;
+            for (const key of ['top', 'bottom', 'left', 'right'])
+                document.documentElement.style.setProperty(
+                    `--tabularis-plugin-visible-${key}`,
+                    `${viewport[key]}px`,
+                );
+            window.dispatchEvent(new Event('resize'));
+            return null;
+        }
+        if (method === 'ui.native.event') {
+            const values = Array.isArray(args) ? args : [];
+            if (typeof values[0] !== 'string' || typeof values[1] !== 'string')
+                throw new Error('Invalid native component event');
+            providerBridge.nativeEvent(values[0], values[1], values[2]);
+            return null;
+        }
+        if (method === 'api.event') {
+            const values = Array.isArray(args) ? args : [];
+            if (typeof values[0] !== 'string') throw new Error('Invalid plugin event');
+            providerBridge.pluginEvent(values[0], values[1]);
+            return null;
+        }
         if (method === 'slot.context') {
             const next = Array.isArray(args) ? args[0] : args;
             if (next && typeof next === 'object' && !Array.isArray(next)) {
                 currentContext = hydratePluginSlotContext(
                     next as Record<string, unknown>,
-                    (callback, ...values) => {
-                        void rpc.call(callback, values).catch(() => undefined);
-                    },
+                    (callback, ...values) => rpc.call(callback, values),
                 );
+                document.documentElement.dataset.tabularisLayout =
+                    currentContext.__tabularisSlot === 'editor.workspace.content'
+                        ? 'workspace'
+                        : 'inline';
+                if (currentContext.workspaceActive === false)
+                    window.dispatchEvent(new Event('tabularis:close-popovers'));
+                providerBridge.updateContext(currentContext);
                 applyGuestTheme();
                 renderPlugin?.();
             }
@@ -436,8 +457,22 @@ function start(port: MessagePort): void {
             root.render(React.createElement(GuestRoot, {component: component as PluginComponent}));
         renderPlugin();
         const resizeObserver = new ResizeObserver(() => {
+            let width: number | undefined;
+            if (
+                [
+                    'connections.actions',
+                    'sidebar.footer.actions',
+                    'explorer.connection.actions',
+                    'data-grid.toolbar.actions',
+                ].includes(String(currentContext.__tabularisSlot))
+            ) {
+                const previous = rootElement.style.width;
+                rootElement.style.width = 'max-content';
+                width = Math.ceil(rootElement.scrollWidth);
+                rootElement.style.width = previous;
+            }
             void rpc
-                .call('ui.resize', [Math.ceil(rootElement.getBoundingClientRect().height)])
+                .call('ui.resize', [Math.ceil(rootElement.getBoundingClientRect().height), width])
                 .catch(() => undefined);
         });
         resizeObserver.observe(rootElement);

@@ -55,6 +55,16 @@ export function resolveTriggerDialect({
     }
 }
 
+/** Complete-SQL editor for trigger-capable drivers without a guided dialect. */
+export function usesCompleteTriggerSqlEditor({
+    driver,
+    capabilities,
+}: TriggerDialectSource & {capabilities?: {triggers?: boolean} | null}): boolean {
+    return (
+        capabilities?.triggers === true && resolveTriggerDialect({driver, capabilities}) === null
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Our TriggerSqlInput interface (used by buildTriggerFunctionSql / buildTriggerSql)
 // ---------------------------------------------------------------------------
