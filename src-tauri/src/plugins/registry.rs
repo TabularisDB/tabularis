@@ -44,7 +44,10 @@ pub fn classify_install(installed: Option<&str>, target: &str) -> InstallAction 
     let Some(installed) = installed else {
         return InstallAction::Install;
     };
-    match (semver::Version::parse(installed), semver::Version::parse(target)) {
+    match (
+        semver::Version::parse(installed),
+        semver::Version::parse(target),
+    ) {
         (Ok(cur), Ok(tgt)) => {
             if cur < tgt {
                 InstallAction::Update
@@ -55,7 +58,8 @@ pub fn classify_install(installed: Option<&str>, target: &str) -> InstallAction 
         _ => {
             log::warn!(
                 "Non-semver version compare (installed={:?}, target={:?}); string fallback",
-                installed, target
+                installed,
+                target
             );
             if installed == target {
                 InstallAction::UpToDate
@@ -276,24 +280,42 @@ mod tests {
 
     #[test]
     fn classify_older_installed_is_update() {
-        assert_eq!(classify_install(Some("1.0.0"), "1.2.3"), InstallAction::Update);
-        assert_eq!(classify_install(Some("0.9.0"), "0.10.0"), InstallAction::Update);
+        assert_eq!(
+            classify_install(Some("1.0.0"), "1.2.3"),
+            InstallAction::Update
+        );
+        assert_eq!(
+            classify_install(Some("0.9.0"), "0.10.0"),
+            InstallAction::Update
+        );
     }
 
     #[test]
     fn classify_equal_is_up_to_date() {
-        assert_eq!(classify_install(Some("1.2.3"), "1.2.3"), InstallAction::UpToDate);
+        assert_eq!(
+            classify_install(Some("1.2.3"), "1.2.3"),
+            InstallAction::UpToDate
+        );
     }
 
     #[test]
     fn classify_newer_installed_is_up_to_date() {
         // Downgrade link: never auto-downgrade.
-        assert_eq!(classify_install(Some("2.0.0"), "1.2.3"), InstallAction::UpToDate);
+        assert_eq!(
+            classify_install(Some("2.0.0"), "1.2.3"),
+            InstallAction::UpToDate
+        );
     }
 
     #[test]
     fn classify_unparseable_falls_back_to_string_compare() {
-        assert_eq!(classify_install(Some("weird"), "weird"), InstallAction::UpToDate);
-        assert_eq!(classify_install(Some("weird"), "other"), InstallAction::Update);
+        assert_eq!(
+            classify_install(Some("weird"), "weird"),
+            InstallAction::UpToDate
+        );
+        assert_eq!(
+            classify_install(Some("weird"), "other"),
+            InstallAction::Update
+        );
     }
 }

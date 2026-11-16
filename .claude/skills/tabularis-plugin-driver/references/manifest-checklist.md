@@ -56,6 +56,7 @@ Set these deliberately:
 - `manage_tables`: false for read-only or inspection-only plugins
 - `readonly`: true if insert/update/delete and table management must be hidden
 - `explain`: true only if the plugin implements `explain_query` (otherwise the Visual EXPLAIN UI stays hidden)
+- `table_export` / `table_import`: false for non-SQL plugins, which can't produce or run a SQL table script (both default to true; import is always off when `readonly`)
 - `no_connection_required`: true only for API-style plugins
 
 ## Settings Guidance

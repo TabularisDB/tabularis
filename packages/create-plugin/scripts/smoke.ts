@@ -3,75 +3,90 @@
  *
  * 1. Scaffold a plugin into a temporary directory (network, file, and
  *    --with-ui variants).
- * 2. Run `cargo check` on each — must exit 0.
+ * 2. Run `cargo check` and `cargo fmt --check` on each — must exit 0.
  * 3. For --with-ui, also verify the ui/ directory has the expected files.
  *
  * Intended to be run via `pnpm --filter @tabularis/create-plugin smoke`.
  * Requires cargo on PATH.
  */
 
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import {execFileSync} from 'node:child_process';
+import {existsSync, mkdtempSync, readFileSync, rmSync, statSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {dirname, join, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CLI = resolve(__dirname, "../dist/cli.js");
+const CLI = resolve(__dirname, '../dist/cli.js');
 
 function step(label: string): void {
-  console.log(`\n▶ ${label}`);
+    console.log(`\n▶ ${label}`);
 }
 
 function run(cmd: string, args: string[], cwd: string): void {
-  execFileSync(cmd, args, { cwd, stdio: "inherit" });
+    execFileSync(cmd, args, {cwd, stdio: 'inherit'});
 }
 
-function scaffoldOne(kind: "network" | "file", withUi: boolean): void {
-  const label = `${kind}${withUi ? "+ui" : ""}`;
-  step(`scaffold ${label}`);
-  const dir = mkdtempSync(join(tmpdir(), `ctp-smoke-${kind}-`));
-  const target = join(dir, "plugin");
+function scaffoldOne(kind: 'network' | 'file', withUi: boolean): void {
+    const label = `${kind}${withUi ? '+ui' : ''}`;
+    step(`scaffold ${label}`);
+    const dir = mkdtempSync(join(tmpdir(), `ctp-smoke-${kind}-`));
+    const target = join(dir, 'plugin');
 
-  const args = ["my-driver", "--db-type=" + kind, "--no-git", "--dir=" + target];
-  if (withUi) args.push("--with-ui");
-  run(process.execPath, [CLI, ...args], dir);
+    const args = ['my-driver', '--db-type=' + kind, '--no-git', '--dir=' + target];
+    if (withUi) args.push('--with-ui');
+    run(process.execPath, [CLI, ...args], dir);
 
-  for (const expected of ["Cargo.toml", ".tabularium", "src/main.rs", "justfile"]) {
-    const p = join(target, expected);
-    if (!existsSync(p) || statSync(p).size === 0) {
-      throw new Error(`missing or empty: ${p}`);
+    for (const expected of ['Cargo.toml', '.tabularium', 'src/main.rs', 'justfile']) {
+        const p = join(target, expected);
+        if (!existsSync(p) || statSync(p).size === 0) {
+            throw new Error(`missing or empty: ${p}`);
+        }
     }
-  }
 
-  if (withUi) {
-    for (const expected of ["ui/package.json", "ui/vite.config.ts", "ui/src/index.tsx", "locales/en.json"]) {
-      const p = join(target, expected);
-      if (!existsSync(p) || statSync(p).size === 0) {
-        throw new Error(`missing or empty: ${p}`);
-      }
+    if (withUi) {
+        for (const expected of [
+            'ui/package.json',
+            'ui/vite.config.ts',
+            'ui/src/index.tsx',
+            'locales/en.json',
+        ]) {
+            const p = join(target, expected);
+            if (!existsSync(p) || statSync(p).size === 0) {
+                throw new Error(`missing or empty: ${p}`);
+            }
+        }
+        const manifest = JSON.parse(readFileSync(join(target, '.tabularium'), 'utf8')) as {
+            ui_extensions?: Array<{api_version?: string}>;
+        };
+        if (!/^\d+\.\d+\.\d+/.test(manifest.ui_extensions?.[0]?.api_version ?? '')) {
+            throw new Error('UI extension manifest is missing plugin API compatibility metadata');
+        }
     }
-  }
 
-  step(`cargo check ${label}`);
-  run("cargo", ["check", "--quiet"], target);
+    step(`cargo check ${label}`);
+    run('cargo', ['check', '--quiet'], target);
 
-  rmSync(dir, { recursive: true, force: true });
-  console.log(`  ✓ ${label} — cargo check clean`);
+    // A fresh plugin should not need reformatting on its first `just fmt`.
+    step(`cargo fmt --check ${label}`);
+    run('cargo', ['fmt', '--check'], target);
+
+    rmSync(dir, {recursive: true, force: true});
+    console.log(`  ✓ ${label} — cargo check and cargo fmt clean`);
 }
 
 function main(): void {
-  if (!existsSync(CLI)) {
-    throw new Error(
-      `CLI not built at ${CLI}. Run \`pnpm --filter @tabularis/create-plugin build\` first.`,
-    );
-  }
+    if (!existsSync(CLI)) {
+        throw new Error(
+            `CLI not built at ${CLI}. Run \`pnpm --filter @tabularis/create-plugin build\` first.`,
+        );
+    }
 
-  scaffoldOne("network", false);
-  scaffoldOne("file", false);
-  scaffoldOne("network", true);
+    scaffoldOne('network', false);
+    scaffoldOne('file', false);
+    scaffoldOne('network', true);
 
-  console.log("\n✓ smoke OK");
+    console.log('\n✓ smoke OK');
 }
 
 main();

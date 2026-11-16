@@ -42,23 +42,34 @@ async fn test_get_materialized_view_definition() {
     require_pg!();
     let params = pg_params();
 
-    let result =
-        postgres::get_materialized_view_definition(&params, "user_stats", "test_schema").await;
+    let definition =
+        postgres::get_materialized_view_definition(&params, "user_stats", "test_schema")
+            .await
+            .expect("get_materialized_view_definition should succeed");
 
-    // KNOWN BEHAVIOR: The built-in driver errors with "error serializing parameter 0"
-    // on PG 16 for this call. This is a pre-existing driver bug.
-    // The plugin MUST replicate this exact behavior — either succeed with the definition
-    // (if the bug is fixed upstream) or fail with the same error.
+    assert!(
+        definition.contains("CREATE MATERIALIZED VIEW"),
+        "Expected CREATE MATERIALIZED VIEW in definition, got: {}",
+        definition
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_get_materialized_view_definition_rejects_regular_view() {
+    require_pg!();
+    let params = pg_params();
+
+    // `active_users` is a regular view (relkind = 'v'), not a materialized
+    // view. Passing it to get_materialized_view_definition must error instead
+    // of returning the regular view's DDL labeled as a materialized view.
+    let result =
+        postgres::get_materialized_view_definition(&params, "active_users", "test_schema").await;
     assert!(
         result.is_err(),
-        "Built-in driver should error on MV definition (known bug). \
-         If this passes, the driver was fixed — update this test and the plugin spec."
-    );
-    let err = result.unwrap_err();
-    assert!(
-        err.contains("serializing parameter"),
-        "Expected serialization error, got: {}",
-        err
+        "get_materialized_view_definition should reject a regular view name, \
+         but it returned: {:?}",
+        result
     );
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "tabularis"
-version = "0.27.0"
+version = "0.32.0"
 description = "tabularis - A database manager for developers"
 authors = ["Debba"]
 edition = "2021"
@@ -12,6 +12,29 @@ rust-version = "1.77.2"
 name = "tabularis_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# E2E testing: pulls in the in-app WebDriver server (tauri-plugin-webdriver-automation).
+# Off by default — normal and CI builds exclude it. Only the e2e-macos workflow
+# builds with `--features e2e-testing` so tauri-wd can drive the real WKWebView.
+[features]
+default = ["desktop"]
+# The Tauri desktop app. Without it the binary only serves `tabularis web` and
+# `--mcp`, and links neither GTK nor WebKitGTK (the container image build).
+desktop = [
+    "dep:tauri",
+    "dep:tauri-build",
+    "dep:tauri-plugin-log",
+    "dep:tauri-plugin-dialog",
+    "dep:tauri-plugin-fs",
+    "dep:tauri-plugin-notification",
+    "dep:tauri-plugin-opener",
+    "dep:tauri-plugin-clipboard-manager",
+    "dep:tauri-plugin-deep-link",
+    "dep:tauri-plugin-single-instance",
+    "dep:tauri-plugin-updater",
+    "dep:gtk",
+]
+e2e-testing = ["desktop", "dep:tauri-plugin-webdriver-automation"]
+
 [profile.release]
 codegen-units = 1
 lto = true
@@ -20,7 +43,7 @@ panic = "abort"
 strip = true
 
 [build-dependencies]
-tauri-build = { version = "2.5.3", features = [] }
+tauri-build = { version = "2.5.3", features = [], optional = true }
 
 [dependencies]
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -28,20 +51,27 @@ tempfile = "3.24.0"
 jsonschema = { version = "0.18", default-features = false }
 fs2 = "0.4"
 serde = { version = "1.0", features = ["derive"] }
+bytes = "1"
+ipnet = "2"
 toon-format = { version = "0.5.0", default-features = false }
-log = "0.4"
-tauri = { version = "2.10.2", features = ["protocol-asset", "devtools"] }
-tauri-plugin-log = "2"
+log = { version = "0.4", features = ["std"] }
+tauri = { version = "2.10.2", features = ["protocol-asset", "devtools"], optional = true }
+tauri-plugin-log = { version = "2", optional = true }
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "mysql", "postgres", "tls-rustls-ring-native-roots", "chrono", "uuid", "rust_decimal", "json"] }
 tokio = { version = "1.49.0", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+axum = { version = "0.7.9", features = ["ws"] }
+http-body-util = "0.1"
+tower-http = { version = "0.6.8", features = ["fs", "limit"] }
+open = "5.3.3"
 openssl = { version = "0.10", features = ["vendored"] }
 uuid = { version = "1.20.0", features = ["v4", "serde"] }
 rust_decimal = { version = "1.36", features = ["db-tokio-postgres", "serde"] }
 chrono = { version = "0.4.43", features = ["serde"] }
 chrono-tz = "0.10"
-tauri-plugin-dialog = "2.6.0"
-tauri-plugin-fs = "2.4.5"
-tauri-plugin-notification = "2"
+tauri-plugin-dialog = { version = "2.6.0", optional = true }
+tauri-plugin-fs = { version = "2.4.5", optional = true }
+tauri-plugin-notification = { version = "2", optional = true }
 russh = "0.43"
 russh-keys = "0.43"
 async-trait = "0.1"
@@ -49,12 +79,13 @@ urlencoding = "2.1.3"
 base64 = "0.22.1"
 infer = "0.16"
 sha2 = "0.10"
+hmac = "0.12"
 # Registry release-integrity: verify the Ed25519 JWS the Tabularium registry
 # signs over each release's asset hashes (already in the tree via transitive deps).
 ed25519-dalek = "2"
 futures = "0.3.31"
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
-tauri-plugin-opener = "2"
+tauri-plugin-opener = { version = "2", optional = true }
 once_cell = "1.20"
 csv = "1.4.0"
 reqwest = { version = "0.13.1", features = ["json", "socks"] }
@@ -68,6 +99,7 @@ reqwest = { version = "0.13.1", features = ["json", "socks"] }
 reqwest_012 = { package = "reqwest", version = "0.12", default-features = false, features = [
     "json",
     "rustls-tls-native-roots",
+    "system-proxy",
     "socks",
 ] }
 clap = { version = "4.5.56", features = ["derive"] }
@@ -79,9 +111,9 @@ zip = "4.2.0"
 tabularium-sdk = "0.2"
 url = "2"
 semver = "1"
-tauri-plugin-clipboard-manager = "2"
-tauri-plugin-deep-link = "2"
-tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-clipboard-manager = { version = "2", optional = true }
+tauri-plugin-deep-link = { version = "2", optional = true }
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"], optional = true }
 tokio-postgres = { version = "0.7.13", features = ["with-chrono-0_4", "with-uuid-1", "with-serde_json-1", "array-impls"] }
 deadpool-postgres = "0.14.1"
 # sqlx uses `tls-rustls-ring-native-roots` for both the MySQL pool and the
@@ -103,19 +135,35 @@ rustls-platform-verifier = "0.6"
 notify = "6"
 ulid = "1.2.1"
 argon2 = "0.5"
+# Wipes the derived master key from memory when a team-share session ends.
+zeroize = "1.8"
 aes-gcm = "0.10"
 # Foreign-app connection import: plist (TablePlus/Sequel Ace), XML (DataGrip).
 # AES/MD5 decryption (DBeaver, Beekeeper) reuses the existing `openssl` dep.
 plist = "1.7"
 roxmltree = "0.20"
 
+# E2E only (optional): in-app WebDriver server driven by the tauri-wd CLI.
+# See the `e2e-testing` feature above. Not pulled into normal builds.
+tauri-plugin-webdriver-automation = { version = "0.1.3", optional = true }
+
 # Signalling the `aws ssm start-session` process group (see ssm_tunnel.rs).
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Job object that stops plugin processes when Tabularis exits (see
+# plugins/process_lifetime.rs). Same version tokio already pulls in.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
+
 # GTK dependencies for Wayland window title workaround (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]
-gtk = "0.18"
+gtk = { version = "0.18", optional = true }
 # Keep zbus on the async-io backend. The `tokio` feature makes
 # `zbus::utils::block_on` drive a Tokio runtime, which panics when invoked from
 # inside a Tokio task and, in a `panic = "abort"` release build, aborts the
@@ -125,7 +173,9 @@ gtk = "0.18"
 zbus = { version = "5.14", default-features = false, features = ["async-io"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
+tauri-plugin-updater = { version = "2", optional = true }
 
 [dev-dependencies]
+tauri = { version = "2.10.2", features = ["test"] }
 filetime = "0.2"
+tokio-tungstenite = "0.24.0"

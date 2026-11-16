@@ -11,6 +11,7 @@ mod tests {
             database: database.map(|s| s.into()),
             created_at: None,
             updated_at: None,
+            folder_id: None,
         }
     }
 

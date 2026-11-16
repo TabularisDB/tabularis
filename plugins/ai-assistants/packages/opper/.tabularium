@@ -1,0 +1,75 @@
+{
+  "id": "opper",
+  "name": "Opper",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "Opper AI assistant for Tabularis.",
+  "settings": [],
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "api_key_env": "OPPER_API_KEY",
+    "default_models": [
+      "claude-sonnet-4-6",
+      "gpt-5.4-mini",
+      "gpt-5.5",
+      "claude-opus-5",
+      "gemini-3.8-flash",
+      "deepseek-v4-pro",
+      "kimi-k3",
+      "mistral-large-2512"
+    ],
+    "generate": {
+      "requests": [
+        {
+          "url": "https://api.opper.ai/v3/compat",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.0
+          },
+          "append_path": "/chat/completions",
+          "headers": {
+            "X-Opper-Name": "tabularis"
+          }
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://api.opper.ai/v3/models?limit=2000",
+            "authenticated": false
+          },
+          "items_path": "/models",
+          "id_path": "/model",
+          "filters": [
+            {
+              "path": "/type",
+              "equals": "llm"
+            },
+            {
+              "path": "/pooled",
+              "equals": true
+            }
+          ]
+        }
+      ],
+      "cache_seconds": 86400
+    }
+  },
+  "license": "Apache-2.0"
+}

@@ -18,16 +18,6 @@ pub struct DriverManifestDetails {
     pub connection_metadata: Option<bool>,
 }
 
-/// The UI invalidates only discovery-enabled contexts. Emitting for every
-/// replacement also covers an update that removes a plugin's discovery opt-in.
-pub async fn notify_plugin_reload<R: tauri::Runtime>(app: &tauri::AppHandle<R>, driver_id: &str) {
-    use tauri::Emitter;
-    let _ = app.emit(
-        "connection-metadata-invalidated",
-        serde_json::json!({"driverId": driver_id}),
-    );
-}
-
 /// Only connection-dependent fields belong here. Connection-form fields and
 /// plugin identity always come from the installed manifest.
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -41,6 +31,11 @@ pub struct ConnectionCapabilityOverrides {
     pub user_management: Option<bool>,
     pub routine_management: Option<bool>,
     pub identifier_quote: Option<String>,
+    /// An unknown dialect is ignored with a warning, keeping the manifest's.
+    #[serde(
+        default,
+        deserialize_with = "crate::drivers::sql_dialect::deserialize_lenient_override"
+    )]
     pub sql_dialect: Option<SqlDialect>,
     pub alter_primary_key: Option<bool>,
     pub alter_column: Option<bool>,

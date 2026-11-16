@@ -49,14 +49,7 @@ async fn test_mysql_integration_flow() {
     }
 
     // 2. Create Table
-    let _ = mysql::execute_query(
-        &params,
-        "DROP TABLE IF EXISTS test_users",
-        None,
-        1,
-        None,
-    )
-    .await;
+    let _ = mysql::execute_query(&params, "DROP TABLE IF EXISTS test_users", None, 1, None).await;
     let create_sql = "CREATE TABLE test_users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(100) COMMENT 'Display name',
@@ -296,10 +289,8 @@ async fn test_mysql_batch_preserves_user_variable_and_last_insert_id() {
     );
 
     // Cleanup
-    let _ =
-        mysql::execute_query(&params, "DROP TABLE test_batch_child", None, 1, None).await;
-    let _ =
-        mysql::execute_query(&params, "DROP TABLE test_batch_parent", None, 1, None).await;
+    let _ = mysql::execute_query(&params, "DROP TABLE test_batch_child", None, 1, None).await;
+    let _ = mysql::execute_query(&params, "DROP TABLE test_batch_parent", None, 1, None).await;
 }
 
 /// Explicit `BEGIN`/`COMMIT` must span the batch — both inserts commit
@@ -313,8 +304,8 @@ async fn test_mysql_batch_preserves_transaction_atomicity() {
         return;
     }
 
-    let _ = mysql::execute_query(&params, "DROP TABLE IF EXISTS test_batch_tx", None, 1, None)
-        .await;
+    let _ =
+        mysql::execute_query(&params, "DROP TABLE IF EXISTS test_batch_tx", None, 1, None).await;
 
     let queries: Vec<String> = [
         "CREATE TABLE test_batch_tx (id INT AUTO_INCREMENT PRIMARY KEY, val VARCHAR(20))",
@@ -428,14 +419,8 @@ async fn test_mysql_affected_rows_reported_correctly() {
         return;
     }
 
-    let _ = mysql::execute_query(
-        &params,
-        "DROP TABLE IF EXISTS test_affected",
-        None,
-        1,
-        None,
-    )
-    .await;
+    let _ =
+        mysql::execute_query(&params, "DROP TABLE IF EXISTS test_affected", None, 1, None).await;
 
     let queries: Vec<String> = [
         "CREATE TABLE test_affected (id INT AUTO_INCREMENT PRIMARY KEY, v INT)",
@@ -540,7 +525,9 @@ async fn test_mysql_delete_record_with_binary_primary_key() {
     .await
     .expect("row selection should succeed");
     let binary_id = selected.rows[0][0].clone();
-    assert!(binary_id.as_str().is_some_and(|value| value.starts_with("BLOB:")));
+    assert!(binary_id
+        .as_str()
+        .is_some_and(|value| value.starts_with("BLOB:")));
 
     let pk_map = std::collections::HashMap::from([("id".to_string(), binary_id)]);
     let affected = mysql::delete_record(&params, "test_binary_pk_delete", &pk_map)
@@ -559,14 +546,7 @@ async fn test_mysql_delete_record_with_binary_primary_key() {
     .expect("row count should succeed");
     assert_eq!(remaining.rows[0][0].as_i64(), Some(0));
 
-    let _ = mysql::execute_query(
-        &params,
-        "DROP TABLE test_binary_pk_delete",
-        None,
-        1,
-        None,
-    )
-    .await;
+    let _ = mysql::execute_query(&params, "DROP TABLE test_binary_pk_delete", None, 1, None).await;
 }
 
 #[tokio::test]
@@ -578,14 +558,8 @@ async fn test_postgres_affected_rows_reported_correctly() {
         return;
     }
 
-    let _ = postgres::execute_query(
-        &params,
-        "DROP TABLE IF EXISTS test_affected",
-        None,
-        1,
-        None,
-    )
-    .await;
+    let _ =
+        postgres::execute_query(&params, "DROP TABLE IF EXISTS test_affected", None, 1, None).await;
 
     let queries: Vec<String> = [
         "CREATE TABLE test_affected (id SERIAL PRIMARY KEY, v INT)",
@@ -647,13 +621,15 @@ async fn test_concurrent_cancel_aborts_all_in_flight_queries() {
     let connection_id = "concurrent-cancel-test".to_string();
 
     let p_a = params.clone();
-    let task_a = tokio::spawn(async move {
-        mysql::execute_query(&p_a, "SELECT SLEEP(5)", None, 1, None).await
-    });
+    let task_a =
+        tokio::spawn(
+            async move { mysql::execute_query(&p_a, "SELECT SLEEP(5)", None, 1, None).await },
+        );
     let p_b = params.clone();
-    let task_b = tokio::spawn(async move {
-        mysql::execute_query(&p_b, "SELECT SLEEP(5)", None, 1, None).await
-    });
+    let task_b =
+        tokio::spawn(
+            async move { mysql::execute_query(&p_b, "SELECT SLEEP(5)", None, 1, None).await },
+        );
 
     let handle_a: Arc<AbortHandle> = Arc::new(task_a.abort_handle());
     let handle_b: Arc<AbortHandle> = Arc::new(task_b.abort_handle());

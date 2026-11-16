@@ -1,22 +1,23 @@
-//! Extra parity tests for materialized views — MV definition error behavior.
+//! Extra parity tests for materialized views — MV definition retrieval.
 //!
-//! The built-in PostgreSQL driver has a known bug where
-//! `get_materialized_view_definition` fails with "error serializing parameter 0"
-//! on PG 16. The plugin MUST replicate this exact failure semantics (both must
-//! either succeed identically or both fail).
+//! Both the built-in PostgreSQL driver and the plugin driver must return the
+//! same materialized view definition. The built-in driver failed on PG 16
+//! ("error serializing parameter 0") when it bound a `String` directly to
+//! `regclass`. It now resolves the MV by a `pg_class`/`pg_namespace` join
+//! with `relkind = 'm'`, binding schema/name as text — which also avoids
+//! the regclass serialization failure. See `get_view_definition` for the
+//! plain-view variant.
 
 use crate::parity::ParityHarness;
 
 #[tokio::test]
 #[ignore]
-async fn parity_get_materialized_view_definition_error() {
+async fn parity_get_materialized_view_definition() {
     require_pg!();
     let harness = ParityHarness::new().await;
 
-    // This exercises the known bug: both drivers must produce the same error
-    // semantics (both fail or both succeed with the same result).
     harness
-        .assert_error_parity(
+        .assert_parity(
             "get_materialized_view_definition:user_stats",
             |driver, params| async move {
                 driver

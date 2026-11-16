@@ -4,11 +4,11 @@ use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
 
 use crate::config::PluginConfig;
 use crate::drivers::driver_trait::{
-    DriverCapabilities, ExplainParserManifestEntry, PluginManifest, PluginSettingDefinition,
+    ConnectionFieldOverrides, DriverCapabilities, ExplainParserManifestEntry, PluginManifest,
+    PluginSettingDefinition,
 };
 use crate::models::DataTypeInfo;
 use crate::plugins::driver::RpcDriver;
@@ -40,8 +40,11 @@ pub struct PluginLoadError {
     pub error: String,
 }
 
-#[tauri::command]
 pub fn get_plugin_startup_errors() -> Vec<PluginLoadError> {
+    crate::application::plugins::get_plugin_startup_errors()
+}
+
+pub fn take_plugin_startup_errors() -> Vec<PluginLoadError> {
     let mut guard = STARTUP_ERRORS.lock().unwrap_or_else(|e| e.into_inner());
     std::mem::take(&mut *guard)
 }
@@ -91,6 +94,7 @@ pub struct ConfigManifest {
     pub ui_extensions: Option<Vec<crate::drivers::driver_trait::UIExtensionEntry>>,
     #[serde(default)]
     pub explain_parsers: Option<Vec<ExplainParserManifestEntry>>,
+    pub connection_fields: Option<ConnectionFieldOverrides>,
     /// Static type mappings for `map_inferred_type`. Keys are generic inferred
     /// types (e.g. `"DATETIME"`), values are driver-specific types (e.g. `"TIMESTAMP"`).
     #[serde(default)]
@@ -103,18 +107,6 @@ pub struct ConfigManifest {
 /// so the collision is still surfaced as a logged `PluginLoadError`, not
 /// swallowed because the built-in of the same id is already registered.
 const BUILTIN_DRIVER_IDS: [&str; 3] = ["mysql", "postgres", "sqlite"];
-
-/// Load installed plugins at startup.
-///
-/// `enabled_ids` controls which plugins are started:
-/// - `None`  → load all installed plugins (first-run or no preference saved).
-/// - `Some(ids)` → load only the plugins whose directory name (= plugin ID) is in `ids`.
-pub async fn load_plugins<R: tauri::Runtime>(app: &AppHandle<R>, enabled_ids: Option<&[String]>) {
-    let plugin_configs = crate::config::load_config_internal(app)
-        .plugins
-        .unwrap_or_default();
-    load_plugins_with_configs(plugin_configs, enabled_ids).await;
-}
 
 /// Re-scans installed plugins against the latest on-disk config and registers
 /// any that are missing from the driver registry. Idempotent — plugins
@@ -152,7 +144,19 @@ pub async fn load_plugins_with_configs(
         }
     };
 
-    let entries = match super::layout::driver_directories(&plugins_dir) {
+    load_plugins_from_dir(&plugins_dir, plugin_configs, enabled_ids).await;
+}
+
+/// Load external drivers from a runtime-provided directory.
+///
+/// Startup adapters resolve paths; plugin discovery and registration remain
+/// platform-neutral and can therefore run without a Tauri `AppHandle`.
+pub async fn load_plugins_from_dir(
+    plugins_dir: &Path,
+    plugin_configs: HashMap<String, PluginConfig>,
+    enabled_ids: Option<&[String]>,
+) {
+    let entries = match super::layout::driver_directories(plugins_dir) {
         Ok(e) => e,
         Err(e) => {
             log::error!("Failed to read plugins directory: {}", e);
@@ -161,7 +165,6 @@ pub async fn load_plugins_with_configs(
     };
 
     for path in entries {
-
         if let Some(enabled) = enabled_ids {
             if let Some(dir_name) = path.file_name().and_then(|n| n.to_str()) {
                 if !enabled.iter().any(|id| id == dir_name) {
@@ -269,6 +272,7 @@ pub async fn load_plugin_from_dir(
         settings: config.settings,
         ui_extensions: config.ui_extensions,
         explain_parsers: config.explain_parsers,
+        connection_fields: config.connection_fields,
         type_mappings: config.type_mappings,
         // External plugins are not deprecated in favour of another plugin;
         // `deprecated` is a built-in-only concept stamped at registration.

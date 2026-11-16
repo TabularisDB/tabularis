@@ -23,7 +23,10 @@ fn file_name_round_trips_through_parse() {
 #[test]
 fn parse_rejects_foreign_files() {
     assert_eq!(parse_backup_timestamp("notes.txt"), None);
-    assert_eq!(parse_backup_timestamp("tabularis-backup-garbage.json"), None);
+    assert_eq!(
+        parse_backup_timestamp("tabularis-backup-garbage.json"),
+        None
+    );
     assert_eq!(parse_backup_timestamp("tabularis-connections.json"), None);
 }
 

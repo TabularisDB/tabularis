@@ -489,16 +489,10 @@ mod tests {
         )
         .is_err());
         // But fine globally.
-        assert!(apply_privileges_sql(
-            "bob",
-            "%",
-            None,
-            None,
-            &["SUPER".to_string()],
-            true,
-            false
-        )
-        .is_ok());
+        assert!(
+            apply_privileges_sql("bob", "%", None, None, &["SUPER".to_string()], true, false)
+                .is_ok()
+        );
         // Empty selection.
         assert!(apply_privileges_sql("bob", "%", None, None, &[], true, false).is_err());
     }
@@ -540,10 +534,7 @@ mod tests {
     #[test]
     fn usage_only_proxy_and_unquoted_lines() {
         // USAGE-only line (every account has one) carries no privilege.
-        assert_eq!(
-            parse_grant_line("GRANT USAGE ON *.* TO 'bob'@'%'"),
-            None
-        );
+        assert_eq!(parse_grant_line("GRANT USAGE ON *.* TO 'bob'@'%'"), None);
         // MariaDB PROXY grants are not representable in the editor.
         assert_eq!(
             parse_grant_line("GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION"),

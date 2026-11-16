@@ -7,42 +7,76 @@
  */
 
 export {
-  usePluginQuery,
-  usePluginConnection,
-  usePluginToast,
-  usePluginSetting,
-  usePluginTranslation,
-  usePluginModal,
-  usePluginTheme,
-  openUrl,
-} from "./hooks";
+    usePluginQuery,
+    usePluginRpc,
+    usePluginAccount,
+    usePluginWorkspace,
+    usePluginConnection,
+    usePluginToast,
+    usePluginSetting,
+    usePluginTranslation,
+    usePluginModal,
+    usePluginTheme,
+    openUrl,
+    copyText,
+    exchangeGoogleOAuthToken,
+    publishPluginEvent,
+    usePluginEvent,
+} from './hooks';
 
-export { getHost, assertHostCompat } from "./host";
+export {getHost, assertHostCompat} from './host';
 
-export { API_VERSION, MIN_HOST_VERSION } from "./version";
+export {API_VERSION, MIN_HOST_VERSION} from './version';
 
-export { defineSlot } from "./slots";
-
-export type {
-  SlotName,
-  SlotContext,
-  SlotComponentProps,
-  SlotContextMap,
-  TypedSlotProps,
-  UIExtensionDeclaration,
-} from "./slots";
+export {defineSlot} from './slots';
 
 export type {
-  PluginModalOptions,
-  PluginConfig,
-  ThemeColors,
-  PluginQueryResult,
-  PluginTranslator,
-  TabularisHostApi,
-  UsePluginQueryReturn,
-  UsePluginConnectionReturn,
-  UsePluginToastReturn,
-  UsePluginSettingReturn,
-  UsePluginModalReturn,
-  UsePluginThemeReturn,
-} from "./types";
+    SlotName,
+    SlotContext,
+    SlotComponentProps,
+    SlotContextMap,
+    PluginSecretFieldState,
+    TypedSlotProps,
+    UIExtensionDeclaration,
+} from './slots';
+
+export type {
+    PluginModalOptions,
+    PluginConfig,
+    ThemeColors,
+    PluginQueryResult,
+    GoogleOAuthTokenRequest,
+    GoogleOAuthTokenResponse,
+    PluginTranslator,
+    TabularisHostApi,
+    UsePluginQueryReturn,
+    UsePluginRpcReturn,
+    UsePluginAccountReturn,
+    PluginAccountImportResult,
+    UsePluginConnectionReturn,
+    UsePluginToastReturn,
+    UsePluginSettingReturn,
+    UsePluginModalReturn,
+    UsePluginThemeReturn,
+} from './types';
+
+export {
+    PluginConnectionAction,
+    PluginWorkspaceShell,
+    PluginExplorerSection,
+    PluginDataGrid,
+    PluginResourceList,
+    PluginCodeEditor,
+    PluginSelect,
+} from './components';
+export type {
+    PluginConnectionActionProps,
+    PluginExplorerSectionProps,
+    PluginDataGridProps,
+    PluginResourceListProps,
+    PluginCodeEditorProps,
+    PluginSelectProps,
+    PluginWorkspaceShellProps,
+    OpenPluginWorkspaceOptions,
+    UsePluginWorkspaceReturn,
+} from './types';

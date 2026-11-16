@@ -92,7 +92,7 @@ pub(super) async fn install_registry_package(
     let target = target.to_string();
     let package_name = package_name.to_string();
     let host_version = host_version.to_string();
-    tauri::async_runtime::spawn_blocking(move || {
+    crate::async_rt::spawn_blocking(move || {
         let package =
             validate_theme_archive(&bytes, &package_name, &target, &host_version, &|| {
                 cancellation.check()

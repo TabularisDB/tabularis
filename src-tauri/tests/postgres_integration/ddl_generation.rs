@@ -19,6 +19,8 @@ async fn test_get_create_table_sql() {
             is_pk: true,
             is_auto_increment: true,
             default_value: None,
+            comment: None,
+            on_update: None,
         },
         ColumnDefinition {
             name: "name".to_string(),
@@ -27,6 +29,8 @@ async fn test_get_create_table_sql() {
             is_pk: false,
             is_auto_increment: false,
             default_value: None,
+            comment: None,
+            on_update: None,
         },
         ColumnDefinition {
             name: "email".to_string(),
@@ -35,6 +39,8 @@ async fn test_get_create_table_sql() {
             is_pk: false,
             is_auto_increment: false,
             default_value: Some("'unknown@example.com'".to_string()),
+            comment: None,
+            on_update: None,
         },
     ];
 
@@ -84,6 +90,8 @@ async fn test_get_add_column_sql() {
         is_pk: false,
         is_auto_increment: false,
         default_value: Some("0".to_string()),
+        comment: None,
+        on_update: None,
     };
 
     let sql_statements = PostgresDriver::new()
@@ -113,6 +121,8 @@ async fn test_get_alter_column_rename() {
         is_pk: false,
         is_auto_increment: false,
         default_value: None,
+        comment: None,
+        on_update: None,
     };
 
     let new_column = ColumnDefinition {
@@ -122,6 +132,8 @@ async fn test_get_alter_column_rename() {
         is_pk: false,
         is_auto_increment: false,
         default_value: None,
+        comment: None,
+        on_update: None,
     };
 
     let sql_statements = PostgresDriver::new()
@@ -153,6 +165,8 @@ async fn test_get_alter_column_type_change() {
         is_pk: false,
         is_auto_increment: false,
         default_value: None,
+        comment: None,
+        on_update: None,
     };
 
     let new_column = ColumnDefinition {
@@ -162,6 +176,8 @@ async fn test_get_alter_column_type_change() {
         is_pk: false,
         is_auto_increment: false,
         default_value: None,
+        comment: None,
+        on_update: None,
     };
 
     let sql_statements = PostgresDriver::new()

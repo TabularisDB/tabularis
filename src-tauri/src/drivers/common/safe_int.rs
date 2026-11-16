@@ -55,3 +55,15 @@ pub fn parse_unsafe_bigint_string(s: &str) -> Option<i64> {
         None
     }
 }
+
+// Preserve the shortest f32 decimal instead of widening its binary approximation.
+pub(crate) fn float4_to_json_f64(v: f32) -> Option<f64> {
+    v.to_string().parse::<f64>().ok().map(|decimal| {
+        // Avoid double rounding when the decimal lands on an f32 midpoint.
+        if decimal as f32 == v {
+            decimal
+        } else {
+            f64::from(v)
+        }
+    })
+}

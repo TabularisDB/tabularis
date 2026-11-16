@@ -42,7 +42,8 @@ fn main() {
         next_id += 1;
 
         let response = simulate(&request);
-        let pretty = serde_json::to_string_pretty(&response).unwrap_or_else(|_| response.to_string());
+        let pretty =
+            serde_json::to_string_pretty(&response).unwrap_or_else(|_| response.to_string());
         writeln!(out, "{pretty}").ok();
         out.flush().ok();
     }

@@ -1,0 +1,718 @@
+use super::*;
+use crate::drivers::driver_trait::NativeBackupCapability;
+use serde_json::json;
+use std::io::Cursor;
+use std::sync::Mutex as StdMutex;
+use std::time::Duration;
+
+#[test]
+fn database_sql_capabilities_ignore_legacy_native_backup_boolean() {
+    let capabilities: DatabaseSqlCapabilities = serde_json::from_value(json!({
+        "format": "sql",
+        "native_backup": true,
+        "create_database": true,
+        "requires_empty_target": true,
+        "target_label": "Path"
+    }))
+    .unwrap();
+    assert_eq!(capabilities.native_backup, None);
+
+    let capabilities: DatabaseSqlCapabilities = serde_json::from_value(json!({
+        "format": "sql",
+        "native_backup": false,
+        "create_database": false,
+        "requires_empty_target": false,
+        "target_label": "Path"
+    }))
+    .unwrap();
+    assert_eq!(capabilities.native_backup, None);
+
+    let capabilities: DatabaseSqlCapabilities = serde_json::from_value(json!({
+        "format": "sql",
+        "native_backup": {
+            "format": "opaque",
+            "extension": "bin",
+            "label": "Opaque backup (.bin)"
+        },
+        "create_database": true,
+        "requires_empty_target": true,
+        "target_label": "Path"
+    }))
+    .unwrap();
+    assert_eq!(
+        capabilities
+            .native_backup
+            .as_ref()
+            .map(|native| native.format.as_str()),
+        Some("opaque")
+    );
+}
+
+#[test]
+fn native_backup_extension_rejects_path_components() {
+    assert_eq!(file_extension("bin").unwrap(), "bin");
+    assert_eq!(file_extension(".fbk").unwrap(), "fbk");
+    assert_eq!(file_extension("  SQLITE3 ").unwrap(), "SQLITE3");
+    for invalid in [
+        "",
+        ".",
+        "..",
+        "../x",
+        "a/b",
+        "a\\b",
+        "foo.bar",
+        "bin with space",
+        "thisextensionistoolong",
+    ] {
+        assert!(file_extension(invalid).is_err(), "{invalid}");
+    }
+}
+
+#[test]
+fn resolve_dump_format_rejects_unsafe_native_extension() {
+    let capabilities = DatabaseSqlCapabilities {
+        format: "sql".into(),
+        native_backup: Some(NativeBackupCapability {
+            format: "opaque".into(),
+            extension: "../evil".into(),
+            label: "Opaque backup".into(),
+            description: None,
+        }),
+        create_database: true,
+        requires_empty_target: true,
+        target_label: "Path".into(),
+    };
+    let options = DumpOptions {
+        format: Some("opaque".into()),
+        structure: true,
+        data: true,
+        tables: None,
+    };
+    assert!(resolve_dump_format(&options, Some(&capabilities))
+        .unwrap_err()
+        .contains("extension is invalid"));
+}
+
+#[tokio::test]
+async fn native_backup_negotiates_support_and_transfers_binary_without_sql_fallback() {
+    let _registry_guard = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let supported = Arc::new(AtomicBool::new(true));
+    let advertised = supported.clone();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.id = format!("native-backup-{}", Uuid::new_v4());
+    manifest.is_builtin = false;
+    let params = ConnectionParams {
+        driver: manifest.id.clone(),
+        ..Default::default()
+    };
+    let binary = [0, 2, 4, 255, 128, 0];
+    let drv = crate::plugins::driver::test_driver_with_manifest(manifest, move |request| {
+        match request.method.as_str() {
+            "get_database_sql_capabilities" => Ok(json!({
+                "format":"sql",
+                "native_backup": advertised.load(Ordering::SeqCst).then_some(json!({
+                    "format":"opaque",
+                    "extension":"bin",
+                    "label":"Opaque backup (.bin)"
+                })),
+                "create_database":true,
+                "requires_empty_target":true,
+                "target_label":"Path"
+            })),
+            "export_database_sql" => {
+                assert_eq!(request.params["options"]["format"], "opaque");
+                fs::write(request.params["file_path"].as_str().unwrap(), binary).unwrap();
+                Ok(json!({"rows":0,"tables":0}))
+            }
+            "import_database_sql" => {
+                assert_eq!(request.params["create_database"], true);
+                assert_eq!(
+                    fs::read(request.params["file_path"].as_str().unwrap()).unwrap(),
+                    binary
+                );
+                Ok(json!({"statements":0}))
+            }
+            method => panic!("Native transfer must not fall through to {method}"),
+        }
+    });
+    crate::drivers::registry::register_driver(drv).await;
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            directory.path().into(),
+            directory.path().into(),
+        )),
+        Arc::new(RecordingEvents::default()),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let path = directory.path().join("opaque-file.tmp");
+    let options = DumpOptions {
+        format: Some("opaque".into()),
+        structure: true,
+        data: true,
+        tables: None,
+    };
+    write_dump(
+        &runtime,
+        None,
+        "native",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options,
+    )
+    .await
+    .unwrap();
+    assert_eq!(fs::read(&path).unwrap(), binary);
+    execute_import(
+        &runtime,
+        None,
+        &path,
+        false,
+        "native",
+        &params,
+        &params.driver,
+        None,
+        true,
+    )
+    .await
+    .unwrap();
+    supported.store(false, Ordering::SeqCst);
+    assert!(write_dump(
+        &runtime,
+        None,
+        "native",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options
+    )
+    .await
+    .unwrap_err()
+    .contains("does not support"));
+    assert_eq!(fs::read(&path).unwrap(), binary);
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
+async fn database_sql_plugin_transfers_whole_files_without_metadata_or_sql_splitting() {
+    let _registry_guard = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let failure = Arc::new(AtomicBool::new(false));
+    let export_failure = failure.clone();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.id = format!("whole-database-{}", Uuid::new_v4());
+    manifest.is_builtin = false;
+    let params = ConnectionParams {
+        driver: manifest.id.clone(),
+        ..Default::default()
+    };
+    let drv = crate::plugins::driver::test_driver_with_manifest(manifest, move |request| {
+        assert_eq!(
+            request.params["params"]["driver"]
+                .as_str()
+                .unwrap()
+                .starts_with("whole-database-"),
+            true
+        );
+        let path = request.params["file_path"].as_str().unwrap();
+        match request.method.as_str() {
+            "export_database_sql" => {
+                assert_eq!(request.params["options"]["structure"], true);
+                fs::write(path, "CREATE PROCEDURE P AS BEGIN SUSPEND; END;\n").unwrap();
+                if export_failure.load(Ordering::SeqCst) {
+                    return Err("source snapshot failed".into());
+                }
+                Ok(json!({"rows": 12, "tables": 2}))
+            }
+            "import_database_sql" => {
+                assert_eq!(request.params["create_database"], true);
+                assert!(fs::read_to_string(path)
+                    .unwrap()
+                    .contains("BEGIN SUSPEND; END"));
+                Ok(json!({"statements": 7}))
+            }
+            method => panic!("Whole-file transfer must not call {method}"),
+        }
+    });
+    crate::drivers::registry::register_driver(drv).await;
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            directory.path().into(),
+            directory.path().into(),
+        )),
+        Arc::new(RecordingEvents::default()),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let path = directory.path().join("database.sql");
+    let options = DumpOptions {
+        format: None,
+        structure: true,
+        data: true,
+        tables: None,
+    };
+    write_dump(
+        &runtime,
+        None,
+        "test",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options,
+    )
+    .await
+    .unwrap();
+    let previous = fs::read(&path).unwrap();
+    execute_import(
+        &runtime,
+        None,
+        &path,
+        false,
+        "test",
+        &params,
+        &params.driver,
+        None,
+        true,
+    )
+    .await
+    .unwrap();
+    failure.store(true, Ordering::SeqCst);
+    assert!(write_dump(
+        &runtime,
+        None,
+        "test",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options
+    )
+    .await
+    .unwrap_err()
+    .contains("source snapshot failed"));
+    assert_eq!(fs::read(&path).unwrap(), previous);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
+async fn database_creation_never_falls_through_to_the_generic_importer() {
+    let _registry_guard = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.id = format!("old-database-{}", Uuid::new_v4());
+    manifest.is_builtin = false;
+    let params = ConnectionParams {
+        driver: manifest.id.clone(),
+        ..Default::default()
+    };
+    let drv = crate::plugins::driver::test_driver_with_manifest(manifest, |request| {
+        assert_eq!(request.method, "import_database_sql");
+        Ok(serde_json::Value::Null)
+    });
+    crate::drivers::registry::register_driver(drv).await;
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            directory.path().into(),
+            directory.path().into(),
+        )),
+        Arc::new(RecordingEvents::default()),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let path = directory.path().join("ordinary.sql");
+    fs::write(&path, "DROP TABLE existing_data;").unwrap();
+    assert!(execute_import(
+        &runtime,
+        None,
+        &path,
+        false,
+        "test",
+        &params,
+        &params.driver,
+        None,
+        true
+    )
+    .await
+    .unwrap_err()
+    .contains("does not support creating"));
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
+async fn database_dump_uses_plugin_renderer_and_preserves_previous_file_on_failure() {
+    let _registry_guard = crate::drivers::registry::REGISTRY_TEST_LOCK.lock().await;
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let failure = Arc::new(AtomicBool::new(false));
+    let renderer_failure = failure.clone();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.id = format!("dump-renderer-{}", Uuid::new_v4());
+    manifest.is_builtin = false;
+    let params = ConnectionParams {
+        driver: manifest.id.clone(),
+        ..Default::default()
+    };
+    let drv = crate::plugins::driver::test_driver_with_manifest(manifest, move |request| {
+        match request.method.as_str() {
+            "export_database_sql" => Ok(serde_json::Value::Null),
+            "get_tables" => Ok(json!([])),
+            "execute_query" => Ok(
+                json!({"columns":["payload"],"rows":[["BLOB:2:application/octet-stream:AP8="]],"affected_rows":0,"pagination":null}),
+            ),
+            "render_insert_statements" => {
+                assert_eq!(request.params["columns"], json!(["payload"]));
+                assert_eq!(
+                    request.params["rows"][0][0],
+                    "BLOB:2:application/octet-stream:AP8="
+                );
+                if renderer_failure.load(Ordering::SeqCst) {
+                    return Err("renderer failed".into());
+                }
+                Ok(json!(["INSERT INTO items (payload) VALUES (x'00ff')"]))
+            }
+            method => panic!("unexpected method {method}"),
+        }
+    });
+    crate::drivers::registry::register_driver(drv).await;
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            directory.path().into(),
+            directory.path().into(),
+        )),
+        Arc::new(RecordingEvents::default()),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let path = directory.path().join("dump.sql");
+    fs::write(&path, "previous backup").unwrap();
+    let options = DumpOptions {
+        format: None,
+        structure: false,
+        data: true,
+        tables: Some(vec!["items".into()]),
+    };
+    write_dump(
+        &runtime,
+        None,
+        "test",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options,
+    )
+    .await
+    .unwrap();
+    let previous = fs::read_to_string(&path).unwrap();
+    assert!(previous.contains("INSERT INTO items (payload) VALUES (x'00ff');"));
+    assert!(!previous.contains("BLOB:"));
+    failure.store(true, Ordering::SeqCst);
+    let error = write_dump(
+        &runtime,
+        None,
+        "test",
+        &path,
+        &params,
+        &params.driver,
+        None,
+        &options,
+    )
+    .await
+    .unwrap_err();
+    assert!(error.contains("renderer failed"), "{error}");
+    assert_eq!(fs::read_to_string(&path).unwrap(), previous);
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    crate::drivers::registry::unregister_driver(&params.driver).await;
+}
+
+#[tokio::test]
+async fn database_dump_retains_fallback_when_plugin_has_no_renderer() {
+    use crate::drivers::sqlite::SqliteDriver;
+    let directory = tempfile::tempdir().unwrap();
+    let mut manifest = SqliteDriver::new().manifest().clone();
+    manifest.is_builtin = false;
+    let drv: Arc<dyn DatabaseDriver> = Arc::new(crate::plugins::driver::test_driver_with_manifest(
+        manifest,
+        |request| match request.method.as_str() {
+            "execute_query" => Ok(
+                json!({"columns":["value"],"rows":[["O'Reilly"],[null]],"affected_rows":0,"pagination":null}),
+            ),
+            "get_columns" => Ok(json!([])),
+            "render_insert_statements" => Err("Method not found (-32601)".into()),
+            method => panic!("unexpected method {method}"),
+        },
+    ));
+    let params = ConnectionParams::default();
+    let dialect = DumpDialect::from_capabilities("test", &drv.manifest().capabilities);
+    let path = directory.path().join("fallback.sql");
+    let mut writer = BufWriter::new(File::create(&path).unwrap());
+    export_table_data(&mut writer, &drv, &params, "test", &dialect, "items", None)
+        .await
+        .unwrap();
+    writer.flush().unwrap();
+    let sql = fs::read_to_string(path).unwrap();
+    assert!(sql.contains("O''Reilly"), "{sql}");
+    assert!(sql.contains("NULL"), "{sql}");
+}
+
+#[derive(Default)]
+struct RecordingEvents {
+    scoped: StdMutex<Vec<(Uuid, String, serde_json::Value)>>,
+}
+
+impl crate::runtime::events::RuntimeEvents for RecordingEvents {
+    fn emit(&self, _event: &str, _payload: serde_json::Value) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn emit_to(
+        &self,
+        session_id: Uuid,
+        event: &str,
+        payload: serde_json::Value,
+    ) -> Result<(), String> {
+        self.scoped
+            .lock()
+            .unwrap()
+            .push((session_id, event.to_string(), payload));
+        Ok(())
+    }
+}
+
+#[test]
+fn streams_sql_statements_and_ignores_line_comments() {
+    let input = Cursor::new(
+        b"-- dump header\nCREATE TABLE users (id INTEGER);\n\nINSERT INTO users VALUES (1);\n"
+            .to_vec(),
+    );
+    let mut stream = SqlStatementStream::new(BufReader::new(input));
+
+    assert_eq!(
+        stream.next_statement().unwrap().as_deref(),
+        Some("CREATE TABLE users (id INTEGER);")
+    );
+    assert_eq!(
+        stream.next_statement().unwrap().as_deref(),
+        Some("INSERT INTO users VALUES (1);")
+    );
+    assert_eq!(stream.next_statement().unwrap(), None);
+}
+
+#[test]
+fn reads_the_first_sql_file_from_a_zip_upload() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("database.zip");
+    let file = File::create(&path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let options: zip::write::FileOptions<()> = zip::write::FileOptions::default();
+    zip.start_file("README.txt", options).unwrap();
+    zip.write_all(b"ignore").unwrap();
+    zip.start_file("database.sql", options).unwrap();
+    zip.write_all(b"SELECT 1;").unwrap();
+    zip.finish().unwrap();
+
+    let (mut reader, extracted) =
+        create_sql_reader(File::open(path).unwrap(), true, directory.path()).unwrap();
+    assert!(extracted.is_some());
+    let mut sql = String::new();
+    reader.read_to_string(&mut sql).unwrap();
+    assert_eq!(sql, "SELECT 1;");
+}
+
+#[test]
+fn progress_events_are_scoped_to_the_owning_browser_session() {
+    let directory = tempfile::tempdir().unwrap();
+    let events = Arc::new(RecordingEvents::default());
+    let runtime = RuntimeContext::new(
+        Arc::new(crate::runtime::paths::FixedRuntimePaths::new(
+            directory.path().to_path_buf(),
+            directory.path().to_path_buf(),
+        )),
+        events.clone(),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    let owner = Uuid::new_v4();
+
+    emit_progress(
+        &runtime,
+        Some(owner),
+        "dump_progress",
+        &DumpProgress {
+            connection_id: "connection-1".to_string(),
+            tables_processed: 1,
+            total_tables: 2,
+            percentage: 50.0,
+            current_operation: "Dumped table users".to_string(),
+        },
+    );
+
+    let recorded = events.scoped.lock().unwrap();
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0].0, owner);
+    assert_eq!(recorded[0].1, "dump_progress");
+    assert_eq!(recorded[0].2["connection_id"], "connection-1");
+}
+
+#[tokio::test]
+async fn dropping_a_job_registration_aborts_and_unregisters_the_job() {
+    let state = DumpCancellationState::default();
+    let task = tokio::spawn(async {
+        tokio::time::sleep(Duration::from_secs(60)).await;
+    });
+    let key = "web:test:dump:connection".to_string();
+    let registration = JobRegistration::new(
+        state.handles.clone(),
+        key.clone(),
+        Arc::new(task.abort_handle()),
+    );
+    assert!(state.handles.lock().unwrap().contains_key(&key));
+
+    drop(registration);
+    assert!(!state.handles.lock().unwrap().contains_key(&key));
+    assert!(task.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test]
+async fn session_cleanup_only_aborts_jobs_owned_by_that_session() {
+    let state = DumpCancellationState::default();
+    let owner = Uuid::new_v4();
+    let other = Uuid::new_v4();
+    let owner_task = tokio::spawn(std::future::pending::<()>());
+    let other_task = tokio::spawn(std::future::pending::<()>());
+    register_abort_handle(
+        &state.handles,
+        job_key(Some(owner), JobKind::Import, "connection"),
+        Arc::new(owner_task.abort_handle()),
+    );
+    register_abort_handle(
+        &state.handles,
+        job_key(Some(other), JobKind::Import, "connection"),
+        Arc::new(other_task.abort_handle()),
+    );
+
+    cancel_session_jobs(&state, owner);
+
+    assert!(owner_task.await.unwrap_err().is_cancelled());
+    assert!(!other_task.is_finished());
+    other_task.abort();
+}
+
+fn postgres_dialect() -> DumpDialect {
+    let pg = crate::drivers::postgres::PostgresDriver::new();
+    DumpDialect::from_capabilities("postgres", &pg.manifest().capabilities)
+}
+
+fn column(name: &str, data_type: &str) -> TableColumn {
+    TableColumn {
+        name: name.to_string(),
+        data_type: data_type.to_string(),
+        is_pk: false,
+        is_nullable: true,
+        is_auto_increment: false,
+        is_generated: false,
+        default_value: None,
+        character_maximum_length: None,
+        comment: None,
+        numeric_precision: None,
+        numeric_scale: None,
+        full_type: None,
+        default_sql: None,
+        on_update: None,
+    }
+}
+
+#[test]
+fn test_json_column_names_matches_json_and_jsonb_case_insensitively() {
+    let columns = vec![
+        column("id", "integer"),
+        column("payload", "jsonb"),
+        column("meta", "JSON"),
+        column("name", "text"),
+    ];
+    let json_cols = json_column_names(&columns);
+    assert_eq!(json_cols.len(), 2);
+    assert!(json_cols.contains("payload"));
+    assert!(json_cols.contains("meta"));
+    assert!(!json_cols.contains("id"));
+    assert!(!json_cols.contains("name"));
+}
+
+#[test]
+fn test_json_column_names_empty_for_no_json_columns() {
+    let columns = vec![column("id", "integer"), column("name", "text")];
+    assert!(json_column_names(&columns).is_empty());
+}
+
+#[test]
+fn test_format_row_values_escapes_json_column_differently_from_plain_text() {
+    // Same underlying serde_json::Value::String("hi") in two columns:
+    // the plain text column keeps it literal, the JSON column re-encodes
+    // it as a JSON string literal (surrounding quotes preserved) --
+    // this is the whole reason json_column_names exists (#822 dump fix
+    // for plugin-backed drivers: QueryResult only carries column names,
+    // not types, so this can't be inferred from the value alone).
+    let columns = vec!["name".to_string(), "payload".to_string()];
+    let mut json_cols = HashSet::new();
+    json_cols.insert("payload".to_string());
+
+    let row = vec![json!("hi"), json!("hi")];
+    assert_eq!(
+        format_row_values(row, &columns, &json_cols, &postgres_dialect()),
+        r#"('hi', '"hi"')"#
+    );
+}
+
+#[test]
+fn test_format_row_values_regression_json_object_and_null_round_trip() {
+    let columns = vec!["id".to_string(), "payload".to_string(), "note".to_string()];
+    let mut json_cols = HashSet::new();
+    json_cols.insert("payload".to_string());
+
+    let row = vec![json!(1), json!({"a": 1}), serde_json::Value::Null];
+    assert_eq!(
+        format_row_values(row, &columns, &json_cols, &postgres_dialect()),
+        r#"(1, '{"a":1}', NULL)"#
+    );
+}
+
+fn pagination(has_more: bool) -> Pagination {
+    Pagination {
+        page: 1,
+        page_size: 1000,
+        total_rows: None,
+        has_more,
+    }
+}
+
+#[test]
+fn test_plugin_dump_has_more_trusts_real_pagination_over_the_fallback() {
+    // A full page that the driver explicitly says is the last one must
+    // not be reinterpreted as "more rows" just because it's full.
+    assert!(!plugin_dump_has_more(Some(pagination(false)), 1000, 1000));
+    // A short page the driver explicitly says has more must still be
+    // honored, even though the fallback heuristic alone would say no.
+    assert!(plugin_dump_has_more(Some(pagination(true)), 10, 1000));
+}
+
+#[test]
+fn test_plugin_dump_has_more_regression_a_full_page_without_pagination_is_not_treated_as_the_end() {
+    // Regression: a plugin's execute_query RPC that never populates
+    // `pagination` used to default this to `false`, silently truncating
+    // any table with more rows than one page.
+    assert!(plugin_dump_has_more(None, 1000, 1000));
+}
+
+#[test]
+fn test_plugin_dump_has_more_a_short_page_without_pagination_ends_the_fetch() {
+    assert!(!plugin_dump_has_more(None, 10, 1000));
+}
+
+#[test]
+fn test_plugin_dump_has_more_an_empty_page_without_pagination_ends_the_fetch() {
+    assert!(!plugin_dump_has_more(None, 0, 1000));
+}

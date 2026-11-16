@@ -1,0 +1,86 @@
+import {useTranslation} from 'react-i18next';
+import {AlertTriangle, Info, AlertCircle, X, Copy, Check} from 'lucide-react';
+import {Modal} from '@/components/ui/Modal';
+import {useCopyFeedback} from '@/hooks/useCopyFeedback';
+import type {AlertKind} from '@/contexts/AlertContext';
+
+interface AlertModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    title: string;
+    message: string;
+    kind: AlertKind;
+}
+
+const iconConfig: Record<AlertKind, {Icon: typeof Info; bgClass: string; textClass: string}> = {
+    error: {Icon: AlertCircle, bgClass: 'bg-accent-error/15', textClass: 'text-accent-error'},
+    warning: {
+        Icon: AlertTriangle,
+        bgClass: 'bg-accent-warning/15',
+        textClass: 'text-accent-warning',
+    },
+    info: {Icon: Info, bgClass: 'bg-accent-primary/15', textClass: 'text-accent'},
+};
+
+export const AlertModal = ({isOpen, onClose, title, message, kind}: AlertModalProps) => {
+    const {t} = useTranslation();
+    const {Icon, bgClass, textClass} = iconConfig[kind];
+    const {copied, copy, reset} = useCopyFeedback(1500);
+
+    const handleClose = () => {
+        reset();
+        onClose();
+    };
+
+    const handleCopy = () => copy(message);
+
+    return (
+        <Modal isOpen={isOpen} onClose={handleClose}>
+            <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[480px] overflow-hidden flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-default bg-base">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 ${bgClass} rounded-lg`}>
+                            <Icon size={20} className={textClass} />
+                        </div>
+                        <h2 className="text-lg font-semibold text-primary">{title}</h2>
+                    </div>
+                    <button
+                        onClick={handleClose}
+                        className="text-secondary hover:text-primary transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 overflow-y-auto max-h-[60vh]">
+                    <p className="text-sm text-secondary whitespace-pre-wrap break-words select-text">
+                        {message}
+                    </p>
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 border-t border-default bg-base/50 flex items-center justify-between gap-3">
+                    <button
+                        onClick={handleCopy}
+                        className="flex items-center gap-2 px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
+                    >
+                        {copied ? (
+                            <Check size={14} className="text-accent-success" />
+                        ) : (
+                            <Copy size={14} />
+                        )}
+                        {copied ? t('common.copied') : t('common.copy')}
+                    </button>
+                    <button
+                        onClick={handleClose}
+                        className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
+                    >
+                        {t('common.ok', 'OK')}
+                    </button>
+                </div>
+            </div>
+        </Modal>
+    );
+};

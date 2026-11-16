@@ -31,8 +31,30 @@ pub fn is_local_path_driver(id: &str) -> bool {
 }
 
 pub(crate) fn set_local_path_driver(id: &str, is_local: bool) {
-    if let Ok(mut set) = LOCAL_PATH_DRIVERS.write() {
-        if is_local {
+    set_membership(&LOCAL_PATH_DRIVERS, id, is_local);
+}
+
+/// Ids of registered drivers that declare the `socks5_proxy` capability,
+/// queried synchronously by SSH tunnel resolution.
+static SOCKS5_PROXY_DRIVERS: Lazy<std::sync::RwLock<HashSet<String>>> =
+    Lazy::new(|| std::sync::RwLock::new(HashSet::new()));
+
+/// Returns `true` when the registered driver `id` routes its connections
+/// through `ConnectionParams::socks5_proxy_*`.
+pub fn is_socks5_proxy_driver(id: &str) -> bool {
+    SOCKS5_PROXY_DRIVERS
+        .read()
+        .map(|set| set.contains(id))
+        .unwrap_or(false)
+}
+
+pub(crate) fn set_socks5_proxy_driver(id: &str, uses_proxy: bool) {
+    set_membership(&SOCKS5_PROXY_DRIVERS, id, uses_proxy);
+}
+
+fn set_membership(set: &std::sync::RwLock<HashSet<String>>, id: &str, member: bool) {
+    if let Ok(mut set) = set.write() {
+        if member {
             set.insert(id.to_string());
         } else {
             set.remove(id);
@@ -46,8 +68,13 @@ pub async fn register_driver(driver: impl DatabaseDriver + 'static) {
     let id = driver.manifest().id.clone();
     log::info!("Registering driver: {} ({})", driver.manifest().name, id);
     let capabilities = &driver.manifest().capabilities;
-    set_local_path_driver(&id, capabilities.file_based || capabilities.folder_based);
+    let is_local = capabilities.file_based || capabilities.folder_based;
+    let uses_socks5_proxy = capabilities.socks5_proxy;
+    // Update the capability sets under the registry lock, so an overlapping
+    // `unregister_driver` cannot clear them after this driver is inserted.
     let mut reg = REGISTRY.write().await;
+    set_local_path_driver(&id, is_local);
+    set_socks5_proxy_driver(&id, uses_socks5_proxy);
     reg.insert(id, Arc::new(driver));
 }
 
@@ -84,15 +111,47 @@ pub async fn is_registered(id: &str) -> bool {
 pub async fn unregister_driver(id: &str) -> bool {
     let driver = {
         let mut reg = REGISTRY.write().await;
+        set_local_path_driver(id, false);
+        set_socks5_proxy_driver(id, false);
         reg.remove(id)
     };
-    set_local_path_driver(id, false);
     if let Some(d) = driver {
         d.shutdown().await;
         log::info!("Unregistered driver: {}", id);
         true
     } else {
         false
+    }
+}
+
+/// Shut down and remove every external driver process.
+pub async fn shutdown_external_drivers() {
+    let external_ids = {
+        let registry = REGISTRY.read().await;
+        registry
+            .iter()
+            .filter(|(_, driver)| !driver.manifest().is_builtin)
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>()
+    };
+
+    for id in external_ids {
+        unregister_driver(&id).await;
+    }
+}
+
+/// Stop every external driver process at once, without draining in-flight
+/// calls or unregistering the drivers. For a host that is about to exit.
+pub async fn terminate_external_drivers() {
+    let external = REGISTRY
+        .read()
+        .await
+        .values()
+        .filter(|driver| !driver.manifest().is_builtin)
+        .cloned()
+        .collect::<Vec<_>>();
+    for driver in external {
+        driver.terminate().await;
     }
 }
 
@@ -136,7 +195,7 @@ fn drivers_to_unregister(registered: &[(String, bool)], active_ids: &[String]) -
 /// stale driver keeps resolving successfully.
 ///
 /// `active_ids: None` means "no explicit preference saved" (see
-/// [`crate::plugins::manager::load_plugins`]'s doc comment) — every
+/// [`crate::transport::desktop::plugins::manager::load_plugins`]'s doc comment) — every
 /// installed plugin is implicitly active in that state, so nothing is
 /// unregistered. Builtins are never touched regardless of `active_ids`,
 /// since `active_external_drivers` only ever governs external plugins.

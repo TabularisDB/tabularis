@@ -1,0 +1,431 @@
+import {describe, it, expect} from 'vitest';
+import {
+    isLocalDriver,
+    supportsAlterColumn,
+    supportsCreateForeignKeys,
+    supportsColumnComments,
+    supportsPluginDropTableSql,
+    supportsExplain,
+    supportsQueryTimeout,
+    supportsInMemoryDatabase,
+    findDriverManifest,
+    getCapabilitiesForDriver,
+    speaksGenericSql,
+    supportsColumnStatsRpc,
+    supportsTableExport,
+    supportsTableImport,
+} from '@/utils/driverCapabilities';
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+
+const makeCapabilities = (overrides: Partial<DriverCapabilities> = {}): DriverCapabilities => ({
+    schemas: false,
+    views: false,
+    routines: false,
+    file_based: false,
+    folder_based: false,
+    identifier_quote: '"',
+    alter_primary_key: false,
+    ...overrides,
+});
+
+const makeManifest = (id: string, caps: Partial<DriverCapabilities> = {}): PluginManifest => ({
+    id,
+    name: id,
+    version: '1.0.0',
+    description: '',
+    default_port: null,
+    capabilities: makeCapabilities(caps),
+});
+
+describe('driverCapabilities', () => {
+    describe('supportsTableExport', () => {
+        it('is on unless the driver opts out', () => {
+            expect(supportsTableExport(makeCapabilities())).toBe(true);
+            expect(supportsTableExport(null)).toBe(true);
+            expect(supportsTableExport(makeCapabilities({readonly: true}))).toBe(true);
+            expect(supportsTableExport(makeCapabilities({table_export: false}))).toBe(false);
+        });
+
+        it('honours a plugin with its own dialect', () => {
+            const plugin = makeCapabilities({identifier_quote: '[', sql_dialect: 'mssql'});
+            expect(supportsTableExport(plugin)).toBe(true);
+        });
+    });
+
+    describe('supportsTableImport', () => {
+        it('is on for writable drivers that do not opt out', () => {
+            expect(supportsTableImport(makeCapabilities())).toBe(true);
+            expect(supportsTableImport(makeCapabilities({table_import: true}))).toBe(true);
+        });
+
+        it('is off for read-only drivers and plugins that opt out', () => {
+            expect(supportsTableImport(makeCapabilities({readonly: true}))).toBe(false);
+            expect(
+                supportsTableImport(makeCapabilities({readonly: true, table_import: true})),
+            ).toBe(false);
+            expect(supportsTableImport(makeCapabilities({table_import: false}))).toBe(false);
+        });
+    });
+
+    describe('isLocalDriver', () => {
+        it('should return true when file_based is true', () => {
+            expect(isLocalDriver(makeCapabilities({file_based: true}))).toBe(true);
+        });
+
+        it('should return true when folder_based is true', () => {
+            expect(isLocalDriver(makeCapabilities({folder_based: true}))).toBe(true);
+        });
+
+        it('should return true when both file_based and folder_based are true', () => {
+            expect(isLocalDriver(makeCapabilities({file_based: true, folder_based: true}))).toBe(
+                true,
+            );
+        });
+
+        it('should return false when neither file_based nor folder_based is true', () => {
+            expect(isLocalDriver(makeCapabilities({file_based: false, folder_based: false}))).toBe(
+                false,
+            );
+        });
+
+        it('should return false when capabilities are null', () => {
+            expect(isLocalDriver(null)).toBe(false);
+        });
+
+        it('should return false when capabilities are undefined', () => {
+            expect(isLocalDriver(undefined)).toBe(false);
+        });
+
+        it('should return false for a typical remote driver (postgres-like)', () => {
+            const caps = makeCapabilities({schemas: true, views: true, routines: true});
+            expect(isLocalDriver(caps)).toBe(false);
+        });
+    });
+
+    describe('supportsAlterColumn', () => {
+        it('should return true when alter_column is true', () => {
+            expect(supportsAlterColumn(makeCapabilities({alter_column: true}))).toBe(true);
+        });
+
+        it('should return false when alter_column is false', () => {
+            expect(supportsAlterColumn(makeCapabilities({alter_column: false}))).toBe(false);
+        });
+
+        it('should return false when alter_column is not set (default false)', () => {
+            expect(supportsAlterColumn(makeCapabilities())).toBe(false);
+        });
+
+        it('should return false when capabilities are null', () => {
+            expect(supportsAlterColumn(null)).toBe(false);
+        });
+
+        it('should return false when capabilities are undefined', () => {
+            expect(supportsAlterColumn(undefined)).toBe(false);
+        });
+    });
+
+    describe('supportsColumnComments', () => {
+        it('should return true only when a plugin opts into column_comments', () => {
+            expect(
+                supportsColumnComments(
+                    makeCapabilities({column_comments: true, identifier_quote: '`'}),
+                ),
+            ).toBe(true);
+        });
+
+        it('should return false when column_comments is false or missing', () => {
+            expect(supportsColumnComments(makeCapabilities({column_comments: false}))).toBe(false);
+            expect(supportsColumnComments(makeCapabilities())).toBe(false);
+        });
+
+        it('should return false when capabilities are null or undefined', () => {
+            expect(supportsColumnComments(null)).toBe(false);
+            expect(supportsColumnComments(undefined)).toBe(false);
+        });
+    });
+
+    describe('supportsPluginDropTableSql', () => {
+        it('should return true only when a plugin opts into drop_table_sql', () => {
+            expect(
+                supportsPluginDropTableSql(
+                    makeCapabilities({drop_table_sql: true, identifier_quote: '`'}),
+                ),
+            ).toBe(true);
+        });
+
+        it('should return false when drop_table_sql is false, missing or capabilities are absent', () => {
+            expect(supportsPluginDropTableSql(makeCapabilities({drop_table_sql: false}))).toBe(
+                false,
+            );
+            expect(supportsPluginDropTableSql(makeCapabilities())).toBe(false);
+            expect(supportsPluginDropTableSql(null)).toBe(false);
+            expect(supportsPluginDropTableSql(undefined)).toBe(false);
+        });
+    });
+
+    describe('supportsCreateForeignKeys', () => {
+        it('should return true when create_foreign_keys is true', () => {
+            expect(supportsCreateForeignKeys(makeCapabilities({create_foreign_keys: true}))).toBe(
+                true,
+            );
+        });
+
+        it('should return false when create_foreign_keys is false', () => {
+            expect(supportsCreateForeignKeys(makeCapabilities({create_foreign_keys: false}))).toBe(
+                false,
+            );
+        });
+
+        it('should return false when create_foreign_keys is not set (default false)', () => {
+            expect(supportsCreateForeignKeys(makeCapabilities())).toBe(false);
+        });
+
+        it('should return false when capabilities are null', () => {
+            expect(supportsCreateForeignKeys(null)).toBe(false);
+        });
+
+        it('should return false when capabilities are undefined', () => {
+            expect(supportsCreateForeignKeys(undefined)).toBe(false);
+        });
+    });
+
+    describe('supportsExplain', () => {
+        it('should return true when explain is true', () => {
+            expect(supportsExplain(makeCapabilities({explain: true}))).toBe(true);
+        });
+
+        it('should return false when explain is false', () => {
+            expect(supportsExplain(makeCapabilities({explain: false}))).toBe(false);
+        });
+
+        it('should return false when explain is not set (default false)', () => {
+            expect(supportsExplain(makeCapabilities())).toBe(false);
+        });
+
+        it('should return false when capabilities are null', () => {
+            expect(supportsExplain(null)).toBe(false);
+        });
+
+        it('should return false when capabilities are undefined', () => {
+            expect(supportsExplain(undefined)).toBe(false);
+        });
+    });
+
+    describe('supportsQueryTimeout', () => {
+        it('should return true when query_timeout is true', () => {
+            expect(supportsQueryTimeout(makeCapabilities({query_timeout: true}))).toBe(true);
+        });
+
+        it('should return false when query_timeout is false', () => {
+            expect(supportsQueryTimeout(makeCapabilities({query_timeout: false}))).toBe(false);
+        });
+
+        it('should return false when query_timeout is not set (default false)', () => {
+            expect(supportsQueryTimeout(makeCapabilities())).toBe(false);
+        });
+
+        it('should return false when capabilities are null', () => {
+            expect(supportsQueryTimeout(null)).toBe(false);
+        });
+    });
+
+    describe('findDriverManifest', () => {
+        const drivers: PluginManifest[] = [
+            makeManifest('postgres', {schemas: true}),
+            makeManifest('mysql'),
+            makeManifest('sqlite', {file_based: true}),
+        ];
+
+        it('should find driver by ID', () => {
+            const result = findDriverManifest('postgres', drivers);
+            expect(result).not.toBeNull();
+            expect(result?.id).toBe('postgres');
+        });
+
+        it('should return null for unknown driver ID', () => {
+            expect(findDriverManifest('oracle', drivers)).toBeNull();
+        });
+
+        it('should return null for empty drivers list', () => {
+            expect(findDriverManifest('postgres', [])).toBeNull();
+        });
+
+        it('should find correct manifest among multiple drivers', () => {
+            const sqlite = findDriverManifest('sqlite', drivers);
+            expect(sqlite?.capabilities.file_based).toBe(true);
+        });
+    });
+
+    describe('getCapabilitiesForDriver', () => {
+        const drivers: PluginManifest[] = [
+            makeManifest('postgres', {
+                schemas: true,
+                alter_column: true,
+                create_foreign_keys: true,
+            }),
+            makeManifest('sqlite', {file_based: true}),
+        ];
+
+        it('should return capabilities for known driver', () => {
+            const caps = getCapabilitiesForDriver('postgres', drivers);
+            expect(caps).not.toBeNull();
+            expect(caps?.schemas).toBe(true);
+            expect(caps?.alter_column).toBe(true);
+        });
+
+        it('should return null for unknown driver', () => {
+            expect(getCapabilitiesForDriver('oracle', drivers)).toBeNull();
+        });
+
+        it('should return file_based capability for SQLite-like driver', () => {
+            const caps = getCapabilitiesForDriver('sqlite', drivers);
+            expect(caps?.file_based).toBe(true);
+        });
+
+        it('should return null for empty drivers list', () => {
+            expect(getCapabilitiesForDriver('postgres', [])).toBeNull();
+        });
+    });
+
+    describe('driver-agnostic behavior with postgres-like capabilities', () => {
+        const postgresCaps = makeCapabilities({
+            schemas: true,
+            views: true,
+            routines: true,
+            alter_column: true,
+            create_foreign_keys: true,
+            serial_type: 'SERIAL',
+        });
+
+        it('is not local', () => expect(isLocalDriver(postgresCaps)).toBe(false));
+        it('supports alter column', () => expect(supportsAlterColumn(postgresCaps)).toBe(true));
+        it('supports foreign keys', () =>
+            expect(supportsCreateForeignKeys(postgresCaps)).toBe(true));
+    });
+
+    describe('driver-agnostic behavior with sqlite-like capabilities', () => {
+        const sqliteCaps = makeCapabilities({
+            file_based: true,
+            views: true,
+            inline_pk: true,
+            auto_increment_keyword: 'AUTOINCREMENT',
+        });
+
+        it('is local', () => expect(isLocalDriver(sqliteCaps)).toBe(true));
+        it('does not support alter column (default false)', () =>
+            expect(supportsAlterColumn(sqliteCaps)).toBe(false));
+        it('does not support foreign keys (default false)', () =>
+            expect(supportsCreateForeignKeys(sqliteCaps)).toBe(false));
+    });
+
+    describe('unknown external plugin (all new capabilities missing)', () => {
+        const unknownCaps = makeCapabilities();
+
+        it('is not local by default', () => expect(isLocalDriver(unknownCaps)).toBe(false));
+        it('does not support alter column by default', () =>
+            expect(supportsAlterColumn(unknownCaps)).toBe(false));
+        it('does not support foreign keys by default', () =>
+            expect(supportsCreateForeignKeys(unknownCaps)).toBe(false));
+    });
+});
+
+describe('supportsInMemoryDatabase', () => {
+    it('is true for a file-based plugin that declares in_memory', () => {
+        expect(
+            supportsInMemoryDatabase(makeCapabilities({file_based: true, in_memory: true})),
+        ).toBe(true);
+    });
+
+    it('accepts the camelCase inMemory alias', () => {
+        expect(supportsInMemoryDatabase(makeCapabilities({file_based: true, inMemory: true}))).toBe(
+            true,
+        );
+    });
+
+    it('is false for file-based drivers that do not opt in', () => {
+        expect(supportsInMemoryDatabase(makeCapabilities({file_based: true}))).toBe(false);
+    });
+
+    it('is false when in_memory is set on a non file-based driver', () => {
+        expect(supportsInMemoryDatabase(makeCapabilities({in_memory: true}))).toBe(false);
+        expect(
+            supportsInMemoryDatabase(makeCapabilities({folder_based: true, in_memory: true})),
+        ).toBe(false);
+    });
+
+    it('is false without capabilities', () => {
+        expect(supportsInMemoryDatabase(null)).toBe(false);
+        expect(supportsInMemoryDatabase(undefined)).toBe(false);
+    });
+});
+
+describe('speaksGenericSql', () => {
+    it('accepts an explicitly declared postgres, mysql or sqlite dialect', () => {
+        for (const dialect of ['postgres', 'mysql', 'sqlite'] as const) {
+            expect(speaksGenericSql(makeCapabilities({sql_dialect: dialect}))).toBe(true);
+        }
+    });
+
+    it('rejects dialects without LIMIT, the generic dialect and an omitted dialect', () => {
+        for (const dialect of ['mssql', 'oracle', 'generic'] as const) {
+            expect(speaksGenericSql(makeCapabilities({sql_dialect: dialect}))).toBe(false);
+        }
+        expect(speaksGenericSql(makeCapabilities())).toBe(false);
+        expect(speaksGenericSql(null)).toBe(false);
+    });
+
+    it('counts sql_syntax.extends as an explicit dialect declaration', () => {
+        for (const extendsDialect of ['postgres', 'mysql', 'sqlite'] as const) {
+            expect(
+                speaksGenericSql(makeCapabilities({sql_syntax: {extends: extendsDialect}})),
+            ).toBe(true);
+        }
+        for (const extendsDialect of ['mssql', 'oracle', 'generic'] as const) {
+            expect(
+                speaksGenericSql(makeCapabilities({sql_syntax: {extends: extendsDialect}})),
+            ).toBe(false);
+        }
+    });
+
+    it('lets a valid sql_syntax.extends win over sql_dialect', () => {
+        expect(
+            speaksGenericSql(
+                makeCapabilities({sql_dialect: 'mssql', sql_syntax: {extends: 'mysql'}}),
+            ),
+        ).toBe(true);
+        expect(
+            speaksGenericSql(
+                makeCapabilities({sql_dialect: 'mysql', sql_syntax: {extends: 'oracle'}}),
+            ),
+        ).toBe(false);
+    });
+
+    it('falls back to sql_dialect when extends is missing or not a valid dialect, like sqlSyntax', () => {
+        expect(
+            speaksGenericSql(
+                makeCapabilities({sql_dialect: 'mysql', sql_syntax: {hash_comments: true}}),
+            ),
+        ).toBe(true);
+        expect(
+            speaksGenericSql(
+                makeCapabilities({
+                    sql_dialect: 'mysql',
+                    sql_syntax: {extends: 'bogus' as never},
+                }),
+            ),
+        ).toBe(true);
+        expect(speaksGenericSql(makeCapabilities({sql_syntax: {extends: 'bogus' as never}}))).toBe(
+            false,
+        );
+        expect(speaksGenericSql(makeCapabilities({sql_syntax: {hash_comments: true}}))).toBe(false);
+    });
+});
+
+describe('supportsColumnStatsRpc', () => {
+    it('is true only when the plugin opts in', () => {
+        expect(supportsColumnStatsRpc(makeCapabilities({column_stats: true}))).toBe(true);
+        expect(supportsColumnStatsRpc(makeCapabilities({column_stats: false}))).toBe(false);
+        expect(supportsColumnStatsRpc(makeCapabilities())).toBe(false);
+        expect(supportsColumnStatsRpc(undefined)).toBe(false);
+    });
+});

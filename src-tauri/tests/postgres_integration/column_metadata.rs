@@ -130,14 +130,10 @@ async fn test_get_columns_character_max_length() {
         .expect("get_columns should succeed");
 
     let varchar_col = columns.iter().find(|c| c.name == "col_varchar").unwrap();
-    // KNOWN BEHAVIOR: The PG driver does NOT populate character_maximum_length.
-    // This is a driver limitation, not a PostgreSQL limitation (PG does expose this
-    // in information_schema). The plugin MUST match this exact behavior (return None).
-    // If the built-in driver is fixed later, this test will correctly fail — prompting
-    // an update to both the test and the plugin.
     assert_eq!(
-        varchar_col.character_maximum_length, None,
-        "Built-in PG driver returns None for character_maximum_length (known limitation)"
+        varchar_col.character_maximum_length,
+        Some(255),
+        "PG driver returns character_maximum_length for varchar(n)"
     );
 
     let text_col = columns.iter().find(|c| c.name == "col_text").unwrap();
@@ -166,4 +162,44 @@ async fn test_get_columns_enum_type() {
         "Enum column should have type containing 'mood', start with 'enum(', or be 'USER-DEFINED', got: {}",
         mood_col.data_type
     );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_get_columns_full_type() {
+    require_pg!();
+    let params = pg_params();
+
+    let columns = postgres::get_columns(&params, "all_types", "test_schema")
+        .await
+        .expect("get_columns should succeed");
+    let full_type = |name: &str| {
+        let column = columns
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap_or_else(|| panic!("{name} column should exist"));
+        (column.data_type.as_str(), column.full_type.as_deref())
+    };
+
+    // `data_type` keeps the base name; `full_type` is `format_type(...)` when
+    // it says more (#1277).
+    assert_eq!(
+        full_type("col_varchar"),
+        ("character varying", Some("character varying(255)"))
+    );
+    assert_eq!(full_type("col_numeric"), ("numeric", Some("numeric(10,2)")));
+    assert_eq!(full_type("col_int_array"), ("ARRAY", Some("integer[]")));
+    assert_eq!(full_type("col_text"), ("text", None));
+    assert_eq!(full_type("col_int"), ("integer", None));
+
+    // Enums keep their values in `data_type` and get no full type.
+    let enum_columns = postgres::get_columns(&params, "with_enum", "test_schema")
+        .await
+        .expect("get_columns should succeed");
+    let mood = enum_columns
+        .iter()
+        .find(|c| c.name == "current_mood")
+        .unwrap();
+    assert!(mood.data_type.starts_with("enum("), "{}", mood.data_type);
+    assert_eq!(mood.full_type, None);
 }

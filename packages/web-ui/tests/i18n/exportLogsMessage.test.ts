@@ -1,0 +1,41 @@
+import {describe, expect, it} from 'vitest';
+import de from '@/i18n/locales/de.json';
+import en from '@/i18n/locales/en.json';
+import es from '@/i18n/locales/es.json';
+import fr from '@/i18n/locales/fr.json';
+import itLocale from '@/i18n/locales/it.json';
+import ja from '@/i18n/locales/ja.json';
+import ko from '@/i18n/locales/ko.json';
+import ptBR from '@/i18n/locales/pt-BR.json';
+import ru from '@/i18n/locales/ru.json';
+import tl from '@/i18n/locales/tl.json';
+import vi from '@/i18n/locales/vi.json';
+import zh from '@/i18n/locales/zh.json';
+import zhTW from '@/i18n/locales/zh-TW.json';
+
+const locales = {
+    de,
+    en,
+    es,
+    fr,
+    it: itLocale,
+    ja,
+    ko,
+    'pt-BR': ptBR,
+    ru,
+    tl,
+    vi,
+    zh,
+    'zh-TW': zhTW,
+};
+
+// Export Logs writes a file, so its confirmation must not claim a clipboard copy (#907).
+const CLIPBOARD =
+    /clipboard|zwischenablage|portapapeles|presse-papiers|appunti|クリップボード|클립보드|área de transferência|буфер обмена|剪贴板/i;
+
+describe('Export Logs confirmation', () => {
+    it.each(Object.entries(locales))('does not mention the clipboard in %s', (_, translation) => {
+        expect(translation.settings.exportLogsSuccess).toBeTruthy();
+        expect(translation.settings.exportLogsSuccess).not.toMatch(CLIPBOARD);
+    });
+});

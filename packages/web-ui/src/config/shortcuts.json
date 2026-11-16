@@ -1,0 +1,372 @@
+[
+  {
+    "id": "run_query",
+    "category": "editor",
+    "defaultMac": "⌘+F5",
+    "defaultWin": "Ctrl+F5",
+    "macMatch": {"metaKey": true, "key": "F5"},
+    "winMatch": {"ctrlKey": true, "key": "F5"},
+    "i18nKey": "settings.shortcuts.runQuery",
+    "overridable": false
+  },
+  {
+    "id": "run_query_editor",
+    "category": "editor",
+    "defaultMac": "⌘+Enter",
+    "defaultWin": "Ctrl+Enter",
+    "macMatch": {"metaKey": true, "key": "Enter"},
+    "winMatch": {"ctrlKey": true, "key": "Enter"},
+    "i18nKey": "settings.shortcuts.runQueryEditor",
+    "overridable": false
+  },
+  {
+    "id": "run_all",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+F5",
+    "defaultWin": "Ctrl+Shift+F5",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "F5"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "F5"},
+    "i18nKey": "settings.shortcuts.runAll",
+    "overridable": false
+  },
+  {
+    "id": "run_all_editor",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+Enter",
+    "defaultWin": "Ctrl+Shift+Enter",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "Enter"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "Enter"},
+    "i18nKey": "settings.shortcuts.runAllEditor",
+    "overridable": false
+  },
+  {
+    "id": "new_tab",
+    "category": "editor",
+    "defaultMac": "⌘+T",
+    "defaultWin": "Ctrl+T",
+    "macMatch": {"metaKey": true, "key": "t"},
+    "winMatch": {"ctrlKey": true, "key": "t"},
+    "i18nKey": "settings.shortcuts.newTab",
+    "overridable": true
+  },
+  {
+    "id": "close_tab",
+    "category": "editor",
+    "defaultMac": "⌘+W",
+    "defaultWin": "Ctrl+W",
+    "macMatch": {"metaKey": true, "key": "w"},
+    "winMatch": {"ctrlKey": true, "key": "w"},
+    "i18nKey": "settings.shortcuts.closeTab",
+    "overridable": true
+  },
+  {
+    "id": "reopen_closed_tab",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+T",
+    "defaultWin": "Ctrl+Shift+T",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "t"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "t"},
+    "i18nKey": "settings.shortcuts.reopenClosedTab",
+    "overridable": true
+  },
+  {
+    "id": "next_page",
+    "category": "data_grid",
+    "defaultMac": "⌘+→",
+    "defaultWin": "Ctrl+→",
+    "macMatch": {"metaKey": true, "key": "ArrowRight"},
+    "winMatch": {"ctrlKey": true, "key": "ArrowRight"},
+    "i18nKey": "settings.shortcuts.nextPage",
+    "overridable": true
+  },
+  {
+    "id": "prev_page",
+    "category": "data_grid",
+    "defaultMac": "⌘+←",
+    "defaultWin": "Ctrl+←",
+    "macMatch": {"metaKey": true, "key": "ArrowLeft"},
+    "winMatch": {"ctrlKey": true, "key": "ArrowLeft"},
+    "i18nKey": "settings.shortcuts.prevPage",
+    "overridable": true
+  },
+  {
+    "id": "save_grid_changes",
+    "category": "data_grid",
+    "defaultMac": "⌘+S",
+    "defaultWin": "Ctrl+S",
+    "macMatch": {"metaKey": true, "key": "s"},
+    "winMatch": {"ctrlKey": true, "key": "s"},
+    "i18nKey": "settings.shortcuts.saveGridChanges",
+    "overridable": true
+  },
+  {
+    "id": "refresh_table",
+    "category": "data_grid",
+    "defaultMac": "⌘+R",
+    "defaultWin": "Ctrl+R",
+    "macMatch": {"metaKey": true, "key": "r"},
+    "winMatch": {"ctrlKey": true, "key": "r"},
+    "i18nKey": "settings.shortcuts.refreshTable",
+    "overridable": true
+  },
+  {
+    "id": "extend_cell_range",
+    "category": "data_grid",
+    "defaultMac": "Shift+↑↓←→",
+    "defaultWin": "Shift+↑↓←→",
+    "macMatch": {"shiftKey": true, "key": "ArrowDown"},
+    "winMatch": {"shiftKey": true, "key": "ArrowDown"},
+    "i18nKey": "settings.shortcuts.extendCellRange",
+    "overridable": false
+  },
+  {
+    "id": "jump_to_edge",
+    "category": "data_grid",
+    "defaultMac": "⌘+↑↓←→",
+    "defaultWin": "Ctrl+↑↓←→",
+    "macMatch": {"metaKey": true, "key": "ArrowDown"},
+    "winMatch": {"ctrlKey": true, "key": "ArrowDown"},
+    "i18nKey": "settings.shortcuts.jumpToEdge",
+    "overridable": false
+  },
+  {
+    "id": "jump_to_column",
+    "category": "data_grid",
+    "defaultMac": "⌘+Shift+J",
+    "defaultWin": "Ctrl+Shift+J",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "j", "code": "KeyJ"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "j", "code": "KeyJ"},
+    "i18nKey": "settings.shortcuts.jumpToColumn",
+    "overridable": true
+  },
+  {
+    "id": "find_in_grid",
+    "category": "data_grid",
+    "defaultMac": "⌘+F",
+    "defaultWin": "Ctrl+F",
+    "macMatch": {"metaKey": true, "key": "f", "code": "KeyF"},
+    "winMatch": {"ctrlKey": true, "key": "f", "code": "KeyF"},
+    "i18nKey": "settings.shortcuts.findInGrid",
+    "overridable": true
+  },
+  {
+    "id": "extend_cell_range_to_edge",
+    "category": "data_grid",
+    "defaultMac": "⌘+Shift+↑↓←→",
+    "defaultWin": "Ctrl+Shift+↑↓←→",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "ArrowDown"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "ArrowDown"},
+    "i18nKey": "settings.shortcuts.extendCellRangeToEdge",
+    "overridable": false
+  },
+  {
+    "id": "select_row",
+    "category": "data_grid",
+    "defaultMac": "Shift+Space",
+    "defaultWin": "Shift+Space",
+    "macMatch": {"shiftKey": true, "key": " "},
+    "winMatch": {"shiftKey": true, "key": " "},
+    "i18nKey": "settings.shortcuts.selectRow",
+    "overridable": false
+  },
+  {
+    "id": "select_column",
+    "category": "data_grid",
+    "defaultMac": "⌘+Space / ⌘+Shift+Space",
+    "defaultWin": "Ctrl+Space / Ctrl+Shift+Space",
+    "macMatch": {"metaKey": true, "key": " "},
+    "winMatch": {"ctrlKey": true, "key": " "},
+    "i18nKey": "settings.shortcuts.selectColumn",
+    "overridable": false
+  },
+  {
+    "id": "tab_switcher",
+    "category": "editor",
+    "defaultMac": "Ctrl+Tab",
+    "defaultWin": "Ctrl+Tab",
+    "macMatch": {"ctrlKey": true, "key": "Tab"},
+    "winMatch": {"ctrlKey": true, "key": "Tab"},
+    "i18nKey": "settings.shortcuts.tabSwitcher",
+    "overridable": false
+  },
+  {
+    "id": "copy_selection",
+    "category": "editor",
+    "defaultMac": "⌘+C",
+    "defaultWin": "Ctrl+C",
+    "macMatch": {"metaKey": true, "key": "c"},
+    "winMatch": {"ctrlKey": true, "key": "c"},
+    "i18nKey": "settings.shortcuts.copySelection",
+    "overridable": false
+  },
+  {
+    "id": "toggle_sidebar",
+    "category": "navigation",
+    "defaultMac": "⌘+B",
+    "defaultWin": "Ctrl+B",
+    "macMatch": {"metaKey": true, "key": "b"},
+    "winMatch": {"ctrlKey": true, "key": "b"},
+    "i18nKey": "settings.shortcuts.toggleSidebar",
+    "overridable": true
+  },
+  {
+    "id": "toggle_right_sidebar",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+B",
+    "defaultWin": "Ctrl+Shift+B",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "b"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "b"},
+    "i18nKey": "settings.shortcuts.toggleRightSidebar",
+    "overridable": true
+  },
+  {
+    "id": "focus_table_filter",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+F",
+    "defaultWin": "Ctrl+Shift+F",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "f"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "f"},
+    "i18nKey": "settings.shortcuts.focusTableFilter",
+    "overridable": true
+  },
+  {
+    "id": "open_connections",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+C",
+    "defaultWin": "Ctrl+Shift+C",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "c"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "c"},
+    "i18nKey": "settings.shortcuts.openConnections",
+    "overridable": true
+  },
+  {
+    "id": "open_settings",
+    "category": "navigation",
+    "defaultMac": "⌘+,",
+    "defaultWin": "Ctrl+,",
+    "macMatch": {"metaKey": true, "key": ",", "code": "Comma"},
+    "winMatch": {"ctrlKey": true, "key": ",", "code": "Comma"},
+    "i18nKey": "settings.shortcuts.openSettings",
+    "overridable": true
+  },
+  {
+    "id": "new_connection",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+N",
+    "defaultWin": "Ctrl+Shift+N",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "n"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "n"},
+    "i18nKey": "settings.shortcuts.newConnection",
+    "overridable": true
+  },
+  {
+    "id": "switch_connection",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+1–9",
+    "defaultWin": "Ctrl+Shift+1–9",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "1", "code": "Digit1"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "1", "code": "Digit1"},
+    "i18nKey": "settings.shortcuts.switchConnection",
+    "overridable": false
+  },
+  {
+    "id": "paste_import_clipboard",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+V",
+    "defaultWin": "Ctrl+Shift+V",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "v"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "v"},
+    "i18nKey": "settings.shortcuts.pasteImportClipboard",
+    "overridable": true
+  },
+  {
+    "id": "notebook_run_all",
+    "category": "notebook",
+    "defaultMac": "⌘+Shift+Enter",
+    "defaultWin": "Ctrl+Shift+Enter",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "Enter"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "Enter"},
+    "i18nKey": "settings.shortcuts.notebookRunAll",
+    "overridable": true
+  },
+  {
+    "id": "command_palette",
+    "category": "navigation",
+    "defaultMac": "⌘+K",
+    "defaultWin": "Ctrl+K",
+    "macMatch": {"metaKey": true, "key": "k", "code": "KeyK"},
+    "winMatch": {"ctrlKey": true, "key": "k", "code": "KeyK"},
+    "i18nKey": "settings.shortcuts.commandPalette",
+    "overridable": true
+  },
+  {
+    "id": "quick_navigator",
+    "category": "navigation",
+    "defaultMac": "⌘+P",
+    "defaultWin": "Ctrl+P",
+    "macMatch": {"metaKey": true, "key": "p"},
+    "winMatch": {"ctrlKey": true, "key": "p"},
+    "i18nKey": "settings.shortcuts.quickNavigator",
+    "overridable": true
+  },
+  {
+    "id": "command_palette_actions",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+A",
+    "defaultWin": "Ctrl+Shift+A",
+    "macMatch": {"metaKey": true, "shiftKey": true, "key": "a"},
+    "winMatch": {"ctrlKey": true, "shiftKey": true, "key": "a"},
+    "i18nKey": "settings.shortcuts.commandPaletteActions",
+    "overridable": true
+  },
+  {
+    "id": "trigger_suggestions",
+    "category": "editor",
+    "defaultMac": "⌘+I",
+    "defaultWin": "Ctrl+Space",
+    "macMatch": {"metaKey": true, "key": "i"},
+    "winMatch": {"ctrlKey": true, "key": " "},
+    "i18nKey": "settings.shortcuts.triggerSuggestions",
+    "overridable": true
+  },
+  {
+    "id": "format_sql",
+    "category": "editor",
+    "defaultMac": "Shift+⌥+F",
+    "defaultWin": "Shift+Alt+F",
+    "macMatch": {"shiftKey": true, "altKey": true, "key": "f"},
+    "winMatch": {"shiftKey": true, "altKey": true, "key": "f"},
+    "i18nKey": "settings.shortcuts.formatSql",
+    "overridable": false
+  },
+  {
+    "id": "editor_zoom_in",
+    "category": "editor",
+    "defaultMac": "⌘+=",
+    "defaultWin": "Ctrl+=",
+    "macMatch": {"metaKey": true, "key": "="},
+    "winMatch": {"ctrlKey": true, "key": "="},
+    "i18nKey": "settings.shortcuts.editorZoomIn",
+    "overridable": true
+  },
+  {
+    "id": "editor_zoom_out",
+    "category": "editor",
+    "defaultMac": "⌘+-",
+    "defaultWin": "Ctrl+-",
+    "macMatch": {"metaKey": true, "key": "-"},
+    "winMatch": {"ctrlKey": true, "key": "-"},
+    "i18nKey": "settings.shortcuts.editorZoomOut",
+    "overridable": true
+  },
+  {
+    "id": "editor_zoom_reset",
+    "category": "editor",
+    "defaultMac": "⌘+0",
+    "defaultWin": "Ctrl+0",
+    "macMatch": {"metaKey": true, "key": "0"},
+    "winMatch": {"ctrlKey": true, "key": "0"},
+    "i18nKey": "settings.shortcuts.editorZoomReset",
+    "overridable": true
+  }
+]

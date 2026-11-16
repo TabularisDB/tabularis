@@ -1,339 +1,345 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tabularis Snap Feature Banner</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <style>
-      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Tabularis Snap Feature Banner</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-      * {
-        box-sizing: border-box;
-      }
+            * {
+                box-sizing: border-box;
+            }
 
-      body {
-        margin: 0;
-        padding: 32px 20px 60px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        min-height: 100vh;
-        background-color: #030507;
-        font-family: "Inter", sans-serif;
-        color: white;
-      }
+            body {
+                margin: 0;
+                padding: 32px 20px 60px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+                background-color: #030507;
+                font-family: 'Inter', sans-serif;
+                color: white;
+            }
 
-      /* Toolbar */
-      .toolbar {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 24px;
-        z-index: 100;
-      }
-      .toolbar label {
-        color: #94a3b8;
-        font-size: 13px;
-      }
-      .toolbar input[type="range"] {
-        width: 130px;
-        accent-color: #0ea5e9;
-      }
-      #scale-val {
-        color: #0ea5e9;
-        font-size: 13px;
-        min-width: 36px;
-        font-variant-numeric: tabular-nums;
-      }
-      .btn {
-        font-family: inherit;
-        font-size: 13px;
-        font-weight: 600;
-        border: none;
-        border-radius: 8px;
-        padding: 8px 16px;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-      .btn-primary {
-        background: #0ea5e9;
-        color: #fff;
-      }
-      .btn-primary:hover {
-        background: #0284c7;
-      }
-      .btn-ghost {
-        background: #1e293b;
-        color: #cbd5e1;
-        border: 1px solid #334155;
-      }
-      .btn-ghost:hover {
-        background: #334155;
-      }
+            /* Toolbar */
+            .toolbar {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                margin-bottom: 24px;
+                z-index: 100;
+            }
+            .toolbar label {
+                color: #94a3b8;
+                font-size: 13px;
+            }
+            .toolbar input[type='range'] {
+                width: 130px;
+                accent-color: #0ea5e9;
+            }
+            #scale-val {
+                color: #0ea5e9;
+                font-size: 13px;
+                min-width: 36px;
+                font-variant-numeric: tabular-nums;
+            }
+            .btn {
+                font-family: inherit;
+                font-size: 13px;
+                font-weight: 600;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .btn-primary {
+                background: #0ea5e9;
+                color: #fff;
+            }
+            .btn-primary:hover {
+                background: #0284c7;
+            }
+            .btn-ghost {
+                background: #1e293b;
+                color: #cbd5e1;
+                border: 1px solid #334155;
+            }
+            .btn-ghost:hover {
+                background: #334155;
+            }
 
-      #wrap {
-        transform-origin: top center;
-      }
+            #wrap {
+                transform-origin: top center;
+            }
 
-      /* CANVAS 720x240 */
-      .canvas {
-        width: 720px;
-        height: 240px;
-        position: relative;
-        background-color: #020617;
-        overflow: hidden;
-        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.8);
-      }
+            /* CANVAS 720x240 */
+            .canvas {
+                width: 720px;
+                height: 240px;
+                position: relative;
+                background-color: #020617;
+                overflow: hidden;
+                box-shadow: 0 24px 80px rgba(0, 0, 0, 0.8);
+            }
 
-      /* Background */
-      .bg-grid {
-        position: absolute;
-        inset: 0;
-        background-image:
-          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-        background-size: 30px 30px;
-        mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
-        -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
-        z-index: 1;
-      }
+            /* Background */
+            .bg-grid {
+                position: absolute;
+                inset: 0;
+                background-image:
+                    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+                background-size: 30px 30px;
+                mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+                -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+                z-index: 1;
+            }
 
-      .glow-1 {
-        position: absolute;
-        top: -200px;
-        left: 20%;
-        width: 500px;
-        height: 400px;
-        background: radial-gradient(ellipse, rgba(14, 165, 233, 0.25) 0%, transparent 60%);
-        z-index: 2;
-        border-radius: 50%;
-        filter: blur(60px);
-      }
+            .glow-1 {
+                position: absolute;
+                top: -200px;
+                left: 20%;
+                width: 500px;
+                height: 400px;
+                background: radial-gradient(ellipse, rgba(14, 165, 233, 0.25) 0%, transparent 60%);
+                z-index: 2;
+                border-radius: 50%;
+                filter: blur(60px);
+            }
 
-      .glow-2 {
-        position: absolute;
-        bottom: -150px;
-        right: -50px;
-        width: 400px;
-        height: 400px;
-        background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 60%);
-        z-index: 2;
-        border-radius: 50%;
-        filter: blur(60px);
-      }
+            .glow-2 {
+                position: absolute;
+                bottom: -150px;
+                right: -50px;
+                width: 400px;
+                height: 400px;
+                background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 60%);
+                z-index: 2;
+                border-radius: 50%;
+                filter: blur(60px);
+            }
 
-      /* Content — two columns */
-      .content {
-        position: relative;
-        z-index: 10;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        padding: 0 48px;
-        gap: 36px;
-      }
+            /* Content — two columns */
+            .content {
+                position: relative;
+                z-index: 10;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                padding: 0 48px;
+                gap: 36px;
+            }
 
-      /* Left: text */
-      .text-col {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        min-width: 0;
-      }
+            /* Left: text */
+            .text-col {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                min-width: 0;
+            }
 
-      .badge-wrap {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 4px 14px 4px 4px;
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(56, 189, 248, 0.3);
-        border-radius: 100px;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        align-self: flex-start;
-      }
+            .badge-wrap {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 4px 14px 4px 4px;
+                background: rgba(15, 23, 42, 0.6);
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                border-radius: 100px;
+                backdrop-filter: blur(12px);
+                box-shadow:
+                    0 2px 12px rgba(0, 0, 0, 0.4),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+                align-self: flex-start;
+            }
 
-      .logo-box {
-        width: 24px;
-        height: 24px;
-        background: #020617;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      }
+            .logo-box {
+                width: 24px;
+                height: 24px;
+                background: #020617;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
 
-      .logo-image {
-        width: 14px;
-        height: 14px;
-        object-fit: contain;
-      }
+            .logo-image {
+                width: 14px;
+                height: 14px;
+                object-fit: contain;
+            }
 
-      .badge-text {
-        color: #e2e8f0;
-        font-size: 11px;
-        font-weight: 500;
-        letter-spacing: 0.3px;
-        display: flex;
-        align-items: center;
-        gap: 5px;
-      }
+            .badge-text {
+                color: #e2e8f0;
+                font-size: 11px;
+                font-weight: 500;
+                letter-spacing: 0.3px;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }
 
-      .badge-text span {
-        color: #38bdf8;
-        font-weight: 600;
-      }
+            .badge-text span {
+                color: #38bdf8;
+                font-weight: 600;
+            }
 
-      .tagline {
-        margin: 0;
-        font-size: 20px;
-        font-weight: 700;
-        letter-spacing: -0.5px;
-        line-height: 1.2;
-        color: #ffffff;
-        text-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-      }
+            .tagline {
+                margin: 0;
+                font-size: 20px;
+                font-weight: 700;
+                letter-spacing: -0.5px;
+                line-height: 1.2;
+                color: #ffffff;
+                text-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+            }
 
-      .tagline-accent {
-        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
+            .tagline-accent {
+                background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
 
-      .sub-tagline {
-        margin: 0;
-        font-size: 13px;
-        font-weight: 500;
-        color: #94a3b8;
-        letter-spacing: -0.2px;
-        line-height: 1.4;
-      }
+            .sub-tagline {
+                margin: 0;
+                font-size: 13px;
+                font-weight: 500;
+                color: #94a3b8;
+                letter-spacing: -0.2px;
+                line-height: 1.4;
+            }
 
-      /* Right: screenshot */
-      .screenshot-col {
-        flex-shrink: 0;
-        width: 310px;
-        height: 190px;
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
-      }
+            /* Right: screenshot */
+            .screenshot-col {
+                flex-shrink: 0;
+                width: 310px;
+                height: 190px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow:
+                    0 8px 32px rgba(0, 0, 0, 0.6),
+                    0 0 0 1px rgba(255, 255, 255, 0.08);
+            }
 
-      .screenshot-image {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        object-position: top left;
-        display: block;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="toolbar">
-      <label>Zoom</label>
-      <input type="range" id="zoom" min="50" max="150" value="100" step="1" />
-      <span id="scale-val">100%</span>
-      <button class="btn btn-ghost" onclick="resetZoom()">Reset</button>
-      <button class="btn btn-primary" id="export-btn" onclick="exportPNG()">
-        Export PNG 720&times;240
-      </button>
-    </div>
-
-    <div id="wrap">
-      <div class="canvas">
-        <div class="bg-grid"></div>
-        <div class="glow-1"></div>
-        <div class="glow-2"></div>
-
-        <div class="content">
-          <div class="text-col">
-            <div class="badge-wrap">
-              <div class="logo-box">
-                <img
-                  src="https://tabularis.dev/img/logo.png"
-                  alt="Tabularis Logo"
-                  class="logo-image"
-                  crossorigin="anonymous"
-                />
-              </div>
-              <div class="badge-text">
-                <span>Tabularis</span> &mdash; Database Client
-              </div>
-            </div>
-            <h1 class="tagline">
-              A desktop client for<br /><span class="tagline-accent">modern databases.</span>
-            </h1>
-            <p class="sub-tagline">
-              PostgreSQL, MySQL/MariaDB, SQLite.<br />
-              AI, Notebooks, Plugins, and MCP built in.
-            </p>
-          </div>
-
-          <div class="screenshot-col">
-            <img
-              src="https://tabularis.dev/img/overview.png"
-              alt="Tabularis"
-              class="screenshot-image"
-              crossorigin="anonymous"
-            />
-          </div>
+            .screenshot-image {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                object-position: top left;
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="toolbar">
+            <label>Zoom</label>
+            <input type="range" id="zoom" min="50" max="150" value="100" step="1" />
+            <span id="scale-val">100%</span>
+            <button class="btn btn-ghost" onclick="resetZoom()">Reset</button>
+            <button class="btn btn-primary" id="export-btn" onclick="exportPNG()">
+                Export PNG 720&times;240
+            </button>
         </div>
-      </div>
-    </div>
 
-    <script>
-      const zoomEl = document.getElementById("zoom");
-      const scaleEl = document.getElementById("scale-val");
-      const wrap = document.getElementById("wrap");
+        <div id="wrap">
+            <div class="canvas">
+                <div class="bg-grid"></div>
+                <div class="glow-1"></div>
+                <div class="glow-2"></div>
 
-      function applyZoom(v) {
-        wrap.style.transform = `scale(${v / 100})`;
-        scaleEl.textContent = v + "%";
-      }
+                <div class="content">
+                    <div class="text-col">
+                        <div class="badge-wrap">
+                            <div class="logo-box">
+                                <img
+                                    src="https://tabularis.dev/img/logo.png"
+                                    alt="Tabularis Logo"
+                                    class="logo-image"
+                                    crossorigin="anonymous"
+                                />
+                            </div>
+                            <div class="badge-text">
+                                <span>Tabularis</span> &mdash; Database Client
+                            </div>
+                        </div>
+                        <h1 class="tagline">
+                            A desktop client for<br /><span class="tagline-accent"
+                                >modern databases.</span
+                            >
+                        </h1>
+                        <p class="sub-tagline">
+                            PostgreSQL, MySQL/MariaDB, SQLite.<br />
+                            AI, Notebooks, Plugins, and MCP built in.
+                        </p>
+                    </div>
 
-      zoomEl.addEventListener("input", () => applyZoom(+zoomEl.value));
-      applyZoom(+zoomEl.value);
+                    <div class="screenshot-col">
+                        <img
+                            src="https://tabularis.dev/img/overview.png"
+                            alt="Tabularis"
+                            class="screenshot-image"
+                            crossorigin="anonymous"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
 
-      function resetZoom() {
-        zoomEl.value = 100;
-        applyZoom(100);
-      }
+        <script>
+            const zoomEl = document.getElementById('zoom');
+            const scaleEl = document.getElementById('scale-val');
+            const wrap = document.getElementById('wrap');
 
-      async function exportPNG() {
-        const btn = document.getElementById("export-btn");
-        btn.textContent = "Generating...";
-        btn.disabled = true;
+            function applyZoom(v) {
+                wrap.style.transform = `scale(${v / 100})`;
+                scaleEl.textContent = v + '%';
+            }
 
-        wrap.style.transform = "none";
+            zoomEl.addEventListener('input', () => applyZoom(+zoomEl.value));
+            applyZoom(+zoomEl.value);
 
-        try {
-          const canvas = await html2canvas(document.querySelector(".canvas"), {
-            width: 720,
-            height: 240,
-            scale: 1,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: "#020617",
-            logging: false,
-          });
-          const a = document.createElement("a");
-          a.download = "tabularis-feature-banner-720x240.png";
-          a.href = canvas.toDataURL("image/png");
-          a.click();
-        } catch (e) {
-          alert("Error: " + e.message);
-        } finally {
-          applyZoom(+zoomEl.value);
-          btn.textContent = "Export PNG 720\u00d7240";
-          btn.disabled = false;
-        }
-      }
-    </script>
-  </body>
+            function resetZoom() {
+                zoomEl.value = 100;
+                applyZoom(100);
+            }
+
+            async function exportPNG() {
+                const btn = document.getElementById('export-btn');
+                btn.textContent = 'Generating...';
+                btn.disabled = true;
+
+                wrap.style.transform = 'none';
+
+                try {
+                    const canvas = await html2canvas(document.querySelector('.canvas'), {
+                        width: 720,
+                        height: 240,
+                        scale: 1,
+                        useCORS: true,
+                        allowTaint: false,
+                        backgroundColor: '#020617',
+                        logging: false,
+                    });
+                    const a = document.createElement('a');
+                    a.download = 'tabularis-feature-banner-720x240.png';
+                    a.href = canvas.toDataURL('image/png');
+                    a.click();
+                } catch (e) {
+                    alert('Error: ' + e.message);
+                } finally {
+                    applyZoom(+zoomEl.value);
+                    btn.textContent = 'Export PNG 720\u00d7240';
+                    btn.disabled = false;
+                }
+            }
+        </script>
+    </body>
 </html>

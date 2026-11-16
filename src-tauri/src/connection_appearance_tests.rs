@@ -17,7 +17,8 @@ mod tests {
 
     fn write_png(p: &Path, size: usize) {
         let mut f = fs::File::create(p).unwrap();
-        f.write_all(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]).unwrap();
+        f.write_all(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A])
+            .unwrap();
         f.write_all(&vec![0u8; size.saturating_sub(8)]).unwrap();
     }
 
@@ -89,7 +90,11 @@ mod tests {
     fn accepts_clean_svg() {
         let dir = tmp_dir();
         let src = dir.join("clean.svg");
-        fs::write(&src, b"<svg xmlns=\"http://www.w3.org/2000/svg\"><circle r=\"5\"/></svg>").unwrap();
+        fs::write(
+            &src,
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"><circle r=\"5\"/></svg>",
+        )
+        .unwrap();
         let rel = save_icon_impl(&dir.join("out"), "abc", &src).unwrap();
         assert!(rel.ends_with(".svg"));
     }
@@ -115,7 +120,7 @@ mod tests {
 
     #[test]
     fn cascade_delete_removes_image_icon() {
-        use crate::models::{IconOverride, ConnectionAppearance};
+        use crate::models::{ConnectionAppearance, IconOverride};
         let dir = tmp_dir();
         // Create the file under <dir>/connection-icons/foo.png
         let icons_dir = dir.join("connection-icons");
@@ -125,7 +130,9 @@ mod tests {
         assert!(file.exists());
 
         let appearance = ConnectionAppearance {
-            icon: Some(IconOverride::Image { path: "connection-icons/foo.png".into() }),
+            icon: Some(IconOverride::Image {
+                path: "connection-icons/foo.png".into(),
+            }),
             accent_color: None,
         };
         crate::connection_appearance::cascade_delete_if_image(&dir, Some(&appearance)).unwrap();
@@ -134,11 +141,13 @@ mod tests {
 
     #[test]
     fn cascade_delete_noop_when_no_image() {
-        use crate::models::{IconOverride, ConnectionAppearance};
+        use crate::models::{ConnectionAppearance, IconOverride};
         let dir = tmp_dir();
         // Pack variant — should not touch any file.
         let appearance = ConnectionAppearance {
-            icon: Some(IconOverride::Pack { id: "server".into() }),
+            icon: Some(IconOverride::Pack {
+                id: "server".into(),
+            }),
             accent_color: Some("#ff0000".into()),
         };
         crate::connection_appearance::cascade_delete_if_image(&dir, Some(&appearance)).unwrap();
@@ -148,10 +157,12 @@ mod tests {
 
     #[test]
     fn cascade_delete_silently_ignores_missing_file() {
-        use crate::models::{IconOverride, ConnectionAppearance};
+        use crate::models::{ConnectionAppearance, IconOverride};
         let dir = tmp_dir();
         let appearance = ConnectionAppearance {
-            icon: Some(IconOverride::Image { path: "connection-icons/does-not-exist.png".into() }),
+            icon: Some(IconOverride::Image {
+                path: "connection-icons/does-not-exist.png".into(),
+            }),
             accent_color: None,
         };
         // Should NOT return an error — deleting a connection should not fail just because its icon vanished.
@@ -160,8 +171,8 @@ mod tests {
 
     #[test]
     fn cascade_delete_rejects_path_traversal() {
-        use crate::models::{IconOverride, ConnectionAppearance};
         use crate::connection_appearance::cascade_delete_if_image;
+        use crate::models::{ConnectionAppearance, IconOverride};
         let dir = tmp_dir();
         let icons_dir = dir.join("connection-icons");
         std::fs::create_dir_all(&icons_dir).unwrap();
@@ -171,12 +182,17 @@ mod tests {
         assert!(outside.exists());
 
         let appearance = ConnectionAppearance {
-            icon: Some(IconOverride::Image { path: "../victim.txt".into() }),
+            icon: Some(IconOverride::Image {
+                path: "../victim.txt".into(),
+            }),
             accent_color: None,
         };
         cascade_delete_if_image(&dir, Some(&appearance)).unwrap();
         // Victim must still exist — path-traversal attack must be blocked
-        assert!(outside.exists(), "path-traversal attack should not delete files outside icons dir");
+        assert!(
+            outside.exists(),
+            "path-traversal attack should not delete files outside icons dir"
+        );
     }
 
     #[test]
@@ -189,7 +205,8 @@ mod tests {
         let src_path = dir.join(src_rel);
         std::fs::write(&src_path, &[0x89, b'P', b'N', b'G', 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
 
-        let new_rel = crate::connection_appearance::copy_icon_for_duplicate(&dir, src_rel, "newid").unwrap();
+        let new_rel =
+            crate::connection_appearance::copy_icon_for_duplicate(&dir, src_rel, "newid").unwrap();
         assert_ne!(new_rel, src_rel);
         assert!(new_rel.starts_with("connection-icons/newid-"));
         // Both files must exist: original is preserved, duplicate has its own copy
@@ -204,6 +221,9 @@ mod tests {
         std::fs::create_dir_all(dir.join("connection-icons")).unwrap();
         std::fs::write(dir.join("victim.txt"), b"important").unwrap();
         let err = copy_icon_for_duplicate(&dir, "../victim.txt", "newid").unwrap_err();
-        assert!(matches!(err, IconError::InvalidConnectionId | IconError::Io(_)));
+        assert!(matches!(
+            err,
+            IconError::InvalidConnectionId | IconError::Io(_)
+        ));
     }
 }

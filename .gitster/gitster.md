@@ -66,7 +66,7 @@ Tabularis is a lightweight, developer-focused database client built with Tauri, 
 ### 🤖 AI Assistant (Experimental)
 
 - Natural-language to SQL, query explanations, and "Explain selection" modal
-- Providers: **OpenAI**, **Anthropic**, **MiniMax**, **OpenRouter**, **Ollama** (fully local), and any **OpenAI-compatible API** (Groq, Perplexity, Azure, LocalAI…)
+- Providers: **OpenAI**, **Anthropic**, **MiniMax**, **OpenRouter**, **Requesty**, **Ollama** (fully local), and any **OpenAI-compatible API** (Groq, Perplexity, Azure, LocalAI…)
 - Dynamic model fetching with 24h cache; context-aware (sends schema only, never raw data)
 
 ### 🧠 MCP Server

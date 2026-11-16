@@ -20,6 +20,7 @@ mod tests {
             tool: tool.to_string(),
             connection_id: Some("c1".to_string()),
             connection_name: Some(conn_name.to_string()),
+            database: None,
             query: query.map(|s| s.to_string()),
             query_kind: query.map(|_| "select".to_string()),
             duration_ms: 1,
@@ -192,10 +193,7 @@ mod tests {
 
     #[test]
     fn cell_name_does_not_use_inline_comment_after_sql() {
-        assert_eq!(
-            derive_cell_name("SELECT 1 -- not a name", 4),
-            "Query 4"
-        );
+        assert_eq!(derive_cell_name("SELECT 1 -- not a name", 4), "Query 4");
     }
 
     #[test]

@@ -28,6 +28,11 @@ type Client = deadpool_postgres::Client;
 /// owns it left an explicit transaction open.
 struct PinnedSession {
     client: Client,
+    /// The database the client is connected to. A pinned connection belongs
+    /// to one transaction, and a transaction is scoped to one database, so a
+    /// tab that switches databases mid-transaction must not silently keep
+    /// running statements on the old one.
+    database: String,
     last_used: Instant,
 }
 
@@ -51,6 +56,16 @@ impl Slot {
         self.0.take().map(|s| s.client)
     }
 
+    /// The database the pinned connection is on, if a session is pinned.
+    ///
+    /// Borrowed without unpinning, so [`execute_batch_in_session`] can reject
+    /// a database mismatch before [`Slot::take`] — leaving the pinned session
+    /// (and its open transaction) intact when the caller is on the wrong
+    /// database instead of silently consuming it.
+    pub fn database(&self) -> Option<&str> {
+        self.0.as_ref().map(|s| s.database.as_str())
+    }
+
     /// Borrow the pinned connection without unpinning it.
     pub fn client(&self) -> Option<&Client> {
         self.0.as_ref().map(|s| &s.client)
@@ -63,13 +78,40 @@ impl Slot {
         }
     }
 
-    /// Pin `client` until the tab ends its transaction.
-    pub fn pin(&mut self, client: Client) {
+    /// Pin `client` on `database` until the tab ends its transaction.
+    pub fn pin(&mut self, client: Client, database: String) {
         self.0 = Some(PinnedSession {
             client,
+            database,
             last_used: Instant::now(),
         });
     }
+}
+
+/// Reject when a pinned session's database differs from the one a run or
+/// export targets, returning an error naming both databases and the action.
+/// `None` for `pinned` means no transaction is open and the caller may acquire
+/// a fresh connection.
+///
+/// `action` is the verb inserted into the message ("run" or "export") so the
+/// two call sites — [`super::execute_batch_in_session`] and
+/// [`super::export::stream_query`] — share one check without duplicating the
+/// formatting, while keeping their messages distinct.
+pub(crate) fn check_pinned_database(
+    pinned: Option<&str>,
+    requested: &str,
+    action: &str,
+) -> Result<(), String> {
+    if let Some(pinned_db) = pinned {
+        if pinned_db != requested {
+            return Err(format!(
+                "This tab has an open transaction on database \"{pinned_db}\" \
+                 and cannot {action} on database \"{requested}\". End the \
+                 transaction (ROLLBACK or COMMIT) or switch back to \"{pinned_db}\"."
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// A pinned connection holds its transaction's locks until the tab ends it.

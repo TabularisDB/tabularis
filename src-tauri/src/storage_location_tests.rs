@@ -12,7 +12,12 @@ fn temp_dir(name: &str) -> PathBuf {
     ));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
-    dir
+    // macOS's temp_dir() resolves under /var, which is itself a symlink to
+    // /private/var. Canonicalize so callers that derive sibling/parent paths
+    // (e.g. current.parent()) stay consistent with validate_target's own
+    // internal canonicalization — a no-op on Linux/Windows, where the temp
+    // directory isn't behind a symlink.
+    dir.canonicalize().unwrap()
 }
 
 fn abs(p: &str) -> PathBuf {

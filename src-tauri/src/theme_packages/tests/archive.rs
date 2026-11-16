@@ -2,7 +2,20 @@ use super::super::{validate_theme_archive, ValidatedThemePackage};
 use serde_json::{json, Value};
 use std::cell::Cell;
 use std::io::{Cursor, Write};
+use tempfile::TempDir;
 use zip::write::SimpleFileOptions;
+
+/// A fresh temp directory, canonicalized. On macOS, `env::temp_dir()`
+/// resolves under `/var`, itself a symlink to `/private/var` — resolving it
+/// here keeps every test's path consistent with the production code's own
+/// internal canonicalization (e.g. `storage_location::validate_target`,
+/// `files::check_path`'s symlink rejection), instead of each test tripping
+/// over the OS's own temp-dir symlink. A no-op on Linux/Windows, where the
+/// temp directory isn't behind a symlink.
+pub(super) fn temp_dir() -> TempDir {
+    let base = std::env::temp_dir().canonicalize().unwrap();
+    tempfile::tempdir_in(base).unwrap()
+}
 
 pub(super) fn manifest() -> Value {
     json!({"name":"fixture-theme","version":"1.0.0","kind":"theme","min_runtime_version":"0.99.0",

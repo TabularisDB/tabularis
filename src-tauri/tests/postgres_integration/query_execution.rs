@@ -1,6 +1,6 @@
 //! Query execution tests.
 
-use crate::helpers::pg_params;
+use crate::helpers::{pg_params, pg_params_secondary};
 use tabularis_lib::drivers::postgres;
 
 #[tokio::test]
@@ -179,4 +179,64 @@ async fn test_execute_batch_session_state() {
         .expect("SELECT should produce a result");
     assert_eq!(select_result.rows.len(), 1);
     assert_eq!(select_result.rows[0][0], serde_json::json!(42));
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_pinned_session_rejects_database_mismatch() {
+    // A transaction started on one database must not silently run on another
+    // when the tab switches databases mid-transaction (#947).
+    require_pg!();
+    let primary = pg_params();
+    let secondary = pg_params_secondary();
+    let session = "test-pinned-session-db-mismatch";
+
+    // Start a transaction on the primary database and leave it open.
+    let (_results, pinned) = postgres::execute_batch_in_session(
+        &primary,
+        &["BEGIN".into()],
+        None,
+        1,
+        None,
+        Some(session),
+        None,
+    )
+    .await
+    .expect("BEGIN should succeed");
+    assert!(pinned, "BEGIN should leave a pinned transaction");
+
+    // The same session, now targeting the secondary database, must be rejected
+    // rather than silently running on the primary connection.
+    let err = postgres::execute_batch_in_session(
+        &secondary,
+        &["SELECT 1".into()],
+        None,
+        1,
+        None,
+        Some(session),
+        None,
+    )
+    .await
+    .expect_err("database mismatch should be rejected");
+    assert!(
+        err.contains("open transaction on database") && err.contains("testdb"),
+        "error should name the pinned database, got: {err}"
+    );
+    assert!(
+        err.contains("tabularis_test_secondary"),
+        "error should name the requested database, got: {err}"
+    );
+
+    // Clean up: roll back the open transaction on the primary.
+    postgres::execute_batch_in_session(
+        &primary,
+        &["ROLLBACK".into()],
+        None,
+        1,
+        None,
+        Some(session),
+        None,
+    )
+    .await
+    .expect("ROLLBACK should succeed");
 }

@@ -1,6 +1,6 @@
 /** Read-only validation for branches and untrusted pull requests. */
 export function themeValidationWorkflow(): string {
-  return `name: Validate theme
+    return `name: Validate theme
 on:
   push:
     branches: ['**']

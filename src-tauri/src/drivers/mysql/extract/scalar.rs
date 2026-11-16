@@ -3,7 +3,8 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::drivers::common::{encode_blob, i64_to_json, u64_to_json};
+use super::temporal::format_mysql_datetime;
+use crate::drivers::common::{encode_blob, float4_to_json_f64, i64_to_json, u64_to_json};
 
 pub(super) fn extract_decimal_value(
     row: &sqlx::mysql::MySqlRow,
@@ -29,11 +30,16 @@ pub(super) fn extract_decimal_value(
 pub(super) fn extract_fallback_value(
     row: &sqlx::mysql::MySqlRow,
     index: usize,
+    effective_type: &str,
 ) -> Option<serde_json::Value> {
+    if effective_type == "FLOAT" {
+        if let Ok(value) = row.try_get::<f32, _>(index) {
+            return Some(serde_json::Value::from(float4_to_json_f64(value)));
+        }
+    }
+
     if let Ok(value) = row.try_get::<NaiveDateTime, _>(index) {
-        return Some(serde_json::Value::String(
-            value.format("%Y-%m-%d %H:%M:%S").to_string(),
-        ));
+        return Some(serde_json::Value::String(format_mysql_datetime(&value)));
     }
     if let Ok(value) = row.try_get::<NaiveDate, _>(index) {
         return Some(serde_json::Value::String(value.to_string()));

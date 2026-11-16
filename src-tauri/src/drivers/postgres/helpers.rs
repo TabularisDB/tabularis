@@ -1,3 +1,5 @@
+use crate::drivers::common::full_type_if_distinct;
+
 /// Extract base type name, e.g. "GEOMETRY(Point, 4326)" -> "GEOMETRY", "VARCHAR(255)" -> "VARCHAR"
 pub(super) fn extract_base_type(data_type: &str) -> String {
     if let Some(idx) = data_type.find('(') {
@@ -63,6 +65,27 @@ pub(super) fn enum_data_type(data_type: String, enum_values: Option<String>) -> 
         Some(vals) if !vals.is_empty() => format!("enum({})", vals),
         _ => data_type,
     }
+}
+
+/// Builds the `(data_type, full_type)` reported on a `TableColumn` from the
+/// `information_schema` type, the enum labels and `format_type(atttypid,
+/// atttypmod)`.
+///
+/// `full_type` carries the declared type with its modifiers for display
+/// (`character varying(255)`, `numeric(10,2)`, `integer[]`) when it says more
+/// than `data_type` (#1277). Enum columns get none: `data_type` already lists
+/// their values (`enum('free','pro')`), which says more than the bare type
+/// name `format_type` returns.
+pub(super) fn postgres_column_types(
+    data_type: String,
+    enum_values: Option<String>,
+    formatted_type: Option<String>,
+) -> (String, Option<String>) {
+    if enum_values.as_deref().is_some_and(|vals| !vals.is_empty()) {
+        return (enum_data_type(data_type, enum_values), None);
+    }
+    let full_type = full_type_if_distinct(&data_type, formatted_type);
+    (data_type, full_type)
 }
 
 /// Checks if a string value looks like WKT (Well-Known Text) geometry format

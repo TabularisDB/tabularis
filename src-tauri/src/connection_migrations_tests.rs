@@ -32,12 +32,14 @@ mod tests {
                 ssl_mode: ssl_mode.map(str::to_string),
                 ..base_params()
             },
+            plugin_secret_keys: Vec::new(),
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         }
     }
 
