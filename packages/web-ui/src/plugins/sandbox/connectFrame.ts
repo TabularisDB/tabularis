@@ -1,3 +1,4 @@
+import {webPath} from '@/utils/webBasePath';
 import {getActivePlatformCapabilities} from '@/platform/activeCapabilities';
 import {RpcPort} from './rpc';
 
@@ -13,11 +14,14 @@ export async function pluginFrameUrl(
         const timeout = window.setTimeout(() => controller.abort(), 15_000);
         let response: Response;
         try {
-            response = await fetch(`/api/v1/sandbox-ticket/${encodeURIComponent(pluginId)}`, {
-                credentials: 'same-origin',
-                cache: 'no-store',
-                signal: controller.signal,
-            });
+            response = await fetch(
+                webPath(`/api/v1/sandbox-ticket/${encodeURIComponent(pluginId)}`),
+                {
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    signal: controller.signal,
+                },
+            );
         } finally {
             window.clearTimeout(timeout);
         }
@@ -32,7 +36,7 @@ export async function pluginFrameUrl(
             !payload.baseUrl.endsWith(`/${encodeURIComponent(pluginId)}/`)
         )
             throw new Error('Invalid plugin sandbox access response');
-        return `${payload.baseUrl}__guest__.html?${query}`;
+        return `${webPath(payload.baseUrl)}__guest__.html?${query}`;
     }
     return `${base}${encodeURIComponent(pluginId)}/__guest__.html?${query}`;
 }

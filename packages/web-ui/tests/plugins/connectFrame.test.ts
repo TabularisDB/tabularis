@@ -54,3 +54,28 @@ describe('connectFrame in a browser environment', () => {
         );
     });
 });
+
+it('prefixes the sandbox ticket and guest URL with runtime configuration', async () => {
+    const {registerActivePlatformCapabilities} = await import('@/platform/activeCapabilities');
+    const {BrowserPlatformCapabilities} = await import('@/platform/browserCapabilities');
+    registerActivePlatformCapabilities(new BrowserPlatformCapabilities({} as never));
+    const {pluginFrameUrl} = await import('@/plugins/sandbox/connectFrame');
+    const meta = document.createElement('meta');
+    meta.name = 'tabularis-public-base';
+    meta.content = '/workspaces/test/';
+    document.head.append(meta);
+    const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({baseUrl: '/api/v1/sandbox/plugins/session/ticket/probe/'}),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+        await expect(pluginFrameUrl('probe', 'ui.js')).resolves.toBe(
+            '/workspaces/test/api/v1/sandbox/plugins/session/ticket/probe/__guest__.html?module=ui.js&mode=ui',
+        );
+        expect(fetchMock.mock.calls[0][0]).toBe('/workspaces/test/api/v1/sandbox-ticket/probe');
+    } finally {
+        meta.remove();
+        vi.unstubAllGlobals();
+    }
+});

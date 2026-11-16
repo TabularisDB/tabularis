@@ -66,6 +66,10 @@ pub enum Command {
 
 #[derive(Debug, ClapArgs)]
 pub struct WebArgs {
+    /// Public mount path; the reverse proxy must strip it from upstream requests
+    #[arg(long, value_name = "PATH")]
+    pub base_path: Option<String>,
+
     /// Address for the Web UI server to bind
     #[arg(long, value_name = "HOST", default_value = "127.0.0.1")]
     pub host: String,

@@ -16,6 +16,7 @@ The Web-specific options are:
 | Option | Purpose and constraints |
 |---|---|
 | `web` | Start the HTTP and WebSocket server without creating a desktop window. It conflicts with `--mcp` and `--explain`. |
+| `--base-path` | Runtime public prefix, such as `/tabularis/w/workspace-id/`. The gateway strips it and preserves Host/Origin. See [public base paths](WEB_BASE_PATH.md) for validation and build-time compatibility. |
 | `--host` | Bind address. The default is `127.0.0.1`. A non-loopback address is rejected unless remote authentication is fully configured. |
 | `--port` | Bind port. The default is `8080`; there is no automatic port fallback, so choose another port if it is occupied. |
 | `--no-open` | Do not launch a browser. Use this for services, remote deployments, and liveness-only automation. For an interactive local session, let Tabularis open the one-time bootstrap URL. |

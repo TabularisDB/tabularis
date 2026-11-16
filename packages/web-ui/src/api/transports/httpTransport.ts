@@ -1,3 +1,4 @@
+import {runtimeWebBasePath} from '@/utils/webBasePath';
 import {normalizeWebBasePath} from '@/utils/webBasePath';
 import type {TabularisTransport} from '@/api/client';
 import type {
@@ -90,7 +91,7 @@ export class HttpTransport implements TabularisTransport {
 
     constructor(options: HttpTransportOptions = {}) {
         this.baseUrl = normalizeBaseUrl(
-            options.baseUrl ?? new URL(import.meta.env.BASE_URL, browserOrigin()).toString(),
+            options.baseUrl ?? new URL(runtimeWebBasePath(), browserOrigin()).toString(),
         );
         this.fetchRequest = options.fetch ?? globalThis.fetch.bind(globalThis);
         this.createSocket = options.createWebSocket ?? ((url) => new WebSocket(url));

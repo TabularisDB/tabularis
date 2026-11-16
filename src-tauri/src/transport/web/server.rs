@@ -60,6 +60,7 @@ const CROSS_ORIGIN_RESOURCE_POLICY: HeaderName =
     HeaderName::from_static("cross-origin-resource-policy");
 
 pub struct WebServerOptions {
+    pub base_path: Option<String>,
     pub trusted_proxies: Vec<ipnet::IpNet>,
     pub host: String,
     pub port: u16,
@@ -127,6 +128,10 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
         );
     }
     reject_short_credentials(&options).await?;
+    let public_base = super::base_path::PublicBasePath::for_build(
+        &options.web_root,
+        options.base_path.as_deref(),
+    )?;
     let server_file_browser_roots =
         super::server_files::canonicalize_roots(&options.server_file_browser_roots)?;
     let listener = TcpListener::bind((options.host.as_str(), options.port))
@@ -165,9 +170,13 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
                 authentication,
             )?;
             let launch_url = if auth_mode == WebAuthMode::Password {
-                format!("{}{LOGIN_PAGE_PATH}", security.expected_origin())
+                format!(
+                    "{}{}",
+                    security.expected_origin(),
+                    public_base.public_path(LOGIN_PAGE_PATH)
+                )
             } else {
-                format!("{}/", security.expected_origin())
+                format!("{}{}", security.expected_origin(), public_base.as_str())
             };
             (security, launch_url, public_url)
         }
@@ -184,7 +193,8 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
                 LocalSessionSecurityConfig::default(),
             )?;
             let launch_url = format!(
-                "{public_url}{BOOTSTRAP_PATH}?token={}",
+                "{public_url}{}?token={}",
+                public_base.public_path(BOOTSTRAP_PATH),
                 bootstrap_token.expose()
             );
             drop(bootstrap_token);
@@ -220,6 +230,7 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
         server_file_browser_roots,
         options.connection_policy,
         provisioning_token,
+        public_base,
         shutdown_signal(),
     )
     .await
@@ -416,6 +427,7 @@ where
         server_file_browser_roots,
         connection_policy,
         None,
+        super::base_path::PublicBasePath::default(),
         shutdown,
     )
     .await
@@ -432,6 +444,7 @@ pub(crate) async fn serve_with_configuration<F>(
     server_file_browser_roots: Arc<[PathBuf]>,
     connection_policy: ManagedConnectionPolicy,
     provisioning_token: Option<super::provisioning::ProvisioningToken>,
+    public_base: super::base_path::PublicBasePath,
     shutdown: F,
 ) -> std::io::Result<()>
 where
@@ -448,6 +461,10 @@ where
         connection_policy,
         provisioning_token,
     );
+    let router = router.layer(middleware::from_fn_with_state(
+        public_base,
+        super::base_path::adapt_response,
+    ));
     // Keep reclamation owned by the server future, including cancellation and shutdown.
     tokio::select! {
         result = async {

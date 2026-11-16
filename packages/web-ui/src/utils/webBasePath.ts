@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 /// <reference types="vite/client" />
 
 /** Normalize a build-time mount path without accepting an origin or URL components. */
@@ -16,6 +17,16 @@ export function normalizeWebBasePath(value = '/'): string {
 }
 
 /** Prefix app-relative URLs at browser boundaries; router navigation stays relative to its basename. */
-export function webPath(path: string, basePath = import.meta.env.BASE_URL): string {
+export function webPath(path: string, basePath = runtimeWebBasePath()): string {
     return `${normalizeWebBasePath(basePath)}${path.replace(/^\//, '')}`;
+}
+
+/** The server writes this meta tag from trusted startup configuration only. */
+export function runtimeWebBasePath(): string {
+    const configured =
+        typeof document === 'undefined'
+            ? null
+            : document.querySelector<HTMLMetaElement>('meta[name="tabularis-public-base"]')
+                  ?.content;
+    return normalizeWebBasePath(configured ?? import.meta.env.BASE_URL);
 }
