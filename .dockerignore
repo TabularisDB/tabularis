@@ -8,6 +8,8 @@
 !.node-version
 !packages/
 !plugins/manifest.schema.json
+!plugins/ai-assistants/manifest.schema.json
+!plugins/ai-assistants/packages/
 !src-tauri/
 !docker/
 
