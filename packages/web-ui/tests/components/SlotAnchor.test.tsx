@@ -141,4 +141,54 @@ describe('SlotAnchor', () => {
         expect(wrapper?.getAttribute('data-slot')).toBe('data-grid.toolbar.actions');
         expect(wrapper?.className).toContain('test-class');
     });
+    it('filters workspace content by owner and shows a fallback if unavailable', () => {
+        const registry = {
+            contributions: [],
+            register: () => () => {},
+            registerAll: () => () => {},
+            getSlotContributions: () => [
+                {
+                    pluginId: 'owner',
+                    slot: 'editor.workspace.content' as const,
+                    component: GoodPlugin,
+                },
+                {
+                    pluginId: 'other',
+                    slot: 'editor.workspace.content' as const,
+                    component: GoodPlugin,
+                },
+            ],
+        };
+        const context = {
+            pluginId: 'owner',
+            workspaceId: 'services',
+            connectionId: 'c1',
+            driver: 'custom',
+            schema: null,
+        };
+        const {rerender} = render(
+            <PluginSlotContext.Provider value={registry}>
+                <SlotAnchor
+                    name="editor.workspace.content"
+                    pluginId="owner"
+                    context={context}
+                    fallback={<p>Unavailable</p>}
+                />
+            </PluginSlotContext.Provider>,
+        );
+        expect(screen.getAllByTestId('good-plugin')).toHaveLength(1);
+        expect(screen.getByTestId('good-plugin')).toHaveTextContent('owner');
+        rerender(
+            <PluginSlotContext.Provider value={registry}>
+                <SlotAnchor
+                    name="editor.workspace.content"
+                    pluginId="missing"
+                    context={context}
+                    fallback={<p>Unavailable</p>}
+                />
+            </PluginSlotContext.Provider>,
+        );
+        expect(screen.getByText('Unavailable')).toBeInTheDocument();
+        expect(screen.queryByTestId('good-plugin')).not.toBeInTheDocument();
+    });
 });

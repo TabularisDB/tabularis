@@ -1684,11 +1684,17 @@ async fn routes_ai_commands_through_the_shared_application_api() {
         ),
         ("get_ai_models", serde_json::json!({"forceRefresh": false})),
         ("generate_ai_query", generate),
-        ("complete_ai_inline", serde_json::json!({"req": {
-            "requestId": "inline-contract", "provider": "ollama", "model": "local",
-            "prefix": "SELECT ", "suffix": "", "schema": "", "dialect": "postgres"
-        }})),
-        ("cancel_ai_inline", serde_json::json!({"requestId": "inline-contract"})),
+        (
+            "complete_ai_inline",
+            serde_json::json!({"req": {
+                "requestId": "inline-contract", "provider": "ollama", "model": "local",
+                "prefix": "SELECT ", "suffix": "", "schema": "", "dialect": "postgres"
+            }}),
+        ),
+        (
+            "cancel_ai_inline",
+            serde_json::json!({"requestId": "inline-contract"}),
+        ),
         ("explain_ai_query", explain.clone()),
         ("analyze_ai_explain_plan", explain.clone()),
         ("analyze_ai_crash_report", explain),
@@ -3245,6 +3251,134 @@ async fn database_backup_rpc_requires_local_admin_and_uses_the_shared_applicatio
             assert_eq!(response.status(), expected, "{command}");
         }
     }
+}
+
+#[tokio::test]
+async fn plugin_extensions_enforce_web_authorization_and_reject_credential_injection() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let commands = [
+        (
+            "call_plugin_extension",
+            serde_json::json!({"pluginId":"test-plugin","connectionId":"first","method":"service_status","args":{}}),
+        ),
+        (
+            "set_plugin_secrets",
+            serde_json::json!({"pluginId":"test-plugin","connectionId":"first","secrets":{"TOKEN":"private"}}),
+        ),
+        (
+            "delete_plugin_secrets",
+            serde_json::json!({"pluginId":"test-plugin","connectionId":"first"}),
+        ),
+    ];
+    for (name, payload) in commands {
+        for authorization in [
+            AuthorizationLevel::Session,
+            AuthorizationLevel::Database,
+            AuthorizationLevel::Sensitive,
+        ] {
+            assert_eq!(
+                dispatch_json(
+                    &dispatcher,
+                    name,
+                    payload.clone(),
+                    Some(Uuid::new_v4()),
+                    authorization
+                )
+                .await
+                .status(),
+                StatusCode::FORBIDDEN
+            );
+        }
+        assert_eq!(
+            dispatch_json(
+                &dispatcher,
+                name,
+                payload.clone(),
+                Some(Uuid::new_v4()),
+                AuthorizationLevel::LocalAdmin
+            )
+            .await
+            .status(),
+            StatusCode::OK
+        );
+        let mut injected = payload;
+        injected["params"] = serde_json::json!({"host":"attacker.example","password":"secret"});
+        assert_eq!(
+            dispatch_json(
+                &dispatcher,
+                name,
+                injected,
+                Some(Uuid::new_v4()),
+                AuthorizationLevel::LocalAdmin
+            )
+            .await
+            .status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+    let fields = serde_json::json!({"pluginId":"test-plugin","connectionId":"first"});
+    assert_eq!(
+        dispatch_json(
+            &dispatcher,
+            "get_plugin_secret_fields",
+            fields.clone(),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::Session
+        )
+        .await
+        .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        dispatch_json(
+            &dispatcher,
+            "get_plugin_secret_fields",
+            fields,
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::Database
+        )
+        .await
+        .status(),
+        StatusCode::OK
+    );
+    assert!(RpcCommand::parse("get_plugin_secrets").is_none());
+}
+
+#[tokio::test]
+async fn provider_accounts_are_admin_only_and_reject_injected_connection_parameters() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    for operation in ["fields", "disconnect", "connect", "call", "import"] {
+        let payload = serde_json::json!({"pluginId":"neon","operation":operation});
+        for level in [
+            AuthorizationLevel::Session,
+            AuthorizationLevel::Database,
+            AuthorizationLevel::Sensitive,
+        ] {
+            assert_eq!(
+                dispatch_json(
+                    &dispatcher,
+                    "plugin_account",
+                    payload.clone(),
+                    Some(Uuid::new_v4()),
+                    level
+                )
+                .await
+                .status(),
+                StatusCode::FORBIDDEN
+            );
+        }
+    }
+    let invalid = dispatch_json(&dispatcher,"plugin_account",serde_json::json!({"pluginId":"neon","operation":"import","args":{},"params":{"password":"injected"}}),Some(Uuid::new_v4()),AuthorizationLevel::LocalAdmin).await;
+    assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+    let valid = dispatch_json(
+        &dispatcher,
+        "plugin_account",
+        serde_json::json!({"pluginId":"neon","operation":"fields"}),
+        Some(Uuid::new_v4()),
+        AuthorizationLevel::LocalAdmin,
+    )
+    .await;
+    assert_eq!(valid.status(), StatusCode::OK);
 }
 
 #[tokio::test]

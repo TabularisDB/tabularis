@@ -1,5 +1,17 @@
 import {describe, it, expect} from 'vitest';
-import {toErrorMessage, splitErrorDetails} from '@/utils/errors';
+import {toErrorMessage, splitErrorDetails, isModuleLoadError} from '@/utils/errors';
+
+describe('isModuleLoadError', () => {
+    it('recognizes WebKit and Chromium module loading failures', () => {
+        expect(isModuleLoadError(new TypeError('Importing a module script failed.'))).toBe(true);
+        expect(
+            isModuleLoadError(
+                new TypeError('Failed to fetch dynamically imported module: /assets/Editor.js'),
+            ),
+        ).toBe(true);
+        expect(isModuleLoadError(new Error('SQL execution failed'))).toBe(false);
+    });
+});
 
 describe('toErrorMessage', () => {
     it('returns strings unchanged', () => {

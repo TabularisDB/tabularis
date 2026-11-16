@@ -3677,5 +3677,8 @@
     "copySummary": "Copiar resumo",
     "copied": "Resumo copiado, com valores literais ocultos.",
     "copyFailed": "Não foi possível copiar o resumo."
+  },
+  "pluginWorkspace": {
+    "unavailable": "Este espaço de trabalho está indisponível. Ative ou reinstale o plugin nas configurações."
   }
 }

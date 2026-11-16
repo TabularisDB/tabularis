@@ -1,6 +1,9 @@
 import {getHost} from './host';
 import type {
     UsePluginConnectionReturn,
+    UsePluginWorkspaceReturn,
+    UsePluginRpcReturn,
+    UsePluginAccountReturn,
     UsePluginModalReturn,
     UsePluginQueryReturn,
     UsePluginSettingReturn,
@@ -71,6 +74,40 @@ export function usePluginTheme(): UsePluginThemeReturn {
  */
 export async function openUrl(url: string): Promise<void> {
     return getHost().openUrl(url);
+}
+
+/** Copy a command or diagnostic through the host clipboard. */
+export async function copyText(text: string): Promise<void> {
+    return getHost().copyText(text);
+}
+
+/** Notify other mounted views of the same plugin with a JSON payload of at most 64 KiB. */
+export function publishPluginEvent(pluginId: string, name: string, detail: unknown): Promise<void> {
+    return getHost().publishPluginEvent(pluginId, name, detail);
+}
+
+/** Subscribe to this plugin's events; the host removes the listener when the component unmounts. */
+export function usePluginEvent(
+    pluginId: string,
+    name: string,
+    listener: (detail: unknown) => void,
+): void {
+    return getHost().usePluginEvent(pluginId, name, listener);
+}
+
+/** Connection-scoped services; stored secret values cannot be read through this API. */
+export function usePluginRpc(pluginId: string, connectionId?: string): UsePluginRpcReturn {
+    return getHost().usePluginRpc(pluginId, connectionId);
+}
+
+/** Open or focus a plugin-owned workspace on the current editor connection. */
+export function usePluginWorkspace(pluginId: string): UsePluginWorkspaceReturn {
+    return getHost().usePluginWorkspace(pluginId);
+}
+
+/** Provider account operations that do not require a saved database connection. */
+export function usePluginAccount(pluginId: string): UsePluginAccountReturn {
+    return getHost().usePluginAccount(pluginId);
 }
 
 /** Exchange or refresh Google OAuth tokens through the host's fixed token endpoint. */

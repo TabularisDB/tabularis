@@ -30,6 +30,13 @@ export function isPluginApiCompatible(hostVersion: string, requiredVersion?: str
     const host = parseSemanticVersion(hostVersion);
     const required = parseSemanticVersion(requiredVersion);
     if (!host || !required || host.major !== required.major) return false;
-    if (host.major === 0 && host.minor !== required.minor) return false;
+    // Both hosts retain the published 0.1.0/0.1.1 facade; 0.2 provider bundles
+    // cannot run in the sandbox until their scoped RPC and UI bridge is ported.
+    const retainedApi =
+        host.major === 0 &&
+        (host.minor === 2 || host.minor === 4) &&
+        required.minor === 1 &&
+        required.patch <= 1;
+    if (host.major === 0 && host.minor !== required.minor && !retainedApi) return false;
     return compareVersions(host, required) >= 0;
 }
