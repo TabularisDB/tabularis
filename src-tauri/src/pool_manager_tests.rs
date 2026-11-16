@@ -1590,6 +1590,55 @@ mod postgres_tls_connector_tests {
     }
 
     #[test]
+    fn postgres_socket_ignores_inactive_tls_settings() {
+        let missing = tempfile::tempdir().expect("temporary TLS directory");
+        for mode in ["require", "verify-ca", "verify-full", "obsolete-mode"] {
+            for (cert, key) in [(true, true), (true, false), (false, true), (false, false)] {
+                let mut params = params_with_ssl(mode);
+                params.unix_socket_path = Some("/tmp/.s.PGSQL.5432".to_string());
+                params.ssl_ca = Some(missing.path().join("ca.pem").display().to_string());
+                params.ssl_cert =
+                    cert.then(|| missing.path().join("client.pem").display().to_string());
+                params.ssl_key = key.then(|| missing.path().join("key.pem").display().to_string());
+                assert!(
+                    build_postgres_tls_connector(&params).is_ok(),
+                    "socket must ignore inactive TLS settings: mode={mode}, cert={cert}, key={key}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn postgres_tcp_and_tunnels_still_validate_tls_settings() {
+        let missing = tempfile::tempdir().expect("temporary TLS directory");
+        for tunnel in ["tcp", "ssh", "k8s", "blank-socket"] {
+            let mut params = params_with_ssl("verify-full");
+            params.ssl_ca = Some(missing.path().join("ca.pem").display().to_string());
+            match tunnel {
+                "ssh" => {
+                    params.unix_socket_path = Some("/tmp/.s.PGSQL.5432".to_string());
+                    params.ssh_enabled = Some(true);
+                }
+                "k8s" => {
+                    params.unix_socket_path = Some("/tmp/.s.PGSQL.5432".to_string());
+                    params.k8s_enabled = Some(true);
+                }
+                "blank-socket" => params.unix_socket_path = Some("  ".to_string()),
+                _ => {}
+            }
+            let err = build_postgres_tls_connector(&params)
+                .err()
+                .expect("missing CA must fail");
+            assert!(err.contains("ca.pem"), "{tunnel}: {err}");
+            params.ssl_mode = Some("obsolete-mode".to_string());
+            assert!(
+                build_postgres_tls_connector(&params).is_err(),
+                "{tunnel}: unknown TLS mode must fail"
+            );
+        }
+    }
+
+    #[test]
     fn postgres_tls_connector_accepts_empty_hostname_for_unix_sockets() {
         use tokio_postgres::tls::MakeTlsConnect;
         let params = params_with_ssl("prefer");

@@ -761,9 +761,13 @@ pub(crate) fn build_postgres_tls_connector(
     params: &ConnectionParams,
 ) -> Result<PostgresTlsConnector, String> {
     ensure_rustls_crypto_provider();
-    let ssl_mode = parse_postgres_ssl_mode(
-        non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("prefer"),
-    )?;
+    let ssl_mode = if params.local_unix_socket_path().is_some() {
+        // Match the PostgreSQL config: local sockets do not use TLS, so stale
+        // certificate paths and TLS modes from a TCP connection are inactive.
+        PostgresSslChoice::Disable
+    } else {
+        parse_postgres_ssl_mode(non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("prefer"))?
+    };
     let user_ca = params.ssl_ca.as_deref().filter(|s| !s.trim().is_empty());
     let user_cert = params.ssl_cert.as_deref().filter(|s| !s.trim().is_empty());
     let user_key = params.ssl_key.as_deref().filter(|s| !s.trim().is_empty());
