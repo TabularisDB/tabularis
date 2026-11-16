@@ -3,7 +3,11 @@ use crate::application::provisioning::{connection_id, ProvisionCommand, Provisio
 
 fn metadata(connection: SavedConnection) -> ProvisionedConnection {
     ProvisionedConnection {
-        external_ref: connection.id.strip_prefix("provisioned-").expect("provisioned id").to_string(),
+        external_ref: connection
+            .id
+            .strip_prefix("provisioned-")
+            .expect("provisioned id")
+            .to_string(),
         id: connection.id,
         name: connection.name,
         driver: connection.params.driver,
@@ -48,6 +52,15 @@ pub async fn execute(
             if input.name.trim().is_empty() || input.name.len() > 256 {
                 return Err("invalid_name".into());
             }
+            // Classify caller mistakes before any secret/file writes. Storage
+            // failures below remain server errors, without exposing their text.
+            if non_empty(input.params.connection_uri.as_ref()).is_some()
+                && !input.params.save_in_keychain.unwrap_or(false)
+            {
+                return Err("invalid_connection".into());
+            }
+            crate::plugin_secrets::validate_secret_changes(&input.plugin_secret_changes)
+                .map_err(|_| "invalid_connection")?;
             let driver = crate::drivers::registry::get_driver(&input.params.driver)
                 .await
                 .ok_or("unknown_driver")?;

@@ -857,7 +857,7 @@ async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
     let error = server::run(server::WebServerOptions {
-            base_path: None,
+        base_path: None,
         trusted_proxies: Vec::new(),
         host: "0.0.0.0".to_string(),
         port: 0,
