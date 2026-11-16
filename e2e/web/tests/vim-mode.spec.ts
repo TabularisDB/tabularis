@@ -22,7 +22,7 @@ test('Vim notebook cells preserve their content height and execute run shortcuts
         await rpc(page, 'save_config', {config: {editorVimMode: true, aiEnabled: false}});
         await page.goto(`/connections/${connection.id}/editor`);
         await page.getByTitle('New Notebook', {exact: true}).click();
-        const status = page.getByTestId('vim-status-line').last();
+        const status = page.locator('[data-testid="vim-status-line"]:visible');
         await expect(status).toContainText('NORMAL');
         await page.evaluate(() => {
             const editor = window.__e2e_editor;
