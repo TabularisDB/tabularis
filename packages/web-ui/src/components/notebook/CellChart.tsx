@@ -27,6 +27,7 @@ import {
     getLabelColumns,
     transformResultToChartData,
 } from '@/utils/notebookChart';
+import {CompactSelect} from '@/components/notebook/CompactSelect';
 
 interface ChartTypeSelectorProps {
     config: CellChartConfig;
@@ -68,17 +69,16 @@ function ChartTypeSelector({config, result, onConfigChange}: ChartTypeSelectorPr
                 <span className="text-[10px] text-muted uppercase font-semibold">
                     {t('editor.notebook.chartLabel')}
                 </span>
-                <select
+                <CompactSelect
                     value={config.labelColumn}
                     onChange={(e) => onConfigChange({...config, labelColumn: e.target.value})}
-                    className="text-[10px] bg-surface-secondary border border-strong rounded px-1 py-0.5 text-secondary"
                 >
                     {labelCols.map((col) => (
                         <option key={col} value={col}>
                             {col}
                         </option>
                     ))}
-                </select>
+                </CompactSelect>
             </div>
 
             <div className="flex items-center gap-1.5">
