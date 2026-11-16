@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "tabularis",
-  "version": "0.32.0",
+  "version": "0.33.0",
   "identifier": "tabularis",
   "build": {
     "frontendDist": "../packages/web-ui/dist",
@@ -35,7 +35,9 @@
         "base-uri": "'self'",
         "form-action": "'none'"
       },
-      "dangerousDisableAssetCspModification": ["style-src"],
+      "dangerousDisableAssetCspModification": [
+        "style-src"
+      ],
       "assetProtocol": {
         "enable": true,
         "scope": [
