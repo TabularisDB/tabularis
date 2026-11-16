@@ -662,3 +662,143 @@ async fn if_function_accepts_multiple_branches() {
         assert_eq!(result.rows[0][0], expected, "{sql}");
     }
 }
+
+mod query_timeout {
+    use super::setup_test_db;
+    use std::time::{Duration, Instant};
+
+    /// Counts to a few hundred million: tens of seconds of pure VM work, so a
+    /// stop that never lands shows as a timeout here rather than a hang.
+    const SLOW_COUNT: &str = "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c LIMIT 300000000) SELECT count(*) FROM c";
+
+    /// The same count inside an INSERT, which holds the write lock while it runs.
+    const SLOW_WRITE: &str = "INSERT INTO users (name) SELECT 'Zed' WHERE (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c LIMIT 300000000) SELECT count(*) FROM c) > 0";
+
+    const STOPPED: &str = "Query stopped after 1 s by the connection's query timeout";
+
+    #[test]
+    fn the_driver_offers_the_query_timeout_field() {
+        use crate::drivers::driver_trait::DatabaseDriver as _;
+        let driver = super::super::SqliteDriver::new();
+        assert!(driver.manifest().capabilities.query_timeout);
+    }
+
+    #[tokio::test]
+    async fn stops_a_statement_that_runs_past_the_timeout() {
+        let (mut params, _file) = setup_test_db().await;
+        params.query_timeout_secs = Some(1);
+
+        let started = Instant::now();
+        let err = super::super::execute_query(&params, SLOW_COUNT, None, 1)
+            .await
+            .expect_err("the count runs past the timeout");
+
+        assert_eq!(err, STOPPED);
+        assert!(
+            started.elapsed() < Duration::from_secs(4),
+            "{:?}",
+            started.elapsed()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stopped_write_leaves_nothing_behind() {
+        let (mut params, _file) = setup_test_db().await;
+        params.query_timeout_secs = Some(1);
+
+        let err = super::super::execute_query(&params, SLOW_WRITE, None, 1)
+            .await
+            .expect_err("the insert runs past the timeout");
+        assert_eq!(err, STOPPED);
+
+        let users = super::super::execute_query(&params, "SELECT COUNT(*) FROM users", None, 1)
+            .await
+            .expect("count users");
+        assert_eq!(users.rows[0][0], serde_json::json!(2));
+    }
+
+    #[tokio::test]
+    async fn the_next_statement_in_a_batch_runs_after_one_is_stopped() {
+        let (mut params, _file) = setup_test_db().await;
+        params.query_timeout_secs = Some(1);
+        let queries = [
+            SLOW_COUNT.to_string(),
+            "SELECT COUNT(*) FROM users".to_string(),
+        ];
+
+        let results = super::super::execute_batch(&params, &queries, None, 1, None)
+            .await
+            .expect("batch runs");
+
+        assert_eq!(results[0].error.as_deref(), Some(STOPPED));
+        let count = results[1].result.as_ref().expect("second statement runs");
+        assert_eq!(count.rows[0][0], serde_json::json!(2));
+    }
+
+    #[tokio::test]
+    async fn stops_a_read_only_query_and_keeps_the_pool_writable() {
+        let (mut params, _file) = setup_test_db().await;
+        params.query_timeout_secs = Some(1);
+
+        let err = super::super::execute_read_only_query(&params, SLOW_COUNT, None, 1)
+            .await
+            .expect_err("the count runs past the timeout");
+        assert_eq!(err, STOPPED);
+
+        for _ in 0..6 {
+            super::super::execute_query(
+                &params,
+                "INSERT INTO users (name) VALUES ('Carol')",
+                None,
+                1,
+            )
+            .await
+            .expect("writes still work after a stopped read-only query");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_fast_statement_is_not_touched_by_the_timeout() {
+        let (mut params, _file) = setup_test_db().await;
+        params.query_timeout_secs = Some(1);
+
+        for _ in 0..8 {
+            let users =
+                super::super::execute_query(&params, "SELECT name FROM users ORDER BY id", None, 1)
+                    .await
+                    .expect("a fast query runs");
+            assert_eq!(users.rows.len(), 2);
+        }
+    }
+
+    /// Stop drops the run's future. The statement behind it must end too:
+    /// otherwise the INSERT keeps the write lock and the next write waits
+    /// out the busy timeout and fails with "database is locked".
+    #[tokio::test]
+    async fn stop_ends_the_statement_and_frees_the_write_lock() {
+        let (params, _file) = setup_test_db().await;
+
+        let running = {
+            let params = params.clone();
+            tokio::spawn(
+                async move { super::super::execute_query(&params, SLOW_WRITE, None, 1).await },
+            )
+        };
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        running.abort();
+        let _ = running.await;
+
+        let write = tokio::time::timeout(
+            Duration::from_secs(3),
+            super::super::execute_query(
+                &params,
+                "INSERT INTO users (name) VALUES ('Carol')",
+                None,
+                1,
+            ),
+        )
+        .await
+        .expect("the write does not wait on the stopped statement");
+        write.expect("the write succeeds");
+    }
+}

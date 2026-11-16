@@ -2,6 +2,7 @@ pub mod export;
 pub mod extract;
 pub mod types;
 
+mod cancel;
 mod explain;
 
 #[cfg(test)]
@@ -777,15 +778,26 @@ async fn exec_on_sqlite_conn(
     })
 }
 
+/// Takes a pooled connection for one run, with the progress handler that
+/// lets the query timeout and Stop interrupt it.
+async fn acquire_sqlite_run(params: &ConnectionParams) -> Result<cancel::InFlight, String> {
+    let pool = get_sqlite_pool(params).await?;
+    let conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    cancel::InFlight::new(conn).await
+}
+
 pub async fn execute_query(
     params: &ConnectionParams,
     query: &str,
     limit: Option<u32>,
     page: u32,
 ) -> Result<QueryResult, String> {
-    let pool = get_sqlite_pool(params).await?;
-    let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
-    exec_on_sqlite_conn(&mut *conn, query, limit, page).await
+    let mut run = acquire_sqlite_run(params).await?;
+    let outcome = run
+        .exec_within_query_timeout(params, query, limit, page)
+        .await?;
+    run.release().await;
+    outcome
 }
 
 /// Runs one statement with `PRAGMA query_only` on, inside a transaction that
@@ -800,22 +812,21 @@ pub async fn execute_read_only_query(
     page: u32,
 ) -> Result<QueryResult, String> {
     use sqlx::Executor as _;
-    let pool = get_sqlite_pool(params).await?;
-    let mut guard =
-        crate::drivers::common::DetachOnDrop::new(pool.acquire().await.map_err(|e| e.to_string())?);
-    guard
-        .conn()
+    let mut run = acquire_sqlite_run(params).await?;
+    run.conn()
         .execute(sqlx::raw_sql("PRAGMA query_only = ON; BEGIN"))
         .await
         .map_err(|e| e.to_string())?;
-    let outcome = exec_on_sqlite_conn(guard.conn(), query, limit, page).await;
+    let outcome = run
+        .exec_within_query_timeout(params, query, limit, page)
+        .await?;
     let cleanup = if params.read_only {
         "ROLLBACK"
     } else {
         "ROLLBACK; PRAGMA query_only = OFF"
     };
-    match guard.conn().execute(sqlx::raw_sql(cleanup)).await {
-        Ok(_) => guard.release(),
+    match run.conn().execute(sqlx::raw_sql(cleanup)).await {
+        Ok(_) => run.release().await,
         Err(e) => log::warn!("SQLite: resetting after a read-only query failed: {e}"),
     }
     outcome
@@ -825,6 +836,8 @@ pub async fn execute_read_only_query(
 /// `BEGIN`/`COMMIT` and temporary-table visibility survive across
 /// statements. SQLite has no user variables, but transactions and temp
 /// tables still require a stable connection.
+///
+/// The query timeout applies to each statement on its own.
 pub async fn execute_batch(
     params: &ConnectionParams,
     queries: &[String],
@@ -832,18 +845,20 @@ pub async fn execute_batch(
     page: u32,
     on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
 ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
-    let pool = get_sqlite_pool(params).await?;
-    let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    let mut run = acquire_sqlite_run(params).await?;
     let mut results = Vec::with_capacity(queries.len());
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
-        let outcome = exec_on_sqlite_conn(&mut *conn, q, limit, page).await;
+        let outcome = run
+            .exec_within_query_timeout(params, q, limit, page)
+            .await?;
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
         if let Some(cb) = on_progress {
             cb(idx, &res);
         }
         results.push(res);
     }
+    run.release().await;
     Ok(results)
 }
 
@@ -1090,7 +1105,7 @@ impl SqliteDriver {
                     drop_table_sql: false,
                     column_stats: false,
                     query_classification: false,
-                    query_timeout: false,
+                    query_timeout: true,
                     alter_column: false,
                     create_foreign_keys: false,
                     no_connection_required: false,
