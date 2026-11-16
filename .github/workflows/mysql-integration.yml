@@ -36,7 +36,9 @@ jobs:
           - 33060:3306
         env:
           MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: testdb
         options: >-
+          --volume /tmp/tabularis-mysql-socket:/var/run/mysqld
           --health-cmd "mysqladmin ping -h 127.0.0.1 --silent"
           --health-interval 10s
           --health-timeout 5s
@@ -78,3 +80,9 @@ jobs:
           TABULARIS_TEST_MYSQL_USER: root
           TABULARIS_TEST_MYSQL_PASSWORD: password
         run: cargo test --test mysql_foreign_keys --test mysql_routines --test mysql_columns --test mysql_indexes --test mysql_read_only --test mysql_float_precision --test mysql_table_transfer -- --include-ignored
+
+      - name: Verify MySQL socket and TCP authentication
+        working-directory: src-tauri
+        env:
+          MYSQL_UNIX_SOCKET: /tmp/tabularis-mysql-socket/mysqld.sock
+        run: cargo test --test socket_integration mysql_socket_auth_and_tcp_regression -- --ignored --exact

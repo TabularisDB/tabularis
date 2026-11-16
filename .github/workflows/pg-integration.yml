@@ -38,6 +38,7 @@ jobs:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: testdb
         options: >-
+          --volume /tmp/tabularis-pg-socket:/var/run/postgresql
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
@@ -81,6 +82,12 @@ jobs:
           RUST_TEST_THREADS: "1"
           REGENERATE_GOLDEN: ${{ (github.event_name == 'workflow_dispatch' && inputs.regenerate_golden) && '1' || '' }}
         run: cargo test --test postgres_integration -- --include-ignored
+
+      - name: Verify PostgreSQL socket and TCP TLS settings
+        working-directory: src-tauri
+        env:
+          PG_UNIX_SOCKET: /tmp/tabularis-pg-socket/.s.PGSQL.5432
+        run: cargo test --test socket_integration postgres_socket_tls_and_tcp_regression -- --ignored --exact
 
       - name: Upload golden files
         if: github.event_name == 'workflow_dispatch' && inputs.regenerate_golden
