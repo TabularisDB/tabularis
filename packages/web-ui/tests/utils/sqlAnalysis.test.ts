@@ -569,6 +569,11 @@ describe('isReadOnlyQuery', () => {
         // EXPLAIN is classified by its target, with or without ANALYZE.
         expect(isReadOnlyQuery('EXPLAIN SELECT * INTO copy FROM users')).toBe(false);
         expect(isReadOnlyQuery('EXPLAIN ANALYZE SELECT * INTO copy FROM users')).toBe(false);
+        // A backslash before the closing quote escapes it under MySQL rules but
+        // is an ordinary character in PostgreSQL's standard strings, where the
+        // INTO is real SQL. The dialect is unknown, so either reading of the
+        // backslash exposing an INTO is enough to ask.
+        expect(isReadOnlyQuery("SELECT 'a\\' INTO t FROM u WHERE b = '1'")).toBe(false);
     });
 
     it('does not mistake a name or text containing "into" for SELECT ... INTO', () => {

@@ -96,14 +96,17 @@ export const parseTablesFromQuery = (sql: string): Map<string, ParsedTableRef> |
 
 // Strips comments and quoted literals so the keyword/depth scan below never
 // matches text that only looks like SQL because it's inside a string or a
-// comment. `\\.` handles backslash-escaped quotes (MySQL's default string
-// escaping) in addition to the standard doubled-quote escaping.
-const stripCommentsAndLiterals = (sql: string): string =>
+// comment. With `backslashEscapes` a backslash escapes the next quote (MySQL's
+// default string escaping); without it a backslash is an ordinary character and
+// a quote always closes the string (PostgreSQL's default standard strings). The
+// dialect is unknown here, so a caller can lex both ways and treat a keyword
+// that either reading exposes as real.
+const stripCommentsAndLiterals = (sql: string, backslashEscapes = true): string =>
     sql
         .replace(/--[^\n]*/g, ' ')
         .replace(/\/\*[\s\S]*?\*\//g, ' ')
-        .replace(/'(?:[^'\\]|\\.|'')*'/g, "''")
-        .replace(/"(?:[^"\\]|\\.|"")*"/g, '""')
+        .replace(backslashEscapes ? /'(?:[^'\\]|\\.|'')*'/g : /'(?:[^']|'')*'/g, "''")
+        .replace(backslashEscapes ? /"(?:[^"\\]|\\.|"")*"/g : /"(?:[^"]|"")*"/g, '""')
         .replace(/`(?:[^`]|``)*`/g, '``');
 
 const CTE_STATEMENT_KEYWORDS = new Set(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'MERGE']);
@@ -305,8 +308,8 @@ function isReadOnlyPragma(cleaned: string): boolean {
 // A quick UI-side filter for statements with obvious write keywords. The host
 // repeats classification in Rust and executes accepted plugin queries through
 // a database-enforced read-only path.
-export const isReadOnlyQuery = (sql: string): boolean =>
-    stripCommentsAndLiterals(sql)
+const everyStatementReadOnly = (cleaned: string): boolean =>
+    cleaned
         .split(';')
         .map((s) => s.trim())
         .filter((s) => s.length > 0)
@@ -322,6 +325,10 @@ export const isReadOnlyQuery = (sql: string): boolean =>
             // a real statement. An `INTO` inside one therefore asks too.
             return !/\bINTO\b/i.test(s);
         });
+
+export const isReadOnlyQuery = (sql: string): boolean =>
+    everyStatementReadOnly(stripCommentsAndLiterals(sql)) &&
+    everyStatementReadOnly(stripCommentsAndLiterals(sql, false));
 
 // Optimized statement extractor - avoid full text scan when possible
 export const getCurrentStatement = (
