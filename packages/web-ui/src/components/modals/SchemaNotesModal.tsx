@@ -1,10 +1,11 @@
-import {useCallback, useEffect, useId, useMemo, useState} from 'react';
+import {useCallback, useEffect, useId, useMemo, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {X, Loader2, NotebookPen, Upload, Download, Eye, Pencil} from 'lucide-react';
 import {Modal} from '@/components/ui/Modal';
 import {SchemaNoteMarkdown} from '@/components/ui/SchemaNoteMarkdown';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {confirmPlatformDialog} from '@/platform/dialogs';
 import type {TableTarget} from '@/types/databaseObjects';
 import type {TableColumn} from '@/types/editor';
 import type {SchemaNoteTarget, SchemaNotesState} from '@/types/schemaNotes';
@@ -237,6 +238,27 @@ export const SchemaNotesModal = ({
         }
     };
 
+    // Esc, the close button and the backdrop all go through here, so unsaved
+    // drafts are never dropped without asking.
+    const confirmingClose = useRef(false);
+    const requestClose = async () => {
+        if (!dirty) {
+            onClose();
+            return;
+        }
+        if (confirmingClose.current) return;
+        confirmingClose.current = true;
+        try {
+            const discard = await confirmPlatformDialog(platform, t('schemaNotes.discardMessage'), {
+                title: t('schemaNotes.discardTitle'),
+                kind: 'warning',
+            });
+            if (discard) onClose();
+        } finally {
+            confirmingClose.current = false;
+        }
+    };
+
     const exportNotes = async () => {
         setActionError(null);
         setStatus(null);
@@ -265,7 +287,12 @@ export const SchemaNotesModal = ({
         rows = 2,
     ) =>
         preview ? (
-            <div className="min-h-[2rem] px-3 py-2 bg-base border border-default rounded-lg">
+            <div
+                id={id}
+                role="region"
+                aria-label={label}
+                className="min-h-[2rem] px-3 py-2 bg-base border border-default rounded-lg"
+            >
                 {value.trim() ? (
                     <SchemaNoteMarkdown content={value} />
                 ) : (
@@ -287,7 +314,7 @@ export const SchemaNotesModal = ({
         );
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose}>
+        <Modal isOpen={isOpen} onClose={() => void requestClose()}>
             <div
                 role="dialog"
                 aria-modal="true"
@@ -309,7 +336,7 @@ export const SchemaNotesModal = ({
                     <button
                         type="button"
                         aria-label={t('common.close')}
-                        onClick={onClose}
+                        onClick={() => void requestClose()}
                         className={`text-secondary hover:text-primary transition-colors rounded ${focusRing}`}
                     >
                         <X size={20} />
@@ -570,7 +597,8 @@ export const SchemaNotesModal = ({
                         <button
                             type="button"
                             onClick={() => void exportNotes()}
-                            disabled={readOnly}
+                            disabled={readOnly || dirty}
+                            title={dirty ? t('schemaNotes.saveBeforeExport') : undefined}
                             className={secondaryButton}
                         >
                             <Download size={14} />

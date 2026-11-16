@@ -189,3 +189,36 @@ fn overlapping_saves_keep_every_change() {
     }
     assert_eq!(load(&config_dir, "conn").unwrap().notes.notes.len(), 16);
 }
+
+#[test]
+fn remove_for_connection_deletes_valid_damaged_and_missing_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let config_dir = directory.path();
+    set_note(
+        config_dir,
+        "kept",
+        Some(target("t", None)),
+        None,
+        "stays".into(),
+    )
+    .unwrap();
+    set_note(
+        config_dir,
+        "gone",
+        Some(target("t", None)),
+        None,
+        "goes".into(),
+    )
+    .unwrap();
+    remove_for_connection(config_dir, "gone").unwrap();
+    assert!(!notes_path(config_dir, "gone").unwrap().exists());
+    assert_eq!(load(config_dir, "kept").unwrap().notes.notes.len(), 1);
+
+    let damaged = notes_path(config_dir, "damaged").unwrap();
+    fs::write(&damaged, "{ not json").unwrap();
+    remove_for_connection(config_dir, "damaged").unwrap();
+    assert!(!damaged.exists());
+
+    remove_for_connection(config_dir, "never-saved").unwrap();
+    assert!(remove_for_connection(config_dir, "../escape").is_err());
+}

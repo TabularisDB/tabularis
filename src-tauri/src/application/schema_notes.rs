@@ -62,6 +62,23 @@ fn update(
     Ok(stored)
 }
 
+/// Delete the notes of a connection that was deleted. A missing file is fine;
+/// a damaged one is removed too, since nothing can use it any more.
+pub fn remove_for_connection(config_dir: &Path, connection_id: &str) -> Result<(), String> {
+    let _guard = UPDATE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let path = notes_path(config_dir, connection_id)?;
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "Could not remove schema notes {}: {error}",
+            path.display()
+        )),
+    }
+}
+
 /// `target: None` edits the connection-wide (project) note.
 pub fn set_note(
     config_dir: &Path,

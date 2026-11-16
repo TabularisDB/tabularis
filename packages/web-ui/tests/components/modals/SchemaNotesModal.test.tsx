@@ -9,6 +9,7 @@ const {client, platform} = vi.hoisted(() => ({
         chooseInputFile: vi.fn(),
         readInputFile: vi.fn(),
         downloadFile: vi.fn(),
+        confirm: vi.fn(),
     },
 }));
 vi.mock('@/hooks/useTabularisClient', () => ({useTabularisClient: () => client}));
@@ -68,9 +69,9 @@ function backend(overrides: Record<string, (request: Record<string, unknown>) =>
 
 const target = {connectionId: 'conn-1', tableName: 'orders', schema: 'public'};
 
-function renderModal() {
+function renderModal(onClose: () => void = vi.fn()) {
     return render(
-        <SchemaNotesModal isOpen onClose={vi.fn()} target={target} connectionName="Shop DB" />,
+        <SchemaNotesModal isOpen onClose={onClose} target={target} connectionName="Shop DB" />,
     );
 }
 
@@ -235,5 +236,79 @@ describe('SchemaNotesModal', () => {
         expect(await screen.findByText('paid')).toBeInTheDocument();
         expect(document.body.querySelector('img, a, [onerror]')).toBeNull();
         expect(container).toBeDefined();
+    });
+
+    it('closes at once without unsaved edits and asks first when there are some', async () => {
+        const onClose = vi.fn();
+        renderModal(onClose);
+        const tableNote = await screen.findByDisplayValue('One row per checkout');
+        fireEvent.keyDown(window, {key: 'Escape'});
+        expect(onClose).toHaveBeenCalledOnce();
+        expect(platform.confirm).not.toHaveBeenCalled();
+
+        onClose.mockClear();
+        fireEvent.change(tableNote, {target: {value: 'Draft text'}});
+        platform.confirm.mockResolvedValueOnce(false);
+        fireEvent.keyDown(tableNote, {key: 'Escape'});
+        await waitFor(() => expect(platform.confirm).toHaveBeenCalledOnce());
+        expect(platform.confirm.mock.calls[0][0]).toMatchObject({
+            title: 'schemaNotes.discardTitle',
+            message: 'schemaNotes.discardMessage',
+        });
+        expect(onClose).not.toHaveBeenCalled();
+        expect(screen.getByDisplayValue('Draft text')).toBeInTheDocument();
+
+        platform.confirm.mockResolvedValueOnce(true);
+        fireEvent.click(screen.getByRole('button', {name: 'common.close'}));
+        await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+        expect(platform.confirm).toHaveBeenCalledTimes(2);
+    });
+
+    it('disables export while there are unsaved edits', async () => {
+        renderModal();
+        const tableNote = await screen.findByDisplayValue('One row per checkout');
+        const exportButton = screen.getByRole('button', {name: 'schemaNotes.export'});
+        await waitFor(() => expect(exportButton).not.toBeDisabled());
+        fireEvent.change(tableNote, {target: {value: 'Draft text'}});
+        expect(exportButton).toBeDisabled();
+        expect(exportButton).toHaveAttribute('title', 'schemaNotes.saveBeforeExport');
+    });
+
+    it('gives each previewed note the name of its field', async () => {
+        renderModal();
+        await screen.findByDisplayValue('One row per checkout');
+        fireEvent.click(screen.getByRole('button', {name: 'schemaNotes.preview'}));
+        const region = await screen.findByRole('region', {name: 'schemaNotes.tableNote'});
+        expect(region).toHaveTextContent('One row per checkout');
+        expect(
+            screen.getByRole('region', {name: 'schemaNotes.columnNote:{"column":"legacy"}'}),
+        ).toHaveTextContent('removed last year');
+        const label = screen.getAllByText('schemaNotes.tableNote')[0].closest('label');
+        expect(label && document.getElementById(label.htmlFor)).toBe(region);
+    });
+});
+
+describe('SchemaNotesModal closing with unsaved edits', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        backend();
+    });
+
+    it('asks only once when Esc is pressed again while the question is open', async () => {
+        const onClose = vi.fn();
+        renderModal(onClose);
+        const tableNote = await screen.findByDisplayValue('One row per checkout');
+        fireEvent.change(tableNote, {target: {value: 'Draft text'}});
+        let answer: (value: boolean) => void = () => undefined;
+        platform.confirm.mockReturnValueOnce(
+            new Promise<boolean>((resolve) => {
+                answer = resolve;
+            }),
+        );
+        fireEvent.keyDown(window, {key: 'Escape'});
+        fireEvent.keyDown(window, {key: 'Escape'});
+        expect(platform.confirm).toHaveBeenCalledOnce();
+        answer(true);
+        await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     });
 });
