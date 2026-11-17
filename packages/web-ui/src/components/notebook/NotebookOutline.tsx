@@ -9,6 +9,8 @@ import {
     X,
     AlertCircle,
     CheckCircle2,
+    PowerOff,
+    Ban,
 } from 'lucide-react';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import type {NotebookCell} from '@/types/notebook';
@@ -105,6 +107,34 @@ function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
                 aria-label={t('editor.notebook.statusRunning')}
             >
                 <Loader2 size={11} className="animate-spin" aria-hidden="true" />
+            </span>
+        );
+    }
+
+    if (status === 'disabled') {
+        return (
+            <span
+                className="inline-flex items-center ml-auto pl-1 text-muted shrink-0"
+                title={t('editor.notebook.statusDisabled')}
+                role="img"
+                aria-label={t('editor.notebook.statusDisabled')}
+            >
+                <PowerOff size={11} aria-hidden="true" />
+                <span className="sr-only">{t('editor.notebook.statusDisabled')}</span>
+            </span>
+        );
+    }
+
+    if (status === 'blocked') {
+        return (
+            <span
+                className="inline-flex items-center ml-auto pl-1 text-accent-warning shrink-0"
+                title={t('editor.notebook.statusBlocked')}
+                role="img"
+                aria-label={t('editor.notebook.statusBlocked')}
+            >
+                <Ban size={11} aria-hidden="true" />
+                <span className="sr-only">{t('editor.notebook.statusBlocked')}</span>
             </span>
         );
     }

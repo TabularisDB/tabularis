@@ -308,3 +308,30 @@ describe('notebookUndo', () => {
         });
     });
 });
+
+describe('notebookUndo disabled cells', () => {
+    const on: NotebookState = {cells: [{id: 'c1', type: 'sql', content: 'SELECT 1'}]};
+    const off: NotebookState = {
+        cells: [{id: 'c1', type: 'sql', content: 'SELECT 1', isDisabled: true}],
+    };
+
+    it('makes disabling a document change and treats a missing flag as enabled', () => {
+        expect(documentSignature(on)).not.toBe(documentSignature(off));
+        expect(documentSignature(on)).toBe(
+            documentSignature({cells: [{...on.cells[0], isDisabled: false}]}),
+        );
+    });
+
+    it('describes disabling and enabling a cell', () => {
+        expect(describeChange(on, off)).toEqual({kind: 'disableCell', n: 1});
+        expect(describeChange(off, on)).toEqual({kind: 'enableCell', n: 1});
+    });
+
+    it('undoes and redoes a disable', () => {
+        const history = recordEdit(createHistory(), on, off, 10_000);
+        const back = undo(history, off);
+        expect(back?.state.cells[0].isDisabled).toBeUndefined();
+        const forward = back && redo(back.history, back.state);
+        expect(forward?.state.cells[0].isDisabled).toBe(true);
+    });
+});

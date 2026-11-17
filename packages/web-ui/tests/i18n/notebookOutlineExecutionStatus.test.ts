@@ -12,7 +12,13 @@ const localesDirectory = resolve(__dirname, '../../src/i18n/locales');
 const localeFiles = readdirSync(localesDirectory)
     .filter((file) => file.endsWith('.json'))
     .sort();
-const statusKeys = ['statusRunning', 'statusFailed', 'statusOutputAvailable'] as const;
+const statusKeys = [
+    'statusRunning',
+    'statusFailed',
+    'statusOutputAvailable',
+    'statusDisabled',
+    'statusBlocked',
+] as const;
 
 describe('notebook outline execution status translations', () => {
     describe.each(localeFiles)('%s', (file) => {
