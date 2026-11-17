@@ -1,5 +1,5 @@
 import type {ComponentProps} from 'react';
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import {save} from '@tauri-apps/plugin-dialog';
 import {writeFile} from '@tauri-apps/plugin-fs';
@@ -1565,6 +1565,34 @@ describe('NotebookView', () => {
             });
             expect(explainFor('off')).toBeNull();
             expect(mockInvoke).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('dependency inspector', () => {
+        it('reveals a collapsed referenced cell without executing anything', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('source', 'SELECT id FROM people', {isCollapsed: true}),
+                    sqlCell('consumer', 'SELECT * FROM {{cell_1}}'),
+                ],
+            });
+            await settle();
+
+            fireEvent.click(
+                screen.getByRole('button', {name: 'editor.notebook.dependencies.title'}),
+            );
+            fireEvent.change(
+                screen.getByRole('combobox', {name: 'editor.notebook.dependencies.selectCell'}),
+                {target: {value: 'consumer'}},
+            );
+            const uses = screen.getByRole('region', {name: 'editor.notebook.dependencies.uses'});
+            fireEvent.click(within(uses).getByRole('button'));
+            await settle();
+
+            expect(savedCell('source').isCollapsed).toBe(false);
+            expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(fixtures.guardQuery).not.toHaveBeenCalled();
         });
     });
 });

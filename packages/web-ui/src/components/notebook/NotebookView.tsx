@@ -83,6 +83,7 @@ import {AddCellButton} from './AddCellButton';
 import {RunAllSummary} from './RunAllSummary';
 import {ParamsPanel} from './ParamsPanel';
 import {NotebookOutline} from './NotebookOutline';
+import {NotebookDependencies} from './NotebookDependencies';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 
@@ -896,6 +897,17 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         el?.scrollIntoView({behavior: 'smooth', block: 'start'});
     }, []);
 
+    /** Expand a collapsed cell, then scroll to it. Never executes the cell. */
+    const revealCell = useCallback(
+        (cellId: string) => {
+            if (cellsRef.current.find((c) => c.id === cellId)?.isCollapsed) {
+                flushSync(() => updateCell(cellId, {isCollapsed: false}));
+            }
+            scrollToCell(cellId);
+        },
+        [updateCell, scrollToCell],
+    );
+
     // Keyboard shortcuts (only for the active notebook tab):
     // Ctrl+Shift+Enter → Run All, Cmd/Ctrl+Z → Undo, Cmd/Ctrl+Shift+Z / Ctrl+Y → Redo.
     useEffect(() => {
@@ -1076,6 +1088,12 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     cells={cells}
                     onScrollToCell={scrollToCell}
                     onCellNameGenerated={(cellId, name) => updateCell(cellId, {name})}
+                />
+                <NotebookDependencies
+                    cells={cells}
+                    params={params}
+                    dialect={sqlDialect}
+                    onRevealCell={revealCell}
                 />
 
                 {runAllResult && (
