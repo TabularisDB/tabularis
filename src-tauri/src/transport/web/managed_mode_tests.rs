@@ -596,3 +596,15 @@ async fn managed_only_refuses_to_start_with_high_risk_capabilities() {
     .unwrap_err();
     assert!(error.contains("--allow-high-risk"), "{error}");
 }
+
+#[tokio::test]
+async fn managed_browser_cannot_replace_provisioned_database_selection() {
+    let server = ManagedServer::start(ManagedConnectionPolicy::managed_only()).await;
+    let (status, body) = server.rpc("set_selected_databases", json!({
+        "connectionId": "file-1", "databases": ["another_tenant"]
+    })).await;
+    assert_eq!(status, 403);
+    assert_eq!(body["error"]["code"], DENIED);
+    let file = crate::persistence::load_connections_file(&server._temp.path().join("connections.json")).unwrap();
+    assert_eq!(file.connections[0].params.database.primary(), "app");
+}

@@ -64,8 +64,8 @@ fn connection_access(command: ConnectionRpcCommand) -> ManagedAccess {
     use ConnectionAction as A;
     use ManagedAccess::{Action, Unrestricted};
     match command {
-        ConnectionRpcCommand::SetSelectedDatabases
-        | ConnectionRpcCommand::GetConnectionById
+        ConnectionRpcCommand::SetSelectedDatabases => Action(A::Update),
+        ConnectionRpcCommand::GetConnectionById
         | ConnectionRpcCommand::GetConnectionsWithGroups
         | ConnectionRpcCommand::GetConnectionGroups
         | ConnectionRpcCommand::ListConnectionTags

@@ -5,7 +5,7 @@ use ManagedAccess::{Action, Unrestricted};
 /// (command, group, expected managed-mode treatment). Every command of the
 /// connection-related groups must appear here.
 const MATRIX: &[(&str, &str, ManagedAccess)] = &[
-    ("set_selected_databases", "connection", Unrestricted),
+    ("set_selected_databases", "connection", Action(A::Update)),
     ("get_connection_by_id", "connection", Unrestricted),
     ("get_connections_with_groups", "connection", Unrestricted),
     ("save_connection", "connection", Action(A::Create)),
