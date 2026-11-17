@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 pub struct ApplicationState {
+    pub provisioning_lock: tokio::sync::Mutex<()>,
     pub pending_install: Arc<crate::plugins::deep_link::PendingInstall>,
     pub query_cancellation: Arc<crate::commands::QueryCancellationState>,
     pub export_cancellation: Arc<crate::export::ExportCancellationState>,
@@ -44,6 +45,7 @@ fn abort_all(handles: &Arc<Mutex<AbortHandleMap>>) {
 impl Default for ApplicationState {
     fn default() -> Self {
         Self {
+            provisioning_lock: tokio::sync::Mutex::new(()),
             pending_install: Arc::new(crate::plugins::deep_link::PendingInstall::default()),
             query_cancellation: Arc::new(crate::commands::QueryCancellationState::default()),
             export_cancellation: Arc::new(crate::export::ExportCancellationState::default()),

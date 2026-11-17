@@ -176,3 +176,14 @@ fn short_secret_detection_matches_the_substring_threshold() {
     assert!(is_short_secret("abc"));
     assert!(!is_short_secret("abcd"));
 }
+
+#[test]
+fn extending_preserves_rotated_values_for_delayed_events() {
+    let redactor = SecretRedactor::new(["previous-password".into()]);
+    redactor.extend(["current-password".into()]);
+    redactor.extend(["another-current-secret".into()]);
+    assert_eq!(
+        redactor.redact("previous-password current-password"),
+        "[redacted] [redacted]"
+    );
+}

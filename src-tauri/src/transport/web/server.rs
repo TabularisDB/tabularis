@@ -112,6 +112,20 @@ struct BlobUploadResponse {
 
 pub async fn run(options: WebServerOptions) -> Result<(), String> {
     validate_connection_policy(&options)?;
+    let provisioning_token = super::provisioning::ProvisioningToken::from_env()?;
+    if provisioning_token.is_some()
+        && (!options.connection_policy.is_managed_only()
+            || options.connection_policy.capabilities().can_edit_branding
+            || options
+                .connection_policy
+                .capabilities()
+                .can_edit_organization)
+    {
+        return Err(
+            "Provisioning requires managed-only mode without branding or organization overrides"
+                .into(),
+        );
+    }
     reject_short_credentials(&options).await?;
     let server_file_browser_roots =
         super::server_files::canonicalize_roots(&options.server_file_browser_roots)?;
@@ -195,7 +209,7 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
             options.events.redactor().clone(),
         )
     });
-    let result = serve_with_policy(
+    let result = serve_with_configuration(
         listener,
         options.web_root,
         options.data_dir,
@@ -205,6 +219,7 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
         options.events,
         server_file_browser_roots,
         options.connection_policy,
+        provisioning_token,
         shutdown_signal(),
     )
     .await
@@ -286,7 +301,7 @@ pub(crate) async fn refresh_secrets(
         .connection_secret_values(internal_context())
         .await
     {
-        Ok(values) => redactor.replace(values),
+        Ok(values) => redactor.extend(values),
         Err(error) => log::warn!("Failed to refresh managed credentials: {}", error.message),
     }
 }
@@ -390,6 +405,38 @@ pub(crate) async fn serve_with_policy<F>(
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    serve_with_configuration(
+        listener,
+        web_root,
+        data_dir,
+        plugins_dir,
+        security,
+        application,
+        events,
+        server_file_browser_roots,
+        connection_policy,
+        None,
+        shutdown,
+    )
+    .await
+}
+
+pub(crate) async fn serve_with_configuration<F>(
+    listener: TcpListener,
+    web_root: PathBuf,
+    data_dir: PathBuf,
+    plugins_dir: PathBuf,
+    security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
+    events: WebEventBus,
+    server_file_browser_roots: Arc<[PathBuf]>,
+    connection_policy: ManagedConnectionPolicy,
+    provisioning_token: Option<super::provisioning::ProvisioningToken>,
+    shutdown: F,
+) -> std::io::Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
     let (router, state) = router(
         web_root,
         data_dir,
@@ -399,6 +446,7 @@ where
         events,
         server_file_browser_roots,
         connection_policy,
+        provisioning_token,
     );
     // Keep reclamation owned by the server future, including cancellation and shutdown.
     tokio::select! {
@@ -433,6 +481,7 @@ fn router(
     events: WebEventBus,
     server_file_browser_roots: Arc<[PathBuf]>,
     connection_policy: ManagedConnectionPolicy,
+    provisioning_token: Option<super::provisioning::ProvisioningToken>,
 ) -> (Router, WebServerState) {
     let index = web_root.join("index.html");
     let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
@@ -440,6 +489,14 @@ fn router(
     let mcp_host_configuration =
         !security.is_remote() && mcp_host_configuration_enabled(security.expected_origin());
     let server_file_browser = !server_file_browser_roots.is_empty();
+    let provisioning_routes = provisioning_token.map(|token| {
+        super::provisioning::routes(
+            token,
+            security.clone(),
+            application.clone(),
+            events.redactor().clone(),
+        )
+    });
     let state = WebServerState {
         security,
         rpc: RpcDispatcher::with_access_policy(
@@ -506,6 +563,7 @@ fn router(
         .fallback_service(static_files)
         .with_state(state.clone())
         .layer(middleware::from_fn_with_state(state.clone(), security_gate))
+        .merge(provisioning_routes.unwrap_or_default())
         .layer(middleware::from_fn(add_request_id))
         .layer(middleware::map_response(baseline_security_headers));
     (router, state)

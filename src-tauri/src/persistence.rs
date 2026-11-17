@@ -75,7 +75,7 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
     let mut json = serde_json::to_value(&to_save).map_err(|e| e.to_string())?;
     preserve_unknown_fields(path, &mut json);
     let json = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?;
-    write_private_file(path, json)
+    atomic_private_write(path, json.as_bytes())
 }
 
 /// Writes `contents` so that, on Unix, the file is readable and writable only
@@ -270,3 +270,19 @@ pub fn save_groups(path: &Path, groups: &[ConnectionGroup]) -> Result<(), String
     file.groups = groups.to_vec();
     save_connections_file(path, &file)
 }
+
+/// Replace the connection snapshot only after the complete private file has
+/// reached disk. A failed write must leave the previous snapshot readable.
+fn atomic_private_write(path: &Path, contents: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
+    let mut file = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
+    file.write_all(contents).map_err(|e| e.to_string())?;
+    file.as_file().sync_all().map_err(|e| e.to_string())?;
+    file.persist(path).map_err(|e| e.error.to_string())?;
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "persistence_atomic_tests.rs"]
+mod tests;

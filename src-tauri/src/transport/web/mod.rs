@@ -18,3 +18,7 @@ mod managed_mode_tests;
 mod login_target_tests;
 #[cfg(test)]
 mod tests;
+
+pub mod provisioning;
+#[cfg(test)]
+mod provisioning_tests;
