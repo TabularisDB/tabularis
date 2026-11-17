@@ -183,9 +183,14 @@ export function usePendingApprovals(): UsePendingApprovalsResult {
 
     useEffect(() => {
         refetch();
-        const unsubscribe = client.subscribe(PENDING_APPROVAL_EVENT, () => {
-            refetchRef.current();
-        });
+        const unsubscribe = client
+            .subscribe(PENDING_APPROVAL_EVENT, () => {
+                refetchRef.current();
+            })
+            .catch((error: unknown) => {
+                console.error('Failed to subscribe to pending AI approvals:', error);
+                return () => {};
+            });
         return () => {
             unsubscribe.then((fn) => fn()).catch(() => {});
         };
