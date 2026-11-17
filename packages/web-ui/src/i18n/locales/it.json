@@ -349,6 +349,7 @@
     "showData": "Mostra Dati",
     "countRows": "Conta righe",
     "viewSchema": "Vedi schema",
+    "schemaNotes": "Note dello schema",
     "viewERDiagram": "Visualizza Diagramma ER",
     "generateSQL": "Genera SQL",
     "addColumn": "Aggiungi colonna",
@@ -491,6 +492,12 @@
     "refreshDatabaseList": "Aggiorna elenco database",
     "databaseListUpToDate": "L'elenco dei database è aggiornato",
     "allDatabasesRefreshed": "Database aggiornati: {{names}}"
+  },
+  "managed": {
+    "denied": "Questa connessione è gestita da un amministratore e non può essere modificata qui.",
+    "noConnections": "Nessuna connessione disponibile al momento. Chiedi al tuo amministratore di fornirne una.",
+    "notice": "Un amministratore gestisce le connessioni di questo server. Puoi aprirle ed eseguire query, ma non puoi aggiungere, modificare, eliminare, importare, esportare o testare connessioni.",
+    "noticeTitle": "Connessioni gestite"
   },
   "groups": {
     "title": "Gruppi",
@@ -2337,6 +2344,8 @@
       "exportHtml": "Esporta come HTML",
       "exportSql": "Esporta sorgente SQL",
       "exportSqlEmpty": "Questo notebook non contiene SQL da esportare.",
+      "exportMarkdown": "Esporta Markdown",
+      "exportMarkdownEmpty": "Questo notebook non contiene nulla da esportare.",
       "parameters": "Parametri",
       "paramName": "nome",
       "paramValue": "valore",
@@ -3572,5 +3581,40 @@
   },
   "pluginWorkspace": {
     "unavailable": "Questo spazio di lavoro non è disponibile. Attiva o reinstalla il suo plugin nelle impostazioni."
+  },
+  "schemaNotes": {
+    "title": "Note dello schema",
+    "subtitle": "Note di business locali, salvate su questo computer. Non vengono mai scritte nel database.",
+    "loading": "Caricamento note…",
+    "loadFailed": "Impossibile leggere il file delle note. È stato lasciato invariato: correggilo o sostituiscilo per modificare le note qui.",
+    "documented": "Oggetti documentati",
+    "noNotes": "Nessuna nota.",
+    "noDomain": "Nessun dominio",
+    "columnCount": "· {{count}} col.",
+    "projectNote": "Nota della connessione ({{name}})",
+    "tableNote": "Nota della tabella",
+    "domain": "Dominio di business",
+    "domainPlaceholder": "es. Fatturazione",
+    "columns": "Colonne",
+    "columnNote": "Nota per la colonna {{column}}",
+    "databaseComment": "Commento del database",
+    "notePlaceholder": "Markdown supportato",
+    "empty": "Nessuna nota",
+    "tableNotFound": "Questa tabella non è stata trovata nel database. Le sue note vengono conservate.",
+    "columnNotFound": "Non trovata nel database; nota conservata",
+    "metadataUnavailable": "Impossibile caricare i dettagli della tabella; puoi comunque modificare le note.",
+    "includeInAi": "Includi queste note nel contesto AI dello schema",
+    "includeInAiHint": "Disattivato per impostazione predefinita. Se attivo, le note delle tabelle inviate al provider AI vengono aggiunte come contesto descrittivo chiaramente indicato.",
+    "preview": "Anteprima",
+    "edit": "Modifica",
+    "import": "Importa",
+    "export": "Esporta",
+    "save": "Salva",
+    "saved": "Note salvate.",
+    "imported": "Note importate da {{name}}.",
+    "saveBeforeImport": "Salva le modifiche prima di importare.",
+    "saveBeforeExport": "Salva le modifiche prima di esportare.",
+    "discardTitle": "Scartare le note non salvate?",
+    "discardMessage": "Le modifiche alle note non sono state salvate. Chiudendo ora andranno perse."
   }
 }

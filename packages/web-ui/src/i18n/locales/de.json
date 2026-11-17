@@ -341,6 +341,7 @@
     "showData": "Daten anzeigen",
     "countRows": "Zeilen zählen",
     "viewSchema": "Schema anzeigen",
+    "schemaNotes": "Schema-Notizen",
     "viewERDiagram": "ER-Diagramm anzeigen",
     "generateSQL": "SQL generieren",
     "addColumn": "Spalte hinzufügen",
@@ -2282,6 +2283,8 @@
       "exportHtml": "Als HTML exportieren",
       "exportSql": "SQL-Quelltext exportieren",
       "exportSqlEmpty": "Dieses Notebook enthält kein SQL zum Exportieren.",
+      "exportMarkdown": "Als Markdown exportieren",
+      "exportMarkdownEmpty": "Dieses Notebook enthält keinen Inhalt zum Exportieren.",
       "parameters": "Parameter",
       "paramName": "name",
       "paramValue": "wert",
@@ -2943,6 +2946,12 @@
       }
     }
   },
+  "managed": {
+    "denied": "Diese Verbindung wird von einem Administrator verwaltet und kann hier nicht geändert werden.",
+    "noConnections": "Noch keine Verbindungen verfügbar. Bitte deinen Administrator, eine bereitzustellen.",
+    "notice": "Ein Administrator verwaltet die Verbindungen auf diesem Server. Du kannst sie öffnen und Abfragen ausführen, aber keine Verbindungen hinzufügen, bearbeiten, löschen, importieren, exportieren oder testen.",
+    "noticeTitle": "Verwaltete Verbindungen"
+  },
   "groups": {
     "title": "Gruppen",
     "newGroup": "Neue Gruppe",
@@ -3545,5 +3554,40 @@
   },
   "pluginWorkspace": {
     "unavailable": "Dieser Arbeitsbereich ist nicht verfügbar. Aktiviere das Plugin in den Einstellungen oder installiere es neu."
+  },
+  "schemaNotes": {
+    "title": "Schema-Notizen",
+    "subtitle": "Lokale fachliche Notizen, auf diesem Computer gespeichert. Sie werden nie in die Datenbank geschrieben.",
+    "loading": "Notizen werden geladen…",
+    "loadFailed": "Die Notizdatei konnte nicht gelesen werden. Sie wurde nicht verändert: Korrigiere oder ersetze sie, um Notizen hier zu bearbeiten.",
+    "documented": "Dokumentierte Objekte",
+    "noNotes": "Noch keine Notizen.",
+    "noDomain": "Keine Domäne",
+    "columnCount": "· {{count}} Sp.",
+    "projectNote": "Verbindungsnotiz ({{name}})",
+    "tableNote": "Tabellennotiz",
+    "domain": "Fachliche Domäne",
+    "domainPlaceholder": "z. B. Abrechnung",
+    "columns": "Spalten",
+    "columnNote": "Notiz für Spalte {{column}}",
+    "databaseComment": "Datenbankkommentar",
+    "notePlaceholder": "Markdown wird unterstützt",
+    "empty": "Keine Notiz",
+    "tableNotFound": "Diese Tabelle wurde in der Datenbank nicht gefunden. Ihre Notizen bleiben erhalten.",
+    "columnNotFound": "In der Datenbank nicht gefunden; Notiz bleibt erhalten",
+    "metadataUnavailable": "Tabellendetails konnten nicht geladen werden; die Notizen lassen sich trotzdem bearbeiten.",
+    "includeInAi": "Diese Notizen in den KI-Schemakontext aufnehmen",
+    "includeInAiHint": "Standardmäßig aus. Wenn aktiv, werden Notizen zu den an den KI-Anbieter gesendeten Tabellen als klar gekennzeichneter, beschreibender Kontext hinzugefügt.",
+    "preview": "Vorschau",
+    "edit": "Bearbeiten",
+    "import": "Importieren",
+    "export": "Exportieren",
+    "save": "Speichern",
+    "saved": "Notizen gespeichert.",
+    "imported": "Notizen aus {{name}} importiert.",
+    "saveBeforeImport": "Speichere deine Änderungen vor dem Import.",
+    "saveBeforeExport": "Speichere deine Änderungen vor dem Export.",
+    "discardTitle": "Ungespeicherte Notizen verwerfen?",
+    "discardMessage": "Deine Änderungen an den Notizen wurden nicht gespeichert. Wenn du jetzt schließt, gehen sie verloren."
   }
 }

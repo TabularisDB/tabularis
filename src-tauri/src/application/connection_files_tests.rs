@@ -319,6 +319,56 @@ async fn imported_secrets_replace_stale_runtime_cache_entries() {
     assert!(saved.connections[0].params.password.is_none());
 }
 
+async fn import_with_marker(runtime: &RuntimeContext, id: &str, marker: bool) {
+    let mut payload = export_payload(runtime, false, None).await.unwrap();
+    payload.connections[0].id = id.to_string();
+    payload.connections[0].managed = marker;
+    apply_export_payload(
+        runtime,
+        &crate::connection_cache::ConnectionCache::default(),
+        &crate::credential_cache::CredentialCache::default(),
+        payload,
+    )
+    .await
+    .unwrap();
+}
+
+fn stored_marker(runtime: &RuntimeContext, id: &str) -> bool {
+    crate::persistence::load_connections_file(&runtime.paths.connections_file())
+        .unwrap()
+        .connections
+        .into_iter()
+        .find(|connection| connection.id == id)
+        .unwrap()
+        .managed
+}
+
+#[tokio::test]
+async fn an_import_cannot_confer_the_managed_marker_on_a_new_connection() {
+    let (_temp, runtime, _secrets) = fixture();
+    import_with_marker(&runtime, "forged", true).await;
+    assert!(!stored_marker(&runtime, "forged"));
+}
+
+#[tokio::test]
+async fn an_import_preserves_the_marker_of_the_connection_it_replaces() {
+    let (_temp, runtime, _secrets) = fixture();
+    let mut file =
+        crate::persistence::load_connections_file(&runtime.paths.connections_file()).unwrap();
+    file.connections[0].managed = true;
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+
+    import_with_marker(&runtime, "connection-1", false).await;
+    assert!(stored_marker(&runtime, "connection-1"));
+}
+
+#[tokio::test]
+async fn an_import_cannot_set_the_marker_on_an_unmarked_replacement() {
+    let (_temp, runtime, _secrets) = fixture();
+    import_with_marker(&runtime, "connection-1", true).await;
+    assert!(!stored_marker(&runtime, "connection-1"));
+}
+
 #[test]
 fn browser_imports_never_accept_server_paths() {
     let (_temp, runtime, _secrets) = fixture();

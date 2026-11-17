@@ -1,4 +1,6 @@
-export const WEB_UI_BASE_PATH = import.meta.env.BASE_URL;
+import {runtimeWebBasePath} from '@/utils/webBasePath';
+
+export const WEB_UI_BASE_PATH = runtimeWebBasePath();
 
 export const BROWSER_ROUTES = {
     root: '/',

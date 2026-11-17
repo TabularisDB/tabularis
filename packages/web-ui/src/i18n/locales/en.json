@@ -315,6 +315,7 @@
     "showData": "Show Data",
     "countRows": "Count Rows",
     "viewSchema": "View Schema",
+    "schemaNotes": "Schema Notes",
     "viewERDiagram": "View ER Diagram",
     "generateSQL": "Generate SQL",
     "addColumn": "Add Column",
@@ -2356,6 +2357,8 @@
       "exportHtml": "Export as HTML",
       "exportSql": "Export SQL source",
       "exportSqlEmpty": "This notebook has no SQL to export.",
+      "exportMarkdown": "Export Markdown",
+      "exportMarkdownEmpty": "This notebook has no content to export.",
       "parameters": "Parameters",
       "paramName": "name",
       "paramValue": "value",
@@ -3060,6 +3063,12 @@
         "unknown": "unknown"
       }
     }
+  },
+  "managed": {
+    "denied": "This connection is managed by an administrator and cannot be changed here.",
+    "noConnections": "No connections are available yet. Ask your administrator to provide one.",
+    "notice": "An administrator manages the connections on this server. You can open them and run queries, but you cannot add, edit, delete, import, export or test connections.",
+    "noticeTitle": "Managed connections"
   },
   "groups": {
     "title": "Groups",
@@ -3777,5 +3786,40 @@
   },
   "pluginWorkspace": {
     "unavailable": "This workspace is unavailable. Enable or reinstall its plugin in Settings."
+  },
+  "schemaNotes": {
+    "title": "Schema notes",
+    "subtitle": "Local business notes, stored on this computer. They are never written to the database.",
+    "loading": "Loading notes…",
+    "loadFailed": "The notes file could not be read. It was left unchanged: fix or replace it to edit notes here.",
+    "documented": "Documented objects",
+    "noNotes": "No notes yet.",
+    "noDomain": "No domain",
+    "columnCount": "· {{count}} col.",
+    "projectNote": "Connection note ({{name}})",
+    "tableNote": "Table note",
+    "domain": "Business domain",
+    "domainPlaceholder": "e.g. Billing",
+    "columns": "Columns",
+    "columnNote": "Note for column {{column}}",
+    "databaseComment": "Database comment",
+    "notePlaceholder": "Markdown supported",
+    "empty": "No note",
+    "tableNotFound": "This table was not found in the database. Its notes are kept.",
+    "columnNotFound": "Not found in the database; note kept",
+    "metadataUnavailable": "Table details could not be loaded; you can still edit the notes.",
+    "includeInAi": "Include these notes in AI schema context",
+    "includeInAiHint": "Off by default. When on, notes for the tables sent to the AI provider are added as clearly labelled, descriptive context.",
+    "preview": "Preview",
+    "edit": "Edit",
+    "import": "Import",
+    "export": "Export",
+    "save": "Save",
+    "saved": "Notes saved.",
+    "imported": "Imported notes from {{name}}.",
+    "saveBeforeImport": "Save your changes before importing.",
+    "saveBeforeExport": "Save your changes before exporting.",
+    "discardTitle": "Discard unsaved notes?",
+    "discardMessage": "Your changes to the notes have not been saved. Closing now discards them."
   }
 }

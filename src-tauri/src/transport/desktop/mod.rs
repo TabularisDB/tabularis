@@ -35,6 +35,7 @@ pub mod query_history;
 pub mod runtime;
 pub mod sandbox_protocol;
 pub mod saved_queries;
+pub mod schema_notes;
 pub mod sql_file;
 pub mod sqlite_database;
 pub mod storage_location;
@@ -43,6 +44,8 @@ pub mod task_manager;
 #[cfg(test)]
 mod tests;
 pub mod theme_commands;
+#[cfg(test)]
+mod theme_commands_tests;
 pub mod theme_packages;
 pub mod ui_state_commands;
 pub mod updater;
@@ -366,6 +369,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::get_keybindings,
             commands::save_keybindings,
             commands::test_connection,
+            commands::open_saved_connection,
             commands::list_databases,
             commands::save_connection,
             sqlite_database::create_sqlite_file,
@@ -501,6 +505,11 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             query_history::delete_query_history_entry,
             query_history::clear_query_history,
             query_history::get_query_history_insights,
+            schema_notes::get_schema_notes,
+            schema_notes::set_schema_note,
+            schema_notes::set_schema_notes_ai_context,
+            schema_notes::import_schema_notes,
+            schema_notes::export_schema_notes,
             // Config
             config::get_schema_preference,
             config::set_schema_preference,
