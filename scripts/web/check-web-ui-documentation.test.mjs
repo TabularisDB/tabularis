@@ -23,6 +23,7 @@ test('the Web operator guide covers every Web CLI option', () => {
     });
 
     assert.deepEqual(optionNames, [
+        '--base-path',
         '--host',
         '--port',
         '--no-open',

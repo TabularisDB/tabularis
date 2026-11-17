@@ -548,6 +548,7 @@ fn options(
 ) -> server::WebServerOptions {
     let temp = std::env::temp_dir();
     server::WebServerOptions {
+            base_path: None,
         trusted_proxies: Vec::new(),
         host: "127.0.0.1".to_string(),
         port: 0,

@@ -75,6 +75,7 @@ async fn machine_crud_retries_secrets_and_browser_separation() {
         Arc::default(),
         ManagedConnectionPolicy::managed_only(),
         Some(ProvisioningToken::new(TOKEN).unwrap()),
+        super::base_path::PublicBasePath::default(),
         async {
             let _ = rx.await;
         },
@@ -132,8 +133,13 @@ async fn machine_crud_retries_secrets_and_browser_separation() {
             .await
             .unwrap();
         assert_eq!(first["managed"], true);
-        let retries = futures::future::join_all((0..4).map(|_| client.put(&url).bearer_auth(TOKEN).json(&body).send())).await;
-        for retry in retries { assert_eq!(retry.unwrap().json::<Value>().await.unwrap(), first); }
+        let retries = futures::future::join_all(
+            (0..4).map(|_| client.put(&url).bearer_auth(TOKEN).json(&body).send()),
+        )
+        .await;
+        for retry in retries {
+            assert_eq!(retry.unwrap().json::<Value>().await.unwrap(), first);
+        }
         assert_eq!(first["external_ref"], format!("{driver}-database"));
         for _ in 0..3 {
             let retry: Value = client
