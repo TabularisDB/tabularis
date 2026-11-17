@@ -122,7 +122,7 @@ export const AiExplainModal = ({
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {!settings.aiProvider && (
+                    {!settings.aiProvider && !scopedAi && (
                         <div className="bg-warning-bg border border-warning-border text-warning-text px-4 py-3 rounded text-sm">
                             ⚠️ AI Provider not configured. Please go to Settings {'>'} AI.
                         </div>

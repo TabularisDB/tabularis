@@ -136,4 +136,14 @@ it('explains in the authorized workspace without global AI settings or schema re
         language: 'Deutsch',
     });
     expect(screen.getByText(/openrouter \/ fixed-model/)).toBeInTheDocument();
+    expect(screen.queryByText(/AI Provider not configured/)).not.toBeInTheDocument();
+});
+
+it('keeps the setup warning when neither a local nor managed provider is configured', () => {
+    invokeMock.mockReset();
+    settingsMock.aiProvider = undefined;
+    render(<AiExplainModal isOpen onClose={vi.fn()} query="SELECT 1" />);
+
+    expect(screen.getByText(/AI Provider not configured/)).toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalled();
 });
