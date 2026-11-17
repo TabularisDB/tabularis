@@ -6,6 +6,7 @@ pub mod extract;
 mod binding;
 mod client;
 mod column_comments;
+mod column_origins;
 mod explain;
 mod helpers;
 mod routines;
@@ -1146,6 +1147,7 @@ async fn exec_on_pg_client(
             truncated: false,
             pagination: None,
             additional_results: None,
+            column_sources: None,
             server_time_ms: None,
             fetch_time_ms: None,
         });
@@ -1175,6 +1177,7 @@ async fn exec_on_pg_client(
         .map_err(|e| format_pg_error(&e))?);
 
     let mut columns: Vec<String> = Vec::new();
+    let mut column_origins: Vec<column_origins::ColumnOrigin> = Vec::new();
     let mut json_rows = Vec::new();
 
     use futures::stream::StreamExt;
@@ -1187,6 +1190,11 @@ async fn exec_on_pg_client(
             Ok(row) => {
                 if columns.is_empty() {
                     columns = row.columns().iter().map(|c| c.name().to_string()).collect();
+                    column_origins = row
+                        .columns()
+                        .iter()
+                        .map(|c| (c.table_oid(), c.column_id()))
+                        .collect();
                 }
 
                 if let Some(l) = manual_limit {
@@ -1209,6 +1217,20 @@ async fn exec_on_pg_client(
 
     let (server_time, fetch_time) =
         crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
+
+    // Name the tables the columns were read from (one catalog query for the
+    // whole result set). Done after the timing so it does not count as fetch time.
+    let column_sources = if column_origins.is_empty() {
+        None
+    } else {
+        let resolved =
+            column_origins::resolve_origins(client, &column_origins::lookup_keys(&column_origins))
+                .await;
+        Some(column_origins::build_column_sources(
+            &column_origins,
+            &resolved,
+        ))
+    };
 
     let pagination = if let Some((page_size, p)) = pagination_meta {
         let has_more = json_rows.len() > page_size as usize;
@@ -1233,6 +1255,7 @@ async fn exec_on_pg_client(
         truncated,
         pagination,
         additional_results: None,
+        column_sources,
         server_time_ms: server_time,
         fetch_time_ms: fetch_time,
     })

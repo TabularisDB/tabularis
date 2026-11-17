@@ -240,3 +240,36 @@ async fn test_pinned_session_rejects_database_mismatch() {
     .await
     .expect("ROLLBACK should succeed");
 }
+
+#[tokio::test]
+#[ignore]
+async fn test_execute_query_reports_column_sources() {
+    require_pg!();
+    let params = pg_params();
+
+    // A self-join with a label alias and a computed column: the origin is the
+    // table column, not the label, and expressions have none.
+    let result = postgres::execute_query(
+        &params,
+        "SELECT a.id, a.col_text AS label, a.id + 1 AS next_id \
+         FROM test_schema.all_types a JOIN test_schema.all_types b ON a.id = b.id \
+         ORDER BY a.id",
+        Some(100),
+        1,
+        None,
+    )
+    .await
+    .expect("execute_query should succeed");
+
+    assert_eq!(result.columns, vec!["id", "label", "next_id"]);
+    let sources = result.column_sources.expect("column_sources reported");
+    assert_eq!(sources.len(), 3);
+    let first = sources[0].as_ref().expect("id has an origin");
+    assert_eq!(first.schema.as_deref(), Some("test_schema"));
+    assert_eq!(first.table, "all_types");
+    assert_eq!(first.column, "id");
+    assert_eq!(first.table_alias, None);
+    let label = sources[1].as_ref().expect("label has an origin");
+    assert_eq!(label.column, "col_text");
+    assert!(sources[2].is_none(), "a computed column has no origin");
+}

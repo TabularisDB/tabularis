@@ -1,6 +1,22 @@
 import type {Dialect} from '@/utils/sqlSplitter';
 
 /** Plugin-declared native whole-file backup. The host echoes `format`. */
+/**
+ * Where one result column comes from, as reported by the driver in
+ * `QueryResult.column_sources`. Mirrors `src-tauri/src/models.rs::ColumnSource`.
+ * The driver only reports origins; the host decides what is editable.
+ */
+export interface ColumnSource {
+    /** Omitted for engines without schemas. */
+    schema?: string;
+    /** Original table name (a collection name for non-SQL plugins). */
+    table: string;
+    /** Original column name, not the output label (a field name for non-SQL plugins). */
+    column: string;
+    /** Alias of the table in the query; only set when the driver knows it. */
+    table_alias?: string;
+}
+
 export interface NativeBackupCapability {
     format: string;
     extension: string;

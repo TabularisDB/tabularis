@@ -438,6 +438,7 @@ async fn column_lengths_are_reported() {
         exercise_full_types(&mut connection, &params, &schema).await;
         exercise_defaults_survive_rename(&mut connection, &params, &schema).await;
         exercise_column_comments(&mut connection, &params, &schema).await;
+        exercise_column_sources(&mut connection, &params, &schema).await;
     })
     .catch_unwind()
     .await;
@@ -461,6 +462,92 @@ async fn column_lengths_are_reported() {
         cleanup_error.is_none(),
         "fixture cleanup failed: {cleanup_error:?}"
     );
+}
+
+/// `execute_query` reports where each result column comes from (#690): the
+/// original table and column even through aliases, both sides of a self-join
+/// with their aliases, and `None` for computed columns.
+async fn exercise_column_sources(
+    connection: &mut MySqlConnection,
+    params: &ConnectionParams,
+    schema: &str,
+) {
+    let db = quoted(schema);
+    execute(
+        connection,
+        &format!("CREATE TABLE {db}.src_customers (id INT PRIMARY KEY, name VARCHAR(20))"),
+    )
+    .await;
+    execute(
+        connection,
+        &format!("CREATE TABLE {db}.src_orders (id INT PRIMARY KEY, customer_id INT, total INT)"),
+    )
+    .await;
+    execute(
+        connection,
+        &format!("INSERT INTO {db}.src_customers VALUES (1, 'Ada')"),
+    )
+    .await;
+    execute(
+        connection,
+        &format!("INSERT INTO {db}.src_orders VALUES (10, 1, 5)"),
+    )
+    .await;
+
+    let source = |table: &str, column: &str, alias: &str| {
+        Some(tabularis_lib::models::ColumnSource {
+            schema: Some(schema.to_string()),
+            table: table.to_string(),
+            column: column.to_string(),
+            table_alias: Some(alias.to_string()),
+        })
+    };
+    for text_protocol in [false, true] {
+        let selected = params_for_protocol(params, text_protocol);
+        let result = mysql::execute_query(
+            &selected,
+            "SELECT o.id AS order_id, c.name, o.total + 1 AS bumped, 'x' AS lit \
+             FROM src_orders o JOIN src_customers c ON c.id = o.customer_id",
+            Some(100),
+            1,
+            Some(schema),
+        )
+        .await
+        .expect("join query");
+        assert_eq!(
+            result.columns,
+            ["order_id", "name", "bumped", "lit"],
+            "text protocol: {text_protocol}"
+        );
+        assert_eq!(
+            result.column_sources,
+            Some(vec![
+                source("src_orders", "id", "o"),
+                source("src_customers", "name", "c"),
+                None,
+                None,
+            ]),
+            "text protocol: {text_protocol}"
+        );
+
+        let result = mysql::execute_query(
+            &selected,
+            "SELECT a.id, b.id FROM src_customers a JOIN src_customers b ON a.id = b.id",
+            None,
+            1,
+            Some(schema),
+        )
+        .await
+        .expect("self-join query");
+        assert_eq!(
+            result.column_sources,
+            Some(vec![
+                source("src_customers", "id", "a"),
+                source("src_customers", "id", "b"),
+            ]),
+            "text protocol: {text_protocol}"
+        );
+    }
 }
 
 async fn exercise_column_comments(

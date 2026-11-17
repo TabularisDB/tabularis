@@ -12,6 +12,32 @@ pub struct MySqlColumn {
 
     #[cfg_attr(feature = "offline", serde(skip))]
     pub(crate) flags: Option<ColumnFlags>,
+
+    #[cfg_attr(feature = "offline", serde(skip))]
+    pub(crate) source: Option<MySqlColumnSource>,
+}
+
+/// Where a result column originates, as sent by the server in the column
+/// definition packet. Tabularis patch: upstream parses these fields and drops
+/// them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MySqlColumnSource {
+    /// Schema (database) of the original table.
+    pub schema: String,
+    /// Original table name, not the alias.
+    pub table: String,
+    /// Alias of the table in the query (equals `table` when none was given).
+    pub table_alias: String,
+    /// Original column name, not the output label.
+    pub column: String,
+}
+
+impl MySqlColumn {
+    /// The table column this result column was read from, or `None` for an
+    /// expression, a literal or any column the server gave no origin for.
+    pub fn source(&self) -> Option<&MySqlColumnSource> {
+        self.source.as_ref()
+    }
 }
 
 impl Column for MySqlColumn {

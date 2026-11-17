@@ -1,4 +1,5 @@
 import type {ForeignKey} from './schema';
+import type {ColumnSource} from './plugins';
 import type {GridHistory} from '@/utils/gridUndo';
 import type {LinkedFileRef} from './linkedFolders';
 
@@ -50,6 +51,11 @@ export interface QueryResult {
     /// `src-tauri/src/models.rs::QueryResult`; the first set stays in
     /// `columns` / `rows`.
     additional_results?: QueryResult[];
+    /// Origin of each column, aligned with `columns`. An entry is `null` for
+    /// an expression or computed column; a missing field means the driver does
+    /// not report origins (every column is read-only). Mirrors
+    /// `src-tauri/src/models.rs::QueryResult`.
+    column_sources?: (ColumnSource | null)[];
     server_time_ms?: number;
     fetch_time_ms?: number;
 }

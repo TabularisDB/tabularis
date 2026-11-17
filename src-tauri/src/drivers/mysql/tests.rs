@@ -1248,3 +1248,59 @@ mod live_mysql_query_timeout {
         );
     }
 }
+
+mod column_sources {
+    use super::super::multi_result::{column_source_from_mysql, ResultSetCollector};
+    use crate::models::ColumnSource;
+    use serde_json::json;
+    use sqlx::mysql::MySqlColumnSource;
+
+    fn src(schema: &str, table: &str, alias: &str, column: &str) -> MySqlColumnSource {
+        MySqlColumnSource {
+            schema: schema.into(),
+            table: table.into(),
+            table_alias: alias.into(),
+            column: column.into(),
+        }
+    }
+
+    #[test]
+    fn maps_schema_table_alias_and_original_column() {
+        let got = column_source_from_mysql(&src("shop", "orders", "o", "id"));
+        assert_eq!(
+            got,
+            ColumnSource {
+                schema: Some("shop".into()),
+                table: "orders".into(),
+                column: "id".into(),
+                table_alias: Some("o".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn empty_schema_and_alias_are_reported_as_absent() {
+        let got = column_source_from_mysql(&src("", "orders", "", "id"));
+        assert_eq!(got.schema, None);
+        assert_eq!(got.table_alias, None);
+    }
+
+    #[test]
+    fn collector_keeps_sources_aligned_with_columns_per_result_set() {
+        let mut c = ResultSetCollector::new(None);
+        c.set_columns(vec!["id".into(), "total".into()]);
+        c.set_column_sources(vec![
+            Some(column_source_from_mysql(&src(
+                "shop", "orders", "orders", "id",
+            ))),
+            None,
+        ]);
+        c.push_row(vec![json!(1), json!(2)]);
+        c.end_result_set();
+        let sets = c.finish();
+        assert_eq!(sets.len(), 1);
+        assert_eq!(sets[0].column_sources.len(), sets[0].columns.len());
+        assert_eq!(sets[0].column_sources[0].as_ref().unwrap().table, "orders");
+        assert!(sets[0].column_sources[1].is_none());
+    }
+}

@@ -14,7 +14,7 @@ use crate::protocol::text::{ColumnDefinition, ColumnFlags, Query, TextRow};
 use crate::statement::{MySqlStatement, MySqlStatementMetadata};
 use crate::HashMap;
 use crate::{
-    MySql, MySqlArguments, MySqlColumn, MySqlConnection, MySqlQueryResult, MySqlRow, MySqlTypeInfo,
+    MySql, MySqlArguments, MySqlColumn, MySqlColumnSource, MySqlConnection, MySqlQueryResult, MySqlRow, MySqlTypeInfo,
     MySqlValueFormat,
 };
 use either::Either;
@@ -392,11 +392,23 @@ fn recv_next_result_column(def: &ColumnDefinition, ordinal: usize) -> Result<MyS
 
     let type_info = MySqlTypeInfo::from_column(def);
 
+    // An expression has no original table or column; leave it without a source.
+    let source = match (def.table()?, def.name()?) {
+        (table, column) if !table.is_empty() && !column.is_empty() => Some(MySqlColumnSource {
+            schema: def.schema()?.to_owned(),
+            table: table.to_owned(),
+            table_alias: def.table_alias()?.to_owned(),
+            column: column.to_owned(),
+        }),
+        _ => None,
+    };
+
     Ok(MySqlColumn {
         name,
         type_info,
         ordinal,
         flags: Some(def.flags),
+        source,
     })
 }
 

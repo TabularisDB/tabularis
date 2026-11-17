@@ -5,10 +5,25 @@
 //! surfaces them as a flat stream of rows interleaved with per-result-set
 //! terminators; this collector folds that stream back into discrete sets.
 
+use crate::models::ColumnSource;
+
+/// Converts the origin MySQL reports for a column into the host's
+/// [`ColumnSource`]. An empty schema or table alias is reported as absent.
+pub fn column_source_from_mysql(src: &sqlx::mysql::MySqlColumnSource) -> ColumnSource {
+    ColumnSource {
+        schema: Some(src.schema.clone()).filter(|s| !s.is_empty()),
+        table: src.table.clone(),
+        column: src.column.clone(),
+        table_alias: Some(src.table_alias.clone()).filter(|s| !s.is_empty()),
+    }
+}
+
 /// One materialized result set: column names plus JSON-encoded rows.
 #[derive(Debug, Default)]
 pub struct ResultSetData {
     pub columns: Vec<String>,
+    /// Origin of each column, aligned with `columns` (`None` = expression).
+    pub column_sources: Vec<Option<ColumnSource>>,
     pub rows: Vec<Vec<serde_json::Value>>,
     pub truncated: bool,
 }
@@ -44,6 +59,11 @@ impl ResultSetCollector {
 
     pub fn set_columns(&mut self, columns: Vec<String>) {
         self.current.columns = columns;
+    }
+
+    /// Records where each column of the current result set comes from.
+    pub fn set_column_sources(&mut self, sources: Vec<Option<ColumnSource>>) {
+        self.current.column_sources = sources;
     }
 
     /// True when the current result set already holds `limit` rows. Callers

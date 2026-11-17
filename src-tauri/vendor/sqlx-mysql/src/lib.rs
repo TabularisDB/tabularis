@@ -38,7 +38,7 @@ mod migrate;
 mod testing;
 
 pub use arguments::MySqlArguments;
-pub use column::MySqlColumn;
+pub use column::{MySqlColumn, MySqlColumnSource};
 pub use connection::MySqlConnection;
 pub use database::MySql;
 pub use error::MySqlDatabaseError;
