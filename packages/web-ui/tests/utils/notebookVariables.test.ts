@@ -703,3 +703,22 @@ describe('notebookVariables', () => {
         });
     });
 });
+
+describe('notebookVariables with disabled cells', () => {
+    const cached = {columns: ['id'], rows: [[1]], affected_rows: 0};
+
+    it('never substitutes the cached output of a disabled cell', () => {
+        const cells = [makeCell({id: 'a', content: 'SELECT 1', result: cached, isDisabled: true})];
+        const resolved = resolveQueryVariables('SELECT * FROM {{cell_1}}', cells);
+        expect(resolved.sql).toBe('SELECT * FROM {{cell_1}}');
+        expect(resolved.unresolvedRefs).toEqual([{match: '{{cell_1}}', cellIndex: 0}]);
+    });
+
+    it('does not schedule a disabled cell as a dependency to run', () => {
+        const cells = [
+            makeCell({id: 'a', content: 'SELECT 1', isDisabled: true}),
+            makeCell({id: 'b', content: 'SELECT 2'}),
+        ];
+        expect(findUnresolvedDependencies('SELECT {{cell_1}}, {{cell_2}}', cells)).toEqual([1]);
+    });
+});

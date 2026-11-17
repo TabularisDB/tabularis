@@ -37,6 +37,7 @@ export function serializeNotebook(
             ...(c.schema ? {schema: c.schema} : {}),
             ...(c.chartConfig ? {chartConfig: c.chartConfig} : {}),
             ...(c.isParallel ? {isParallel: c.isParallel} : {}),
+            ...(c.type === 'sql' && c.isDisabled ? {isDisabled: true} : {}),
             ...(c.isCollapsed ? {isCollapsed: c.isCollapsed} : {}),
             ...(c.isQueryCollapsed ? {isQueryCollapsed: c.isQueryCollapsed} : {}),
             ...(c.isResultCollapsed ? {isResultCollapsed: c.isResultCollapsed} : {}),
@@ -97,6 +98,8 @@ export function deserializeNotebook(json: string): {
                 schema: c.schema,
                 chartConfig: (cellRaw.chartConfig as NotebookCell['chartConfig']) ?? null,
                 isParallel: cellRaw.isParallel as boolean | undefined,
+                // Files written before cells could be disabled have no flag: enabled.
+                isDisabled: c.type === 'sql' && cellRaw.isDisabled === true ? true : undefined,
                 isCollapsed: cellRaw.isCollapsed as boolean | undefined,
                 isQueryCollapsed: cellRaw.isQueryCollapsed as boolean | undefined,
                 isResultCollapsed: cellRaw.isResultCollapsed as boolean | undefined,
