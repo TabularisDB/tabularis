@@ -1,7 +1,7 @@
 import {StrictMode} from 'react';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useSearchParams} from 'react-router-dom';
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {createInstance} from 'i18next';
 import en from '@/i18n/locales/en.json';
 import itLocale from '@/i18n/locales/it.json';
@@ -34,17 +34,25 @@ vi.mock('@/hooks/useUpdate', () => ({useUpdate: vi.fn()}));
 vi.mock('@/hooks/useSettings', () => ({
     useSettings: () => ({settings: {}, isLoading: false, updateSetting: vi.fn()}),
 }));
+const driversMock = vi.hoisted(() => {
+    const defaultDrivers = [
+        {
+            id: 'mysql',
+            name: 'MySQL',
+            is_builtin: true,
+            settings: [{key: 'pool'}],
+        },
+    ];
+    return {
+        defaultDrivers,
+        allDrivers: defaultDrivers as Array<Record<string, unknown>>,
+        installedPlugins: [] as Array<Record<string, unknown>>,
+    };
+});
 vi.mock('@/hooks/useDrivers', () => ({
     useDrivers: () => ({
-        allDrivers: [
-            {
-                id: 'mysql',
-                name: 'MySQL',
-                is_builtin: true,
-                settings: [{key: 'pool'}],
-            },
-        ],
-        installedPlugins: [],
+        allDrivers: driversMock.allDrivers,
+        installedPlugins: driversMock.installedPlugins,
         refresh: vi.fn(),
     }),
 }));
@@ -378,5 +386,69 @@ describe('managed connections', () => {
         renderApp('/settings?tab=ssh');
 
         expect(screen.getByText('SshTab')).toBeInTheDocument();
+    });
+});
+
+describe('plugin sidebar with a deprecated built-in driver', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(usePluginRegistry).mockReturnValue({
+            plugins: [],
+            updates: [],
+            loading: false,
+            error: null,
+            refresh: vi.fn(),
+        });
+        vi.mocked(useUpdate).mockReturnValue({
+            updateInfo: null,
+            availableUpdate: null,
+            isChecking: false,
+            isDownloading: false,
+            downloadProgress: 0,
+            checkForUpdates: vi.fn(),
+            downloadAndInstall: vi.fn(),
+            dismissUpdate: vi.fn(),
+            error: null,
+            isUpToDate: true,
+            installationSource: null,
+        });
+        driversMock.allDrivers = [
+            ...driversMock.defaultDrivers,
+            {
+                id: 'postgres',
+                name: 'PostgreSQL',
+                is_builtin: true,
+                settings: [{key: 'pool'}],
+                deprecated: {replacement_id: 'postgresql', removal_date: '2026-10-05'},
+            },
+            {id: 'postgresql', name: 'PostgreSQL', is_builtin: false, settings: []},
+        ];
+        driversMock.installedPlugins = [{id: 'postgresql', name: 'PostgreSQL'}];
+    });
+
+    afterEach(() => {
+        driversMock.allDrivers = driversMock.defaultDrivers;
+        driversMock.installedPlugins = [];
+    });
+
+    it('marks the deprecated built-in entry so it can be told apart from its plugin replacement', () => {
+        renderApp();
+
+        const entries = screen.getAllByRole('button', {name: /^PostgreSQL/});
+        expect(entries).toHaveLength(2);
+        const [builtin, replacement] = entries;
+        expect(builtin).toHaveTextContent('Deprecato');
+        expect(builtin).toHaveAttribute(
+            'title',
+            expect.stringContaining('viene sostituito dal plugin postgresql'),
+        );
+        expect(replacement).toHaveAccessibleName('PostgreSQL');
+        expect(replacement).not.toHaveTextContent('Deprecato');
+    });
+
+    it('leaves non-deprecated entries unchanged', () => {
+        renderApp();
+
+        expect(screen.getByRole('button', {name: 'MySQL'})).not.toHaveTextContent('Deprecato');
     });
 });
