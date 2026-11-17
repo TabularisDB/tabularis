@@ -346,6 +346,11 @@ enum ProductivityRpcCommand {
     DeleteQueryHistoryEntry,
     ClearQueryHistory,
     GetQueryHistoryInsights,
+    GetSchemaNotes,
+    SetSchemaNote,
+    SetSchemaNotesAiContext,
+    ImportSchemaNotes,
+    ExportSchemaNotes,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -855,6 +860,29 @@ struct SaveQueryRequest {
     name: String,
     sql: String,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetSchemaNoteRequest {
+    connection_id: String,
+    target: Option<crate::schema_notes::SchemaNoteTarget>,
+    domain: Option<String>,
+    note: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetSchemaNotesAiContextRequest {
+    connection_id: String,
+    enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ImportSchemaNotesRequest {
+    connection_id: String,
+    contents: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2531,6 +2559,11 @@ impl ProductivityRpcCommand {
             "delete_query_history_entry" => Self::DeleteQueryHistoryEntry,
             "clear_query_history" => Self::ClearQueryHistory,
             "get_query_history_insights" => Self::GetQueryHistoryInsights,
+            "get_schema_notes" => Self::GetSchemaNotes,
+            "set_schema_note" => Self::SetSchemaNote,
+            "set_schema_notes_ai_context" => Self::SetSchemaNotesAiContext,
+            "import_schema_notes" => Self::ImportSchemaNotes,
+            "export_schema_notes" => Self::ExportSchemaNotes,
             _ => return None,
         })
     }
@@ -3468,6 +3501,41 @@ fn decode_productivity_command(
                     max_groups: request.max_groups,
                     max_executions_per_group: request.max_executions_per_group,
                 },
+            }
+        }
+        ProductivityRpcCommand::GetSchemaNotes => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ProductivityCommand::GetSchemaNotes {
+                connection_id: request.connection_id,
+            }
+        }
+        ProductivityRpcCommand::SetSchemaNote => {
+            let request: SetSchemaNoteRequest = decode_payload(body)?;
+            ProductivityCommand::SetSchemaNote {
+                connection_id: request.connection_id,
+                target: request.target,
+                domain: request.domain,
+                note: request.note,
+            }
+        }
+        ProductivityRpcCommand::SetSchemaNotesAiContext => {
+            let request: SetSchemaNotesAiContextRequest = decode_payload(body)?;
+            ProductivityCommand::SetSchemaNotesAiContext {
+                connection_id: request.connection_id,
+                enabled: request.enabled,
+            }
+        }
+        ProductivityRpcCommand::ImportSchemaNotes => {
+            let request: ImportSchemaNotesRequest = decode_payload(body)?;
+            ProductivityCommand::ImportSchemaNotes {
+                connection_id: request.connection_id,
+                contents: request.contents,
+            }
+        }
+        ProductivityRpcCommand::ExportSchemaNotes => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ProductivityCommand::ExportSchemaNotes {
+                connection_id: request.connection_id,
             }
         }
     })

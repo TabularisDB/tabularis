@@ -31,6 +31,7 @@ pub mod read_only;
 pub mod records;
 pub mod table_row_transfers;
 pub mod routine_debug;
+pub mod schema_notes;
 pub mod secret_redaction;
 pub mod table_transfers;
 pub mod themes;
