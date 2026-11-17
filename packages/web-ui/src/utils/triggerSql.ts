@@ -510,7 +510,8 @@ export function splitSqlStatements(sql: string): string[] {
             continue;
         }
         if (ch === '$') {
-            const m = /^\$[A-Za-z_]*\$/.exec(sql.slice(i));
+            // Same tag rule as the SQL splitter: `$fn1$` and `$función$` are tags.
+            const m = /^\$(?:[\p{L}_][\p{L}\p{N}_]*)?\$/u.exec(sql.slice(i));
             if (m) {
                 dollar = m[0];
                 cur += m[0];
