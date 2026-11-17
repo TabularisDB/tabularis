@@ -59,6 +59,45 @@ describe('useAiActivity', () => {
         });
     });
 
+    it('handles a rejected approval subscription before unmount', async () => {
+        invokeMock.mockResolvedValue([]);
+        const error = new Error('The session is not authorized for this event');
+        listenMock.mockRejectedValue(error);
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            const {result, unmount} = renderHook(() => usePendingApprovals());
+            await waitFor(() =>
+                expect(logged).toHaveBeenCalledWith(
+                    'Failed to subscribe to pending AI approvals:',
+                    expect.objectContaining({message: error.message}),
+                ),
+            );
+            expect(result.current.pending).toEqual([]);
+            expect(result.current.loading).toBe(false);
+            unmount();
+        } finally {
+            logged.mockRestore();
+        }
+    });
+
+    it('releases an approval subscription that finishes after unmount', async () => {
+        invokeMock.mockResolvedValue([]);
+        const release = vi.fn();
+        let resolveListener!: (unlisten: () => void) => void;
+        listenMock.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveListener = resolve;
+                }),
+        );
+        const {unmount} = renderHook(() => usePendingApprovals());
+        unmount();
+        await act(async () => {
+            resolveListener(release);
+        });
+        expect(release).toHaveBeenCalledOnce();
+    });
+
     it('refreshes and decides approvals through the shared event and RPC contract', async () => {
         invokeMock.mockImplementation((command) => {
             if (command === 'list_pending_approvals') return Promise.resolve([pending]);

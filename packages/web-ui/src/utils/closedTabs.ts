@@ -76,6 +76,16 @@ export function insertReopenedTab(
     connectionId: string,
     entry: ClosedTabEntry,
 ): {newTabs: Tab[]; tab: Tab} {
+    if (entry.tab.type === 'plugin-workspace' && entry.tab.pluginId && entry.tab.workspaceId) {
+        const existing = tabs.find(
+            (tab) =>
+                tab.type === 'plugin-workspace' &&
+                tab.connectionId === connectionId &&
+                tab.pluginId === entry.tab.pluginId &&
+                tab.workspaceId === entry.tab.workspaceId,
+        );
+        if (existing) return {newTabs: tabs, tab: existing};
+    }
     const idTaken = tabs.some((t) => t.id === entry.tab.id);
     const tab = restoreTabFromStorage(idTaken ? {...entry.tab, id: generateTabId()} : entry.tab);
 

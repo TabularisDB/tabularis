@@ -1,9 +1,22 @@
 import {useContext, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {createPortal, flushSync} from 'react-dom';
 import {useTranslation} from 'react-i18next';
+import {useNavigate} from 'react-router-dom';
 import {useSettings} from '@/hooks/useSettings';
 import {useToast} from '@/hooks/useToast';
 import {ThemeContext} from '@/contexts/ThemeContext';
+import {DatabaseContext} from '@/contexts/DatabaseContext';
+import {EditorContext} from '@/contexts/EditorContext';
+import {buildEditorRoute} from '@/routing';
+import {
+    createProviderSandboxHandlers,
+    openProviderWorkspace,
+    providerString,
+} from '@/utils/providerSandbox';
+import {parsePluginNativeComponent, parsePluginNativeRect} from '@/utils/pluginNative';
+import {publishPluginEvent, subscribePluginEvent} from '@/utils/pluginEvents';
+import type {PluginNativeComponent} from '@/types/pluginNative';
+import {NativePluginComponent} from './NativePluginComponent';
 import {isReadOnlyQuery} from '@/utils/sqlAnalysis';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {getActivePlatformCapabilities} from '@/platform/activeCapabilities';
@@ -46,6 +59,9 @@ function equalJsonValues(left: unknown, right: unknown): boolean {
 
 export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     const client = useTabularisClient();
+    const database = useContext(DatabaseContext);
+    const editor = useContext(EditorContext);
+    const navigate = useNavigate();
     const {settings, updateSetting} = useSettings();
     const {showToast} = useToast();
     const {i18n, t} = useTranslation();
@@ -58,6 +74,17 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     const guestContext: SlotContext = useMemo(
         () => ({
             ...context,
+            providerConnections: (database?.connections ?? [])
+                .filter((connection) => connection.params.driver === pluginId)
+                .map(({id, name}) => ({id, name})),
+            activeWorkspaceId:
+                editor?.activeTab?.type === 'plugin-workspace' &&
+                editor.activeTab.pluginId === pluginId
+                    ? editor.activeTab.workspaceId
+                    : null,
+            commonTranslations:
+                i18n.getResourceBundle(language?.split('-')[0] ?? language, 'translation')
+                    ?.common ?? {},
             pluginSettings: settings.plugins?.[pluginId]?.settings ?? {},
             translations:
                 i18n.getResourceBundle(language?.split('-')[0] ?? language, pluginId) ?? {},
@@ -72,16 +99,42 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                   }
                 : null,
         }),
-        [context, i18n, language, pluginId, settings.plugins, theme],
+        [
+            context,
+            database?.connections,
+            editor?.activeTab,
+            i18n,
+            language,
+            pluginId,
+            settings.plugins,
+            theme,
+        ],
     );
     const contextRef = useRef(guestContext);
-    const servicesRef = useRef({client, updateSetting, showToast, t});
+    const servicesRef = useRef({client, updateSetting, showToast, t, database, editor, navigate});
     useLayoutEffect(() => {
-        servicesRef.current = {client, updateSetting, showToast, t};
-    }, [client, updateSetting, showToast, t]);
+        servicesRef.current = {client, updateSetting, showToast, t, database, editor, navigate};
+    }, [client, updateSetting, showToast, t, database, editor, navigate]);
+    const [nativeComponents, setNativeComponents] = useState<PluginNativeComponent[]>([]);
     const [height, setHeight] = useState(0);
+    const [intrinsicWidth, setIntrinsicWidth] = useState(0);
     const [modalOpen, setModalOpen] = useState(false);
-    const [frameRect, setFrameRect] = useState({left: 0, top: 0, width: 0, clip: 'none'});
+    const [openPopovers, setOpenPopovers] = useState<ReadonlySet<string>>(() => new Set());
+    const workspace = context.__tabularisSlot === 'editor.workspace.content';
+    const frameVisible = context.workspaceActive !== false;
+    const expanded = modalOpen && frameVisible;
+    const [frameRect, setFrameRect] = useState({
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+        clip: 'none',
+        visibleTop: 0,
+        visibleBottom: 0,
+        visibleLeft: 0,
+        visibleRight: 0,
+    });
+    const viewportRef = useRef({top: 0, bottom: 0, left: 0, right: 0});
     const [portalRoot] = useState(() => document.createElement('div'));
     const [resolvedFrame, setResolvedFrame] = useState<{
         pluginId: string;
@@ -122,13 +175,14 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     useLayoutEffect(() => {
         const anchor = anchorRef.current;
         if (!anchor) return;
-        let last: {left: number; top: number; width: number; clip: string} | null = null;
+        let last: typeof frameRect | null = null;
         const updatePosition = () => {
             const rect = anchor.getBoundingClientRect();
+            const canvasHeight = workspace ? rect.height : height;
             let left = rect.left;
             let right = rect.right;
             let top = rect.top;
-            let bottom = rect.top + height;
+            let bottom = rect.top + canvasHeight;
             for (
                 let parent = anchor.parentElement;
                 parent && parent !== document.body;
@@ -156,9 +210,9 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             }
             const clamp = (value: number, size: number) => Math.min(size, Math.max(0, value));
             const insets = [
-                clamp(top - rect.top, height),
+                clamp(top - rect.top, canvasHeight),
                 clamp(rect.right - right, rect.width),
-                clamp(rect.top + height - bottom, height),
+                clamp(rect.top + canvasHeight - bottom, canvasHeight),
                 clamp(left - rect.left, rect.width),
             ];
             const clip = insets.every((inset) => inset === 0)
@@ -168,10 +222,21 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                 last?.left === rect.left &&
                 last.top === rect.top &&
                 last.width === rect.width &&
+                last.height === canvasHeight &&
                 last.clip === clip
             )
                 return;
-            last = {left: rect.left, top: rect.top, width: rect.width, clip};
+            last = {
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: canvasHeight,
+                clip,
+                visibleTop: insets[0],
+                visibleBottom: canvasHeight - insets[2],
+                visibleLeft: insets[3],
+                visibleRight: rect.width - insets[1],
+            };
             setFrameRect(last);
         };
         updatePosition();
@@ -180,7 +245,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             updatePosition();
             animationFrame = window.requestAnimationFrame(trackLayout);
         };
-        if (height > 0) animationFrame = window.requestAnimationFrame(trackLayout);
+        if (height > 0 || workspace) animationFrame = window.requestAnimationFrame(trackLayout);
         const resizeObserver = new ResizeObserver(updatePosition);
         resizeObserver.observe(anchor);
         window.addEventListener('resize', updatePosition);
@@ -191,25 +256,181 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             window.removeEventListener('resize', updatePosition);
             window.removeEventListener('scroll', updatePosition, true);
         };
-    }, [height]);
+    }, [height, workspace]);
+
+    useEffect(() => {
+        const sendViewport = () => {
+            const viewport = expanded
+                ? {top: 0, bottom: window.innerHeight, left: 0, right: window.innerWidth}
+                : {
+                      top: frameRect.visibleTop,
+                      bottom: frameRect.visibleBottom,
+                      left: frameRect.visibleLeft,
+                      right: frameRect.visibleRight,
+                  };
+            if (viewport.bottom <= viewport.top || viewport.right <= viewport.left) return;
+            viewportRef.current = viewport;
+            void rpcRef.current?.call('ui.viewport', [viewport]).catch(() => undefined);
+        };
+        sendViewport();
+        window.addEventListener('resize', sendViewport);
+        return () => window.removeEventListener('resize', sendViewport);
+    }, [expanded, frameRect]);
 
     useEffect(() => {
         const frame = frameRef.current;
         if (!frame) return;
         const controller = new AbortController();
         let disposed = false;
+        const eventSubscriptions = new Map<string, () => void>();
         const handlers = {
+            'api.event.publish': (name: unknown, detail: unknown) =>
+                publishPluginEvent(pluginId, providerString(name, 'plugin event name', 64), detail),
+            'api.event.subscribe': (name: unknown) => {
+                const eventName = providerString(name, 'plugin event name', 64);
+                if (!eventSubscriptions.has(eventName)) {
+                    if (eventSubscriptions.size >= 64)
+                        throw new Error('Too many plugin event subscriptions');
+                    eventSubscriptions.set(
+                        eventName,
+                        subscribePluginEvent(pluginId, eventName, (detail) => {
+                            void rpcRef.current
+                                ?.call('api.event', [eventName, detail])
+                                .catch(() => undefined);
+                        }),
+                    );
+                }
+                return null;
+            },
+            'api.event.unsubscribe': (name: unknown) => {
+                const eventName = providerString(name, 'plugin event name', 64);
+                eventSubscriptions.get(eventName)?.();
+                eventSubscriptions.delete(eventName);
+                return null;
+            },
+            ...createProviderSandboxHandlers(pluginId, () => ({
+                client: servicesRef.current.client,
+                context: contextRef.current,
+                connections: servicesRef.current.database?.connections ?? [],
+                loadConnections: async () => {
+                    await servicesRef.current.database?.loadConnections();
+                },
+                openConnection: async (connectionId, sourceId) => {
+                    const current = servicesRef.current.database;
+                    if (!current) throw new Error('Provider connections are unavailable');
+                    if (sourceId && current.activeConnectionId !== sourceId)
+                        throw new Error('The source connection is no longer active');
+                    // Recheck ownership in persisted metadata before activating the connection.
+                    const saved = await servicesRef.current.client.call('get_connection_by_id', {
+                        id: connectionId,
+                    });
+                    if (saved.params.driver !== pluginId)
+                        throw new Error('Connection belongs to another provider');
+                    if (sourceId && servicesRef.current.database?.activeConnectionId !== sourceId)
+                        throw new Error('The source connection is no longer active');
+                    if (current.openConnectionIds.includes(connectionId))
+                        current.switchConnection(connectionId);
+                    else await current.connect(connectionId);
+                    servicesRef.current.navigate(buildEditorRoute(connectionId));
+                },
+                openWorkspace: (options) => {
+                    const current = servicesRef.current;
+                    if (
+                        !current.editor ||
+                        options.connectionId !== current.database?.activeConnectionId
+                    )
+                        throw new Error('Select the workspace connection before opening it');
+                    const id = openProviderWorkspace(current.editor, pluginId, options);
+                    current.navigate(buildEditorRoute(options.connectionId));
+                    return id;
+                },
+            })),
+            'slot.onConnectionCreated': async () => {
+                const callback = contextRef.current.onConnectionCreated;
+                if (typeof callback !== 'function')
+                    throw new Error('Connection creation callback is unavailable');
+                await callback();
+                return null;
+            },
+            'slot.onClose': () => {
+                const callback = contextRef.current.onClose;
+                if (typeof callback !== 'function')
+                    throw new Error('Close callback is unavailable');
+                callback();
+                return null;
+            },
+            'api.copyText': async (value: unknown) => {
+                if (typeof value !== 'string' || value.length > 1_048_576)
+                    throw new Error('Invalid clipboard text');
+                await getActivePlatformCapabilities().writeClipboard(value);
+                return null;
+            },
+            'ui.native.set': (value: unknown) => {
+                const component = parsePluginNativeComponent(
+                    value,
+                    contextRef.current.connectionId,
+                );
+                setNativeComponents((previous) => {
+                    if (previous.length >= 32 && !previous.some((item) => item.id === component.id))
+                        return previous;
+                    return [...previous.filter((item) => item.id !== component.id), component];
+                });
+                return null;
+            },
+            'ui.native.bounds': (value: unknown, bounds: unknown, modal: unknown = false) => {
+                const id = providerString(value, 'native component ID', 128);
+                const rect = parsePluginNativeRect(bounds);
+                if (typeof modal !== 'boolean') throw new Error('Invalid native component layer');
+                setNativeComponents((previous) =>
+                    previous.map((item) => (item.id === id ? {...item, rect, modal} : item)),
+                );
+                return null;
+            },
+            'ui.native.remove': (value: unknown) => {
+                const id = providerString(value, 'native component ID', 128);
+                setNativeComponents((previous) => previous.filter((item) => item.id !== id));
+                return null;
+            },
             'ui.modal': (open: unknown) => {
                 if (typeof open !== 'boolean') throw new Error('Modal state must be a boolean');
+                if (open && contextRef.current.workspaceActive === false)
+                    throw new Error('Inactive workspaces cannot open overlays');
                 if (open && !navigator.userActivation?.isActive) {
                     // Expansion needs a recent user gesture (propagated from the frame to the host).
                     throw new Error('Modal expansion requires a user interaction');
                 }
                 setModalOpen(open);
+                if (open) void rpcRef.current?.call('ui.closePopovers').catch(() => undefined);
             },
-            'ui.resize': (value: unknown) => {
-                const requested = typeof value === 'number' ? value : 0;
+            'ui.popover': (value: unknown, open: unknown) => {
+                const id = providerString(value, 'popover ID', 128);
+                if (typeof open !== 'boolean') throw new Error('Popover state must be a boolean');
+                if (open && contextRef.current.workspaceActive === false)
+                    throw new Error('Inactive workspaces cannot open popovers');
+                setOpenPopovers((previous) => {
+                    if (previous.has(id) === open || (open && previous.size >= 32)) return previous;
+                    const next = new Set(previous);
+                    if (open) next.add(id);
+                    else next.delete(id);
+                    return next;
+                });
+                return null;
+            },
+            'ui.resize': (value: unknown, width: unknown) => {
+                if (contextRef.current.__tabularisSlot === 'editor.workspace.content') return;
+                const requested = typeof value === 'number' && Number.isFinite(value) ? value : 0;
                 setHeight(Math.min(MAX_HEIGHT, Math.max(0, requested)));
+                if (
+                    [
+                        'connections.actions',
+                        'sidebar.footer.actions',
+                        'explorer.connection.actions',
+                        'data-grid.toolbar.actions',
+                    ].includes(String(contextRef.current.__tabularisSlot)) &&
+                    typeof width === 'number' &&
+                    Number.isFinite(width)
+                )
+                    setIntrinsicWidth(Math.min(640, Math.max(0, width)));
             },
             'slot.context': () => serializePluginSlotContext(contextRef.current),
             'slot.onDatabaseChange': (value: unknown) => {
@@ -442,6 +663,8 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                     await rpc.call('slot.context', [
                         serializePluginSlotContext(contextRef.current),
                     ]);
+                    if (viewportRef.current.bottom > viewportRef.current.top)
+                        await rpc.call('ui.viewport', [viewportRef.current]);
                 } catch (error) {
                     console.error(`[PluginSlot] Failed to initialize ${pluginId}/${module}`, error);
                 }
@@ -454,9 +677,13 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
 
         return () => {
             disposed = true;
+            for (const unsubscribe of eventSubscriptions.values()) unsubscribe();
+            eventSubscriptions.clear();
             controller.abort();
             rpcRef.current?.close();
             rpcRef.current = null;
+            setNativeComponents([]);
+            setOpenPopovers(new Set());
         };
     }, [module, pluginId, frameUrl]);
 
@@ -485,14 +712,10 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
     }, [modalOpen]);
 
     const iframe = frameUrl && (
-        <iframe
-            ref={frameRef}
-            title={`Plugin ${pluginId}`}
-            sandbox="allow-scripts"
-            referrerPolicy="no-referrer"
-            src={frameUrl}
+        <div
+            data-plugin-frame={pluginId}
             style={
-                modalOpen
+                expanded
                     ? {
                           position: 'fixed',
                           inset: 0,
@@ -501,29 +724,80 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
                           minHeight: '100vh',
                           border: 0,
                           zIndex: 2_147_483_647,
+                          overflow: 'hidden',
+                          pointerEvents: 'none',
+                          visibility: frameVisible ? undefined : 'hidden',
                       }
                     : {
                           position: 'fixed',
                           left: frameRect.left,
                           top: frameRect.top,
                           width: frameRect.width,
-                          height,
+                          height: workspace ? frameRect.height : height,
                           clipPath: frameRect.clip,
                           border: 0,
                           zIndex: 1,
+                          overflow: 'hidden',
+                          pointerEvents: 'none',
+                          visibility: frameVisible ? undefined : 'hidden',
                       }
             }
-        />
+        >
+            <iframe
+                ref={frameRef}
+                title={`Plugin ${pluginId}`}
+                data-plugin-slot={
+                    typeof context.__tabularisSlot === 'string'
+                        ? context.__tabularisSlot
+                        : undefined
+                }
+                data-plugin-workspace={
+                    typeof context.workspaceId === 'string' ? context.workspaceId : undefined
+                }
+                data-plugin-active={frameVisible ? 'true' : 'false'}
+                sandbox="allow-scripts"
+                referrerPolicy="no-referrer"
+                src={frameUrl}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 0,
+                    pointerEvents: 'auto',
+                }}
+            />
+            {nativeComponents.map((component) => (
+                <NativePluginComponent
+                    key={component.id}
+                    component={component}
+                    hidden={Boolean(component.modal) !== expanded || openPopovers.size > 0}
+                    emit={(id, event, value) => {
+                        void rpcRef.current
+                            ?.call('ui.native.event', [id, event, value])
+                            .catch(() => undefined);
+                    }}
+                />
+            ))}
+        </div>
     );
     return (
         <>
             <div
                 ref={anchorRef}
                 aria-hidden="true"
-                style={{width: '100%', height, pointerEvents: 'none'}}
+                style={{
+                    width: '100%',
+                    minWidth: intrinsicWidth || undefined,
+                    maxWidth: '100%',
+                    height: workspace ? '100%' : height,
+                    flex: workspace ? '1 1 0%' : undefined,
+                    minHeight: workspace ? 0 : undefined,
+                    pointerEvents: 'none',
+                }}
             />
             {createPortal(iframe, portalRoot)}
-            {modalOpen &&
+            {expanded &&
                 createPortal(
                     <button
                         type="button"

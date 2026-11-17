@@ -23,7 +23,6 @@ cp -R "$FIXTURE_PLUGINS"/. "$APP_DATA_DIR/plugins/"
 
 cat >"$APP_CONFIG_DIR/config.json" <<'JSON'
 {
-  "activeExternalDrivers": ["e2e-driver", "e2e-ui-extension"],
   "showWelcome": false,
   "checkForUpdates": false,
   "autoCheckUpdatesOnStartup": false,
@@ -56,6 +55,10 @@ export HOME="$RUNTIME_DIR/home"
 export XDG_CONFIG_HOME="$CONFIG_HOME"
 export XDG_DATA_HOME="$DATA_HOME"
 export TABULARIS_E2E_LAUNCH_URL_FILE="$LAUNCH_URL_FILE"
+# Headless runners have no desktop keychain; keep test secrets encrypted and isolated.
+export TABULARIS_SECRET_STORE="file"
+export TABULARIS_SECRET_STORE_PATH="$RUNTIME_DIR/secrets.json"
+export TABULARIS_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 export BROWSER="$RUNTIME_DIR/bin/xdg-open"
 export PATH="$RUNTIME_DIR/bin:$PATH"
 

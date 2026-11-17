@@ -67,7 +67,7 @@ jobs:
       - name: Check embedded plugin guest runtime is up to date
         run: |
           pnpm run build:plugin-guest
-          git diff --exit-code -- src-tauri/resources/guest/runtime.js
+          git diff --exit-code -- src-tauri/resources/guest/runtime.js src-tauri/resources/guest/host.css
 
       - name: Typecheck
         run: pnpm run typecheck

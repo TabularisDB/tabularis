@@ -19,6 +19,8 @@ pub mod notebooks;
 pub mod operations;
 pub mod persistence;
 pub mod plugin_assets;
+pub mod plugin_accounts;
+pub mod plugin_extensions;
 pub mod plugins;
 pub mod productivity;
 #[cfg(test)]
@@ -29,6 +31,8 @@ pub mod read_only;
 pub mod records;
 pub mod table_row_transfers;
 pub mod routine_debug;
+pub mod schema_notes;
+pub mod secret_redaction;
 pub mod table_transfers;
 pub mod themes;
 pub mod tunnels;
@@ -39,6 +43,8 @@ pub use api::{
     RuntimeApplicationApi,
 };
 pub use managed_policy::{
-    ConnectionAction, ConnectionPolicyMode, ManagedConnectionPolicy, PolicyDenial,
-    MANAGED_CONNECTION_DENIED,
+    ConnectionAction, ConnectionCapabilities, ConnectionPolicyMode, ManagedConnectionPolicy,
+    PolicyDenial, MANAGED_CONNECTION_DENIED,
 };
+
+pub mod provisioning;

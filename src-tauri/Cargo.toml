@@ -1,6 +1,6 @@
 [package]
 name = "tabularis"
-version = "0.32.0"
+version = "0.33.0"
 description = "tabularis - A database manager for developers"
 authors = ["Debba"]
 edition = "2021"
@@ -179,3 +179,8 @@ tauri-plugin-updater = { version = "2", optional = true }
 tauri = { version = "2.10.2", features = ["test"] }
 filetime = "0.2"
 tokio-tungstenite = "0.24.0"
+
+# SQLx 0.8.6 must recognize Unix sockets as secure during MySQL SHA-2 auth.
+# See vendor/sqlx-mysql/README.tabularis.md for the exact patch and removal criteria.
+[patch.crates-io]
+sqlx-mysql = { path = "vendor/sqlx-mysql" }

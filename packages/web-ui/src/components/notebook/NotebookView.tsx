@@ -29,9 +29,11 @@ import {
     chooseNotebookImport,
     downloadNotebook,
     downloadNotebookHtml,
+    downloadNotebookMarkdown,
     downloadNotebookSql,
 } from '@/utils/notebookTransfer';
 import {isTypingTarget} from '@/utils/keyboardEvents';
+import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 import {
     getExecutableCells,
     createRunAllResult,
@@ -570,6 +572,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     }, [runCell, stopOnError]);
 
     const handleExport = useCallback(async () => {
+        // Export what the editors show, including a keystroke still held back.
+        flushPendingEditorChanges();
         try {
             const downloaded = await downloadNotebook(platform, tab.title, {
                 cells: cellsRef.current,
@@ -590,6 +594,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     }, [params, platform, showAlert, stopOnError, t, tab.title]);
 
     const handleExportHtml = useCallback(async () => {
+        // Export what the editors show, including a keystroke still held back.
+        flushPendingEditorChanges();
         try {
             const downloaded = await downloadNotebookHtml(platform, tab.title, {
                 cells: cellsRef.current,
@@ -610,6 +616,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     }, [params, platform, showAlert, stopOnError, t, tab.title]);
 
     const handleExportSql = useCallback(async () => {
+        // Export what the editors show, including a keystroke still held back.
+        flushPendingEditorChanges();
         try {
             const outcome = await downloadNotebookSql(platform, tab.title, {
                 cells: cellsRef.current,
@@ -621,6 +629,28 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             }
         } catch (e) {
             console.error('SQL export failed:', e);
+            showAlert(
+                t('editor.notebook.exportError') ||
+                    `Export failed: ${e instanceof Error ? e.message : String(e)}`,
+                {kind: 'error'},
+            );
+        }
+    }, [platform, showAlert, t, tab.title]);
+
+    const handleExportMarkdown = useCallback(async () => {
+        // Export what the editors show, including a keystroke still held back.
+        flushPendingEditorChanges();
+        try {
+            const outcome = await downloadNotebookMarkdown(platform, tab.title, {
+                cells: cellsRef.current,
+            });
+            if (outcome === 'empty') {
+                showAlert(t('editor.notebook.exportMarkdownEmpty'), {kind: 'info'});
+            } else if (outcome === 'downloaded') {
+                showAlert(t('editor.notebook.exportSuccess'), {kind: 'info'});
+            }
+        } catch (e) {
+            console.error('Markdown export failed:', e);
             showAlert(
                 t('editor.notebook.exportError') ||
                     `Export failed: ${e instanceof Error ? e.message : String(e)}`,
@@ -851,6 +881,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         onExport: handleExport,
         onExportHtml: handleExportHtml,
         onExportSql: handleExportSql,
+        onExportMarkdown: handleExportMarkdown,
         onImport: handleImport,
         isRunning: isRunningAll,
         stopOnError,

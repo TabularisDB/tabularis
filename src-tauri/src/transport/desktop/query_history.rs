@@ -85,6 +85,40 @@ pub async fn clear_query_history<R: Runtime>(
     Ok(())
 }
 
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn get_query_history_insights<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    database: Option<String>,
+    window_hours: Option<u32>,
+    dialect: Option<String>,
+    now: Option<String>,
+    max_groups: Option<usize>,
+    max_executions_per_group: Option<usize>,
+) -> Result<QueryHistoryInsightsResponse, String> {
+    let runtime = app.state::<crate::runtime::RuntimeContext>();
+    let config_dir = runtime.paths.config_dir();
+    from_value(
+        productivity::execute(
+            config_dir,
+            ProductivityCommand::GetQueryHistoryInsights {
+                request: QueryHistoryInsightsRequest {
+                    connection_id,
+                    database,
+                    window_hours,
+                    dialect,
+                    now,
+                    max_groups,
+                    max_executions_per_group,
+                },
+            },
+        )
+        .await?,
+    )
+    .map_err(|error| error.to_string())
+}
+
 pub async fn backfill_missing_database_for_connection<R: Runtime>(
     app: &AppHandle<R>,
     connection_id: &str,

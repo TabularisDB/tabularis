@@ -68,6 +68,35 @@ fn editor_minimap_survives_partial_updates_and_config_reload() {
     }
 }
 
+#[test]
+fn editor_vim_mode_survives_partial_updates_and_config_reload() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = runtime(temp.path());
+    assert!(load_config(&runtime).editor_vim_mode.is_none());
+    for enabled in [true, false] {
+        save_config(
+            &runtime,
+            serde_json::from_value(serde_json::json!({"editorVimMode": enabled})).unwrap(),
+        )
+        .unwrap();
+        save_config(
+            &runtime,
+            AppConfig {
+                font_size: Some(16),
+                ..AppConfig::default()
+            },
+        )
+        .unwrap();
+        let reloaded = load_config(&runtime);
+        assert_eq!(reloaded.editor_vim_mode, Some(enabled));
+        assert_eq!(reloaded.font_size, Some(16));
+        assert_eq!(
+            serde_json::to_value(reloaded).unwrap()["editorVimMode"],
+            enabled
+        );
+    }
+}
+
 fn runtime(root: &Path) -> RuntimeContext {
     // Theme storage refuses any path that passes through a symlink, and macOS
     // keeps temporary files under /var, a symlink to /private/var.

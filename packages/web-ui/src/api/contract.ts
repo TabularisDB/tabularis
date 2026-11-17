@@ -1,3 +1,4 @@
+import type {PluginAccountRequest} from '@/types/pluginAccount';
 import type {DatabaseBackupStatus} from '@/types/databaseBackup';
 import type {DebugCommand, DebugResponse} from '@/types/routineDebug';
 import type {ChatGptModel, ChatGptSession} from '@/types/chatgpt';
@@ -37,7 +38,13 @@ import type {MonacoThemeDefinition, Theme} from '@/types/theme';
 import type {Settings} from '@/contexts/SettingsContext';
 import type {SavedQuery, SavedQueryFolder, SavedQueryVersion} from '@/contexts/SavedQueriesContext';
 import type {ColumnStatsRequest, PluginColumnStats} from '@/utils/columnStats';
-import type {QueryHistoryEntry, QueryHistoryResponse} from '@/types/queryHistory';
+import type {
+    QueryHistoryEntry,
+    QueryHistoryInsightsRequest,
+    QueryHistoryInsightsResponse,
+    QueryHistoryResponse,
+} from '@/types/queryHistory';
+import type {SchemaNoteTarget, SchemaNotesState} from '@/types/schemaNotes';
 import type {UserOverrides} from '@/utils/keybindings';
 import type {NotebookMetadata} from '@/types/notebook';
 import type {
@@ -850,6 +857,28 @@ export interface CommandMap {
     // access configured registries, mutate the server plugin directory, and
     // start or stop subprocesses. Raw plugin paths and files are intentionally
     // excluded from the browser RPC contract.
+    /** Opaque extension methods can mutate resources and require administrator access. */
+    plugin_account: CommandDefinition<PluginAccountRequest, unknown, 'local-admin'>;
+    call_plugin_extension: CommandDefinition<
+        {pluginId: string; connectionId: string; method: string; args: Record<string, unknown>},
+        unknown,
+        'local-admin'
+    >;
+    set_plugin_secrets: CommandDefinition<
+        {pluginId: string; connectionId: string; secrets: Record<string, string>},
+        void,
+        'local-admin'
+    >;
+    get_plugin_secret_fields: CommandDefinition<
+        {pluginId: string; connectionId: string},
+        string[],
+        'database'
+    >;
+    delete_plugin_secrets: CommandDefinition<
+        {pluginId: string; connectionId: string},
+        void,
+        'local-admin'
+    >;
     fetch_plugin_registry: CommandDefinition<undefined, RegistryPluginWithStatus[], 'local-admin'>;
     fetch_tabularium_plugin_preview: CommandDefinition<
         {
@@ -892,6 +921,7 @@ export interface CommandMap {
     sync_plugin_settings: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
 
     test_connection: CommandDefinition<{request: TestConnectionRequest}, string, 'database'>;
+    open_saved_connection: CommandDefinition<ConnectionIdRequest, string, 'database'>;
     disconnect_connection: CommandDefinition<ConnectionIdRequest, void, 'database'>;
 
     export_connections_file: CommandDefinition<
@@ -1278,6 +1308,34 @@ export interface CommandMap {
         'database'
     >;
     clear_query_history: CommandDefinition<ConnectionIdRequest, void, 'database'>;
+    get_query_history_insights: CommandDefinition<
+        QueryHistoryInsightsRequest,
+        QueryHistoryInsightsResponse,
+        'database'
+    >;
+
+    get_schema_notes: CommandDefinition<ConnectionIdRequest, SchemaNotesState, 'database'>;
+    /** `target: null` edits the connection-wide note; an empty note without domain removes it. */
+    set_schema_note: CommandDefinition<
+        ConnectionIdRequest & {
+            target: SchemaNoteTarget | null;
+            domain: string | null;
+            note: string;
+        },
+        SchemaNotesState,
+        'database'
+    >;
+    set_schema_notes_ai_context: CommandDefinition<
+        ConnectionIdRequest & {enabled: boolean},
+        SchemaNotesState,
+        'database'
+    >;
+    import_schema_notes: CommandDefinition<
+        ConnectionIdRequest & {contents: string},
+        SchemaNotesState,
+        'database'
+    >;
+    export_schema_notes: CommandDefinition<ConnectionIdRequest, string, 'database'>;
 
     create_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;
     save_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;

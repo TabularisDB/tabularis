@@ -253,3 +253,24 @@ describe('closedTabs', () => {
         });
     });
 });
+
+it('focuses an already open provider workspace when restoring its earlier closed instance', () => {
+    const closed = makeTab({
+        id: 'closed-provider',
+        type: 'plugin-workspace',
+        pluginId: 'cloud-provider',
+        workspaceId: 'services',
+    });
+    const entry = pushClosedTabs({}, [closed], [closed.id])['conn-1'][0];
+    const existing = makeTab({
+        id: 'live-provider',
+        type: 'plugin-workspace',
+        pluginId: 'cloud-provider',
+        workspaceId: 'services',
+    });
+    const otherConnection = makeTab({...existing, id: 'other-connection', connectionId: 'conn-2'});
+    const current = [existing, otherConnection];
+    const restored = insertReopenedTab(current, 'conn-1', entry);
+    expect(restored.newTabs).toEqual(current);
+    expect(restored.tab).toBe(existing);
+});

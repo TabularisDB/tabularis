@@ -1,6 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {render, screen, fireEvent, act} from '@testing-library/react';
 import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
+import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 import {SettingsContext, DEFAULT_SETTINGS} from '@/contexts/SettingsContext';
 import {CommandPaletteDispatchContext} from '@/contexts/CommandPaletteContext';
 import type {ReactNode} from 'react';
@@ -38,6 +39,8 @@ const matchesShortcutMock = vi.hoisted(() =>
     vi.fn<(event: KeyboardEvent, id: string) => boolean>(),
 );
 const togglePaletteMock = vi.hoisted(() => vi.fn());
+const initVimModeMock = vi.hoisted(() => vi.fn(() => ({dispose: vi.fn()})));
+vi.mock('monaco-vim', () => ({initVimMode: initVimModeMock}));
 const closePaletteMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/hooks/usePlatformCapabilities', () => ({
@@ -171,6 +174,7 @@ describe('SqlEditorWrapper', () => {
             onDidChangeModelContent: vi.fn(),
             onKeyDown: vi.fn((handler: (event: MonacoKeyDownEventMock) => void) => {
                 keyDownHandlers.push(handler);
+                return {dispose: vi.fn()};
             }),
             trigger,
         };
@@ -179,7 +183,9 @@ describe('SqlEditorWrapper', () => {
             KeyCode: {KeyX: 8, KeyC: 16, KeyV: 32, Enter: 64, KeyF: 128, KeyA: 256},
         };
 
-        monacoRenderState.onMount?.(editor, monaco);
+        act(() => {
+            monacoRenderState.onMount?.(editor, monaco);
+        });
 
         return {addAction, addCommand, keyDownHandlers, trigger};
     };
@@ -1106,6 +1112,124 @@ describe('SqlEditorWrapper', () => {
         expect(trigger).toHaveBeenCalledWith('keyboard', 'editor.action.blockComment', {});
     });
 
+    describe('vim mode', () => {
+        const flushAsyncWork = async () => {
+            await act(async () => {
+                await Promise.resolve();
+                await Promise.resolve();
+            });
+        };
+
+        const renderWithVim = (editorVimMode: boolean | undefined, key: string) => {
+            const ctx = {
+                settings: {...DEFAULT_SETTINGS, editorVimMode},
+                updateSetting: vi.fn(),
+                isLoading: false,
+            };
+            const localWrapper = ({children}: {children: ReactNode}) => (
+                <SettingsContext.Provider value={ctx}>
+                    <CommandPaletteDispatchContext.Provider
+                        value={{
+                            openPalette: vi.fn(),
+                            closePalette: closePaletteMock,
+                            togglePalette: togglePaletteMock,
+                        }}
+                    >
+                        {children}
+                    </CommandPaletteDispatchContext.Provider>
+                </SettingsContext.Provider>
+            );
+            return render(
+                <SqlEditorWrapper
+                    initialValue=""
+                    onChange={mockOnChange}
+                    onRun={mockOnRun}
+                    editorKey={key}
+                />,
+                {wrapper: localWrapper},
+            );
+        };
+
+        it('renders the status line and initializes monaco-vim only when the setting is on', async () => {
+            const {rerender} = renderWithVim(true, 'vim-on');
+            expect(screen.getByTestId('vim-status-line')).toBeInTheDocument();
+
+            const {keyDownHandlers} = mountCapturedEditor();
+            await flushAsyncWork();
+            expect(initVimModeMock).toHaveBeenCalledOnce();
+            expect(initVimModeMock).toHaveBeenCalledWith(
+                expect.anything(),
+                screen.getByTestId('vim-status-line'),
+            );
+            // Bypass listener (palette/suggestions handler registered first).
+            expect(keyDownHandlers).toHaveLength(2);
+
+            rerender(
+                <SettingsContext.Provider
+                    value={{
+                        settings: {...DEFAULT_SETTINGS, editorVimMode: false},
+                        updateSetting: vi.fn(),
+                        isLoading: false,
+                    }}
+                >
+                    <SqlEditorWrapper
+                        initialValue=""
+                        onChange={mockOnChange}
+                        onRun={mockOnRun}
+                        editorKey="vim-on"
+                    />
+                </SettingsContext.Provider>,
+            );
+            expect(screen.queryByTestId('vim-status-line')).not.toBeInTheDocument();
+        });
+
+        it('stays off and does not initialize monaco-vim by default', async () => {
+            renderWithVim(undefined, 'vim-default-off');
+            expect(screen.queryByTestId('vim-status-line')).not.toBeInTheDocument();
+
+            const {keyDownHandlers} = mountCapturedEditor();
+            await flushAsyncWork();
+            expect(initVimModeMock).not.toHaveBeenCalled();
+            // Only the pre-existing palette/suggestions keydown handler.
+            expect(keyDownHandlers).toHaveLength(1);
+        });
+
+        it('lets run shortcuts through: default-prevents them for vim without stopping propagation', async () => {
+            matchesShortcutMock.mockImplementation(
+                (event, id) =>
+                    (id === 'run_query_editor' || id === 'run_all_editor') &&
+                    event.ctrlKey &&
+                    event.key === 'Enter',
+            );
+            renderWithVim(true, 'vim-run-shortcut');
+            const {keyDownHandlers} = mountCapturedEditor();
+            await flushAsyncWork();
+            const bypassHandler = keyDownHandlers[1];
+
+            const runEvent = {
+                browserEvent: new KeyboardEvent('keydown', {key: 'Enter', ctrlKey: true}),
+                preventDefault: vi.fn(),
+                stopPropagation: vi.fn(),
+            };
+            bypassHandler(runEvent);
+
+            // preventDefault makes monaco-vim skip the event; propagation must
+            // continue so Monaco's container-level dispatch still runs the
+            // addCommand handler that executes the query.
+            expect(runEvent.preventDefault).toHaveBeenCalledOnce();
+            expect(runEvent.stopPropagation).not.toHaveBeenCalled();
+
+            // Regular vim keys are not reserved for Tabularis.
+            const jEvent = {
+                browserEvent: new KeyboardEvent('keydown', {key: 'j'}),
+                preventDefault: vi.fn(),
+                stopPropagation: vi.fn(),
+            };
+            bypassHandler(jEvent);
+            expect(jEvent.preventDefault).not.toHaveBeenCalled();
+        });
+    });
+
     describe('acceptSuggestionOnEnter mapping', () => {
         const renderWith = (editorAcceptSuggestionOnEnter: boolean | undefined, key: string) => {
             const ctx = {
@@ -1276,6 +1400,90 @@ describe('SqlEditorWrapper debounced value sync', () => {
         });
         expect(mockOnChange).not.toHaveBeenCalledWith('ab');
     });
+
+    describe('flushPendingEditorChanges', () => {
+        it('hands a held-back change to onChange at once, and only once', () => {
+            const {rerender} = renderEditor('');
+            const {editor, type} = mountValueEditor('');
+
+            type('SELECT 1');
+            expect(mockOnChange).not.toHaveBeenCalled();
+            act(() => flushPendingEditorChanges());
+            expect(mockOnChange).toHaveBeenCalledTimes(1);
+            expect(mockOnChange).toHaveBeenLastCalledWith('SELECT 1');
+
+            act(() => {
+                vi.advanceTimersByTime(300);
+            });
+            expect(mockOnChange).toHaveBeenCalledTimes(1);
+
+            // The echo of the flushed value is recognized, not written back.
+            rerender(
+                <SqlEditorWrapper
+                    initialValue="SELECT 1"
+                    onChange={mockOnChange}
+                    onRun={mockOnRun}
+                />,
+            );
+            expect(editor.setValue).not.toHaveBeenCalled();
+        });
+
+        it('hands over the latest text when several keystrokes are held back', () => {
+            renderEditor('');
+            const {type} = mountValueEditor('');
+
+            type('S');
+            type('SE');
+            type('SEL');
+            act(() => flushPendingEditorChanges());
+
+            expect(mockOnChange).toHaveBeenCalledTimes(1);
+            expect(mockOnChange).toHaveBeenLastCalledWith('SEL');
+        });
+
+        it('does nothing when no change is held back', () => {
+            renderEditor('');
+            const {type} = mountValueEditor('');
+
+            act(() => flushPendingEditorChanges());
+            expect(mockOnChange).not.toHaveBeenCalled();
+
+            type('x');
+            act(() => {
+                vi.advanceTimersByTime(300);
+            });
+            act(() => flushPendingEditorChanges());
+            expect(mockOnChange).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not resend an edit an external change replaced', () => {
+            const {rerender} = renderEditor('');
+            const {type} = mountValueEditor('');
+
+            type('ab');
+            rerender(
+                <SqlEditorWrapper
+                    initialValue="SELECT 1"
+                    onChange={mockOnChange}
+                    onRun={mockOnRun}
+                />,
+            );
+            act(() => flushPendingEditorChanges());
+
+            expect(mockOnChange).not.toHaveBeenCalled();
+        });
+
+        it('stops flushing once the editor is unmounted', () => {
+            const {unmount} = renderEditor('');
+            const {type} = mountValueEditor('');
+
+            type('x');
+            unmount();
+            flushPendingEditorChanges();
+
+            expect(mockOnChange).not.toHaveBeenCalled();
+        });
+    });
 });
 
 describe('SqlEditorWrapper cursor status (#1396)', () => {
@@ -1344,7 +1552,9 @@ describe('SqlEditorWrapper cursor status (#1396)', () => {
             KeyCode: {KeyX: 8, KeyC: 16, KeyV: 32, Enter: 64, KeyF: 128, KeyA: 256},
         };
         act(() => {
-            monacoRenderState.onMount?.(editor, monaco);
+            act(() => {
+                monacoRenderState.onMount?.(editor, monaco);
+            });
         });
         const fire = (bucket: Listener[]) => {
             act(() => {

@@ -6450,8 +6450,6 @@ dependencies = [
 [[package]]
 name = "sqlx-mysql"
 version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa003f0038df784eb8fecbbac13affe3da23b45194bd57dba231c8f48199c526"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -6721,7 +6719,7 @@ dependencies = [
 
 [[package]]
 name = "tabularis"
-version = "0.32.0"
+version = "0.33.0"
 dependencies = [
  "aes-gcm",
  "argon2",

@@ -297,7 +297,11 @@ fn forget(key: &str) {
 #[test]
 fn fixed_tunnel_rewrites_host_and_port() {
     let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(40000, true, None);
-    let resolved = point_at_tunnel(&uri_params(None), &tunnel, false);
+    let target = crate::ssh_tunnel::ForwardTarget::Fixed {
+        host: "cluster.example.mongodb.net".to_string(),
+        port: 27017,
+    };
+    let resolved = point_at_tunnel(&uri_params(None), &tunnel, &target);
 
     assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
     assert_eq!(resolved.port, Some(40000));
@@ -308,7 +312,11 @@ fn fixed_tunnel_rewrites_host_and_port() {
 #[test]
 fn socks5_tunnel_leaves_host_and_port_and_sets_the_proxy_with_credentials() {
     let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(40000, true, Some(credentials()));
-    let resolved = point_at_tunnel(&uri_params(Some(SRV_URI)), &tunnel, true);
+    let resolved = point_at_tunnel(
+        &uri_params(Some(SRV_URI)),
+        &tunnel,
+        &crate::ssh_tunnel::ForwardTarget::Socks5,
+    );
 
     assert_eq!(
         resolved.host.as_deref(),
@@ -332,7 +340,11 @@ fn socks5_tunnel_leaves_host_and_port_and_sets_the_proxy_with_credentials() {
 fn socks5_tunnel_without_credentials_sends_none() {
     // System `ssh -D` cannot authenticate clients.
     let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(40000, true, None);
-    let resolved = point_at_tunnel(&uri_params(Some(SRV_URI)), &tunnel, true);
+    let resolved = point_at_tunnel(
+        &uri_params(Some(SRV_URI)),
+        &tunnel,
+        &crate::ssh_tunnel::ForwardTarget::Socks5,
+    );
 
     assert_eq!(resolved.socks5_proxy_port, Some(40000));
     assert_eq!(resolved.socks5_proxy_username, None);
@@ -350,6 +362,21 @@ fn socks5_proxy_fields_are_omitted_from_json_when_unset() {
         "socks5_proxy_password",
     ] {
         assert!(json.get(field).is_none(), "{field}");
+    }
+}
+
+fn base_params() -> ConnectionParams {
+    ConnectionParams {
+        driver: "mysql".to_string(),
+        host: Some("localhost".to_string()),
+        port: Some(3306),
+        database: DatabaseSelection::Single("testdb".to_string()),
+        username: Some("root".to_string()),
+        ssh_enabled: Some(true),
+        ssh_host: Some("bastion.example.com".to_string()),
+        ssh_port: Some(22),
+        ssh_user: Some("jump".to_string()),
+        ..ConnectionParams::default()
     }
 }
 
@@ -377,6 +404,18 @@ fn socks5_proxy_capability_selects_the_dynamic_forward() {
 }
 
 #[test]
+fn forward_destination_defaults_to_tcp() {
+    let target = ssh_forward_target(&base_params());
+    assert_eq!(
+        target,
+        crate::ssh_tunnel::ForwardTarget::Fixed {
+            host: "localhost".to_string(),
+            port: 3306,
+        }
+    );
+}
+
+#[test]
 fn a_uri_without_the_capability_keeps_the_fixed_forward() {
     let driver = "__test_uri_without_socks5_driver__";
     let ssh_host = "fixed-forward.bastion.test";
@@ -384,8 +423,10 @@ fn a_uri_without_the_capability_keeps_the_fixed_forward() {
         "user",
         ssh_host,
         22,
-        "cluster.example.mongodb.net",
-        27017,
+        &crate::ssh_tunnel::ForwardTarget::Fixed {
+            host: "cluster.example.mongodb.net".to_string(),
+            port: 27017,
+        },
     );
     cache(
         &key,
@@ -522,4 +563,73 @@ fn socks5_proxy_fields_sent_by_the_caller_are_discarded() {
     assert_eq!(resolved.socks5_proxy_username, None);
     assert_eq!(resolved.socks5_proxy_password, None);
     assert_eq!(resolved.connection_uri.as_deref(), Some(SRV_URI));
+}
+
+#[test]
+fn forward_destination_ignores_blank_socket_path() {
+    let params = ConnectionParams {
+        unix_socket_path: Some("   ".to_string()),
+        ..base_params()
+    };
+    assert!(matches!(
+        ssh_forward_target(&params),
+        crate::ssh_tunnel::ForwardTarget::Fixed { .. }
+    ));
+}
+
+#[test]
+fn forward_destination_uses_trimmed_socket_path() {
+    let params = ConnectionParams {
+        unix_socket_path: Some(" /var/run/mysqld/mysqld.sock ".to_string()),
+        ..base_params()
+    };
+    assert_eq!(
+        ssh_forward_target(&params),
+        crate::ssh_tunnel::ForwardTarget::UnixSocket {
+            path: "/var/run/mysqld/mysqld.sock".to_string(),
+        }
+    );
+}
+
+#[test]
+fn tunnel_params_keep_ssl_mode_for_tcp_destination() {
+    let params = ConnectionParams {
+        ssl_mode: Some("require".to_string()),
+        ..base_params()
+    };
+    let target = ssh_forward_target(&params);
+    let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(15000, true, None);
+    let resolved = point_at_tunnel(&params, &tunnel, &target);
+    assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+    assert_eq!(resolved.port, Some(15000));
+    assert_eq!(resolved.ssl_mode.as_deref(), Some("require"));
+}
+
+#[test]
+fn tunnel_params_disable_ssl_for_socket_destination() {
+    let params = ConnectionParams {
+        ssl_mode: Some("require".to_string()),
+        unix_socket_path: Some("/tmp/db.sock".to_string()),
+        ..base_params()
+    };
+    let target = ssh_forward_target(&params);
+    let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(15000, true, None);
+    let resolved = point_at_tunnel(&params, &tunnel, &target);
+    assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+    assert_eq!(resolved.port, Some(15000));
+    assert_eq!(resolved.ssl_mode.as_deref(), Some("disable"));
+}
+
+#[test]
+fn tunnel_params_clear_local_socket_path() {
+    // A leftover local socket path would make the drivers dial the socket
+    // instead of the tunnel's forwarded local port.
+    let params = ConnectionParams {
+        unix_socket_path: Some("/tmp/db.sock".to_string()),
+        ..base_params()
+    };
+    let target = ssh_forward_target(&params);
+    let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(15000, true, None);
+    let resolved = point_at_tunnel(&params, &tunnel, &target);
+    assert_eq!(resolved.unix_socket_path, None);
 }

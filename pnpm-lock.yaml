@@ -86,9 +86,15 @@ importers:
       lucide-react:
         specifier: ^0.563.0
         version: 0.563.0(react@19.2.4)
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
       monaco-editor:
         specifier: ^0.55.1
         version: 0.55.1
+      monaco-vim:
+        specifier: ^0.4.4
+        version: 0.4.4(monaco-editor@0.55.1)
       process:
         specifier: ^0.11.10
         version: 0.11.10
@@ -213,6 +219,9 @@ importers:
       typescript-eslint:
         specifier: ^8.58.0
         version: 8.58.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+      undici-types:
+        specifier: 7.16.0
+        version: 7.16.0
       vite:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@24.12.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)
@@ -325,6 +334,9 @@ importers:
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
+      undici-types:
+        specifier: 7.16.0
+        version: 7.16.0
       vite:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@24.12.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)
@@ -3294,6 +3306,11 @@ packages:
 
   monaco-editor@0.55.1:
     resolution: {integrity: sha512-jz4x+TJNFHwHtwuV9vA9rMujcZRb0CEilTEwG2rRSpe/A7Jdkuj8xPKttCgOh+v/lkHy7HsZ64oj+q3xoAFl9A==}
+
+  monaco-vim@0.4.4:
+    resolution: {integrity: sha512-LNChAb//WEm/W+eyeHG/0+pdVEHotk2hLTN+M3sQZx5E8cAlSWSgqcxpcRuQnxDybSln7pfHF9i63HmbIQvrWw==}
+    peerDependencies:
+      monaco-editor: '*'
 
   moo@0.5.3:
     resolution: {integrity: sha512-m2fmM2dDm7GZQsY7KK2cme8agi+AAljILjQnof7p1ZMDe6dQ4bdnSMx0cPppudoeNv5hEFQirN6u+O4fDE0IWA==}
@@ -7604,6 +7621,10 @@ snapshots:
     dependencies:
       dompurify: 3.2.7
       marked: 14.0.0
+
+  monaco-vim@0.4.4(monaco-editor@0.55.1):
+    dependencies:
+      monaco-editor: 0.55.1
 
   moo@0.5.3: {}
 

@@ -171,6 +171,11 @@ export async function openUrl(url: string): Promise<void> {
     await getActivePlatformCapabilities().openExternalUrl(url);
 }
 
+/** Copy provider commands or diagnostics through the active host's clipboard capability. */
+export async function copyText(text: string): Promise<void> {
+    await getActivePlatformCapabilities().writeClipboard(text);
+}
+
 /**
  * Hook for plugin components to open a modal managed by the host application.
  */

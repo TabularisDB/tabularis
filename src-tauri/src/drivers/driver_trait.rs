@@ -274,6 +274,12 @@ pub struct DriverCapabilities {
     /// their manifest. Defaults to `false`.
     #[serde(default, alias = "supportsSsl")]
     pub supports_ssl: bool,
+    /// Supports connecting through a Unix socket on this machine instead of
+    /// host:port (the connection modal shows the local Socket Path field).
+    /// Built-in network drivers (mysql, postgres) set this; plugins opt in
+    /// via their manifest. Defaults to `false`.
+    #[serde(default, alias = "unixSocket")]
+    pub unix_socket: bool,
     /// Supports EXPLAIN / query plan visualization (`explain_query`).
     /// When `false`, the Visual Explain UI is hidden for connections using
     /// this driver. Built-in drivers set this; plugins opt in via their
@@ -546,6 +552,14 @@ pub trait DatabaseDriver: Send + Sync {
     // --- Metadata -----------------------------------------------------------
 
     fn manifest(&self) -> &PluginManifest;
+
+    /// Optional connection-scoped extension envelope for external plugins.
+    async fn call_extension(
+        &self,
+        _request: serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        Err("This driver does not support plugin extensions".into())
+    }
 
     fn has_connection_metadata(&self) -> bool {
         false

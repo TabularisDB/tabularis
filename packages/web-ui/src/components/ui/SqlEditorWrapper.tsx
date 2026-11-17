@@ -1,3 +1,5 @@
+import {useMonacoVimMode} from '@/hooks/useMonacoVimMode';
+import {VIM_STATUS_LINE_HEIGHT} from '@/utils/editorLayout';
 import React, {useRef, useCallback, useContext, useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import type {OnMount, BeforeMount} from '@monaco-editor/react';
@@ -25,6 +27,7 @@ import {formatSql} from '@/utils/sqlFormat';
 import {toSqlList} from '@/utils/editor';
 import {getSqlInvisibleCharacterEdits} from '@/utils/sqlInvisibleCharacters';
 import {isTextCompositionKeyEvent} from '@/utils/keyboardEvents';
+import {registerPendingEditorFlush} from '@/utils/pendingEditorChanges';
 import type {RunContext} from '@/utils/runTarget';
 import {registerSqlFoldingProvider, setSqlFoldingDialect} from '@/utils/sqlFolding';
 import {installSqlFoldPreview} from '@/utils/sqlFoldPreview';
@@ -137,9 +140,13 @@ const SqlEditorInternal = ({
 }: SqlEditorWrapperProps & {editorKey: string}) => {
     const platform = usePlatformCapabilities();
     const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Emits the change the debounce is holding back, if any.
+    const pendingChangeRef = useRef<(() => void) | null>(null);
     const {t} = useTranslation();
     const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
     const monacoRef = useRef<typeof Monaco | null>(null);
+    const [mountedEditor, setMountedEditor] = useState<Parameters<OnMount>[0] | null>(null);
+    const [vimStatusNode, setVimStatusNode] = useState<HTMLDivElement | null>(null);
     const foldPreviewRef = useRef<Monaco.IDisposable | null>(null);
     // The status is per editor instance: two mounted editors never share it.
     const [editorCursorStatus, setEditorCursorStatus] = useState<EditorCursorStatus | null>(null);
@@ -174,6 +181,16 @@ const SqlEditorInternal = ({
     matchesShortcutRef.current = matchesShortcut;
     const togglePaletteRef = useRef(commandPaletteDispatch?.togglePalette);
     togglePaletteRef.current = commandPaletteDispatch?.togglePalette;
+    const vimEnabled = settings.editorVimMode ?? false;
+    const isRunShortcut = useCallback(
+        (event: KeyboardEvent) =>
+            ['run_query', 'run_query_editor', 'run_all', 'run_all_editor'].some((id) =>
+                matchesShortcutRef.current(event, id),
+            ),
+        [],
+    );
+    useMonacoVimMode(mountedEditor, vimStatusNode, vimEnabled, isRunShortcut);
+
     // Read from the zoom shortcuts, so they always step from the saved size.
     const editorFontSizeRef = useRef(settings.editorFontSize);
     editorFontSizeRef.current = settings.editorFontSize;
@@ -187,6 +204,7 @@ const SqlEditorInternal = ({
             if (updateTimeoutRef.current) {
                 clearTimeout(updateTimeoutRef.current);
             }
+            pendingChangeRef.current = null;
             foldPreviewRef.current?.dispose();
             foldPreviewRef.current = null;
             for (const listener of cursorStatusListenersRef.current) listener.dispose();
@@ -224,6 +242,7 @@ const SqlEditorInternal = ({
                 clearTimeout(updateTimeoutRef.current);
                 updateTimeoutRef.current = null;
             }
+            pendingChangeRef.current = null;
             pendingEchoes.length = 0;
             const position = editor.getPosition();
             const selections = editor.getSelections();
@@ -283,15 +302,32 @@ const SqlEditorInternal = ({
                 clearTimeout(updateTimeoutRef.current);
             }
 
-            updateTimeoutRef.current = setTimeout(() => {
+            const emit = () => {
                 updateTimeoutRef.current = null;
+                pendingChangeRef.current = null;
                 const pendingEchoes = pendingEchoesRef.current;
                 pendingEchoes.push(newValue);
                 if (pendingEchoes.length > MAX_PENDING_ECHOES) pendingEchoes.shift();
                 onChange(newValue);
-            }, 300);
+            };
+            pendingChangeRef.current = emit;
+            updateTimeoutRef.current = setTimeout(emit, 300);
         },
         [onChange],
+    );
+
+    // Lets exports read the text on screen instead of waiting for the debounce.
+    useEffect(
+        () =>
+            registerPendingEditorFlush(() => {
+                const emit = pendingChangeRef.current;
+                if (!emit) return;
+                if (updateTimeoutRef.current) {
+                    clearTimeout(updateTimeoutRef.current);
+                }
+                emit();
+            }),
+        [],
     );
 
     const handleBeforeMount: BeforeMount = (monaco) => {
@@ -370,6 +406,7 @@ const SqlEditorInternal = ({
 
     const handleEditorMount: OnMount = (editor, monaco) => {
         editorRef.current = editor;
+        setMountedEditor(editor);
         monacoRef.current = monaco;
         setDiagnosticsTarget({editor, monaco});
         setSqlFoldingDialect(editor.getModel(), dialectRef.current);
@@ -809,7 +846,7 @@ const SqlEditorInternal = ({
     const monacoElement = (
         <MonacoEditor
             // With the indicator, the wrapper below takes the height instead.
-            height={cursorStatus ? '100%' : height}
+            height={cursorStatus || vimEnabled ? '100%' : height}
             defaultLanguage="sql"
             theme={getMonacoThemeId(editorTheme.id)}
             defaultValue={initialValue}
@@ -862,14 +899,25 @@ const SqlEditorInternal = ({
         />
     );
 
-    // Consumers without the indicator get the editor element exactly as
-    // before, so their own overlays and sizing are unaffected.
-    if (!cursorStatus) return monacoElement;
+    if (!cursorStatus && !vimEnabled) return monacoElement;
 
     return (
-        <div className="relative" style={{height}}>
-            {monacoElement}
-            {editorCursorStatus && <SqlEditorCursorStatus status={editorCursorStatus} />}
+        <div className="flex min-h-0 w-full flex-col" style={{height}}>
+            <div className="relative min-h-0 w-full flex-1">
+                {monacoElement}
+                {cursorStatus && editorCursorStatus && (
+                    <SqlEditorCursorStatus status={editorCursorStatus} />
+                )}
+            </div>
+            {vimEnabled && (
+                <div
+                    ref={setVimStatusNode}
+                    role="status"
+                    data-testid="vim-status-line"
+                    style={{height: VIM_STATUS_LINE_HEIGHT}}
+                    className="shrink-0 select-none overflow-hidden border-t border-default px-2 py-0.5 font-mono text-xs whitespace-nowrap text-muted [&_input]:bg-transparent [&_input]:text-primary [&_input]:font-mono [&_input]:text-xs [&_input]:border-0 [&_input]:outline-none"
+                />
+            )}
         </div>
     );
 };

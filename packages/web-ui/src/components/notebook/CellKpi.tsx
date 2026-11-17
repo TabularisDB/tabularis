@@ -1,5 +1,6 @@
 import {useId} from 'react';
 import {useTranslation} from 'react-i18next';
+import {CompactSelect} from '@/components/notebook/CompactSelect';
 import type {QueryResult} from '@/types/editor';
 import type {CellKpiConfig} from '@/types/notebook';
 import {KPI_MAX_DECIMALS, computeKpiState, normalizeKpiDecimals} from '@/utils/notebookKpi';
@@ -47,11 +48,10 @@ export function CellKpi({result, error, config, onConfigChange, readOnly = false
                         <label htmlFor={`${id}-column`} className={fieldLabelClass}>
                             {t('editor.notebook.kpiColumn')}
                         </label>
-                        <select
+                        <CompactSelect
                             id={`${id}-column`}
                             value={config.column}
                             onChange={(e) => onConfigChange({...config, column: e.target.value})}
-                            className={inputClass}
                         >
                             {columnMissing && (
                                 <option value={config.column}>
@@ -65,7 +65,7 @@ export function CellKpi({result, error, config, onConfigChange, readOnly = false
                                     {col}
                                 </option>
                             ))}
-                        </select>
+                        </CompactSelect>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <label htmlFor={`${id}-label`} className={fieldLabelClass}>

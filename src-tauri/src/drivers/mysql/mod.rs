@@ -2048,6 +2048,7 @@ impl MysqlDriver {
                     triggers: true,
                     user_management: true,
                     supports_ssl: true,
+                    unix_socket: true,
                     sql_dialect: Some(SqlDialect::Mysql),
                     sql_syntax: None,
                 },

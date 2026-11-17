@@ -7,14 +7,40 @@ import {normalizeWebBasePath} from './src/utils/webBasePath';
 
 const webUiRoot = fileURLToPath(new URL('.', import.meta.url));
 
+const buildBasePath = normalizeWebBasePath(process.env.TABULARIS_BASE_PATH);
+
 export default defineConfig({
     appType: 'spa',
-    base: normalizeWebBasePath(process.env.TABULARIS_BASE_PATH),
-    plugins: [react()],
+    base: buildBasePath === '/' ? './' : buildBasePath,
+    plugins: [
+        react(),
+        {
+            name: 'tabularis-build-base',
+            transformIndexHtml() {
+                return [
+                    {
+                        tag: 'meta',
+                        attrs: {name: 'tabularis-build-base', content: buildBasePath},
+                        injectTo: 'head-prepend' as const,
+                    },
+                ];
+            },
+        },
+    ],
     css: {
         postcss: webUiRoot,
     },
     server: {watch: {ignored: ['**/src-tauri/**']}},
+    // Discover lazy UI dependencies before WebViews cache their optimized import URLs.
+    optimizeDeps: {
+        entries: ['index.html', 'src/**/*.tsx'],
+        include: [
+            'react-colorful',
+            'emoji-picker-react',
+            '@tanstack/react-table',
+            '@tanstack/react-virtual',
+        ],
+    },
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -24,6 +50,7 @@ export default defineConfig({
         },
     },
     define: {
+        'import.meta.env.BASE_URL': JSON.stringify(buildBasePath),
         // Make Node.js globals available in browser
         global: 'globalThis',
         'process.env': {},

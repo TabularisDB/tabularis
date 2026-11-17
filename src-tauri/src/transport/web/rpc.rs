@@ -14,8 +14,10 @@ use crate::application::{
     productivity::ProductivityCommand,
     queries::QueryCommand,
     records::RecordCommand,
+    secret_redaction::SecretRedactor,
     tunnels::TunnelCommand,
     ApplicationApi, ApplicationError, ApplicationRequestContext, AuthorizationLevel,
+    ManagedConnectionPolicy, PolicyDenial,
 };
 use crate::models::{
     ColumnDefinition, ConnectionAppearance, ConnectionParams, K8sConnectionInput, RoutineCallArg,
@@ -36,6 +38,9 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 #[path = "rpc_connection_policy.rs"]
 mod connection_policy;
+
+#[path = "rpc_managed_policy.rs"]
+mod managed_policy;
 
 #[path = "rpc_host_commands.rs"]
 mod host_commands;
@@ -146,6 +151,9 @@ impl RpcConcurrency {
 pub(crate) struct RpcAccessPolicy {
     pub mcp_host_configuration: bool,
     pub server_file_browser_roots: Arc<[PathBuf]>,
+    pub connection_policy: ManagedConnectionPolicy,
+    /// Scrubs credentials from error text in managed mode.
+    pub secret_redactor: SecretRedactor,
 }
 
 impl Default for RpcAccessPolicy {
@@ -153,6 +161,8 @@ impl Default for RpcAccessPolicy {
         Self {
             mcp_host_configuration: false,
             server_file_browser_roots: Arc::default(),
+            connection_policy: ManagedConnectionPolicy::standalone(),
+            secret_redactor: SecretRedactor::default(),
         }
     }
 }
@@ -215,6 +225,11 @@ enum OperationalRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PluginRpcCommand {
+    Account,
+    CallExtension,
+    SetSecrets,
+    SecretFields,
+    DeleteSecrets,
     GetRuntimeWarnings,
     FetchRegistry,
     FetchPreview,
@@ -330,6 +345,12 @@ enum ProductivityRpcCommand {
     AddQueryHistoryEntry,
     DeleteQueryHistoryEntry,
     ClearQueryHistory,
+    GetQueryHistoryInsights,
+    GetSchemaNotes,
+    SetSchemaNote,
+    SetSchemaNotesAiContext,
+    ImportSchemaNotes,
+    ExportSchemaNotes,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -497,6 +518,7 @@ enum ConnectionRpcCommand {
     DisconnectConnection,
     TestConnection,
     ListDatabases,
+    OpenSavedConnection,
 }
 
 #[derive(Clone, Copy)]
@@ -842,6 +864,29 @@ struct SaveQueryRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetSchemaNoteRequest {
+    connection_id: String,
+    target: Option<crate::schema_notes::SchemaNoteTarget>,
+    domain: Option<String>,
+    note: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetSchemaNotesAiContextRequest {
+    connection_id: String,
+    enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ImportSchemaNotesRequest {
+    connection_id: String,
+    contents: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct UpdateSavedQueryRequest {
     connection_id: String,
     id: String,
@@ -891,6 +936,24 @@ struct AddQueryHistoryEntryRequest {
     rows_affected: Option<i64>,
     error: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct GetQueryHistoryInsightsRpcRequest {
+    connection_id: String,
+    #[serde(default)]
+    database: Option<String>,
+    #[serde(default)]
+    window_hours: Option<u32>,
+    #[serde(default)]
+    dialect: Option<String>,
+    #[serde(default)]
+    now: Option<String>,
+    #[serde(default)]
+    max_groups: Option<usize>,
+    #[serde(default)]
+    max_executions_per_group: Option<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -1584,6 +1647,12 @@ impl RpcDispatcher {
             );
         }
 
+        if let Err(denial) =
+            managed_policy::authorize(&self.access_policy.connection_policy, command)
+        {
+            return managed_denial(denial, request_id.0);
+        }
+
         if !body.is_empty() && !has_json_content_type(headers) {
             return failure(
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
@@ -1660,6 +1729,7 @@ impl RpcDispatcher {
             authorization: granted_authorization,
             session_id,
         };
+        let scrub_context = context.clone();
         let invocation = self.invoke(command, context, &body, granted_authorization);
         match tokio::time::timeout(deadline, invocation).await {
             Ok(Ok(data)) => success(data),
@@ -1677,13 +1747,16 @@ impl RpcDispatcher {
                 None,
                 request_id.0,
             ),
-            Ok(Err(InvocationError::Application(error))) => failure(
-                metadata.application_error_status,
-                metadata.application_error_code,
-                error.message,
-                error.details,
-                request_id.0,
-            ),
+            Ok(Err(InvocationError::Application(error))) => {
+                let error = self.scrub_error(scrub_context, error).await;
+                failure(
+                    metadata.application_error_status,
+                    metadata.application_error_code,
+                    error.message,
+                    error.details,
+                    request_id.0,
+                )
+            }
             Err(_) => failure(
                 StatusCode::GATEWAY_TIMEOUT,
                 "DEADLINE_EXCEEDED",
@@ -1692,6 +1765,27 @@ impl RpcDispatcher {
                 request_id.0,
             ),
         }
+    }
+
+    /// In managed mode a driver or tunnel error must not carry a stored
+    /// credential to the browser. Refreshes the known secrets first, because
+    /// the administrator may have rotated them since the last error.
+    async fn scrub_error(
+        &self,
+        context: ApplicationRequestContext,
+        mut error: ApplicationError,
+    ) -> ApplicationError {
+        if !self.access_policy.connection_policy.is_managed_only() {
+            return error;
+        }
+        if let Ok(values) = self.application.connection_secret_values(context).await {
+            self.access_policy.secret_redactor.extend(values);
+        }
+        error.message = self.access_policy.secret_redactor.redact(&error.message);
+        if let Some(details) = error.details.as_mut() {
+            self.access_policy.secret_redactor.redact_value(details);
+        }
+        error
     }
 
     async fn invoke(
@@ -2204,8 +2298,12 @@ impl RpcCommand {
                 application_error_code: "NOTEBOOK_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
-            Self::Plugin(_) => CommandMetadata {
-                authorization: AuthorizationLevel::LocalAdmin,
+            Self::Plugin(command) => CommandMetadata {
+                authorization: if command == PluginRpcCommand::SecretFields {
+                    AuthorizationLevel::Database
+                } else {
+                    AuthorizationLevel::LocalAdmin
+                },
                 application_error_code: "PLUGIN_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
@@ -2287,6 +2385,11 @@ impl OperationalRpcCommand {
 impl PluginRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "plugin_account" => Self::Account,
+            "call_plugin_extension" => Self::CallExtension,
+            "set_plugin_secrets" => Self::SetSecrets,
+            "get_plugin_secret_fields" => Self::SecretFields,
+            "delete_plugin_secrets" => Self::DeleteSecrets,
             "get_plugin_runtime_warnings" => Self::GetRuntimeWarnings,
             "fetch_plugin_registry" => Self::FetchRegistry,
             "fetch_tabularium_plugin_preview" => Self::FetchPreview,
@@ -2455,6 +2558,12 @@ impl ProductivityRpcCommand {
             "add_query_history_entry" => Self::AddQueryHistoryEntry,
             "delete_query_history_entry" => Self::DeleteQueryHistoryEntry,
             "clear_query_history" => Self::ClearQueryHistory,
+            "get_query_history_insights" => Self::GetQueryHistoryInsights,
+            "get_schema_notes" => Self::GetSchemaNotes,
+            "set_schema_note" => Self::SetSchemaNote,
+            "set_schema_notes_ai_context" => Self::SetSchemaNotesAiContext,
+            "import_schema_notes" => Self::ImportSchemaNotes,
+            "export_schema_notes" => Self::ExportSchemaNotes,
             _ => return None,
         })
     }
@@ -2688,6 +2797,7 @@ impl ConnectionRpcCommand {
             "disconnect_connection" => Self::DisconnectConnection,
             "test_connection" => Self::TestConnection,
             "list_databases" => Self::ListDatabases,
+            "open_saved_connection" => Self::OpenSavedConnection,
             _ => return None,
         })
     }
@@ -3153,7 +3263,21 @@ fn decode_mcp_host_command(
 }
 
 fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<PluginCommand, String> {
+    use crate::application::plugin_extensions::ExtensionCommand;
     Ok(match command {
+        PluginRpcCommand::Account => PluginCommand::Account(decode_payload(body)?),
+        PluginRpcCommand::CallExtension => {
+            PluginCommand::Extension(ExtensionCommand::Call(decode_payload(body)?))
+        }
+        PluginRpcCommand::SetSecrets => {
+            PluginCommand::Extension(ExtensionCommand::SetSecrets(decode_payload(body)?))
+        }
+        PluginRpcCommand::SecretFields => {
+            PluginCommand::Extension(ExtensionCommand::SecretFields(decode_payload(body)?))
+        }
+        PluginRpcCommand::DeleteSecrets => {
+            PluginCommand::Extension(ExtensionCommand::DeleteSecrets(decode_payload(body)?))
+        }
         PluginRpcCommand::FetchRegistry => {
             decode_empty_payload(body)?;
             PluginCommand::FetchRegistry
@@ -3362,6 +3486,55 @@ fn decode_productivity_command(
         ProductivityRpcCommand::ClearQueryHistory => {
             let request: ConnectionIdRequest = decode_payload(body)?;
             ProductivityCommand::ClearQueryHistory {
+                connection_id: request.connection_id,
+            }
+        }
+        ProductivityRpcCommand::GetQueryHistoryInsights => {
+            let request: GetQueryHistoryInsightsRpcRequest = decode_payload(body)?;
+            ProductivityCommand::GetQueryHistoryInsights {
+                request: crate::query_history::QueryHistoryInsightsRequest {
+                    connection_id: request.connection_id,
+                    database: request.database,
+                    window_hours: request.window_hours,
+                    dialect: request.dialect,
+                    now: request.now,
+                    max_groups: request.max_groups,
+                    max_executions_per_group: request.max_executions_per_group,
+                },
+            }
+        }
+        ProductivityRpcCommand::GetSchemaNotes => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ProductivityCommand::GetSchemaNotes {
+                connection_id: request.connection_id,
+            }
+        }
+        ProductivityRpcCommand::SetSchemaNote => {
+            let request: SetSchemaNoteRequest = decode_payload(body)?;
+            ProductivityCommand::SetSchemaNote {
+                connection_id: request.connection_id,
+                target: request.target,
+                domain: request.domain,
+                note: request.note,
+            }
+        }
+        ProductivityRpcCommand::SetSchemaNotesAiContext => {
+            let request: SetSchemaNotesAiContextRequest = decode_payload(body)?;
+            ProductivityCommand::SetSchemaNotesAiContext {
+                connection_id: request.connection_id,
+                enabled: request.enabled,
+            }
+        }
+        ProductivityRpcCommand::ImportSchemaNotes => {
+            let request: ImportSchemaNotesRequest = decode_payload(body)?;
+            ProductivityCommand::ImportSchemaNotes {
+                connection_id: request.connection_id,
+                contents: request.contents,
+            }
+        }
+        ProductivityRpcCommand::ExportSchemaNotes => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ProductivityCommand::ExportSchemaNotes {
                 connection_id: request.connection_id,
             }
         }
@@ -4452,6 +4625,12 @@ fn decode_connection_command(
                 request: request.request,
             }
         }
+        ConnectionRpcCommand::OpenSavedConnection => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ConnectionCommand::OpenSavedConnection {
+                connection_id: request.connection_id,
+            }
+        }
     })
 }
 
@@ -4551,6 +4730,17 @@ fn success(data: Value) -> Response {
         .into_response()
 }
 
+/// The envelope every managed-mode denial uses, including the upload endpoints.
+pub(crate) fn managed_denial(denial: PolicyDenial, request_id: String) -> Response {
+    failure(
+        StatusCode::FORBIDDEN,
+        denial.code(),
+        "This connection is managed by an administrator and cannot be changed here".to_string(),
+        Some(serde_json::json!({ "action": denial.action.as_str() })),
+        request_id,
+    )
+}
+
 fn failure(
     status: StatusCode,
     code: &'static str,
@@ -4577,6 +4767,10 @@ fn failure(
 #[cfg(test)]
 #[path = "rpc_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "rpc_managed_tests.rs"]
+mod managed_tests;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

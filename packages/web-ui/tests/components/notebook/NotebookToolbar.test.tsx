@@ -14,6 +14,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof NotebookToolbar>[0]>
         onExport: vi.fn(),
         onExportHtml: vi.fn(),
         onExportSql: vi.fn(),
+        onExportMarkdown: vi.fn(),
         onImport: vi.fn(),
         isRunning: false,
         stopOnError: false,
@@ -131,5 +132,22 @@ describe('NotebookToolbar', () => {
         expect(screen.queryByTitle('editor.notebook.import')).not.toBeInTheDocument();
         expect(screen.getByTitle('editor.notebook.runAllTooltip')).toBeInTheDocument();
         expect(screen.getByTitle('editor.notebook.export')).toBeInTheDocument();
+    });
+
+    it('offers Markdown export in the export menu after the SQL source export', () => {
+        const props = renderToolbar();
+
+        fireEvent.click(screen.getByTitle('editor.notebook.export'));
+        const sql = screen.getByRole('button', {name: 'editor.notebook.exportSql'});
+        const markdown = screen.getByRole('button', {name: 'editor.notebook.exportMarkdown'});
+        expect(
+            sql.compareDocumentPosition(markdown) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+
+        fireEvent.click(markdown);
+        expect(props.onExportMarkdown).toHaveBeenCalledOnce();
+        expect(props.onExport).not.toHaveBeenCalled();
+        expect(props.onExportHtml).not.toHaveBeenCalled();
+        expect(props.onExportSql).not.toHaveBeenCalled();
     });
 });
