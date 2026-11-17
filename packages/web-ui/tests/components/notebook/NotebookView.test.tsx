@@ -275,7 +275,11 @@ describe('NotebookView', () => {
             renderNotebook(state);
             await settle();
 
-            expect(mockResolveParams).toHaveBeenCalledWith(rawQuery.trim(), params);
+            expect(mockResolveParams).toHaveBeenCalledWith(
+                rawQuery.trim(),
+                params,
+                expect.anything(),
+            );
             expect(mockResolveVariables).toHaveBeenCalledWith(parameterSql, state.cells, {
                 escapeBackslashes: false,
                 identifierQuote: '"',

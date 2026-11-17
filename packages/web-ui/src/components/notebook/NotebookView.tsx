@@ -46,6 +46,7 @@ import {
     variableOptionsForDriver,
 } from '@/utils/notebookVariables';
 import {resolveParams} from '@/utils/notebookParams';
+import {resolveSqlSyntax} from '@/utils/sqlSyntax';
 import {addHistoryEntry, createHistoryEntry} from '@/utils/notebookHistory';
 import {
     createHistory,
@@ -95,6 +96,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const platform = usePlatformCapabilities();
     const {t} = useTranslation();
     const {activeSchema, activeCapabilities, selectedDatabases, activeDriver} = useDatabase();
+    // Lets notebook parameters skip `@name` inside string literals and comments.
+    const sqlDialect = resolveSqlSyntax(activeCapabilities);
     const variableOptions = useMemo(
         () => variableOptionsForDriver(activeCapabilities ?? activeDriver, activeDriver),
         [activeCapabilities, activeDriver],
@@ -358,7 +361,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             // Resolve notebook parameters first
             let sql = cell.content.trim();
             if (params.length > 0) {
-                const paramResult = resolveParams(sql, params);
+                const paramResult = resolveParams(sql, params, sqlDialect);
                 if (paramResult.unresolvedParams.length > 0) {
                     // Only warn, don't block — unresolved @params might be SQL variables
                 }
@@ -465,6 +468,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             settings.resultPageSize,
             updateCell,
             params,
+            sqlDialect,
             variableOptions,
             guardQueryExecution,
         ],
@@ -1012,7 +1016,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                             explainQuery={
                                 cell.type === 'sql' && cell.isQueryPlanVisible
                                     ? resolveQueryVariables(
-                                          resolveParams(cell.content.trim(), params).sql,
+                                          resolveParams(cell.content.trim(), params, sqlDialect)
+                                              .sql,
                                           cells,
                                           variableOptions,
                                       )
