@@ -81,6 +81,9 @@ or `invalid_connection`; 401 `invalid_provisioning_token`; 403
 `machine_request_required`; 404 `not_found`; 500 `provisioning_failed`.
 Internal persistence/driver messages and submitted values are not echoed.
 Bodies are limited to 1 MiB (413 from the HTTP body limit).
+Invalid URI storage settings and plugin-secret field names return 400
+`invalid_connection` before persistence; secret-store and filesystem failures
+remain 500. Streamed/chunked bodies also preserve the 413 status.
 
 ## Runtime lifecycle
 
@@ -93,6 +96,14 @@ the database account too. Old and new secrets remain in the event redactor until
 restart, protecting delayed events after rotation. No process restart is needed
 for normal CRUD. Machine writes persist the managed marker atomically with the
 connection and use the shared application secret/persistence services.
+
+Connection commands and machine operations currently share one lifecycle lock,
+including saved-connection opening. A slow database/tunnel handshake can delay
+other connection commands and provisioning until it finishes or is cancelled.
+This deliberately keeps opening with stored credentials ordered with rotation
+and deletion: releasing the lock around network work alone would allow stale
+opening side effects after revocation. Per-connection lifecycle coordination is
+a separate optimization; callers should use bounded connection/request timeouts.
 
 ## Linux lab build
 

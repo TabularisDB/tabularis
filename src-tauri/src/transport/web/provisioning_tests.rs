@@ -260,6 +260,212 @@ fn provisioning_token_validation_and_reference_contract() {
     );
 }
 
+#[tokio::test]
+async fn provisioning_validation_and_body_limits_preserve_error_statuses() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new())
+        .await;
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            temp.path().into(),
+            temp.path().into(),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        Arc::new(MemorySecrets::default()),
+    );
+    let path = runtime.paths.connections_file();
+    let application = Arc::new(RuntimeApplicationApi::new(
+        runtime,
+        Arc::new(ApplicationState::default()),
+    ));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base = format!("http://{address}");
+    let (security, _) =
+        LocalSessionSecurity::new(base.clone(), LocalSessionSecurityConfig::default()).unwrap();
+    let router = super::provisioning::routes(
+        ProvisioningToken::new(TOKEN).unwrap(),
+        security,
+        application,
+        Default::default(),
+    );
+    let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    let client = reqwest::Client::new();
+    let collection = format!("{base}/api/v1/provisioning/connections");
+    let baseline = json!({"name":"Original", "params":{"driver":"postgres", "database":"app", "password":"original-secret"}});
+    assert_eq!(
+        client
+            .put(format!("{collection}/existing"))
+            .bearer_auth(TOKEN)
+            .json(&baseline)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    let original_file = std::fs::read(&path).unwrap();
+
+    for reference in ["new", "existing"] {
+        let mut uri = baseline.clone();
+        uri["name"] = json!("Should not persist");
+        uri["params"]["connection_uri"] = json!("postgres://user:private-secret@example/app");
+        let mut plugin = baseline.clone();
+        plugin["plugin_secret_changes"] = json!({"invalid/key": "private-secret"});
+        for body in [uri, plugin] {
+            let response = client
+                .put(format!("{collection}/{reference}"))
+                .bearer_auth(TOKEN)
+                .json(&body)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 400);
+            assert_eq!(
+                response.json::<Value>().await.unwrap(),
+                json!({"error":{"code":"invalid_connection"}})
+            );
+            assert_eq!(std::fs::read(&path).unwrap(), original_file);
+        }
+    }
+
+    // A known Content-Length is rejected by the layer before JSON extraction.
+    let oversized = "x".repeat(1024 * 1024 + 1);
+    assert_eq!(
+        client
+            .put(format!("{collection}/large"))
+            .bearer_auth(TOKEN)
+            .header("Content-Type", "application/json")
+            .body(oversized.clone())
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        413
+    );
+    // Without Content-Length, the limit is encountered during Json extraction.
+    let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+    stream.write_all(format!(
+        "PUT /api/v1/provisioning/connections/large HTTP/1.1\r\nHost: {address}\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n{:x}\r\n{oversized}\r\n0\r\n\r\n", oversized.len()
+    ).as_bytes()).await.unwrap();
+    let mut response = String::new();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        stream.read_to_string(&mut response),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(response.starts_with("HTTP/1.1 413"), "{response}");
+    assert!(response.contains("payload_too_large"), "{response}");
+    assert_eq!(std::fs::read(&path).unwrap(), original_file);
+
+    // An actual filesystem failure must not be mislabeled as caller validation.
+    std::fs::remove_file(&path).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    let response = client
+        .put(format!("{collection}/existing"))
+        .bearer_auth(TOKEN)
+        .json(&baseline)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 500);
+    assert_eq!(
+        response.json::<Value>().await.unwrap(),
+        json!({"error":{"code":"provisioning_failed"}})
+    );
+    server.abort();
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn provisioning_delete_waits_for_in_flight_saved_connection_open() {
+    use crate::application::{
+        connections::ConnectionCommand, provisioning::ProvisionCommand, ApplicationApi,
+        ApplicationRequestContext, AuthorizationLevel,
+    };
+    use std::time::{Duration, Instant};
+
+    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new())
+        .await;
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            temp.path().into(),
+            temp.path().into(),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        Arc::new(MemorySecrets::default()),
+    );
+    let application = Arc::new(RuntimeApplicationApi::new(runtime, Arc::default()));
+    // Accept the PostgreSQL connection but hold the handshake. The accept is a
+    // deterministic barrier proving OpenSavedConnection reached network work.
+    let database = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = database.local_addr().unwrap().port();
+    let input = serde_json::from_value(json!({"name":"Blocked handshake", "params":{
+        "driver":"postgres", "host":"127.0.0.1", "port":port,
+        "database":"app", "username":"user", "password":"private-secret", "ssl_mode":"disable"
+    }}))
+    .unwrap();
+    application
+        .provision_connection(ProvisionCommand::Put("blocked".into(), input))
+        .await
+        .unwrap();
+    let context = || ApplicationRequestContext {
+        request_id: "lifecycle-ordering".into(),
+        deadline: Instant::now() + Duration::from_secs(10),
+        cancellation_id: None,
+        authorization: AuthorizationLevel::Database,
+        session_id: None,
+    };
+    let opening_application = application.clone();
+    let opening = tokio::spawn(async move {
+        opening_application
+            .execute_connection_command(
+                context(),
+                ConnectionCommand::OpenSavedConnection {
+                    connection_id: "provisioned-blocked".into(),
+                },
+            )
+            .await
+    });
+    let (_socket, _) = tokio::time::timeout(Duration::from_secs(3), database.accept())
+        .await
+        .unwrap()
+        .unwrap();
+    let deleting_application = application.clone();
+    let mut deleting = tokio::spawn(async move {
+        deleting_application
+            .provision_connection(ProvisionCommand::Delete("blocked".into()))
+            .await
+    });
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), &mut deleting)
+            .await
+            .is_err(),
+        "deletion must not overtake opening with stored credentials"
+    );
+    opening.abort();
+    assert!(opening.await.unwrap_err().is_cancelled());
+    tokio::time::timeout(Duration::from_secs(3), deleting)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert!(application
+        .execute_connection_command(
+            context(),
+            ConnectionCommand::OpenSavedConnection {
+                connection_id: "provisioned-blocked".into(),
+            }
+        )
+        .await
+        .is_err());
+}
+
 /// Run with TABULARIS_PROVISIONING_LIVE_TEST=1 against the documented disposable lab ports.
 #[tokio::test]
 async fn provisioned_mysql_and_postgres_reach_real_databases() {

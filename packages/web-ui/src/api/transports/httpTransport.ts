@@ -1,5 +1,4 @@
-import {runtimeWebBasePath} from '@/utils/webBasePath';
-import {normalizeWebBasePath} from '@/utils/webBasePath';
+import {normalizeWebBasePath, runtimeWebBasePath} from '@/utils/webBasePath';
 import type {TabularisTransport} from '@/api/client';
 import type {
     CommandCallOptions,

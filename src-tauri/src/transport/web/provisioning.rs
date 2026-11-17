@@ -135,6 +135,7 @@ async fn execute(state: ProvisioningState, command: ProvisionCommand) -> Respons
             "not_found" => error(StatusCode::NOT_FOUND, "not_found"),
             "invalid_external_ref"
             | "invalid_name"
+            | "invalid_connection"
             | "unknown_driver"
             | "unsupported_read_only" => error(StatusCode::BAD_REQUEST, &e.message),
             _ => error(StatusCode::INTERNAL_SERVER_ERROR, "provisioning_failed"),
@@ -155,8 +156,12 @@ async fn upsert(
     Path(reference): Path<String>,
     body: Result<Json<ProvisionConnection>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    let Ok(Json(input)) = body else {
-        return error(StatusCode::BAD_REQUEST, "invalid_connection");
+    let input = match body {
+        Ok(Json(input)) => input,
+        Err(rejection) if rejection.status() == StatusCode::PAYLOAD_TOO_LARGE => {
+            return error(StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large");
+        }
+        Err(_) => return error(StatusCode::BAD_REQUEST, "invalid_connection"),
     };
     // Register incoming secrets before persistence, so concurrent events cannot
     // expose newly rotated credentials. Keep old values until process exit.
