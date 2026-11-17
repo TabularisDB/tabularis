@@ -125,15 +125,17 @@ fn test_search_file_match_cap_triggers_truncation() {
     let root = dir.path();
 
     // Create a file with 60 occurrences of TARGET. MAX_MATCHES_PER_FILE is 50.
+    // A second file with 1 match must still be searched after the first hits the per-file cap.
     let mut lines = Vec::new();
     for i in 1..=60 {
         lines.push(format!("SELECT {i} AS val, 'TARGET' AS t;"));
     }
-    fs::write(root.join("capped.sql"), lines.join("\n")).unwrap();
+    fs::write(root.join("a_big.sql"), lines.join("\n")).unwrap();
+    fs::write(root.join("b_small.sql"), "SELECT 1 AS ok, 'TARGET' AS t;\n").unwrap();
 
     let res = search_linked_folder_root("folder-1", root, "TARGET", false).unwrap();
-    assert_eq!(res.files_searched, 1);
-    assert_eq!(res.matches.len(), MAX_MATCHES_PER_FILE);
+    assert_eq!(res.files_searched, 2);
+    assert_eq!(res.matches.len(), MAX_MATCHES_PER_FILE + 1);
     assert!(res.truncated);
 }
 

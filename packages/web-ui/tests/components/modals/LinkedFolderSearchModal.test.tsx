@@ -234,15 +234,17 @@ describe('LinkedFolderSearchModal', () => {
             expect(client.call).toHaveBeenCalledWith('search_linked_folder', expect.anything());
         });
 
-        // Clear the query while the first request is still pending
+        // Clear the query while the first request is still pending and wait for
+        // the debounced empty-query cancellation to run before resolving.
         await user.clear(input);
         await waitFor(() => {
-            expect(screen.getByText('linkedFolderSearch.typeToSearch')).toBeInTheDocument();
+            expect(client.call).toHaveBeenCalledWith('cancel_linked_folder_search', undefined);
         });
 
-        // Resolve the stale request; it must not render old matches
+        // Resolve the stale request after the query has been cleared; it must not render old matches
         resolveSearch(mockSearchResults);
         await waitFor(() => {
+            expect(screen.getByText('linkedFolderSearch.typeToSearch')).toBeInTheDocument();
             expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
         });
     });

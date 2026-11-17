@@ -13,7 +13,7 @@ import {ThemeDialog} from '@/components/ui/ThemeDialog';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {toErrorMessage} from '@/utils/errors';
-import {readLinkedSqlFile} from '@/utils/linkedFolders';
+import {getLinkedFolderErrorKey, readLinkedSqlFile} from '@/utils/linkedFolders';
 import type {
     LinkedFolderSearchMatch,
     LinkedFolderSearchResult,
@@ -87,7 +87,8 @@ export function LinkedFolderSearchModal({
                 setSelectedIndex(res.matches.length > 0 ? 0 : -1);
             } catch (err) {
                 if (searchRequestId.current !== reqId) return;
-                setError(toErrorMessage(err));
+                const errorKey = getLinkedFolderErrorKey(err);
+                setError(errorKey ? t(errorKey) : toErrorMessage(err));
                 setSearchResult(null);
                 setSelectedIndex(-1);
             } finally {
@@ -96,7 +97,7 @@ export function LinkedFolderSearchModal({
                 }
             }
         },
-        [client, folder.id],
+        [client, folder.id, t],
     );
 
     useEffect(() => {
@@ -129,16 +130,20 @@ export function LinkedFolderSearchModal({
             })
             .catch((err) => {
                 if (cancelled) return;
+                const errorKey = getLinkedFolderErrorKey(err);
                 setPreviewCache((prev) => ({
                     ...prev,
-                    [selectedPath]: {status: 'error', error: toErrorMessage(err)},
+                    [selectedPath]: {
+                        status: 'error',
+                        error: errorKey ? t(errorKey) : toErrorMessage(err),
+                    },
                 }));
             });
 
         return () => {
             cancelled = true;
         };
-    }, [client, folder.id, selectedPath, previewCache]);
+    }, [client, folder.id, selectedPath, previewCache, t]);
 
     useEffect(() => {
         if (previewLineRef.current) {
@@ -323,8 +328,12 @@ export function LinkedFolderSearchModal({
                         <div className="flex items-center gap-2">
                             <span>
                                 {t('linkedFolderSearch.matchesSummary', {
-                                    count: searchResult.matches.length,
-                                    files: searchResult.filesSearched,
+                                    matches: t('linkedFolderSearch.matchesCount', {
+                                        count: searchResult.matches.length,
+                                    }),
+                                    files: t('linkedFolderSearch.filesCount', {
+                                        count: searchResult.filesSearched,
+                                    }),
                                 })}
                             </span>
                             {searchResult.filesSkipped > 0 && (

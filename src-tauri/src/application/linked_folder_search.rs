@@ -361,10 +361,6 @@ pub fn search_linked_folder_root_with_cancel(
             }
 
             matches.extend(file_results.matches);
-
-            if truncated {
-                break 'search_loop;
-            }
         }
     }
 
