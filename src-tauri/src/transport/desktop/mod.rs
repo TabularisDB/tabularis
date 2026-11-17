@@ -22,6 +22,7 @@ pub mod dump_commands;
 pub mod e2e_dialog_mock;
 pub mod explain_import;
 pub mod export;
+pub mod external_url;
 pub mod health_check;
 pub mod linked_folders;
 pub mod log_commands;
@@ -34,6 +35,7 @@ pub mod query_history;
 pub mod runtime;
 pub mod sandbox_protocol;
 pub mod saved_queries;
+pub mod schema_notes;
 pub mod sql_file;
 pub mod sqlite_database;
 pub mod storage_location;
@@ -42,6 +44,8 @@ pub mod task_manager;
 #[cfg(test)]
 mod tests;
 pub mod theme_commands;
+#[cfg(test)]
+mod theme_commands_tests;
 pub mod theme_packages;
 pub mod ui_state_commands;
 pub mod updater;
@@ -355,6 +359,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         })
         .invoke_handler(tauri::generate_handler![
             system_theme::get_linux_system_theme,
+            external_url::open_external_url,
             is_debug_mode,
             open_devtools,
             close_devtools,
@@ -364,6 +369,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::get_keybindings,
             commands::save_keybindings,
             commands::test_connection,
+            commands::open_saved_connection,
             commands::list_databases,
             commands::save_connection,
             sqlite_database::create_sqlite_file,
@@ -453,6 +459,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::release_query_session,
             commands::get_server_now,
             commands::explain_query_plan,
+            commands::preview_dml_changes,
             commands::count_query,
             commands::cancel_query,
             commands::get_views,
@@ -499,6 +506,12 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             query_history::add_query_history_entry,
             query_history::delete_query_history_entry,
             query_history::clear_query_history,
+            query_history::get_query_history_insights,
+            schema_notes::get_schema_notes,
+            schema_notes::set_schema_note,
+            schema_notes::set_schema_notes_ai_context,
+            schema_notes::import_schema_notes,
+            schema_notes::export_schema_notes,
             // Config
             config::get_schema_preference,
             config::set_schema_preference,
@@ -555,6 +568,8 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             ai::generate_tab_rename,
             ai::suggest_table_name,
             ai::get_ai_models,
+            ai::get_ai_providers,
+            ai::migrate_ai_providers,
             chatgpt::get_chatgpt_session,
             chatgpt::sign_in_chatgpt,
             chatgpt::cancel_chatgpt_sign_in,
@@ -637,9 +652,14 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             theme_commands::export_theme,
             // Dump & Import
             dump_commands::dump_database,
+            dump_commands::get_database_sql_capabilities,
             dump_commands::cancel_dump,
             dump_commands::import_database,
             dump_commands::cancel_import,
+            dump_commands::get_table_transfer_capabilities,
+            dump_commands::plan_table_transfer,
+            dump_commands::run_table_transfer,
+            dump_commands::cancel_table_transfer,
             dump_commands::export_table_to_sql,
             dump_commands::read_table_sql_header,
             dump_commands::import_table_from_sql,
@@ -669,6 +689,11 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             notebooks::rename_notebook,
             notebooks::list_notebooks,
             // Plugin Registry
+            plugins::extensions::call_plugin_extension,
+            plugins::accounts::plugin_account,
+            plugins::extensions::set_plugin_secrets,
+            plugins::extensions::get_plugin_secret_fields,
+            plugins::extensions::delete_plugin_secrets,
             plugins::commands::fetch_plugin_registry,
             plugins::commands::install_plugin,
             plugins::commands::cancel_plugin_install,

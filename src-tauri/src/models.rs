@@ -191,6 +191,15 @@ pub struct ConnectionParams {
     pub read_only: bool,
     pub host: Option<String>,
     pub port: Option<u16>,
+    /// Absolute path of the Unix socket the database listens on, at the
+    /// connection's destination — like host/port, its perspective follows the
+    /// tunnel state. Without a tunnel, the drivers dial this socket on the
+    /// local machine instead of host:port. With SSH, the SSH server connects
+    /// to it (the tunnel forwards there instead of host:port). Ignored while
+    /// a Kubernetes tunnel is enabled. Either way database TLS is disabled: a
+    /// socket peer cannot negotiate it, and the path is local or SSH-encrypted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unix_socket_path: Option<String>,
     pub username: Option<String>,
     pub password: Option<String>,
     /// Opaque driver-specific connection URI forwarded verbatim to the driver
@@ -328,9 +337,45 @@ pub struct ConnectionParams {
         skip_serializing_if = "crate::proxy::types::skip_optional_proxy_override"
     )]
     pub proxy: Option<crate::proxy::ProxyOverride>,
+    /// Local SOCKS5 proxy the host opened through the SSH tunnel for a
+    /// driver with the `socks5_proxy` capability. Set at runtime only, by
+    /// tunnel resolution, which clears any value a caller sent; the driver
+    /// routes every endpoint through it (e.g. all nodes of a
+    /// `mongodb+srv://` cluster).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_host: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_port: Option<u16>,
+    /// RFC 1929 credentials the local SOCKS5 proxy requires. Generated per
+    /// tunnel; absent when the listener cannot authenticate (system `ssh -D`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socks5_proxy_password: Option<String>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
+}
+
+impl ConnectionParams {
+    /// The configured Unix socket path: trimmed and non-empty. Where it is
+    /// dialed from depends on the tunnel state — see `unix_socket_path`.
+    pub fn unix_socket_path(&self) -> Option<&str> {
+        self.unix_socket_path
+            .as_deref()
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+    }
+
+    /// The Unix socket path the drivers dial *locally*: `None` while an SSH
+    /// or Kubernetes tunnel is enabled — the tunnel owns the route to the
+    /// database, so the socket must not override it at the driver level.
+    pub fn local_unix_socket_path(&self) -> Option<&str> {
+        if self.ssh_enabled.unwrap_or(false) || self.k8s_enabled.unwrap_or(false) {
+            return None;
+        }
+        self.unix_socket_path()
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -377,6 +422,11 @@ pub struct SavedConnection {
     /// write-confirmation warning and the visual identity in the UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
+    /// Set on connections provisioned by an administrator. A missing value
+    /// reads as `false`. The Web instance policy decides what the marker
+    /// protects: managed-only mode protects every connection regardless of it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub managed: bool,
 }
 
 /// A user-defined colored label. Tags are purely organizational: a
@@ -539,6 +589,12 @@ pub struct ForeignKey {
     pub column_name: String,
     pub ref_table: String,
     pub ref_column: String,
+    /// Schema of the referenced table, for drivers with schemas (PostgreSQL).
+    /// The referenced table can live in another schema than the source table,
+    /// so callers must not qualify `ref_table` with the source schema when this
+    /// is set. `None` means "same schema as the source table".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ref_schema: Option<String>,
     pub on_delete: Option<String>,
     pub on_update: Option<String>,
     /// 1-based position of this column within its (possibly composite) foreign

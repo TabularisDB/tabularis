@@ -5,9 +5,11 @@ const CALLBACK_NAMES = [
     'setExtraField',
     'setCredentialFieldsHidden',
     'setSecretField',
+    'onConnectionCreated',
+    'onClose',
 ] as const;
 
-export type SlotHostCallback = (method: string, ...args: unknown[]) => void;
+export type SlotHostCallback = (method: string, ...args: unknown[]) => void | Promise<unknown>;
 
 /** Make a structured-clone-safe context and record which host callbacks exist. */
 export function serializePluginSlotContext(context: SlotContext): SlotContext {
@@ -43,6 +45,12 @@ export function hydratePluginSlotContext(
     if (callbacks.includes('setSecretField')) {
         hydrated.setSecretField = (key: string, value: string) =>
             callHost('slot.setSecretField', key, value);
+    }
+    if (callbacks.includes('onConnectionCreated')) {
+        hydrated.onConnectionCreated = () => callHost('slot.onConnectionCreated');
+    }
+    if (callbacks.includes('onClose')) {
+        hydrated.onClose = () => callHost('slot.onClose');
     }
     return hydrated;
 }

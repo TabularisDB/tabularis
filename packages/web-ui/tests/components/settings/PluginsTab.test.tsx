@@ -19,11 +19,15 @@ await i18n.init({lng: 'en', resources: {en: {translation: en}}});
 vi.mock('react-i18next', () => ({useTranslation: () => ({t: i18n.t.bind(i18n)})}));
 vi.mock('lucide-react', async () => await vi.importActual('lucide-react'));
 vi.mock('@tauri-apps/api/event', () => ({listen: vi.fn().mockResolvedValue(() => {})}));
+vi.mock('@/hooks/useAiProviders', () => ({
+    useAiProviders: () => ({providers: [], refresh: mocks.refreshAiProviders}),
+}));
 vi.mock('@/hooks/usePluginRegistry', () => ({usePluginRegistry: vi.fn()}));
 vi.mock('@/hooks/useConnectionCatalogue', () => ({
     useConnectionCatalogue: () => ({refresh: mocks.refreshCatalogue}),
 }));
 const mocks = vi.hoisted(() => ({
+    refreshAiProviders: vi.fn().mockResolvedValue(undefined),
     refreshDrivers: vi.fn(),
     refreshRegistry: vi.fn(),
     refreshCatalogue: vi.fn(),
@@ -151,7 +155,7 @@ function setRegistry(plugins: RegistryPluginWithStatus[]) {
         refresh: mocks.refreshRegistry,
     });
 }
-function renderTab(filter = 'all', kind?: 'driver' | 'theme') {
+function renderTab(filter = 'all', kind?: 'driver' | 'theme' | 'ai-assistant') {
     const query = `tab=plugins&filter=${filter}${kind ? `&kind=${kind}` : ''}`;
     return render(
         <MemoryRouter initialEntries={[`/settings?${query}`]}>
@@ -175,6 +179,31 @@ describe('PluginsTab filters and version controls', () => {
             if (command === 'install_plugin' || command === 'cancel_plugin_install') return;
             throw new Error(`Unexpected command: ${command}`);
         });
+    });
+
+    it('installs AI packages without adding them to active database drivers', async () => {
+        const ai = {
+            ...plugin,
+            id: 'community-ai',
+            name: 'Community AI',
+            kind: 'ai-assistant',
+            installed_version: null,
+        };
+        setRegistry([plugin, ai]);
+        renderTab('all', 'ai-assistant');
+        expect(screen.queryByText('PostgreSQL')).not.toBeInTheDocument();
+        fireEvent.click(card('Community AI').getByRole('button', {name: 'Install v2.0.0'}));
+        await waitFor(() =>
+            expect(invoke).toHaveBeenCalledWith('install_plugin', {
+                pluginId: 'community-ai',
+                version: '2.0.0',
+            }),
+        );
+        await waitFor(() => expect(mocks.refreshAiProviders).toHaveBeenCalled());
+        expect(mocks.updateSetting).not.toHaveBeenCalledWith(
+            'activeExternalDrivers',
+            expect.anything(),
+        );
     });
 
     it('refreshes the connection catalogue after installing a driver', async () => {

@@ -1,6 +1,7 @@
 import {describe, it, expect, vi} from 'vitest';
 import {useState} from 'react';
 import {fireEvent, render, screen} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {ColumnVisibilityPopover} from '@/components/ui/ColumnVisibilityPopover';
 
 // The shared mock drops options; these tests read the counts.
@@ -115,6 +116,90 @@ describe('ColumnVisibilityPopover', () => {
         fireEvent.change(search, {target: {value: 'nope'}});
         expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
         expect(screen.getByText('dataGrid.noMatchingColumns')).toBeInTheDocument();
+    });
+
+    it('shows only matching indices, reveals hidden matches, and restores all columns', () => {
+        const onChange = vi.fn();
+        const onClose = vi.fn();
+        const cols = ['id', 'Customer_id', '', 'total', 'customer_name', 'id', 'status', 'date'];
+        render(
+            <Host cols={cols} initial={new Set([1, 4])} onChange={onChange} onClose={onClose} />,
+        );
+        const search = screen.getByRole('searchbox');
+        expect(
+            screen.queryByRole('button', {name: 'dataGrid.columnVisibility.showOnlyMatching'}),
+        ).toBeNull();
+        fireEvent.change(search, {target: {value: ' CUSTOMER '}});
+        expect(onChange).not.toHaveBeenCalled();
+        fireEvent.click(
+            screen.getByRole('button', {name: 'dataGrid.columnVisibility.showOnlyMatching'}),
+        );
+        expect([...onChange.mock.lastCall![0]]).toEqual([0, 2, 3, 5, 6, 7]);
+        expect(
+            screen.getAllByRole('checkbox').map((box) => box.closest('label')?.textContent),
+        ).toEqual(['Customer_id', 'customer_name']);
+        expect(
+            screen.getAllByRole('checkbox').every((box) => (box as HTMLInputElement).checked),
+        ).toBe(true);
+        expect(screen.getByText(/dataGrid\.columnVisibility\.shown/).textContent).toContain(
+            '"visible":2,"total":8',
+        );
+        expect(onClose).not.toHaveBeenCalled();
+
+        fireEvent.change(search, {target: {value: 'id'}});
+        fireEvent.click(
+            screen.getByRole('button', {name: 'dataGrid.columnVisibility.showOnlyMatching'}),
+        );
+        expect([...onChange.mock.lastCall![0]]).toEqual([2, 3, 4, 6, 7]);
+        fireEvent.click(screen.getByRole('button', {name: 'dataGrid.columnVisibility.showAll'}));
+        expect(onChange.mock.lastCall![0].size).toBe(0);
+        fireEvent.change(search, {target: {value: ''}});
+        expect(
+            screen.getAllByRole('checkbox').map((box) => box.closest('label')?.textContent),
+        ).toEqual(cols.map((col) => col || "''"));
+        expect(
+            screen.getAllByRole('checkbox').every((box) => (box as HTMLInputElement).checked),
+        ).toBe(true);
+    });
+
+    it('cannot hide all columns with an empty search or no matches', () => {
+        const onChange = vi.fn();
+        render(
+            <Host
+                cols={wide}
+                initial={new Set(wide.slice(1).map((_, i) => i + 1))}
+                onChange={onChange}
+            />,
+        );
+        fireEvent.change(screen.getByRole('searchbox'), {target: {value: '   '}});
+        expect(
+            screen.queryByRole('button', {name: 'dataGrid.columnVisibility.showOnlyMatching'}),
+        ).toBeNull();
+        fireEvent.change(screen.getByRole('searchbox'), {target: {value: 'absent'}});
+        const action = screen.getByRole('button', {
+            name: 'dataGrid.columnVisibility.showOnlyMatching',
+        });
+        expect(action).toBeDisabled();
+        fireEvent.click(action);
+        expect(onChange).not.toHaveBeenCalled();
+        fireEvent.change(screen.getByRole('searchbox'), {target: {value: 'col_0'}});
+        expect(checkbox('col_0')).toBeDisabled();
+    });
+
+    it.each(['{Enter}', ' '])('activates Show only matching with %s', async (key) => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        render(<Host cols={wide} onChange={onChange} />);
+        await user.type(screen.getByRole('searchbox'), 'col_0');
+        await user.tab();
+        await user.tab();
+        expect(
+            screen.getByRole('button', {name: 'dataGrid.columnVisibility.showOnlyMatching'}),
+        ).toHaveFocus();
+        await user.keyboard(key);
+        expect([...onChange.mock.lastCall![0]]).toEqual(wide.slice(1).map((_, i) => i + 1));
+        expect(checkbox('col_0')).toBeChecked();
+        expect(checkbox('col_0')).toBeDisabled();
     });
 
     it('has no search field for a narrow result and focuses the first checkbox', () => {

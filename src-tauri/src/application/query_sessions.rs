@@ -109,17 +109,21 @@ fn take_matching(owner: Option<Uuid>, connection_id: Option<&str>) -> Vec<(Strin
         .collect()
 }
 
+/// Returns how many tab sessions were released.
 pub async fn release_connection(
     runtime: &RuntimeContext,
     owner: Option<Uuid>,
     connection_id: &str,
-) {
-    for (key, session) in take_matching(owner, Some(connection_id)) {
+) -> usize {
+    let released = take_matching(owner, Some(connection_id));
+    let count = released.len();
+    for (key, session) in released {
         emit_state(runtime, owner, &session.tab_id, false);
         tokio::spawn(async move {
             session.driver.release_session(&key).await;
         });
     }
+    count
 }
 
 pub fn clear_owner(owner: Uuid) {
@@ -132,3 +136,23 @@ pub fn clear_owner(owner: Uuid) {
 
 #[cfg(test)]
 mod tests;
+
+/// Release all browser and desktop tab sessions before a machine lifecycle
+/// operation returns. Existing database operations may finish first.
+pub async fn release_provisioned_connection(runtime: &RuntimeContext, connection_id: &str) {
+    let removed = {
+        let mut sessions = sessions().lock().unwrap_or_else(|e| e.into_inner());
+        let keys: Vec<_> = sessions
+            .iter()
+            .filter(|(_, s)| s.connection_id == connection_id)
+            .map(|(k, _)| k.clone())
+            .collect();
+        keys.into_iter()
+            .filter_map(|k| sessions.remove(&k).map(|s| (k, s)))
+            .collect::<Vec<_>>()
+    };
+    for (key, session) in removed {
+        session.driver.release_session(&key).await;
+        emit_state(runtime, session.owner, &session.tab_id, false);
+    }
+}

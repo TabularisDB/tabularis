@@ -145,7 +145,13 @@ export function parsePostgresText(raw: string): ExplainPlan {
     let planningTime: number | null = null;
     let executionTime: number | null = null;
     let hasAnalyzeData = false;
+    let hasBuffers = false;
     const ids = new NodeIdAllocator();
+    // Indent of the first node header. Non-node lines at or above it are
+    // statement-level sections that follow the tree (`Planning:`, `JIT:`,
+    // `Settings:`, `Trigger ...`), not attributes of the last node.
+    let rootIndent: number | null = null;
+    let inTrailer = false;
 
     const stack: Array<{indent: number; node: ExplainNode}> = [];
     let root: ExplainNode | null = null;
@@ -196,12 +202,16 @@ export function parsePostgresText(raw: string): ExplainPlan {
             if (node.actual_rows !== null || node.actual_time_ms !== null) {
                 hasAnalyzeData = true;
             }
+            rootIndent ??= indent;
+            inTrailer = false;
             popUntilShallower(indent);
             stack.push({indent, node});
         } else {
+            if (rootIndent !== null && indent <= rootIndent) inTrailer = true;
+            if (inTrailer) continue;
             const top = stack[stack.length - 1];
-            if (top !== undefined) {
-                applyTextAttribute(top.node, trimmed);
+            if (top !== undefined && applyTextAttribute(top.node, trimmed)) {
+                hasBuffers = true;
             }
         }
     }
@@ -212,6 +222,11 @@ export function parsePostgresText(raw: string): ExplainPlan {
     if (root === null) {
         throw new Error('No plan nodes found in EXPLAIN text output');
     }
+
+    // Text output omits the `Buffers:` line of a node that touched no blocks,
+    // while FORMAT JSON reports zeros. Once the plan has buffer data, a node
+    // without the line therefore read nothing.
+    if (hasBuffers) fillMissingBuffers(root);
 
     return {
         root,
@@ -352,7 +367,8 @@ function parseActualFields(inner: string): [number | null, number | null, number
     //   "never executed"
     const trimmed = inner.trim();
     if (trimmed.toLowerCase() === 'never executed') {
-        return [null, null, null];
+        // Same as FORMAT JSON, which reports zero time, rows and loops.
+        return [0, 0, 0];
     }
     const rest = trimmed.startsWith('actual ') ? trimmed.slice(7) : trimmed;
 
@@ -382,7 +398,12 @@ function parseFiniteNumber(text: string): number | null {
     return Number.isFinite(value) ? value : null;
 }
 
-function applyTextAttribute(node: ExplainNode, content: string): void {
+/** Returns `true` when the line was a `Buffers:` line. */
+function applyTextAttribute(node: ExplainNode, content: string): boolean {
+    if (content.startsWith('Buffers:')) {
+        applyBuffers(node, content.slice('Buffers:'.length));
+        return true;
+    }
     if (content.startsWith('Filter:')) {
         node.filter = content.slice('Filter:'.length).trim();
     } else if (content.startsWith('Index Cond:')) {
@@ -397,4 +418,41 @@ function applyTextAttribute(node: ExplainNode, content: string): void {
             node.extra[content.slice(0, sep).trim()] = content.slice(sep + 1).trim();
         }
     }
+    return false;
+}
+
+/**
+ * Parse `shared hit=2 read=1 dirtied=3, local hit=4, temp read=5 written=6`.
+ *
+ * Shared hit/read map onto `buffers_hit` / `buffers_read`, like the JSON
+ * parser. The other counters go to `extra` under their FORMAT JSON names
+ * (`Shared Dirtied Blocks`, `Temp Read Blocks`, ...). Counters Postgres
+ * leaves out are zero.
+ */
+function applyBuffers(node: ExplainNode, content: string): void {
+    node.buffers_hit = 0;
+    node.buffers_read = 0;
+    for (const group of content.split(',')) {
+        const [scope, ...counters] = group.trim().split(/\s+/);
+        if (scope === undefined || scope === '') continue;
+        const scopeLabel = scope.charAt(0).toUpperCase() + scope.slice(1).toLowerCase();
+        for (const counter of counters) {
+            const eq = counter.indexOf('=');
+            if (eq === -1) continue;
+            const name = counter.slice(0, eq).toLowerCase();
+            const value = parseFiniteNumber(counter.slice(eq + 1));
+            if (value === null) continue;
+            if (scopeLabel === 'Shared' && name === 'hit') node.buffers_hit = value;
+            else if (scopeLabel === 'Shared' && name === 'read') node.buffers_read = value;
+            else
+                node.extra[`${scopeLabel} ${name.charAt(0).toUpperCase()}${name.slice(1)} Blocks`] =
+                    value;
+        }
+    }
+}
+
+function fillMissingBuffers(node: ExplainNode): void {
+    node.buffers_hit ??= 0;
+    node.buffers_read ??= 0;
+    for (const child of node.children) fillMissingBuffers(child);
 }

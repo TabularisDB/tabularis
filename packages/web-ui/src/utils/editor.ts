@@ -1,6 +1,8 @@
 import type {Tab, SchemaCache, TableSchema} from '@/types/editor';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {quoteTableRef} from './identifiers';
+import {scanNonCodeSpans, type DialectInput} from './sqlSplitter';
+import {resolveSqlSyntax} from './sqlSyntax';
 import type {TypedCommandCaller} from '@/api/contract';
 import {cleanTabForStorage, restoreTabFromStorage} from './tabCleaner';
 import {filterTabsByConnection, getActiveTabForConnection} from './tabFilters';
@@ -461,7 +463,24 @@ export function reconstructTableQuery(
         }
     }
 
-    return baseQuery.replace(/\s+/g, ' ').trim();
+    const dialect = typeof driver === 'string' ? driver : resolveSqlSyntax(driver);
+    return collapseWhitespaceOutsideLiterals(baseQuery, dialect);
+}
+
+/**
+ * Collapses runs of whitespace to one space, except inside string literals and
+ * comments, so a filter on `'John  Smith'` still matches that value. Without a
+ * known dialect there are no literal spans to keep (see `scanNonCodeSpans`) and
+ * every run is collapsed.
+ */
+function collapseWhitespaceOutsideLiterals(sql: string, dialect: DialectInput): string {
+    let out = '';
+    let cursor = 0;
+    for (const {start, end} of scanNonCodeSpans(sql, dialect)) {
+        out += sql.slice(cursor, start).replace(/\s+/g, ' ') + sql.slice(start, end);
+        cursor = end;
+    }
+    return (out + sql.slice(cursor).replace(/\s+/g, ' ')).trim();
 }
 
 /**

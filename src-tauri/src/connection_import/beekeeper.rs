@@ -178,6 +178,7 @@ impl ForeignAppImporter for BeekeeperImporter {
                 ssh: build_ssh(row),
                 ssl: build_ssl(row),
                 group_name,
+                warnings: Vec::new(),
             };
             let index = envelope.connections.len();
             envelope.connections.push(conn);

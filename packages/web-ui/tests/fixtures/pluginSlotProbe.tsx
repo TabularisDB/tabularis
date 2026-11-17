@@ -9,6 +9,7 @@ import { TabularisClient } from '@/api/client';
 import { TauriTransport } from '@/api/transports/tauriTransport';
 import { TabularisClientProvider } from '@/contexts/TabularisClientProvider';
 import { API_VERSION } from '@/pluginApiVersion';
+import {MemoryRouter} from 'react-router-dom';
 import type { SlotName } from '@/types/pluginSlots';
 
 /** Load plugin manifests and render their sandboxed iframe slots. */
@@ -41,7 +42,7 @@ export async function renderWithSlotProbe(children: ReactNode, slots: SlotName[]
       updateSetting: vi.fn(), isLoading: false,
     }}>
       <TabularisClientProvider client={client}>
-        <PluginSlotProvider>{children}</PluginSlotProvider>
+        <MemoryRouter><PluginSlotProvider>{children}</PluginSlotProvider></MemoryRouter>
       </TabularisClientProvider>
     </SettingsContext.Provider>,
   );

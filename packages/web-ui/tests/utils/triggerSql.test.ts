@@ -11,6 +11,7 @@ import {
     buildCreateTriggerStatements,
     parseTriggerDefinition,
     resolveTriggerDialect,
+    usesCompleteTriggerSqlEditor,
     normalizeSelection,
     splitSqlStatements,
     type TriggerSqlInput,
@@ -449,6 +450,36 @@ $function$`;
         });
     });
 
+    describe('usesCompleteTriggerSqlEditor', () => {
+        it('is true for trigger-capable dialects without a guided editor', () => {
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'generic', triggers: true},
+                }),
+            ).toBe(true);
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'mssql', triggers: true},
+                }),
+            ).toBe(true);
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'oracle', triggers: true},
+                }),
+            ).toBe(true);
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'postgres', triggers: true},
+                }),
+            ).toBe(false);
+            expect(
+                usesCompleteTriggerSqlEditor({
+                    capabilities: {sql_dialect: 'mssql', triggers: false},
+                }),
+            ).toBe(false);
+        });
+    });
+
     it('postgres returns two statements', () => {
         const s = buildCreateTriggerStatements({
             ...upstreamBase,
@@ -519,5 +550,14 @@ $function$`;
         );
         expect(parts).toHaveLength(2);
         expect(parts[0]).toContain('RETURN NEW; END;');
+    });
+
+    it.each(['$fn1$', '$función$'])('does not break %s bodies', (tag) => {
+        const parts = splitSqlStatements(
+            `CREATE FUNCTION f() RETURNS TRIGGER AS ${tag} BEGIN RETURN NEW; END; ${tag} LANGUAGE plpgsql;
+CREATE TRIGGER t AFTER INSERT ON a FOR EACH ROW EXECUTE FUNCTION f();`,
+        );
+        expect(parts).toHaveLength(2);
+        expect(parts[0]).toContain(`RETURN NEW; END; ${tag} LANGUAGE plpgsql`);
     });
 });

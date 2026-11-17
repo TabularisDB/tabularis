@@ -13,6 +13,7 @@ interface CellCodeEditorProps {
     height?: string | number;
     readOnly?: boolean;
     language?: 'json' | 'plaintext';
+    wrapLines?: boolean;
 }
 
 export const CellCodeEditor = ({
@@ -22,6 +23,7 @@ export const CellCodeEditor = ({
     height = '100%',
     readOnly = false,
     language = 'json',
+    wrapLines = true,
 }: CellCodeEditorProps) => {
     const editorTheme = useEditorTheme();
     const monacoRef = useRef<typeof MonacoTypes | null>(null);
@@ -61,7 +63,7 @@ export const CellCodeEditor = ({
                 automaticLayout: true,
                 formatOnPaste: language === 'json',
                 scrollBeyondLastLine: false,
-                wordWrap: 'on',
+                wordWrap: wrapLines ? 'on' : 'off',
                 wrappingIndent: 'indent',
             }}
         />

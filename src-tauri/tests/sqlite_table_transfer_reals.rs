@@ -79,6 +79,7 @@ fn runtime(dir: &Path) -> RuntimeContext {
             appearance: None,
             tag_ids: None,
             environment: None,
+            managed: false,
         })
         .collect();
     tabularis_lib::persistence::save_connections_file(

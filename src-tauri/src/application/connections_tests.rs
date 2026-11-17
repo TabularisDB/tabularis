@@ -259,6 +259,23 @@ async fn connection_test_failures_emit_correlated_progress() {
 }
 
 #[test]
+fn tunnel_test_log_reports_the_socks5_listener_instead_of_the_database_port() {
+    let mut resolved = connection_params("");
+    resolved.port = Some(27017);
+    assert_eq!(
+        tunnel_endpoint_detail(&resolved).as_deref(),
+        Some("127.0.0.1:27017")
+    );
+
+    resolved.socks5_proxy_host = Some("127.0.0.1".to_string());
+    resolved.socks5_proxy_port = Some(40123);
+    assert_eq!(
+        tunnel_endpoint_detail(&resolved).as_deref(),
+        Some("SOCKS5 127.0.0.1:40123")
+    );
+}
+
+#[test]
 fn test_log_host_port_keeps_url_hosts_and_named_ports() {
     assert_eq!(display_host_port("localhost", 5432), "localhost:5432");
     assert_eq!(display_host_port("192.168.1.10", 3306), "192.168.1.10:3306");
@@ -787,6 +804,7 @@ fn sql_builder_secrets_bind_stored_plugin_secrets_and_tolerate_missing_ones() {
         appearance: None,
         tag_ids: None,
         environment: None,
+        managed: false,
     };
 
     bind_sql_builder_secrets(&runtime, &mut connection);
@@ -895,6 +913,30 @@ async fn deleting_a_connection_removes_its_secrets_and_history() {
 
     assert!(stored_accounts(&secrets, &saved.id).is_empty());
     assert_eq!(history_len(&runtime, &saved.id).await, 0);
+}
+
+#[tokio::test]
+async fn deleting_a_connection_removes_its_schema_notes() {
+    use super::super::schema_notes;
+    let (_temp, runtime, state, _secrets) = fixture_with_secrets();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Documented".into(),
+        connection_params("secret"),
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
+    let config_dir = runtime.paths.config_dir();
+    schema_notes::set_note(config_dir, &saved.id, None, None, "Shop".into()).unwrap();
+    let path = schema_notes::notes_path(config_dir, &saved.id).unwrap();
+    assert!(path.exists());
+
+    delete_connection(&runtime, &state, &saved.id).unwrap();
+
+    assert!(!path.exists());
 }
 
 #[tokio::test]
@@ -1132,6 +1174,55 @@ async fn creating_a_sqlite_database_saves_a_connection_to_the_new_file() {
     assert_eq!(load_file(&runtime).unwrap().connections.len(), 1);
 }
 
+#[test]
+fn plugin_service_bundles_are_removed_on_delete_or_connection_retargeting() {
+    for action in ["delete", "driver", "host"] {
+        let (_temp, runtime, state) = fixture();
+        let mut params = connection_params("db-secret");
+        params.driver = "test-plugin".into();
+        let saved = save_connection(
+            &runtime,
+            &state,
+            "Plugin".into(),
+            params,
+            Default::default(),
+            None,
+            None,
+        )
+        .unwrap();
+        let key = crate::plugins::extension_policy::secret_key("test-plugin", &saved.id);
+        runtime.secrets.set(&key, r#"{"TOKEN":"private"}"#).unwrap();
+        if action == "delete" {
+            delete_connection(&runtime, &state, &saved.id).unwrap();
+        } else {
+            let mut params = find_connection(&load_file(&runtime).unwrap(), &saved.id)
+                .unwrap()
+                .params;
+            if action == "driver" {
+                params.driver = "another-plugin".into();
+            } else {
+                params.host = Some("another-branch.example".into());
+            }
+            update_connection(
+                &runtime,
+                &state,
+                saved.id.clone(),
+                "Changed".into(),
+                params,
+                Default::default(),
+                None,
+                None,
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            runtime.secrets.get(&key).unwrap(),
+            None,
+            "service credentials survived {action}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn opening_data_files_saves_one_workspace_connection_and_reuses_it() {
     // The driver is looked up in the process-wide registry.
@@ -1190,4 +1281,157 @@ async fn opening_data_files_saves_one_workspace_connection_and_reuses_it() {
     assert_eq!(error, "No installed driver can open xlsx data files");
 
     crate::drivers::registry::unregister_driver("data-file-workspace-test").await;
+}
+
+#[test]
+fn collected_secrets_cover_keychain_inline_plugin_and_ssh_profile_values() {
+    let (_temp, runtime, state) = fixture();
+    let mut params = connection_params("keychain-db-secret");
+    params.driver = "test-plugin".to_string();
+    params.connection_uri = Some("pg://user:uri-secret@host/db".to_string());
+    let changes = HashMap::from([("token".to_string(), Some("plugin-secret".to_string()))]);
+    save_connection(
+        &runtime,
+        &state,
+        "Secrets".into(),
+        params,
+        changes,
+        None,
+        None,
+    )
+    .unwrap();
+
+    let values = collect_secret_values(&runtime).unwrap();
+    assert!(values.contains(&"keychain-db-secret".to_string()));
+    assert!(values.contains(&"plugin-secret".to_string()));
+    assert!(values.iter().all(|value| !value.is_empty()));
+}
+
+#[test]
+fn redacted_connections_drop_every_credential_field() {
+    let mut params = connection_params("db-secret");
+    params.connection_uri = Some("uri-secret".to_string());
+    params.ssh_password = Some("ssh-secret".to_string());
+    params.ssh_key_passphrase = Some("passphrase-secret".to_string());
+    params.socks5_proxy_username = Some("socks-user".to_string());
+    params.socks5_proxy_password = Some("socks-secret".to_string());
+    params.proxy = Some(crate::proxy::ProxyOverride {
+        mode: crate::proxy::ProxyMode::Custom,
+        endpoint: Some(crate::proxy::ProxyEndpoint {
+            protocol: Default::default(),
+            host: "proxy.internal".to_string(),
+            port: 3128,
+            username: Some("proxy-user".to_string()),
+            password: Some("proxy-secret".to_string()),
+        }),
+    });
+    let connection = SavedConnection {
+        id: "c".into(),
+        name: "c".into(),
+        params,
+        plugin_secret_keys: Vec::new(),
+        group_id: None,
+        sort_order: None,
+        detect_json_in_text_columns: None,
+        appearance: None,
+        tag_ids: None,
+        environment: None,
+        managed: true,
+    };
+
+    let json = serde_json::to_string(&redact_connection(connection)).unwrap();
+    for secret in [
+        "db-secret",
+        "uri-secret",
+        "ssh-secret",
+        "passphrase-secret",
+        "socks-secret",
+        "proxy-secret",
+    ] {
+        assert!(!json.contains(secret), "{secret} leaked");
+    }
+}
+
+#[test]
+fn updating_and_duplicating_never_clear_or_copy_the_managed_marker() {
+    let (_temp, runtime, state) = fixture();
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "Marked".into(),
+        connection_params("db-secret"),
+        HashMap::new(),
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(!saved.managed);
+
+    let mut file = load_file(&runtime).unwrap();
+    file.connections[0].managed = true;
+    save_file(&runtime, &state, &file).unwrap();
+
+    let updated = update_connection(
+        &runtime,
+        &state,
+        saved.id.clone(),
+        "Renamed".into(),
+        connection_params("db-secret"),
+        HashMap::new(),
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(updated.managed);
+
+    let duplicate = duplicate_connection(&runtime, &state, &saved.id).unwrap();
+    assert!(!duplicate.managed);
+}
+
+#[tokio::test]
+async fn opening_a_saved_connection_validates_its_stored_parameters_by_id() {
+    let (_temp, runtime, state, _secrets) = fixture_with_secrets();
+    let mut params = connection_params("stored-password");
+    params.use_iam_auth = Some(true);
+    let saved = save_connection(
+        &runtime,
+        &state,
+        "IAM".into(),
+        params,
+        Default::default(),
+        None,
+        None,
+    )
+    .unwrap();
+
+    // The stored IAM flag and (absent) token decide the outcome, so the check
+    // ran against the saved parameters rather than anything the caller sent.
+    let error = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::OpenSavedConnection {
+            connection_id: saved.id.clone(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        error.contains("AWS IAM authentication is enabled"),
+        "{error}"
+    );
+}
+
+#[tokio::test]
+async fn opening_an_unknown_saved_connection_fails() {
+    let (_temp, runtime, state) = fixture();
+    let error = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::OpenSavedConnection {
+            connection_id: "missing".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, "Connection not found");
 }

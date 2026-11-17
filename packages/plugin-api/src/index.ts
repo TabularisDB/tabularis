@@ -8,6 +8,9 @@
 
 export {
     usePluginQuery,
+    usePluginRpc,
+    usePluginAccount,
+    usePluginWorkspace,
     usePluginConnection,
     usePluginToast,
     usePluginSetting,
@@ -15,7 +18,10 @@ export {
     usePluginModal,
     usePluginTheme,
     openUrl,
+    copyText,
     exchangeGoogleOAuthToken,
+    publishPluginEvent,
+    usePluginEvent,
 } from './hooks';
 
 export {getHost, assertHostCompat} from './host';
@@ -44,9 +50,33 @@ export type {
     PluginTranslator,
     TabularisHostApi,
     UsePluginQueryReturn,
+    UsePluginRpcReturn,
+    UsePluginAccountReturn,
+    PluginAccountImportResult,
     UsePluginConnectionReturn,
     UsePluginToastReturn,
     UsePluginSettingReturn,
     UsePluginModalReturn,
     UsePluginThemeReturn,
+} from './types';
+
+export {
+    PluginConnectionAction,
+    PluginWorkspaceShell,
+    PluginExplorerSection,
+    PluginDataGrid,
+    PluginResourceList,
+    PluginCodeEditor,
+    PluginSelect,
+} from './components';
+export type {
+    PluginConnectionActionProps,
+    PluginExplorerSectionProps,
+    PluginDataGridProps,
+    PluginResourceListProps,
+    PluginCodeEditorProps,
+    PluginSelectProps,
+    PluginWorkspaceShellProps,
+    OpenPluginWorkspaceOptions,
+    UsePluginWorkspaceReturn,
 } from './types';

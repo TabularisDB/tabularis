@@ -35,8 +35,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libdbus-1-dev pkg-config perl make \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-# JSON schemas and themes the crate embeds from outside src-tauri.
+# JSON schemas, built-in AI assistant manifests and themes the crate embeds
+# from outside src-tauri.
 COPY plugins/manifest.schema.json ./plugins/manifest.schema.json
+COPY plugins/ai-assistants/manifest.schema.json ./plugins/ai-assistants/manifest.schema.json
+COPY plugins/ai-assistants/packages ./plugins/ai-assistants/packages
 COPY packages/web-ui/src/schemas ./packages/web-ui/src/schemas
 COPY packages/web-ui/src/themes ./packages/web-ui/src/themes
 COPY src-tauri ./src-tauri

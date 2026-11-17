@@ -1,0 +1,74 @@
+{
+  "id": "anthropic",
+  "name": "Anthropic",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "Anthropic AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "claude-fable-5",
+      "claude-opus-4-8",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5",
+      "claude-opus-4-7",
+      "claude-opus-4-6",
+      "claude-sonnet-4-5",
+      "claude-opus-4-5"
+    ],
+    "api_key_env": "ANTHROPIC_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://api.anthropic.com/v1",
+          "body": {
+            "model": "{{model}}",
+            "system": "{{system_prompt}}",
+            "messages": [
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "max_tokens": 1024
+          },
+          "append_path": "/messages",
+          "headers": {
+            "anthropic-version": "2023-06-01"
+          }
+        }
+      ],
+      "response": {
+        "path": "/content",
+        "select": {
+          "path": "/type",
+          "equals": "text"
+        },
+        "value_path": "/text"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://api.anthropic.com/v1",
+            "append_path": "/models",
+            "headers": {
+              "anthropic-version": "2023-06-01"
+            }
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        }
+      ],
+      "cache_seconds": 0
+    },
+    "api_key_header": "x-api-key",
+    "api_key_prefix": "",
+    "auto_select_priority": 20
+  },
+  "settings": [],
+  "license": "Apache-2.0",
+  "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iI2Q5Nzc1NyIgLz48c3ZnIHZpZXdCb3g9IjAgMCAyNTYgMjU3IiBmaWxsPSIjZmZmZmZmIiB4PSI0IiB5PSI0IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiPjxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Im01MC4yMjggMTcwLjMyMSA1MC4zNTctMjguMjU3Ljg0My0yLjQ2My0uODQzLTEuMzYxaC0yLjQ2MmwtOC40MjYtLjUxOC0yOC43NzUtLjc3OC0yNC45NTItMS4wMzctMjQuMTc1LTEuMjk2LTYuMDkyLTEuMjk3TDAgMTI1Ljc5NmwuNTgzLTMuNzU5IDUuMTItMy40MzQgNy4zMjQuNjQ4IDE2LjIwMiAxLjEwMSAyNC4zMDQgMS42ODUgMTcuNjI5IDEuMDM3IDI2LjExOCAyLjcyMmg0LjE0OGwuNTgzLTEuNjg1LTEuNDI2LTEuMDM3LTEuMTAxLTEuMDM3LTI1LjE0Ny0xNy4wNDUtMjcuMjItMTguMDE3LTE0LjI1OC0xMC4zNy03LjcxMy01LjI1LTMuODg4LTQuOTI1LTEuNjg1LTEwLjc1OCA3LTcuNzEzIDkuMzk3LjY0OSAyLjM5OC42NDggOS41MjcgNy4zMjMgMjAuMzUgMTUuNzVMOTQuODE3IDkxLjlsMy44ODkgMy4yNCAxLjU1NS0xLjEwMi4xOTUtLjc3Ny0xLjc1LTIuOTE3LTE0LjQ1My0yNi4xMTgtMTUuNDI1LTI2LjU3Mi02Ljg3LTExLjAxOC0xLjgxNC02LjYxYy0uNjQ4LTIuNzIzLTEuMTAyLTQuOTkxLTEuMTAyLTcuNzc4bDcuOTcyLTEwLjgyM0w3MS40MiAwIDgyLjA1IDEuNDI2bDQuNDcyIDMuODg4IDYuNjEgMTUuMTAxIDEwLjY5NCAyMy43ODYgMTYuNTkxIDMyLjM0IDQuODYxIDkuNTkyIDIuNTkyIDguODc5Ljk3MyAyLjcyMmgxLjY4NXYtMS41NTZsMS4zNi0xOC4yMTEgMi41MjgtMjIuMzYgMi40NjMtMjguNzc2Ljg0My04LjEgNC4wMTgtOS43MjIgNy45NzEtNS4yNSA2LjIyMiAyLjk4MSA1LjEyIDcuMzI0LS43MTMgNC43My0zLjA0NiAxOS43NjgtNS45NjIgMzAuOTgtMy44ODkgMjAuNzM5aDIuMjY4bDIuNTkzLTIuNTkzIDEwLjQ5OS0xMy45MzQgMTcuNjI4LTIyLjAzNiA3Ljc3OC04Ljc0OSA5LjA3My05LjY1NyA1LjgzMy00LjYwMWgxMS4wMThsOC4xIDEyLjA1NS0zLjYyOCAxMi40NDMtMTEuMzQyIDE0LjM4OC05LjM5OCAxMi4xODQtMTMuNDggMTguMTQ3LTguNDI2IDE0LjUxOC43NzggMS4xNjYgMi4wMS0uMTk0IDMwLjQ2LTYuNDgxIDE2LjQ2Mi0yLjk4MiAxOS42MzctMy4zNyA4Ljg4IDQuMTQ4Ljk3MSA0LjIxMy0zLjUgOC42Mi0yMC45OTggNS4xODQtMjQuNjI4IDQuOTI2LTM2LjY4MiA4LjY4NS0uNDU0LjMyNC41MTkuNjQ4IDE2LjUyNiAxLjU1NSA3LjA2NS4zODloMTcuMzA0bDMyLjIxIDIuMzk4IDguNDI2IDUuNTc0IDUuMDU1IDYuODA1LS44NDMgNS4xODQtMTIuOTYyIDYuNjExLTE3LjQ5OC00LjE0OC00MC44My05LjcyMS0xNC0zLjVoLTEuOTQ0djEuMTY3bDExLjY2NiAxMS40MDYgMjEuMzg3IDE5LjMxNCAyNi43NjcgMjQuODg3IDEuMzYgNi4xNTctMy40MzQgNC44Ni0zLjYzLS41MTgtMjMuNTI2LTE3LjY5My05LjA3My03Ljk3Mi0yMC41NDUtMTcuMzA0aC0xLjM2djEuODE0bDQuNzMgNi45MzUgMjUuMDE3IDM3LjU5IDEuMjk2IDExLjUzNi0xLjgxNCAzLjc2LTYuNDgxIDIuMjY4LTcuMTMtMS4yOTctMTQuNjQ3LTIwLjU0NC0xNS4xLTIzLjEzOC0xMi4xODUtMjAuNzM5LTEuNDkuODQzLTcuMTk0IDc3LjQ0OC0zLjM3IDMuOTUzLTcuNzc4IDIuOTgxLTYuNDgtNC45MjUtMy40MzYtNy45NzIgMy40MzUtMTUuNzQ5IDQuMTQ4LTIwLjU0NCAzLjM3LTE2LjMzMyAzLjA0Ni0yMC4yODUgMS44MTUtNi43NC0uMTMtLjQ1NC0xLjQ5LjE5NC0xNS4yOTUgMjAuOTk5LTIzLjI2NyAzMS40MzMtMTguNDA2IDE5LjcwMi00LjQwNyAxLjc1LTcuNjQ4LTMuOTU0LjcxMy03LjA2NCA0LjI3Ny02LjI4NiAyNS40Ny0zMi40MDUgMTUuMzYtMjAuMDkyIDkuOTE3LTExLjYtLjA2NS0xLjY4NmgtLjU4M0w0NC4wNyAxOTguMTI1bC0xMi4wNTUgMS41NTUtNS4xODUtNC44Ni42NDgtNy45NzIgMi40NjMtMi41OTMgMjAuMzUtMTMuOTk5LS4wNjQuMDY1WiIgLz48L3N2Zz48L3N2Zz4K"
+}

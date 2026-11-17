@@ -1,7 +1,6 @@
 import {useEffect, useRef} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 
-import {EditorErrorBoundary} from '@/components/ui/EditorErrorBoundary';
 import {useDatabase} from '@/hooks/useDatabase';
 import {BROWSER_ROUTES, buildEditorRoute, type ConnectionsRouteState} from '@/routing';
 import {toErrorMessage} from '@/utils/errors';
@@ -51,9 +50,5 @@ export function ConnectionEditorRoute() {
         }
     }, [activeConnectionId, connect, connectionId, isConnectionOpen, navigate, switchConnection]);
 
-    return (
-        <EditorErrorBoundary>
-            <Editor />
-        </EditorErrorBoundary>
-    );
+    return <Editor />;
 }

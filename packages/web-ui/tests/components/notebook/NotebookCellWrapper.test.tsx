@@ -4,6 +4,7 @@ import {invoke} from '@tauri-apps/api/core';
 import {parsePostgresJson} from '@tabularis/explain';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {NotebookCellWrapper} from '../../../src/components/notebook/NotebookCellWrapper';
+import {duplicateCell} from '@/utils/notebook';
 import type {SqlCellEditor} from '../../../src/components/notebook/SqlCellEditor';
 import type {VisualExplainViewProps} from '../../../src/components/explain/VisualExplainView';
 
@@ -326,5 +327,143 @@ describe('NotebookCellWrapper query plans', () => {
             database: undefined,
         });
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+});
+
+describe('NotebookCellWrapper duplicate action', () => {
+    const label = 'editor.notebook.duplicateCellToEnd';
+
+    beforeEach(() => {
+        mockInvoke.mockReset().mockResolvedValue({
+            kind: 'plan',
+            plan: parsePostgresJson('[{"Plan":{"Node Type":"Result"}}]'),
+        });
+        database.getConnectionData.mockReset().mockReturnValue({
+            capabilities: {explain: true},
+            driver: 'postgres',
+        });
+    });
+
+    it.each(['sql', 'markdown'] as const)(
+        'offers a labelled duplicate button on %s cells',
+        (type) => {
+            const onDuplicate = vi.fn();
+            const props = makeProps();
+            render(
+                <NotebookCellWrapper
+                    {...props}
+                    cell={{...props.cell, type}}
+                    onDuplicate={onDuplicate}
+                    canDuplicate
+                />,
+            );
+            const button = screen.getByRole('button', {name: label});
+            expect(button).toHaveAttribute('title', label);
+            expect(button).toBeEnabled();
+            fireEvent.click(button);
+            expect(onDuplicate).toHaveBeenCalledTimes(1);
+            expect(props.onRun).not.toHaveBeenCalled();
+        },
+    );
+
+    it('is disabled when duplication is not allowed', () => {
+        const onDuplicate = vi.fn();
+        render(
+            <NotebookCellWrapper {...makeProps()} onDuplicate={onDuplicate} canDuplicate={false} />,
+        );
+        const button = screen.getByRole('button', {name: label});
+        expect(button).toBeDisabled();
+        fireEvent.click(button);
+        expect(onDuplicate).not.toHaveBeenCalled();
+    });
+
+    it('does not fetch a query plan for the copy of a cell whose plan is open', async () => {
+        const props = makeProps();
+        const source = {...props.cell, isQueryPlanVisible: true, result: null};
+        const explainQuery = {sql: source.content, unresolvedRefs: []};
+
+        // Control: the open plan of the original is fetched on mount.
+        const {unmount} = render(
+            <NotebookCellWrapper {...props} cell={source} explainQuery={explainQuery} />,
+        );
+        await settle();
+        expect(mockInvoke).toHaveBeenCalledTimes(1);
+        unmount();
+        mockInvoke.mockClear();
+
+        const copy = duplicateCell(source);
+        render(<NotebookCellWrapper {...props} cell={copy} explainQuery={explainQuery} />);
+        await settle();
+        expect(mockInvoke).not.toHaveBeenCalled();
+        expect(screen.queryByTestId('explain-view')).not.toBeInTheDocument();
+        expect(copy.isQueryPlanVisible).toBe(false);
+    });
+
+    it('is hidden without a duplicate handler', () => {
+        render(<NotebookCellWrapper {...makeProps()} />);
+        expect(screen.queryByRole('button', {name: label})).not.toBeInTheDocument();
+    });
+});
+
+describe('NotebookCellWrapper enable/disable toggle', () => {
+    const disableLabel = 'editor.notebook.disableCell';
+    const enableLabel = 'editor.notebook.enableCell';
+
+    beforeEach(() => {
+        mockInvoke.mockReset();
+        database.getConnectionData.mockReset().mockReturnValue({
+            capabilities: {explain: true},
+            driver: 'postgres',
+        });
+    });
+
+    it('defaults a legacy SQL cell to enabled and disables it through onUpdate', () => {
+        const props = makeProps();
+        render(<NotebookCellWrapper {...props} />);
+        const toggle = screen.getByRole('button', {name: disableLabel});
+        expect(toggle).toHaveAttribute('aria-pressed', 'false');
+        expect(screen.getByRole('button', {name: 'editor.notebook.runCell'})).toBeEnabled();
+        expect(screen.queryByText('editor.notebook.cellDisabled')).not.toBeInTheDocument();
+        fireEvent.click(toggle);
+        expect(props.onUpdate).toHaveBeenCalledExactlyOnceWith({isDisabled: true});
+        expect(props.onRun).not.toHaveBeenCalled();
+    });
+
+    it('shows the disabled state, explains why run is off and re-enables without running', async () => {
+        const props = makeProps();
+        render(
+            <NotebookCellWrapper
+                {...props}
+                cell={{...props.cell, isDisabled: true, isQueryPlanVisible: true}}
+            />,
+        );
+        await settle();
+        const toggle = screen.getByRole('button', {name: enableLabel});
+        expect(toggle).toHaveAttribute('aria-pressed', 'true');
+        const run = screen.getByRole('button', {name: 'editor.notebook.runDisabledReason'});
+        expect(run).toBeDisabled();
+        expect(run).toHaveAttribute('title', 'editor.notebook.runDisabledReason');
+        expect(screen.getByText('editor.notebook.cellDisabled')).toBeInTheDocument();
+        // The plan toggle stays in place but is off, and no EXPLAIN is sent while disabled,
+        // even with the plan left open.
+        expect(screen.getByRole('button', {name: 'editor.notebook.hideQueryPlan'})).toBeDisabled();
+        expect(screen.queryByTestId('explain-view')).not.toBeInTheDocument();
+        expect(mockInvoke).not.toHaveBeenCalled();
+
+        fireEvent.click(toggle);
+        expect(props.onUpdate).toHaveBeenCalledExactlyOnceWith({isDisabled: undefined});
+        expect(props.onRun).not.toHaveBeenCalled();
+    });
+
+    it('offers no toggle on Markdown cells', () => {
+        render(
+            <NotebookCellWrapper
+                {...makeProps()}
+                cell={{id: 'md', type: 'markdown', content: '# Notes', isDisabled: true}}
+            />,
+        );
+        expect(screen.queryByRole('button', {name: disableLabel})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: enableLabel})).not.toBeInTheDocument();
+        expect(screen.queryByText('editor.notebook.cellDisabled')).not.toBeInTheDocument();
     });
 });

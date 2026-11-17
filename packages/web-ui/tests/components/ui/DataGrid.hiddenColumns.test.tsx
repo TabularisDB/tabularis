@@ -175,6 +175,62 @@ describe('DataGrid hidden columns (#1299)', () => {
         });
     });
 
+    it.each([false, true])(
+        'shows only matching columns and restores them (transposed=%s)',
+        async (transposed) => {
+            const onHiddenChange = vi.fn();
+            const wideColumns = [
+                'id',
+                'customer_id',
+                'created_by',
+                'updated_at',
+                'customer_name',
+                'total',
+                'status',
+                'date',
+            ];
+            const rows = [[1, 10, 'ann', '2026-01-01', 'Alice', 99.5, 'open', 'today']];
+            const {container} = render(
+                <HostedGrid
+                    columns={wideColumns}
+                    data={rows}
+                    transposed={transposed}
+                    initialHidden={new Set([1])}
+                    selectedRows={new Set([0])}
+                    onHiddenChange={onHiddenChange}
+                />,
+            );
+            fireEvent.contextMenu(headerOf(container, 0));
+            fireEvent.click(screen.getByText('dataGrid.columnVisibility.chooseColumns'));
+            fireEvent.change(screen.getByRole('searchbox'), {target: {value: 'customer'}});
+            fireEvent.click(
+                screen.getByRole('button', {name: 'dataGrid.columnVisibility.showOnlyMatching'}),
+            );
+            expect([...onHiddenChange.mock.lastCall![0]]).toEqual([0, 2, 3, 5, 6, 7]);
+            expect(screen.getByRole('dialog')).toBeInTheDocument();
+            expect(
+                Array.from(
+                    container.querySelectorAll('td[data-row-index="0"][data-col-index]'),
+                ).map((td) => td.getAttribute('data-col-index')),
+            ).toEqual(['1', '4']);
+            const customerCell = container.querySelector(
+                'td[data-row-index="0"][data-col-index="1"]',
+            )!;
+            fireEvent.contextMenu(customerCell);
+            fireEvent.click(await screen.findByText('dataGrid.copySelectedN:1'));
+            await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+            expect(writeText.mock.calls[0][0]).toBe('customer_id,customer_name\n10,Alice');
+            fireEvent.click(
+                screen.getByRole('button', {name: 'dataGrid.columnVisibility.showAll'}),
+            );
+            expect(onHiddenChange.mock.lastCall![0].size).toBe(0);
+            expect(
+                container.querySelectorAll('td[data-row-index="0"][data-col-index]'),
+            ).toHaveLength(8);
+            expect(rows).toEqual([[1, 10, 'ann', '2026-01-01', 'Alice', 99.5, 'open', 'today']]);
+        },
+    );
+
     describe('rendering', () => {
         it('leaves hidden columns out and keeps the others in order', () => {
             const {container} = render(<HostedGrid initialHidden={new Set([2, 3])} />);

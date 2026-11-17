@@ -41,6 +41,12 @@ export const QUERY_HISTORY_TIME_RANGE_OPTIONS: readonly QueryHistoryTimeRange[] 
 
 export interface QueryHistoryFilterOptions {
     search?: string;
+    /**
+     * When true, the text search also matches the recorded error message, so
+     * an entry matches when its SQL or its error contains the text. Off by
+     * default: the search looks at the SQL only.
+     */
+    searchErrors?: boolean;
     outcome?: QueryHistoryOutcomeFilter;
     timeRange?: QueryHistoryTimeRange;
     database?: QueryHistoryDatabaseFilter;
@@ -244,10 +250,13 @@ function matchesMinDuration(entry: QueryHistoryEntry, minDurationMs: number | nu
     return recorded >= minDurationMs;
 }
 
-function matchesSearch(entry: QueryHistoryEntry, search: string): boolean {
-    const trimmed = search.trim();
-    if (!trimmed) return true;
-    return entry.sql.toLowerCase().includes(trimmed.toLowerCase());
+function matchesSearch(entry: QueryHistoryEntry, search: string, searchErrors: boolean): boolean {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return true;
+    if (entry.sql.toLowerCase().includes(needle)) return true;
+    // Entries without a recorded error (successes, legacy entries) only match
+    // through their SQL.
+    return searchErrors && Boolean(entry.error?.toLowerCase().includes(needle));
 }
 
 /**
@@ -283,7 +292,8 @@ export function isQueryHistoryFilterActive(
 }
 
 /**
- * Filter query-history entries by optional text search, outcome, time range,
+ * Filter query-history entries by optional text search (SQL only, or SQL or
+ * recorded error with `searchErrors`), outcome, time range,
  * database, custom `from` / `to` calendar dates, and minimum recorded duration.
  * Filters combine with AND. Relative ranges are rolling windows from `now`;
  * `today` and the custom range use the calendar day in `timeZone`, with both
@@ -296,6 +306,7 @@ export function filterQueryHistoryEntries(
 ): QueryHistoryEntry[] {
     const {
         search = '',
+        searchErrors = false,
         outcome = 'any',
         timeRange = 'all',
         database = 'all',
@@ -333,7 +344,7 @@ export function filterQueryHistoryEntries(
 
     return entries.filter(
         (entry) =>
-            matchesSearch(entry, search) &&
+            matchesSearch(entry, search, searchErrors) &&
             matchesOutcome(entry, outcome) &&
             matchesDatabase(entry, database) &&
             matchesTimeRange(entry, timeRange, nowMs, zone) &&

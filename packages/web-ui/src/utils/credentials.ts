@@ -21,6 +21,7 @@ interface ConnectionParams {
     ssh_key_file?: string;
     ssh_key_passphrase?: string;
     ssh_allow_passphrase_prompt?: boolean;
+    unix_socket_path?: string;
     save_in_keychain?: boolean;
     /** Opaque plugin-specific connection fields, persisted as-is and forwarded
      * verbatim to the driver/plugin. */

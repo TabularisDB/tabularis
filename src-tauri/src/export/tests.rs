@@ -2,7 +2,9 @@ use super::format::{
     parse_csv_delimiter, value_to_csv_string, ExportFormat, DEFAULT_CSV_DELIMITER,
 };
 use super::progress::ProgressEmitter;
-use super::sink::{CsvSink, JsonSink, MarkdownSink, RowSink};
+use super::sink::{
+    escape_html, html_cell, CsvSink, HtmlSink, JsonSink, MarkdownSink, NdjsonSink, RowSink,
+};
 use serde_json::{json, Value};
 
 // ---------------------------------------------------------------------------
@@ -33,6 +35,14 @@ fn parse_markdown_format_accepts_md_alias() {
         ExportFormat::Markdown
     );
     assert_eq!(ExportFormat::parse("MD").unwrap(), ExportFormat::Markdown);
+}
+
+#[test]
+fn parse_ndjson_and_html_formats_are_case_insensitive() {
+    assert_eq!(ExportFormat::parse("ndjson").unwrap(), ExportFormat::Ndjson);
+    assert_eq!(ExportFormat::parse("NDJSON").unwrap(), ExportFormat::Ndjson);
+    assert_eq!(ExportFormat::parse("html").unwrap(), ExportFormat::Html);
+    assert_eq!(ExportFormat::parse("HTML").unwrap(), ExportFormat::Html);
 }
 
 #[test]
@@ -323,4 +333,177 @@ fn json_missing_value_defaults_to_null() {
     }
     let parsed: Value = serde_json::from_str(&String::from_utf8(buf).unwrap()).unwrap();
     assert_eq!(parsed, json!([{"a": 1, "b": null}]));
+}
+
+// ---------------------------------------------------------------------------
+// NdjsonSink
+// ---------------------------------------------------------------------------
+
+fn collect_with<S: RowSink>(sink: &mut S, rows: &[(Vec<&str>, Vec<Value>)]) {
+    for (headers, values) in rows {
+        let headers_owned: Vec<String> = headers.iter().map(|s| s.to_string()).collect();
+        sink.write_row(&headers_owned, values).unwrap();
+    }
+    sink.finish().unwrap();
+}
+
+fn collect_ndjson(rows: &[(Vec<&str>, Vec<Value>)]) -> String {
+    let mut buf: Vec<u8> = Vec::new();
+    collect_with(&mut NdjsonSink::new(&mut buf), rows);
+    String::from_utf8(buf).unwrap()
+}
+
+#[test]
+fn ndjson_empty_stream_writes_nothing() {
+    assert_eq!(collect_ndjson(&[]), "");
+}
+
+#[test]
+fn ndjson_writes_one_object_per_line_with_trailing_newline() {
+    let out = collect_ndjson(&[
+        (vec!["id", "name"], vec![json!(1), json!("alice")]),
+        (vec!["id", "name"], vec![json!(2), json!("bob")]),
+    ]);
+    assert_eq!(
+        out,
+        "{\"id\":1,\"name\":\"alice\"}\n{\"id\":2,\"name\":\"bob\"}\n"
+    );
+}
+
+#[test]
+fn ndjson_keeps_column_order() {
+    let out = collect_ndjson(&[(vec!["z", "a", "m"], vec![json!(1), json!(2), json!(3)])]);
+    assert_eq!(out, "{\"z\":1,\"a\":2,\"m\":3}\n");
+}
+
+#[test]
+fn ndjson_keeps_null_and_value_types() {
+    let out = collect_ndjson(&[(
+        vec!["n", "b", "s", "z", "o"],
+        vec![
+            json!(42),
+            json!(true),
+            json!("hi"),
+            Value::Null,
+            json!({"k": [1]}),
+        ],
+    )]);
+    assert_eq!(
+        out,
+        "{\"n\":42,\"b\":true,\"s\":\"hi\",\"z\":null,\"o\":{\"k\":[1]}}\n"
+    );
+}
+
+#[test]
+fn ndjson_escapes_newlines_inside_values() {
+    // A raw newline in a value must not split the record.
+    let out = collect_ndjson(&[(vec!["v"], vec![json!("a\nb")])]);
+    assert_eq!(out, r#"{"v":"a\nb"}"#.to_owned() + "\n");
+    assert_eq!(out.lines().count(), 1);
+}
+
+#[test]
+fn ndjson_missing_value_defaults_to_null() {
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut sink = NdjsonSink::new(&mut buf);
+        let headers = vec!["a".to_string(), "b".to_string()];
+        sink.write_row(&headers, &[json!(1)]).unwrap();
+        sink.finish().unwrap();
+    }
+    assert_eq!(String::from_utf8(buf).unwrap(), "{\"a\":1,\"b\":null}\n");
+}
+
+// ---------------------------------------------------------------------------
+// HtmlSink
+// ---------------------------------------------------------------------------
+
+const HTML_PREFIX: &str = "<!DOCTYPE html>\n\
+<html lang=\"en\">\n\
+<head>\n\
+<meta charset=\"utf-8\">\n\
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
+<title>Query results</title>\n\
+<style>\n\
+body { font-family: system-ui, sans-serif; margin: 1.5rem; }\n\
+table { border-collapse: collapse; }\n\
+th, td { border: 1px solid; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }\n\
+th { font-weight: 600; }\n\
+</style>\n\
+</head>\n\
+<body>\n";
+
+const HTML_SUFFIX: &str = "\n</body>\n</html>\n";
+
+fn collect_html(rows: &[(Vec<&str>, Vec<Value>)]) -> String {
+    let mut buf: Vec<u8> = Vec::new();
+    collect_with(&mut HtmlSink::new(&mut buf), rows);
+    String::from_utf8(buf).unwrap()
+}
+
+#[test]
+fn html_writes_document_with_header_and_rows() {
+    let out = collect_html(&[
+        (vec!["id", "name"], vec![json!(1), json!("alice")]),
+        (vec!["id", "name"], vec![json!(2), json!("bob")]),
+    ]);
+    assert_eq!(
+        out,
+        format!(
+            "{HTML_PREFIX}<table><thead><tr><th>id</th><th>name</th></tr></thead><tbody>\
+             <tr><td>1</td><td>alice</td></tr><tr><td>2</td><td>bob</td></tr>\
+             </tbody></table>{HTML_SUFFIX}"
+        )
+    );
+}
+
+#[test]
+fn html_empty_stream_writes_valid_document_with_empty_table() {
+    assert_eq!(
+        collect_html(&[]),
+        format!("{HTML_PREFIX}<table><thead><tr></tr></thead><tbody></tbody></table>{HTML_SUFFIX}")
+    );
+}
+
+#[test]
+fn html_writes_lowercase_null_and_scalars() {
+    let out = collect_html(&[(
+        vec!["z", "b", "n", "o"],
+        vec![Value::Null, json!(false), json!(3.5), json!({"a": 1})],
+    )]);
+    assert!(
+        out.contains("<tr><td>null</td><td>false</td><td>3.5</td><td>{&quot;a&quot;:1}</td></tr>")
+    );
+}
+
+#[test]
+fn html_pads_a_short_row_with_null_cells() {
+    let out = collect_html(&[(vec!["a", "b", "c"], vec![json!(1)])]);
+    assert!(out.contains("<tr><td>1</td><td>null</td><td>null</td></tr>"));
+}
+
+#[test]
+fn html_escapes_headers_and_cells() {
+    let out = collect_html(&[(vec!["<a&b>"], vec![json!("<script>'x' & \"y\"</script>")])]);
+    assert!(out.contains("<th>&lt;a&amp;b&gt;</th>"));
+    assert!(out.contains("<td>&lt;script&gt;&#39;x&#39; &amp; &quot;y&quot;&lt;/script&gt;</td>"));
+}
+
+#[test]
+fn escape_html_replaces_the_five_special_characters() {
+    assert_eq!(escape_html(r#"&<>"'"#), "&amp;&lt;&gt;&quot;&#39;");
+    assert_eq!(escape_html("plain"), "plain");
+    assert_eq!(escape_html(""), "");
+}
+
+#[test]
+fn html_cell_turns_line_breaks_into_br() {
+    assert_eq!(html_cell(&json!("a\nb\r\nc")), "a<br>b<br>c");
+    assert_eq!(html_cell(&json!("a<\nb")), "a&lt;<br>b");
+}
+
+#[test]
+fn html_cell_writes_null_as_lowercase_null() {
+    assert_eq!(html_cell(&Value::Null), "null");
+    assert_eq!(html_cell(&json!("NULL")), "NULL");
 }

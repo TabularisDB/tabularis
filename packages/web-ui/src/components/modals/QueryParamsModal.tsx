@@ -9,7 +9,7 @@ interface QueryParamsModalProps {
     onSubmit: (values: Record<string, string>) => void;
     parameters: string[];
     initialValues: Record<string, string>;
-    mode?: 'run' | 'save' | 'explain';
+    mode?: 'run' | 'save' | 'explain' | 'preview';
 }
 
 export const QueryParamsModal = ({
@@ -49,7 +49,7 @@ const QueryParamsForm = ({
     initialValues: Record<string, string>;
     onSubmit: (values: Record<string, string>) => void;
     onClose: () => void;
-    mode: 'run' | 'save' | 'explain';
+    mode: 'run' | 'save' | 'explain' | 'preview';
 }) => {
     const {t} = useTranslation();
     const [values, setValues] = useState<Record<string, string>>(initialValues || {});
@@ -117,16 +117,18 @@ const QueryParamsForm = ({
                         disabled={!isFormValid}
                         className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {mode === 'run' || mode === 'explain' ? (
-                            <Play size={16} fill="currentColor" />
-                        ) : (
+                        {mode === 'save' ? (
                             <Save size={16} fill="currentColor" />
+                        ) : (
+                            <Play size={16} fill="currentColor" />
                         )}
                         {mode === 'explain'
                             ? t('editor.visualExplain.buttonShort')
-                            : mode === 'run'
-                              ? t('editor.run')
-                              : t('common.save')}
+                            : mode === 'preview'
+                              ? t('editor.dmlPreview.action')
+                              : mode === 'run'
+                                ? t('editor.run')
+                                : t('common.save')}
                     </button>
                 </div>
             </form>

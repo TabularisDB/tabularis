@@ -1,0 +1,33 @@
+/* Inline guests measure their content instead of inheriting the app's full-window shell. */
+html,
+body,
+#root {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    overscroll-behavior: auto;
+}
+
+body {
+    margin: 0;
+    min-width: 0;
+    background: transparent;
+    user-select: auto;
+}
+
+/* The host clips to its modal/scrollport. Scroll long forms inside that visible area. */
+#root {
+    max-height: var(--tabularis-plugin-visible-bottom, none);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+/* Editor workspaces receive a definite canvas from the host, independent of content. */
+html[data-tabularis-layout='workspace'],
+html[data-tabularis-layout='workspace'] body,
+html[data-tabularis-layout='workspace'] #root {
+    height: 100%;
+    max-height: none;
+    overflow: hidden;
+}

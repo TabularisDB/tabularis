@@ -1,4 +1,8 @@
 import type {NotebookCell} from '@/types/notebook';
+import {findDisabledPrerequisites} from './notebookRunAll';
+
+export type SqlCellExecutionStatus =
+    'idle' | 'running' | 'disabled' | 'blocked' | 'failed' | 'has_output';
 
 export interface OutlineEntry {
     level: number;
@@ -6,9 +10,43 @@ export interface OutlineEntry {
     cellId: string;
     cellIndex: number;
     cellType: 'sql' | 'markdown';
+    status?: SqlCellExecutionStatus;
 }
 
 const HEADING_REGEX = /^(#{1,3})\s+(.+)$/;
+
+/**
+ * Derive runtime execution status for a SQL cell in outline.
+ * Precedence:
+ * 1. running when isLoading is true
+ * 2. disabled when the cell itself is disabled
+ * 3. blocked when a prerequisite it needs (pass `cells`) is disabled
+ * 4. failed when error is present
+ * 5. has_output when result is non-null
+ * 6. idle otherwise
+ */
+export function getSqlCellExecutionStatus(
+    cell: Pick<NotebookCell, 'isLoading' | 'error' | 'result' | 'isDisabled'> &
+        Partial<Pick<NotebookCell, 'content'>>,
+    cells?: NotebookCell[],
+): SqlCellExecutionStatus {
+    if (cell.isLoading) {
+        return 'running';
+    }
+    if (cell.isDisabled) {
+        return 'disabled';
+    }
+    if (cells && cell.content && findDisabledPrerequisites(cell.content, cells).length > 0) {
+        return 'blocked';
+    }
+    if (cell.error) {
+        return 'failed';
+    }
+    if (cell.result !== null && cell.result !== undefined) {
+        return 'has_output';
+    }
+    return 'idle';
+}
 
 /** Return cells that have content but no name (candidates for AI naming). */
 export function getUnnamedCellsWithContent(cells: NotebookCell[]): NotebookCell[] {
@@ -29,6 +67,7 @@ export function extractOutline(cells: NotebookCell[]): OutlineEntry[] {
                 cellId: cell.id,
                 cellIndex: i,
                 cellType: 'sql',
+                status: getSqlCellExecutionStatus(cell, cells),
             });
             continue;
         }
@@ -87,4 +126,13 @@ export function extractOutline(cells: NotebookCell[]): OutlineEntry[] {
     }
 
     return entries;
+}
+
+/** Filter outline entries case-insensitively by their displayed text, trimming the search query. */
+export function filterOutlineEntries(entries: OutlineEntry[], query: string): OutlineEntry[] {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+        return entries;
+    }
+    return entries.filter((entry) => entry.text.toLowerCase().includes(trimmed));
 }

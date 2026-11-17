@@ -1,4 +1,6 @@
 import React from 'react';
+import {booleanEditValue, parseBooleanValue} from '@/utils/boolean';
+import {BooleanInput} from './BooleanInput';
 import {ExternalLink, Eye, EyeOff} from 'lucide-react';
 import {MASKED_PLACEHOLDER} from '@/utils/columnMasking';
 import {
@@ -167,6 +169,17 @@ export function DataGridCell({
     } = resolved;
 
     const colTypeForCell = columnTypeMap?.get(colName);
+    const booleanType = ctx.booleanTypeMap?.get(colName);
+    const isBooleanCell =
+        booleanType !== undefined || (!colTypeForCell && typeof displayValue === 'boolean');
+    const booleanValue = isBooleanCell ? parseBooleanValue(displayValue) : undefined;
+    const booleanDisabled = !!(
+        readonlyProp ||
+        !ctx.tableName ||
+        isPendingDelete ||
+        (!isInsertion && !pkColumns?.length) ||
+        ctx.generatedColumns?.has(colName.toLowerCase())
+    );
     const rawCellValue = cellValue;
     const isJsonCell = isJsonCellTarget(colTypeForCell, rawCellValue) && !isPendingDelete;
     const isLongTextCell =
@@ -319,6 +332,28 @@ export function DataGridCell({
                 </span>
             ) : isEditing ? (
                 (() => {
+                    if (booleanValue !== undefined) {
+                        const editingBoolean = parseBooleanValue(editingValue);
+                        if (editingBoolean !== undefined) {
+                            return (
+                                <BooleanInput
+                                    name={colName}
+                                    value={editingBoolean}
+                                    nullLabel={nullLabel}
+                                    nullable={nullableColumns?.includes(colName)}
+                                    disabled={booleanDisabled}
+                                    autoFocus
+                                    onBlur={handleEditCommit}
+                                    onKeyDown={handleKeyDown}
+                                    onChange={(next) =>
+                                        commitEditWithValue(
+                                            booleanEditValue(next, cellValue, booleanType),
+                                        )
+                                    }
+                                />
+                            );
+                        }
+                    }
                     const colType = columnTypeMap?.get(colName);
                     if (colType && isGeometricType(colType)) {
                         return (
@@ -466,6 +501,31 @@ export function DataGridCell({
             ) : (
                 <>
                     {(() => {
+                        if (
+                            booleanValue !== undefined &&
+                            !isAutoIncrementPlaceholder &&
+                            !isDefaultValuePlaceholder
+                        ) {
+                            return (
+                                <span className={valueColorClass}>
+                                    <BooleanInput
+                                        name={colName}
+                                        value={booleanValue}
+                                        nullLabel={nullLabel}
+                                        nullable={nullableColumns?.includes(colName)}
+                                        disabled={booleanDisabled}
+                                        display
+                                        onChange={(next) =>
+                                            ctx.changeBooleanCell?.(
+                                                rowIndex,
+                                                colIndex,
+                                                booleanEditValue(next, cellValue, booleanType),
+                                            )
+                                        }
+                                    />
+                                </span>
+                            );
+                        }
                         if (isJsonCell) {
                             const isExpanded = expandedKind === 'json';
                             return (

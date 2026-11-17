@@ -19,6 +19,8 @@ interface NotebookCellWrapperProps {
     onMoveUp: () => void;
     onMoveDown: () => void;
     onRun: () => void;
+    onDuplicate?: () => void;
+    canDuplicate?: boolean;
     connectionId: string;
     explainQuery?: ResolvedQuery;
     activeSchema?: string;
@@ -41,6 +43,8 @@ export function NotebookCellWrapper({
     onMoveUp,
     onMoveDown,
     onRun,
+    onDuplicate,
+    canDuplicate,
     connectionId,
     explainQuery,
     activeSchema,
@@ -83,6 +87,8 @@ export function NotebookCellWrapper({
                 onMoveUp={onMoveUp}
                 onMoveDown={onMoveDown}
                 onDelete={onDelete}
+                onDuplicate={onDuplicate}
+                canDuplicate={canDuplicate}
                 onRun={cell.type === 'sql' ? onRun : undefined}
                 onTogglePreview={
                     cell.type === 'markdown'
@@ -97,6 +103,12 @@ export function NotebookCellWrapper({
                 isParallel={cell.isParallel}
                 onToggleParallel={
                     cell.type === 'sql' ? () => onUpdate({isParallel: !cell.isParallel}) : undefined
+                }
+                isDisabled={cell.type === 'sql' && !!cell.isDisabled}
+                onToggleDisabled={
+                    cell.type === 'sql'
+                        ? () => onUpdate({isDisabled: cell.isDisabled ? undefined : true})
+                        : undefined
                 }
                 historyCount={cell.type === 'sql' ? getHistorySize(cell) : undefined}
                 onToggleHistory={cell.type === 'sql' ? () => setShowHistory((v) => !v) : undefined}
@@ -136,6 +148,8 @@ export function NotebookCellWrapper({
                         onUpdate({isResultCollapsed: !cell.isResultCollapsed})
                     }
                     onToggleChartVisible={(visible) => onUpdate({isChartVisible: visible})}
+                    onKpiConfigChange={(config) => onUpdate({kpiConfig: config})}
+                    onToggleKpiVisible={(visible) => onUpdate({isKpiVisible: visible})}
                     onToggleQueryPlanVisible={toggleQueryPlan}
                     connectionId={connectionId}
                     explainQuery={explainQuery}

@@ -1,4 +1,5 @@
 import {describe, it, expect} from 'vitest';
+import {rowsToMarkdown} from '@/utils/clipboard';
 import {parseClipboardText, reParseWithHeaderOption} from '@/utils/clipboardParser';
 
 describe('detectFormat', () => {
@@ -121,6 +122,27 @@ describe('Markdown table parsing', () => {
         expect(result.headers).toEqual(['id', 'name', 'city']);
         expect(result.rows).toHaveLength(2);
         expect(result.rows[0]).toEqual(['1', 'Alice', 'Rome']);
+    });
+
+    it('keeps an escaped pipe inside its cell, as Copy as Markdown writes it', () => {
+        const md = rowsToMarkdown(
+            [
+                ['a|b', 'x'],
+                ['|', 'y'],
+            ],
+            ['col1', 'col2'],
+        );
+        const result = parseClipboardText(md);
+        expect(result.headers).toEqual(['col1', 'col2']);
+        expect(result.rows).toEqual([
+            ['a|b', 'x'],
+            ['|', 'y'],
+        ]);
+    });
+
+    it('splits at a pipe that follows an escaped backslash', () => {
+        const result = parseClipboardText('| a | b |\n|---|---|\n| x\\\\| y |');
+        expect(result.rows).toEqual([['x\\\\', 'y']]);
     });
 });
 
@@ -258,6 +280,25 @@ describe('cells copied from a spreadsheet', () => {
             ['one\r\ntwo', 'x'],
             ['y', 'z'],
         ]);
+    });
+
+    it('keeps an empty first cell so the first row stays aligned', () => {
+        const text = '\tname\tage\n1\tAlice\t30\n2\tBob\t41';
+        const result = parseClipboardText(text);
+        expect(result.headers.slice(1)).toEqual(['name', 'age']);
+        expect(result.rows).toEqual([
+            ['1', 'Alice', '30'],
+            ['2', 'Bob', '41'],
+        ]);
+
+        const reparsed = reParseWithHeaderOption(text, false, result);
+        expect(reparsed.rows[0]).toEqual(['', 'name', 'age']);
+    });
+
+    it('still ignores line breaks around the copied range', () => {
+        const result = parseClipboardText('\r\nname\tage\r\nAlice\t30\r\n');
+        expect(result.headers).toEqual(['name', 'age']);
+        expect(result.rows).toEqual([['Alice', '30']]);
     });
 
     it('treats a quote that does not wrap the whole cell as text', () => {

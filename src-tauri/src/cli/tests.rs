@@ -237,3 +237,42 @@ fn user_parse_errors_do_not_fall_back_to_desktop_mode() {
 
     assert_eq!(error.kind(), ErrorKind::ArgumentConflict);
 }
+
+#[test]
+fn web_connection_policy_defaults_to_standalone() {
+    let args = try_parse_from(["tabularis", "web"]).unwrap();
+    assert_eq!(
+        web_args(&args).connection_policy(),
+        crate::application::ManagedConnectionPolicy::standalone()
+    );
+}
+
+#[test]
+fn web_managed_only_defaults_branding_and_organization_to_denied() {
+    let args = try_parse_from(["tabularis", "web", "--connection-mode", "managed-only"]).unwrap();
+    assert_eq!(
+        web_args(&args).connection_policy(),
+        crate::application::ManagedConnectionPolicy::managed_only()
+    );
+}
+
+#[test]
+fn web_managed_only_switches_are_opt_in() {
+    let args = try_parse_from([
+        "tabularis",
+        "web",
+        "--connection-mode",
+        "managed-only",
+        "--managed-allow-organization",
+    ])
+    .unwrap();
+    assert_eq!(
+        web_args(&args).connection_policy(),
+        crate::application::ManagedConnectionPolicy::managed_only().with_organization_allowed(true)
+    );
+}
+
+#[test]
+fn web_managed_switches_require_a_connection_mode() {
+    assert!(try_parse_from(["tabularis", "web", "--managed-allow-branding"]).is_err());
+}

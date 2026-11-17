@@ -355,18 +355,26 @@ impl LocalSessionSecurity {
         candidate: &str,
         user: &str,
     ) -> Result<IssuedSession, AuthenticationError> {
-        let Authentication::Proxy(expected) = self.inner.authentication else {
+        if !self.proxy_authentication() {
             return Err(AuthenticationError::UnsupportedMode);
-        };
-        let valid_user =
-            !user.is_empty() && user.len() <= 256 && !user.chars().any(char::is_control);
+        }
         // No lockout: the 32+ character secret cannot be brute-forced, and a shared
         // lockout would let anyone reaching the port deny every proxied user.
-        if hash_token(candidate) != expected || !valid_user {
+        if !self.verify_proxy_request(candidate, user) {
             return Err(AuthenticationError::InvalidCredentials);
         }
         let mut state = self.lock_state();
         self.issue_session(&mut state, Instant::now())
+    }
+
+    /// Authenticate the gateway on every request without issuing or extending a session.
+    pub(crate) fn verify_proxy_request(&self, candidate: &str, user: &str) -> bool {
+        let Authentication::Proxy(expected) = self.inner.authentication else {
+            return false;
+        };
+        let valid_user =
+            !user.is_empty() && user.len() <= 256 && !user.chars().any(char::is_control);
+        valid_user && hash_token(candidate) == expected
     }
 
     pub fn authenticate(&self, cookie_value: &str) -> Option<AuthenticatedSession> {

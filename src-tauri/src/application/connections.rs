@@ -1,5 +1,7 @@
 #[path = "connection_secret_writes.rs"]
 mod connection_secret_writes;
+#[path = "connection_provisioning.rs"]
+pub mod provisioning;
 use connection_secret_writes::SecretWrites;
 
 use crate::models::{
@@ -133,6 +135,11 @@ pub enum ConnectionCommand {
     },
     ListDatabases {
         request: TestConnectionRequest,
+    },
+    /// Validates a saved connection by id with its stored parameters. Unlike
+    /// `TestConnection` it accepts no caller-supplied parameters.
+    OpenSavedConnection {
+        connection_id: String,
     },
     CreateSqliteDatabase {
         path: String,
@@ -356,6 +363,9 @@ pub async fn execute_for_session(
         ConnectionCommand::ListDatabases { request } => {
             json(list_databases(runtime, session_id, request).await?)
         }
+        ConnectionCommand::OpenSavedConnection { connection_id } => {
+            json(open_saved_connection(runtime, session_id, connection_id).await?)
+        }
         ConnectionCommand::CreateSqliteDatabase { path } => {
             json(create_sqlite_database(runtime, state, path).await?)
         }
@@ -400,6 +410,47 @@ pub(crate) fn resolve_saved_connection_params(
     let params =
         crate::application::tunnels::resolve_connection_params(runtime, &params, session_id)?;
     Ok((driver_id, params))
+}
+
+/// Every credential value the instance holds for its saved connections and SSH
+/// profiles, for scrubbing error text and events bound for a browser. Keychain
+/// read failures are skipped: a secret that cannot be read cannot be leaked by
+/// this process either.
+pub fn collect_secret_values(runtime: &RuntimeContext) -> Result<Vec<String>, String> {
+    let file = load_file(runtime)?;
+    let mut values = Vec::new();
+    for connection in &file.connections {
+        let plugin_secrets = load_plugin_secrets(runtime, connection);
+        let mut params = connection.params.clone();
+        let _ = restore_secrets(runtime, &connection.id, &mut params);
+        values.extend(
+            [
+                params.password,
+                params.connection_uri,
+                params.ssh_password,
+                params.ssh_key_passphrase,
+                params.socks5_proxy_password,
+                params
+                    .proxy
+                    .and_then(|proxy| proxy.endpoint)
+                    .and_then(|endpoint| endpoint.password),
+            ]
+            .into_iter()
+            .flatten(),
+        );
+        values.extend(plugin_secrets.into_values());
+    }
+    if let Ok(profiles) = crate::application::tunnels::get_ssh_connections(runtime, true) {
+        for profile in profiles {
+            values.extend(
+                [profile.password, profile.key_passphrase]
+                    .into_iter()
+                    .flatten(),
+            );
+        }
+    }
+    values.retain(|value| !value.is_empty());
+    Ok(values)
 }
 
 pub fn store_icon_upload(
@@ -494,6 +545,16 @@ fn redact_connection(mut connection: SavedConnection) -> SavedConnection {
     connection.params.ssh_password = None;
     connection.params.ssh_key_passphrase = None;
     connection.params.connection_id = None;
+    connection.params.socks5_proxy_username = None;
+    connection.params.socks5_proxy_password = None;
+    if let Some(endpoint) = connection
+        .params
+        .proxy
+        .as_mut()
+        .and_then(|proxy| proxy.endpoint.as_mut())
+    {
+        endpoint.password = None;
+    }
     connection
 }
 
@@ -757,6 +818,12 @@ pub(crate) fn bind_sql_builder_secrets(runtime: &RuntimeContext, connection: &mu
 }
 
 fn delete_plugin_secrets(runtime: &RuntimeContext, connection: &SavedConnection) {
+    let bundle =
+        crate::plugins::extension_policy::secret_key(&connection.params.driver, &connection.id);
+    if let Err(error) = runtime.secrets.delete(&bundle) {
+        log::warn!("Failed to remove plugin service credentials: {error}");
+    }
+
     for key in &connection.plugin_secret_keys {
         let account = plugin_secret_account(&connection.id, &connection.params.driver, key);
         if let Err(error) = runtime.secrets.delete(&account) {
@@ -818,6 +885,65 @@ fn restore_secrets_for_connect(
     Ok(())
 }
 
+/// Provider imports must fail closed when credential storage is unavailable.
+pub(super) fn save_provider_connection(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    name: String,
+    mut params: ConnectionParams,
+    service_secrets: Value,
+) -> Result<SavedConnection, String> {
+    let mut file = load_file(runtime)?;
+    let id = Uuid::new_v4().to_string();
+    let mut writes = SecretWrites::default();
+    let result = (|| {
+        params.connection_id = None;
+        params.save_in_keychain = Some(true);
+        let uri = params.connection_uri.take();
+        params.connection_uri_in_keychain = uri.as_ref().map(|_| true);
+        for (suffix, value) in [
+            (DB_SECRET_SUFFIX, params.password.take()),
+            (SSH_SECRET_SUFFIX, params.ssh_password.take()),
+            (SSH_PASSPHRASE_SUFFIX, params.ssh_key_passphrase.take()),
+            (CONNECTION_URI_SUFFIX, uri),
+        ] {
+            if let Some(value) = value.filter(|value| !value.is_empty()) {
+                writes.set(runtime, secret_account(&id, suffix), &value)?;
+            }
+        }
+        if service_secrets
+            .as_object()
+            .is_some_and(|value| !value.is_empty())
+        {
+            writes.set(
+                runtime,
+                crate::plugins::extension_policy::secret_key(&params.driver, &id),
+                &service_secrets.to_string(),
+            )?;
+        }
+        let connection = SavedConnection {
+            id,
+            name,
+            params,
+            plugin_secret_keys: Vec::new(),
+            group_id: None,
+            sort_order: None,
+            detect_json_in_text_columns: None,
+            appearance: None,
+            tag_ids: None,
+            environment: None,
+            managed: false,
+        };
+        file.connections.push(connection.clone());
+        save_file(runtime, state, &file)?;
+        Ok(redact_connection(connection))
+    })();
+    if result.is_err() {
+        writes.rollback(runtime);
+    }
+    result
+}
+
 fn save_connection(
     runtime: &RuntimeContext,
     state: &Arc<ApplicationState>,
@@ -853,6 +979,7 @@ fn save_connection(
             appearance: None,
             tag_ids: None,
             environment,
+            managed: false,
         };
         file.connections.push(connection.clone());
         save_file(runtime, state, &file)?;
@@ -997,6 +1124,26 @@ fn update_connection(
     let mut writes = SecretWrites::default();
     let result = (|| {
         params.connection_id = None;
+        let old_target = serde_json::json!([
+            existing.params.driver,
+            existing.params.host,
+            existing.params.port,
+            existing.params.username,
+            existing.params.database
+        ]);
+        let new_target = serde_json::json!([
+            params.driver,
+            params.host,
+            params.port,
+            params.username,
+            params.database
+        ]);
+        if old_target != new_target {
+            writes.delete(
+                runtime,
+                crate::plugins::extension_policy::secret_key(&existing.params.driver, &id),
+            )?;
+        }
         let plugin_secret_keys = persist_plugin_secrets(
             runtime,
             &id,
@@ -1017,6 +1164,7 @@ fn update_connection(
             appearance: existing.appearance,
             tag_ids: existing.tag_ids,
             environment,
+            managed: existing.managed,
         };
         file.connections[index] = connection.clone();
         save_file(runtime, state, &file)?;
@@ -1104,6 +1252,9 @@ fn clean_up_deleted_connection(
     {
         log::warn!("Failed to remove query history of deleted connection {id}: {error}");
     }
+    if let Err(error) = super::schema_notes::remove_for_connection(runtime.paths.config_dir(), id) {
+        log::warn!("Failed to remove schema notes of deleted connection {id}: {error}");
+    }
 }
 
 fn duplicate_connection(
@@ -1166,6 +1317,7 @@ fn duplicate_connection(
             appearance,
             tag_ids: original.tag_ids,
             environment: validate_environment(original.environment).unwrap_or(None),
+            managed: false,
         };
         file.connections.push(duplicate.clone());
         save_file(runtime, state, &file)?;
@@ -1554,6 +1706,25 @@ async fn list_databases(
     driver.get_databases(&resolved).await
 }
 
+async fn open_saved_connection(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: String,
+) -> Result<String, String> {
+    let saved = find_connection(&load_file(runtime)?, &connection_id)?;
+    test_connection(
+        runtime,
+        session_id,
+        TestConnectionRequest {
+            params: saved.params,
+            connection_id: Some(connection_id),
+            plugin_secret_changes: std::collections::HashMap::new(),
+            progress_id: None,
+        },
+    )
+    .await
+}
+
 async fn test_connection(
     runtime: &RuntimeContext,
     session_id: Option<Uuid>,
@@ -1642,7 +1813,7 @@ async fn test_connection(
             progress_id.as_deref(),
             step,
             "ok",
-            resolved.port.map(|port| format!("127.0.0.1:{port}")),
+            tunnel_endpoint_detail(&resolved),
         );
     }
 
@@ -1714,6 +1885,15 @@ async fn test_connection(
         None,
     );
     Ok("Connection successful!".to_string())
+}
+
+/// Local endpoint the test log reports once a tunnel is up. A SOCKS5 tunnel
+/// leaves `host`/`port` on the database, so it reports the proxy listener.
+fn tunnel_endpoint_detail(resolved: &ConnectionParams) -> Option<String> {
+    match (&resolved.socks5_proxy_host, resolved.socks5_proxy_port) {
+        (Some(host), Some(port)) => Some(format!("SOCKS5 {host}:{port}")),
+        _ => resolved.port.map(|port| format!("127.0.0.1:{port}")),
+    }
 }
 
 /// `host:port` for the connection test log. A host that is a URL

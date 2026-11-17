@@ -857,6 +857,7 @@ async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
     let error = server::run(server::WebServerOptions {
+        base_path: None,
         trusted_proxies: Vec::new(),
         host: "0.0.0.0".to_string(),
         port: 0,
@@ -868,6 +869,7 @@ async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
         public_url: None,
         allowed_origins: Vec::new(),
         allow_high_risk: false,
+        connection_policy: crate::application::ManagedConnectionPolicy::standalone(),
         server_file_browser_roots: Vec::new(),
         application: test_application(temp.path()),
         events: WebEventBus::default(),
@@ -880,6 +882,29 @@ async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
 
 #[tokio::test]
 async fn authenticates_remote_password_and_proxy_requests_with_auditing() {
+    // Other web tests clear or disable the process-wide log buffer. Keep the
+    // audit assertions in their own process with a stable logging level.
+    const CHILD: &str = "TABULARIS_WEB_AUDIT_TEST_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "transport::web::tests::authenticates_remote_password_and_proxy_requests_with_auditing",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env("RUST_LOG", "info")
+            .output()
+            .expect("failed to launch the isolated web audit test");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success() && stdout.contains("1 passed"),
+            "isolated web audit test failed:\n{stdout}\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
     let log_buffer = crate::runtime::bootstrap::initialize_logging(false);
@@ -1298,6 +1323,7 @@ async fn executes_representative_commands_over_versioned_rpc() {
                 appearance: None,
                 tag_ids: None,
                 environment: None,
+                managed: false,
             }],
             ..Default::default()
         },
@@ -1942,6 +1968,22 @@ async fn executes_representative_commands_over_versioned_rpc() {
         )
         .await["entries"][0]["id"],
         history_entry["id"]
+    );
+    let insights = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_query_history_insights",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "now": "2026-08-22T01:00:00Z"
+        }),
+    )
+    .await;
+    assert_eq!(
+        insights["groups"][0]["fingerprint"],
+        "SELECT name FROM users"
     );
     rpc_data(
         &client,
@@ -3496,6 +3538,8 @@ async fn rejects_new_proxy_sessions_at_capacity_without_logging_out_existing_cli
     let existing = client
         .get(format!("http://{address}/api/v1/session"))
         .header(HOST, "review.example")
+        .header("x-tabularis-proxy-secret", secret)
+        .header("x-tabularis-user", "alice")
         .header(
             COOKIE,
             format!(

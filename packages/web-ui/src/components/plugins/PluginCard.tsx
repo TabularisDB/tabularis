@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react';
-import {BookOpen, Check, Download, ExternalLink, Home, Palette} from 'lucide-react';
+import {BookOpen, Check, Download, ExternalLink, Home, Palette, Sparkles} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
 import clsx from 'clsx';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
@@ -9,6 +9,7 @@ import {parseAuthor, type PluginKind} from '@/utils/plugins';
 import {CARD_RESTING_CLASS} from '@/utils/connections';
 import {formatCount, stripTrailingSlash, THEME_TILE_COLOR} from '@/utils/pluginPresentation';
 import {RegistryDriverIcon} from '@/components/RegistryDriverIcon';
+import {AiProviderIcon} from '@/components/icons/AiProviderIcon';
 import {Chip} from '@/components/ui/Chip';
 import {CompactCard, CompactCardHeader, CompactCardFooter} from '@/components/ui/CompactCard';
 import {PluginKindChip} from './PluginKindChip';
@@ -86,15 +87,33 @@ export function PluginCard({
             : null;
     const isTheme = kind === 'theme';
     // Themes get a fixed palette tile: they never carry a driver manifest colour.
-    const fallbackIcon = isTheme ? <Palette size={20} /> : getDriverIcon(manifest, 20);
+    const fallbackIcon = isTheme ? (
+        <Palette size={20} />
+    ) : kind === 'ai-assistant' ? (
+        <Sparkles size={20} />
+    ) : (
+        getDriverIcon(manifest, 20)
+    );
     const icon =
-        (!isTheme && manifest?.icon) || !iconUrl ? (
+        kind === 'ai-assistant' ? (
+            <AiProviderIcon src={iconUrl} size={28} />
+        ) : (!isTheme && manifest?.icon) || !iconUrl ? (
             fallbackIcon
         ) : (
             <RegistryDriverIcon key={iconUrl} src={iconUrl} size={20} fallback={fallbackIcon} />
         );
-    const iconColor = isTheme ? THEME_TILE_COLOR : getDriverColor(manifest);
-    const updateLabel = t(isTheme ? 'update.badges.themeUpdate' : 'update.badges.driverUpdate');
+    const iconColor = isTheme
+        ? THEME_TILE_COLOR
+        : kind === 'ai-assistant'
+          ? 'var(--bg-base)'
+          : getDriverColor(manifest);
+    const updateLabel = t(
+        isTheme
+            ? 'update.badges.themeUpdate'
+            : kind === 'ai-assistant'
+              ? 'settings.plugins.kindAiAssistant'
+              : 'update.badges.driverUpdate',
+    );
     const hasFooter = !!(actions || secondaryActions || secondaryHomepage || onShowReadme);
 
     return (

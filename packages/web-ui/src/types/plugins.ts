@@ -1,5 +1,21 @@
 import type {Dialect} from '@/utils/sqlSplitter';
 
+/** Plugin-declared native whole-file backup. The host echoes `format`. */
+export interface NativeBackupCapability {
+    format: string;
+    extension: string;
+    label: string;
+    description?: string;
+}
+
+export interface DatabaseSqlCapabilities {
+    format: string;
+    native_backup?: NativeBackupCapability | null;
+    create_database: boolean;
+    requires_empty_target: boolean;
+    target_label: string;
+}
+
 export interface ConnectionStringExample {
     label: string;
     value: string;
@@ -49,6 +65,13 @@ export interface DriverCapabilities {
     connection_uri_schemes?: string[];
     /** CamelCase alias accepted for plugin compatibility. */
     connectionUriSchemes?: string[];
+    /** The driver sends its connections through the SOCKS5 proxy given in
+     * `socks5_proxy_host`/`socks5_proxy_port` (plus `socks5_proxy_username`/
+     * `socks5_proxy_password` when set). With SSH enabled, the host then opens
+     * a dynamic forward instead of rewriting host/port. Defaults to false. */
+    socks5_proxy?: boolean;
+    /** CamelCase alias accepted for plugin compatibility. */
+    socks5Proxy?: boolean;
     identifier_quote: string;
     alter_primary_key: boolean;
     // SQL generation capabilities (optional, default to '' / false when not present)
@@ -65,6 +88,12 @@ export interface DriverCapabilities {
      * Defaults to false: SQL-compatible drivers (see `speaksGenericSql`) keep the
      * host's generic SQL, the others don't show the menu entry. */
     column_stats?: boolean;
+    /** The driver classifies queries in its own query language through the
+     * optional classify_query RPC, for the read-only policies: the MCP read-only
+     * mode, the MCP approval gate and saved read-only connections. Defaults to
+     * false: the host reads every query as SQL. A `select` verdict only counts
+     * when the driver also declares `read_only_queries` (or `readonly`). */
+    query_classification?: boolean;
     /** Honours query_timeout_secs: the driver stops a statement on the server
      * once the limit passes. Shows the query-timeout field in the connection
      * modal. Built-in PostgreSQL sets this; plugins opt in. Defaults to false. */
@@ -74,6 +103,10 @@ export interface DriverCapabilities {
     create_foreign_keys?: boolean;
     /** true for API-based plugins that need no host/port/credentials (e.g. public REST APIs). Hides the entire connection form. */
     no_connection_required?: boolean;
+    /** Supports connecting through a Unix socket on this machine instead of host:port
+     * (shows the local Socket Path field in the connection modal).
+     * Built-in network drivers (postgres, mysql) set this; plugins opt in via their manifest. Defaults to false. */
+    unix_socket?: boolean;
     /** Whether the driver supports table and column management (CREATE TABLE, ADD/MODIFY/DROP COLUMN, DROP TABLE). Does not control index or FK operations. Defaults to true. */
     manage_tables?: boolean;
     /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */
@@ -247,7 +280,8 @@ export interface PluginManifest {
     /** Optional map of generic inferred type names to driver-specific types.
      * Used during paste/import to resolve map_inferred_type() locally. */
     type_mappings?: Record<string, string>;
-    /** UI extension declarations for slot-based rendering (Phase 2). */
+    /** UI slot declarations. External drivers declaring `connection-modal.setup`
+     * own onboarding and hide generic SQL fields even when their UI fails to load. */
     ui_extensions?: UIExtensionManifestEntry[];
     /** Deprecation notice for a built-in driver being retired in favour of a
      * plugin. Absent/undefined for non-deprecated drivers. */

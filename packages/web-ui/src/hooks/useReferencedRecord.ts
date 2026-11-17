@@ -2,7 +2,11 @@ import {useState, useEffect, useCallback} from 'react';
 import type {ForeignKey, QueryResult} from '@/types/editor';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {quoteTableRef} from '@/utils/identifiers';
-import {isForeignKeyValueNavigable, buildForeignKeyFilterClause} from '@/utils/foreignKeys';
+import {
+    isForeignKeyValueNavigable,
+    buildForeignKeyFilterClause,
+    getReferencedSchema,
+} from '@/utils/foreignKeys';
 import type {TypedCommandCaller} from '@/api/contract';
 import {useTabularisClient} from './useTabularisClient';
 
@@ -36,7 +40,8 @@ export async function fetchReferencedRecord(
     if (!isForeignKeyValueNavigable(value)) {
         return {columns: [], rows: [], affected_rows: 0};
     }
-    const quotedTable = quoteTableRef(fk.ref_table, driver, schema);
+    const targetSchema = getReferencedSchema(fk, schema);
+    const quotedTable = quoteTableRef(fk.ref_table, driver, targetSchema);
     const filterClause = buildForeignKeyFilterClause(fk, value, driver, sourceColumnType);
 
     const query = `SELECT * FROM ${quotedTable} WHERE ${filterClause}`;
@@ -46,7 +51,7 @@ export async function fetchReferencedRecord(
         query,
         limit: 100,
         page: 1,
-        ...(schema ? {schema} : {}),
+        ...(targetSchema ? {schema: targetSchema} : {}),
         ...(database ? {database} : {}),
     });
 }

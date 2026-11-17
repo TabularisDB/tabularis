@@ -60,6 +60,8 @@ export interface SavedConnection {
         default_database?: string;
         save_in_keychain?: boolean;
         port?: number;
+        /** Local Unix socket the drivers dial instead of host:port (no tunnel). */
+        unix_socket_path?: string;
         username?: string;
         password?: string;
         ssh_enabled?: boolean;
@@ -91,6 +93,8 @@ export interface SavedConnection {
     tag_ids?: string[];
     /** Deployment environment; production drives warnings and visuals. */
     environment?: 'development' | 'staging' | 'production';
+    /** Set on administrator-provisioned connections; absent means false. */
+    managed?: boolean;
 }
 
 export interface ConnectionGroup {

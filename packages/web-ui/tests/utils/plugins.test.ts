@@ -6,9 +6,30 @@ import {
     parsePluginKindFilter,
     pluginKind,
     versionGte,
+    withEnabledExternalDriver,
 } from '@/utils/plugins';
 
 describe('plugins', () => {
+    describe('withEnabledExternalDriver', () => {
+        const installed = [
+            {id: 'mysql', is_builtin: true},
+            {id: 'legacy-driver', is_builtin: false},
+            {id: 'legacy-ui'},
+        ];
+        it('preserves all implicitly enabled external plugins while activating a new installation', () => {
+            expect(withEnabledExternalDriver(undefined, installed, 'provider')).toEqual([
+                'legacy-driver',
+                'legacy-ui',
+                'provider',
+            ]);
+        });
+        it('keeps deliberate disabled preferences and avoids duplicate entries', () => {
+            expect(withEnabledExternalDriver([], installed, 'provider')).toEqual(['provider']);
+            expect(
+                withEnabledExternalDriver(['legacy-ui', 'provider'], installed, 'provider'),
+            ).toEqual(['legacy-ui', 'provider']);
+        });
+    });
     describe('parseAuthor', () => {
         it('should parse name only', () => {
             expect(parseAuthor('debba')).toEqual({name: 'debba'});
@@ -140,6 +161,7 @@ describe('plugins', () => {
             expect(pluginKind({kind: null})).toBe('driver');
             expect(pluginKind({kind: 'driver'})).toBe('driver');
             expect(pluginKind({kind: 'theme'})).toBe('theme');
+            expect(pluginKind({kind: 'ai-assistant'})).toBe('ai-assistant');
             expect(pluginKind({kind: 'unsupported:ambiguous-kind'})).toBe('driver');
         });
 
@@ -152,6 +174,8 @@ describe('plugins', () => {
 
         it('falls back to "all" for unknown URL values', () => {
             expect(parsePluginKindFilter('theme')).toBe('theme');
+            expect(parsePluginKindFilter('ai-assistant')).toBe('ai-assistant');
+            expect(matchesPluginKind({kind: 'ai-assistant'}, 'driver')).toBe(false);
             expect(parsePluginKindFilter('driver')).toBe('driver');
             expect(parsePluginKindFilter(null)).toBe('all');
             expect(parsePluginKindFilter('plugin')).toBe('all');

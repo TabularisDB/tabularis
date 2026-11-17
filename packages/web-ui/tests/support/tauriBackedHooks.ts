@@ -9,6 +9,7 @@
  */
 import {invoke} from '@tauri-apps/api/core';
 import {emit, listen} from '@tauri-apps/api/event';
+import {openUrl} from '@tauri-apps/plugin-opener';
 import {TauriPlatformCapabilities} from '@/platform/tauriCapabilities';
 import type {TabularisClient} from '@/api/client';
 
@@ -28,7 +29,13 @@ export const tauriBackedClient = {
         invoke('read_plugin_file', {pluginId, filePath}),
 } as unknown as TabularisClient;
 
-const platform = new TauriPlatformCapabilities();
+// Legacy component assertions use the opener mock; native dispatch is tested by the adapter suite.
+class ComponentTestPlatform extends TauriPlatformCapabilities {
+    override async openExternalUrl(url: string) {
+        await openUrl(url);
+    }
+}
+const platform = new ComponentTestPlatform();
 
 export function useTabularisClient() {
     return tauriBackedClient;

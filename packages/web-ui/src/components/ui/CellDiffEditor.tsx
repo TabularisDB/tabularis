@@ -14,6 +14,7 @@ interface CellDiffEditorProps {
     readOnly?: boolean;
     renderSideBySide?: boolean;
     language?: 'json' | 'plaintext' | 'sql';
+    wrapLines?: boolean;
 }
 
 export const CellDiffEditor = ({
@@ -24,6 +25,7 @@ export const CellDiffEditor = ({
     readOnly = false,
     renderSideBySide = false,
     language = 'json',
+    wrapLines = true,
 }: CellDiffEditorProps) => {
     const editorTheme = useEditorTheme();
     const monacoRef = useRef<typeof MonacoTypes | null>(null);
@@ -65,9 +67,9 @@ export const CellDiffEditor = ({
                 lineNumbers: 'on',
                 automaticLayout: true,
                 scrollBeyondLastLine: false,
-                wordWrap: 'on',
+                wordWrap: wrapLines ? 'on' : 'off',
                 wrappingIndent: 'indent',
-                diffWordWrap: 'on',
+                diffWordWrap: wrapLines ? 'on' : 'off',
                 renderOverviewRuler: false,
             }}
         />

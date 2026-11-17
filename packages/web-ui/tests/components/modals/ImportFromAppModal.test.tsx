@@ -5,6 +5,8 @@ import {ImportFromAppModal} from '@/components/modals/ImportFromAppModal';
 const mocks = vi.hoisted(() => ({
     call: vi.fn(),
     chooseInputFile: vi.fn(),
+    chooseServerPath: vi.fn(),
+    supports: vi.fn(),
     readInputFile: vi.fn(),
     openExternalUrl: vi.fn(),
 }));
@@ -20,7 +22,9 @@ vi.mock('@/hooks/useTabularisClient', () => ({
 vi.mock('@/hooks/usePlatformCapabilities', () => ({
     usePlatformCapabilities: () => ({
         negotiation: {environment: 'tauri'},
+        supports: mocks.supports,
         chooseInputFile: mocks.chooseInputFile,
+        chooseServerPath: mocks.chooseServerPath,
         readInputFile: mocks.readInputFile,
         openExternalUrl: mocks.openExternalUrl,
     }),
@@ -164,5 +168,81 @@ describe('ImportFromAppModal — Tabularis JSON import', () => {
         });
         expect(onImported).not.toHaveBeenCalled();
         expect(onClose).not.toHaveBeenCalled();
+    });
+});
+
+describe('ImportFromAppModal — Project Configuration import', () => {
+    const PROJECT_CONFIG_SOURCE = {
+        id: 'project_config',
+        displayName: 'Project Configuration (.env / Compose)',
+        available: false,
+        connectionCount: 0,
+        readsPasswordsFromKeychain: false,
+        needsFile: false,
+        manualPathSupported: true,
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.chooseServerPath.mockResolvedValue({
+            reference: '/projects/my-app',
+        });
+        mocks.chooseInputFile.mockResolvedValue({
+            name: '.env',
+            reference: '/projects/my-app/.env',
+        });
+        mocks.readInputFile.mockResolvedValue(
+            new TextEncoder().encode('DATABASE_URL=postgres://localhost/app'),
+        );
+        mocks.call.mockImplementation((command: string) => {
+            if (command === 'list_connection_import_sources') {
+                return Promise.resolve([PROJECT_CONFIG_SOURCE]);
+            }
+            if (command === 'preview_connection_import') {
+                return Promise.resolve(PREVIEW);
+            }
+            return Promise.resolve(undefined);
+        });
+    });
+
+    it('prompts for directory selection when server path is supported (desktop)', async () => {
+        mocks.supports.mockImplementation((cap: string) => cap === 'chooseServerPath');
+        renderModal();
+
+        // Select the Project Configuration source radio/item
+        const sourceButton = await screen.findByText('Project Configuration (.env / Compose)');
+        fireEvent.click(sourceButton);
+
+        await clickContinue();
+
+        await waitFor(() => {
+            expect(mocks.chooseServerPath).toHaveBeenCalledWith({kind: 'directory'});
+            expect(mocks.call).toHaveBeenCalledWith('preview_connection_import', {
+                sourceId: 'project_config',
+                includePasswords: true,
+                file: {kind: 'serverPath', path: '/projects/my-app'},
+            });
+        });
+    });
+
+    it('falls back to input file upload when chooseServerPath is unsupported (web)', async () => {
+        mocks.supports.mockReturnValue(false);
+        renderModal();
+
+        const sourceButton = await screen.findByText('Project Configuration (.env / Compose)');
+        fireEvent.click(sourceButton);
+
+        await clickContinue();
+
+        await waitFor(() => {
+            expect(mocks.chooseInputFile).toHaveBeenCalledWith({
+                filters: [{name: 'Configuration Files', extensions: ['env', 'yaml', 'yml']}],
+            });
+            expect(mocks.call).toHaveBeenCalledWith('preview_connection_import', {
+                sourceId: 'project_config',
+                includePasswords: true,
+                file: {kind: 'serverPath', path: '/projects/my-app/.env'},
+            });
+        });
     });
 });

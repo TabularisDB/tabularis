@@ -1,4 +1,6 @@
 import {useMemo} from 'react';
+import {booleanEditValue, getBooleanValue, type BooleanDriver} from '@/utils/boolean';
+import {BooleanInput} from './BooleanInput';
 import {useTranslation} from 'react-i18next';
 import {Sparkles, Ban, Eraser, FileDigit} from 'lucide-react';
 import {GeometryInput} from './GeometryInput';
@@ -19,6 +21,9 @@ import {USE_DEFAULT_SENTINEL} from '@/utils/dataGrid';
 export interface FieldEditorProps {
     name: string;
     type?: string;
+    booleanType?: string;
+    booleanDriver?: BooleanDriver;
+    disabled?: boolean;
     characterMaximumLength?: number;
     value: unknown;
     onChange: (value: unknown) => void;
@@ -28,6 +33,7 @@ export interface FieldEditorProps {
     isAutoIncrement?: boolean;
     hasDefault?: boolean;
     isNullable?: boolean;
+    nullLabel?: string;
     originalValue?: unknown;
     detectJsonInTextColumns?: boolean;
     connectionId?: string | null;
@@ -44,6 +50,9 @@ export interface FieldEditorProps {
 export const FieldEditor = ({
     name,
     type,
+    booleanType = type,
+    booleanDriver,
+    disabled,
     characterMaximumLength,
     value,
     onChange,
@@ -53,6 +62,7 @@ export const FieldEditor = ({
     isAutoIncrement = false,
     hasDefault = false,
     isNullable = false,
+    nullLabel,
     originalValue,
     detectJsonInTextColumns = false,
     connectionId,
@@ -93,6 +103,7 @@ export const FieldEditor = ({
         (isLongTextValue(value) || isLongTextValue(originalValue));
 
     const defaultPlaceholder = placeholder || t('rowEditor.enterValue');
+    const booleanNullLabel = nullLabel ?? t('dataGrid.null');
 
     // Determine if we should show quick action buttons
     const showQuickActions = isAutoIncrement || hasDefault || isNullable;
@@ -105,6 +116,7 @@ export const FieldEditor = ({
         return String(value ?? '');
     }, [isGeometric, value]);
 
+    const booleanValue = getBooleanValue(value, booleanType, booleanDriver);
     const inputElement = isBlob ? (
         <div className={`${className}`}>
             {editableBlobHex !== null ? (
@@ -170,6 +182,17 @@ export const FieldEditor = ({
             onChange={(newValue) => onChange(newValue)}
             placeholder={defaultPlaceholder}
             className={className}
+        />
+    ) : booleanValue !== undefined ? (
+        <BooleanInput
+            name={name}
+            value={booleanValue}
+            nullLabel={booleanNullLabel}
+            nullable={isNullable}
+            disabled={disabled}
+            onChange={(next) =>
+                onChange(booleanEditValue(next, originalValue ?? value, booleanType))
+            }
         />
     ) : (
         <textarea

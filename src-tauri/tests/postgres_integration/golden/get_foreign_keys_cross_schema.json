@@ -4,6 +4,7 @@
     "column_name": "lookup_code",
     "ref_table": "lookup",
     "ref_column": "code",
+    "ref_schema": "other_schema",
     "on_delete": "NO ACTION",
     "on_update": "NO ACTION",
     "seq_in_fk": 1

@@ -55,6 +55,16 @@ export function resolveTriggerDialect({
     }
 }
 
+/** Complete-SQL editor for trigger-capable drivers without a guided dialect. */
+export function usesCompleteTriggerSqlEditor({
+    driver,
+    capabilities,
+}: TriggerDialectSource & {capabilities?: {triggers?: boolean} | null}): boolean {
+    return (
+        capabilities?.triggers === true && resolveTriggerDialect({driver, capabilities}) === null
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Our TriggerSqlInput interface (used by buildTriggerFunctionSql / buildTriggerSql)
 // ---------------------------------------------------------------------------
@@ -500,7 +510,8 @@ export function splitSqlStatements(sql: string): string[] {
             continue;
         }
         if (ch === '$') {
-            const m = /^\$[A-Za-z_]*\$/.exec(sql.slice(i));
+            // Same tag rule as the SQL splitter: `$fn1$` and `$función$` are tags.
+            const m = /^\$(?:[\p{L}_][\p{L}\p{N}_]*)?\$/u.exec(sql.slice(i));
             if (m) {
                 dollar = m[0];
                 cur += m[0];

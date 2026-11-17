@@ -14,9 +14,22 @@ export async function detectAiDefaults(
         return {};
     let provider = settings.aiProvider;
     if (!provider) {
-        const providers = ['openai', 'anthropic', 'openrouter', 'minimax'] as const;
+        const catalog = await client.call('get_ai_providers', undefined);
+        const providers = catalog.providers
+            .filter((provider) => provider.ai_assistant.auto_select_priority != null)
+            .sort(
+                (a, b) =>
+                    (a.ai_assistant.auto_select_priority ?? 0) -
+                    (b.ai_assistant.auto_select_priority ?? 0),
+            )
+            .map((provider) => provider.id);
         const available = await Promise.all(
-            providers.map((provider) => client.call('check_ai_key', {provider}).catch(() => false)),
+            providers.map((provider) =>
+                catalog.providers.find((entry) => entry.id === provider)?.ai_assistant
+                    .authentication === 'none'
+                    ? Promise.resolve(true)
+                    : client.call('check_ai_key', {provider}).catch(() => false),
+            ),
         );
         provider = providers.find((_, index) => available[index]) ?? null;
     }

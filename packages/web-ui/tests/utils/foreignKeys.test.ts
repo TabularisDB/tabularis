@@ -8,6 +8,7 @@ import {
     isNumericColumnType,
     buildForeignKeyFilterClause,
     getForeignKeyForPreview,
+    getReferencedSchema,
 } from '@/utils/foreignKeys';
 
 const fk = (
@@ -72,6 +73,26 @@ describe('foreignKeys', () => {
             expect(isForeignKeyValueNavigable(42)).toBe(true);
             expect(isForeignKeyValueNavigable('abc')).toBe(true);
             expect(isForeignKeyValueNavigable(false)).toBe(true);
+        });
+    });
+
+    describe('getReferencedSchema', () => {
+        const crossSchema = {...fk('fk_org', 'org_id', 'organizations', 'id'), ref_schema: 'core'};
+
+        it('prefers the referenced schema over the source schema', () => {
+            expect(getReferencedSchema(crossSchema, 'billing')).toBe('core');
+        });
+
+        it('falls back to the source schema when the driver reports none', () => {
+            const plain = fk('fk_org', 'org_id', 'organizations', 'id');
+            expect(getReferencedSchema(plain, 'billing')).toBe('billing');
+            expect(getReferencedSchema({...plain, ref_schema: null}, 'billing')).toBe('billing');
+            expect(getReferencedSchema({...plain, ref_schema: ''}, 'billing')).toBe('billing');
+        });
+
+        it('returns undefined when neither schema is known', () => {
+            expect(getReferencedSchema(fk('fk', 'a', 'b', 'c'), null)).toBeUndefined();
+            expect(getReferencedSchema(fk('fk', 'a', 'b', 'c'), '')).toBeUndefined();
         });
     });
 

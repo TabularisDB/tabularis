@@ -482,4 +482,150 @@ describe('notebookFile utils', () => {
             expect(result.cells[1].isChartVisible).toBeUndefined();
         });
     });
+
+    describe('KPI configuration', () => {
+        it('round-trips the KPI configuration and visibility', () => {
+            const cells = makeCells();
+            cells[0].kpiConfig = {
+                column: 'active_users',
+                label: 'Active users',
+                decimals: 2,
+                prefix: '$',
+                suffix: ' USD',
+            };
+            cells[0].isKpiVisible = false;
+
+            const serialized = serializeNotebook('KPI', cells);
+            expect(serialized.cells[0]).toMatchObject({
+                kpiConfig: cells[0].kpiConfig,
+                isKpiVisible: false,
+            });
+            const restored = deserializeNotebook(JSON.stringify(serialized));
+            expect(restored.cells[0].kpiConfig).toEqual(cells[0].kpiConfig);
+            expect(restored.cells[0].isKpiVisible).toBe(false);
+            expect(serializeNotebook(restored.title, restored.cells).cells).toEqual(
+                serialized.cells,
+            );
+        });
+
+        it('keeps older notebooks without a KPI unchanged', () => {
+            const json = JSON.stringify({
+                version: 2,
+                title: 'Old',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                cells: [
+                    {
+                        type: 'sql',
+                        content: 'SELECT 1',
+                        chartConfig: {type: 'bar', labelColumn: 'a', valueColumns: ['b']},
+                    },
+                ],
+            });
+            const restored = deserializeNotebook(json);
+            expect(restored.cells[0].kpiConfig).toBeNull();
+            expect(restored.cells[0].isKpiVisible).toBeUndefined();
+            expect(restored.cells[0].chartConfig).toEqual({
+                type: 'bar',
+                labelColumn: 'a',
+                valueColumns: ['b'],
+            });
+            const serialized = serializeNotebook('Old', restored.cells);
+            expect(serialized.cells[0]).not.toHaveProperty('kpiConfig');
+            expect(serialized.cells[0]).not.toHaveProperty('isKpiVisible');
+        });
+
+        it('drops a malformed KPI configuration from an imported file', () => {
+            const json = JSON.stringify({
+                version: 2,
+                title: 'Bad',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                cells: [
+                    {
+                        type: 'sql',
+                        content: 'SELECT 1',
+                        kpiConfig: {label: 'x'},
+                        isKpiVisible: 'yes',
+                    },
+                    {
+                        type: 'sql',
+                        content: 'SELECT 2',
+                        kpiConfig: {column: 'n', decimals: -3, prefix: 5},
+                    },
+                ],
+            });
+            const restored = deserializeNotebook(json);
+            expect(restored.cells[0].kpiConfig).toBeNull();
+            expect(restored.cells[0].isKpiVisible).toBeUndefined();
+            expect(restored.cells[1].kpiConfig).toEqual({column: 'n', decimals: 0});
+        });
+    });
+});
+
+describe('notebookFile disabled SQL cells', () => {
+    it('keeps the disabled flag through serialize and deserialize', () => {
+        const cells: NotebookCell[] = [
+            {id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: true, isParallel: true},
+            {id: 'b', type: 'sql', content: 'SELECT 2'},
+        ];
+        const file = serializeNotebook('Disabled', cells);
+        expect(file.cells[0].isDisabled).toBe(true);
+        expect(file.cells[1]).not.toHaveProperty('isDisabled');
+        const restored = deserializeNotebook(JSON.stringify(file));
+        expect(restored.cells[0]).toMatchObject({
+            content: 'SELECT 1',
+            isDisabled: true,
+            isParallel: true,
+        });
+        expect(restored.cells[1].isDisabled).toBeUndefined();
+    });
+
+    it('does not write an enabled flag, so enabled cells stay byte-compatible', () => {
+        const file = serializeNotebook('x', [
+            {id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: false},
+        ]);
+        expect(file.cells[0]).not.toHaveProperty('isDisabled');
+    });
+
+    it('loads legacy files without the flag as enabled', () => {
+        const restored = deserializeNotebook(
+            JSON.stringify({
+                version: 1,
+                title: 'Old',
+                createdAt: '2024-01-01',
+                cells: [{type: 'sql', content: 'SELECT 1'}],
+            }),
+        );
+        expect(restored.cells[0].isDisabled).toBeUndefined();
+    });
+
+    it.each([['true'], [1], [null], [{}]])(
+        'ignores a malformed disabled value %j from an untrusted file',
+        (value) => {
+            const restored = deserializeNotebook(
+                JSON.stringify({
+                    version: 2,
+                    title: 'x',
+                    createdAt: '2024-01-01',
+                    cells: [{type: 'sql', content: 'SELECT 1', isDisabled: value}],
+                }),
+            );
+            expect(restored.cells[0].isDisabled).toBeUndefined();
+        },
+    );
+
+    it('never marks a Markdown cell disabled', () => {
+        const file = serializeNotebook('x', [
+            {id: 'a', type: 'markdown', content: '# x', isDisabled: true},
+        ]);
+        expect(file.cells[0]).not.toHaveProperty('isDisabled');
+        const restored = deserializeNotebook(
+            JSON.stringify({
+                version: 2,
+                title: 'x',
+                createdAt: '2024-01-01',
+                cells: [{type: 'markdown', content: '# x', isDisabled: true}],
+            }),
+        );
+        expect(restored.cells[0].isDisabled).toBeUndefined();
+    });
 });

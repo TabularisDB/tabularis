@@ -1,6 +1,7 @@
 import type {NotebookCell, NotebookFile, NotebookParam} from '@/types/notebook';
 import {generateCellId} from './notebook';
 import {validateParamName} from './notebookParams';
+import {sanitizeKpiConfig} from './notebookKpi';
 
 /**
  * Keep only well-formed params from an untrusted notebook file: name must be
@@ -36,10 +37,13 @@ export function serializeNotebook(
             ...(c.schema ? {schema: c.schema} : {}),
             ...(c.chartConfig ? {chartConfig: c.chartConfig} : {}),
             ...(c.isParallel ? {isParallel: c.isParallel} : {}),
+            ...(c.type === 'sql' && c.isDisabled ? {isDisabled: true} : {}),
             ...(c.isCollapsed ? {isCollapsed: c.isCollapsed} : {}),
             ...(c.isQueryCollapsed ? {isQueryCollapsed: c.isQueryCollapsed} : {}),
             ...(c.isResultCollapsed ? {isResultCollapsed: c.isResultCollapsed} : {}),
             ...(c.isChartVisible != null ? {isChartVisible: c.isChartVisible} : {}),
+            ...(c.kpiConfig ? {kpiConfig: c.kpiConfig} : {}),
+            ...(c.isKpiVisible != null ? {isKpiVisible: c.isKpiVisible} : {}),
             ...(c.isQueryPlanVisible != null ? {isQueryPlanVisible: c.isQueryPlanVisible} : {}),
         })),
         ...(params && params.length > 0 ? {params} : {}),
@@ -94,10 +98,15 @@ export function deserializeNotebook(json: string): {
                 schema: c.schema,
                 chartConfig: (cellRaw.chartConfig as NotebookCell['chartConfig']) ?? null,
                 isParallel: cellRaw.isParallel as boolean | undefined,
+                // Files written before cells could be disabled have no flag: enabled.
+                isDisabled: c.type === 'sql' && cellRaw.isDisabled === true ? true : undefined,
                 isCollapsed: cellRaw.isCollapsed as boolean | undefined,
                 isQueryCollapsed: cellRaw.isQueryCollapsed as boolean | undefined,
                 isResultCollapsed: cellRaw.isResultCollapsed as boolean | undefined,
                 isChartVisible: cellRaw.isChartVisible as boolean | undefined,
+                kpiConfig: sanitizeKpiConfig(cellRaw.kpiConfig),
+                isKpiVisible:
+                    typeof cellRaw.isKpiVisible === 'boolean' ? cellRaw.isKpiVisible : undefined,
                 isQueryPlanVisible: cellRaw.isQueryPlanVisible as boolean | undefined,
                 result: null,
                 error: undefined,

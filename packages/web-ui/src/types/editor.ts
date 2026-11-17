@@ -77,6 +77,9 @@ export interface QueryResultEntry {
     page: number;
     activeTable: string | null;
     pkColumns: string[] | null;
+    /** Set on entries split from one statement's several result sets (e.g. a
+     * MySQL `CALL`): re-running `query` would not yield this set alone. */
+    fromResultSets?: boolean;
     /// Rows a Run All statement returned, captured while the batch's session
     /// state was live. Set for paged batch results: page changes slice this
     /// instead of re-running the statement (#205).
@@ -102,7 +105,7 @@ export type AutoRefreshInterval = 0 | 5000 | 10000 | 30000 | 60000;
 export interface Tab {
     id: string;
     title: string;
-    type: 'console' | 'table' | 'query_builder' | 'notebook' | 'users';
+    type: 'console' | 'table' | 'query_builder' | 'notebook' | 'users' | 'plugin-workspace';
     query: string;
     result: QueryResult | null;
     error: string;
@@ -145,6 +148,8 @@ export interface Tab {
     materialized?: boolean; // Grid data is read-only (e.g. materialized views: only REFRESH writes)
     results?: QueryResultEntry[];
     activeResultId?: string;
+    pluginId?: string; // Owner of a plugin workspace tab
+    workspaceId?: string; // Stable plugin-owned workspace identifier
     notebookId?: string; // Reference to notebook file in config dir
     notebookState?: NotebookState; // Deprecated: kept for migration of old tabs
     sourceFilePath?: string;

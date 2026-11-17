@@ -15,10 +15,16 @@ import {
     Zap,
     History,
     Network,
+    Copy,
+    CopyPlus,
+    Power,
+    PowerOff,
 } from 'lucide-react';
 import type {NotebookCellType} from '@/types/notebook';
 import {CellNameAiButton} from './CellNameAiButton';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
+import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {useToast} from '@/hooks/useToast';
 
 interface NotebookCellHeaderProps {
     cellType: NotebookCellType;
@@ -28,6 +34,8 @@ interface NotebookCellHeaderProps {
     onMoveUp: () => void;
     onMoveDown: () => void;
     onDelete: () => void;
+    onDuplicate?: () => void;
+    canDuplicate?: boolean;
     onRun?: () => void;
     onTogglePreview?: () => void;
     isLoading?: boolean;
@@ -41,6 +49,8 @@ interface NotebookCellHeaderProps {
     };
     isParallel?: boolean;
     onToggleParallel?: () => void;
+    isDisabled?: boolean;
+    onToggleDisabled?: () => void;
     historyCount?: number;
     onToggleHistory?: () => void;
     isQueryPlanVisible?: boolean;
@@ -74,11 +84,13 @@ function ActionButton({
     onClick,
     disabled,
     title,
+    ariaLabel,
     children,
 }: {
     onClick: () => void;
     disabled?: boolean;
     title: string;
+    ariaLabel?: string;
     children: React.ReactNode;
 }) {
     return (
@@ -87,7 +99,8 @@ function ActionButton({
             onClick={onClick}
             disabled={disabled}
             title={title}
-            className="p-1 text-muted hover:text-primary hover:bg-surface-secondary rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label={ariaLabel}
+            className="p-1 text-muted hover:text-primary hover:bg-surface-secondary rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
             {children}
         </button>
@@ -102,6 +115,8 @@ export function NotebookCellHeader({
     onMoveUp,
     onMoveDown,
     onDelete,
+    onDuplicate,
+    canDuplicate = true,
     onRun,
     onTogglePreview,
     isLoading,
@@ -111,6 +126,8 @@ export function NotebookCellHeader({
     dragHandleProps,
     isParallel,
     onToggleParallel,
+    isDisabled,
+    onToggleDisabled,
     historyCount,
     onToggleHistory,
     isQueryPlanVisible,
@@ -135,9 +152,28 @@ export function NotebookCellHeader({
         selectedDatabases.length >= 1 &&
         activeSchema &&
         onSchemaChange;
+    const disableToggleLabel = t(
+        isDisabled ? 'editor.notebook.enableCell' : 'editor.notebook.disableCell',
+    );
+    const runLabel = t(
+        isDisabled ? 'editor.notebook.runDisabledReason' : 'editor.notebook.runCell',
+    );
     const queryPlanToggleLabel = t(
         isQueryPlanVisible ? 'editor.notebook.hideQueryPlan' : 'editor.notebook.toggleQueryPlan',
     );
+    const platform = usePlatformCapabilities();
+    const {showToast} = useToast();
+
+    const copySource = useCallback(async () => {
+        if (!cellContent) return;
+
+        try {
+            await platform.writeClipboard(cellContent);
+            showToast(t('editor.notebook.copiedSource'), {kind: 'success'});
+        } catch {
+            showToast(t('editor.notebook.copySourceFailed'), {kind: 'error'});
+        }
+    }, [cellContent, platform, showToast, t]);
 
     const updateDbDropdownPosition = useCallback(() => {
         if (dbButtonRef.current) {
@@ -186,6 +222,11 @@ export function NotebookCellHeader({
                 </button>
                 <CellTypeBadge cellType={cellType} />
                 <span className="text-[10px] text-muted">#{index + 1}</span>
+                {cellType === 'sql' && isDisabled && (
+                    <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-accent-warning/15 text-accent-warning">
+                        {t('editor.notebook.cellDisabled')}
+                    </span>
+                )}
                 {isEditingName ? (
                     <input
                         autoCorrect="off"
@@ -294,8 +335,9 @@ export function NotebookCellHeader({
                 {cellType === 'sql' && onRun && (
                     <ActionButton
                         onClick={onRun}
-                        title={t('editor.notebook.runCell')}
-                        disabled={isLoading}
+                        title={runLabel}
+                        ariaLabel={runLabel}
+                        disabled={isLoading || isDisabled}
                     >
                         {isLoading ? (
                             <Loader2 size={14} className="animate-spin" />
@@ -320,14 +362,33 @@ export function NotebookCellHeader({
                     </button>
                 )}
 
+                {cellType === 'sql' && onToggleDisabled && (
+                    <button
+                        type="button"
+                        onClick={onToggleDisabled}
+                        title={disableToggleLabel}
+                        aria-label={disableToggleLabel}
+                        aria-pressed={!!isDisabled}
+                        className={`p-1 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                            isDisabled
+                                ? 'text-accent-warning bg-accent-warning/15'
+                                : 'text-muted hover:text-primary hover:bg-surface-secondary'
+                        }`}
+                    >
+                        {isDisabled ? <PowerOff size={14} /> : <Power size={14} />}
+                    </button>
+                )}
+
                 {cellType === 'sql' && onToggleQueryPlan && (
                     <button
                         type="button"
                         onClick={onToggleQueryPlan}
+                        // Kept in place so the header doesn't shift; a disabled cell sends no EXPLAIN.
+                        disabled={isDisabled}
                         title={queryPlanToggleLabel}
                         aria-label={queryPlanToggleLabel}
                         aria-pressed={!!isQueryPlanVisible}
-                        className={`p-1 rounded transition-colors ${
+                        className={`p-1 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
                             isQueryPlanVisible
                                 ? 'text-accent bg-accent-primary/15'
                                 : 'text-muted hover:text-primary hover:bg-surface-secondary'
@@ -363,6 +424,15 @@ export function NotebookCellHeader({
                 )}
 
                 <ActionButton
+                    onClick={() => void copySource()}
+                    disabled={!cellContent}
+                    title={t('editor.notebook.copySource')}
+                    ariaLabel={t('editor.notebook.copySource')}
+                >
+                    <Copy size={14} />
+                </ActionButton>
+
+                <ActionButton
                     onClick={onMoveUp}
                     disabled={index === 0}
                     title={t('editor.notebook.moveCellUp')}
@@ -377,6 +447,17 @@ export function NotebookCellHeader({
                 >
                     <ChevronDown size={14} />
                 </ActionButton>
+
+                {onDuplicate && (
+                    <ActionButton
+                        onClick={onDuplicate}
+                        disabled={!canDuplicate}
+                        title={t('editor.notebook.duplicateCellToEnd')}
+                        ariaLabel={t('editor.notebook.duplicateCellToEnd')}
+                    >
+                        <CopyPlus size={14} />
+                    </ActionButton>
+                )}
 
                 <ActionButton onClick={onDelete} title={t('editor.notebook.deleteCell')}>
                     <Trash2 size={14} />

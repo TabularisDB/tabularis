@@ -1,3 +1,4 @@
+import type {PluginAccountRequest} from '@/types/pluginAccount';
 import type {DatabaseBackupStatus} from '@/types/databaseBackup';
 import type {DebugCommand, DebugResponse} from '@/types/routineDebug';
 import type {ChatGptModel, ChatGptSession} from '@/types/chatgpt';
@@ -15,6 +16,7 @@ import type {
 } from '@/contexts/DatabaseContext';
 import type {
     InstalledPluginInfo,
+    DatabaseSqlCapabilities,
     PluginLoadError,
     PluginManifest,
     PluginReadme,
@@ -36,7 +38,13 @@ import type {MonacoThemeDefinition, Theme} from '@/types/theme';
 import type {Settings} from '@/contexts/SettingsContext';
 import type {SavedQuery, SavedQueryFolder, SavedQueryVersion} from '@/contexts/SavedQueriesContext';
 import type {ColumnStatsRequest, PluginColumnStats} from '@/utils/columnStats';
-import type {QueryHistoryEntry, QueryHistoryResponse} from '@/types/queryHistory';
+import type {
+    QueryHistoryEntry,
+    QueryHistoryInsightsRequest,
+    QueryHistoryInsightsResponse,
+    QueryHistoryResponse,
+} from '@/types/queryHistory';
+import type {SchemaNoteTarget, SchemaNotesState} from '@/types/schemaNotes';
 import type {UserOverrides} from '@/utils/keybindings';
 import type {NotebookMetadata} from '@/types/notebook';
 import type {
@@ -330,6 +338,28 @@ export interface ExplainQueryRequest extends MetadataRequest {
     analyze: boolean;
 }
 
+export interface PreviewDmlChangesRequest extends MetadataRequest {
+    sql: string;
+    limit?: number;
+}
+
+export interface DmlPreview {
+    kind: 'update' | 'delete';
+    target: string;
+    sourceSql: string;
+    connectionId: string;
+    schema: string | null;
+    database: string | null;
+    previewSql: string;
+    assignedColumns: string[];
+    hasFilter: boolean;
+    limit: number;
+    truncated: boolean;
+    triggers: number;
+    rules: number;
+    result: QueryResult;
+}
+
 export interface CancelQueryRequest extends ConnectionIdRequest {
     queryRequestId?: RequestId;
 }
@@ -454,6 +484,8 @@ export interface BackupRunResult {
 }
 
 export interface DumpOptions {
+    /** `"sql"` (default) or the plugin's `native_backup.format` id. */
+    format?: string;
     structure: boolean;
     data: boolean;
     tables?: string[] | null;
@@ -468,12 +500,100 @@ export interface DatabaseDumpRequest extends ConnectionIdRequest {
 }
 
 export interface DatabaseImportRequest extends ConnectionIdRequest {
+    createDatabase?: boolean;
     schema?: string;
     database?: string;
     /** Desktop-only source path. */
     filePath?: string;
     /** Browser-only opaque upload token. */
     uploadToken?: string;
+}
+
+export type TableTransferConflictMode = 'fail' | 'skip';
+
+export interface TableTransferColumnMapping {
+    sourceColumn: string;
+    /** `null` skips the source column explicitly. */
+    targetColumn: string | null;
+}
+
+export interface TableTransferSelection {
+    sourceTable: string;
+    targetTable: string;
+    /** Omitted columns are matched to the target by name. */
+    columns?: TableTransferColumnMapping[];
+}
+
+export interface TableTransferRequest {
+    sourceConnectionId: string;
+    sourceDatabase?: string;
+    sourceSchema?: string;
+    targetConnectionId: string;
+    targetDatabase?: string;
+    targetSchema?: string;
+    tables: TableTransferSelection[];
+    conflict?: TableTransferConflictMode;
+    batchRows?: number;
+    /** Required to run; identifies the job for progress events and cancellation. */
+    transferId?: string;
+}
+
+export interface TableTransferCapabilities {
+    pairs: Array<{source: string; target: string}>;
+    writeModes: string[];
+    conflictModes: TableTransferConflictMode[];
+    maxBatchRows: number;
+    defaultBatchRows: number;
+}
+
+export interface TableTransferIssue {
+    code: string;
+    column?: string;
+}
+
+export interface TableTransferColumnPlan {
+    sourceColumn: string;
+    sourceType: string;
+    targetColumn: string | null;
+    targetType: string | null;
+    rule: 'exact' | 'checked' | null;
+    skipped: boolean;
+    issue: string | null;
+}
+
+export interface TableTransferTablePlan {
+    sourceTable: string;
+    targetTable: string;
+    columns: TableTransferColumnPlan[];
+    issues: TableTransferIssue[];
+    blocking: boolean;
+    estimatedRows: number | null;
+}
+
+export interface TableTransferPlan {
+    tables: TableTransferTablePlan[];
+    issues: TableTransferIssue[];
+    blocking: boolean;
+}
+
+export type TableTransferStatus = 'completed' | 'failed' | 'cancelled' | 'notStarted' | 'running';
+
+export interface TableTransferTableResult {
+    sourceTable: string;
+    targetTable: string;
+    status: TableTransferStatus;
+    rowsRead: number;
+    rowsWritten: number;
+    rowsSkipped: number;
+    /** Rows of the batch that was rolled back when the table failed. */
+    rowsFailed: number;
+    error: string | null;
+}
+
+export interface TableTransferResult {
+    transferId: string;
+    status: TableTransferStatus;
+    tables: TableTransferTableResult[];
 }
 
 export type TableSqlContent = 'structure_and_data' | 'structure_only';
@@ -550,7 +670,7 @@ export interface TableImportResult {
 export interface QueryExportRequest extends ConnectionIdRequest {
     sessionId?: string;
     query: string;
-    format: 'csv' | 'json' | 'markdown';
+    format: 'csv' | 'json' | 'ndjson' | 'markdown' | 'html';
     csvDelimiter?: string;
     database?: string;
     /** Desktop-only save path. Browser requests omit this and receive a download. */
@@ -738,6 +858,28 @@ export interface CommandMap {
     // access configured registries, mutate the server plugin directory, and
     // start or stop subprocesses. Raw plugin paths and files are intentionally
     // excluded from the browser RPC contract.
+    /** Opaque extension methods can mutate resources and require administrator access. */
+    plugin_account: CommandDefinition<PluginAccountRequest, unknown, 'local-admin'>;
+    call_plugin_extension: CommandDefinition<
+        {pluginId: string; connectionId: string; method: string; args: Record<string, unknown>},
+        unknown,
+        'local-admin'
+    >;
+    set_plugin_secrets: CommandDefinition<
+        {pluginId: string; connectionId: string; secrets: Record<string, string>},
+        void,
+        'local-admin'
+    >;
+    get_plugin_secret_fields: CommandDefinition<
+        {pluginId: string; connectionId: string},
+        string[],
+        'database'
+    >;
+    delete_plugin_secrets: CommandDefinition<
+        {pluginId: string; connectionId: string},
+        void,
+        'local-admin'
+    >;
     fetch_plugin_registry: CommandDefinition<undefined, RegistryPluginWithStatus[], 'local-admin'>;
     fetch_tabularium_plugin_preview: CommandDefinition<
         {
@@ -780,6 +922,7 @@ export interface CommandMap {
     sync_plugin_settings: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
 
     test_connection: CommandDefinition<{request: TestConnectionRequest}, string, 'database'>;
+    open_saved_connection: CommandDefinition<ConnectionIdRequest, string, 'database'>;
     disconnect_connection: CommandDefinition<ConnectionIdRequest, void, 'database'>;
 
     export_connections_file: CommandDefinition<
@@ -828,10 +971,31 @@ export interface CommandMap {
     >;
     run_connections_backup: CommandDefinition<undefined, BackupRunResult, 'sensitive'>;
 
+    get_database_sql_capabilities: CommandDefinition<
+        ConnectionIdRequest,
+        DatabaseSqlCapabilities | null,
+        'sensitive'
+    >;
     dump_database: CommandDefinition<DatabaseDumpRequest, GeneratedFile | null, 'sensitive'>;
     cancel_dump: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
     import_database: CommandDefinition<DatabaseImportRequest, void, 'sensitive'>;
     cancel_import: CommandDefinition<ConnectionIdRequest, void, 'sensitive'>;
+    get_table_transfer_capabilities: CommandDefinition<
+        undefined,
+        TableTransferCapabilities,
+        'sensitive'
+    >;
+    plan_table_transfer: CommandDefinition<
+        {request: TableTransferRequest},
+        TableTransferPlan,
+        'sensitive'
+    >;
+    run_table_transfer: CommandDefinition<
+        {request: TableTransferRequest},
+        TableTransferResult,
+        'sensitive'
+    >;
+    cancel_table_transfer: CommandDefinition<{transferId: string}, void, 'sensitive'>;
     export_table_to_sql: CommandDefinition<TableExportRequest, TableExportResult, 'sensitive'>;
     read_table_sql_header: CommandDefinition<
         TableImportFileRequest,
@@ -1069,6 +1233,7 @@ export interface CommandMap {
         'database'
     >;
     explain_query_plan: CommandDefinition<ExplainQueryRequest, ExplainQueryOutput, 'database'>;
+    preview_dml_changes: CommandDefinition<PreviewDmlChangesRequest, DmlPreview, 'database'>;
     cancel_query: CommandDefinition<CancelQueryRequest, void, 'database'>;
     get_server_now: CommandDefinition<ConnectionIdRequest, string, 'database'>;
 
@@ -1144,6 +1309,34 @@ export interface CommandMap {
         'database'
     >;
     clear_query_history: CommandDefinition<ConnectionIdRequest, void, 'database'>;
+    get_query_history_insights: CommandDefinition<
+        QueryHistoryInsightsRequest,
+        QueryHistoryInsightsResponse,
+        'database'
+    >;
+
+    get_schema_notes: CommandDefinition<ConnectionIdRequest, SchemaNotesState, 'database'>;
+    /** `target: null` edits the connection-wide note; an empty note without domain removes it. */
+    set_schema_note: CommandDefinition<
+        ConnectionIdRequest & {
+            target: SchemaNoteTarget | null;
+            domain: string | null;
+            note: string;
+        },
+        SchemaNotesState,
+        'database'
+    >;
+    set_schema_notes_ai_context: CommandDefinition<
+        ConnectionIdRequest & {enabled: boolean},
+        SchemaNotesState,
+        'database'
+    >;
+    import_schema_notes: CommandDefinition<
+        ConnectionIdRequest & {contents: string},
+        SchemaNotesState,
+        'database'
+    >;
+    export_schema_notes: CommandDefinition<ConnectionIdRequest, string, 'database'>;
 
     create_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;
     save_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;
@@ -1182,6 +1375,12 @@ export interface CommandMap {
     delete_ai_key: CommandDefinition<{provider: string}, void, 'sensitive'>;
     check_ai_key: CommandDefinition<{provider: string}, boolean, 'sensitive'>;
     check_ai_key_status: CommandDefinition<{provider: string}, AiKeyStatus, 'sensitive'>;
+    get_ai_providers: CommandDefinition<
+        undefined,
+        import('@/types/ai').AiProviderCatalog,
+        'sensitive'
+    >;
+    migrate_ai_providers: CommandDefinition<undefined, void, 'local-admin'>;
     get_ai_models: CommandDefinition<
         {forceRefresh?: boolean} | undefined,
         AiProviderModels,

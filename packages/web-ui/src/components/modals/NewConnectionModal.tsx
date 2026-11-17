@@ -71,6 +71,9 @@ import {
 import {
     parseConnectTimeoutSecs,
     parseQueryTimeoutSecs,
+    hasUnixSockets,
+    isSocketEligible,
+    unixSocketPathIssue,
     updateExtraField,
     withoutBlankSslMode,
 } from '@/utils/connections';
@@ -104,6 +107,7 @@ import {DriverVersionPicker} from './connection/DriverVersionPicker';
 import {InstallGate} from './connection/InstallGate';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {PLUGIN_INSTALL_DEADLINE_MS} from '@/api/pluginLifecycle';
+import {withEnabledExternalDriver} from '@/utils/plugins';
 import {
     resolveEngineSelection,
     type EngineGroup,
@@ -162,6 +166,9 @@ interface ConnectionParams {
     ssh_key_file?: string;
     ssh_key_passphrase?: string;
     ssh_allow_passphrase_prompt?: boolean;
+    // Unix socket at the connection's destination, replacing host:port:
+    // dialed locally without a tunnel, by the SSH server with SSH enabled
+    unix_socket_path?: string;
     save_in_keychain?: boolean;
     // K8s
     k8s_enabled?: boolean;
@@ -300,7 +307,7 @@ export const NewConnectionModal = ({
     const sslModeHintId = useId();
     const defaultDatabaseInputId = useId();
     const defaultDatabaseHintId = useId();
-    const {drivers, refresh: refreshDrivers} = useDrivers();
+    const {drivers, allDrivers, refresh: refreshDrivers} = useDrivers();
     const {settings, updateSetting} = useSettings();
     const {invalidate: invalidateK8sAsync, run: runK8sAsync} = useLatestAsync();
     const {run: runSsmAsync} = useLatestAsync();
@@ -313,7 +320,19 @@ export const NewConnectionModal = ({
 
     // ── form state ──
     const [driver, setDriver] = useState<string>('mysql');
-    const activeDriver = drivers.find((d) => d.id === driver) ?? drivers[0];
+    const activeDriver =
+        drivers.find((d) => d.id === driver) ??
+        allDrivers.find((d) => d.id === driver) ??
+        drivers[0];
+    // The declaration owns the form even if its bundle has not loaded or failed.
+    const hasPluginSetup =
+        activeDriver?.is_builtin !== true &&
+        activeDriver?.ui_extensions?.some(
+            (entry) =>
+                entry.slot === 'connection-modal.setup' &&
+                (!entry.driver || entry.driver === driver),
+        ) === true;
+    const isNewPluginSetup = hasPluginSetup && !isEditing;
     const isLocalPathDriver = isLocalDriver(activeDriver?.capabilities);
     // Capability-driven, not driver-id-driven: a driver whose manifest EXPLICITLY
     // declares the postgres SQL dialect (builtin "postgres" or a plugin like
@@ -348,7 +367,7 @@ export const NewConnectionModal = ({
             // built-in (mysql).
             await updateSetting(
                 'activeExternalDrivers',
-                Array.from(new Set([...(settings.activeExternalDrivers ?? []), slug])),
+                withEnabledExternalDriver(settings.activeExternalDrivers, allDrivers, slug),
             );
             catalogue.refresh();
             refreshDrivers();
@@ -657,6 +676,26 @@ export const NewConnectionModal = ({
         !noConnectionRequired &&
         activeDriver?.capabilities?.file_based === false &&
         !activeDriver?.capabilities?.folder_based;
+    // A local socket needs the driver capability and a platform with Unix
+    // sockets; through SSH the server dials it, so Windows can use that too.
+    const supportsUnixSocket = activeDriver?.capabilities?.unix_socket === true && hasUnixSockets();
+    const tunnelEnabled =
+        !!formData.ssh_enabled || !!formData.k8s_enabled || !!formData.ssm_enabled;
+    const socketPathSet = !!formData.unix_socket_path?.trim();
+    const canUseSocket = isSocketEligible(activeDriver?.capabilities, formData);
+    const socketMode = canUseSocket && formData.unix_socket_path !== undefined;
+    // The socket replaces host:port at the destination: dialed by the SSH
+    // server when SSH is enabled, locally otherwise (capability-gated). K8s
+    // and AWS SSM tunnels ignore it (TCP forwards only).
+    const usesForwardSocket = !!formData.ssh_enabled && socketPathSet;
+    const usesLocalSocket = supportsUnixSocket && !tunnelEnabled && socketPathSet;
+    const usesSocket = usesForwardSocket || usesLocalSocket;
+    const socketPathIssue = unixSocketPathIssue(formData.unix_socket_path ?? '');
+    const socketPathPlaceholder = isPostgresDialect
+        ? '/var/run/postgresql/.s.PGSQL.5432'
+        : formData.ssh_enabled
+          ? '/var/run/mysqld/mysqld.sock'
+          : '/tmp/mysql.sock';
     const k8sDefaultPort = activeDriver?.default_port ?? undefined;
     // Derive K8s ports instead of seeding formData so edit flows with no saved port are covered.
     const getK8sAutoPort = (params: Partial<ConnectionParams>) =>
@@ -1087,6 +1126,21 @@ export const NewConnectionModal = ({
         onClose();
     }, [cancelInlineK8sWork, onClose, resetK8sPathOverrides]);
 
+    const onPluginConnectionCreated = useCallback(async () => {
+        wasSavedRef.current = true;
+        await onSave?.();
+    }, [onSave]);
+    const setupSlotContext = useMemo(
+        () => ({
+            driver,
+            connectionId: initialConnection?.id ?? null,
+            isEditing,
+            onConnectionCreated: onPluginConnectionCreated,
+            onClose: handleClose,
+        }),
+        [driver, initialConnection?.id, isEditing, onPluginConnectionCreated, handleClose],
+    );
+
     const ensureInlineK8sPaths = useCallback(async (): Promise<InlineK8sPathCheck> => {
         if (k8sMode !== 'inline') {
             return {allowed: true};
@@ -1112,7 +1166,9 @@ export const NewConnectionModal = ({
         const startingSnapshot = actionSnapshotRef.current;
 
         try {
-            const inlinePaths = await ensureInlineK8sPaths();
+            const inlinePaths: InlineK8sPathCheck = hasPluginSetup
+                ? {allowed: true}
+                : await ensureInlineK8sPaths();
             if (activeActionRef.current !== actionId) {
                 finishFormAction(actionId);
                 return null;
@@ -1138,7 +1194,7 @@ export const NewConnectionModal = ({
             finishFormAction(actionId);
             throw error;
         }
-    }, [beginFormAction, ensureInlineK8sPaths, finishFormAction, t]);
+    }, [beginFormAction, ensureInlineK8sPaths, finishFormAction, hasPluginSetup, t]);
 
     const withInlineK8sPaths = useCallback(
         (
@@ -1791,17 +1847,22 @@ export const NewConnectionModal = ({
         setLoadingDatabases(true);
         setDatabaseLoadError(null);
         try {
-            const listParamsBase: Partial<ConnectionParams> = {
+            const merged: Partial<ConnectionParams> = {
                 ...formData,
                 ...overrides,
                 driver: effectiveDriver,
-                port:
-                    overrides?.port != null
-                        ? Number(overrides.port)
-                        : formData.port != null
-                          ? Number(formData.port)
-                          : undefined,
             };
+            const effectiveCanUseSocket = isSocketEligible(targetDriver?.capabilities, merged);
+            const effectiveSocketMode =
+                effectiveCanUseSocket && merged.unix_socket_path !== undefined;
+
+            const listParamsBase: Partial<ConnectionParams> = {
+                ...merged,
+                port: merged.port != null ? Number(merged.port) : undefined,
+            };
+            if (!effectiveSocketMode) {
+                delete listParamsBase.unix_socket_path;
+            }
             const listParams: Partial<ConnectionParams> = {
                 ...listParamsBase,
                 k8s_port: resolveK8sPort(listParamsBase),
@@ -2122,10 +2183,15 @@ export const NewConnectionModal = ({
         // explicit intent to use it — activate it so the form resolves it instead of
         // falling back to a built-in. (Not-installed drivers route through the
         // InstallGate, which activates on install.)
-        if (!d.isBuiltin && d.installed) {
+        if (
+            !d.isBuiltin &&
+            d.installed &&
+            settings.activeExternalDrivers != null &&
+            !settings.activeExternalDrivers.includes(d.slug)
+        ) {
             void updateSetting(
                 'activeExternalDrivers',
-                Array.from(new Set([...(settings.activeExternalDrivers ?? []), d.slug])),
+                withEnabledExternalDriver(settings.activeExternalDrivers, allDrivers, d.slug),
             );
         }
     };
@@ -2141,6 +2207,7 @@ export const NewConnectionModal = ({
     };
 
     const testConnection = async () => {
+        if (hasPluginSetup) return false;
         if (step === 'catalogue') return false;
         if (installStatus === 'installing') return false;
         if (activeDriverNotInstalled && activeCatalogueDriver) {
@@ -2187,6 +2254,7 @@ export const NewConnectionModal = ({
                 const testParamsBase: Partial<ConnectionParams> = {
                     driver,
                     ...formData,
+                    unix_socket_path: socketMode ? formData.unix_socket_path : undefined,
                     port: formData.port != null ? Number(formData.port) : undefined,
                     k8s_port: effectiveK8sPort,
                     database: isOptedInMultiDb
@@ -2203,6 +2271,9 @@ export const NewConnectionModal = ({
                             ) ?? '')
                           : formData.database,
                 };
+                if (!socketMode) {
+                    delete testParamsBase.unix_socket_path;
+                }
                 const testParams = withoutBlankSslMode(
                     withInlineK8sPaths(testParamsBase, inlinePaths.options),
                 );
@@ -2332,6 +2403,7 @@ export const NewConnectionModal = ({
     const liveTestStep = testLog.length > 0 ? testLog[testLog.length - 1] : null;
 
     const saveConnection = async () => {
+        if (isNewPluginSetup) return;
         if (step === 'catalogue') return;
         if (installStatus === 'installing') return;
         if (activeDriverNotInstalled && activeCatalogueDriver) {
@@ -2364,19 +2436,19 @@ export const NewConnectionModal = ({
             }
             // The URI embeds credentials, so it may only leave this modal if it can
             // go to the OS keychain. Fail loudly instead of persisting it in plaintext.
-            if (hasConnectionUri && !formData.save_in_keychain) {
+            if (!hasPluginSetup && hasConnectionUri && !formData.save_in_keychain) {
                 setStatus('error');
                 setMessage(t('newConnection.connectionUriRequiresKeychain'));
                 setTestResult('error');
                 return;
             }
-            if (isUriPassthrough && !hasConnectionUri) {
+            if (!hasPluginSetup && isUriPassthrough && !hasConnectionUri) {
                 setStatus('error');
                 setMessage(t('newConnection.connectionUriRequired'));
                 setTestResult('error');
                 return;
             }
-            if (isOptedInMultiDb) {
+            if (!hasPluginSetup && isOptedInMultiDb) {
                 if (!loadAllDatabases && selectedDatabasesState.length === 0) {
                     setStatus('error');
                     setMessage(t('newConnection.noDatabasesSelected'));
@@ -2386,6 +2458,7 @@ export const NewConnectionModal = ({
                     return;
                 }
             } else if (
+                !hasPluginSetup &&
                 !noConnectionRequired &&
                 !singleDatabase &&
                 !databaseField?.hidden &&
@@ -2398,49 +2471,66 @@ export const NewConnectionModal = ({
                 setTestResult('error');
                 return;
             }
-            if (!validateInlineK8sSelection()) return;
-            if (!validateInlineSshSelection()) return;
-            if (!validateInlineSsmSelection()) return;
+            if (!hasPluginSetup) {
+                if (!validateInlineK8sSelection()) return;
+                if (!validateInlineSshSelection()) return;
+                if (!validateInlineSsmSelection()) return;
+            }
 
-            const paramsBase: Partial<ConnectionParams> = {
-                driver,
-                ...formData,
-                port: formData.port != null ? Number(formData.port) : undefined,
-                k8s_port: effectiveK8sPort,
-                database: isOptedInMultiDb
-                    ? loadAllDatabases
-                        ? // "All databases" mode: persisted as an empty database so the
-                          // list is fetched from the server on every connect.
-                          ''
-                        : // A single database selected via the Databases tab collapses to
-                          // a plain string for flat multi-db drivers (MySQL), matching
-                          // how they've always persisted a one-element selection. A
-                          // schema-based multi-db driver (PostgreSQL) must NOT collapse:
-                          // a plain string there is indistinguishable from the
-                          // traditional single-database mode it already had before this
-                          // feature existed, so it always keeps the array shape as the
-                          // opt-in signal — see hasOptedIntoDatabaseSelection.
-                          isFlatMultiDbDriver && selectedDatabasesState.length === 1
-                          ? selectedDatabasesState[0]
-                          : selectedDatabasesState
-                    : singleDatabase
-                      ? typeof formData.database === 'string' && formData.database.trim()
-                          ? formData.database
-                          : driver
-                      : isLocalPathDriver
-                        ? (normalizeLocalDatabasePath(
-                              typeof formData.database === 'string' ||
-                                  Array.isArray(formData.database)
-                                  ? formData.database
-                                  : undefined,
-                          ) ?? formData.database)
-                        : formData.database,
-                // Saved in both modes so editing shows it again; the backend only
-                // sends it while no database is selected. Other drivers never save it.
-                default_database: defaultDatabase || undefined,
-            };
-            const params = withoutBlankSslMode(
-                withInlineK8sPaths(paramsBase, inlinePaths.options),
+            const paramsBase: Partial<ConnectionParams> = hasPluginSetup
+                ? {
+                      // Metadata edits preserve the saved binding without round-tripping
+                      // credentials from the hidden standard connection form.
+                      ...initialConnection?.params,
+                      driver,
+                      // Initialization projects multi-database selections into UI state;
+                      // provider metadata edits must keep the original binding intact.
+                      database: initialConnection?.params.database ?? formData.database,
+                  }
+                : {
+                      driver,
+                      ...formData,
+                      unix_socket_path: socketMode ? formData.unix_socket_path : undefined,
+                      port: formData.port != null ? Number(formData.port) : undefined,
+                      k8s_port: effectiveK8sPort,
+                      database: isOptedInMultiDb
+                          ? loadAllDatabases
+                              ? // "All databases" mode: persisted as an empty database so the
+                                // list is fetched from the server on every connect.
+                                ''
+                              : // A single database selected via the Databases tab collapses to
+                                // a plain string for flat multi-db drivers (MySQL), matching
+                                // how they've always persisted a one-element selection. A
+                                // schema-based multi-db driver (PostgreSQL) must NOT collapse:
+                                // a plain string there is indistinguishable from the
+                                // traditional single-database mode it already had before this
+                                // feature existed, so it always keeps the array shape as the
+                                // opt-in signal — see hasOptedIntoDatabaseSelection.
+                                isFlatMultiDbDriver && selectedDatabasesState.length === 1
+                                ? selectedDatabasesState[0]
+                                : selectedDatabasesState
+                          : singleDatabase
+                            ? typeof formData.database === 'string' && formData.database.trim()
+                                ? formData.database
+                                : driver
+                            : isLocalPathDriver
+                              ? (normalizeLocalDatabasePath(
+                                    typeof formData.database === 'string' ||
+                                        Array.isArray(formData.database)
+                                        ? formData.database
+                                        : undefined,
+                                ) ?? formData.database)
+                              : formData.database,
+                      // Persist the generic driver's optional default; provider edits retain their saved binding above.
+                      default_database: defaultDatabase || undefined,
+                  };
+            if (!hasPluginSetup && !socketMode) {
+                delete paramsBase.unix_socket_path;
+            }
+            const params = (
+                hasPluginSetup
+                    ? paramsBase
+                    : withoutBlankSslMode(withInlineK8sPaths(paramsBase, inlinePaths.options))
             ) as ConnectionParams;
             if (params.read_only && !supportsReadOnlyQueries(activeDriver?.capabilities)) {
                 setStatus('error');
@@ -2631,6 +2721,10 @@ export const NewConnectionModal = ({
             );
 
             const driverChanged = newDriver !== driver;
+            // The socket field is hidden on Windows (unless the SSH server dials it)
+            // or when a TCP-only tunnel (K8s, SSM) is active, so an imported path
+            // would be saved with no way to see or fix it.
+            const socketFieldAvailable = isSocketEligible(parsedDriver?.capabilities, formData);
             const parsedFields: Partial<ConnectionParams> = {
                 driver: newDriver,
                 host: parsed.host || 'localhost',
@@ -2643,6 +2737,9 @@ export const NewConnectionModal = ({
                 database: parsed.database || '',
                 connection_uri: parsed.connection_uri,
                 connection_uri_in_keychain: false,
+                // `?socket=` switches the form to the socket endpoint; a string
+                // without it goes back to host and port.
+                unix_socket_path: socketFieldAvailable ? parsed.unix_socket_path : undefined,
             };
 
             const importingMysql =
@@ -2936,42 +3033,119 @@ export const NewConnectionModal = ({
                         </div>
                     )}
 
-                    {!isUriPassthrough && (!hostField?.hidden || !portField?.hidden) && (
+                    {/* DataGrip-style endpoint type selector. */}
+                    {canUseSocket && (
                         <div
-                            className={clsx(
-                                'grid gap-3',
-                                !hostField?.hidden && !portField?.hidden
-                                    ? isPostgresDialect
-                                        ? 'grid-cols-4'
-                                        : 'grid-cols-3'
-                                    : 'grid-cols-1',
-                            )}
+                            role="group"
+                            aria-label={`${t('newConnection.host')} / ${t('newConnection.socketPath')}`}
+                            className="grid grid-cols-2 gap-1 p-1 bg-base border border-strong rounded-md"
                         >
-                            {!hostField?.hidden && (
-                                <FieldInput
-                                    className={!portField?.hidden ? 'col-span-2' : undefined}
-                                    label={hostField?.label ?? t('newConnection.host')}
-                                    value={formData.host}
-                                    onChange={(v) => updateField('host', v)}
-                                    placeholder={hostField?.placeholder ?? 'localhost'}
-                                />
+                            <button
+                                type="button"
+                                aria-pressed={!socketMode}
+                                onClick={() => updateField('unix_socket_path', undefined)}
+                                className={clsx(
+                                    'px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                                    !socketMode
+                                        ? 'bg-surface-secondary text-primary shadow-sm'
+                                        : 'text-muted hover:text-secondary hover:bg-surface-secondary/50',
+                                )}
+                            >
+                                {t('newConnection.host')} / {t('newConnection.port')}
+                            </button>
+                            <button
+                                type="button"
+                                aria-pressed={socketMode}
+                                onClick={() =>
+                                    updateField('unix_socket_path', socketPathPlaceholder)
+                                }
+                                className={clsx(
+                                    'px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                                    socketMode
+                                        ? 'bg-surface-secondary text-primary shadow-sm'
+                                        : 'text-muted hover:text-secondary hover:bg-surface-secondary/50',
+                                )}
+                            >
+                                {t('newConnection.socketPath')}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Unix socket instead of host:port: dialed locally (capability-gated)
+                        or by the SSH server when the tunnel is enabled. */}
+                    {socketMode && (
+                        <div className="flex flex-col gap-1">
+                            <FieldInput
+                                label={t('newConnection.socketPath')}
+                                value={formData.unix_socket_path}
+                                onChange={(v) => updateField('unix_socket_path', v)}
+                                placeholder={socketPathPlaceholder}
+                            />
+                            {socketPathIssue === 'notAbsolute' && (
+                                <p className="text-[10px] text-accent-warning flex items-center gap-1 mt-0.5">
+                                    <AlertCircle size={10} />{' '}
+                                    {t('newConnection.socketPathNotAbsolute')}
+                                </p>
                             )}
-                            {!portField?.hidden && (
-                                <FieldInput
-                                    label={portField?.label ?? t('newConnection.port')}
-                                    value={formData.port}
-                                    onChange={(v) =>
-                                        updateField('port', v === '' ? undefined : Number(v))
-                                    }
-                                    type="number"
-                                    placeholder={
-                                        portField?.placeholder ??
-                                        (driver === 'mysql' ? '3306' : '5432')
-                                    }
-                                />
+                            {socketPathIssue === 'looksLikeDirectory' && (
+                                <p className="text-[10px] text-accent-warning flex items-center gap-1 mt-0.5">
+                                    <AlertCircle size={10} />{' '}
+                                    {t('newConnection.socketPathDirectory')}
+                                </p>
+                            )}
+                            {!socketPathIssue && (
+                                <p className="text-[10px] text-muted mt-0.5">
+                                    {formData.ssh_enabled
+                                        ? usesForwardSocket
+                                            ? t('newConnection.socketPathForwardActive')
+                                            : t('newConnection.socketPathForwardHint')
+                                        : usesLocalSocket
+                                          ? t('newConnection.socketPathActive')
+                                          : t('newConnection.socketPathHint')}
+                                </p>
                             )}
                         </div>
                     )}
+
+                    {/* A Unix socket replaces the database host and port entirely. */}
+                    {!isUriPassthrough &&
+                        !socketMode &&
+                        (!hostField?.hidden || !portField?.hidden) && (
+                            <div
+                                className={clsx(
+                                    'grid gap-3',
+                                    !hostField?.hidden && !portField?.hidden
+                                        ? isPostgresDialect
+                                            ? 'grid-cols-4'
+                                            : 'grid-cols-3'
+                                        : 'grid-cols-1',
+                                )}
+                            >
+                                {!hostField?.hidden && (
+                                    <FieldInput
+                                        className={!portField?.hidden ? 'col-span-2' : undefined}
+                                        label={hostField?.label ?? t('newConnection.host')}
+                                        value={formData.host}
+                                        onChange={(v) => updateField('host', v)}
+                                        placeholder={hostField?.placeholder ?? 'localhost'}
+                                    />
+                                )}
+                                {!portField?.hidden && (
+                                    <FieldInput
+                                        label={portField?.label ?? t('newConnection.port')}
+                                        value={formData.port}
+                                        onChange={(v) =>
+                                            updateField('port', v === '' ? undefined : Number(v))
+                                        }
+                                        type="number"
+                                        placeholder={
+                                            portField?.placeholder ??
+                                            (driver === 'mysql' ? '3306' : '5432')
+                                        }
+                                    />
+                                )}
+                            </div>
+                        )}
 
                     {/* Plugin-owned extra connection fields (opaque `extra` map) */}
                     <SlotAnchor
@@ -3046,7 +3220,9 @@ export const NewConnectionModal = ({
                                             onClick={() => {
                                                 void loadDatabases();
                                             }}
-                                            disabled={loadingDatabases || !formData.host}
+                                            disabled={
+                                                loadingDatabases || (!formData.host && !usesSocket)
+                                            }
                                             className="flex items-center gap-1 text-xs text-accent disabled:text-muted disabled:cursor-not-allowed transition-colors"
                                         >
                                             {loadingDatabases ? (
@@ -3485,7 +3661,7 @@ export const NewConnectionModal = ({
                             onClick={() => {
                                 void loadDatabases();
                             }}
-                            disabled={loadingDatabases || !formData.host}
+                            disabled={loadingDatabases || (!formData.host && !usesSocket)}
                             className="flex items-center gap-1 text-xs text-accent disabled:text-muted disabled:cursor-not-allowed transition-colors shrink-0"
                         >
                             {loadingDatabases ? (
@@ -4640,6 +4816,10 @@ export const NewConnectionModal = ({
                                 defaultValue: 'Install driver',
                             })}
                         </h2>
+                    ) : step === 'form' && isNewPluginSetup ? (
+                        <h2 className="flex-1 truncate text-base font-semibold text-primary">
+                            {activeDriver?.name ?? driver}
+                        </h2>
                     ) : step === 'form' ? (
                         <>
                             <div
@@ -4680,7 +4860,7 @@ export const NewConnectionModal = ({
                         </h2>
                     )}
 
-                    {step === 'form' && !activeDriverNotInstalled && (
+                    {step === 'form' && !activeDriverNotInstalled && !isNewPluginSetup && (
                         <>
                             <EnvironmentSelect value={environment} onChange={setEnvironment} />
                             <span className="text-xs text-muted bg-surface-secondary px-2 py-0.5 rounded-full font-medium capitalize">
@@ -4835,187 +5015,216 @@ export const NewConnectionModal = ({
                         </div>
 
                         {/* Tab bar */}
-                        <div className="relative">
-                            <div
-                                ref={tabBarRef}
-                                onScroll={updateTabFade}
-                                style={{
-                                    maskImage:
-                                        tabFade.left || tabFade.right
-                                            ? `linear-gradient(to right, ${tabFade.left ? 'transparent' : 'black'}, black 28px, black calc(100% - 28px), ${tabFade.right ? 'transparent' : 'black'})`
-                                            : undefined,
-                                    WebkitMaskImage:
-                                        tabFade.left || tabFade.right
-                                            ? `linear-gradient(to right, ${tabFade.left ? 'transparent' : 'black'}, black 28px, black calc(100% - 28px), ${tabFade.right ? 'transparent' : 'black'})`
-                                            : undefined,
-                                }}
-                                className="flex items-center border-b border-default px-5 bg-base/50 overflow-x-auto no-scrollbar scroll-smooth"
-                            >
-                                {(
-                                    [
-                                        {
-                                            id: 'general',
-                                            label: t('newConnection.general', {
-                                                defaultValue: 'General',
-                                            }),
-                                        },
-                                        ...(isOptedInMultiDb
-                                            ? [
-                                                  {
-                                                      id: 'databases',
-                                                      label: t('newConnection.selectDatabases'),
-                                                  },
-                                              ]
-                                            : []),
-                                        ...(activeDriver?.capabilities?.supports_ssl &&
-                                        isNetworkDriver
-                                            ? [{id: 'ssl', label: 'SSL'}]
-                                            : []),
-                                        ...(isNetworkDriver ? [{id: 'ssh', label: 'SSH'}] : []),
-                                        ...(isNetworkDriver
-                                            ? [{id: 'k8s', label: 'Kubernetes'}]
-                                            : []),
-                                        ...(isNetworkDriver ? [{id: 'ssm', label: 'AWS SSM'}] : []),
-                                        {
-                                            id: 'advanced',
-                                            label: t('newConnection.advanced', {
-                                                defaultValue: 'Advanced',
-                                            }),
-                                        },
-                                        {
-                                            id: 'appearance',
-                                            label: t('newConnection.appearance', {
-                                                defaultValue: 'Appearance',
-                                            }),
-                                        },
-                                        // Masking overrides are keyed by the saved connection id,
-                                        // so the Privacy tab only exists when editing.
-                                        ...(isEditing
-                                            ? [{id: 'privacy', label: t('settings.privacy')}]
-                                            : []),
-                                    ] as {
-                                        id:
-                                            | 'general'
-                                            | 'databases'
-                                            | 'ssh'
-                                            | 'ssl'
-                                            | 'k8s'
-                                            | 'ssm'
-                                            | 'advanced'
-                                            | 'appearance'
-                                            | 'privacy';
-                                        label: string;
-                                    }[]
-                                ).map((tab) => (
+                        {!isNewPluginSetup && (
+                            <div className="relative">
+                                <div
+                                    ref={tabBarRef}
+                                    onScroll={updateTabFade}
+                                    style={{
+                                        maskImage:
+                                            tabFade.left || tabFade.right
+                                                ? `linear-gradient(to right, ${tabFade.left ? 'transparent' : 'black'}, black 28px, black calc(100% - 28px), ${tabFade.right ? 'transparent' : 'black'})`
+                                                : undefined,
+                                        WebkitMaskImage:
+                                            tabFade.left || tabFade.right
+                                                ? `linear-gradient(to right, ${tabFade.left ? 'transparent' : 'black'}, black 28px, black calc(100% - 28px), ${tabFade.right ? 'transparent' : 'black'})`
+                                                : undefined,
+                                    }}
+                                    className="flex items-center border-b border-default px-5 bg-base/50 overflow-x-auto no-scrollbar scroll-smooth"
+                                >
+                                    {(
+                                        [
+                                            {
+                                                id: 'general',
+                                                label: t('newConnection.general', {
+                                                    defaultValue: 'General',
+                                                }),
+                                            },
+                                            ...(isOptedInMultiDb
+                                                ? [
+                                                      {
+                                                          id: 'databases',
+                                                          label: t('newConnection.selectDatabases'),
+                                                      },
+                                                  ]
+                                                : []),
+                                            ...(activeDriver?.capabilities?.supports_ssl &&
+                                            isNetworkDriver
+                                                ? [{id: 'ssl', label: 'SSL'}]
+                                                : []),
+                                            ...(isNetworkDriver ? [{id: 'ssh', label: 'SSH'}] : []),
+                                            ...(isNetworkDriver
+                                                ? [{id: 'k8s', label: 'Kubernetes'}]
+                                                : []),
+                                            ...(isNetworkDriver
+                                                ? [{id: 'ssm', label: 'AWS SSM'}]
+                                                : []),
+                                            {
+                                                id: 'advanced',
+                                                label: t('newConnection.advanced', {
+                                                    defaultValue: 'Advanced',
+                                                }),
+                                            },
+                                            {
+                                                id: 'appearance',
+                                                label: t('newConnection.appearance', {
+                                                    defaultValue: 'Appearance',
+                                                }),
+                                            },
+                                            // Masking overrides are keyed by the saved connection id,
+                                            // so the Privacy tab only exists when editing.
+                                            ...(isEditing
+                                                ? [{id: 'privacy', label: t('settings.privacy')}]
+                                                : []),
+                                        ] as {
+                                            id:
+                                                | 'general'
+                                                | 'databases'
+                                                | 'ssh'
+                                                | 'ssl'
+                                                | 'k8s'
+                                                | 'ssm'
+                                                | 'advanced'
+                                                | 'appearance'
+                                                | 'privacy';
+                                            label: string;
+                                        }[]
+                                    )
+                                        .filter(
+                                            (tab) =>
+                                                !hasPluginSetup ||
+                                                ['general', 'appearance', 'privacy'].includes(
+                                                    tab.id,
+                                                ),
+                                        )
+                                        .map((tab) => (
+                                            <button
+                                                key={tab.id}
+                                                data-active={activeTab === tab.id}
+                                                onClick={() => setActiveTab(tab.id)}
+                                                className={clsx(
+                                                    'cursor-pointer flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px',
+                                                    activeTab === tab.id
+                                                        ? 'border-accent-primary text-accent'
+                                                        : 'border-transparent text-muted hover:text-secondary',
+                                                )}
+                                            >
+                                                {tab.label}
+                                                {tab.id === 'databases' &&
+                                                    !loadAllDatabases &&
+                                                    selectedDatabasesState.length > 0 && (
+                                                        <span className="ml-1.5 text-[9px] bg-accent-primary/20 text-accent px-1.5 py-0.5 rounded-full">
+                                                            {selectedDatabasesState.length}
+                                                        </span>
+                                                    )}
+                                                {tab.id === 'databases' &&
+                                                    databasesTabError &&
+                                                    selectedDatabasesState.length === 0 && (
+                                                        <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent-error" />
+                                                    )}
+                                                {tab.id === 'ssh' && sshTabError && (
+                                                    <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent-error" />
+                                                )}
+                                            </button>
+                                        ))}
+                                </div>
+                                {tabFade.left && (
                                     <button
-                                        key={tab.id}
-                                        data-active={activeTab === tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={clsx(
-                                            'cursor-pointer flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px',
-                                            activeTab === tab.id
-                                                ? 'border-accent-primary text-accent'
-                                                : 'border-transparent text-muted hover:text-secondary',
-                                        )}
+                                        type="button"
+                                        aria-label={t('newConnection.scrollTabsLeft', {
+                                            defaultValue: 'Scroll tabs left',
+                                        })}
+                                        onClick={() => scrollTabs(-1)}
+                                        className="absolute left-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
                                     >
-                                        {tab.label}
-                                        {tab.id === 'databases' &&
-                                            !loadAllDatabases &&
-                                            selectedDatabasesState.length > 0 && (
-                                                <span className="ml-1.5 text-[9px] bg-accent-primary/20 text-accent px-1.5 py-0.5 rounded-full">
-                                                    {selectedDatabasesState.length}
-                                                </span>
-                                            )}
-                                        {tab.id === 'databases' &&
-                                            databasesTabError &&
-                                            selectedDatabasesState.length === 0 && (
-                                                <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent-error" />
-                                            )}
-                                        {tab.id === 'ssh' && sshTabError && (
-                                            <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent-error" />
-                                        )}
+                                        <ChevronLeft size={14} />
                                     </button>
-                                ))}
+                                )}
+                                {tabFade.right && (
+                                    <button
+                                        type="button"
+                                        aria-label={t('newConnection.scrollTabsRight', {
+                                            defaultValue: 'Scroll tabs right',
+                                        })}
+                                        onClick={() => scrollTabs(1)}
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
+                                    >
+                                        <ChevronRight size={14} />
+                                    </button>
+                                )}
                             </div>
-                            {tabFade.left && (
-                                <button
-                                    type="button"
-                                    aria-label={t('newConnection.scrollTabsLeft', {
-                                        defaultValue: 'Scroll tabs left',
-                                    })}
-                                    onClick={() => scrollTabs(-1)}
-                                    className="absolute left-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
-                                >
-                                    <ChevronLeft size={14} />
-                                </button>
-                            )}
-                            {tabFade.right && (
-                                <button
-                                    type="button"
-                                    aria-label={t('newConnection.scrollTabsRight', {
-                                        defaultValue: 'Scroll tabs right',
-                                    })}
-                                    onClick={() => scrollTabs(1)}
-                                    className="absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
-                                >
-                                    <ChevronRight size={14} />
-                                </button>
-                            )}
-                        </div>
+                        )}
 
                         {/* Tab content */}
                         <div className="flex-1 overflow-y-auto p-5">
-                            {activeTab === 'general'
-                                ? generalTabContent
-                                : activeTab === 'databases'
-                                  ? databasesTabContent
-                                  : activeTab === 'ssl'
-                                    ? sslTabContent
-                                    : activeTab === 'k8s'
-                                      ? k8sTabContent
-                                      : activeTab === 'ssm'
-                                        ? ssmTabContent
-                                        : activeTab === 'ssh'
-                                          ? sshTabContent
-                                          : activeTab === 'advanced'
-                                            ? advancedTabContent
-                                            : activeTab === 'privacy'
-                                              ? privacyTabContent
-                                              : appearanceTabContent}
+                            {hasPluginSetup && (isNewPluginSetup || activeTab === 'general') ? (
+                                <SlotAnchor
+                                    name="connection-modal.setup"
+                                    context={setupSlotContext}
+                                    pluginId={driver}
+                                    fallback={
+                                        <p role="status" className="text-sm text-secondary">
+                                            {t('pluginWorkspace.unavailable')}
+                                        </p>
+                                    }
+                                />
+                            ) : activeTab === 'general' ? (
+                                generalTabContent
+                            ) : activeTab === 'databases' ? (
+                                databasesTabContent
+                            ) : activeTab === 'ssl' ? (
+                                sslTabContent
+                            ) : activeTab === 'k8s' ? (
+                                k8sTabContent
+                            ) : activeTab === 'ssm' ? (
+                                ssmTabContent
+                            ) : activeTab === 'ssh' ? (
+                                sshTabContent
+                            ) : activeTab === 'advanced' ? (
+                                advancedTabContent
+                            ) : activeTab === 'privacy' ? (
+                                privacyTabContent
+                            ) : (
+                                appearanceTabContent
+                            )}
                         </div>
                     </div>
                 )}
 
                 {/* ── Footer: test status + actions (form step only) ── */}
-                {step === 'form' && !activeDriverNotInstalled && (
+                {step === 'form' && !activeDriverNotInstalled && !isNewPluginSetup && (
                     <div className="border-t border-default bg-base">
                         <div className="px-5 py-3 flex items-center gap-3">
                             {/* Test button */}
-                            <button
-                                onClick={testConnection}
-                                disabled={
-                                    isActionPending || status === 'testing' || status === 'saving'
-                                }
-                                className={clsx(
-                                    'flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors disabled:opacity-50',
-                                    testResult === 'success'
-                                        ? 'border-accent-success/50 bg-accent-success/10 text-accent-success'
-                                        : testResult === 'error'
-                                          ? 'border-accent-error/50 bg-accent-error/10 text-accent-error'
-                                          : 'border-strong bg-elevated text-secondary hover:text-primary hover:bg-surface-secondary',
-                                )}
-                            >
-                                {status === 'testing' ? (
-                                    <Loader2 size={14} className="animate-spin" />
-                                ) : testResult === 'success' ? (
-                                    <Check size={14} />
-                                ) : testResult === 'error' ? (
-                                    <XCircle size={14} />
-                                ) : (
-                                    <Plug size={14} />
-                                )}
-                                {t('newConnection.testConnection')}
-                            </button>
+                            {!hasPluginSetup && (
+                                <button
+                                    onClick={testConnection}
+                                    disabled={
+                                        isActionPending ||
+                                        status === 'testing' ||
+                                        status === 'saving'
+                                    }
+                                    className={clsx(
+                                        'flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors disabled:opacity-50',
+                                        testResult === 'success'
+                                            ? 'border-accent-success/50 bg-accent-success/10 text-accent-success'
+                                            : testResult === 'error'
+                                              ? 'border-accent-error/50 bg-accent-error/10 text-accent-error'
+                                              : 'border-strong bg-elevated text-secondary hover:text-primary hover:bg-surface-secondary',
+                                    )}
+                                >
+                                    {status === 'testing' ? (
+                                        <Loader2 size={14} className="animate-spin" />
+                                    ) : testResult === 'success' ? (
+                                        <Check size={14} />
+                                    ) : testResult === 'error' ? (
+                                        <XCircle size={14} />
+                                    ) : (
+                                        <Plug size={14} />
+                                    )}
+                                    {t('newConnection.testConnection')}
+                                </button>
+                            )}
 
                             {/* Stop button (only while a test is running) */}
                             {status === 'testing' && (

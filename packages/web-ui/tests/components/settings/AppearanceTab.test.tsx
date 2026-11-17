@@ -82,6 +82,27 @@ describe('AppearanceTab theme mode', () => {
         appearanceSettings = {};
     });
 
+    it.each(['none', 'selection', 'all'] as const)(
+        'saves whitespace mode %s independently of Unicode highlighting',
+        async (mode) => {
+            const user = userEvent.setup();
+            render(
+                <MemoryRouter>
+                    <AppearanceTab />
+                </MemoryRouter>,
+            );
+            await user.click(screen.getByRole('button', {name: 'settings.appearance_sqlEditor'}));
+            expect(
+                screen.getByRole('button', {name: 'settings.appearance_whitespaceSelection'}),
+            ).toHaveAttribute('aria-pressed', 'true');
+            const labels = {none: 'None', selection: 'Selection', all: 'All'};
+            await user.click(
+                screen.getByRole('button', {name: `settings.appearance_whitespace${labels[mode]}`}),
+            );
+            expect(updateSetting).toHaveBeenCalledExactlyOnceWith('editorRenderWhitespace', mode);
+        },
+    );
+
     it('disables theme choices while preferences are hydrating', () => {
         loading = true;
         render(

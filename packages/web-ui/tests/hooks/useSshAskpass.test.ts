@@ -1,6 +1,6 @@
 import {createElement, type ReactNode} from 'react';
 import {describe, it, expect, vi, beforeEach} from 'vitest';
-import {renderHook as renderHookBase, act} from '@testing-library/react';
+import {renderHook as renderHookBase, act, waitFor} from '@testing-library/react';
 import {listen, type EventCallback} from '@tauri-apps/api/event';
 import {invoke} from '@tauri-apps/api/core';
 import {TabularisClient} from '@/api/client';
@@ -55,6 +55,42 @@ describe('useSshAskpass', () => {
     it('starts with no pending prompt', () => {
         const {result} = renderHook(() => useSshAskpass());
         expect(result.current.current).toBeNull();
+    });
+
+    it('handles rejected subscriptions while mounted without unhandled rejections', async () => {
+        const error = new Error('The session is not authorized for this event');
+        listenMock.mockRejectedValue(error);
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            const {result, unmount} = renderHook(() => useSshAskpass());
+            await waitFor(() => expect(logged).toHaveBeenCalledTimes(2));
+            expect(logged).toHaveBeenCalledWith(
+                'Failed to subscribe to SSH askpass requests:',
+                expect.objectContaining({message: error.message}),
+            );
+            expect(logged).toHaveBeenCalledWith(
+                'Failed to subscribe to SSH askpass dismissals:',
+                expect.objectContaining({message: error.message}),
+            );
+            expect(result.current.current).toBeNull();
+            unmount();
+        } finally {
+            logged.mockRestore();
+        }
+    });
+
+    it('releases subscriptions that finish after unmount', async () => {
+        const releases = [vi.fn(), vi.fn()];
+        const resolveListeners: Array<(unlisten: () => void) => void> = [];
+        listenMock.mockImplementation(
+            () => new Promise((resolve) => resolveListeners.push(resolve)),
+        );
+        const {unmount} = renderHook(() => useSshAskpass());
+        unmount();
+        await act(async () => {
+            resolveListeners.forEach((resolve, index) => resolve(releases[index]));
+        });
+        releases.forEach((release) => expect(release).toHaveBeenCalledOnce());
     });
 
     it('exposes a prompt received via the request event', () => {

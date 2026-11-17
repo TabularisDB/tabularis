@@ -18,6 +18,14 @@ pub enum WebAuthMode {
     Proxy,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum WebConnectionMode {
+    /// Users manage their own connections (default).
+    Standalone,
+    /// Every connection on the instance is supplied by an administrator.
+    ManagedOnly,
+}
+
 #[derive(Parser, Debug)]
 #[command(
     version,
@@ -58,6 +66,10 @@ pub enum Command {
 
 #[derive(Debug, ClapArgs)]
 pub struct WebArgs {
+    /// Public mount path; the reverse proxy must strip it from upstream requests
+    #[arg(long, value_name = "PATH")]
+    pub base_path: Option<String>,
+
     /// Address for the Web UI server to bind
     #[arg(long, value_name = "HOST", default_value = "127.0.0.1")]
     pub host: String,
@@ -104,6 +116,23 @@ pub struct WebArgs {
     #[arg(long, requires = "auth")]
     pub allow_high_risk: bool,
 
+    /// Who controls connections on this instance. In `managed-only` mode users
+    /// cannot create, change, import, export or test connections; every
+    /// authenticated user shares all of the instance's connections, so run a
+    /// separate instance for each group of users. Requires `--auth`, stored
+    /// credentials of at least 4 characters, and cannot be combined with
+    /// `--allow-high-risk`
+    #[arg(long, value_name = "MODE", value_enum)]
+    pub connection_mode: Option<WebConnectionMode>,
+
+    /// In managed-only mode, let users change connection appearance and icons
+    #[arg(long, requires = "connection_mode")]
+    pub managed_allow_branding: bool,
+
+    /// In managed-only mode, let users change connection groups and tags
+    #[arg(long, requires = "connection_mode")]
+    pub managed_allow_organization: bool,
+
     /// Allow the Web UI to browse this server directory; repeat as needed
     #[arg(
         long = "server-file-browser-root",
@@ -111,6 +140,23 @@ pub struct WebArgs {
         action = clap::ArgAction::Append
     )]
     pub server_file_browser_roots: Vec<PathBuf>,
+}
+
+impl WebArgs {
+    /// Standalone unless `--connection-mode managed-only` is given. The two
+    /// switches only apply in managed-only mode.
+    pub fn connection_policy(&self) -> crate::application::ManagedConnectionPolicy {
+        match self.connection_mode {
+            Some(WebConnectionMode::ManagedOnly) => {
+                crate::application::ManagedConnectionPolicy::managed_only()
+                    .with_branding_allowed(self.managed_allow_branding)
+                    .with_organization_allowed(self.managed_allow_organization)
+            }
+            Some(WebConnectionMode::Standalone) | None => {
+                crate::application::ManagedConnectionPolicy::standalone()
+            }
+        }
+    }
 }
 
 impl Args {

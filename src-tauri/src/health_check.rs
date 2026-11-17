@@ -15,9 +15,6 @@ pub(crate) static PING_STOP_TX: Lazy<Mutex<Option<oneshot::Sender<()>>>> =
 /// Default ping interval in seconds.
 pub const DEFAULT_PING_INTERVAL: u32 = 30;
 
-/// Number of consecutive failures before disconnecting.
-pub(crate) const FAILURE_THRESHOLD: u32 = 2;
-
 /// Per-ping timeout.
 pub(crate) const PING_TIMEOUT: Duration = Duration::from_secs(5);
 

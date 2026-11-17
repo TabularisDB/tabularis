@@ -4,6 +4,7 @@
 #![cfg_attr(not(feature = "desktop"), allow(unused_imports, dead_code))]
 
 pub mod ai;
+pub mod ai_assistants;
 pub mod ai_activity;
 #[cfg(test)]
 pub mod ai_activity_lexer_tests;
@@ -101,6 +102,9 @@ pub mod saved_queries_tests;
 pub mod saved_query_folders;
 #[cfg(test)]
 pub mod saved_query_folders_tests;
+pub mod schema_notes;
+#[cfg(test)]
+pub mod schema_notes_tests;
 pub mod secret_store;
 pub mod sql_database_statements;
 pub mod sql_file;
@@ -109,9 +113,11 @@ pub mod sql_file_tests;
 pub mod sqlite_database;
 #[cfg(test)]
 pub mod sqlite_database_tests;
+pub mod ssh_socks5;
 pub mod ssh_tunnel;
 pub mod ssm_tunnel;
 pub mod storage_location;
+pub mod table_transfer;
 #[cfg(test)]
 pub mod storage_location_tests;
 
@@ -228,6 +234,7 @@ pub fn run() {
 
             let server_result =
                 transport::web::server::run(transport::web::server::WebServerOptions {
+                    base_path: web_args.base_path.clone(),
                     trusted_proxies: web_args.trusted_proxies.clone(),
                     host: web_args.host.clone(),
                     port: web_args.port,
@@ -239,6 +246,7 @@ pub fn run() {
                     public_url: web_args.public_url.clone(),
                     allowed_origins: web_args.allowed_origins.clone(),
                     allow_high_risk: web_args.allow_high_risk,
+                    connection_policy: web_args.connection_policy(),
                     server_file_browser_roots: web_args.server_file_browser_roots.clone(),
                     application: application_api,
                     events: web_events,

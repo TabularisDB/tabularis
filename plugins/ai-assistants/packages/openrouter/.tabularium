@@ -1,0 +1,79 @@
+{
+  "id": "openrouter",
+  "name": "OpenRouter",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "OpenRouter AI assistant for Tabularis.",
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "default_models": [
+      "openai/gpt-5.5",
+      "openai/gpt-5.4",
+      "openai/gpt-5.4-mini",
+      "openai/gpt-4o",
+      "openai/gpt-4o-mini",
+      "google/gemini-3-pro-preview",
+      "google/gemini-3-flash-preview",
+      "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash",
+      "google/gemini-2.5-flash-lite",
+      "google/gemini-2.0-flash-001",
+      "anthropic/claude-fable-5",
+      "anthropic/claude-opus-4-8",
+      "anthropic/claude-sonnet-4-6",
+      "anthropic/claude-haiku-4-5",
+      "deepseek/deepseek-v3.2",
+      "openai/gpt-oss-120b:free",
+      "z-ai/glm-4.5-air:free"
+    ],
+    "api_key_env": "OPENROUTER_API_KEY",
+    "generate": {
+      "requests": [
+        {
+          "url": "https://openrouter.ai/api/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.0
+          },
+          "append_path": "/chat/completions",
+          "headers": {
+            "HTTP-Referer": "https://github.com/TabularisDB/tabularis",
+            "X-Title": "Tabularis"
+          }
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://openrouter.ai/api/v1",
+            "append_path": "/models",
+            "authenticated": false
+          },
+          "items_path": "/data",
+          "id_path": "/id"
+        }
+      ],
+      "cache_seconds": 86400
+    },
+    "auto_select_priority": 30
+  },
+  "settings": [],
+  "license": "Apache-2.0",
+  "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzY0NjdmMiIgLz48c3ZnIHZpZXdCb3g9Ii00NSAzMi4yMyA1NTYuNSA0MzMuNDgiIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0iI2ZmZmZmZiIgeD0iNCIgeT0iNCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0Ij48cGF0aCBkPSJNMyAyNDguOTQ1QzE4IDI0OC45NDUgNzYgMjM2IDEwNiAyMTlDMTM2IDIwMiAxMzYgMjAyIDE5OCAxNThDMjc2LjQ5NyAxMDIuMjkzIDMzMiAxMjAuOTQ1IDQyMyAxMjAuOTQ1IiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjkwIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+PHBhdGggZD0iTTAgMjQ5QzE1IDI0OSA3MyAyNjEuOTQ1IDEwMyAyNzguOTQ1QzEzMyAyOTUuOTQ1IDEzMyAyOTUuOTQ1IDE5NSAzMzkuOTQ1QzI3My40OTcgMzk1LjY1MiAzMjkgMzc3IDQyMCAzNzciIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iOTAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz48cGF0aCBkPSJNNTExIDEyMS41TDM1Ny4yNSAyMTAuMjY4TDM1Ny4yNSAzMi43MzI0TDUxMSAxMjEuNVoiIHN0cm9rZT0ibm9uZSIgLz48cGF0aCBkPSJNNTA4IDM3Ni40NDVMMzU0LjI1IDI4Ny42NzhMMzU0LjI1IDQ2NS4yMTNMNTA4IDM3Ni40NDVaIiBzdHJva2U9Im5vbmUiIC8+PC9zdmc+PC9zdmc+Cg=="
+}

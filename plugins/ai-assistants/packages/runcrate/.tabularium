@@ -1,0 +1,67 @@
+{
+  "id": "runcrate",
+  "name": "Runcrate",
+  "version": "1.0.0",
+  "kind": "ai-assistant",
+  "description": "Runcrate AI assistant for Tabularis.",
+  "settings": [],
+  "ai_assistant": {
+    "api_version": 1,
+    "authentication": "api-key",
+    "api_key_env": "RUNCRATE_API_KEY",
+    "default_models": [
+      "deepseek-ai/DeepSeek-V4.1-Flash",
+      "zai-org/GLM-5.3-Flash",
+      "zai-org/GLM-5.3",
+      "Qwen/Qwen3.8-Flash",
+      "openai/gpt-oss-120b",
+      "moonshotai/Kimi-K2.6"
+    ],
+    "generate": {
+      "requests": [
+        {
+          "url": "https://api.runcrate.ai/v1",
+          "body": {
+            "model": "{{model}}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "{{system_prompt}}"
+              },
+              {
+                "role": "user",
+                "content": "{{prompt}}"
+              }
+            ],
+            "temperature": 0.0
+          },
+          "append_path": "/chat/completions"
+        }
+      ],
+      "response": {
+        "path": "/choices/0/message/content"
+      }
+    },
+    "models": {
+      "sources": [
+        {
+          "request": {
+            "url": "https://api.runcrate.ai/v1",
+            "append_path": "/models",
+            "authenticated": false
+          },
+          "items_path": "/data",
+          "id_path": "/id",
+          "filters": [
+            {
+              "path": "/output_modalities",
+              "contains": "text"
+            }
+          ]
+        }
+      ],
+      "cache_seconds": 86400
+    }
+  },
+  "license": "Apache-2.0"
+}

@@ -1,6 +1,6 @@
 import {useTranslation} from 'react-i18next';
 import type {NotebookCell} from '@/types/notebook';
-import type {CellChartConfig} from '@/types/notebook';
+import type {CellChartConfig, CellKpiConfig} from '@/types/notebook';
 import type {ResolvedQuery} from '@/utils/notebookVariables';
 import {SqlCellEditor} from './SqlCellEditor';
 import {SqlCellResult} from './SqlCellResult';
@@ -15,6 +15,8 @@ interface SqlCellProps {
     onToggleQueryCollapse: () => void;
     onToggleResultCollapse: () => void;
     onToggleChartVisible: (visible: boolean) => void;
+    onKpiConfigChange?: (config: CellKpiConfig | null) => void;
+    onToggleKpiVisible?: (visible: boolean) => void;
     onToggleQueryPlanVisible: () => void;
     connectionId: string;
     explainQuery?: ResolvedQuery;
@@ -30,6 +32,8 @@ export function SqlCell({
     onToggleQueryCollapse,
     onToggleResultCollapse,
     onToggleChartVisible,
+    onKpiConfigChange,
+    onToggleKpiVisible,
     onToggleQueryPlanVisible,
     connectionId,
     explainQuery,
@@ -49,6 +53,17 @@ export function SqlCell({
                 collapsed={cell.isQueryCollapsed}
                 onToggleCollapse={onToggleQueryCollapse}
             />
+            {cell.isDisabled && (
+                <p
+                    role="status"
+                    className="px-3 py-1.5 border-t border-default bg-accent-warning/5 text-[11px] text-secondary"
+                >
+                    {t('editor.notebook.disabledNotice')}
+                    {(cell.result || cell.error) && (
+                        <> {t('editor.notebook.disabledOutputNotice')}</>
+                    )}
+                </p>
+            )}
             <SqlCellResult
                 result={cell.result ?? null}
                 error={cell.error}
@@ -62,6 +77,10 @@ export function SqlCell({
                 onToggleResultCollapse={onToggleResultCollapse}
                 isChartVisible={cell.isChartVisible}
                 onToggleChartVisible={onToggleChartVisible}
+                kpiConfig={cell.kpiConfig}
+                onKpiConfigChange={onKpiConfigChange}
+                isKpiVisible={cell.isKpiVisible}
+                onToggleKpiVisible={onToggleKpiVisible}
             />
             <SqlCellExplain
                 query={explainQuery?.sql ?? cell.content}
@@ -74,7 +93,8 @@ export function SqlCell({
                 }
                 connectionId={connectionId}
                 schema={schema}
-                visible={!!cell.isQueryPlanVisible}
+                // A disabled cell sends nothing to the database, EXPLAIN included.
+                visible={!!cell.isQueryPlanVisible && !cell.isDisabled}
                 onToggleVisible={onToggleQueryPlanVisible}
             />
         </div>

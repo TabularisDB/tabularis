@@ -10,6 +10,7 @@ const labels: Record<string, string> = {
     'sidebar.copyError': 'Copy error message',
     'editor.hideErrorDetails': 'Hide details',
     'editor.showErrorDetails': 'Show details',
+    'editor.fixWithAi': 'Fix with AI',
 };
 
 const t = ((key: string) => labels[key] ?? key) as TFunction;
@@ -30,6 +31,21 @@ describe('ErrorDisplay', () => {
         expect(screen.getByText('Error: query failed')).toBeInTheDocument();
         expect(screen.getByTitle('Copy error message')).toBeInTheDocument();
         expect(screen.getByText('Error: query failed').closest('.select-text')).toBeTruthy();
+    });
+
+    it('hides Fix with AI unless a handler is provided', () => {
+        render(<ErrorDisplay error="query failed" t={t} />);
+
+        expect(screen.queryByRole('button', {name: /fix with ai/i})).not.toBeInTheDocument();
+    });
+
+    it('calls onFixWithAi when Fix with AI is clicked', () => {
+        const onFixWithAi = vi.fn();
+        render(<ErrorDisplay error="query failed" t={t} onFixWithAi={onFixWithAi} />);
+
+        fireEvent.click(screen.getByRole('button', {name: /fix with ai/i}));
+
+        expect(onFixWithAi).toHaveBeenCalledTimes(1);
     });
 
     it('copies the complete error including hidden details', async () => {

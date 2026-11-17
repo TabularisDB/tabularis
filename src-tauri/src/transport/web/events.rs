@@ -1,4 +1,4 @@
-use crate::application::AuthorizationLevel;
+use crate::application::{secret_redaction::SecretRedactor, AuthorizationLevel};
 use crate::runtime::events::RuntimeEvents;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -90,6 +90,7 @@ pub struct WebEventBus {
 struct EventBusInner {
     config: EventBusConfig,
     state: Mutex<EventBusState>,
+    redactor: SecretRedactor,
 }
 
 #[derive(Default)]
@@ -134,8 +135,15 @@ impl WebEventBus {
             inner: Arc::new(EventBusInner {
                 config,
                 state: Mutex::new(EventBusState::default()),
+                redactor: SecretRedactor::default(),
             }),
         }
+    }
+
+    /// Credentials scrubbed from every published payload. Empty (a no-op)
+    /// unless managed mode fills it.
+    pub fn redactor(&self) -> &SecretRedactor {
+        &self.inner.redactor
     }
 
     pub fn connect(
@@ -218,6 +226,7 @@ impl WebEventBus {
         match event {
             "connection-test-progress"
             | "connection-health-failed"
+            | "connection-lifecycle"
             | "connections:active-changed"
             | "database-dropped"
             | "batch-statement-complete"
@@ -226,12 +235,14 @@ impl WebEventBus {
             | "query-cancelled"
             | "dump_progress"
             | "import_progress"
+            | "table_transfer_progress"
             | "export_progress"
             | "connection-metadata-invalidated"
             | "tabularis://plugin-activated" => Some(AuthorizationLevel::Database),
-            "theme-catalog-changed" | "ui-state://changed" | "tabularis://plugin-installed" => {
-                Some(AuthorizationLevel::Session)
-            }
+            "theme-catalog-changed"
+            | "ui-state://changed"
+            | "tabularis://plugin-installed"
+            | "tabularis://ai-providers-changed" => Some(AuthorizationLevel::Session),
             "plugin-install-progress" | "tabularis://plugin-install" => {
                 Some(AuthorizationLevel::Sensitive)
             }
@@ -256,6 +267,8 @@ impl WebEventBus {
     ) -> Result<(), String> {
         let required = Self::authorization_for(event)
             .ok_or_else(|| format!("Web event is not registered: {event}"))?;
+        let mut payload = payload;
+        self.inner.redactor.redact_value(&mut payload);
         let now = Instant::now();
         let mut state = self.lock_state();
         self.cleanup_sessions(&mut state, now);
