@@ -172,6 +172,8 @@ pub struct RequestId(pub String);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RpcCommand {
+    ScopedAiGenerate,
+    ScopedAiExplain,
     IsDebugMode,
     GetConnections,
     CancelQuery,
@@ -1929,6 +1931,33 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::ScopedAiGenerate | RpcCommand::ScopedAiExplain => {
+                use crate::application::scoped_ai::{ExplainRequest, GenerateRequest, Request};
+                if !self.application.scoped_ai_enabled() || context.session_id.is_none() {
+                    return Err(InvocationError::Forbidden("Scoped AI is disabled"));
+                }
+                let request = if command == RpcCommand::ScopedAiGenerate {
+                    serde_json::from_slice::<GenerateRequest>(body).map(Request::Generate)
+                } else {
+                    serde_json::from_slice::<ExplainRequest>(body).map(Request::Explain)
+                }
+                .map_err(|_| InvocationError::InvalidPayload("Invalid scoped AI request".into()))?;
+                self.application
+                    .execute_scoped_ai(context, request)
+                    .await
+                    .map(Value::String)
+                    .map_err(|e| match e.message.as_str() {
+                        "AI_DISABLED" | "AI_SCOPE_DENIED" => {
+                            InvocationError::Forbidden("AI scope is not authorized")
+                        }
+                        "AI_INVALID_REQUEST" => {
+                            InvocationError::InvalidPayload("Invalid scoped AI request".into())
+                        }
+                        _ => InvocationError::Application(ApplicationError::new(
+                            "AI request unavailable",
+                        )),
+                    })
+            }
             RpcCommand::Ai(command) => {
                 let command =
                     decode_ai_command(command, body).map_err(InvocationError::InvalidPayload)?;
@@ -2113,6 +2142,8 @@ impl RpcCommand {
     fn parse(name: &str) -> Option<Self> {
         match name {
             "is_debug_mode" => Some(Self::IsDebugMode),
+            "scoped_ai_generate" => Some(Self::ScopedAiGenerate),
+            "scoped_ai_explain" => Some(Self::ScopedAiExplain),
             "get_connections" => Some(Self::GetConnections),
             "cancel_query" => Some(Self::CancelQuery),
             "list_server_directory" => Some(Self::ListServerDirectory),
@@ -2147,6 +2178,11 @@ impl RpcCommand {
 
     fn metadata(self) -> CommandMetadata {
         match self {
+            Self::ScopedAiGenerate | Self::ScopedAiExplain => CommandMetadata {
+                authorization: AuthorizationLevel::Database,
+                application_error_code: "AI_UNAVAILABLE",
+                application_error_status: StatusCode::SERVICE_UNAVAILABLE,
+            },
             Self::IsDebugMode => CommandMetadata {
                 authorization: AuthorizationLevel::LocalAdmin,
                 application_error_code: "DEBUG_MODE_FAILED",

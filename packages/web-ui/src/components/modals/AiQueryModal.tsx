@@ -1,3 +1,5 @@
+import {useTranslation} from 'react-i18next';
+import {useScopedAi} from '@/hooks/useScopedAi';
 import {useState, useEffect, useCallback, useRef, useId} from 'react';
 import {X, Sparkles, Loader2} from 'lucide-react';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
@@ -32,7 +34,9 @@ export const AiQueryModal = ({
 }: AiQueryModalProps) => {
     const {activeConnectionId, activeSchema, activeDatabaseName} = useDatabase();
     const {settings} = useSettings();
+    const {t} = useTranslation();
     const client = useTabularisClient();
+    const scopedAi = useScopedAi();
     const resolvedConnectionId = connectionId ?? activeConnectionId;
     const resolvedSchema = schema ?? activeSchema ?? undefined;
     // Only fall back to the active connection's database when this modal is
@@ -72,7 +76,9 @@ export const AiQueryModal = ({
         key: string;
         promise: Promise<string>;
     } | null>(null);
-    const isSchemaLoading = Boolean(isOpen && resolvedConnectionId && schemaLoad.key !== schemaKey);
+    const isSchemaLoading = Boolean(
+        !scopedAi && isOpen && resolvedConnectionId && schemaLoad.key !== schemaKey,
+    );
 
     const loadSchema = useCallback((): Promise<string> => {
         if (!resolvedConnectionId) {
@@ -99,7 +105,7 @@ export const AiQueryModal = ({
     }, [client, resolvedConnectionId, resolvedSchema, resolvedDatabase, schemaKey]);
 
     useEffect(() => {
-        if (!isOpen || !resolvedConnectionId) {
+        if (!isOpen || !resolvedConnectionId || scopedAi) {
             return;
         }
 
@@ -124,10 +130,10 @@ export const AiQueryModal = ({
         return () => {
             cancelled = true;
         };
-    }, [isOpen, resolvedConnectionId, schemaKey, loadSchema]);
+    }, [isOpen, resolvedConnectionId, schemaKey, loadSchema, scopedAi]);
 
     const handleGenerate = async () => {
-        if (!prompt.trim() || !settings.aiProvider) {
+        if (!prompt.trim() || (!settings.aiProvider && !scopedAi)) {
             setError('Please configure AI provider in Settings and enter a prompt.');
             return;
         }
@@ -136,13 +142,24 @@ export const AiQueryModal = ({
         setError(null);
 
         try {
+            if (scopedAi) {
+                const sql = await client.call('scoped_ai_generate', {
+                    connectionId: resolvedConnectionId ?? '',
+                    database: resolvedDatabase ?? '',
+                    schema: resolvedSchema ?? resolvedDatabase ?? '',
+                    prompt,
+                });
+                onInsert(sql);
+                onClose();
+                return;
+            }
             const schemaContext =
                 schemaLoad.key === schemaKey && schemaLoad.error === null
                     ? schemaLoad.context
                     : await loadSchema();
             const sql = await client.call('generate_ai_query', {
                 req: {
-                    provider: settings.aiProvider,
+                    provider: settings.aiProvider!,
                     model: settings.aiModel || '', // Default fallback handled by backend (first model in list)
                     prompt,
                     schema: schemaContext,
@@ -184,7 +201,7 @@ export const AiQueryModal = ({
 
                 {/* Content */}
                 <div className="p-6 space-y-4">
-                    {!settings.aiProvider && (
+                    {!settings.aiProvider && !scopedAi && (
                         <div className="bg-warning-bg border border-warning-border text-warning-text px-4 py-3 rounded text-sm">
                             ⚠️ AI Provider not configured. Please go to Settings {'>'} AI.
                         </div>
@@ -198,6 +215,12 @@ export const AiQueryModal = ({
                             Describe your query in natural language
                         </label>
                         {/* Prose field: natural-language input, so spellcheck/autocorrect stay ON; only the WebKit autofill pill is disabled. */}
+                        {scopedAi && (
+                            <p className="text-xs text-muted">
+                                {scopedAi.provider} · {scopedAi.model} —{' '}
+                                {t('settings.ai.scopedSchemaDisclosure')}
+                            </p>
+                        )}
                         <textarea
                             id={promptId}
                             autoComplete="off"
@@ -239,7 +262,9 @@ export const AiQueryModal = ({
                     </button>
                     <button
                         onClick={handleGenerate}
-                        disabled={isLoading || !prompt.trim() || !settings.aiProvider}
+                        disabled={
+                            isLoading || !prompt.trim() || (!settings.aiProvider && !scopedAi)
+                        }
                         className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-inverse rounded-lg text-sm font-medium transition-colors"
                     >
                         {isLoading ? (

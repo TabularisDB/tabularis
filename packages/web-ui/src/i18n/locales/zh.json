@@ -881,6 +881,7 @@
     "version": "版本",
     "starOnGithub": "在 GitHub 上 Star",
     "ai": {
+    "scopedSchemaDisclosure": "架构元数据将发送给此提供商。",
       "tab": "AI",
       "title": "AI 配置",
       "description": "配置 AI 提供商以启用自然语言到 SQL 生成。密钥安全存储在您的系统密钥链中。",

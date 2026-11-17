@@ -887,6 +887,7 @@
     "version": "버전",
     "starOnGithub": "GitHub에서 스타 남기기",
     "ai": {
+    "scopedSchemaDisclosure": "스키마 메타데이터가 이 제공업체로 전송됩니다.",
       "tab": "AI",
       "title": "AI 설정",
       "description": "자연어를 SQL로 변환하려면 AI 제공자를 설정하세요. 키는 시스템 키체인에 안전하게 저장됩니다.",

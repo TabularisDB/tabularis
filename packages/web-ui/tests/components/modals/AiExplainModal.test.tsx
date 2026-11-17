@@ -1,3 +1,4 @@
+import {ScopedAiContext} from '@/contexts/ScopedAiContext';
 import {render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
@@ -6,7 +7,7 @@ import {AiExplainModal} from '@/components/modals/AiExplainModal';
 const {invokeMock, settingsMock, i18nMock} = vi.hoisted(() => ({
     invokeMock: vi.fn(),
     settingsMock: {
-        aiProvider: 'openai',
+        aiProvider: 'openai' as string | undefined,
         aiModel: 'test-model',
         language: 'auto',
     },
@@ -49,6 +50,7 @@ vi.mock('@/components/ui/Modal', () => ({
 describe('AiExplainModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        settingsMock.aiProvider = 'openai';
         invokeMock.mockResolvedValue('Spiegazione');
         settingsMock.language = 'auto';
         i18nMock.language = 'it';
@@ -106,4 +108,32 @@ describe('AiExplainModal', () => {
 vi.mock('@/hooks/useTabularisClient', () => {
     const client = {call: (...args: unknown[]) => invokeMock(...args)};
     return {useTabularisClient: () => client};
+});
+
+it('explains in the authorized workspace without global AI settings or schema reads', async () => {
+    invokeMock.mockReset();
+    invokeMock.mockResolvedValue('Explanation from operator provider');
+    settingsMock.aiProvider = undefined;
+    settingsMock.language = 'de';
+    render(
+        <ScopedAiContext.Provider value={{provider: 'openrouter', model: 'fixed-model'}}>
+            <AiExplainModal
+                isOpen
+                onClose={vi.fn()}
+                query="SELECT 42"
+                connectionId="allowed"
+                database="app"
+                schema="public"
+            />
+        </ScopedAiContext.Provider>,
+    );
+    expect(await screen.findByText('Explanation from operator provider')).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('scoped_ai_explain', {
+        connectionId: 'allowed',
+        database: 'app',
+        schema: 'public',
+        query: 'SELECT 42',
+        language: 'Deutsch',
+    });
+    expect(screen.getByText(/openrouter \/ fixed-model/)).toBeInTheDocument();
 });

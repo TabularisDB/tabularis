@@ -46,6 +46,8 @@ pub(super) fn access(command: RpcCommand) -> ManagedAccess {
         | RpcCommand::UiState(_)
         | RpcCommand::DatabaseTransfer(_)
         | RpcCommand::GenericExport(_)
+        | RpcCommand::ScopedAiGenerate
+        | RpcCommand::ScopedAiExplain
         | RpcCommand::Ai(_)
         | RpcCommand::Metadata(_)
         | RpcCommand::DatabaseObject(_)

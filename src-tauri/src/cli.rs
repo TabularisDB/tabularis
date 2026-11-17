@@ -65,6 +65,9 @@ pub enum Command {
 }
 
 #[derive(Debug, ClapArgs)]
+#[command(
+    after_help = "Optional scoped SQL AI: TABULARIS_WEB_AI_CONFIG_FILE points to a protected operator configuration file. Disabled by default; does not enable administrative AI capabilities."
+)]
 pub struct WebArgs {
     /// Public mount path; the reverse proxy must strip it from upstream requests
     #[arg(long, value_name = "PATH")]
@@ -143,6 +146,17 @@ pub struct WebArgs {
 }
 
 impl WebArgs {
+    pub fn validate_scoped_ai_mode(&self, enabled: bool) -> Result<(), &'static str> {
+        if enabled
+            && (self.auth != Some(WebAuthMode::Proxy)
+                || self.connection_mode != Some(WebConnectionMode::ManagedOnly)
+                || self.allow_high_risk)
+        {
+            return Err("Web AI requires --auth proxy --connection-mode managed-only without --allow-high-risk");
+        }
+        Ok(())
+    }
+
     /// Standalone unless `--connection-mode managed-only` is given. The two
     /// switches only apply in managed-only mode.
     pub fn connection_policy(&self) -> crate::application::ManagedConnectionPolicy {

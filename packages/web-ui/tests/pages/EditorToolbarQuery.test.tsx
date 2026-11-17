@@ -1,3 +1,4 @@
+import {ScopedAiContext} from '@/contexts/ScopedAiContext';
 import {
     useCallback,
     useEffect,
@@ -23,6 +24,7 @@ import type {SlotComponentProps} from '@/types/pluginSlots';
 // Captures the `onRunQuery` prop the Editor passes to TableToolbar so the test
 // can drive it directly, exercising the real `runToolbarQuery` callback
 // without rendering the filter-value picker UI.
+let capturedAiInsert: ((sql: string) => void) | undefined;
 let capturedRunToolbarQuery: ((sql: string) => Promise<QueryResult>) | undefined;
 let capturedRefresh: (() => void) | undefined;
 let capturedRunQuery: ((query: string) => void) | undefined;
@@ -100,7 +102,12 @@ vi.mock('@/hooks/useQueryGuards', () => ({
 vi.mock('@/hooks/useSqlAutocompleteRegistration', () => ({
     useSqlAutocompleteRegistration: () => {},
 }));
-vi.mock('@/components/modals/AiQueryModal', () => ({AiQueryModal: () => null}));
+vi.mock('@/components/modals/AiQueryModal', () => ({
+    AiQueryModal: ({onInsert}: {onInsert: (sql: string) => void}) => {
+        capturedAiInsert = onInsert;
+        return null;
+    },
+}));
 vi.mock('@/components/modals/AiExplainModal', () => ({AiExplainModal: () => null}));
 vi.mock('@/components/modals/VisualExplainModal', () => ({VisualExplainModal: () => null}));
 vi.mock('@/components/modals/NewRowModal', () => ({NewRowModal: () => null}));
@@ -128,7 +135,9 @@ vi.mock('@/components/modals/ErrorModal', () => ({ErrorModal: () => null}));
 vi.mock('@/components/modals/ExportProgressModal', () => ({
     ExportProgressModal: () => null,
 }));
-vi.mock('@/components/ui/AiDropdownButton', () => ({AiDropdownButton: () => null}));
+vi.mock('@/components/ui/AiDropdownButton', () => ({
+    AiDropdownButton: () => <div data-testid="ai-dropdown" />,
+}));
 vi.mock('@/components/ui/MultiResultPanel', () => ({MultiResultPanel: () => null}));
 vi.mock('@/components/ui/VisualQueryBuilder', () => ({VisualQueryBuilder: () => null}));
 vi.mock('@/components/ui/ContextMenu', () => ({ContextMenu: () => null}));
@@ -837,4 +846,41 @@ describe('plugin workspace editor isolation', () => {
         unmount();
         expect(cleanup).toHaveBeenCalledOnce();
     });
+});
+
+it('inserts scoped AI SQL for review without running it or entering execution guards', async () => {
+    vi.mocked(invoke).mockReset();
+    vi.mocked(invoke).mockResolvedValue([]);
+    mocks.guard.mockClear();
+    capturedAiInsert = undefined;
+    render(
+        <ScopedAiContext.Provider value={{provider: 'openrouter', model: 'fixed-model'}}>
+            <Harness />
+        </ScopedAiContext.Provider>,
+    );
+    expect(capturedAiInsert).toBeDefined();
+    await act(async () => {
+        capturedAiInsert?.('DROP TABLE ai_fixture');
+    });
+    expect(executeQueryCalls()).toHaveLength(0);
+    expect(mocks.guard).not.toHaveBeenCalled();
+});
+
+it('hides scoped AI for an unsupported plugin even when it speaks PostgreSQL', () => {
+    mocks.driver = 'custom-postgresql';
+    mocks.capabilities = {schemas: true, sql_dialect: 'postgresql', identifier_quote: '"'};
+    const {unmount} = render(
+        <ScopedAiContext.Provider value={{provider: 'openrouter', model: 'fixed-model'}}>
+            <Harness initialTabs={[{...initialTab(), type: 'query', isEditorOpen: true}]} />
+        </ScopedAiContext.Provider>,
+    );
+    expect(screen.queryByTestId('ai-dropdown')).not.toBeInTheDocument();
+    unmount();
+    mocks.driver = 'postgres';
+    render(
+        <ScopedAiContext.Provider value={{provider: 'openrouter', model: 'fixed-model'}}>
+            <Harness initialTabs={[{...initialTab(), type: 'query', isEditorOpen: true}]} />
+        </ScopedAiContext.Provider>,
+    );
+    expect(screen.getByTestId('ai-dropdown')).toBeInTheDocument();
 });

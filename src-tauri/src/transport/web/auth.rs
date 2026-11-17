@@ -408,6 +408,13 @@ impl LocalSessionSecurity {
         expired
     }
 
+    pub(crate) fn session_active(&self, session: &AuthenticatedSession) -> bool {
+        self.lock_state()
+            .sessions
+            .get(&session.token_hash)
+            .is_some_and(|record| record.expires_at > Instant::now())
+    }
+
     pub fn logout(&self, session: &AuthenticatedSession) {
         self.lock_state().sessions.remove(&session.token_hash);
     }

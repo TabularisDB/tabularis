@@ -916,6 +916,7 @@
     "version": "Version",
     "starOnGithub": "Auf GitHub mit Stern markieren",
     "ai": {
+    "scopedSchemaDisclosure": "Schema-Metadaten werden an diesen Anbieter gesendet.",
       "tab": "KI",
       "title": "KI-Konfiguration",
       "description": "Konfiguriere KI-Anbieter, um SQL-Generierung aus natürlicher Sprache zu aktivieren. Schlüssel werden sicher im System-Keychain gespeichert.",

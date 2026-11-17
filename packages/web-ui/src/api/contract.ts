@@ -1361,6 +1361,16 @@ export interface CommandMap {
         AiProviderModels,
         'sensitive'
     >;
+    scoped_ai_generate: CommandDefinition<
+        {connectionId: string; database: string; schema: string; prompt: string},
+        string,
+        'database'
+    >;
+    scoped_ai_explain: CommandDefinition<
+        {connectionId: string; database: string; schema: string; query: string; language: string},
+        string,
+        'database'
+    >;
     generate_ai_query: CommandDefinition<{req: AiGenerateRequest}, string, 'sensitive'>;
     complete_ai_inline: CommandDefinition<{req: AiInlineRequest}, string, 'sensitive'>;
     cancel_ai_inline: CommandDefinition<{requestId: string}, void, 'sensitive'>;

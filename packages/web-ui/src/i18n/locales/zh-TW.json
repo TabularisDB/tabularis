@@ -953,6 +953,7 @@
         "version": "版本",
         "starOnGithub": "在 GitHub 上 Star",
         "ai": {
+    "scopedSchemaDisclosure": "結構描述中繼資料將傳送給此供應商。",
             "chatgpt": {
                 "description": "連結符合資格的 ChatGPT Plus 或 Pro 帳戶，即可使用您的方案來使用 Tabularis AI 功能，不需要 API 金鑰。",
                 "account": "ChatGPT 帳戶",

@@ -23,6 +23,15 @@ pub async fn execute(
     // All machine writes are serialized, including their runtime cleanup.
     // Deterministic IDs also make retries after process restarts idempotent.
     let _guard = state.provisioning_lock.lock().await;
+    if matches!(
+        &command,
+        ProvisionCommand::Put(..) | ProvisionCommand::Delete(_)
+    ) {
+        // Also invalidates pending scoped AI when only a keyring secret changes.
+        state
+            .provisioning_revision
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
     let mut file = load_file(runtime)?;
     let reference = match &command {
         ProvisionCommand::List => {

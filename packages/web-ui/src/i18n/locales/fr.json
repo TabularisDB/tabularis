@@ -953,6 +953,7 @@
     "version": "Version",
     "starOnGithub": "Mettre une étoile sur GitHub",
     "ai": {
+    "scopedSchemaDisclosure": "Les métadonnées du schéma sont envoyées à ce fournisseur.",
       "tab": "IA",
       "title": "Configuration IA",
       "description": "Configurez les fournisseurs IA pour activer la génération SQL en langage naturel. Les clés sont stockées en toute sécurité dans le trousseau de votre système.",

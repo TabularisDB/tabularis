@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 pub struct ApplicationState {
     pub provisioning_lock: tokio::sync::Mutex<()>,
+    pub provisioning_revision: std::sync::atomic::AtomicU64,
     pub pending_install: Arc<crate::plugins::deep_link::PendingInstall>,
     pub query_cancellation: Arc<crate::commands::QueryCancellationState>,
     pub export_cancellation: Arc<crate::export::ExportCancellationState>,
@@ -46,6 +47,7 @@ impl Default for ApplicationState {
     fn default() -> Self {
         Self {
             provisioning_lock: tokio::sync::Mutex::new(()),
+            provisioning_revision: std::sync::atomic::AtomicU64::new(0),
             pending_install: Arc::new(crate::plugins::deep_link::PendingInstall::default()),
             query_cancellation: Arc::new(crate::commands::QueryCancellationState::default()),
             export_cancellation: Arc::new(crate::export::ExportCancellationState::default()),

@@ -138,3 +138,11 @@ describe('HttpTransport managed mode', () => {
         ).rejects.toMatchObject({code: 'SESSION_EXPIRED'});
     });
 });
+
+it('retains the optional scoped AI capability without granting high-risk access', async () => {
+    const scopedAi = {provider: 'openrouter', model: 'fixed-model'};
+    const {transport: http} = transport(jsonResponse({...SESSION, scopedAi}));
+    const session = await http.initialize();
+    expect(session.scopedAi).toEqual(scopedAi);
+    expect(session.access.highRiskCapabilities).toBe(false);
+});

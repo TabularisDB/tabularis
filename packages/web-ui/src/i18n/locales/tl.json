@@ -953,6 +953,7 @@
     "version": "Bersyon",
     "starOnGithub": "Mag-star sa GitHub",
     "ai": {
+    "scopedSchemaDisclosure": "Ipinapadala sa provider na ito ang metadata ng schema.",
       "tab": "AI",
       "title": "AI Configuration",
       "description": "I-configure ang mga AI provider para i-enable ang natural language to SQL generation. Ang mga key ay ligtas na naka-store sa keychain ng iyong system.",

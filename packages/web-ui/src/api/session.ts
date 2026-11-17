@@ -61,6 +61,7 @@ export const STANDALONE_CONNECTION_CAPABILITIES: ConnectionCapabilities = {
 export const MANAGED_CONNECTION_DENIED_CODE = 'managed_connection_denied';
 
 export interface SessionNegotiation {
+    readonly scopedAi?: {readonly provider: string; readonly model: string};
     readonly apiVersion: string;
     readonly serverVersion: string;
     readonly serverBuild: ServerBuildInformation;
