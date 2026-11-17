@@ -120,7 +120,6 @@ function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
                 aria-label={t('editor.notebook.statusDisabled')}
             >
                 <PowerOff size={11} aria-hidden="true" />
-                <span className="sr-only">{t('editor.notebook.statusDisabled')}</span>
             </span>
         );
     }
@@ -134,7 +133,6 @@ function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
                 aria-label={t('editor.notebook.statusBlocked')}
             >
                 <Ban size={11} aria-hidden="true" />
-                <span className="sr-only">{t('editor.notebook.statusBlocked')}</span>
             </span>
         );
     }
