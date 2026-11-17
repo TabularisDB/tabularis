@@ -24,3 +24,6 @@ pub mod provisioning;
 mod provisioning_tests;
 
 pub mod base_path;
+
+#[cfg(test)]
+mod proxy_request_tests;
