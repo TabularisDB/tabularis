@@ -614,25 +614,7 @@ fn resolve_ssh_params(
     let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
     let ssh_port = params.ssh_port.unwrap_or(22);
     let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
-    let target = ssh_forward_target(params);
-
-    let proxy = crate::proxy::resolve_for_connection(
-        crate::proxy::SCOPE_SSH_TUNNEL,
-        params.connection_id.as_deref(),
-        params.proxy.as_ref(),
-    );
-    let base_key = crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, &target);
-    let key = match &proxy {
-        Some(p) => {
-            let proto = match p.protocol {
-                crate::proxy::ProxyProtocol::Http => "http",
-                crate::proxy::ProxyProtocol::Socks5 => "socks5",
-            };
-            let user = p.username.as_deref().unwrap_or("");
-            format!("{base_key}|px:{proto}:{}:{}:{user}", p.host.trim(), p.port)
-        }
-        None => base_key,
-    };
+    let (target, proxy, key) = ssh_tunnel_route(params)?;
     if let Some(tunnel) = live_tunnel(&key) {
         log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
         return Ok(point_at_tunnel(params, &tunnel, &target));
@@ -681,6 +663,77 @@ fn resolve_ssh_params(
     );
     let tunnel = cache_tunnel(key, tunnel);
     Ok(point_at_tunnel(params, &tunnel, &target))
+}
+
+/// How `params` reach their SSH tunnel: the forward target, the SSH-scope
+/// proxy in front of the bastion, and the `TUNNELS` key.
+fn ssh_tunnel_route(
+    params: &ConnectionParams,
+) -> Result<
+    (
+        crate::ssh_tunnel::ForwardTarget,
+        Option<crate::proxy::ProxyEndpoint>,
+        String,
+    ),
+    String,
+> {
+    let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
+    let ssh_port = params.ssh_port.unwrap_or(22);
+    let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
+    let target = ssh_forward_target(params);
+    let base_key = crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, &target);
+
+    let proxy = crate::proxy::resolve_for_connection(
+        crate::proxy::SCOPE_SSH_TUNNEL,
+        params.connection_id.as_deref(),
+        params.proxy.as_ref(),
+    );
+    let key = match &proxy {
+        Some(p) => {
+            let proto = match p.protocol {
+                crate::proxy::ProxyProtocol::Http => "http",
+                crate::proxy::ProxyProtocol::Socks5 => "socks5",
+            };
+            let user = p.username.as_deref().unwrap_or("");
+            format!("{base_key}|px:{proto}:{}:{}:{user}", p.host.trim(), p.port)
+        }
+        None => base_key,
+    };
+    Ok((target, proxy, key))
+}
+
+/// The SSH tunnel instance a connection goes through.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TunnelLease {
+    pub key: String,
+    pub generation: u64,
+}
+
+/// The cached SSH tunnel that expanded `params` would use right now, if any.
+pub(crate) fn ssh_tunnel_lease(params: &ConnectionParams) -> Option<TunnelLease> {
+    if !params.ssh_enabled.unwrap_or(false) || ensure_single_tunnel(params).is_err() {
+        return None;
+    }
+    let (_, _, key) = ssh_tunnel_route(params).ok()?;
+    let generation = crate::ssh_tunnel::get_tunnels()
+        .lock()
+        .unwrap()
+        .get(&key)?
+        .generation;
+    Some(TunnelLease { key, generation })
+}
+
+/// Stops and uncaches the tunnel `lease` names. Returns false, touching
+/// nothing, when that tunnel was already replaced or removed.
+pub(crate) fn discard_ssh_tunnel(lease: &TunnelLease) -> bool {
+    let mut tunnels = crate::ssh_tunnel::get_tunnels().lock().unwrap();
+    if tunnels.get(&lease.key).map(|t| t.generation) != Some(lease.generation) {
+        return false;
+    }
+    if let Some(tunnel) = tunnels.remove(&lease.key) {
+        tunnel.stop();
+    }
+    true
 }
 
 /// The cached SSH tunnel for `key`, if its session is still up. A dead one

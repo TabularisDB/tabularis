@@ -1,7 +1,8 @@
 use crate::application::connection_lifecycle::{
-    ConnectionLifecycle, ConnectionLifecycleEvent, HealthTracker, PingVerdict,
-    CONNECTION_LIFECYCLE_EVENT, POOL_CLOSE_TIMEOUT, RECONNECT_TIMEOUT,
+    tunnel_discards, ConnectionLifecycle, ConnectionLifecycleEvent, HealthTracker, PingOutcome,
+    PingVerdict, TickPing, CONNECTION_LIFECYCLE_EVENT, POOL_CLOSE_TIMEOUT, RECONNECT_TIMEOUT,
 };
+use crate::application::tunnels::{discard_ssh_tunnel, ssh_tunnel_lease, TunnelLease};
 pub(crate) use crate::health_check::*;
 use std::time::{Duration, SystemTime};
 use tauri::Emitter;
@@ -74,7 +75,8 @@ pub async fn restart_ping_loop(app: tauri::AppHandle, interval_secs: u64) {
 
 /// Ping every registered connection. A connection that fails the threshold
 /// gets one reconnect attempt when auto-reconnect is on, and is dropped
-/// otherwise.
+/// otherwise. A shared SSH tunnel that looks half-open is stopped first, and
+/// every connection on it is handled as failed.
 async fn ping_all_connections(app: &tauri::AppHandle, tracker: &mut HealthTracker) {
     // Snapshot the active set so we don't hold the lock during I/O.
     let active: Vec<String> = ACTIVE_CONNECTIONS.read().await.iter().cloned().collect();
@@ -88,25 +90,52 @@ async fn ping_all_connections(app: &tauri::AppHandle, tracker: &mut HealthTracke
         let app = app.clone();
         let conn_id = conn_id.clone();
         async move {
-            let result = ping_single_connection(&app, &conn_id).await;
-            (conn_id, result)
+            let (lease, outcome) = ping_single_connection(&app, &conn_id).await;
+            (conn_id, lease, outcome)
         }
     }))
     .await;
 
-    for (conn_id, result) in results {
-        let verdict = tracker.record(&conn_id, result.is_ok());
-        let Err(err) = result else { continue };
-        log::warn!("Health check: ping failed for {}: {}", conn_id, err);
-        if verdict != PingVerdict::Failed {
-            continue;
+    let tick: Vec<TickPing> = results
+        .into_iter()
+        .map(|(connection_id, lease, outcome)| TickPing {
+            verdict: tracker.record(&connection_id, outcome == PingOutcome::Ok),
+            connection_id,
+            lease,
+            outcome,
+        })
+        .collect();
+
+    let auto_reconnect = crate::transport::desktop::config::load_config_internal(app)
+        .auto_reconnect
+        .unwrap_or(false);
+    let mut on_discarded_tunnel = std::collections::HashSet::new();
+    for discard in tunnel_discards(&tick, auto_reconnect) {
+        if discard_ssh_tunnel(&discard.lease) {
+            log::warn!(
+                "Health check: discarding half-open SSH tunnel (generation {}), {} connections affected",
+                discard.lease.generation,
+                discard.recover.len()
+            );
         }
-        let auto_reconnect = crate::transport::desktop::config::load_config_internal(app)
-            .auto_reconnect
-            .unwrap_or(false);
+        on_discarded_tunnel.extend(discard.recover);
+    }
+
+    for ping in tick {
+        let conn_id = ping.connection_id;
+        let Some(err) = ping.outcome.error() else {
+            continue;
+        };
+        log::warn!("Health check: ping failed for {}: {}", conn_id, err);
+        if ping.verdict != PingVerdict::Failed {
+            if !on_discarded_tunnel.contains(&conn_id) {
+                continue;
+            }
+            tracker.forget(&conn_id);
+        }
         if !auto_reconnect {
             log::error!("Health check: connection {} failed, disconnecting", conn_id);
-            handle_connection_failure(app, &conn_id, &err).await;
+            handle_connection_failure(app, &conn_id, err).await;
             continue;
         }
         recover_connection(app, &conn_id).await;
@@ -124,7 +153,7 @@ async fn recover_connection(app: &tauri::AppHandle, connection_id: &str) {
     emit_lifecycle(app, connection_id, ConnectionLifecycle::Reconnecting);
 
     let recovery = async {
-        let params = resolve_params(app, connection_id).await?;
+        let (_, params) = resolve_params(app, connection_id).await?;
         // Plugin drivers own their connections and are not rebuilt here, so
         // their sessions stay pinned and the attempt is one more ping.
         let released_sessions = if is_builtin_driver(&params.driver) {
@@ -199,40 +228,64 @@ fn emit_lifecycle(app: &tauri::AppHandle, connection_id: &str, lifecycle: Connec
     }
 }
 
+/// The connection's params pointing at its tunnel, and the SSH tunnel cached
+/// for it before resolving. Opening a tunnel blocks, so it runs off the async
+/// workers where the callers' timeouts can bound it.
 async fn resolve_params(
     app: &tauri::AppHandle,
     connection_id: &str,
-) -> Result<crate::models::ConnectionParams, String> {
+) -> Result<(Option<TunnelLease>, crate::models::ConnectionParams), String> {
     let saved_conn =
         crate::transport::desktop::commands::find_connection_by_id(app, connection_id)?;
 
     let expanded_params =
         crate::transport::desktop::commands::expand_ssh_connection_params(app, &saved_conn.params)
             .await?;
-    let expanded_params =
+    let mut expanded_params =
         crate::transport::desktop::commands::expand_k8s_connection_params(app, &expanded_params)
             .await?;
-    crate::commands::resolve_connection_params_with_id(&expanded_params, connection_id)
+    expanded_params.connection_id = Some(connection_id.to_string());
+    let lease = ssh_tunnel_lease(&expanded_params);
+    let params = tokio::task::spawn_blocking(move || {
+        crate::commands::resolve_connection_params(&expanded_params)
+    })
+    .await
+    .map_err(|e| format!("Resolving connection params failed: {e}"))??;
+    Ok((lease, params))
 }
 
-/// Ping a single connection by resolving its params and calling driver.ping().
-async fn ping_single_connection(app: &tauri::AppHandle, connection_id: &str) -> Result<(), String> {
-    let params = resolve_params(app, connection_id).await?;
+/// Ping a single connection through its existing pool. Also returns the SSH
+/// tunnel that was cached for it when the ping started.
+async fn ping_single_connection(
+    app: &tauri::AppHandle,
+    connection_id: &str,
+) -> (Option<TunnelLease>, PingOutcome) {
+    let (lease, params) = match resolve_params(app, connection_id).await {
+        Ok(resolved) => resolved,
+        Err(err) => return (None, PingOutcome::Error(err)),
+    };
 
     // Check if pool exists before attempting ping (avoid creating new pools).
     if is_builtin_driver(&params.driver)
         && !crate::pool_manager::has_pool(&params, Some(connection_id)).await
     {
-        return Err("No active connection pool".into());
+        return (
+            lease,
+            PingOutcome::Error("No active connection pool".into()),
+        );
     }
 
-    let driver = crate::drivers::registry::get_driver(&params.driver)
-        .await
-        .ok_or_else(|| format!("Driver not found: {}", params.driver))?;
+    let Some(driver) = crate::drivers::registry::get_driver(&params.driver).await else {
+        let err = format!("Driver not found: {}", params.driver);
+        return (lease, PingOutcome::Error(err));
+    };
 
-    tokio::time::timeout(PING_TIMEOUT, driver.ping(&params))
-        .await
-        .map_err(|_| "Ping timed out".to_string())?
+    let outcome = match tokio::time::timeout(PING_TIMEOUT, driver.ping(&params)).await {
+        Ok(Ok(())) => PingOutcome::Ok,
+        Ok(Err(err)) => PingOutcome::Error(err),
+        Err(_) => PingOutcome::TimedOut,
+    };
+    (lease, outcome)
 }
 
 /// Unregister the connection, close its pools, and emit a failure event.
