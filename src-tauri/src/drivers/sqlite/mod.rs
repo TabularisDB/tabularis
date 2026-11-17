@@ -852,11 +852,27 @@ pub async fn execute_batch(
         let outcome = run
             .exec_within_query_timeout(params, q, limit, page)
             .await?;
+        let stopped = matches!(&outcome, Err(e) if cancel::is_stopped(e));
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
         if let Some(cb) = on_progress {
             cb(idx, &res);
         }
         results.push(res);
+        if stopped {
+            // SQLite rolls back an open transaction when it stops a write, so
+            // running on would continue in autocommit.
+            for idx in idx + 1..queries.len() {
+                let res = crate::models::BatchStatementResult::from_outcome(
+                    std::time::Instant::now(),
+                    Err("Not run: an earlier statement was stopped by the query timeout".into()),
+                );
+                if let Some(cb) = on_progress {
+                    cb(idx, &res);
+                }
+                results.push(res);
+            }
+            break;
+        }
     }
     run.release().await;
     Ok(results)

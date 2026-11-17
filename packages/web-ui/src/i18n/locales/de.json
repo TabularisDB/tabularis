@@ -1562,7 +1562,7 @@
     "useK8s": "Kubernetes-Port-Forward verwenden",
     "useK8sConnection": "Gespeicherte Verbindung",
     "queryTimeout": "Abfrage-Timeout (Sekunden)",
-    "queryTimeoutHint": "Bricht eine Abfrage auf dem Server ab, sobald sie so lange läuft. Leer lassen für kein Limit.",
+    "queryTimeoutHint": "Bricht eine laufende Abfrage nach so vielen Sekunden ab. Leer lassen für kein Limit.",
     "startupScript": "Startskript",
     "startupScriptDescription": "SQL, das bei jeder neuen Verbindung zu dieser Datenquelle ausgeführt wird. Verwenden Sie es für Sitzungseinstellungen wie SET / set_config (z. B. zum Umgehen von RLS). Trennen Sie Anweisungen mit Semikolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",

@@ -675,6 +675,7 @@ mod query_timeout {
     const SLOW_WRITE: &str = "INSERT INTO users (name) SELECT 'Zed' WHERE (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c LIMIT 300000000) SELECT count(*) FROM c) > 0";
 
     const STOPPED: &str = "Query stopped after 1 s by the connection's query timeout";
+    const NOT_RUN: &str = "Not run: an earlier statement was stopped by the query timeout";
 
     #[test]
     fn the_driver_offers_the_query_timeout_field() {
@@ -718,7 +719,7 @@ mod query_timeout {
     }
 
     #[tokio::test]
-    async fn the_next_statement_in_a_batch_runs_after_one_is_stopped() {
+    async fn a_batch_stops_after_a_statement_is_stopped() {
         let (mut params, _file) = setup_test_db().await;
         params.query_timeout_secs = Some(1);
         let queries = [
@@ -730,9 +731,42 @@ mod query_timeout {
             .await
             .expect("batch runs");
 
+        assert_eq!(results.len(), 2);
         assert_eq!(results[0].error.as_deref(), Some(STOPPED));
-        let count = results[1].result.as_ref().expect("second statement runs");
-        assert_eq!(count.rows[0][0], serde_json::json!(2));
+        assert_eq!(results[1].error.as_deref(), Some(NOT_RUN));
+        assert!(results[1].result.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_stopped_write_in_a_transaction_does_not_leave_later_writes_committed() {
+        let (mut params, _file) = setup_test_db().await;
+        params.query_timeout_secs = Some(1);
+        let queries = [
+            "BEGIN".to_string(),
+            "INSERT INTO users (name) VALUES ('A')".to_string(),
+            SLOW_WRITE.to_string(),
+            "INSERT INTO users (name) VALUES ('B')".to_string(),
+            "COMMIT".to_string(),
+        ];
+
+        let results = super::super::execute_batch(&params, &queries, None, 1, None)
+            .await
+            .expect("batch runs");
+
+        assert_eq!(results.len(), 5);
+        assert_eq!(results[2].error.as_deref(), Some(STOPPED));
+        assert_eq!(results[3].error.as_deref(), Some(NOT_RUN));
+        assert_eq!(results[4].error.as_deref(), Some(NOT_RUN));
+
+        let names = super::super::execute_query(
+            &params,
+            "SELECT COUNT(*) FROM users WHERE name IN ('A', 'B')",
+            None,
+            1,
+        )
+        .await
+        .expect("count");
+        assert_eq!(names.rows[0][0], serde_json::json!(0));
     }
 
     #[tokio::test]

@@ -24,6 +24,14 @@ const PROGRESS_OPS: i32 = 1_000;
 /// can land late there.
 const CANCEL_GRACE: Duration = Duration::from_secs(5);
 
+/// Starts the error of a statement the timeout stopped.
+const STOPPED_PREFIX: &str = "Query stopped after ";
+
+/// Whether `error` is the timeout stopping a statement.
+pub(super) fn is_stopped(error: &str) -> bool {
+    error.starts_with(STOPPED_PREFIX)
+}
+
 /// A pooled connection a run is using, with a progress handler that stops the
 /// running statement once asked.
 ///
@@ -99,7 +107,7 @@ impl InFlight {
         }
         stop.store(true, Ordering::Relaxed);
         let stopped = format!(
-            "Query stopped after {} s by the connection's query timeout",
+            "{STOPPED_PREFIX}{} s by the connection's query timeout",
             timeout.as_secs()
         );
         match tokio::time::timeout(CANCEL_GRACE, run).await {
