@@ -359,7 +359,8 @@ pub async fn get_ai_schema_context(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<String, String> {
-    let (driver, params) = driver_and_params(runtime, session_id, connection_id, database).await?;
+    let (driver, params) =
+        driver_and_params(runtime, session_id, connection_id, database.clone()).await?;
 
     let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
     let context = driver
@@ -369,10 +370,25 @@ pub async fn get_ai_schema_context(
             crate::ai_schema_context::DEFAULT_MAX_TABLES,
         )
         .await?;
-    Ok(crate::ai_schema_context::format_for_prompt(
-        &context,
-        identifier_quote,
-    ))
+    let mut prompt = crate::ai_schema_context::format_for_prompt(&context, identifier_quote);
+    let tables: Vec<String> = context
+        .tables
+        .iter()
+        .map(|table| table.name.clone())
+        .collect();
+    if let Some(notes) = crate::application::schema_notes::prompt_section(
+        runtime.paths.config_dir(),
+        connection_id,
+        &tables,
+        database.as_deref(),
+        schema.as_deref(),
+    ) {
+        if !prompt.is_empty() {
+            prompt.push_str("\n\n");
+        }
+        prompt.push_str(&notes);
+    }
+    Ok(prompt)
 }
 
 pub async fn get_available_databases(

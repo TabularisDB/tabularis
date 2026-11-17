@@ -16,6 +16,7 @@ The Web-specific options are:
 | Option | Purpose and constraints |
 |---|---|
 | `web` | Start the HTTP and WebSocket server without creating a desktop window. It conflicts with `--mcp` and `--explain`. |
+| `--base-path` | Runtime public prefix, such as `/tabularis/w/workspace-id/`. The gateway strips it and preserves Host/Origin. See [public base paths](WEB_BASE_PATH.md) for validation and build-time compatibility. |
 | `--host` | Bind address. The default is `127.0.0.1`. A non-loopback address is rejected unless remote authentication is fully configured. |
 | `--port` | Bind port. The default is `8080`; there is no automatic port fallback, so choose another port if it is occupied. |
 | `--no-open` | Do not launch a browser. Use this for services, remote deployments, and liveness-only automation. For an interactive local session, let Tabularis open the one-time bootstrap URL. |
@@ -25,7 +26,7 @@ The Web-specific options are:
 | `--trusted-proxy` | Proxy source CIDR allowed to supply `X-Forwarded-For`; repeat as needed. Empty by default. |
 | `--allowed-origin` | Allowed HTTPS (or loopback HTTP) browser origin. Repeat the option for additional origins; the public URL must be included. |
 | `--allow-high-risk` | Give remote sessions `local-admin` authority. Without it, remote sessions are restricted to database operations. Do not enable it for shared deployments. |
-| `--connection-mode` | `standalone` (default) or `managed-only`. In `managed-only` mode every connection on the instance is supplied by an administrator and every authenticated user shares all of them; run a separate instance per group of users. Enforcement is not active yet. See [WEB_MANAGED_MODE.md](WEB_MANAGED_MODE.md). |
+| `--connection-mode` | `standalone` (default) or `managed-only`. In `managed-only` mode every connection on the instance is supplied by an administrator and every authenticated user shares all of them; run a separate instance per group of users. Requires `--auth` and cannot be combined with `--allow-high-risk`. See [WEB_MANAGED_MODE.md](WEB_MANAGED_MODE.md). |
 | `--managed-allow-branding` | In `managed-only` mode, let users change connection appearance and icons. Denied by default. Requires `--connection-mode`. |
 | `--managed-allow-organization` | In `managed-only` mode, let users change connection groups and tags. Denied by default. Requires `--connection-mode`. |
 | `--server-file-browser-root` | Allow the Web UI to browse one server directory. Repeat it to expose additional roots. Paths outside these roots remain inaccessible; remote sessions also require `--allow-high-risk`. |
@@ -162,6 +163,7 @@ The browser uses the same React UI and Rust services as desktop, but native oper
 - Save dialogs become browser downloads. File placement and overwrite behavior are controlled by the browser.
 - Secondary result, diagram, explain, task, and connection windows become routes or browser tabs. Popup blockers can prevent opening a new tab.
 - External links are validated before opening and may still be blocked by browser popup policy.
+- Dismissing the central community welcome dialog stores one non-sensitive boolean in browser localStorage for the current origin. It survives reloads and fresh workspaces without changing server configuration or sharing workspace preferences. A fresh browser still shows the welcome; clearing site data resets the choice. If storage is blocked, dismissal lasts for the current page only. Desktop continues to use its saved `showWelcome` setting; the sidebar Discord callout uses its existing shared UI state.
 - Deep-link plugin installation becomes a validated `/install-plugin` route with explicit confirmation.
 - The desktop updater, native restart, window attention, title-bar controls, and native DevTools lifecycle do not apply. The Info page reports server build data and directs the user to an administrator for upgrades.
 - MCP configuration is a local-host operation and is unavailable to remote browser sessions.

@@ -3,6 +3,8 @@
  * The app appends ?utm_src=tabularis-app when opening the link.
  */
 export const versionLinks: Record<string, string> = {
+    '0.33.0':
+        'https://tabularis.dev/blog/v0330-open-data-files-ai-completion-read-only-connections',
     '0.32.0': 'https://tabularis.dev/blog/v0320-table-transfer-sql-snippets-plan-comparison',
     '0.31.0':
         'https://tabularis.dev/blog/v0310-transposed-grid-saved-query-history-connection-import',

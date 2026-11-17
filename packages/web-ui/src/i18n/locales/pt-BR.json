@@ -281,6 +281,7 @@
     "showData": "Mostrar Dados",
     "countRows": "Contar Linhas",
     "viewSchema": "Ver Esquema",
+    "schemaNotes": "Notas do esquema",
     "viewERDiagram": "Ver Diagrama ER",
     "generateSQL": "Gerar SQL",
     "addColumn": "Adicionar Coluna",
@@ -2286,6 +2287,8 @@
       "exportHtml": "Exportar como HTML",
       "exportSql": "Exportar código SQL",
       "exportSqlEmpty": "Este notebook não tem SQL para exportar.",
+      "exportMarkdown": "Exportar Markdown",
+      "exportMarkdownEmpty": "Este notebook não tem conteúdo para exportar.",
       "parameters": "Parâmetros",
       "paramName": "nome",
       "paramValue": "valor",
@@ -3012,6 +3015,12 @@
       }
     }
   },
+  "managed": {
+    "denied": "Esta conexão é gerenciada por um administrador e não pode ser alterada aqui.",
+    "noConnections": "Ainda não há conexões disponíveis. Peça ao seu administrador para fornecer uma.",
+    "notice": "Um administrador gerencia as conexões deste servidor. Você pode abri-las e executar consultas, mas não pode adicionar, editar, excluir, importar, exportar nem testar conexões.",
+    "noticeTitle": "Conexões gerenciadas"
+  },
   "groups": {
     "title": "Grupos",
     "newGroup": "Novo Grupo",
@@ -3710,5 +3719,40 @@
   },
   "pluginWorkspace": {
     "unavailable": "Este espaço de trabalho está indisponível. Ative ou reinstale o plugin nas configurações."
+  },
+  "schemaNotes": {
+    "title": "Notas do esquema",
+    "subtitle": "Notas de negócio locais, salvas neste computador. Elas nunca são gravadas no banco de dados.",
+    "loading": "Carregando notas…",
+    "loadFailed": "Não foi possível ler o arquivo de notas. Ele não foi alterado: corrija-o ou substitua-o para editar as notas aqui.",
+    "documented": "Objetos documentados",
+    "noNotes": "Nenhuma nota ainda.",
+    "noDomain": "Sem domínio",
+    "columnCount": "· {{count}} col.",
+    "projectNote": "Nota da conexão ({{name}})",
+    "tableNote": "Nota da tabela",
+    "domain": "Domínio de negócio",
+    "domainPlaceholder": "ex.: Faturamento",
+    "columns": "Colunas",
+    "columnNote": "Nota da coluna {{column}}",
+    "databaseComment": "Comentário do banco de dados",
+    "notePlaceholder": "Markdown suportado",
+    "empty": "Sem nota",
+    "tableNotFound": "Esta tabela não foi encontrada no banco de dados. Suas notas são mantidas.",
+    "columnNotFound": "Não encontrada no banco de dados; nota mantida",
+    "metadataUnavailable": "Não foi possível carregar os detalhes da tabela; você ainda pode editar as notas.",
+    "includeInAi": "Incluir estas notas no contexto de esquema da IA",
+    "includeInAiHint": "Desativado por padrão. Quando ativado, as notas das tabelas enviadas ao provedor de IA são adicionadas como contexto descritivo claramente identificado.",
+    "preview": "Pré-visualizar",
+    "edit": "Editar",
+    "import": "Importar",
+    "export": "Exportar",
+    "save": "Salvar",
+    "saved": "Notas salvas.",
+    "imported": "Notas importadas de {{name}}.",
+    "saveBeforeImport": "Salve suas alterações antes de importar.",
+    "saveBeforeExport": "Salve suas alterações antes de exportar.",
+    "discardTitle": "Descartar as notas não salvas?",
+    "discardMessage": "Suas alterações nas notas não foram salvas. Fechar agora vai descartá-las."
   }
 }

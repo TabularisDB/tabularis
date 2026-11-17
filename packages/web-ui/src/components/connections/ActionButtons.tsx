@@ -3,6 +3,7 @@ import {Power, Edit, Copy, Trash2, ArrowLeftRight} from 'lucide-react';
 import clsx from 'clsx';
 import type {SavedConnection} from '@/contexts/DatabaseContext';
 import type {MigrationDirection} from '@/utils/connections';
+import {useConnectionCapabilities} from '@/hooks/useConnectionCapabilities';
 
 export interface ActionButtonsProps {
     conn: SavedConnection;
@@ -41,9 +42,10 @@ export const ActionButtons = ({
     onMigrate,
 }: ActionButtonsProps) => {
     const {t} = useTranslation();
+    const {canUpdate, canDuplicate, canDelete} = useConnectionCapabilities();
     return (
         <>
-            {migrationDirection && onMigrate && (
+            {canUpdate && migrationDirection && onMigrate && (
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -85,38 +87,44 @@ export const ActionButtons = ({
                     <Power size={13} />
                 </button>
             )}
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    if (isDriverEnabled) onEdit();
-                }}
-                disabled={!isDriverEnabled}
-                className={clsx(BUTTON_CLASS, HOVER.primary)}
-                title={t('connections.edit')}
-            >
-                <Edit size={13} />
-            </button>
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    if (isDriverEnabled) onDuplicate();
-                }}
-                disabled={!isDriverEnabled}
-                className={clsx(BUTTON_CLASS, HOVER.primary)}
-                title={t('connections.clone')}
-            >
-                <Copy size={13} />
-            </button>
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    void onDelete();
-                }}
-                className={clsx(BUTTON_CLASS, HOVER.danger)}
-                title={t('connections.delete')}
-            >
-                <Trash2 size={13} />
-            </button>
+            {canUpdate && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (isDriverEnabled) onEdit();
+                    }}
+                    disabled={!isDriverEnabled}
+                    className={clsx(BUTTON_CLASS, HOVER.primary)}
+                    title={t('connections.edit')}
+                >
+                    <Edit size={13} />
+                </button>
+            )}
+            {canDuplicate && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (isDriverEnabled) onDuplicate();
+                    }}
+                    disabled={!isDriverEnabled}
+                    className={clsx(BUTTON_CLASS, HOVER.primary)}
+                    title={t('connections.clone')}
+                >
+                    <Copy size={13} />
+                </button>
+            )}
+            {canDelete && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        void onDelete();
+                    }}
+                    className={clsx(BUTTON_CLASS, HOVER.danger)}
+                    title={t('connections.delete')}
+                >
+                    <Trash2 size={13} />
+                </button>
+            )}
         </>
     );
 };

@@ -857,6 +857,7 @@ async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
     let error = server::run(server::WebServerOptions {
+        base_path: None,
         trusted_proxies: Vec::new(),
         host: "0.0.0.0".to_string(),
         port: 0,
@@ -868,6 +869,7 @@ async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
         public_url: None,
         allowed_origins: Vec::new(),
         allow_high_risk: false,
+        connection_policy: crate::application::ManagedConnectionPolicy::standalone(),
         server_file_browser_roots: Vec::new(),
         application: test_application(temp.path()),
         events: WebEventBus::default(),
@@ -3536,6 +3538,8 @@ async fn rejects_new_proxy_sessions_at_capacity_without_logging_out_existing_cli
     let existing = client
         .get(format!("http://{address}/api/v1/session"))
         .header(HOST, "review.example")
+        .header("x-tabularis-proxy-secret", secret)
+        .header("x-tabularis-user", "alice")
         .header(
             COOKIE,
             format!(

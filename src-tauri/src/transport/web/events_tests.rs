@@ -197,3 +197,74 @@ fn lets_every_session_follow_shared_catalog_and_ui_state_changes() {
         Some(AuthorizationLevel::Database)
     );
 }
+
+#[tokio::test]
+async fn events_never_carry_a_registered_credential() {
+    let bus = WebEventBus::new(test_config());
+    let session = Uuid::new_v4();
+    let mut connection = bus.connect(session, AuthorizationLevel::Database).unwrap();
+    connection
+        .subscribe(&["connection-health-failed".to_string()], None)
+        .unwrap();
+    bus.redactor().replace(["db-secret-value".to_string()]);
+
+    bus.emit_to(
+        session,
+        "connection-health-failed",
+        json!({"connectionId": "c1", "error": "login failed for db-secret-value"}),
+    )
+    .unwrap();
+
+    let event = connection.recv().await.unwrap();
+    let text = event.payload.to_string();
+    assert!(!text.contains("db-secret-value"));
+    assert!(text.contains("[redacted]"));
+}
+
+#[tokio::test]
+async fn events_are_untouched_when_no_credentials_are_registered() {
+    let bus = WebEventBus::new(test_config());
+    let session = Uuid::new_v4();
+    let mut connection = bus.connect(session, AuthorizationLevel::Database).unwrap();
+    connection
+        .subscribe(&["connection-health-failed".to_string()], None)
+        .unwrap();
+
+    bus.emit_to(
+        session,
+        "connection-health-failed",
+        json!({"connectionId": "c1", "error": "offline"}),
+    )
+    .unwrap();
+
+    let event = connection.recv().await.unwrap();
+    assert_eq!(event.payload["error"], "offline");
+}
+
+#[tokio::test]
+async fn events_never_carry_a_short_stored_password() {
+    for secret in ["a", "ab", "abc"] {
+        let bus = WebEventBus::new(test_config());
+        let session = Uuid::new_v4();
+        let mut connection = bus.connect(session, AuthorizationLevel::Database).unwrap();
+        connection
+            .subscribe(&["connection-health-failed".to_string()], None)
+            .unwrap();
+        bus.redactor().replace([secret.to_string()]);
+
+        bus.emit_to(
+            session,
+            "connection-health-failed",
+            json!({
+                "connectionId": "c1",
+                "error": format!("login failed for password {secret}"),
+                "items": [{"why": secret}],
+            }),
+        )
+        .unwrap();
+
+        let event = connection.recv().await.unwrap();
+        assert_eq!(event.payload["error"], "[redacted]", "{secret}");
+        assert_eq!(event.payload["items"][0]["why"], "[redacted]", "{secret}");
+    }
+}

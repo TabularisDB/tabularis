@@ -2,11 +2,13 @@ import type {PlatformCapabilities} from '@/platform/capabilities';
 import type {NotebookState} from '@/types/notebook';
 import {deserializeNotebook, serializeNotebook} from './notebookFile';
 import {exportNotebookToHtml} from './notebookHtmlExport';
+import {exportNotebookToMarkdown} from './notebookMarkdownExport';
 import {exportNotebookToSql} from './notebookSqlExport';
 
 const NOTEBOOK_FILTER = [{name: 'Tabularis Notebook', extensions: ['tabularis-notebook']}] as const;
 const HTML_FILTER = [{name: 'HTML', extensions: ['html']}] as const;
 const SQL_FILTER = [{name: 'SQL', extensions: ['sql']}] as const;
+const MARKDOWN_FILTER = [{name: 'Markdown', extensions: ['md']}] as const;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', {fatal: true});
 
@@ -70,6 +72,25 @@ export async function downloadNotebookSql(
         contents: encoder.encode(sql),
         mimeType: 'application/sql;charset=utf-8',
         filters: SQL_FILTER,
+    });
+    return downloaded ? 'downloaded' : 'cancelled';
+}
+
+/** Outcome of a Markdown export: saved, cancelled in the save dialog, or nothing to export. */
+export type NotebookMarkdownDownload = 'downloaded' | 'cancelled' | 'empty';
+
+export async function downloadNotebookMarkdown(
+    platform: PlatformCapabilities,
+    title: string,
+    state: NotebookState,
+): Promise<NotebookMarkdownDownload> {
+    const markdown = exportNotebookToMarkdown(state.cells);
+    if (markdown === null) return 'empty';
+    const downloaded = await platform.downloadFile({
+        fileName: `${safeFileName(title)}.md`,
+        contents: encoder.encode(markdown),
+        mimeType: 'text/markdown;charset=utf-8',
+        filters: MARKDOWN_FILTER,
     });
     return downloaded ? 'downloaded' : 'cancelled';
 }

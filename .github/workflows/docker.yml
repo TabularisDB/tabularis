@@ -19,6 +19,10 @@ on:
         description: "Push the image (tagged with the branch name) to ghcr.io"
         type: boolean
         default: false
+      version:
+        description: "Tag the pushed image as this release (e.g. 0.33.0) instead of the branch name, to republish a release image from a fixed branch. Must match src-tauri/Cargo.toml. Also moves latest unless it is a prerelease."
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -43,6 +47,21 @@ jobs:
         arch: ${{ fromJSON(github.event_name == 'pull_request' && '["amd64"]' || '["amd64","arm64"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check release version
+        if: inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::version must look like 0.33.0, got '$VERSION'"
+            exit 1
+          fi
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)
+          if [ "$VERSION" != "$crate" ]; then
+            echo "::error::version $VERSION does not match src-tauri/Cargo.toml ($crate)"
+            exit 1
+          fi
 
       - name: Image name
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tabularis" >> "$GITHUB_ENV"
@@ -135,11 +154,16 @@ jobs:
           images: ${{ env.IMAGE }}
           flavor: |
             latest=false
+          # A manual run with `version` republishes that release (e.g. after a
+          # Dockerfile fix) under the same tags a release tag push would get.
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-') }}
+            type=semver,pattern={{version}},enable=${{ inputs.version == '' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ inputs.version == '' && !contains(github.ref, '-') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
-            type=ref,event=branch
+            type=ref,event=branch,enable=${{ inputs.version == '' }}
+            type=semver,pattern={{version}},value=v${{ inputs.version }},enable=${{ inputs.version != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ inputs.version }},enable=${{ inputs.version != '' && !contains(inputs.version, '-') }}
+            type=raw,value=latest,enable=${{ inputs.version != '' && !contains(inputs.version, '-') }}
 
       - name: Create manifest list
         working-directory: /tmp/digests

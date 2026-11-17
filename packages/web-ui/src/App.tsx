@@ -23,6 +23,7 @@ import {useUpdate} from './hooks/useUpdate';
 import {useChangelog} from './hooks/useChangelog';
 import {useInterfaceScale} from './hooks/useInterfaceScale';
 import {useSettings} from './hooks/useSettings';
+import {useWelcomeDismissal} from './hooks/useWelcomeDismissal';
 import {useDeepLinkInstall} from './hooks/useDeepLinkInstall';
 import {useUiState, useUiStateReady} from './hooks/useUiState';
 import {UI_STATE_KEYS} from './utils/uiStateStore';
@@ -63,12 +64,12 @@ export function App() {
         dismissUpdate,
         error: updateError,
     } = useUpdate();
-    const {settings, updateSetting, isLoading: isSettingsLoading} = useSettings();
+    const {settings, isLoading: isSettingsLoading} = useSettings();
     useInterfaceScale(settings.interfaceScale, isSettingsLoading);
     useResultTypeColors();
     const [isDebugMode, setIsDebugMode] = useState(false);
     const deepLinkInstall = useDeepLinkInstall();
-    const [isCommunityModalDismissed, setIsCommunityModalDismissed] = useState(false);
+    const {dismissed: isCommunityModalDismissed, dismiss: dismissWelcome} = useWelcomeDismissal();
 
     // Shared with every host (desktop and browser), so What's New shows once per version.
     const isUiStateReady = useUiStateReady();
@@ -97,10 +98,9 @@ export function App() {
     }, [lastSeenVersion, allEntries]);
 
     const dismissCommunityModal = useCallback(() => {
-        updateSetting('showWelcome', false);
+        dismissWelcome();
         setLastSeenVersion(APP_VERSION);
-        setIsCommunityModalDismissed(true);
-    }, [setLastSeenVersion, updateSetting]);
+    }, [dismissWelcome, setLastSeenVersion]);
 
     const dismissWhatsNew = useCallback(() => {
         setLastSeenVersion(APP_VERSION);
@@ -114,7 +114,7 @@ export function App() {
         if (
             isUiStateReady &&
             !isSettingsLoading &&
-            settings.showWelcome === false &&
+            isCommunityModalDismissed &&
             lastSeenVersion === null
         ) {
             setLastSeenVersion(APP_VERSION);
@@ -124,7 +124,7 @@ export function App() {
         isUiStateReady,
         lastSeenVersion,
         setLastSeenVersion,
-        settings.showWelcome,
+        isCommunityModalDismissed,
     ]);
 
     useEffect(() => {
@@ -240,20 +240,12 @@ export function App() {
             />
 
             <CommunityModal
-                isOpen={
-                    !isSettingsLoading &&
-                    settings.showWelcome !== false &&
-                    !isCommunityModalDismissed
-                }
+                isOpen={!isSettingsLoading && !isCommunityModalDismissed}
                 onClose={dismissCommunityModal}
             />
 
             <WhatsNewModal
-                isOpen={
-                    isWhatsNewOpen &&
-                    !isSettingsLoading &&
-                    (settings.showWelcome === false || isCommunityModalDismissed)
-                }
+                isOpen={isWhatsNewOpen && !isSettingsLoading && isCommunityModalDismissed}
                 onClose={dismissWhatsNew}
                 entries={whatsNewEntries}
                 isLoading={isChangelogLoading}
