@@ -410,7 +410,7 @@ describe('NotebookCellWrapper report inclusion toggle', () => {
         const props = makeProps();
         const {rerender} = render(<NotebookCellWrapper {...props} />);
 
-        const toggle = screen.getByRole('button', {name: 'editor.notebook.includedInReport'});
+        const toggle = screen.getByRole('button', {name: 'editor.notebook.includeInReport'});
         expect(toggle).toHaveAttribute('aria-pressed', 'true');
 
         fireEvent.click(toggle);
@@ -418,7 +418,7 @@ describe('NotebookCellWrapper report inclusion toggle', () => {
 
         rerender(<NotebookCellWrapper {...props} cell={{...props.cell, includeInReport: false}} />);
         const excludedToggle = screen.getByRole('button', {
-            name: 'editor.notebook.excludedFromReport',
+            name: 'editor.notebook.includeInReport',
         });
         expect(excludedToggle).toHaveAttribute('aria-pressed', 'false');
 

@@ -136,7 +136,7 @@ export function NotebookReportView({
                         <button
                             type="button"
                             onClick={onSwitchToEdit}
-                            className="px-3 py-1.5 text-xs font-medium rounded bg-surface-secondary text-primary hover:bg-surface border border-strong transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                            className="px-3 py-1.5 text-xs font-medium rounded bg-surface-secondary text-primary hover:bg-surface-hover border border-strong transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                         >
                             {t('editor.notebook.editMode')}
                         </button>

@@ -400,11 +400,7 @@ export function NotebookCellHeader({
                                 ? 'editor.notebook.excludeFromReport'
                                 : 'editor.notebook.includeInReport',
                         )}
-                        aria-label={t(
-                            includeInReport !== false
-                                ? 'editor.notebook.includedInReport'
-                                : 'editor.notebook.excludedFromReport',
-                        )}
+                        aria-label={t('editor.notebook.includeInReport')}
                         aria-pressed={includeInReport !== false}
                         className={`p-1 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
                             includeInReport !== false
