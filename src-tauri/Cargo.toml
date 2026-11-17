@@ -182,5 +182,9 @@ tokio-tungstenite = "0.24.0"
 
 # SQLx 0.8.6 must recognize Unix sockets as secure during MySQL SHA-2 auth.
 # See vendor/sqlx-mysql/README.tabularis.md for the exact patch and removal criteria.
+# SQLx 0.8.6 pins libsqlite3-sys 0.30 (SQLite 3.46); the vendored sqlx-sqlite widens
+# that range so the bundled SQLite supports if()/multi-argument iif() (#1567).
+# See vendor/sqlx-sqlite/README.tabularis.md.
 [patch.crates-io]
 sqlx-mysql = { path = "vendor/sqlx-mysql" }
+sqlx-sqlite = { path = "vendor/sqlx-sqlite" }
