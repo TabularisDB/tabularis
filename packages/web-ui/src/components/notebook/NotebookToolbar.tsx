@@ -28,6 +28,7 @@ interface NotebookToolbarProps {
     onExport: () => void;
     onExportHtml: () => void;
     onExportSql: () => void;
+    onExportMarkdown: () => void;
     onImport: () => void;
     isRunning: boolean;
     stopOnError: boolean;
@@ -83,6 +84,7 @@ export function NotebookToolbar({
     onExport,
     onExportHtml,
     onExportSql,
+    onExportMarkdown,
     onImport,
     isRunning,
     stopOnError,
@@ -130,6 +132,11 @@ export function NotebookToolbar({
             label: t('editor.notebook.exportSql'),
             icon: FileDown,
             action: onExportSql,
+        },
+        {
+            label: t('editor.notebook.exportMarkdown'),
+            icon: FileText,
+            action: onExportMarkdown,
         },
     ];
 
