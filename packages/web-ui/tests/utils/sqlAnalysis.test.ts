@@ -580,6 +580,9 @@ describe('isReadOnlyQuery', () => {
         expect(isReadOnlyQuery("SELECT 'INTO' AS word FROM t")).toBe(true);
         expect(isReadOnlyQuery('SELECT into_count, "into" FROM t')).toBe(true);
         expect(isReadOnlyQuery('SELECT * FROM t -- INTO backup')).toBe(true);
+        // An ordinary MySQL escaped quote stays read-only: the second lexing
+        // pass (standard strings) must not flag every \'.
+        expect(isReadOnlyQuery("SELECT 'it\\'s' FROM t")).toBe(true);
     });
 
     it('asks when only the dialect could tell that an INTO is not code', () => {
