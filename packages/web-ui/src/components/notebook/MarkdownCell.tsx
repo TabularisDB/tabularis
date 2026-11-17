@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useId, useMemo, useRef, useState} from 'react';
 import Markdown from 'react-markdown';
 import {useTranslation} from 'react-i18next';
 import {HelpCircle} from 'lucide-react';
@@ -22,6 +22,16 @@ const TRIGGER_PATTERN = /\{\{(?:value:([^\n}]*)|v(?:a(?:l(?:u(?:e)?)?)?)?)?$/;
 function MarkdownPreview({content, cells}: {content: string; cells: NotebookCell[]}) {
     const {t} = useTranslation();
 
+    const localizeTarget = useCallback(
+        (label: string): string => {
+            const match = /^Cell (\d+)$/.exec(label);
+            return match
+                ? t('editor.notebook.scalarRef.cellLabel', {number: Number(match[1])})
+                : label;
+        },
+        [t],
+    );
+
     const formatPlaceholder = useCallback(
         (resolution: ScalarResolution): string => {
             switch (resolution.kind) {
@@ -30,47 +40,53 @@ function MarkdownPreview({content, cells}: {content: string; cells: NotebookCell
                 case 'null':
                     return 'NULL';
                 case 'notRun':
-                    return t('editor.notebook.scalarRef.notRun', {target: resolution.targetLabel});
+                    return t('editor.notebook.scalarRef.notRun', {
+                        target: localizeTarget(resolution.targetLabel),
+                    });
                 case 'loading':
                     return t('editor.notebook.scalarRef.loading', {
-                        target: resolution.targetLabel,
+                        target: localizeTarget(resolution.targetLabel),
                     });
                 case 'error':
-                    return t('editor.notebook.scalarRef.error', {target: resolution.targetLabel});
+                    return t('editor.notebook.scalarRef.error', {
+                        target: localizeTarget(resolution.targetLabel),
+                    });
                 case 'noRows':
-                    return t('editor.notebook.scalarRef.noRows', {target: resolution.targetLabel});
+                    return t('editor.notebook.scalarRef.noRows', {
+                        target: localizeTarget(resolution.targetLabel),
+                    });
                 case 'multipleRows':
                     return t('editor.notebook.scalarRef.multipleRows', {
-                        target: resolution.targetLabel,
+                        target: localizeTarget(resolution.targetLabel),
                         count: resolution.rowCount,
                     });
                 case 'missingColumn':
                     return t('editor.notebook.scalarRef.missingColumn', {
-                        target: resolution.targetLabel,
+                        target: localizeTarget(resolution.targetLabel),
                         column: resolution.column,
                     });
                 case 'ambiguousColumn':
                     return t('editor.notebook.scalarRef.ambiguousColumn', {
-                        target: resolution.targetLabel,
+                        target: localizeTarget(resolution.targetLabel),
                         column: resolution.column,
                     });
                 case 'missingCell':
                     return t('editor.notebook.scalarRef.missingCell', {
-                        target: resolution.targetLabel,
+                        target: localizeTarget(resolution.targetLabel),
                     });
                 case 'ambiguousCell':
                     return t('editor.notebook.scalarRef.ambiguousCell', {
-                        target: resolution.targetLabel,
+                        target: localizeTarget(resolution.targetLabel),
                     });
                 case 'notSqlCell':
                     return t('editor.notebook.scalarRef.notSqlCell', {
-                        target: resolution.targetLabel,
+                        target: localizeTarget(resolution.targetLabel),
                     });
                 case 'invalid':
                     return t('editor.notebook.scalarRef.invalid', {raw: resolution.raw});
             }
         },
-        [t],
+        [localizeTarget, t],
     );
 
     const remarkPlugins = useMemo(
@@ -219,14 +235,26 @@ function MarkdownEditor({
             applySuggestion(filteredSuggestions[clampedSelectedIndex]);
         } else if (e.key === 'Escape') {
             e.preventDefault();
+            e.stopPropagation();
             setTrigger(null);
         }
     };
+
+    const listboxId = useId();
+    const isSuggestionsOpen = Boolean(trigger && filteredSuggestions.length > 0);
+    const activeOptionId = isSuggestionsOpen
+        ? `${listboxId}-option-${clampedSelectedIndex}`
+        : undefined;
 
     return (
         <div className="relative">
             {/* Prose field: natural-language input, so spellcheck/autocorrect stay ON; only the WebKit autofill pill is disabled. */}
             <textarea
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={isSuggestionsOpen}
+                aria-controls={isSuggestionsOpen ? listboxId : undefined}
+                aria-activedescendant={activeOptionId}
                 autoComplete="off"
                 spellCheck={true}
                 ref={textareaRef}
@@ -242,17 +270,25 @@ function MarkdownEditor({
                 className="w-full bg-base text-sm text-primary font-mono p-3 resize-none outline-none border-none min-h-[80px] block"
             />
 
-            {trigger && filteredSuggestions.length > 0 && (
+            {isSuggestionsOpen && (
                 <div
+                    id={listboxId}
                     role="listbox"
                     aria-label={t('editor.notebook.scalarRef.suggestionsLabel')}
                     className="mx-3 mb-2 max-h-48 overflow-y-auto bg-elevated border border-strong rounded-md shadow-lg py-1 z-20"
                 >
                     {filteredSuggestions.map((item, idx) => {
                         const isSelected = idx === clampedSelectedIndex;
+                        const cellMatch = item.cellName ? /^Cell (\d+)$/.exec(item.cellName) : null;
+                        const displayCellName = cellMatch
+                            ? t('editor.notebook.scalarRef.cellLabel', {
+                                  number: Number(cellMatch[1]),
+                              })
+                            : item.cellName;
                         return (
                             <button
                                 key={`${item.label}-${idx}`}
+                                id={`${listboxId}-option-${idx}`}
                                 type="button"
                                 role="option"
                                 aria-selected={isSelected}
@@ -268,9 +304,9 @@ function MarkdownEditor({
                             >
                                 <span className="font-mono truncate">{item.label}</span>
                                 <span className="flex items-center gap-2 shrink-0 text-[11px] text-muted">
-                                    {item.cellName && (
+                                    {displayCellName && (
                                         <span className="truncate max-w-[140px]">
-                                            {item.cellName}
+                                            {displayCellName}
                                         </span>
                                     )}
                                     {item.preview !== undefined && (
