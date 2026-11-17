@@ -8,7 +8,7 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::OnceLock;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     mpsc, Arc, Mutex,
 };
 use std::thread;
@@ -108,7 +108,16 @@ pub struct SshTunnel {
     /// tunnel on the russh backend only: OpenSSH's `-D` listener cannot
     /// authenticate clients.
     pub socks5_credentials: Option<crate::ssh_socks5::Credentials>,
+    /// Unique per opened tunnel, so a tunnel replaced under the same cache
+    /// key can be told apart from the one a connection used.
+    pub generation: u64,
     backend: TunnelBackend,
+}
+
+static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
+
+fn next_generation() -> u64 {
+    NEXT_GENERATION.fetch_add(1, Ordering::Relaxed)
 }
 
 pub static TUNNELS: OnceLock<Mutex<HashMap<String, SshTunnel>>> = OnceLock::new();
@@ -482,6 +491,7 @@ impl SshTunnel {
         Ok(Self {
             local_port,
             socks5_credentials: None,
+            generation: next_generation(),
             backend: TunnelBackend::SystemSsh(child_arc),
         })
     }
@@ -740,6 +750,7 @@ impl SshTunnel {
             Ok(Ok(())) => Ok(Self {
                 local_port,
                 socks5_credentials,
+                generation: next_generation(),
                 backend: TunnelBackend::Russh(running),
             }),
             Ok(Err(err)) => Err(err),
@@ -787,6 +798,7 @@ impl SshTunnel {
         Self {
             local_port,
             socks5_credentials,
+            generation: next_generation(),
             backend: TunnelBackend::Russh(Arc::new(AtomicBool::new(running))),
         }
     }
@@ -1357,6 +1369,7 @@ mod tests {
             let tunnel = SshTunnel {
                 local_port: 0,
                 socks5_credentials: None,
+                generation: next_generation(),
                 backend: TunnelBackend::SystemSsh(Arc::new(Mutex::new(child))),
             };
             assert!(tunnel.is_alive());

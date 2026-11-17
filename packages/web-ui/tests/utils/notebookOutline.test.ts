@@ -7,6 +7,16 @@ import {
     getUnnamedCellsWithContent,
 } from '@/utils/notebookOutline';
 import type {NotebookCell} from '@/types/notebook';
+import type {QueryResult} from '@/types/editor';
+
+function makeQueryResult(overrides: Partial<QueryResult> = {}): QueryResult {
+    return {
+        columns: [],
+        rows: [],
+        affected_rows: 0,
+        ...overrides,
+    };
+}
 
 function makeCell(overrides: Partial<NotebookCell> = {}): NotebookCell {
     return {
@@ -186,7 +196,7 @@ describe('notebookOutline', () => {
                 getSqlCellExecutionStatus({
                     isLoading: true,
                     error: 'Syntax error',
-                    result: {columns: [], rows: []} as unknown as NotebookCell['result'],
+                    result: makeQueryResult(),
                 }),
             ).toBe('running');
         });
@@ -201,7 +211,7 @@ describe('notebookOutline', () => {
             expect(
                 getSqlCellExecutionStatus({
                     error: 'Connection lost',
-                    result: {columns: [], rows: []} as unknown as NotebookCell['result'],
+                    result: makeQueryResult(),
                     isLoading: false,
                 }),
             ).toBe('failed');
@@ -210,7 +220,7 @@ describe('notebookOutline', () => {
         it('returns has_output when result is present and no error or loading', () => {
             expect(
                 getSqlCellExecutionStatus({
-                    result: {columns: ['id'], rows: [[1]]} as unknown as NotebookCell['result'],
+                    result: makeQueryResult({columns: ['id'], rows: [[1]]}),
                     isLoading: false,
                 }),
             ).toBe('has_output');
@@ -219,7 +229,7 @@ describe('notebookOutline', () => {
         it('counts empty successful result as has_output', () => {
             expect(
                 getSqlCellExecutionStatus({
-                    result: {columns: [], rows: []} as unknown as NotebookCell['result'],
+                    result: makeQueryResult(),
                     isLoading: false,
                 }),
             ).toBe('has_output');
@@ -228,7 +238,7 @@ describe('notebookOutline', () => {
         it('immediately reflects cleared outputs as idle', () => {
             const cell = makeCell({
                 type: 'sql',
-                result: {columns: [], rows: []} as unknown as NotebookCell['result'],
+                result: makeQueryResult(),
             });
             expect(getSqlCellExecutionStatus(cell)).toBe('has_output');
 
@@ -240,7 +250,72 @@ describe('notebookOutline', () => {
         });
     });
 
+    describe('getSqlCellExecutionStatus with disabled cells', () => {
+        const output = {columns: ['id'], rows: [[1]]} as unknown as NotebookCell['result'];
+
+        it('returns disabled for a disabled cell, even with earlier output or error', () => {
+            expect(getSqlCellExecutionStatus({isDisabled: true})).toBe('disabled');
+            expect(getSqlCellExecutionStatus({isDisabled: true, result: output})).toBe('disabled');
+            expect(getSqlCellExecutionStatus({isDisabled: true, error: 'Fail'})).toBe('disabled');
+        });
+
+        it('keeps running ahead of disabled', () => {
+            expect(getSqlCellExecutionStatus({isDisabled: true, isLoading: true})).toBe('running');
+        });
+
+        it('returns blocked when a referenced cell is disabled', () => {
+            const cells = [
+                makeCell({id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: true}),
+                makeCell({id: 'b', type: 'sql', content: 'SELECT * FROM {{cell_1}}'}),
+            ];
+            expect(getSqlCellExecutionStatus(cells[1], cells)).toBe('blocked');
+        });
+
+        it('returns blocked through a prerequisite that still has to run', () => {
+            const cells = [
+                makeCell({id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: true}),
+                makeCell({id: 'b', type: 'sql', content: 'SELECT * FROM {{cell_1}}'}),
+                makeCell({id: 'c', type: 'sql', content: 'SELECT * FROM {{cell_2}}', error: 'x'}),
+            ];
+            expect(getSqlCellExecutionStatus(cells[2], cells)).toBe('blocked');
+        });
+
+        it('is not blocked when the chain stops at a prerequisite with output', () => {
+            const cells = [
+                makeCell({id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: true}),
+                makeCell({
+                    id: 'b',
+                    type: 'sql',
+                    content: 'SELECT * FROM {{cell_1}}',
+                    result: output,
+                }),
+                makeCell({id: 'c', type: 'sql', content: 'SELECT * FROM {{cell_2}}'}),
+            ];
+            expect(getSqlCellExecutionStatus(cells[2], cells)).toBe('idle');
+        });
+
+        it('does not look for prerequisites without the notebook cells', () => {
+            expect(
+                getSqlCellExecutionStatus({content: 'SELECT * FROM {{cell_1}}', result: output}),
+            ).toBe('has_output');
+        });
+    });
+
     describe('extractOutline execution status integration', () => {
+        it('marks disabled cells and the cells they block', () => {
+            const cells = [
+                makeCell({id: 'c1', type: 'sql', content: 'SELECT 1', isDisabled: true}),
+                makeCell({id: 'c2', type: 'sql', content: 'SELECT * FROM {{cell_1}}'}),
+                makeCell({id: 'c3', type: 'sql', content: 'SELECT 3'}),
+            ];
+
+            expect(extractOutline(cells).map((e) => e.status)).toEqual([
+                'disabled',
+                'blocked',
+                'idle',
+            ]);
+        });
+
         it('derives execution status for SQL cells while leaving markdown cells unchanged', () => {
             const cells = [
                 makeCell({id: 'c1', content: '# Section 1'}),
@@ -250,7 +325,7 @@ describe('notebookOutline', () => {
                     id: 'c4',
                     type: 'sql',
                     content: 'SELECT 3',
-                    result: {columns: [], rows: []} as unknown as NotebookCell['result'],
+                    result: makeQueryResult(),
                 }),
                 makeCell({id: 'c5', type: 'sql', content: 'SELECT 4'}),
                 makeCell({id: 'c6', content: '## Section 2'}),

@@ -1,6 +1,8 @@
 import type {NotebookCell} from '@/types/notebook';
+import {findDisabledPrerequisites} from './notebookRunAll';
 
-export type SqlCellExecutionStatus = 'idle' | 'running' | 'failed' | 'has_output';
+export type SqlCellExecutionStatus =
+    'idle' | 'running' | 'disabled' | 'blocked' | 'failed' | 'has_output';
 
 export interface OutlineEntry {
     level: number;
@@ -17,15 +19,25 @@ const HEADING_REGEX = /^(#{1,3})\s+(.+)$/;
  * Derive runtime execution status for a SQL cell in outline.
  * Precedence:
  * 1. running when isLoading is true
- * 2. failed when error is present
- * 3. has_output when result is non-null
- * 4. idle otherwise
+ * 2. disabled when the cell itself is disabled
+ * 3. blocked when a prerequisite it needs (pass `cells`) is disabled
+ * 4. failed when error is present
+ * 5. has_output when result is non-null
+ * 6. idle otherwise
  */
 export function getSqlCellExecutionStatus(
-    cell: Pick<NotebookCell, 'isLoading' | 'error' | 'result'>,
+    cell: Pick<NotebookCell, 'isLoading' | 'error' | 'result' | 'isDisabled'> &
+        Partial<Pick<NotebookCell, 'content'>>,
+    cells?: NotebookCell[],
 ): SqlCellExecutionStatus {
     if (cell.isLoading) {
         return 'running';
+    }
+    if (cell.isDisabled) {
+        return 'disabled';
+    }
+    if (cells && cell.content && findDisabledPrerequisites(cell.content, cells).length > 0) {
+        return 'blocked';
     }
     if (cell.error) {
         return 'failed';
@@ -55,7 +67,7 @@ export function extractOutline(cells: NotebookCell[]): OutlineEntry[] {
                 cellId: cell.id,
                 cellIndex: i,
                 cellType: 'sql',
-                status: getSqlCellExecutionStatus(cell),
+                status: getSqlCellExecutionStatus(cell, cells),
             });
             continue;
         }
