@@ -199,6 +199,47 @@ describe('columnUsage', () => {
             expect(summary(correlated, ordersNoSchema, {columnsOf: owned})).toEqual([]);
         });
 
+        it('splits only where a query follows UNION, INTERSECT, EXCEPT or MINUS', () => {
+            // `minus` is an ordinary name outside Oracle.
+            for (const dialect of ['postgres', 'mysql', 'sqlite']) {
+                expect(
+                    summary('SELECT customer_id, minus FROM public.orders', ordersPublic, {
+                        dialect,
+                    }),
+                ).toEqual(['parsed']);
+            }
+            expect(
+                summary('SELECT minus.customer_id FROM public.orders minus', ordersPublic),
+            ).toEqual(['parsed']);
+            // BigQuery / ClickHouse / Databricks `* EXCEPT (...)` select lists.
+            const except = 'SELECT customer_id, * EXCEPT (secret) FROM public.orders';
+            expect(summary(except, ordersPublic, {dialect: 'generic'})).toEqual([
+                'parsed',
+                'uncertain:wildcard',
+            ]);
+            expect(
+                summary('SELECT * EXCEPT (secret) FROM public.orders', ordersPublic, {
+                    dialect: 'generic',
+                }),
+            ).toEqual(['uncertain:wildcard']);
+            expect(
+                summary('SELECT * EXCEPT secret FROM public.orders', ordersPublic, {
+                    dialect: 'generic',
+                }),
+            ).toEqual(['uncertain:wildcard']);
+            // What may follow a real set operator still splits.
+            const archive = 'SELECT customer_id FROM public.orders';
+            for (const rest of [
+                'UNION DISTINCT SELECT customer_id FROM public.archive',
+                'EXCEPT ALL SELECT customer_id FROM public.archive',
+                'UNION (SELECT customer_id FROM public.archive)',
+                'UNION ((SELECT customer_id FROM public.archive))',
+                'UNION WITH a AS (SELECT 1) SELECT customer_id FROM public.archive',
+            ]) {
+                expect(summary(`${archive} ${rest}`, ordersPublic)).toEqual(['parsed']);
+            }
+        });
+
         it('checks each side of UNION, INTERSECT and EXCEPT against its own tables', () => {
             const union =
                 'SELECT customer_id FROM public.orders UNION SELECT customer_id FROM public.archive';

@@ -415,6 +415,18 @@ const SELECT_MODIFIERS = new Set([
 
 const SET_OPERATORS = new Set(['UNION', 'INTERSECT', 'EXCEPT', 'MINUS']);
 
+// UNION / INTERSECT / EXCEPT / MINUS at `index` joins two queries only when a
+// query follows it (after ALL / DISTINCT and any parentheses). Otherwise it is
+// a name (`minus` is an ordinary column outside Oracle) or BigQuery's
+// `* EXCEPT (col)`, and must not end the query it is in.
+function isSetOperatorAt(tokens: LexToken[], index: number): boolean {
+    if (!SET_OPERATORS.has(keyword(tokens[index]))) return false;
+    let j = index + 1;
+    if (['ALL', 'DISTINCT'].includes(keyword(tokens[j]))) j++;
+    while (tokens[j]?.kind === 'punct' && tokens[j].value === '(') j++;
+    return ['SELECT', 'WITH', 'VALUES', 'TABLE'].includes(keyword(tokens[j]));
+}
+
 const DYNAMIC_SQL_WORDS = new Set(['EXECUTE', 'EXEC', 'PREPARE', 'SP_EXECUTESQL']);
 
 interface Binding {
@@ -548,7 +560,7 @@ function computeScopes(tokens: LexToken[]): {
             } else {
                 stack.push({level: top.level, own: false});
             }
-        } else if (top.own && SET_OPERATORS.has(keyword(token))) {
+        } else if (top.own && isSetOperatorAt(tokens, i)) {
             const parent = parents.get(top.level);
             if (parent !== undefined) parents.set(next, parent);
             const open = opens.get(top.level);
@@ -594,7 +606,11 @@ function buildModel(tokens: LexToken[], rule: IdentifierRules): StatementModel {
         const aliasToken = tokens[i];
         if (
             isIdent(aliasToken) &&
-            !(aliasToken.kind === 'word' && NOT_ALIAS.has(keyword(aliasToken)))
+            !(
+                aliasToken.kind === 'word' &&
+                NOT_ALIAS.has(keyword(aliasToken)) &&
+                !(SET_OPERATORS.has(keyword(aliasToken)) && !isSetOperatorAt(tokens, i))
+            )
         ) {
             model.nameTokens.add(i);
             bind(aliasToken.value, binding);
@@ -627,7 +643,7 @@ function buildModel(tokens: LexToken[], rule: IdentifierRules): StatementModel {
             const wrapsQuery =
                 innerClose !== undefined &&
                 ['SELECT', 'WITH', 'VALUES'].includes(keyword(tokens[i + 2])) &&
-                (innerClose === close - 1 || SET_OPERATORS.has(keyword(tokens[innerClose + 1])));
+                (innerClose === close - 1 || isSetOperatorAt(tokens, innerClose + 1));
             if (
                 (isIdent(first) || (tokens[i + 1]?.value === '(' && !wrapsQuery)) &&
                 !['SELECT', 'WITH', 'VALUES', 'TABLE'].includes(keyword(first))
@@ -707,7 +723,8 @@ function buildModel(tokens: LexToken[], rule: IdentifierRules): StatementModel {
         }
         const word = keyword(token);
         if (!word) continue;
-        if (LIST_END.has(word)) listDepths.delete(depth);
+        if (LIST_END.has(word) && (!SET_OPERATORS.has(word) || isSetOperatorAt(tokens, i)))
+            listDepths.delete(depth);
         // `ON DUPLICATE KEY UPDATE a = 1, b = 2` / `ON CONFLICT ... DO UPDATE`.
         if (word === 'ON' && ['DUPLICATE', 'CONFLICT'].includes(keyword(tokens[i + 1])))
             listDepths.delete(depth);
@@ -864,6 +881,7 @@ function analyseStatement(
                     continue;
                 }
                 if (word === 'SELECT' || word === 'RETURNING') return k;
+                if (SET_OPERATORS.has(word) && !isSetOperatorAt(tokens, k)) continue;
                 if (LIST_END.has(word) || RELATION_KEYWORDS.has(word)) return undefined;
             }
             return undefined;
@@ -896,7 +914,7 @@ function analyseStatement(
         if (keyword(tokens[listStart]) === 'SELECT') {
             from = listStart;
             for (let k = listStart + 1; k < tokens.length; k++) {
-                if (model.scopes[k] === scope && SET_OPERATORS.has(keyword(tokens[k]))) {
+                if (model.scopes[k] === scope && isSetOperatorAt(tokens, k)) {
                     until = k;
                     break;
                 }
