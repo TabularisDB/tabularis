@@ -439,6 +439,7 @@ async fn column_lengths_are_reported() {
         exercise_defaults_survive_rename(&mut connection, &params, &schema).await;
         exercise_column_comments(&mut connection, &params, &schema).await;
         exercise_column_sources(&mut connection, &params, &schema).await;
+        exercise_non_utf8_metadata(&mut connection, &schema).await;
     })
     .catch_unwind()
     .await;
@@ -462,6 +463,34 @@ async fn column_lengths_are_reported() {
         cleanup_error.is_none(),
         "fixture cleanup failed: {cleanup_error:?}"
     );
+}
+
+/// Column metadata that is not valid UTF-8 must not fail or hang the query: the
+/// column just has no source (#690). `character_set_results = latin1` makes the
+/// server send the `café` table name in latin1.
+async fn exercise_non_utf8_metadata(connection: &mut MySqlConnection, schema: &str) {
+    let db = quoted(schema);
+    execute(
+        connection,
+        &format!("CREATE TABLE {db}.`café` (id INT PRIMARY KEY, n INT)"),
+    )
+    .await;
+    execute(
+        connection,
+        &format!("INSERT INTO {db}.`café` VALUES (1, 2)"),
+    )
+    .await;
+    let rows = tokio::time::timeout(
+        Duration::from_secs(30),
+        sqlx::raw_sql(&format!(
+            "SET character_set_results = latin1; SELECT id, n FROM {db}.`café`"
+        ))
+        .fetch_all(&mut *connection),
+    )
+    .await
+    .expect("query must not hang on non-UTF-8 column metadata")
+    .expect("query must succeed");
+    assert_eq!(rows.len(), 1);
 }
 
 /// `execute_query` reports where each result column comes from (#690): the

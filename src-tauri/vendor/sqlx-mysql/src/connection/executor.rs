@@ -393,15 +393,21 @@ fn recv_next_result_column(def: &ColumnDefinition, ordinal: usize) -> Result<MyS
     let type_info = MySqlTypeInfo::from_column(def);
 
     // An expression has no original table or column; leave it without a source.
-    let source = match (def.table()?, def.name()?) {
-        (table, column) if !table.is_empty() && !column.is_empty() => Some(MySqlColumnSource {
-            schema: def.schema()?.to_owned(),
+    // Metadata that is not valid UTF-8 (e.g. `character_set_results = latin1`)
+    // must never fail the query, so decode errors also mean "no source".
+    let source = (|| {
+        let table = def.table().ok()?;
+        let column = def.name().ok()?;
+        if table.is_empty() || column.is_empty() {
+            return None;
+        }
+        Some(MySqlColumnSource {
+            schema: def.schema().ok()?.to_owned(),
             table: table.to_owned(),
-            table_alias: def.table_alias()?.to_owned(),
+            table_alias: def.table_alias().ok()?.to_owned(),
             column: column.to_owned(),
-        }),
-        _ => None,
-    };
+        })
+    })();
 
     Ok(MySqlColumn {
         name,
