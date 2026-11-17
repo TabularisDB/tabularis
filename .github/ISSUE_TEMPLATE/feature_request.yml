@@ -65,6 +65,7 @@ body:
         - Add any new UI strings to every locale under `packages/web-ui/src/i18n/locales/`.
         - Keep shared backend logic in `src-tauri/src/application/` and transport-specific code in the corresponding transport module; preserve the desktop-free build.
         - Run the relevant tests and repository checks, including `cargo check --no-default-features` from `src-tauri/` for backend changes.
+        - For UI changes, consider attaching before/after screenshots and a short video of the result to the PR. Include the viewport size and browser/device; for responsive changes, show narrow and desktop layouts and relevant touch or virtual-keyboard interactions. Visual evidence is encouraged, not required, and complements the test results.
         - Questions? Ask here or on [Discord](https://discord.com/invite/K2hmhfHRSt).
     validations:
       required: true
