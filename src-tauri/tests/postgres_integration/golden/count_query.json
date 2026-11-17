@@ -9,5 +9,8 @@
   ],
   "affected_rows": 0,
   "truncated": false,
-  "pagination": null
+  "pagination": null,
+  "column_sources": [
+    null
+  ]
 }
