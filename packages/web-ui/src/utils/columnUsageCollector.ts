@@ -467,12 +467,12 @@ export function isUsageComplete(result: ColumnUsageResult): boolean {
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-/** The qualified name shown for the target, e.g. `public.orders.customer_id`. */
 /** Whether the evidence comes from a history entry whose run failed. */
 export function isFailedRun(item: ColumnUsageEvidence): boolean {
     return item.historyEntry?.status === 'error';
 }
 
+/** The qualified name shown for the target, e.g. `public.orders.customer_id`. */
 export function formatUsageTarget(target: ColumnUsageTarget): string {
     return [target.schema, target.table, target.column].filter(Boolean).join('.');
 }
