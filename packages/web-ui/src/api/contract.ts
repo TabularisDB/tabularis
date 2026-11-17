@@ -44,6 +44,7 @@ import type {
     QueryHistoryInsightsResponse,
     QueryHistoryResponse,
 } from '@/types/queryHistory';
+import type {SchemaNoteTarget, SchemaNotesState} from '@/types/schemaNotes';
 import type {UserOverrides} from '@/utils/keybindings';
 import type {NotebookMetadata} from '@/types/notebook';
 import type {
@@ -920,6 +921,7 @@ export interface CommandMap {
     sync_plugin_settings: CommandDefinition<{pluginId: string}, void, 'local-admin'>;
 
     test_connection: CommandDefinition<{request: TestConnectionRequest}, string, 'database'>;
+    open_saved_connection: CommandDefinition<ConnectionIdRequest, string, 'database'>;
     disconnect_connection: CommandDefinition<ConnectionIdRequest, void, 'database'>;
 
     export_connections_file: CommandDefinition<
@@ -1311,6 +1313,29 @@ export interface CommandMap {
         QueryHistoryInsightsResponse,
         'database'
     >;
+
+    get_schema_notes: CommandDefinition<ConnectionIdRequest, SchemaNotesState, 'database'>;
+    /** `target: null` edits the connection-wide note; an empty note without domain removes it. */
+    set_schema_note: CommandDefinition<
+        ConnectionIdRequest & {
+            target: SchemaNoteTarget | null;
+            domain: string | null;
+            note: string;
+        },
+        SchemaNotesState,
+        'database'
+    >;
+    set_schema_notes_ai_context: CommandDefinition<
+        ConnectionIdRequest & {enabled: boolean},
+        SchemaNotesState,
+        'database'
+    >;
+    import_schema_notes: CommandDefinition<
+        ConnectionIdRequest & {contents: string},
+        SchemaNotesState,
+        'database'
+    >;
+    export_schema_notes: CommandDefinition<ConnectionIdRequest, string, 'database'>;
 
     create_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;
     save_notebook: CommandDefinition<NotebookContentRequest, void, 'database'>;

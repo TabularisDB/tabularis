@@ -54,18 +54,23 @@ fn routine_debug_web_command_preserves_native_identity_and_rejects_extra_fields(
     ));
 }
 
-struct FixtureApplication {
+pub(super) struct FixtureApplication {
     delay: Duration,
     saved_params: HashMap<String, ConnectionParams>,
     contexts: Arc<Mutex<Vec<ApplicationRequestContext>>>,
+    /// Makes connection commands fail with this message.
+    pub(super) failure: Option<String>,
+    pub(super) secrets: Vec<String>,
 }
 
 impl FixtureApplication {
-    fn new(delay: Duration) -> Self {
+    pub(super) fn new(delay: Duration) -> Self {
         Self {
             delay,
             saved_params: HashMap::new(),
             contexts: Arc::new(Mutex::new(Vec::new())),
+            failure: None,
+            secrets: Vec::new(),
         }
     }
 
@@ -135,7 +140,17 @@ impl ApplicationApi for FixtureApplication {
         _command: ConnectionCommand,
     ) -> Result<Value, ApplicationError> {
         self.record(context).await;
-        Ok(Value::Null)
+        match &self.failure {
+            Some(message) => Err(ApplicationError::new(message.clone())),
+            None => Ok(Value::Null),
+        }
+    }
+
+    async fn connection_secret_values(
+        &self,
+        _context: ApplicationRequestContext,
+    ) -> Result<Vec<String>, ApplicationError> {
+        Ok(self.secrets.clone())
     }
 
     async fn execute_connection_files_command(
@@ -501,13 +516,13 @@ impl ApplicationApi for FixtureApplication {
     }
 }
 
-fn json_headers() -> HeaderMap {
+pub(super) fn json_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers
 }
 
-async fn response_json(response: Response) -> Value {
+pub(super) async fn response_json(response: Response) -> Value {
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     serde_json::from_slice(&body).unwrap()
 }
@@ -1114,6 +1129,11 @@ fn registers_saved_query_and_history_commands_with_database_authorization() {
         "delete_query_history_entry",
         "clear_query_history",
         "get_query_history_insights",
+        "get_schema_notes",
+        "set_schema_note",
+        "set_schema_notes_ai_context",
+        "import_schema_notes",
+        "export_schema_notes",
     ] {
         let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
         assert_eq!(
@@ -2309,7 +2329,7 @@ fn json_headers_with_cancellation(id: &str) -> HeaderMap {
     headers
 }
 
-async fn dispatch_json(
+pub(super) async fn dispatch_json(
     dispatcher: &RpcDispatcher,
     command: &str,
     payload: serde_json::Value,

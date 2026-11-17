@@ -7,7 +7,7 @@ import {useTabularisClient} from './useTabularisClient';
  * Open a connection in its own dedicated window.
  *
  * If the connection is not open anywhere yet, its connectivity is validated
- * first (`test_connection`); the window is only created once that succeeds, so a
+ * first (`open_saved_connection`); the window is only created once that succeeds, so a
  * failing connection surfaces the error in the originating window instead of in
  * a freshly-spawned empty window. The returned function rejects on failure so
  * callers can present the error.
@@ -27,12 +27,7 @@ export function useOpenConnectionInNewWindow() {
             // is already open somewhere (then it's known-good and the window either
             // reuses the warm pool or just gets focused).
             if (!isConnectionOpenAnywhere(connectionId)) {
-                const connections = await client.call('get_connections', undefined);
-                const conn = connections.find((c) => c.id === connectionId);
-                if (!conn) throw new Error('Connection not found');
-                await client.call('test_connection', {
-                    request: {params: conn.params, connection_id: connectionId},
-                });
+                await client.call('open_saved_connection', {connectionId});
             }
 
             await platform.openConnectionRoute({

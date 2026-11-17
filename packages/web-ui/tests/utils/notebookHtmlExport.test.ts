@@ -97,6 +97,25 @@ describe('notebookHtmlExport', () => {
         expect(html).toContain('<em>NULL</em>');
     });
 
+    it('should write JSON values as JSON instead of [object Object]', () => {
+        const cells = [
+            makeCell({
+                type: 'sql',
+                content: 'SELECT data, tags FROM t',
+                result: {
+                    columns: ['data', 'tags', 'missing'],
+                    rows: [[{a: 1, b: '<x>'}, ['red', 'blue'], undefined]],
+                    affected_rows: 0,
+                },
+            }),
+        ];
+        const html = exportNotebookToHtml('Test', cells);
+        expect(html).not.toContain('[object Object]');
+        expect(html).toContain('<td>{&quot;a&quot;:1,&quot;b&quot;:&quot;&lt;x&gt;&quot;}</td>');
+        expect(html).toContain('<td>[&quot;red&quot;,&quot;blue&quot;]</td>');
+        expect(html).toContain('<td><em>NULL</em></td>');
+    });
+
     it('should render cell schema/database in SQL cell header', () => {
         const cells = [
             makeCell({

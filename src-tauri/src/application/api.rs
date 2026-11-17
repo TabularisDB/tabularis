@@ -1,7 +1,7 @@
 use super::{
     ai, connection_files, connections, database_objects, database_transfers, generic_exports,
     host_settings, mcp_host, metadata, notebooks, operations, persistence, plugins, productivity,
-    queries, records, themes, tunnels, ui_state, ManagedConnectionPolicy,
+    queries, records, themes, tunnels, ui_state,
 };
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
@@ -50,6 +50,13 @@ impl ApplicationError {
 
 #[async_trait]
 pub trait ApplicationApi: Send + Sync {
+    async fn provision_connection(
+        &self,
+        _command: super::provisioning::ProvisionCommand,
+    ) -> Result<Value, ApplicationError> {
+        Err(ApplicationError::new("provisioning_unavailable"))
+    }
+
     fn clear_session(&self, session_id: Uuid);
 
     async fn is_debug_mode(
@@ -74,6 +81,16 @@ pub trait ApplicationApi: Send + Sync {
             .into_iter()
             .find(|connection| connection.id == connection_id)
             .map(|connection| connection.params))
+    }
+
+    /// Credential values the instance holds, used only to scrub text sent to
+    /// browsers in managed mode. Implementations without stored credentials
+    /// return none.
+    async fn connection_secret_values(
+        &self,
+        _context: ApplicationRequestContext,
+    ) -> Result<Vec<String>, ApplicationError> {
+        Ok(Vec::new())
     }
 
     async fn cancel_query(
@@ -201,30 +218,25 @@ pub trait ApplicationApi: Send + Sync {
 pub struct RuntimeApplicationApi {
     runtime: RuntimeContext,
     state: Arc<ApplicationState>,
-    connection_policy: ManagedConnectionPolicy,
 }
 
 impl RuntimeApplicationApi {
     pub fn new(runtime: RuntimeContext, state: Arc<ApplicationState>) -> Self {
-        Self {
-            runtime,
-            state,
-            connection_policy: ManagedConnectionPolicy::standalone(),
-        }
-    }
-
-    pub fn with_connection_policy(mut self, policy: ManagedConnectionPolicy) -> Self {
-        self.connection_policy = policy;
-        self
-    }
-
-    pub fn connection_policy(&self) -> &ManagedConnectionPolicy {
-        &self.connection_policy
+        Self { runtime, state }
     }
 }
 
 #[async_trait]
 impl ApplicationApi for RuntimeApplicationApi {
+    async fn provision_connection(
+        &self,
+        command: super::provisioning::ProvisionCommand,
+    ) -> Result<Value, ApplicationError> {
+        connections::provisioning::execute(&self.runtime, &self.state, command)
+            .await
+            .map_err(ApplicationError::new)
+    }
+
     fn clear_session(&self, session_id: Uuid) {
         self.state.import_envelope_cache.clear_session(session_id);
         queries::cancel_session_queries(&self.state.query_cancellation, session_id);
@@ -267,6 +279,19 @@ impl ApplicationApi for RuntimeApplicationApi {
             .map_err(ApplicationError::new)
     }
 
+    async fn connection_secret_values(
+        &self,
+        _context: ApplicationRequestContext,
+    ) -> Result<Vec<String>, ApplicationError> {
+        let runtime = self.runtime.clone();
+        tokio::task::spawn_blocking(move || connections::collect_secret_values(&runtime))
+            .await
+            .map_err(|error| {
+                ApplicationError::new(format!("Failed to collect connection secrets: {error}"))
+            })?
+            .map_err(ApplicationError::new)
+    }
+
     async fn cancel_query(
         &self,
         context: ApplicationRequestContext,
@@ -303,6 +328,7 @@ impl ApplicationApi for RuntimeApplicationApi {
         context: ApplicationRequestContext,
         command: connections::ConnectionCommand,
     ) -> Result<Value, ApplicationError> {
+        let _guard = self.state.provisioning_lock.lock().await;
         connections::execute_for_session(&self.runtime, &self.state, context.session_id, command)
             .await
             .map_err(ApplicationError::new)

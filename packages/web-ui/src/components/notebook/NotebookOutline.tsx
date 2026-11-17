@@ -1,4 +1,4 @@
-import {useState, useMemo} from 'react';
+import {useState, useMemo, useRef} from 'react';
 import {useTranslation} from 'react-i18next';
 import {
     List,
@@ -99,13 +99,12 @@ function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
     if (status === 'running') {
         return (
             <span
-                className="inline-flex items-center ml-auto pl-1 text-accent-warning shrink-0"
+                className="inline-flex items-center ml-auto pl-1 text-muted shrink-0"
                 title={t('editor.notebook.statusRunning')}
                 role="img"
                 aria-label={t('editor.notebook.statusRunning')}
             >
                 <Loader2 size={11} className="animate-spin" aria-hidden="true" />
-                <span className="sr-only">{t('editor.notebook.statusRunning')}</span>
             </span>
         );
     }
@@ -119,7 +118,6 @@ function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
                 aria-label={t('editor.notebook.statusFailed')}
             >
                 <AlertCircle size={11} aria-hidden="true" />
-                <span className="sr-only">{t('editor.notebook.statusFailed')}</span>
             </span>
         );
     }
@@ -127,13 +125,12 @@ function SqlStatusIndicator({status}: {status?: SqlCellExecutionStatus}) {
     if (status === 'has_output') {
         return (
             <span
-                className="inline-flex items-center ml-auto pl-1 text-accent-success shrink-0"
+                className="inline-flex items-center ml-auto pl-1 text-muted shrink-0"
                 title={t('editor.notebook.statusOutputAvailable')}
                 role="img"
                 aria-label={t('editor.notebook.statusOutputAvailable')}
             >
                 <CheckCircle2 size={11} aria-hidden="true" />
-                <span className="sr-only">{t('editor.notebook.statusOutputAvailable')}</span>
             </span>
         );
     }
@@ -147,6 +144,7 @@ export function NotebookOutline({
     onCellNameGenerated,
 }: NotebookOutlineProps) {
     const {t} = useTranslation();
+    const searchInputRef = useRef<HTMLInputElement>(null);
     const entries = useMemo(() => extractOutline(cells), [cells]);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -155,6 +153,11 @@ export function NotebookOutline({
         () => filterOutlineEntries(entries, searchQuery),
         [entries, searchQuery],
     );
+
+    const handleClear = () => {
+        setSearchQuery('');
+        searchInputRef.current?.focus();
+    };
 
     if (entries.length === 0) return null;
 
@@ -185,6 +188,7 @@ export function NotebookOutline({
                             className="absolute left-2 text-muted pointer-events-none"
                         />
                         <input
+                            ref={searchInputRef}
                             autoCorrect="off"
                             autoCapitalize="off"
                             autoComplete="off"
@@ -195,6 +199,7 @@ export function NotebookOutline({
                             onKeyDown={(e) => {
                                 if (e.key === 'Escape' && searchQuery) {
                                     e.preventDefault();
+                                    e.stopPropagation();
                                     setSearchQuery('');
                                 }
                             }}
@@ -205,9 +210,9 @@ export function NotebookOutline({
                         {searchQuery && (
                             <button
                                 type="button"
-                                onClick={() => setSearchQuery('')}
+                                onClick={handleClear}
                                 aria-label={t('editor.notebook.clearOutlineFilter')}
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded transition-colors"
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                             >
                                 <X size={11} />
                             </button>

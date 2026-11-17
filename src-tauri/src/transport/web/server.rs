@@ -7,11 +7,12 @@ use super::contract::SessionNegotiation;
 use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
 use super::login_page::{login_page_csp, render_login_page};
 use super::login_target::{login_return_target, LOGIN_TARGET_PARAM};
-use super::rpc::{RequestId, RpcAccessPolicy, RpcDispatcher};
+use super::rpc::{managed_denial, RequestId, RpcAccessPolicy, RpcDispatcher};
 use crate::application::file_transfers::{
     FileTransferStore, TransferReader, UploadError, MAX_FILE_TRANSFER_BYTES,
 };
 use crate::application::{ApplicationApi, AuthorizationLevel};
+use crate::application::{ConnectionAction, ManagedConnectionPolicy};
 use crate::cli::WebAuthMode;
 use axum::body::{Body, Bytes};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -59,6 +60,7 @@ const CROSS_ORIGIN_RESOURCE_POLICY: HeaderName =
     HeaderName::from_static("cross-origin-resource-policy");
 
 pub struct WebServerOptions {
+    pub base_path: Option<String>,
     pub trusted_proxies: Vec<ipnet::IpNet>,
     pub host: String,
     pub port: u16,
@@ -70,6 +72,7 @@ pub struct WebServerOptions {
     pub public_url: Option<String>,
     pub allowed_origins: Vec<String>,
     pub allow_high_risk: bool,
+    pub connection_policy: ManagedConnectionPolicy,
     pub server_file_browser_roots: Vec<PathBuf>,
     pub application: Arc<dyn ApplicationApi>,
     pub events: WebEventBus,
@@ -85,6 +88,7 @@ struct WebServerState {
     plugins_dir: PathBuf,
     mcp_host_configuration: bool,
     server_file_browser: bool,
+    connection_policy: ManagedConnectionPolicy,
 }
 
 #[derive(Deserialize)]
@@ -108,6 +112,26 @@ struct BlobUploadResponse {
 }
 
 pub async fn run(options: WebServerOptions) -> Result<(), String> {
+    validate_connection_policy(&options)?;
+    let provisioning_token = super::provisioning::ProvisioningToken::from_env()?;
+    if provisioning_token.is_some()
+        && (!options.connection_policy.is_managed_only()
+            || options.connection_policy.capabilities().can_edit_branding
+            || options
+                .connection_policy
+                .capabilities()
+                .can_edit_organization)
+    {
+        return Err(
+            "Provisioning requires managed-only mode without branding or organization overrides"
+                .into(),
+        );
+    }
+    reject_short_credentials(&options).await?;
+    let public_base = super::base_path::PublicBasePath::for_build(
+        &options.web_root,
+        options.base_path.as_deref(),
+    )?;
     let server_file_browser_roots =
         super::server_files::canonicalize_roots(&options.server_file_browser_roots)?;
     let listener = TcpListener::bind((options.host.as_str(), options.port))
@@ -146,9 +170,13 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
                 authentication,
             )?;
             let launch_url = if auth_mode == WebAuthMode::Password {
-                format!("{}{LOGIN_PAGE_PATH}", security.expected_origin())
+                format!(
+                    "{}{}",
+                    security.expected_origin(),
+                    public_base.public_path(LOGIN_PAGE_PATH)
+                )
             } else {
-                format!("{}/", security.expected_origin())
+                format!("{}{}", security.expected_origin(), public_base.as_str())
             };
             (security, launch_url, public_url)
         }
@@ -165,7 +193,8 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
                 LocalSessionSecurityConfig::default(),
             )?;
             let launch_url = format!(
-                "{public_url}{BOOTSTRAP_PATH}?token={}",
+                "{public_url}{}?token={}",
+                public_base.public_path(BOOTSTRAP_PATH),
                 bootstrap_token.expose()
             );
             drop(bootstrap_token);
@@ -184,7 +213,13 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
     }
     drop(launch_url);
 
-    serve_with_events(
+    let secret_refresh = options.connection_policy.is_managed_only().then(|| {
+        spawn_secret_refresh(
+            options.application.clone(),
+            options.events.redactor().clone(),
+        )
+    });
+    let result = serve_with_configuration(
         listener,
         options.web_root,
         options.data_dir,
@@ -193,10 +228,110 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
         options.application,
         options.events,
         server_file_browser_roots,
+        options.connection_policy,
+        provisioning_token,
+        public_base,
         shutdown_signal(),
     )
     .await
-    .map_err(|error| format!("Web UI server failed: {error}"))
+    .map_err(|error| format!("Web UI server failed: {error}"));
+    if let Some(task) = secret_refresh {
+        task.abort();
+    }
+    result
+}
+
+/// Managed mode is only meaningful where the browser user is not the machine
+/// owner: local-administrator authority would let a session read files, run
+/// host commands and edit settings, which defeats an administrator-supplied
+/// connection set.
+fn validate_connection_policy(options: &WebServerOptions) -> Result<(), String> {
+    if !options.connection_policy.is_managed_only() {
+        return Ok(());
+    }
+    if options.auth.is_none() {
+        return Err(
+            "--connection-mode managed-only requires remote authentication (--auth)".to_string(),
+        );
+    }
+    if options.allow_high_risk {
+        return Err(
+            "--connection-mode managed-only cannot be combined with --allow-high-risk".to_string(),
+        );
+    }
+    Ok(())
+}
+
+const SECRET_REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+
+fn internal_context() -> crate::application::ApplicationRequestContext {
+    crate::application::ApplicationRequestContext {
+        request_id: "secret-refresh".to_string(),
+        deadline: std::time::Instant::now() + SECRET_REFRESH_INTERVAL,
+        cancellation_id: None,
+        authorization: AuthorizationLevel::Session,
+        session_id: None,
+    }
+}
+
+/// A credential too short to be removed from text in place would force the
+/// redactor to blank every string that happens to contain it. Refuse to start
+/// instead, so the operator fixes the credential rather than finding the gap
+/// in an error message.
+async fn reject_short_credentials(options: &WebServerOptions) -> Result<(), String> {
+    if !options.connection_policy.is_managed_only() {
+        return Ok(());
+    }
+    let values = options
+        .application
+        .connection_secret_values(internal_context())
+        .await
+        .map_err(|error| format!("Failed to check the stored credentials: {}", error.message))?;
+    let short = values
+        .iter()
+        .filter(|value| {
+            !value.is_empty() && crate::application::secret_redaction::is_short_secret(value)
+        })
+        .count();
+    if short == 0 {
+        return Ok(());
+    }
+    Err(format!(
+        "--connection-mode managed-only found {short} stored credential(s) shorter than {} \
+         characters. Credentials that short cannot be kept out of error text, so use longer ones",
+        crate::application::secret_redaction::MIN_SUBSTRING_SECRET_LENGTH
+    ))
+}
+
+/// Reloads the instance's credentials into the redactor.
+pub(crate) async fn refresh_secrets(
+    application: &dyn ApplicationApi,
+    redactor: &crate::application::secret_redaction::SecretRedactor,
+) {
+    match application
+        .connection_secret_values(internal_context())
+        .await
+    {
+        Ok(values) => redactor.extend(values),
+        Err(error) => log::warn!("Failed to refresh managed credentials: {}", error.message),
+    }
+}
+
+/// Keeps the event redactor aware of the instance's current credentials,
+/// including ones an administrator rotates while the server runs. The first
+/// tick fires at once, so the redactor is filled before the first request.
+fn spawn_secret_refresh(
+    application: Arc<dyn ApplicationApi>,
+    redactor: crate::application::secret_redaction::SecretRedactor,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(SECRET_REFRESH_INTERVAL);
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            refresh_secrets(application.as_ref(), &redactor).await;
+        }
+    })
 }
 
 fn remote_authentication(auth_mode: WebAuthMode) -> Result<RemoteAuthentication, String> {
@@ -236,6 +371,7 @@ where
     .await
 }
 
+#[cfg(test)]
 pub(crate) async fn serve_with_events<F>(
     listener: TcpListener,
     web_root: PathBuf,
@@ -250,6 +386,70 @@ pub(crate) async fn serve_with_events<F>(
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    serve_with_policy(
+        listener,
+        web_root,
+        data_dir,
+        plugins_dir,
+        security,
+        application,
+        events,
+        server_file_browser_roots,
+        ManagedConnectionPolicy::standalone(),
+        shutdown,
+    )
+    .await
+}
+
+pub(crate) async fn serve_with_policy<F>(
+    listener: TcpListener,
+    web_root: PathBuf,
+    data_dir: PathBuf,
+    plugins_dir: PathBuf,
+    security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
+    events: WebEventBus,
+    server_file_browser_roots: Arc<[PathBuf]>,
+    connection_policy: ManagedConnectionPolicy,
+    shutdown: F,
+) -> std::io::Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    serve_with_configuration(
+        listener,
+        web_root,
+        data_dir,
+        plugins_dir,
+        security,
+        application,
+        events,
+        server_file_browser_roots,
+        connection_policy,
+        None,
+        super::base_path::PublicBasePath::default(),
+        shutdown,
+    )
+    .await
+}
+
+pub(crate) async fn serve_with_configuration<F>(
+    listener: TcpListener,
+    web_root: PathBuf,
+    data_dir: PathBuf,
+    plugins_dir: PathBuf,
+    security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
+    events: WebEventBus,
+    server_file_browser_roots: Arc<[PathBuf]>,
+    connection_policy: ManagedConnectionPolicy,
+    provisioning_token: Option<super::provisioning::ProvisioningToken>,
+    public_base: super::base_path::PublicBasePath,
+    shutdown: F,
+) -> std::io::Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
     let (router, state) = router(
         web_root,
         data_dir,
@@ -258,7 +458,13 @@ where
         application,
         events,
         server_file_browser_roots,
+        connection_policy,
+        provisioning_token,
     );
+    let router = router.layer(middleware::from_fn_with_state(
+        public_base,
+        super::base_path::adapt_response,
+    ));
     // Keep reclamation owned by the server future, including cancellation and shutdown.
     tokio::select! {
         result = async {
@@ -291,6 +497,8 @@ fn router(
     application: Arc<dyn ApplicationApi>,
     events: WebEventBus,
     server_file_browser_roots: Arc<[PathBuf]>,
+    connection_policy: ManagedConnectionPolicy,
+    provisioning_token: Option<super::provisioning::ProvisioningToken>,
 ) -> (Router, WebServerState) {
     let index = web_root.join("index.html");
     let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
@@ -298,6 +506,14 @@ fn router(
     let mcp_host_configuration =
         !security.is_remote() && mcp_host_configuration_enabled(security.expected_origin());
     let server_file_browser = !server_file_browser_roots.is_empty();
+    let provisioning_routes = provisioning_token.map(|token| {
+        super::provisioning::routes(
+            token,
+            security.clone(),
+            application.clone(),
+            events.redactor().clone(),
+        )
+    });
     let state = WebServerState {
         security,
         rpc: RpcDispatcher::with_access_policy(
@@ -305,6 +521,8 @@ fn router(
             RpcAccessPolicy {
                 mcp_host_configuration,
                 server_file_browser_roots,
+                connection_policy,
+                secret_redactor: events.redactor().clone(),
             },
         ),
         events,
@@ -313,6 +531,7 @@ fn router(
         plugins_dir,
         mcp_host_configuration,
         server_file_browser,
+        connection_policy,
     };
 
     let standard_routes = Router::new()
@@ -361,6 +580,7 @@ fn router(
         .fallback_service(static_files)
         .with_state(state.clone())
         .layer(middleware::from_fn_with_state(state.clone(), security_gate))
+        .merge(provisioning_routes.unwrap_or_default())
         .layer(middleware::from_fn(add_request_id))
         .layer(middleware::map_response(baseline_security_headers));
     (router, state)
@@ -515,7 +735,8 @@ async fn session(
             .with_server_file_browser(
                 state.server_file_browser
                     && session.authorization() == AuthorizationLevel::LocalAdmin,
-            ),
+            )
+            .with_connection_policy(&state.connection_policy),
         ),
     )
 }
@@ -574,8 +795,15 @@ async fn rpc(
 async fn upload_connection_icon(
     State(state): State<WebServerState>,
     Extension(session): Extension<AuthenticatedSession>,
+    Extension(request_id): Extension<RequestId>,
     body: Bytes,
 ) -> Response {
+    if let Err(denial) = state
+        .connection_policy
+        .authorize(ConnectionAction::EditBranding, false)
+    {
+        return managed_denial(denial, request_id.0);
+    }
     match crate::application::connections::store_icon_upload(
         &state.data_dir,
         session.event_scope(),
@@ -599,6 +827,7 @@ async fn upload_connection_icon(
 async fn upload_file(
     State(state): State<WebServerState>,
     Extension(session): Extension<AuthenticatedSession>,
+    Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
     body: Body,
 ) -> Response {
@@ -607,6 +836,14 @@ async fn upload_file(
             "A file transfer purpose is required".to_string(),
         ));
     };
+    if purpose == crate::application::connection_files::CONNECTION_IMPORT_PURPOSE {
+        if let Err(denial) = state
+            .connection_policy
+            .authorize(ConnectionAction::Import, false)
+        {
+            return managed_denial(denial, request_id.0);
+        }
+    }
     let Some(encoded_name) = header_text(&headers, FILE_NAME_HEADER_NAME) else {
         return upload_error_response(UploadError::Failed("A file name is required".to_string()));
     };
@@ -1170,6 +1407,30 @@ async fn security_gate(
             return status_response(StatusCode::FORBIDDEN);
         }
         return next.run(request).await;
+    }
+
+    // A session cookie identifies the browser but never proves that this
+    // request passed through the trusted gateway. Apply this before cookie
+    // authentication, including the WebSocket upgrade path.
+    if state.security.proxy_authentication() {
+        let secret = request
+            .headers()
+            .get(PROXY_SECRET_HEADER_NAME)
+            .and_then(|v| v.to_str().ok());
+        let user = request
+            .headers()
+            .get(PROXY_USER_HEADER_NAME)
+            .and_then(|v| v.to_str().ok());
+        if !matches!((secret, user), (Some(secret), Some(user)) if state.security.verify_proxy_request(secret, user))
+        {
+            audit_event(
+                "authentication",
+                request_id,
+                None,
+                "method=proxy outcome=denied reason=gateway",
+            );
+            return status_response(StatusCode::UNAUTHORIZED);
+        }
     }
 
     let mut issued_session = None;

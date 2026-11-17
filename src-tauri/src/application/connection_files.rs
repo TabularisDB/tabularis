@@ -527,8 +527,11 @@ pub async fn apply_export_payload(
             .iter_mut()
             .find(|existing| existing.id == connection.id)
         {
+            // An import never confers or removes the managed marker.
+            connection.managed = existing.managed;
             *existing = connection;
         } else {
+            connection.managed = false;
             current.connections.push(connection);
         }
     }

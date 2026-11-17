@@ -66,6 +66,10 @@ pub enum Command {
 
 #[derive(Debug, ClapArgs)]
 pub struct WebArgs {
+    /// Public mount path; the reverse proxy must strip it from upstream requests
+    #[arg(long, value_name = "PATH")]
+    pub base_path: Option<String>,
+
     /// Address for the Web UI server to bind
     #[arg(long, value_name = "HOST", default_value = "127.0.0.1")]
     pub host: String,
@@ -112,10 +116,12 @@ pub struct WebArgs {
     #[arg(long, requires = "auth")]
     pub allow_high_risk: bool,
 
-    /// Who controls connections on this instance. In `managed-only` mode every
-    /// authenticated user shares all of the instance's connections; run a
-    /// separate instance for each group of users. Enforcement is not active
-    /// yet: this does not restrict anything today
+    /// Who controls connections on this instance. In `managed-only` mode users
+    /// cannot create, change, import, export or test connections; every
+    /// authenticated user shares all of the instance's connections, so run a
+    /// separate instance for each group of users. Requires `--auth`, stored
+    /// credentials of at least 4 characters, and cannot be combined with
+    /// `--allow-high-risk`
     #[arg(long, value_name = "MODE", value_enum)]
     pub connection_mode: Option<WebConnectionMode>,
 
