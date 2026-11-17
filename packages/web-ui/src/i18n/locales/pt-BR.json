@@ -2287,6 +2287,8 @@
       "exportHtml": "Exportar como HTML",
       "exportSql": "Exportar código SQL",
       "exportSqlEmpty": "Este notebook não tem SQL para exportar.",
+      "exportMarkdown": "Exportar Markdown",
+      "exportMarkdownEmpty": "Este notebook não tem conteúdo para exportar.",
       "parameters": "Parâmetros",
       "paramName": "nome",
       "paramValue": "valor",
@@ -2991,6 +2993,12 @@
         "unknown": "desconhecido"
       }
     }
+  },
+  "managed": {
+    "denied": "Esta conexão é gerenciada por um administrador e não pode ser alterada aqui.",
+    "noConnections": "Ainda não há conexões disponíveis. Peça ao seu administrador para fornecer uma.",
+    "notice": "Um administrador gerencia as conexões deste servidor. Você pode abri-las e executar consultas, mas não pode adicionar, editar, excluir, importar, exportar nem testar conexões.",
+    "noticeTitle": "Conexões gerenciadas"
   },
   "groups": {
     "title": "Grupos",

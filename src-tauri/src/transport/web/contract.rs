@@ -1,4 +1,4 @@
-use crate::application::AuthorizationLevel;
+use crate::application::{AuthorizationLevel, ConnectionCapabilities, ManagedConnectionPolicy};
 use serde::{Deserialize, Serialize};
 
 pub const WEB_API_VERSION: &str = "v1";
@@ -13,6 +13,7 @@ pub struct SessionNegotiation {
     pub csrf_token: String,
     pub access: WebSessionAccessPolicy,
     pub capabilities: WebTransportCapabilities,
+    pub connections: ConnectionCapabilities,
     pub query_response_policy: WebQueryResponsePolicy,
 }
 
@@ -88,6 +89,11 @@ impl SessionNegotiation {
         )
     }
 
+    pub fn with_connection_policy(mut self, policy: &ManagedConnectionPolicy) -> Self {
+        self.connections = policy.capabilities();
+        self
+    }
+
     pub fn with_server_file_browser(mut self, enabled: bool) -> Self {
         self.capabilities.server_file_browser = enabled;
         self
@@ -132,6 +138,7 @@ impl SessionNegotiation {
                 server_file_browser: false,
                 native_updater: false,
             },
+            connections: ManagedConnectionPolicy::standalone().capabilities(),
             query_response_policy: WebQueryResponsePolicy {
                 max_rows_per_page: crate::application::queries::WEB_MAX_ROWS_PER_PAGE,
                 max_response_bytes: crate::application::queries::WEB_MAX_RESPONSE_BYTES,

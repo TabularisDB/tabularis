@@ -2244,6 +2244,8 @@
       "exportHtml": "HTML로 내보내기",
       "exportSql": "SQL 소스 내보내기",
       "exportSqlEmpty": "이 노트북에는 내보낼 SQL이 없습니다.",
+      "exportMarkdown": "Markdown 내보내기",
+      "exportMarkdownEmpty": "이 노트북에는 내보낼 내용이 없습니다.",
       "parameters": "매개변수",
       "paramName": "이름",
       "paramValue": "값",
@@ -2947,6 +2949,12 @@
         "unknown": "알 수 없음"
       }
     }
+  },
+  "managed": {
+    "denied": "이 연결은 관리자가 관리하므로 여기에서 변경할 수 없습니다.",
+    "noConnections": "사용할 수 있는 연결이 아직 없습니다. 관리자에게 연결을 제공해 달라고 요청하세요.",
+    "notice": "이 서버의 연결은 관리자가 관리합니다. 연결을 열고 쿼리를 실행할 수 있지만 연결을 추가, 편집, 삭제, 가져오기, 내보내기 또는 테스트할 수는 없습니다.",
+    "noticeTitle": "관리되는 연결"
   },
   "groups": {
     "title": "그룹",
