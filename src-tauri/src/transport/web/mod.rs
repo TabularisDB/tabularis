@@ -13,6 +13,8 @@ mod events_tests;
 #[cfg(test)]
 mod login_page_tests;
 #[cfg(test)]
+mod managed_mode_tests;
+#[cfg(test)]
 mod login_target_tests;
 #[cfg(test)]
 mod tests;
