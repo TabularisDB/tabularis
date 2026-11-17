@@ -92,7 +92,7 @@ export function RunAllSummary({result, onDismiss, onScrollToCell}: RunAllSummary
                             <button
                                 type="button"
                                 onClick={() => onScrollToCell?.(blocked.cellId)}
-                                className="text-accent-warning underline whitespace-nowrap shrink-0"
+                                className="text-accent-warning underline whitespace-nowrap shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                             >
                                 Cell #{blocked.cellIndex + 1}
                             </button>
@@ -104,7 +104,7 @@ export function RunAllSummary({result, onDismiss, onScrollToCell}: RunAllSummary
                                     key={disabled.cellId}
                                     type="button"
                                     onClick={() => onScrollToCell?.(disabled.cellId)}
-                                    className="text-accent underline whitespace-nowrap shrink-0"
+                                    className="text-accent underline whitespace-nowrap shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                 >
                                     Cell #{disabled.cellIndex + 1}
                                 </button>

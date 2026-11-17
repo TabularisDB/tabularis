@@ -1395,6 +1395,93 @@ describe('NotebookView', () => {
             expect(savedCell('use').error).toBeUndefined();
         });
 
+        it.each([
+            {label: 'output', partial: {result: cached}},
+            {label: 'error', partial: {error: 'earlier failure'}},
+        ])(
+            'keeps the earlier $label of a consumer disabled while its lazy dependency runs',
+            async ({partial}) => {
+                let finish: (value: QueryResult) => void = () => {};
+                mockInvoke.mockReturnValueOnce(
+                    new Promise<QueryResult>((resolve) => {
+                        finish = resolve;
+                    }),
+                );
+                renderNotebook({
+                    cells: [
+                        sqlCell('dep', 'SELECT 1'),
+                        sqlCell('use', 'SELECT * FROM {{cell_1}}', partial),
+                    ],
+                });
+                await click('Run use');
+                await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+                expect(savedCell('use')).toMatchObject({isLoading: true, ...partial});
+                fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled use'}));
+
+                await act(async () => {
+                    finish(sourceResult);
+                });
+                await waitFor(() => expect(savedCell('use').isLoading).toBe(false));
+                await settle();
+                expect(mockInvoke).toHaveBeenCalledTimes(1);
+                expect(savedCell('use')).toMatchObject({isDisabled: true, ...partial});
+            },
+        );
+
+        it('keeps the earlier output of a cell disabled while the query guard waits', async () => {
+            let confirm: (value: boolean) => void = () => {};
+            fixtures.guardQuery.mockReturnValueOnce(
+                new Promise<boolean>((resolve) => {
+                    confirm = resolve;
+                }),
+            );
+            renderNotebook({cells: [sqlCell('base', 'DELETE FROM t', {result: cached})]});
+            await click('Run base');
+            await waitFor(() => expect(fixtures.guardQuery).toHaveBeenCalledTimes(1));
+            fireEvent.click(screen.getByRole('button', {name: 'Toggle disabled base'}));
+            await act(async () => {
+                confirm(true);
+            });
+            await waitFor(() => expect(savedCell('base').isLoading).toBe(false));
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(savedCell('base')).toMatchObject({isDisabled: true, result: cached});
+        });
+
+        it('clears the earlier output once the query is really sent', async () => {
+            let finish: (value: QueryResult) => void = () => {};
+            mockInvoke.mockReturnValueOnce(
+                new Promise<QueryResult>((resolve) => {
+                    finish = resolve;
+                }),
+            );
+            renderNotebook({
+                cells: [sqlCell('base', 'SELECT 1', {result: cached, error: 'earlier failure'})],
+            });
+            await click('Run base');
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            expect(savedCell('base')).toMatchObject({isLoading: true, result: null});
+            expect(savedCell('base').error).toBeUndefined();
+            await act(async () => {
+                finish(sourceResult);
+            });
+            await waitFor(() => expect(savedCell('base').result).toEqual(sourceResult));
+        });
+
+        it('lists every disabled prerequisite of a blocked cell', async () => {
+            renderNotebook({
+                cells: [
+                    sqlCell('a', 'SELECT 1', {isDisabled: true}),
+                    sqlCell('b', 'SELECT 2', {isDisabled: true}),
+                    sqlCell('use', 'SELECT * FROM {{cell_2}} JOIN {{cell_1}}'),
+                ],
+            });
+            await click('Run use');
+            expect(mockInvoke).not.toHaveBeenCalled();
+            expect(savedCell('use').error).toBe(
+                'editor.notebook.blockedByDisabled: {{cell_1}}, {{cell_2}}',
+            );
+        });
+
         it('does not send a cell disabled while the query guard waits for confirmation', async () => {
             let confirm: (value: boolean) => void = () => {};
             fixtures.guardQuery.mockReturnValueOnce(

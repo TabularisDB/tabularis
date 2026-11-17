@@ -362,7 +362,9 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 return true;
             };
 
-            updateCell(cellId, {isLoading: true, error: undefined, result: null});
+            // Earlier output stays until the query is really sent, so a cell that is
+            // disabled while it waits keeps what it showed before.
+            updateCell(cellId, {isLoading: true});
 
             const pageSize =
                 settings.resultPageSize && settings.resultPageSize > 0
@@ -389,6 +391,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             if (disabledDeps.length > 0) {
                 updateCell(cellId, {
                     error: t('editor.notebook.blockedByDisabled', {
+                        count: disabledDeps.length,
                         refs: disabledDeps.map((i) => `{{cell_${i + 1}}}`).join(', '),
                     }),
                     isLoading: false,
@@ -451,6 +454,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 return;
             }
 
+            updateCell(cellId, {error: undefined, result: null});
             const start = performance.now();
             try {
                 const res = await client.call('execute_query', {

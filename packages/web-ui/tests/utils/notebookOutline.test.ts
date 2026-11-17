@@ -240,7 +240,72 @@ describe('notebookOutline', () => {
         });
     });
 
+    describe('getSqlCellExecutionStatus with disabled cells', () => {
+        const output = {columns: ['id'], rows: [[1]]} as unknown as NotebookCell['result'];
+
+        it('returns disabled for a disabled cell, even with earlier output or error', () => {
+            expect(getSqlCellExecutionStatus({isDisabled: true})).toBe('disabled');
+            expect(getSqlCellExecutionStatus({isDisabled: true, result: output})).toBe('disabled');
+            expect(getSqlCellExecutionStatus({isDisabled: true, error: 'Fail'})).toBe('disabled');
+        });
+
+        it('keeps running ahead of disabled', () => {
+            expect(getSqlCellExecutionStatus({isDisabled: true, isLoading: true})).toBe('running');
+        });
+
+        it('returns blocked when a referenced cell is disabled', () => {
+            const cells = [
+                makeCell({id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: true}),
+                makeCell({id: 'b', type: 'sql', content: 'SELECT * FROM {{cell_1}}'}),
+            ];
+            expect(getSqlCellExecutionStatus(cells[1], cells)).toBe('blocked');
+        });
+
+        it('returns blocked through a prerequisite that still has to run', () => {
+            const cells = [
+                makeCell({id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: true}),
+                makeCell({id: 'b', type: 'sql', content: 'SELECT * FROM {{cell_1}}'}),
+                makeCell({id: 'c', type: 'sql', content: 'SELECT * FROM {{cell_2}}', error: 'x'}),
+            ];
+            expect(getSqlCellExecutionStatus(cells[2], cells)).toBe('blocked');
+        });
+
+        it('is not blocked when the chain stops at a prerequisite with output', () => {
+            const cells = [
+                makeCell({id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: true}),
+                makeCell({
+                    id: 'b',
+                    type: 'sql',
+                    content: 'SELECT * FROM {{cell_1}}',
+                    result: output,
+                }),
+                makeCell({id: 'c', type: 'sql', content: 'SELECT * FROM {{cell_2}}'}),
+            ];
+            expect(getSqlCellExecutionStatus(cells[2], cells)).toBe('idle');
+        });
+
+        it('does not look for prerequisites without the notebook cells', () => {
+            expect(
+                getSqlCellExecutionStatus({content: 'SELECT * FROM {{cell_1}}', result: output}),
+            ).toBe('has_output');
+        });
+    });
+
     describe('extractOutline execution status integration', () => {
+        it('marks disabled cells and the cells they block', () => {
+            const cells = [
+                makeCell({id: 'c1', type: 'sql', content: 'SELECT 1', isDisabled: true}),
+                makeCell({id: 'c2', type: 'sql', content: 'SELECT * FROM {{cell_1}}'}),
+                makeCell({id: 'c3', type: 'sql', content: 'SELECT 3'}),
+            ];
+
+            expect(extractOutline(cells).map((e) => e.status)).toEqual([
+                'disabled',
+                'blocked',
+                'idle',
+            ]);
+        });
+
         it('derives execution status for SQL cells while leaving markdown cells unchanged', () => {
             const cells = [
                 makeCell({id: 'c1', content: '# Section 1'}),
