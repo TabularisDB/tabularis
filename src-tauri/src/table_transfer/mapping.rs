@@ -14,7 +14,10 @@ pub struct PlanInputs<'a> {
 }
 
 fn display_type(column: &TableColumn) -> String {
-    column.full_type.clone().unwrap_or_else(|| column.data_type.clone())
+    column
+        .full_type
+        .clone()
+        .unwrap_or_else(|| column.data_type.clone())
 }
 
 fn find_target<'a>(targets: &'a [TableColumn], name: &str) -> Option<&'a TableColumn> {
@@ -89,10 +92,11 @@ pub fn build_table_plan(inputs: &PlanInputs<'_>) -> PlannedTable {
             skipped: false,
             issue: None,
         };
-        let fail = |plan: &mut ColumnPlan, issues: &mut Vec<PlanIssue>, code: &str, column: &str| {
-            plan.issue = Some(code.to_string());
-            issues.push(PlanIssue::new(code, Some(column)));
-        };
+        let fail =
+            |plan: &mut ColumnPlan, issues: &mut Vec<PlanIssue>, code: &str, column: &str| {
+                plan.issue = Some(code.to_string());
+                issues.push(PlanIssue::new(code, Some(column)));
+            };
         let target = match explicit.get(source.name.as_str()) {
             Some(None) => {
                 plan.skipped = true;
@@ -120,12 +124,27 @@ pub fn build_table_plan(inputs: &PlanInputs<'_>) -> PlannedTable {
         plan.target_column = Some(target.name.clone());
         plan.target_type = Some(display_type(target));
         if !used.insert(target.name.as_str()) {
-            fail(&mut plan, &mut issues, "duplicateTargetColumn", &target.name);
+            fail(
+                &mut plan,
+                &mut issues,
+                "duplicateTargetColumn",
+                &target.name,
+            );
         } else if target.is_generated {
-            fail(&mut plan, &mut issues, "targetColumnGenerated", &target.name);
+            fail(
+                &mut plan,
+                &mut issues,
+                "targetColumnGenerated",
+                &target.name,
+            );
         } else if let Some(kind) = classify_source(source) {
             match classify_target(inputs.target_dialect, target, inputs.target_strict) {
-                None => fail(&mut plan, &mut issues, "unsupportedTargetType", &source.name),
+                None => fail(
+                    &mut plan,
+                    &mut issues,
+                    "unsupportedTargetType",
+                    &source.name,
+                ),
                 Some(target_type) => match plan_conversion(kind, &target_type) {
                     Err(code) => fail(&mut plan, &mut issues, code, &source.name),
                     Ok(conversion) => {
@@ -141,7 +160,12 @@ pub fn build_table_plan(inputs: &PlanInputs<'_>) -> PlannedTable {
                 },
             }
         } else {
-            fail(&mut plan, &mut issues, "unsupportedSourceType", &source.name);
+            fail(
+                &mut plan,
+                &mut issues,
+                "unsupportedSourceType",
+                &source.name,
+            );
         }
         columns.push(plan);
     }
@@ -152,7 +176,10 @@ pub fn build_table_plan(inputs: &PlanInputs<'_>) -> PlannedTable {
             && !target.is_auto_increment
             && !target.is_generated;
         if needs_value && !used.contains(target.name.as_str()) {
-            issues.push(PlanIssue::new("requiredTargetColumnUnmapped", Some(&target.name)));
+            issues.push(PlanIssue::new(
+                "requiredTargetColumnUnmapped",
+                Some(&target.name),
+            ));
         }
     }
     if columns.iter().all(|c| c.target_column.is_none()) {

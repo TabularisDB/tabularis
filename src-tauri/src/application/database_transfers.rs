@@ -1,7 +1,6 @@
 use super::connection_files::GeneratedFile;
-use super::table_row_transfers;
-use crate::table_transfer::TableTransferRequest;
 use super::file_transfers::{ClaimedUpload, FileTransferStore};
+use super::table_row_transfers;
 use crate::commands::{register_abort_handle, unregister_abort_handle, AbortHandleMap};
 use crate::drivers::driver_trait::{DatabaseDriver, DatabaseSqlCapabilities};
 use crate::drivers::{mysql, postgres, sqlite};
@@ -9,6 +8,7 @@ use crate::dump_utils::DumpDialect;
 use crate::models::{ConnectionParams, Pagination, TableColumn};
 use crate::pool_manager::{get_mysql_pool, get_postgres_pool, get_sqlite_pool};
 use crate::runtime::RuntimeContext;
+use crate::table_transfer::TableTransferRequest;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;

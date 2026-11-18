@@ -1,4 +1,3 @@
-
 use crate::table_transfer::{ColumnBinding, ConflictMode, OutKind, SourceKind, TransferValue};
 use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::Row;
@@ -51,10 +50,18 @@ pub(super) fn select_sql(schema: &str, table: &str, bindings: &[ColumnBinding]) 
             }
         })
         .collect();
-    format!("SELECT {} FROM {}", columns.join(", "), qualified(schema, table))
+    format!(
+        "SELECT {} FROM {}",
+        columns.join(", "),
+        qualified(schema, table)
+    )
 }
 
-pub(super) fn read_cell(row: &Row, index: usize, kind: SourceKind) -> Result<TransferValue, String> {
+pub(super) fn read_cell(
+    row: &Row,
+    index: usize,
+    kind: SourceKind,
+) -> Result<TransferValue, String> {
     let wrong = || "A source column returned an unexpected type".to_string();
     match kind {
         SourceKind::Bool => Ok(row
@@ -63,17 +70,26 @@ pub(super) fn read_cell(row: &Row, index: usize, kind: SourceKind) -> Result<Tra
             .map_or(TransferValue::Null, TransferValue::Bool)),
         SourceKind::Int => {
             let value = match *row.columns()[index].type_() {
-                Type::INT2 => row.try_get::<_, Option<i16>>(index).map(|v| v.map(i64::from)),
-                Type::INT4 => row.try_get::<_, Option<i32>>(index).map(|v| v.map(i64::from)),
+                Type::INT2 => row
+                    .try_get::<_, Option<i16>>(index)
+                    .map(|v| v.map(i64::from)),
+                Type::INT4 => row
+                    .try_get::<_, Option<i32>>(index)
+                    .map(|v| v.map(i64::from)),
                 _ => row.try_get::<_, Option<i64>>(index),
             };
-            Ok(value.map_err(|_| wrong())?.map_or(TransferValue::Null, TransferValue::Int))
+            Ok(value
+                .map_err(|_| wrong())?
+                .map_or(TransferValue::Null, TransferValue::Int))
         }
         SourceKind::Bytes => Ok(row
             .try_get::<_, Option<Vec<u8>>>(index)
             .map_err(|_| wrong())?
             .map_or(TransferValue::Null, TransferValue::Bytes)),
-        SourceKind::Float => match row.try_get::<_, Option<String>>(index).map_err(|_| wrong())? {
+        SourceKind::Float => match row
+            .try_get::<_, Option<String>>(index)
+            .map_err(|_| wrong())?
+        {
             None => Ok(TransferValue::Null),
             Some(text) => text
                 .parse::<f64>()
@@ -173,21 +189,34 @@ pub(super) async fn write_batch(
         let types: Vec<Type> = (0..chunk.len())
             .flat_map(|_| bindings.iter().map(|b| wire_type(b.conversion.out)))
             .collect();
-        let statement = tx.prepare_typed(&sql, &types).await.map_err(|e| describe_error(&e))?;
+        let statement = tx
+            .prepare_typed(&sql, &types)
+            .await
+            .map_err(|e| describe_error(&e))?;
         let mut params: Vec<Param> = Vec::with_capacity(types.len());
         for row in chunk {
             for (value, binding) in row.iter().zip(bindings) {
                 params.push(param(binding.conversion.out, value)?);
             }
         }
-        let refs: Vec<&(dyn ToSql + Sync)> = params.iter().map(|p| p.as_ref() as &(dyn ToSql + Sync)).collect();
-        written += tx.execute(&statement, &refs).await.map_err(|e| describe_error(&e))?;
+        let refs: Vec<&(dyn ToSql + Sync)> = params
+            .iter()
+            .map(|p| p.as_ref() as &(dyn ToSql + Sync))
+            .collect();
+        written += tx
+            .execute(&statement, &refs)
+            .await
+            .map_err(|e| describe_error(&e))?;
     }
     tx.commit().await.map_err(|e| describe_error(&e))?;
     Ok((written, rows.len() as u64 - written))
 }
 
-pub(super) async fn estimate_rows(pool: &deadpool_postgres::Pool, schema: &str, table: &str) -> Option<i64> {
+pub(super) async fn estimate_rows(
+    pool: &deadpool_postgres::Pool,
+    schema: &str,
+    table: &str,
+) -> Option<i64> {
     let client = pool.get().await.ok()?;
     let row = client
         .query_opt(
@@ -198,5 +227,7 @@ pub(super) async fn estimate_rows(pool: &deadpool_postgres::Pool, schema: &str, 
         )
         .await
         .ok()??;
-    row.try_get::<_, i64>(0).ok().filter(|estimate| *estimate >= 0)
+    row.try_get::<_, i64>(0)
+        .ok()
+        .filter(|estimate| *estimate >= 0)
 }
