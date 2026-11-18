@@ -32,7 +32,7 @@ impl InFlight {
         pool: &Pool<MySql>,
     ) -> Result<Self, String> {
         let id: u64 = conn
-            .fetch_one(sqlx::raw_sql("SELECT CONNECTION_ID()"))
+            .fetch_one(sqlx::raw_sql("SELECT CAST(CONNECTION_ID() AS UNSIGNED)"))
             .await
             .and_then(|row| row.try_get(0))
             .map_err(|e| e.to_string())?;
