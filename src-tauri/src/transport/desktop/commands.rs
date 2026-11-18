@@ -52,8 +52,8 @@ async fn execute_connection_command<R: Runtime>(
 #[tauri::command]
 pub async fn get_connections<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
     migrate_ssh_connections(&app).await.ok();
-    migrate_postgres_ssl_mode_spelling(&app).await.ok();
     migrate_builtin_driver_ids(&app).await.ok();
+    migrate_postgres_ssl_mode_spelling(&app).await.ok();
     execute_connection_command(
         &app,
         crate::application::connections::ConnectionCommand::GetConnections,
@@ -66,8 +66,8 @@ pub async fn get_connections_with_groups<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<serde_json::Value, String> {
     migrate_ssh_connections(&app).await.ok();
-    migrate_postgres_ssl_mode_spelling(&app).await.ok();
     migrate_builtin_driver_ids(&app).await.ok();
+    migrate_postgres_ssl_mode_spelling(&app).await.ok();
     execute_connection_command(
         &app,
         crate::application::connections::ConnectionCommand::GetConnectionsWithGroups,
@@ -941,10 +941,9 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
 }
 
 /// Migrates already-persisted `ssl_mode` values on postgres-dialect
-/// connections (driver id other than the builtin `"postgres"`) from the
-/// stale MySQL-style spelling to the Postgres-style spelling the plugin
-/// actually understands. Idempotent — a no-op once every affected
-/// connection has been rewritten. See
+/// connections from the stale MySQL-style spelling to the Postgres-style
+/// spelling the plugin actually understands. Idempotent — a no-op once
+/// every affected connection has been rewritten. See
 /// `connection_migrations::migrate_postgres_ssl_mode_spelling_at_path` for
 /// the full rationale, including the concurrency guard against a race with
 /// the `--mcp` process's own call to the same function.

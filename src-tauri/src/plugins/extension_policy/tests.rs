@@ -5,7 +5,8 @@ use serde_json::json;
 fn plugin_extension_requires_matching_external_driver() {
     assert!(validate_target("neon", "neon").is_ok());
     assert!(validate_target("neon", "postgres").is_err());
-    assert!(validate_target("postgres", "postgres").is_err());
+    assert!(validate_target("postgres", "postgres").is_ok());
+    assert!(validate_target("mysql", "mysql").is_err());
     assert!(validate_target("../neon", "../neon").is_err());
     assert!(validate_target("", "").is_err());
 }

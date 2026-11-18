@@ -208,11 +208,7 @@ async fn plan_tables(
             .get_columns(&target.params, &selection.target_table, target.schema_arg())
             .await?;
         let verdict = same_table(source, target, selection).await;
-        let estimated_rows = if source_columns.is_empty() {
-            None
-        } else {
-            None
-        };
+        let estimated_rows: Option<i64> = None;
         let target_strict = if target.dialect == TransferDialect::Sqlite
             && target_columns
                 .iter()
@@ -509,6 +505,11 @@ async fn copy_table(
     let pool = get_sqlite_pool(&job.source.params).await?;
     let mut sink = open_sink(&job.target).await?;
 
+    // Hold a read transaction for the duration of the copy so concurrent
+    // source writes don't shift LIMIT/OFFSET pagination (the old postgres
+    // path used a RepeatableRead cursor for the same snapshot guarantee).
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+
     let columns: Vec<String> = bindings
         .iter()
         .map(|b| format!("\"{}\"", b.source_column.replace('"', "\"\"")))
@@ -527,7 +528,7 @@ async fn copy_table(
             return Ok(TransferStatus::Cancelled);
         }
         let rows = sqlx::query(&format!("{select} LIMIT {limit} OFFSET {offset}"))
-            .fetch_all(&pool)
+            .fetch_all(&mut *tx)
             .await
             .map_err(|e| e.to_string())?;
         if rows.is_empty() {

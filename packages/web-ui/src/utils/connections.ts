@@ -327,6 +327,8 @@ export function getDefaultPort(driver: DatabaseDriver | PluginManifest): number 
     switch (driver) {
         case 'mysql':
             return 3306;
+        case 'postgresql':
+            return 5432;
         case 'sqlite':
             return 0; // SQLite doesn't use ports
         default:
@@ -437,6 +439,8 @@ export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string 
     switch (driver) {
         case 'mysql':
             return 'MySQL';
+        case 'postgresql':
+            return 'PostgreSQL';
         case 'sqlite':
             return 'SQLite';
         default:
