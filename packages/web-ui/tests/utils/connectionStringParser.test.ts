@@ -176,14 +176,18 @@ describe('connectionStringParser', () => {
             }
         });
 
-        it('should resolve aliases against builtin drivers when no drivers are provided', () => {
-            const postgresql = parseConnectionString('postgresql://user@host/db');
+        it('should resolve aliases against provided drivers when no builtin fallback exists', () => {
+            // 'postgres' is no longer in BUILTIN_DRIVER_IDS (the built-in driver
+            // was removed), so the fallback path can't resolve postgres/postgresql.
+            // Pass CAPABILITY_DRIVERS explicitly — this mirrors how NewConnectionModal
+            // calls parseConnectionString in production (always passes drivers).
+            const postgresql = parseConnectionString('postgresql://user@host/db', CAPABILITY_DRIVERS);
             expect(postgresql.success).toBe(true);
             if (postgresql.success) {
                 expect(postgresql.params.driver).toBe('postgres');
             }
 
-            const mariadb = parseConnectionString('mariadb://user@host/db');
+            const mariadb = parseConnectionString('mariadb://user@host/db', CAPABILITY_DRIVERS);
             expect(mariadb.success).toBe(true);
             if (mariadb.success) {
                 expect(mariadb.params.driver).toBe('mysql');
@@ -628,8 +632,8 @@ describe('connectionStringParser', () => {
             expect(protocols).toContain('sqlite3');
         });
 
-        it('should include aliases for builtin drivers when no drivers are provided', () => {
-            const protocols = getSupportedConnectionStringProtocols();
+        it('should include aliases for provided drivers', () => {
+            const protocols = getSupportedConnectionStringProtocols(CAPABILITY_DRIVERS);
             expect(protocols).toContain('postgresql');
             expect(protocols).toContain('mariadb');
         });
@@ -881,7 +885,7 @@ describe('connectionStringParser', () => {
 
 describe('connection strings with a % that is not an escape', () => {
     const params = (connectionString: string) => {
-        const result = parseConnectionString(connectionString);
+        const result = parseConnectionString(connectionString, CAPABILITY_DRIVERS);
         if (!result.success) throw new Error(result.error);
         return result.params;
     };

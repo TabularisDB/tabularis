@@ -87,10 +87,9 @@ pub(crate) fn connections_file_changed_concurrently(
 }
 
 /// Migrates already-persisted `ssl_mode` values on postgres-dialect
-/// connections (driver id other than the builtin `"postgres"`) from the
-/// stale MySQL-style spelling to the Postgres-style spelling the plugin
-/// actually understands. Idempotent — a no-op once every affected
-/// connection has been rewritten.
+/// connections from the stale MySQL-style spelling to the Postgres-style
+/// spelling the plugin actually understands. Idempotent — a no-op once
+/// every affected connection has been rewritten.
 ///
 /// Path-based, no `AppHandle` — callable from both the GUI process (wrapped
 /// by `commands::migrate_postgres_ssl_mode_spelling`, which additionally

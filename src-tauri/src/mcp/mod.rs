@@ -382,8 +382,7 @@ async fn resolve_db_params(
 /// Populate the driver registry for the standalone MCP subprocess: the three
 /// built-in drivers plus any installed plugin drivers, honoring the user's
 /// `active_external_drivers` preference. Without this, MCP can only reach
-/// mysql/postgres/sqlite connections — every other driver fails with
-/// "Unsupported driver".
+/// mysql/sqlite connections — every other driver fails with "Unsupported driver".
 async fn register_drivers_for_mcp() {
     if let Err(error) = crate::runtime::bootstrap::bootstrap_application(
         crate::runtime::RuntimeContext::system(),

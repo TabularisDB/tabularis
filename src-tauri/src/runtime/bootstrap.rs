@@ -110,12 +110,16 @@ pub async fn bootstrap_application(
     }
 
     if options.run_connection_migrations {
-        crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(
+        // Driver-id migration runs first so connections are on the plugin id
+        // ("postgresql") before the ssl-mode migration tries to resolve their
+        // dialect — otherwise the removed "postgres" driver can't resolve and
+        // stale ssl_mode spellings are skipped for one launch cycle.
+        crate::connection_migrations::migrate_builtin_driver_ids_at_path(
             &context.paths.connections_file(),
         )
         .await
         .ok();
-        crate::connection_migrations::migrate_builtin_driver_ids_at_path(
+        crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(
             &context.paths.connections_file(),
         )
         .await

@@ -109,7 +109,8 @@ where
         Ok(())
     };
 
-    // Only PostgreSQL connections pin, so only they receive a session.
+    // Plugin drivers receive session_id for pinned-connection streaming;
+    // built-in mysql/sqlite do not pin.
     match driver {
         "mysql" => mysql::export::stream_query(params, query, &mut on_row).await,
         "sqlite" => sqlite::export::stream_query(params, query, &mut on_row).await,

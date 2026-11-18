@@ -214,7 +214,6 @@ pub(crate) fn column_reads(driver: &str, columns: &[TableColumn]) -> Vec<ColumnR
         .iter()
         .filter(|column| !column.is_generated)
         .map(|column| match driver {
-            "postgres" => ColumnRead::Text,
             "sqlite" => ColumnRead::Quoted,
             "mysql" if is_binary_type(&column.data_type) => ColumnRead::Hex,
             "mysql" if is_text_read_type(&column.data_type) => ColumnRead::Text,
@@ -1425,7 +1424,7 @@ impl ImportReporter<'_> {
 // --- Helpers -----------------------------------------------------------------
 
 fn is_builtin_driver(driver: &str) -> bool {
-    matches!(driver, "mysql" | "postgres" | "sqlite")
+    matches!(driver, "mysql" | "sqlite")
 }
 
 fn scope_database(params: &mut ConnectionParams, database: Option<&str>) {

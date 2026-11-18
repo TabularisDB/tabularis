@@ -948,8 +948,6 @@ mod tests {
 }
 
 #[cfg(test)]
-#[cfg(test)]
-#[cfg(test)]
 mod sqlite_path_tests {
     use crate::sqlite_database::expand_sqlite_filename_with_home;
     use std::path::{Path, PathBuf};
@@ -985,7 +983,6 @@ mod sqlite_path_tests {
     }
 }
 
-#[cfg(test)]
 #[cfg(test)]
 mod bounded_close_tests {
     use crate::models::{ConnectionParams, DatabaseSelection};

@@ -26,6 +26,7 @@ const capabilities = {
     folder_based: false,
     single_database: false,
     no_connection_required: false,
+    sql_dialect: 'postgres',
 };
 
 const settingsWrapperFor = (overrides: Partial<Settings>) =>
@@ -78,7 +79,10 @@ describe('useSqlDiagnosticsOptions', () => {
     });
 
     it('is off for drivers other than PostgreSQL', () => {
-        mockDatabase({activeDriver: 'mysql'});
+        mockDatabase({
+            activeDriver: 'mysql',
+            activeCapabilities: {...capabilities, sql_dialect: 'mysql'},
+        });
         const {result} = renderHook(() => useSqlDiagnosticsOptions('conn-1'), {
             wrapper: settingsWrapperFor({sqlDiagnosticsEnabled: true}),
         });
