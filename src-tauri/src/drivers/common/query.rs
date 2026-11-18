@@ -351,12 +351,29 @@ pub fn extract_user_offset(query: &str) -> Option<u32> {
 /// set the user actually asked for (the rows after their OFFSET). Discarding it
 /// silently collapsed `LIMIT 1 OFFSET 1` to `LIMIT 1 OFFSET 0` on page 1.
 pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
+    build_paginated_query_for(query, page_size, page, true, true)
+}
+
+/// [`build_paginated_query`] parameterized by the driver's comment syntax:
+/// `hash_comments` treats `# …` as a line comment (MySQL/MariaDB only; in
+/// PostgreSQL `#`, `#>`, `#>>`, `#-` are operators), and
+/// `line_comment_requires_space` requires whitespace or EOF after `--`
+/// (MySQL/MariaDB only; PostgreSQL and SQLite accept `--note`).
+pub fn build_paginated_query_for(
+    query: &str,
+    page_size: u32,
+    page: u32,
+    hash_comments: bool,
+    line_comment_requires_space: bool,
+) -> String {
     let page_offset = calculate_offset(page, page_size);
-    let normalized = trim_trailing_statement_terminator(query);
-    let clause_source = match trailing_comment_start(normalized) {
-        Some(comment_start) => normalized[..comment_start].trim_end(),
-        None => normalized,
-    };
+    let normalized =
+        trim_trailing_statement_terminator(query, hash_comments, line_comment_requires_space);
+    let clause_source =
+        match trailing_comment_start(normalized, hash_comments, line_comment_requires_space) {
+            Some(comment_start) => normalized[..comment_start].trim_end(),
+            None => normalized,
+        };
     let user_limit = extract_user_limit(clause_source);
     let user_offset = extract_user_offset(clause_source).unwrap_or(0);
     let base_source = if user_limit.is_some() || user_offset > 0 {
@@ -377,11 +394,12 @@ pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
 
     let offset = user_offset.saturating_add(page_offset);
 
-    let separator = if trailing_comment_start(&base).is_some() {
-        "\n"
-    } else {
-        " "
-    };
+    let separator =
+        if trailing_comment_start(&base, hash_comments, line_comment_requires_space).is_some() {
+            "\n"
+        } else {
+            " "
+        };
 
     format!(
         "{}{}LIMIT {} OFFSET {}",
@@ -389,7 +407,11 @@ pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
     )
 }
 
-fn trim_trailing_statement_terminator(query: &str) -> &str {
+fn trim_trailing_statement_terminator(
+    query: &str,
+    hash_comments: bool,
+    line_comment_requires_space: bool,
+) -> &str {
     let original_end = query.trim_end().len();
     let mut end = query.len();
 
@@ -397,7 +419,9 @@ fn trim_trailing_statement_terminator(query: &str) -> &str {
         let trimmed = query[..end].trim_end();
         end = trimmed.len();
 
-        if let Some(comment_start) = trailing_comment_start(trimmed) {
+        if let Some(comment_start) =
+            trailing_comment_start(trimmed, hash_comments, line_comment_requires_space)
+        {
             end = comment_start;
             continue;
         }
@@ -412,7 +436,11 @@ fn trim_trailing_statement_terminator(query: &str) -> &str {
     }
 }
 
-fn trailing_comment_start(sql: &str) -> Option<usize> {
+fn trailing_comment_start(
+    sql: &str,
+    hash_comments: bool,
+    line_comment_requires_space: bool,
+) -> Option<usize> {
     #[derive(Clone, Copy)]
     enum State {
         Normal,
@@ -441,7 +469,9 @@ fn trailing_comment_start(sql: &str) -> Option<usize> {
                 if ch == '-'
                     && i + 1 < chars.len()
                     && chars[i + 1].1 == '-'
-                    && (i + 2 >= chars.len() || chars[i + 2].1.is_whitespace())
+                    && (!line_comment_requires_space
+                        || i + 2 >= chars.len()
+                        || chars[i + 2].1.is_whitespace())
                 {
                     candidate.get_or_insert(byte);
                     state = State::LineComment;
@@ -449,7 +479,7 @@ fn trailing_comment_start(sql: &str) -> Option<usize> {
                     continue;
                 }
 
-                if ch == '#' {
+                if hash_comments && ch == '#' {
                     candidate.get_or_insert(byte);
                     state = State::HashComment;
                     i += 1;
