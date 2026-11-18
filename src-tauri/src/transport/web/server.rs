@@ -80,6 +80,7 @@ pub struct WebServerOptions {
 
 #[derive(Clone)]
 struct WebServerState {
+    scoped_ai: Option<crate::application::scoped_ai::Capability>,
     security: LocalSessionSecurity,
     rpc: RpcDispatcher,
     events: WebEventBus,
@@ -515,6 +516,7 @@ fn router(
         )
     });
     let state = WebServerState {
+        scoped_ai: application.scoped_ai_capability(),
         security,
         rpc: RpcDispatcher::with_access_policy(
             application,
@@ -723,22 +725,18 @@ async fn session(
     State(state): State<WebServerState>,
     Extension(session): Extension<AuthenticatedSession>,
 ) -> impl IntoResponse {
-    (
-        [(CACHE_CONTROL, "no-store")],
-        Json(
-            SessionNegotiation::authenticated_with_access(
-                session.csrf_token.clone(),
-                state.mcp_host_configuration,
-                session.is_remote(),
-                session.authorization(),
-            )
-            .with_server_file_browser(
-                state.server_file_browser
-                    && session.authorization() == AuthorizationLevel::LocalAdmin,
-            )
-            .with_connection_policy(&state.connection_policy),
-        ),
+    let mut negotiation = SessionNegotiation::authenticated_with_access(
+        session.csrf_token.clone(),
+        state.mcp_host_configuration,
+        session.is_remote(),
+        session.authorization(),
     )
+    .with_server_file_browser(
+        state.server_file_browser && session.authorization() == AuthorizationLevel::LocalAdmin,
+    )
+    .with_connection_policy(&state.connection_policy);
+    negotiation.scoped_ai = state.scoped_ai.clone();
+    ([(CACHE_CONTROL, "no-store")], Json(negotiation))
 }
 
 pub(crate) fn mcp_host_configuration_enabled(origin: &str) -> bool {
@@ -762,6 +760,10 @@ async fn rpc(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    let scoped_ai_request = matches!(command.as_str(), "scoped_ai_generate" | "scoped_ai_explain");
+    if scoped_ai_request && !state.security.session_active(&session) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
     let session_id = session.event_scope();
     let request_id_text = request_id.0.clone();
     let response = state
@@ -775,6 +777,9 @@ async fn rpc(
             session.authorization(),
         )
         .await;
+    if scoped_ai_request && !state.security.session_active(&session) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
     let audited_command = if response.status() == StatusCode::NOT_FOUND {
         "unknown"
     } else {

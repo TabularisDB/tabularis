@@ -1,3 +1,4 @@
+import {useScopedAi} from '@/hooks/useScopedAi';
 import {toErrorMessage} from '@/utils/errors';
 import {useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useId} from 'react';
 import {useAutoRefresh} from '@/hooks/useAutoRefresh';
@@ -323,6 +324,7 @@ interface EditorProps {
 }
 
 export const Editor = ({commandScopeId}: EditorProps) => {
+    const scopedAiCapability = useScopedAi();
     const client = useTabularisClient();
     const platform = usePlatformCapabilities();
     const {openResultsWindow, closeResultsWindow} = useSecondaryWindows();
@@ -343,6 +345,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         databaseDataMap,
         nestedDatabaseDataMap,
     } = useDatabase();
+    // This opt-in Web contract supports only the two operator-provisioned Plesk engines.
+    // Do not infer authorization for additional drivers from their SQL dialect.
+    const scopedAi =
+        activeDriver === 'mysql' || activeDriver === 'postgres' ? scopedAiCapability : undefined;
     const {allDrivers} = useDrivers();
     const {explorerConnectionId} = useConnectionLayoutContext();
     const {settings} = useSettings();
@@ -6183,7 +6189,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                     </button>
                                 )}
                                 {/* AI dropdown — only if AI enabled */}
-                                {settings.aiEnabled && (
+                                {(settings.aiEnabled || scopedAi) && (
                                     <AiDropdownButton
                                         onGenerate={() => {
                                             setAiFixPrompt(null);
@@ -7146,7 +7152,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 onInsert={(q) => {
                     updateActiveTab({query: q});
                     // A fix is only inserted so the user can review it before running.
-                    if (aiFixPrompt !== null) return;
+                    if (aiFixPrompt !== null || scopedAiCapability) return;
                     // AI-generated SQL uses the same production-first safety pipeline.
                     void runQuery(q, 1);
                 }}
@@ -7155,6 +7161,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 isOpen={isAiExplainModalOpen}
                 onClose={() => setIsAiExplainModalOpen(false)}
                 query={activeTab.query}
+                connectionId={activeConnectionId ?? undefined}
+                database={activeTab.database ?? activeDatabaseName ?? undefined}
+                schema={activeTab.schema ?? activeSchema ?? undefined}
             />
             <VisualExplainModal
                 isOpen={isVisualExplainOpen}

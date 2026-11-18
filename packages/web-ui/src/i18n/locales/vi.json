@@ -948,6 +948,7 @@
     "version": "Phiên bản",
     "starOnGithub": "Star trên GitHub",
     "ai": {
+    "scopedSchemaDisclosure": "Siêu dữ liệu lược đồ được gửi đến nhà cung cấp này.",
       "chatgpt": {
         "description": "Kết nối tài khoản ChatGPT Plus hoặc Pro đủ điều kiện để dùng gói của bạn cho các tính năng AI của Tabularis mà không cần API key.",
         "account": "Tài khoản ChatGPT",

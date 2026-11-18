@@ -962,6 +962,7 @@
     "version": "Versione",
     "starOnGithub": "Star su GitHub",
     "ai": {
+    "scopedSchemaDisclosure": "I metadati dello schema vengono inviati a questo provider.",
       "chatgpt": {
         "description": "Collega un account ChatGPT Plus o Pro idoneo per usare il tuo piano nelle funzionalità AI di Tabularis senza una chiave API.",
         "account": "Account ChatGPT",

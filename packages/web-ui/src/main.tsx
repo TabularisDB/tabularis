@@ -3,6 +3,7 @@ import '@/polyfills';
 
 import React, {Suspense} from 'react';
 import ReactDOM from 'react-dom/client';
+import {ScopedAiContext} from '@/contexts/ScopedAiContext';
 import {App} from '@/App';
 import '@/index.css';
 import '@/i18n/config';
@@ -60,7 +61,11 @@ async function startApplication() {
                                                         <QueryHistoryProvider>
                                                             <EditorProvider>
                                                                 <ProductionGuardProvider>
-                                                                    <App />
+                                                                    <ScopedAiContext.Provider
+                                                                        value={session?.scopedAi}
+                                                                    >
+                                                                        <App />
+                                                                    </ScopedAiContext.Provider>
                                                                 </ProductionGuardProvider>
                                                             </EditorProvider>
                                                         </QueryHistoryProvider>

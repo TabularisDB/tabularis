@@ -6,6 +6,8 @@ pub const WEB_API_VERSION: &str = "v1";
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionNegotiation {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scoped_ai: Option<crate::application::scoped_ai::Capability>,
     pub api_version: String,
     pub server_version: String,
     pub server_build: ServerBuildInformation,
@@ -107,6 +109,7 @@ impl SessionNegotiation {
         authorization: AuthorizationLevel,
     ) -> Self {
         Self {
+            scoped_ai: None,
             api_version: WEB_API_VERSION.to_string(),
             server_version: env!("CARGO_PKG_VERSION").to_string(),
             server_build: ServerBuildInformation {

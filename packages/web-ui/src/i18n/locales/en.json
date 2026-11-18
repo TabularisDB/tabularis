@@ -960,6 +960,7 @@
     "version": "Version",
     "starOnGithub": "Star on GitHub",
     "ai": {
+    "scopedSchemaDisclosure": "Schema metadata is sent to this provider.",
       "chatgpt": {
         "description": "Connect an eligible ChatGPT Plus or Pro account to use your plan for Tabularis AI features without an API key.",
         "account": "ChatGPT account",

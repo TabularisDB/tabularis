@@ -276,3 +276,69 @@ fn web_managed_only_switches_are_opt_in() {
 fn web_managed_switches_require_a_connection_mode() {
     assert!(try_parse_from(["tabularis", "web", "--managed-allow-branding"]).is_err());
 }
+
+#[test]
+fn scoped_ai_requires_managed_proxy_without_high_risk() {
+    use clap::Parser;
+    for (extra, allowed) in [
+        (vec![], false),
+        (
+            vec![
+                "--auth",
+                "password",
+                "--public-url",
+                "https://example.com",
+                "--allowed-origin",
+                "https://example.com",
+                "--connection-mode",
+                "managed-only",
+            ],
+            false,
+        ),
+        (
+            vec![
+                "--auth",
+                "proxy",
+                "--public-url",
+                "https://example.com",
+                "--allowed-origin",
+                "https://example.com",
+            ],
+            false,
+        ),
+        (
+            vec![
+                "--auth",
+                "proxy",
+                "--public-url",
+                "https://example.com",
+                "--allowed-origin",
+                "https://example.com",
+                "--connection-mode",
+                "managed-only",
+            ],
+            true,
+        ),
+        (
+            vec![
+                "--auth",
+                "proxy",
+                "--public-url",
+                "https://example.com",
+                "--allowed-origin",
+                "https://example.com",
+                "--connection-mode",
+                "managed-only",
+                "--allow-high-risk",
+            ],
+            false,
+        ),
+    ] {
+        let args = super::Args::try_parse_from([vec!["tabularis", "web"], extra].concat()).unwrap();
+        let Some(super::Command::Web(web)) = args.command else {
+            panic!("Web args")
+        };
+        assert!(web.validate_scoped_ai_mode(false).is_ok());
+        assert_eq!(web.validate_scoped_ai_mode(true).is_ok(), allowed);
+    }
+}

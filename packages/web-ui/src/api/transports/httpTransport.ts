@@ -1002,6 +1002,10 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
     const access = value.access;
     const queryPolicy = value.queryResponsePolicy;
     return (
+        (value.scopedAi === undefined ||
+            (isRecord(value.scopedAi) &&
+                typeof value.scopedAi.provider === 'string' &&
+                typeof value.scopedAi.model === 'string')) &&
         typeof value.apiVersion === 'string' &&
         typeof value.serverVersion === 'string' &&
         typeof serverBuild.target === 'string' &&

@@ -1,3 +1,4 @@
+pub mod scoped_ai;
 pub mod ai;
 pub mod api;
 pub mod connection_files;

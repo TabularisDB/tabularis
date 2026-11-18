@@ -935,6 +935,7 @@
     "version": "バージョン",
     "starOnGithub": "GitHub でスター",
     "ai": {
+    "scopedSchemaDisclosure": "スキーマのメタデータはこのプロバイダーに送信されます。",
       "tab": "AI",
       "title": "AI 設定",
       "description": "AI プロバイダを設定して、自然言語から SQL を生成する機能を有効化します。キーはシステムのキーチェーンに安全に保管されます。",

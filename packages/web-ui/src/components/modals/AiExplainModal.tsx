@@ -1,3 +1,4 @@
+import {useScopedAi} from '@/hooks/useScopedAi';
 import {useState, useEffect, useRef} from 'react';
 import {useTranslation} from 'react-i18next';
 import {X, Loader2, BookOpen} from 'lucide-react';
@@ -16,12 +17,23 @@ interface AiExplainModalProps {
     isOpen: boolean;
     onClose: () => void;
     query: string;
+    connectionId?: string;
+    database?: string;
+    schema?: string;
 }
 
-export const AiExplainModal = ({isOpen, onClose, query}: AiExplainModalProps) => {
+export const AiExplainModal = ({
+    isOpen,
+    onClose,
+    query,
+    connectionId,
+    database,
+    schema,
+}: AiExplainModalProps) => {
     const {i18n} = useTranslation();
     const {settings} = useSettings();
     const client = useTabularisClient();
+    const scopedAi = useScopedAi();
     const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language;
     const editorTheme = useEditorTheme();
     const monacoRef = useRef<typeof MonacoTypes | null>(null);
@@ -50,7 +62,7 @@ export const AiExplainModal = ({isOpen, onClose, query}: AiExplainModalProps) =>
     }, [isOpen, query]);
 
     const handleExplain = async () => {
-        if (!settings.aiProvider) {
+        if (!settings.aiProvider && !scopedAi) {
             setError('Please configure AI provider in Settings.');
             return;
         }
@@ -60,14 +72,22 @@ export const AiExplainModal = ({isOpen, onClose, query}: AiExplainModalProps) =>
         setExplanation('');
 
         try {
-            const result = await client.call('explain_ai_query', {
-                req: {
-                    provider: settings.aiProvider,
-                    model: settings.aiModel || '',
-                    query,
-                    language: getAiExplanationLanguage(settings.language, resolvedLanguage),
-                },
-            });
+            const result = scopedAi
+                ? await client.call('scoped_ai_explain', {
+                      connectionId: connectionId ?? '',
+                      database: database ?? '',
+                      schema: schema ?? database ?? '',
+                      query,
+                      language: getAiExplanationLanguage(settings.language, resolvedLanguage),
+                  })
+                : await client.call('explain_ai_query', {
+                      req: {
+                          provider: settings.aiProvider!,
+                          model: settings.aiModel || '',
+                          query,
+                          language: getAiExplanationLanguage(settings.language, resolvedLanguage),
+                      },
+                  });
             setExplanation(result);
         } catch (err) {
             setError(String(err));
@@ -87,7 +107,10 @@ export const AiExplainModal = ({isOpen, onClose, query}: AiExplainModalProps) =>
                 <div className="flex items-center justify-between p-4 border-b border-default">
                     <div className="flex items-center gap-2 text-primary font-medium">
                         <BookOpen size={18} className="text-accent" />
-                        <span>AI Query Explanation</span>
+                        <span>
+                            AI Query Explanation
+                            {scopedAi ? ` · ${scopedAi.provider} / ${scopedAi.model}` : ''}
+                        </span>
                     </div>
                     <button
                         onClick={onClose}
@@ -99,7 +122,7 @@ export const AiExplainModal = ({isOpen, onClose, query}: AiExplainModalProps) =>
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {!settings.aiProvider && (
+                    {!settings.aiProvider && !scopedAi && (
                         <div className="bg-warning-bg border border-warning-border text-warning-text px-4 py-3 rounded text-sm">
                             ⚠️ AI Provider not configured. Please go to Settings {'>'} AI.
                         </div>

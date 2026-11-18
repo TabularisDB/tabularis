@@ -919,6 +919,7 @@
     "version": "Versão",
     "starOnGithub": "Dar Estrela no GitHub",
     "ai": {
+    "scopedSchemaDisclosure": "Os metadados do esquema são enviados a este provedor.",
       "tab": "IA",
       "title": "Configuração de IA",
       "description": "Configure provedores de IA para habilitar a geração de SQL a partir de linguagem natural. As chaves são armazenadas com segurança no chaveiro do seu sistema.",

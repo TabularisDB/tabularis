@@ -1,10 +1,17 @@
+import {I18nextProvider} from 'react-i18next';
+import {createInstance} from 'i18next';
+import en from '@/i18n/locales/en.json';
+import {ScopedAiContext} from '@/contexts/ScopedAiContext';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {AiQueryModal} from '@/components/modals/AiQueryModal';
 
-const {invokeMock} = vi.hoisted(() => ({
+vi.unmock('react-i18next');
+
+const {invokeMock, settingsMock} = vi.hoisted(() => ({
     invokeMock: vi.fn(),
+    settingsMock: {aiProvider: 'custom-openai' as string | undefined, aiModel: 'test-model'},
 }));
 
 vi.mock('@/hooks/useTabularisClient', () => ({
@@ -21,10 +28,7 @@ vi.mock('@/hooks/useDatabase', () => ({
 
 vi.mock('@/hooks/useSettings', () => ({
     useSettings: () => ({
-        settings: {
-            aiProvider: 'custom-openai',
-            aiModel: 'test-model',
-        },
+        settings: settingsMock,
     }),
 }));
 
@@ -36,6 +40,7 @@ vi.mock('@/components/ui/Modal', () => ({
 describe('AiQueryModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        settingsMock.aiProvider = 'custom-openai';
     });
 
     it('waits for the driver schema context before generating SQL', async () => {
@@ -232,4 +237,42 @@ describe('AiQueryModal', () => {
             });
         });
     });
+});
+
+it('uses scoped operator AI without global settings or client schema/provider overrides', async () => {
+    settingsMock.aiProvider = undefined;
+    const i18n = createInstance();
+    await i18n.init({lng: 'en', resources: {en: {translation: en}}});
+    invokeMock.mockReset();
+    invokeMock.mockResolvedValue('SELECT 42');
+    const onInsert = vi.fn();
+    render(
+        <I18nextProvider i18n={i18n}>
+            <ScopedAiContext.Provider value={{provider: 'openrouter', model: 'fixed-model'}}>
+                <AiQueryModal
+                    isOpen
+                    onClose={vi.fn()}
+                    onInsert={onInsert}
+                    connectionId="allowed"
+                    database="app"
+                    schema="public"
+                />
+            </ScopedAiContext.Provider>
+        </I18nextProvider>,
+    );
+    fireEvent.change(screen.getByPlaceholderText(/Find all users/i), {
+        target: {value: 'Count customers'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: /Generate SQL/i}));
+    await waitFor(() => expect(onInsert).toHaveBeenCalledWith('SELECT 42'));
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('scoped_ai_generate', {
+        connectionId: 'allowed',
+        database: 'app',
+        schema: 'public',
+        prompt: 'Count customers',
+    });
+    expect(screen.getByText(/openrouter · fixed-model/)).toBeInTheDocument();
+    expect(screen.getByText(/Schema metadata is sent to this provider/)).toBeInTheDocument();
+    expect(screen.queryByText(/AI Provider not configured/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Reading database schema/)).not.toBeInTheDocument();
 });

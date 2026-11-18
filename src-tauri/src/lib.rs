@@ -196,6 +196,9 @@ pub fn run() {
     }
 
     if let Some(cli::Command::Web(web_args)) = &args.command {
+        web_args
+            .validate_scoped_ai_mode(std::env::var_os("TABULARIS_WEB_AI_CONFIG_FILE").is_some())
+            .expect("Invalid Web AI launch mode");
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(async {
             let web_root =
@@ -227,10 +230,14 @@ pub fn run() {
                 application.context.clone(),
                 application_state.clone(),
             );
-            let application_api = std::sync::Arc::new(application::RuntimeApplicationApi::new(
-                application.context,
-                application_state.clone(),
-            ));
+            let application_api = std::sync::Arc::new(
+                application::RuntimeApplicationApi::new(
+                    application.context,
+                    application_state.clone(),
+                )
+                .with_web_ai_from_env()
+                .expect("Invalid operator Web AI configuration"),
+            );
 
             let server_result =
                 transport::web::server::run(transport::web::server::WebServerOptions {

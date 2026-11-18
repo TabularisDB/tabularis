@@ -50,6 +50,20 @@ impl ApplicationError {
 
 #[async_trait]
 pub trait ApplicationApi: Send + Sync {
+    fn scoped_ai_enabled(&self) -> bool {
+        false
+    }
+    fn scoped_ai_capability(&self) -> Option<super::scoped_ai::Capability> {
+        None
+    }
+    async fn execute_scoped_ai(
+        &self,
+        _context: ApplicationRequestContext,
+        _request: super::scoped_ai::Request,
+    ) -> Result<String, ApplicationError> {
+        Err(ApplicationError::new("AI_DISABLED"))
+    }
+
     async fn provision_connection(
         &self,
         _command: super::provisioning::ProvisionCommand,
@@ -216,18 +230,53 @@ pub trait ApplicationApi: Send + Sync {
 }
 
 pub struct RuntimeApplicationApi {
+    scoped_ai: Option<Arc<super::scoped_ai::ScopedAi>>,
     runtime: RuntimeContext,
     state: Arc<ApplicationState>,
 }
 
 impl RuntimeApplicationApi {
+    #[cfg(test)]
+    pub(crate) fn with_scoped_ai_for_test(mut self, ai: Arc<super::scoped_ai::ScopedAi>) -> Self {
+        self.scoped_ai = Some(ai);
+        self
+    }
+
+    pub fn with_web_ai_from_env(mut self) -> Result<Self, String> {
+        self.scoped_ai = super::scoped_ai::ScopedAi::from_env(&self.runtime)?;
+        Ok(self)
+    }
+
     pub fn new(runtime: RuntimeContext, state: Arc<ApplicationState>) -> Self {
-        Self { runtime, state }
+        Self {
+            runtime,
+            state,
+            scoped_ai: None,
+        }
     }
 }
 
 #[async_trait]
 impl ApplicationApi for RuntimeApplicationApi {
+    fn scoped_ai_enabled(&self) -> bool {
+        self.scoped_ai.is_some()
+    }
+    fn scoped_ai_capability(&self) -> Option<super::scoped_ai::Capability> {
+        self.scoped_ai.as_ref().map(|a| a.capability())
+    }
+    async fn execute_scoped_ai(
+        &self,
+        context: ApplicationRequestContext,
+        request: super::scoped_ai::Request,
+    ) -> Result<String, ApplicationError> {
+        self.scoped_ai
+            .as_ref()
+            .ok_or_else(|| ApplicationError::new("AI_DISABLED"))?
+            .execute(&self.runtime, &self.state, context, request)
+            .await
+            .map_err(ApplicationError::new)
+    }
+
     async fn provision_connection(
         &self,
         command: super::provisioning::ProvisionCommand,
@@ -238,6 +287,9 @@ impl ApplicationApi for RuntimeApplicationApi {
     }
 
     fn clear_session(&self, session_id: Uuid) {
+        if let Some(ai) = &self.scoped_ai {
+            ai.cancel_session(session_id);
+        }
         self.state.import_envelope_cache.clear_session(session_id);
         queries::cancel_session_queries(&self.state.query_cancellation, session_id);
         super::query_sessions::clear_owner(session_id);
