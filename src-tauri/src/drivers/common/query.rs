@@ -256,6 +256,103 @@ fn trailing_comma_limit(tokens: &[(String, usize)]) -> Option<(usize, u64, u64)>
     Some((limit_index, offset.parse().ok()?, count.parse().ok()?))
 }
 
+/// The row-limiting clauses at the end of a query.
+struct TrailingRowLimit {
+    /// Index of the token that starts the first clause.
+    start: usize,
+    /// Row count, or `None` for no clause or `LIMIT ALL`.
+    limit: Option<u64>,
+    /// Rows to skip, or `None` for no clause.
+    offset: Option<u64>,
+}
+
+/// One row-limiting clause ending just before token `end`.
+enum RowLimitClause {
+    /// `LIMIT <n>`, `LIMIT ALL`, or `FETCH { FIRST | NEXT } [<n>] { ROW | ROWS } ONLY`.
+    Limit(Option<u64>),
+    /// `OFFSET <n>` or `OFFSET <n> { ROW | ROWS }`.
+    Offset(u64),
+}
+
+fn row_limit_clause_before(
+    tokens: &[(String, usize)],
+    end: usize,
+) -> Option<(usize, RowLimitClause)> {
+    let word = |index: usize| tokens[index].0.as_str();
+    let is = |index: usize, keyword: &str| word(index).eq_ignore_ascii_case(keyword);
+    let is_row = |index: usize| is(index, "ROW") || is(index, "ROWS");
+    let number = |index: usize| word(index).parse::<u64>().ok();
+
+    // LIMIT <n> | LIMIT ALL
+    if end >= 2 && is(end - 2, "LIMIT") {
+        if is(end - 1, "ALL") {
+            return Some((end - 2, RowLimitClause::Limit(None)));
+        }
+        if let Some(count) = number(end - 1) {
+            return Some((end - 2, RowLimitClause::Limit(Some(count))));
+        }
+    }
+    // OFFSET <n> [ROW | ROWS]
+    let offset_end = if end >= 1 && is_row(end - 1) {
+        end - 1
+    } else {
+        end
+    };
+    if offset_end >= 2 && is(offset_end - 2, "OFFSET") {
+        if let Some(offset) = number(offset_end - 1) {
+            return Some((offset_end - 2, RowLimitClause::Offset(offset)));
+        }
+    }
+    // FETCH { FIRST | NEXT } [<n>] { ROW | ROWS } ONLY
+    if end >= 4 && is(end - 1, "ONLY") && is_row(end - 2) {
+        let (count, first_index) = match number(end - 3) {
+            Some(count) => (count, end - 4),
+            None => (1, end - 3),
+        };
+        if first_index >= 1
+            && (is(first_index, "FIRST") || is(first_index, "NEXT"))
+            && is(first_index - 1, "FETCH")
+        {
+            return Some((first_index - 1, RowLimitClause::Limit(Some(count))));
+        }
+    }
+    None
+}
+
+/// Finds the row-limiting clauses that end the query: `LIMIT <offset>, <count>`,
+/// or a limit and an offset clause in either order, as PostgreSQL accepts them
+/// (`LIMIT 5 OFFSET 10`, `OFFSET 10 LIMIT 5`, `LIMIT ALL`,
+/// `OFFSET 10 ROWS FETCH FIRST 5 ROWS ONLY`).
+fn trailing_row_limit(tokens: &[(String, usize)]) -> Option<TrailingRowLimit> {
+    if let Some((start, offset, count)) = trailing_comma_limit(tokens) {
+        return Some(TrailingRowLimit {
+            start,
+            limit: Some(count),
+            offset: Some(offset),
+        });
+    }
+    let mut start = tokens.len();
+    let mut limit = None;
+    let mut offset = None;
+    let mut found_limit = false;
+    while let Some((clause_start, clause)) = row_limit_clause_before(tokens, start) {
+        match clause {
+            RowLimitClause::Limit(count) if !found_limit => {
+                found_limit = true;
+                limit = count;
+            }
+            RowLimitClause::Offset(rows) if offset.is_none() => offset = Some(rows),
+            _ => break,
+        }
+        start = clause_start;
+    }
+    (start < tokens.len()).then_some(TrailingRowLimit {
+        start,
+        limit,
+        offset,
+    })
+}
+
 /// Remove trailing LIMIT and OFFSET clauses from a SQL query.
 ///
 /// Returns a substring of the original input so leading comments and
@@ -266,77 +363,30 @@ fn trailing_comma_limit(tokens: &[(String, usize)]) -> Option<(usize, u64, u64)>
 pub fn strip_limit_offset(query: &str) -> String {
     let trimmed = query.trim_end();
     let tokens = tokenize_sql_with_pos(trimmed);
-    if let Some((limit_index, _, _)) = trailing_comma_limit(&tokens) {
-        return trimmed[..tokens[limit_index].1].trim_end().to_string();
+    match trailing_row_limit(&tokens) {
+        Some(row_limit) => trimmed[..tokens[row_limit.start].1].trim_end().to_string(),
+        None => trimmed.to_string(),
     }
-    let mut end = tokens.len();
-
-    if end >= 2
-        && tokens[end - 2].0.to_uppercase() == "OFFSET"
-        && tokens[end - 1].0.parse::<u64>().is_ok()
-    {
-        end -= 2;
-    }
-
-    if end >= 2
-        && tokens[end - 2].0.to_uppercase() == "LIMIT"
-        && tokens[end - 1].0.parse::<u64>().is_ok()
-    {
-        end -= 2;
-    }
-
-    if end == tokens.len() {
-        return trimmed.to_string();
-    }
-
-    let cut = tokens[end].1;
-    trimmed[..cut].trim_end().to_string()
 }
 
-/// Extract the numeric value from a trailing LIMIT clause, if present.
+/// Extract the row count from the trailing LIMIT (or FETCH FIRST) clause, if
+/// present.
 ///
 /// Uses a token-aware scan so that `LIMIT` as a substring of a table name
 /// (e.g. `tapp_appointment_message_event_limit`) is never misidentified.
 pub fn extract_user_limit(query: &str) -> Option<u32> {
     let tokens = tokenize_sql_with_pos(query.trim());
-    if let Some((_, _, count)) = trailing_comma_limit(&tokens) {
-        return count.try_into().ok();
-    }
-    let len = tokens.len();
-
-    let mut end = len;
-    if end >= 2
-        && tokens[end - 2].0.to_uppercase() == "OFFSET"
-        && tokens[end - 1].0.parse::<u64>().is_ok()
-    {
-        end -= 2;
-    }
-
-    if end >= 2 && tokens[end - 2].0.to_uppercase() == "LIMIT" {
-        return tokens[end - 1].0.parse().ok();
-    }
-
-    None
+    trailing_row_limit(&tokens)?.limit?.try_into().ok()
 }
 
 /// Extract the numeric value from a trailing OFFSET clause, if present.
 ///
-/// Mirrors [`extract_user_limit`] and only recognises the `… OFFSET <n>`
-/// shape that [`strip_limit_offset`] removes (the common `LIMIT x OFFSET y`
-/// ordering). Uses a token-aware scan so `OFFSET` inside an identifier or
-/// string literal is never misidentified.
+/// Mirrors [`extract_user_limit`] and recognises the same clauses that
+/// [`strip_limit_offset`] removes. Uses a token-aware scan so `OFFSET` inside
+/// an identifier or string literal is never misidentified.
 pub fn extract_user_offset(query: &str) -> Option<u32> {
     let tokens = tokenize_sql_with_pos(query.trim());
-    if let Some((_, offset, _)) = trailing_comma_limit(&tokens) {
-        return offset.try_into().ok();
-    }
-    let end = tokens.len();
-
-    if end >= 2 && tokens[end - 2].0.to_uppercase() == "OFFSET" {
-        return tokens[end - 1].0.parse().ok();
-    }
-
-    None
+    trailing_row_limit(&tokens)?.offset?.try_into().ok()
 }
 
 /// Build a paginated query by stripping any user-supplied LIMIT/OFFSET and
@@ -359,7 +409,9 @@ pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
     };
     let user_limit = extract_user_limit(clause_source);
     let user_offset = extract_user_offset(clause_source).unwrap_or(0);
-    let base_source = if user_limit.is_some() || user_offset > 0 {
+    // Cut at the clauses even when they set nothing (`LIMIT ALL`, `OFFSET 0`).
+    let has_row_limit = trailing_row_limit(&tokenize_sql_with_pos(clause_source)).is_some();
+    let base_source = if has_row_limit {
         clause_source
     } else {
         normalized
