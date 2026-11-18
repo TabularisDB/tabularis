@@ -1,9 +1,0 @@
-{
-  "kind": "raw",
-  "raw": {
-    "engine": "postgres",
-    "format": "postgres-json",
-    "payload": "[{\"Plan\":{\"Alias\":\"all_types\",\"Async Capable\":false,\"Filter\":\"(id = 1)\",\"Node Type\":\"Seq Scan\",\"Parallel Aware\":false,\"Plan Rows\":1,\"Plan Width\":961,\"Relation Name\":\"all_types\",\"Startup Cost\":0.0,\"Total Cost\":1.02}}]",
-    "original_query": "SELECT * FROM test_schema.all_types WHERE id = 1"
-  }
-}

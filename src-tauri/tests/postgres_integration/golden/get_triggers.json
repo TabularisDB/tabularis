@@ -1,9 +1,0 @@
-[
-  {
-    "name": "trg_audit",
-    "table_name": "all_types",
-    "event": "UPDATE",
-    "timing": "AFTER",
-    "definition": null
-  }
-]
