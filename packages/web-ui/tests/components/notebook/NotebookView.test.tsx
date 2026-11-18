@@ -1559,6 +1559,89 @@ describe('NotebookView', () => {
             expect(savedCell('use')).toMatchObject({isDisabled: true, isLoading: false});
         });
 
+        it('runs different databases together and keeps one database in order', async () => {
+            const pending: Array<(value: QueryResult) => void> = [];
+            mockInvoke.mockImplementation(
+                () =>
+                    new Promise<QueryResult>((resolve) => {
+                        pending.push(resolve);
+                    }),
+            );
+            renderNotebook({
+                cells: [
+                    sqlCell('a', 'SELECT a', {schema: 'billing'}),
+                    sqlCell('a2', 'SELECT a2', {schema: 'billing'}),
+                    sqlCell('b', 'SELECT b', {schema: 'orders'}),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2));
+            expect(mockInvoke.mock.calls.map((call) => call[1])).toEqual([
+                expect.objectContaining({query: 'SELECT a', schema: 'billing'}),
+                expect.objectContaining({query: 'SELECT b', schema: 'orders'}),
+            ]);
+
+            await act(async () => {
+                pending[0](queryResult);
+            });
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(3));
+            expect(mockInvoke.mock.calls[2][1]).toEqual(
+                expect.objectContaining({query: 'SELECT a2', schema: 'billing'}),
+            );
+        });
+
+        it('stop on error skips the rest of the failed database and still runs the others', async () => {
+            mockInvoke.mockImplementation((_command, args: {query?: string}) => {
+                if (args?.query === 'SELECT a') return Promise.reject(new Error('boom'));
+                return Promise.resolve(queryResult);
+            });
+            renderNotebook({
+                stopOnError: true,
+                cells: [
+                    sqlCell('a', 'SELECT a', {schema: 'billing'}),
+                    sqlCell('a2', 'SELECT a2', {schema: 'billing'}),
+                    sqlCell('b', 'SELECT b', {schema: 'orders'}),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual([
+                'SELECT a',
+                'SELECT b',
+            ]);
+            expect(summary()).toMatchObject({
+                total: 3,
+                succeeded: 1,
+                failed: 1,
+                skipped: 1,
+            });
+        });
+
+        it('does not run a cell that would read a result skipped by stop-on-error', async () => {
+            mockInvoke.mockImplementation((_command, args: {query?: string}) => {
+                if (args?.query === 'SELECT a') return Promise.reject(new Error('boom'));
+                return Promise.resolve(queryResult);
+            });
+            renderNotebook({
+                stopOnError: true,
+                cells: [
+                    sqlCell('a', 'SELECT a', {schema: 'billing'}),
+                    sqlCell('a2', 'SELECT a2', {schema: 'billing', result: cached}),
+                    sqlCell('b', 'SELECT * FROM {{cell_2}}', {schema: 'orders'}),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual(['SELECT a']);
+            expect(summary()).toMatchObject({
+                total: 3,
+                succeeded: 0,
+                failed: 1,
+                skipped: 2,
+            });
+            expect(savedCell('b').result).toBeUndefined();
+        });
+
         it('prepares no query plan for a disabled cell', () => {
             renderNotebook({
                 cells: [sqlCell('off', 'SELECT 1', {isDisabled: true, isQueryPlanVisible: true})],

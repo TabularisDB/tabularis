@@ -1,6 +1,8 @@
 import {describe, it, expect} from 'vitest';
 import {
     getExecutableCells,
+    partitionRunAllCells,
+    earlierReferencedCellIds,
     createRunAllResult,
     addSuccess,
     addFailure,
@@ -47,6 +49,56 @@ describe('notebookRunAll', () => {
 
         it('should return empty for empty cells array', () => {
             expect(getExecutableCells([])).toHaveLength(0);
+        });
+    });
+
+    describe('partitionRunAllCells', () => {
+        it('keeps one database in order and gives each database its own lane', () => {
+            const cells = [
+                makeCell({id: 'a1', content: 'SELECT 1', schema: 'billing'}),
+                makeCell({id: 'shared', content: 'SELECT 2'}),
+                makeCell({id: 'b1', content: 'SELECT 3', schema: 'orders'}),
+                makeCell({id: 'a2', content: 'SELECT 4', schema: 'billing'}),
+                makeCell({id: 'blank', content: 'SELECT 5', schema: '   '}),
+            ];
+            const {parallel, lanes} = partitionRunAllCells(
+                cells.map((cell, index) => ({cell, index})),
+                'analytics',
+            );
+            expect(parallel).toEqual([]);
+            expect(lanes.map((lane) => lane.map(({cell}) => cell.id))).toEqual([
+                ['a1', 'a2'],
+                ['shared', 'blank'],
+                ['b1'],
+            ]);
+        });
+
+        it('puts explicitly parallel cells in one group, ahead of the database lanes', () => {
+            const cells = [
+                makeCell({id: 'seq', content: 'SELECT 1', schema: 'billing'}),
+                makeCell({id: 'fast', content: 'SELECT 2', schema: 'billing', isParallel: true}),
+            ];
+            const {parallel, lanes} = partitionRunAllCells(
+                cells.map((cell, index) => ({cell, index})),
+                null,
+            );
+            expect(parallel.map(({cell}) => cell.id)).toEqual(['fast']);
+            expect(lanes.map((lane) => lane.map(({cell}) => cell.id))).toEqual([['seq']]);
+        });
+    });
+
+    describe('earlierReferencedCellIds', () => {
+        it('returns only cells that appear earlier than the one about to run', () => {
+            const cells = [
+                makeCell({id: 'source', content: 'SELECT 1'}),
+                makeCell({id: 'later', content: 'SELECT 2'}),
+                makeCell({id: 'reader', content: 'SELECT * FROM {{cell_1}} JOIN {{cell_2}}'}),
+            ];
+            expect(earlierReferencedCellIds(2, cells[2].content, cells)).toEqual([
+                'source',
+                'later',
+            ]);
+            expect(earlierReferencedCellIds(0, 'SELECT * FROM {{cell_2}}', cells)).toEqual([]);
         });
     });
 

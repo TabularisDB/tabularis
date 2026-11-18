@@ -35,6 +35,8 @@ import {isTypingTarget} from '@/utils/keyboardEvents';
 import {flushPendingEditorChanges} from '@/utils/pendingEditorChanges';
 import {
     getExecutableCells,
+    partitionRunAllCells,
+    earlierReferencedCellIds,
     getDisabledCells,
     findDisabledPrerequisites,
     createRunAllResult,
@@ -628,9 +630,31 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             return {result: addSuccess(current), failed: false};
         };
 
-        // Split into parallel and sequential groups
-        const parallelCells = executable.filter(({cell}) => cell.isParallel);
-        const sequentialCells = executable.filter(({cell}) => !cell.isParallel);
+        // Parallel cells start together. Everything else is grouped by database:
+        // one database stays in order, and different databases run at once.
+        const {parallel: parallelCells, lanes} = partitionRunAllCells(
+            executable,
+            effectiveSchema,
+        );
+        // Settles when that cell's own run has finished, so a cell on another
+        // database can wait for an earlier cell it reads. "skipped" means this
+        // run never started it (stop-on-error); waiters must not treat an old
+        // result as the output of this run.
+        const finished = new Map<string, Promise<'done' | 'skipped'>>();
+        const markFinished = new Map<string, (status: 'done' | 'skipped') => void>();
+        for (const {cell} of executable) {
+            let resolve: (status: 'done' | 'skipped') => void = () => {};
+            finished.set(
+                cell.id,
+                new Promise<'done' | 'skipped'>((done) => {
+                    resolve = done;
+                }),
+            );
+            markFinished.set(cell.id, resolve);
+        }
+        const finishCell = (cellId: string, status: 'done' | 'skipped') => {
+            markFinished.get(cellId)?.(status);
+        };
 
         // Run parallel cells concurrently
         if (parallelCells.length > 0) {
@@ -645,29 +669,76 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     index,
                     parallelResults[i],
                 ).result;
+                finishCell(cell.id, 'done');
             }
         }
 
-        // Run sequential cells one by one
-        for (let i = 0; i < sequentialCells.length; i++) {
-            const {cell, index} = sequentialCells[i];
-            const {outcome, run} = startCell(cell.id);
-            const [ran] = await Promise.allSettled([run]);
-
-            const recorded = record(result, outcome, cell.id, index, ran);
-            result = recorded.result;
-            if (recorded.failed && stopOnError) {
-                const remaining = sequentialCells.length - i - 1;
-                if (remaining > 0) {
-                    result = addSkipped(result, remaining);
+        // Each database is its own queue. Queues start together; a failure with
+        // stop-on-error only skips the rest of that database.
+        const laneSteps = await Promise.all(
+            lanes.map(async (lane) => {
+                const steps: Array<
+                    | {kind: 'stopped'; index: number}
+                    | {kind: 'ran'; index: number; settled: RunAllResult}
+                > = [];
+                let stopLane = false;
+                for (const {cell, index} of lane) {
+                    if (stopLane) {
+                        steps.push({kind: 'stopped', index});
+                        finishCell(cell.id, 'skipped');
+                        continue;
+                    }
+                    const dependencies = await Promise.all(
+                        earlierReferencedCellIds(
+                            index,
+                            prepare(cell.content.trim()),
+                            cellsRef.current,
+                        ).map((id) => finished.get(id) ?? Promise.resolve('done' as const)),
+                    );
+                    if (dependencies.includes('skipped')) {
+                        steps.push({kind: 'stopped', index});
+                        finishCell(cell.id, 'skipped');
+                        continue;
+                    }
+                    const started = startCell(cell.id);
+                    const [ran] = await Promise.allSettled([started.run]);
+                    // Captured now: a later cell may re-run this one and replace
+                    // the error with a success before the summary is built.
+                    const settled = record(
+                        createRunAllResult(),
+                        started.outcome,
+                        cell.id,
+                        index,
+                        ran,
+                    );
+                    steps.push({kind: 'ran', index, settled: settled.result});
+                    finishCell(cell.id, 'done');
+                    if (stopOnError && settled.failed) stopLane = true;
                 }
-                break;
+                return steps;
+            }),
+        );
+
+        for (const step of laneSteps.flat().sort((a, b) => a.index - b.index)) {
+            if (step.kind === 'stopped') {
+                result = addSkipped(result, 1);
+                continue;
             }
+            result = {
+                ...result,
+                executed: result.executed + step.settled.executed,
+                succeeded: result.succeeded + step.settled.succeeded,
+                failed: result.failed + step.settled.failed,
+                skipped: result.skipped + step.settled.skipped,
+                blocked: result.blocked + step.settled.blocked,
+                errors: [...result.errors, ...step.settled.errors],
+                blockedCells: [...result.blockedCells, ...step.settled.blockedCells],
+            };
         }
 
         setRunAllResult(result);
         setIsRunningAll(false);
-    }, [params, runCell, stopOnError]);
+    }, [effectiveSchema, params, runCell, stopOnError]);
 
     const handleExport = useCallback(async () => {
         // Export what the editors show, including a keystroke still held back.
