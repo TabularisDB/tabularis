@@ -13,7 +13,6 @@ use crate::drivers::driver_trait::SqlDialect;
 use crate::drivers::registry as driver_registry;
 use crate::models::SavedConnection;
 use crate::persistence;
-
 /// The SSL mode dropdown used to branch on `driver === "postgres"` literally
 /// (issue #614), so a postgres-dialect driver with a different id (e.g. the
 /// standalone PostgreSQL plugin, id `"postgresql"`) offered MySQL-style
@@ -171,6 +170,85 @@ pub async fn migrate_postgres_ssl_mode_spelling_at_path(conn_path: &Path) -> Res
 
     eprintln!(
         "[Migration] Rewriting stale ssl_mode spelling on {} postgres-dialect connection(s)",
+        migrated_count
+    );
+    persistence::save_connections_file(conn_path, &conn_file)?;
+    Ok(true)
+}
+
+/// The built-in driver id being removed and the plugin id that replaces it.
+/// Once the built-in driver is deleted from the codebase, any saved
+/// connection still on `"postgres"` can no longer open (`registry::get_driver`
+/// returns `None`), so every such connection is force-flipped to
+/// `"postgresql"` at launch — no dismissible nudge, no `undoMigration`, no
+/// live fallback. This is the one-directional rewrite that makes removal safe.
+const FORCE_MIGRATABLE_PAIRS: &[(&str, &str)] = &[("postgres", "postgresql")];
+
+/// Rewrites `conn.params.driver` in place from a built-in id slated for
+/// removal to its replacement plugin id. Pure and synchronous so it can be
+/// exercised directly in tests without a live driver registry. Returns
+/// whether a rewrite happened.
+pub(crate) fn migrate_connection_driver_id_in_place(
+    conn: &mut SavedConnection,
+    pairs: &[(&str, &str)],
+) -> bool {
+    for &(from, to) in pairs {
+        if conn.params.driver == from {
+            conn.params.driver = to.to_string();
+            return true;
+        }
+    }
+    false
+}
+
+/// Force-migrates already-persisted `driver` ids on saved connections from a
+/// built-in driver that is being removed to its replacement plugin. Unlike
+/// the opt-in `useBuiltinDriverMigration` flow, this runs automatically at
+/// launch (no user click, no dismissible banner). There is no
+/// `undoMigration` — the built-in driver is gone, so flipping back is not
+/// possible.
+///
+/// Path-based, no `AppHandle` — callable from both the GUI process (wrapped
+/// by `commands::migrate_builtin_driver_ids`, which invalidates the
+/// connection cache) and the standalone `--mcp` server process. Idempotent —
+/// a no-op once every affected connection has been rewritten. Uses the same
+/// concurrency guard as [`migrate_postgres_ssl_mode_spelling_at_path`].
+///
+/// Returns `Ok(true)` only once the rewrite has been committed to disk;
+/// `Ok(false)` covers "nothing needed migrating" and "skipped because the
+/// file changed concurrently" (see the concurrency note on
+/// [`migrate_postgres_ssl_mode_spelling_at_path`]).
+pub async fn migrate_builtin_driver_ids_at_path(conn_path: &Path) -> Result<bool, String> {
+    if !conn_path.exists() {
+        return Ok(false); // Nothing to migrate
+    }
+
+    let content_before = fs::read_to_string(conn_path).map_err(|e| e.to_string())?;
+    let mut conn_file = persistence::parse_connections_file(&content_before)?;
+
+    let mut migrated_count = 0usize;
+    for conn in conn_file.connections.iter_mut() {
+        if migrate_connection_driver_id_in_place(conn, FORCE_MIGRATABLE_PAIRS) {
+            migrated_count += 1;
+        }
+    }
+
+    if migrated_count == 0 {
+        return Ok(false); // No migration needed
+    }
+
+    // Bail if another process (e.g. the GUI) saved a concurrent edit while
+    // we were computing the migration above — don't blindly overwrite it.
+    let content_now = fs::read_to_string(conn_path).map_err(|e| e.to_string())?;
+    if connections_file_changed_concurrently(&content_before, &content_now) {
+        eprintln!(
+            "[Migration] connections.json changed concurrently — skipping this run, will retry next launch"
+        );
+        return Ok(false);
+    }
+
+    eprintln!(
+        "[Migration] Force-migrating {} connection(s) from built-in postgres driver to postgresql plugin",
         migrated_count
     );
     persistence::save_connections_file(conn_path, &conn_file)?;

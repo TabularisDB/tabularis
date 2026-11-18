@@ -115,6 +115,11 @@ pub async fn bootstrap_application(
         )
         .await
         .ok();
+        crate::connection_migrations::migrate_builtin_driver_ids_at_path(
+            &context.paths.connections_file(),
+        )
+        .await
+        .ok();
     }
 
     Ok(BootstrappedApplication { context, config })
