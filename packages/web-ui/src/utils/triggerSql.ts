@@ -280,11 +280,18 @@ export function buildTriggerFunctionSql(input: TriggerSqlInput): string {
  * excluded `END CASE` from decrementing at all, which left the depth counter
  * permanently inflated for the CASE *statement* form and truncated the body
  * to `null`).
+ *
+ * Keywords are matched in any case, and only in code: a `-- end of checks`
+ * comment, `'end of batch'` in a string or a quoted `"Begin"` name must not
+ * open or close a block.
  */
 export function extractFunctionBody(fnDef: string): string | null {
+    // Search a copy with comments and literals blanked out; it has the same
+    // length, so its indexes slice the original.
+    const code = maskNonCode(fnDef);
     // Locate the outermost BEGIN. A DECLARE block (optional) precedes it.
-    const declareMatch = fnDef.match(/\bDECLARE\b/);
-    const beginMatch = fnDef.match(/\bBEGIN\b/);
+    const declareMatch = code.match(/\bDECLARE\b/i);
+    const beginMatch = code.match(/\bBEGIN\b/i);
     if (!beginMatch || beginMatch.index === undefined) return null;
 
     const hasDeclare =
@@ -302,7 +309,7 @@ export function extractFunctionBody(fnDef: string): string | null {
     // counted as openers) and are excluded entirely.
     let depth = 0;
     let end = -1;
-    const tail = fnDef.slice(beginMatch.index);
+    const tail = code.slice(beginMatch.index);
     const keyword = /\bBEGIN\b|\bCASE\b|\bEND\s+CASE\b|\bEND\b(?!\s+(?:IF|LOOP|CASE)\b)/gi;
     let m: RegExpExecArray | null;
     while ((m = keyword.exec(tail)) !== null) {
@@ -328,6 +335,82 @@ export function extractFunctionBody(fnDef: string): string | null {
     // buildTriggerFunctionSql detects it and skips adding its own BEGIN.
     const body = fnDef.slice(start, end).trim();
     return body || null;
+}
+
+/**
+ * Replaces comments, string literals, quoted identifiers and nested
+ * dollar-quoted strings with spaces, keeping every index (and line break) in
+ * place. The first dollar-quoted string is the function body itself
+ * (`AS $function$ … $function$`), so its contents stay as code.
+ */
+function maskNonCode(sql: string): string {
+    const out = sql.split('');
+    const blank = (from: number, to: number) => {
+        for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
+    };
+    let bodyTag: string | null = null;
+    let i = 0;
+    while (i < sql.length) {
+        const rest = sql.slice(i);
+        if (rest.startsWith('--')) {
+            const nl = sql.indexOf('\n', i);
+            const end = nl === -1 ? sql.length : nl;
+            blank(i, end);
+            i = end;
+        } else if (rest.startsWith('/*')) {
+            // PostgreSQL block comments nest.
+            let depth = 0;
+            let j = i;
+            while (j < sql.length) {
+                if (sql.startsWith('/*', j)) {
+                    depth++;
+                    j += 2;
+                } else if (sql.startsWith('*/', j)) {
+                    depth--;
+                    j += 2;
+                    if (depth === 0) break;
+                } else {
+                    j++;
+                }
+            }
+            blank(i, j);
+            i = j;
+        } else if (sql[i] === "'" || sql[i] === '"') {
+            const quote = sql[i];
+            let j = i + 1;
+            while (j < sql.length) {
+                if (sql[j] === quote) {
+                    if (sql[j + 1] === quote) {
+                        j += 2;
+                        continue;
+                    }
+                    j++;
+                    break;
+                }
+                j++;
+            }
+            blank(i, j);
+            i = j;
+        } else {
+            const tag = /^\$(?:[A-Za-z_][\w]*)?\$/.exec(rest)?.[0];
+            if (tag === undefined || (i > 0 && /[\w$]/.test(sql[i - 1]))) {
+                i++;
+            } else if (bodyTag === null) {
+                bodyTag = tag;
+                i += tag.length;
+            } else if (tag === bodyTag) {
+                // End of the function body; what follows is the header again.
+                bodyTag = '';
+                i += tag.length;
+            } else {
+                const close = sql.indexOf(tag, i + tag.length);
+                const end = close === -1 ? sql.length : close + tag.length;
+                blank(i, end);
+                i = end;
+            }
+        }
+    }
+    return out.join('');
 }
 
 /**

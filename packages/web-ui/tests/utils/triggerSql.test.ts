@@ -347,6 +347,49 @@ $function$`;
             // The outer END; is NOT included — only the body between BEGIN and the matching END.
             expect(body).not.toMatch(/^END;$/m);
         });
+
+        it('ignores BEGIN and END inside comments, strings and quoted names', () => {
+            const statements = [
+                '-- begin checks',
+                "  RAISE NOTICE 'end of batch';",
+                '  NEW."End" := 1; /* the end */',
+                '  EXECUTE $q$SELECT 1; END;$q$;',
+                '  -- end',
+                '  RETURN NEW;',
+            ].join('\n');
+            const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+BEGIN
+${statements}
+END;
+$function$`;
+            expect(extractFunctionBody(fnDef)).toBe(statements.trim());
+        });
+
+        it('reads lowercase keywords', () => {
+            const fnDef = `CREATE OR REPLACE FUNCTION public.trg_fn()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+declare
+  n integer := 0;
+begin
+  if new.amount < 0 then
+    n := 1;
+  end if;
+  return new;
+end;
+$function$`;
+            const body = extractFunctionBody(fnDef);
+            expect(body).toBe(
+                'declare\n  n integer := 0;\nbegin\n  if new.amount < 0 then\n    n := 1;\n  end if;\n  return new;',
+            );
+            // Saving it back must not wrap the lowercase DECLARE in a second BEGIN.
+            const rebuilt = buildTriggerFunctionSql({...base, body: body!});
+            expect((rebuilt.match(/\bBEGIN\b/gi) ?? []).length).toBe(1);
+        });
     });
 
     describe('parseTriggerFunctionName', () => {
