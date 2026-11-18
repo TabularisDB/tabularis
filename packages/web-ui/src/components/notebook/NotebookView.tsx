@@ -632,10 +632,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
 
         // Parallel cells start together. Everything else is grouped by database:
         // one database stays in order, and different databases run at once.
-        const {parallel: parallelCells, lanes} = partitionRunAllCells(
-            executable,
-            effectiveSchema,
-        );
+        const {parallel: parallelCells, lanes} = partitionRunAllCells(executable, effectiveSchema);
         // Settles when that cell's own run has finished, so a cell on another
         // database can wait for an earlier cell it reads. "skipped" means this
         // run never started it (stop-on-error); waiters must not treat an old
