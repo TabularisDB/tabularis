@@ -155,6 +155,31 @@ fn read_quoted(chars: &[(usize, char)], i: &mut usize, quote: char) -> String {
     token
 }
 
+/// If a comment starts at `chars[i]`, returns the index just past it: past
+/// the end of the line for `-- `, past `*/` for `/* */` (or the end of the
+/// input when either is not closed). `--` must be followed by whitespace,
+/// as in [`trailing_comment_start`].
+fn comment_end(chars: &[(usize, char)], i: usize) -> Option<usize> {
+    let at = |index: usize| chars.get(index).map(|&(_, ch)| ch);
+    match (at(i), at(i + 1)) {
+        (Some('-'), Some('-')) if !matches!(at(i + 2), Some(ch) if !ch.is_whitespace()) => {
+            let mut end = i + 2;
+            while end < chars.len() && chars[end].1 != '\n' {
+                end += 1;
+            }
+            Some(end)
+        }
+        (Some('/'), Some('*')) => {
+            let mut end = i + 2;
+            while end < chars.len() && !(chars[end].1 == '*' && at(end + 1) == Some('/')) {
+                end += 1;
+            }
+            Some((end + 2).min(chars.len()))
+        }
+        _ => None,
+    }
+}
+
 /// Simple SQL tokenizer that respects:
 /// - Single-quoted strings ('...')
 /// - Double-quoted identifiers ("...")
@@ -181,6 +206,12 @@ fn tokenize_sql_with_pos(sql: &str) -> Vec<(String, usize)> {
             continue;
         }
 
+        // A quote or parenthesis inside a comment must not open a token.
+        if let Some(end) = comment_end(&chars, i) {
+            i = end;
+            continue;
+        }
+
         if c == '\'' || c == '"' || c == '`' {
             let token = read_quoted(&chars, &mut i, c);
             tokens.push((token, start_byte));
@@ -191,6 +222,11 @@ fn tokenize_sql_with_pos(sql: &str) -> Vec<(String, usize)> {
             let mut token = String::new();
             let mut depth = 0;
             while i < len {
+                if let Some(end) = comment_end(&chars, i) {
+                    token.extend(chars[i..end].iter().map(|&(_, ch)| ch));
+                    i = end;
+                    continue;
+                }
                 let ch = chars[i].1;
                 token.push(ch);
                 if ch == '(' {
@@ -226,7 +262,13 @@ fn tokenize_sql_with_pos(sql: &str) -> Vec<(String, usize)> {
         let mut token = String::new();
         while i < len {
             let ch = chars[i].1;
-            if ch.is_whitespace() || ch == '(' || ch == '\'' || ch == '"' || ch == '`' {
+            if ch.is_whitespace()
+                || ch == '('
+                || ch == '\''
+                || ch == '"'
+                || ch == '`'
+                || comment_end(&chars, i).is_some()
+            {
                 break;
             }
             token.push(ch);

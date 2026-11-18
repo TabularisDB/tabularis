@@ -573,6 +573,42 @@ fn test_build_paginated_query_honors_postgres_row_limit_forms() {
 }
 
 #[test]
+fn test_build_paginated_query_ignores_quotes_in_comments() {
+    // An apostrophe or parenthesis in a comment must not hide the user's
+    // LIMIT, or a second LIMIT is appended after it.
+    for (q, expected) in [
+        (
+            "SELECT * FROM t -- don't page\nLIMIT 5",
+            "SELECT * FROM t -- don't page\nLIMIT 5 OFFSET 0",
+        ),
+        (
+            "SELECT * FROM t /* it's here */ LIMIT 5 OFFSET 2",
+            "SELECT * FROM t /* it's here */\nLIMIT 5 OFFSET 2",
+        ),
+        (
+            "SELECT * FROM t WHERE id IN (1, 2 /* (3? it's gone */) LIMIT 5",
+            "SELECT * FROM t WHERE id IN (1, 2 /* (3? it's gone */) LIMIT 5 OFFSET 0",
+        ),
+        (
+            "SELECT * FROM (\n  SELECT * FROM t -- user's rows\n) s LIMIT 5",
+            "SELECT * FROM (\n  SELECT * FROM t -- user's rows\n) s LIMIT 5 OFFSET 0",
+        ),
+        (
+            "SELECT 1 AS x-- it's\nLIMIT 5",
+            "SELECT 1 AS x-- it's\nLIMIT 5 OFFSET 0",
+        ),
+    ] {
+        assert_eq!(build_paginated_query(q, 100, 1), expected, "{q}");
+    }
+    // `--` followed by text is not a comment in MySQL, and a quote in a
+    // string is still a string.
+    assert_eq!(
+        build_paginated_query("SELECT '-- x' FROM t LIMIT 5", 100, 1),
+        "SELECT '-- x' FROM t LIMIT 5 OFFSET 0"
+    );
+}
+
+#[test]
 fn test_build_paginated_query_replaces_user_limit() {
     let q = "SELECT * FROM t ORDER BY id LIMIT 50";
     let result = build_paginated_query(q, 100, 1);
