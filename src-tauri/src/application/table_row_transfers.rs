@@ -14,9 +14,9 @@ use crate::pool_manager::{get_postgres_pool, get_sqlite_pool};
 use crate::runtime::RuntimeContext;
 use crate::table_transfer::{
     apply_conversion, build_table_plan, capabilities, dialect_for_driver, ensure_supported_pair,
-    ColumnBinding, ConflictMode, PlanInputs, PlanIssue, PlannedTable, TableTransferCapabilities,
-    TableSelection, TableTransferRequest, TablePlan, TransferDialect, TransferValue, DEFAULT_BATCH_ROWS,
-    MAX_BATCH_ROWS,
+    ColumnBinding, ConflictMode, PlanInputs, PlanIssue, PlannedTable, TablePlan, TableSelection,
+    TableTransferCapabilities, TableTransferRequest, TransferDialect, TransferValue,
+    DEFAULT_BATCH_ROWS, MAX_BATCH_ROWS,
 };
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -132,7 +132,13 @@ async fn resolve_endpoint(
         TransferDialect::Postgres => non_empty(schema).unwrap_or("public").to_string(),
         TransferDialect::Sqlite => String::new(),
     };
-    Ok(Endpoint { driver, dialect, params, schema, drv })
+    Ok(Endpoint {
+        driver,
+        dialect,
+        params,
+        schema,
+        drv,
+    })
 }
 
 impl Endpoint {
@@ -225,7 +231,9 @@ fn compare_identities(a: &ServerIdentity, b: &ServerIdentity) -> Option<bool> {
     }
     match (&a.address, &b.address) {
         // Other differing addresses may still be one server (IPv4 vs IPv6).
-        (Some((x, xp)), Some((y, yp))) if xp == yp && (x == y || (is_loopback(x) && is_loopback(y))) => {
+        (Some((x, xp)), Some((y, yp)))
+            if xp == yp && (x == y || (is_loopback(x) && is_loopback(y))) =>
+        {
             Some(true)
         }
         _ => None,
@@ -247,13 +255,20 @@ async fn probe_identity(params: &ConnectionParams) -> Option<ServerIdentity> {
     let port: Option<i32> = row.try_get(2).ok()?;
     // Outside a transaction a refused read leaves the session usable.
     let system_id = match client
-        .query_opt("SELECT system_identifier::text FROM pg_control_system()", &[])
+        .query_opt(
+            "SELECT system_identifier::text FROM pg_control_system()",
+            &[],
+        )
         .await
     {
         Ok(Some(row)) => row.try_get::<_, String>(0).ok(),
         _ => None,
     };
-    Some(ServerIdentity { system_id, address: host.zip(port), database })
+    Some(ServerIdentity {
+        system_id,
+        address: host.zip(port),
+        database,
+    })
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -282,7 +297,10 @@ async fn same_table(source: &Endpoint, target: &Endpoint, selection: &TableSelec
     {
         return SameTable::No;
     }
-    let (a, b) = tokio::join!(probe_identity(&source.params), probe_identity(&target.params));
+    let (a, b) = tokio::join!(
+        probe_identity(&source.params),
+        probe_identity(&target.params)
+    );
     match (a, b) {
         (Some(a), Some(b)) => match compare_identities(&a, &b) {
             Some(true) => SameTable::Yes,
@@ -306,7 +324,10 @@ async fn plan_tables(
     let mut tables = Vec::with_capacity(selections.len());
     for selection in selections {
         if !seen.insert(selection.target_table.as_str()) {
-            issues.push(PlanIssue::new("duplicateTargetTable", Some(&selection.target_table)));
+            issues.push(PlanIssue::new(
+                "duplicateTargetTable",
+                Some(&selection.target_table),
+            ));
         }
         let source_columns = source
             .drv
@@ -324,7 +345,9 @@ async fn plan_tables(
             postgres::estimate_rows(&pool, &source.schema, &selection.source_table).await
         };
         let target_strict = if target.dialect == TransferDialect::Sqlite
-            && target_columns.iter().any(|c| c.data_type.trim().eq_ignore_ascii_case("ANY"))
+            && target_columns
+                .iter()
+                .any(|c| c.data_type.trim().eq_ignore_ascii_case("ANY"))
         {
             let pool = get_sqlite_pool(&target.params).await?;
             sqlite::is_strict_table(&pool, &selection.target_table).await
@@ -341,7 +364,10 @@ async fn plan_tables(
             same_table: verdict == SameTable::Yes,
         });
         if verdict == SameTable::Unverified {
-            planned.plan.issues.push(PlanIssue::new("targetIdentityUnverified", None));
+            planned
+                .plan
+                .issues
+                .push(PlanIssue::new("targetIdentityUnverified", None));
             planned.plan.blocking = true;
         }
         tables.push(planned);
@@ -376,7 +402,12 @@ async fn resolve(
     ensure_supported_pair(&source.driver, &target.driver)?;
 
     let (tables, issues) = plan_tables(&source, &target, &request.tables).await?;
-    Ok(Resolved { source, target, tables, issues })
+    Ok(Resolved {
+        source,
+        target,
+        tables,
+        issues,
+    })
 }
 
 pub async fn plan(
@@ -402,7 +433,10 @@ fn transfer_key(session_id: Option<Uuid>, transfer_id: &str) -> String {
 
 pub fn cancel_session_transfers(state: &DumpCancellationState, session_id: Uuid) {
     let prefix = format!("web:{session_id}:");
-    let flags = state.table_transfers.lock().unwrap_or_else(|e| e.into_inner());
+    let flags = state
+        .table_transfers
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     for (key, flag) in flags.iter() {
         if key.starts_with(&prefix) {
             flag.store(true, Ordering::SeqCst);
@@ -415,7 +449,10 @@ pub fn cancel(
     session_id: Option<Uuid>,
     transfer_id: &str,
 ) -> Result<(), String> {
-    let flags = state.table_transfers.lock().unwrap_or_else(|e| e.into_inner());
+    let flags = state
+        .table_transfers
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     match flags.get(&transfer_key(session_id, transfer_id)) {
         Some(flag) => {
             flag.store(true, Ordering::SeqCst);
@@ -436,7 +473,10 @@ struct Registration {
 impl Drop for Registration {
     fn drop(&mut self) {
         self.flag.store(true, Ordering::SeqCst);
-        self.state.lock().unwrap_or_else(|e| e.into_inner()).remove(&self.key);
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&self.key);
     }
 }
 
@@ -466,17 +506,26 @@ pub async fn run(
     let flag = Arc::new(AtomicBool::new(false));
     let key = transfer_key(session_id, &transfer_id);
     {
-        let mut flags = state.table_transfers.lock().unwrap_or_else(|e| e.into_inner());
+        let mut flags = state
+            .table_transfers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if flags.contains_key(&key) {
             return Err("A table transfer with this id is already running".to_string());
         }
         flags.insert(key.clone(), flag.clone());
     }
-    let _registration = Registration { state: state.table_transfers.clone(), key, flag: flag.clone() };
+    let _registration = Registration {
+        state: state.table_transfers.clone(),
+        key,
+        flag: flag.clone(),
+    };
     // The plan is rebuilt here: a client-supplied plan is never trusted.
     let resolved = resolve(runtime, session_id, &request).await?;
     if resolved.blocking() {
-        return Err("The transfer plan has blocking issues. Review the plan before starting".to_string());
+        return Err(
+            "The transfer plan has blocking issues. Review the plan before starting".to_string(),
+        );
     }
     let job = Job {
         runtime: runtime.clone(),
@@ -486,7 +535,10 @@ pub async fn run(
         source: resolved.source,
         target: resolved.target,
         conflict: request.conflict,
-        batch_rows: request.batch_rows.unwrap_or(DEFAULT_BATCH_ROWS).clamp(1, MAX_BATCH_ROWS),
+        batch_rows: request
+            .batch_rows
+            .unwrap_or(DEFAULT_BATCH_ROWS)
+            .clamp(1, MAX_BATCH_ROWS),
         total_tables: resolved.tables.len(),
     };
     let tables = resolved.tables;
@@ -618,11 +670,15 @@ async fn copy_table(
         .start()
         .await
         .map_err(describe)?;
-    tx.batch_execute(SOURCE_SESSION_SETUP).await.map_err(describe)?;
-    let select = postgres::select_sql(&job.source.schema, &planned.plan.source_table, bindings);
-    tx.batch_execute(&format!("DECLARE {CURSOR_NAME} NO SCROLL CURSOR FOR {select}"))
+    tx.batch_execute(SOURCE_SESSION_SETUP)
         .await
         .map_err(describe)?;
+    let select = postgres::select_sql(&job.source.schema, &planned.plan.source_table, bindings);
+    tx.batch_execute(&format!(
+        "DECLARE {CURSOR_NAME} NO SCROLL CURSOR FOR {select}"
+    ))
+    .await
+    .map_err(describe)?;
     let fetch = format!("FETCH FORWARD {} FROM {CURSOR_NAME}", job.batch_rows);
 
     let mut ordinal = 0u64;
@@ -657,7 +713,13 @@ async fn copy_table(
             return Ok(TransferStatus::Cancelled);
         }
         match sink
-            .write(&job.target, &planned.plan.target_table, bindings, &batch, job.conflict)
+            .write(
+                &job.target,
+                &planned.plan.target_table,
+                bindings,
+                &batch,
+                job.conflict,
+            )
             .await
         {
             Ok((written, skipped)) => {

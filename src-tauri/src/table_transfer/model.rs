@@ -147,16 +147,40 @@ pub enum ConversionRule {
 pub enum Op {
     Copy,
     BoolToInt,
-    IntRange { min: i64, max: i64 },
-    IntToFloat { max_exact: i64 },
-    IntToDecimal { precision: Option<u32>, scale: Option<u32> },
-    FloatCheck { bits: u8, allow_non_finite: bool },
-    DecimalFit { precision: Option<u32>, scale: Option<u32> },
-    DecimalToInt { min: i64, max: i64 },
-    DecimalToFloat { bits: u8, allow_non_finite: bool },
+    IntRange {
+        min: i64,
+        max: i64,
+    },
+    IntToFloat {
+        max_exact: i64,
+    },
+    IntToDecimal {
+        precision: Option<u32>,
+        scale: Option<u32>,
+    },
+    FloatCheck {
+        bits: u8,
+        allow_non_finite: bool,
+    },
+    DecimalFit {
+        precision: Option<u32>,
+        scale: Option<u32>,
+    },
+    DecimalToInt {
+        min: i64,
+        max: i64,
+    },
+    DecimalToFloat {
+        bits: u8,
+        allow_non_finite: bool,
+    },
     DecimalToNumeric,
-    TextMaxLen { max: u64 },
-    Temporal { precision: u32 },
+    TextMaxLen {
+        max: u64,
+    },
+    Temporal {
+        precision: u32,
+    },
     JsonNotNumeric,
 }
 

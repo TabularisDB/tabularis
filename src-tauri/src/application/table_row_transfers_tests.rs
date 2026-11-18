@@ -45,8 +45,16 @@ fn dropping_the_registration_cancels_and_unregisters() {
     let state = state();
     let flag = Arc::new(AtomicBool::new(false));
     let key = transfer_key(None, "x");
-    state.table_transfers.lock().unwrap().insert(key.clone(), flag.clone());
-    drop(Registration { state: state.table_transfers.clone(), key, flag: flag.clone() });
+    state
+        .table_transfers
+        .lock()
+        .unwrap()
+        .insert(key.clone(), flag.clone());
+    drop(Registration {
+        state: state.table_transfers.clone(),
+        key,
+        flag: flag.clone(),
+    });
     assert!(flag.load(Ordering::SeqCst));
     assert!(state.table_transfers.lock().unwrap().is_empty());
 }
@@ -78,7 +86,10 @@ fn types_plan(
 #[test]
 fn generated_sql_quotes_identifiers_and_never_truncates_or_upserts() {
     use crate::table_transfer::SourceKind;
-    let bindings = [binding("id", SourceKind::Int), binding("we\"ird", SourceKind::Int)];
+    let bindings = [
+        binding("id", SourceKind::Int),
+        binding("we\"ird", SourceKind::Int),
+    ];
     let sql = postgres::insert_sql("public", "t", &bindings, 2, ConflictMode::Fail);
     assert_eq!(
         sql,
@@ -135,12 +146,15 @@ fn pg_params() -> ConnectionParams {
 }
 
 async fn endpoint(params: ConnectionParams, schema: &str) -> Endpoint {
-    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new()).await;
+    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new())
+        .await;
     crate::drivers::registry::register_driver(crate::drivers::sqlite::SqliteDriver::new()).await;
     let driver = params.driver.clone();
     Endpoint {
         dialect: dialect_for_driver(&driver).unwrap(),
-        drv: crate::drivers::registry::get_connection_driver(&params).await.unwrap(),
+        drv: crate::drivers::registry::get_connection_driver(&params)
+            .await
+            .unwrap(),
         schema: schema.to_string(),
         driver,
         params,
@@ -156,7 +170,11 @@ async fn pg_exec(sql: &str) {
 async fn pg_scalar(sql: &str) -> String {
     let pool = get_postgres_pool(&pg_params()).await.unwrap();
     let client = pool.get().await.unwrap();
-    client.query_one(sql, &[]).await.unwrap().get::<_, String>(0)
+    client
+        .query_one(sql, &[])
+        .await
+        .unwrap()
+        .get::<_, String>(0)
 }
 
 const SOURCE_ROWS: i64 = 1_250;
@@ -259,7 +277,10 @@ const SQLITE_DDL: &str = "CREATE TABLE dst (id INTEGER PRIMARY KEY, name TEXT, a
 
 async fn sqlite_count(path: &std::path::Path) -> i64 {
     let pool = get_sqlite_pool(&sqlite_params(path)).await.unwrap();
-    sqlx::query_scalar("SELECT count(*) FROM dst").fetch_one(&pool).await.unwrap()
+    sqlx::query_scalar("SELECT count(*) FROM dst")
+        .fetch_one(&pool)
+        .await
+        .unwrap()
 }
 
 #[tokio::test]
@@ -271,26 +292,50 @@ async fn postgres_to_sqlite_copies_every_row_exactly() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("target.db");
     let target = sqlite_target(&path, SQLITE_DDL).await;
-    let (result, events, _) =
-        job(schema, target, ConflictMode::Fail, Arc::new(AtomicBool::new(false)), None).await;
+    let (result, events, _) = job(
+        schema,
+        target,
+        ConflictMode::Fail,
+        Arc::new(AtomicBool::new(false)),
+        None,
+    )
+    .await;
 
-    assert_eq!(result.status, TransferStatus::Completed, "{:?}", result.tables[0].error);
+    assert_eq!(
+        result.status,
+        TransferStatus::Completed,
+        "{:?}",
+        result.tables[0].error
+    );
     assert_eq!(result.tables[0].rows_read, SOURCE_ROWS as u64);
     assert_eq!(result.tables[0].rows_written, SOURCE_ROWS as u64);
     assert_eq!(sqlite_count(&path).await, SOURCE_ROWS);
-    assert!(events.progress.lock().unwrap().len() >= 4, "per-batch progress");
+    assert!(
+        events.progress.lock().unwrap().len() >= 4,
+        "per-batch progress"
+    );
     let progress = events.progress.lock().unwrap().last().unwrap().to_string();
-    assert!(!progress.contains("Zoë"), "progress events carry no row data");
+    assert!(
+        !progress.contains("Zoë"),
+        "progress events carry no row data"
+    );
 
     let pool = get_sqlite_pool(&sqlite_params(&path)).await.unwrap();
-    let row = sqlx::query("SELECT name, big, payload, note, flag, meta, amount FROM dst WHERE id = 2")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let row =
+        sqlx::query("SELECT name, big, payload, note, flag, meta, amount FROM dst WHERE id = 2")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     use sqlx::Row;
     assert_eq!(row.get::<String, _>("name"), "Zoë 日本語 2");
-    assert_eq!(row.get::<String, _>("big"), "12345678901234567892.1234567891");
-    assert_eq!(row.get::<Vec<u8>, _>("payload"), vec![0, 255, 0, 0, 0, 0, 2]);
+    assert_eq!(
+        row.get::<String, _>("big"),
+        "12345678901234567892.1234567891"
+    );
+    assert_eq!(
+        row.get::<Vec<u8>, _>("payload"),
+        vec![0, 255, 0, 0, 0, 0, 2]
+    );
     assert_eq!(row.get::<Option<String>, _>("note"), None);
     assert_eq!(row.get::<i64, _>("flag"), 1);
     assert_eq!(row.get::<String, _>("meta"), "{\"n\": 2}");
@@ -309,9 +354,20 @@ async fn postgres_to_postgres_preserves_precision_and_timestamps() {
     ))
     .await;
     let target = endpoint(pg_params(), schema).await;
-    let (result, _, _) =
-        job(schema, target, ConflictMode::Fail, Arc::new(AtomicBool::new(false)), None).await;
-    assert_eq!(result.status, TransferStatus::Completed, "{:?}", result.tables[0].error);
+    let (result, _, _) = job(
+        schema,
+        target,
+        ConflictMode::Fail,
+        Arc::new(AtomicBool::new(false)),
+        None,
+    )
+    .await;
+    assert_eq!(
+        result.status,
+        TransferStatus::Completed,
+        "{:?}",
+        result.tables[0].error
+    );
     let diff = pg_scalar(&format!(
         "SELECT count(*)::text FROM {schema}.src s FULL JOIN {schema}.dst d USING (id)
          WHERE s.* IS DISTINCT FROM d.*"
@@ -331,13 +387,25 @@ async fn failing_batch_rolls_back_only_that_batch() {
     let path = dir.path().join("target.db");
     let target = sqlite_target(&path, SQLITE_DDL).await;
     let pool = get_sqlite_pool(&sqlite_params(&path)).await.unwrap();
-    sqlx::query("INSERT INTO dst (id) VALUES (1100)").execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO dst (id) VALUES (1100)")
+        .execute(&pool)
+        .await
+        .unwrap();
 
-    let (result, _, _) =
-        job(schema, target, ConflictMode::Fail, Arc::new(AtomicBool::new(false)), None).await;
+    let (result, _, _) = job(
+        schema,
+        target,
+        ConflictMode::Fail,
+        Arc::new(AtomicBool::new(false)),
+        None,
+    )
+    .await;
     let table = &result.tables[0];
     assert_eq!(result.status, TransferStatus::Failed);
-    assert_eq!(table.rows_written, 1000, "two earlier batches stay committed");
+    assert_eq!(
+        table.rows_written, 1000,
+        "two earlier batches stay committed"
+    );
     assert_eq!(table.rows_failed, 250);
     assert_eq!(sqlite_count(&path).await, 1001);
     let error = table.error.clone().unwrap();
@@ -356,10 +424,19 @@ async fn skip_mode_ignores_only_duplicates() {
     let path = dir.path().join("target.db");
     let target = sqlite_target(&path, SQLITE_DDL).await;
     let pool = get_sqlite_pool(&sqlite_params(&path)).await.unwrap();
-    sqlx::query("INSERT INTO dst (id) VALUES (7), (1100)").execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO dst (id) VALUES (7), (1100)")
+        .execute(&pool)
+        .await
+        .unwrap();
 
-    let (result, _, _) =
-        job(schema, target, ConflictMode::Skip, Arc::new(AtomicBool::new(false)), None).await;
+    let (result, _, _) = job(
+        schema,
+        target,
+        ConflictMode::Skip,
+        Arc::new(AtomicBool::new(false)),
+        None,
+    )
+    .await;
     assert_eq!(result.status, TransferStatus::Completed);
     assert_eq!(result.tables[0].rows_skipped, 2);
     assert_eq!(result.tables[0].rows_written, SOURCE_ROWS as u64 - 2);
@@ -377,14 +454,23 @@ async fn lossy_values_are_rejected_instead_of_coerced() {
     let path = dir.path().join("target.db");
     let ddl = SQLITE_DDL.replace("amount NUMERIC", "amount INTEGER");
     let target = sqlite_target(&path, &ddl).await;
-    let (result, _, _) =
-        job(schema, target, ConflictMode::Fail, Arc::new(AtomicBool::new(false)), None).await;
+    let (result, _, _) = job(
+        schema,
+        target,
+        ConflictMode::Fail,
+        Arc::new(AtomicBool::new(false)),
+        None,
+    )
+    .await;
     let table = &result.tables[0];
     assert_eq!(result.status, TransferStatus::Failed);
     assert_eq!(table.rows_written, 0);
     assert_eq!(sqlite_count(&path).await, 0);
     let error = table.error.clone().unwrap();
-    assert!(error.contains("column \"amount\"") && error.contains("lossy"), "{error}");
+    assert!(
+        error.contains("column \"amount\"") && error.contains("lossy"),
+        "{error}"
+    );
     pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
 }
 
@@ -402,7 +488,11 @@ async fn cancellation_keeps_committed_batches_and_reports_them() {
     let table = &result.tables[0];
     assert_eq!(result.status, TransferStatus::Cancelled);
     assert_eq!(table.rows_written, 500);
-    assert_eq!(sqlite_count(&path).await, 500, "committed work remains in the target");
+    assert_eq!(
+        sqlite_count(&path).await,
+        500,
+        "committed work remains in the target"
+    );
     pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
 }
 
@@ -422,7 +512,12 @@ async fn plan_blocks_a_missing_target_table_and_never_creates_it() {
     let (tables, _) = plan_tables(&source, &target, &[selection()]).await.unwrap();
     assert!(tables[0].plan.blocking);
     assert_eq!(tables[0].plan.issues[0].code, "targetTableNotFound");
-    assert!(target.drv.get_columns(&target.params, "dst", None).await.unwrap().is_empty());
+    assert!(target
+        .drv
+        .get_columns(&target.params, "dst", None)
+        .await
+        .unwrap()
+        .is_empty());
     pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
 }
 
@@ -435,8 +530,14 @@ async fn a_transfer_cancelled_before_it_starts_copies_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("target.db");
     let target = sqlite_target(&path, SQLITE_DDL).await;
-    let (result, _, _) =
-        job(schema, target, ConflictMode::Fail, Arc::new(AtomicBool::new(true)), None).await;
+    let (result, _, _) = job(
+        schema,
+        target,
+        ConflictMode::Fail,
+        Arc::new(AtomicBool::new(true)),
+        None,
+    )
+    .await;
     assert_eq!(result.status, TransferStatus::Cancelled);
     assert_eq!(result.tables[0].status, TransferStatus::NotStarted);
     assert_eq!(sqlite_count(&path).await, 0);
@@ -449,8 +550,14 @@ async fn detects_strict_sqlite_tables() {
     let path = dir.path().join("strict.db");
     std::fs::File::create(&path).unwrap();
     let pool = get_sqlite_pool(&sqlite_params(&path)).await.unwrap();
-    sqlx::query("CREATE TABLE plain_any (v ANY)").execute(&pool).await.unwrap();
-    sqlx::query("CREATE TABLE strict_any (v ANY) STRICT").execute(&pool).await.unwrap();
+    sqlx::query("CREATE TABLE plain_any (v ANY)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("CREATE TABLE strict_any (v ANY) STRICT")
+        .execute(&pool)
+        .await
+        .unwrap();
 
     assert!(sqlite::is_strict_table(&pool, "strict_any").await);
     assert!(sqlite::is_strict_table(&pool, "STRICT_ANY").await);
@@ -478,9 +585,18 @@ fn string_identity_matches_aliases_that_are_provably_one_server() {
         &saved_pg("localhost", Some(5432), "app"),
         &saved_pg("127.0.0.1", Some(5432), "app"),
     ));
-    assert!(!reaches_same_database(&a, &saved_pg("db.example.com", Some(5432), "other")));
-    assert!(!reaches_same_database(&a, &saved_pg("db2", Some(5432), "app")));
-    assert!(!reaches_same_database(&a, &saved_pg("db.example.com", Some(6543), "app")));
+    assert!(!reaches_same_database(
+        &a,
+        &saved_pg("db.example.com", Some(5432), "other")
+    ));
+    assert!(!reaches_same_database(
+        &a,
+        &saved_pg("db2", Some(5432), "app")
+    ));
+    assert!(!reaches_same_database(
+        &a,
+        &saved_pg("db.example.com", Some(6543), "app")
+    ));
 }
 
 #[test]
@@ -503,13 +619,20 @@ fn sqlite_aliases_of_one_file_are_one_database() {
     let path = dir.path().join("a.db");
     std::fs::File::create(&path).unwrap();
     let a = sqlite_params(&path);
-    assert!(reaches_same_database(&a, &sqlite_params(&dir.path().join(".").join("a.db"))));
+    assert!(reaches_same_database(
+        &a,
+        &sqlite_params(&dir.path().join(".").join("a.db"))
+    ));
     let other = dir.path().join("b.db");
     std::fs::File::create(&other).unwrap();
     assert!(!reaches_same_database(&a, &sqlite_params(&other)));
 }
 
-fn identity(system_id: Option<&str>, address: Option<(&str, i32)>, database: &str) -> ServerIdentity {
+fn identity(
+    system_id: Option<&str>,
+    address: Option<(&str, i32)>,
+    database: &str,
+) -> ServerIdentity {
     ServerIdentity {
         system_id: system_id.map(str::to_string),
         address: address.map(|(host, port)| (host.to_string(), port)),
@@ -526,21 +649,33 @@ fn server_identity_ignores_the_name_used_to_reach_it() {
     // Another cluster is a different database even with the same name and address.
     let other = identity(Some("88"), Some(("127.0.0.1", 54320)), "testdb");
     assert_eq!(compare_identities(&v4, &other), Some(false));
-    assert_eq!(compare_identities(&v4, &identity(Some("77"), None, "other")), Some(false));
+    assert_eq!(
+        compare_identities(&v4, &identity(Some("77"), None, "other")),
+        Some(false)
+    );
 }
 
 #[test]
 fn without_a_cluster_id_only_the_same_address_proves_identity() {
     let a = identity(None, Some(("10.0.0.5", 5432)), "app");
-    assert_eq!(compare_identities(&a, &identity(None, Some(("10.0.0.5", 5432)), "app")), Some(true));
+    assert_eq!(
+        compare_identities(&a, &identity(None, Some(("10.0.0.5", 5432)), "app")),
+        Some(true)
+    );
     let v6 = identity(None, Some(("::1", 5432)), "app");
     let v4 = identity(None, Some(("127.0.0.1", 5432)), "app");
     assert_eq!(compare_identities(&v6, &v4), Some(true));
     // Different addresses might still be one server, so nothing is proven.
-    assert_eq!(compare_identities(&a, &identity(None, Some(("10.0.0.6", 5432)), "app")), None);
+    assert_eq!(
+        compare_identities(&a, &identity(None, Some(("10.0.0.6", 5432)), "app")),
+        None
+    );
     assert_eq!(compare_identities(&a, &identity(None, None, "app")), None);
     // One unreadable cluster id cannot be settled by the other side.
-    assert_eq!(compare_identities(&a, &identity(Some("1"), Some(("10.0.0.5", 5432)), "app")), None);
+    assert_eq!(
+        compare_identities(&a, &identity(Some("1"), Some(("10.0.0.5", 5432)), "app")),
+        None
+    );
 }
 
 // --- Plan / run through two saved connections -------------------------------
@@ -558,7 +693,10 @@ fn runtime_with(a: ConnectionParams, b: ConnectionParams) -> SavedPair {
             dir.path().to_path_buf(),
             dir.path().to_path_buf(),
         )),
-        Arc::new(Events { cancel_when_written: None, progress: StdMutex::default() }),
+        Arc::new(Events {
+            cancel_when_written: None,
+            progress: StdMutex::default(),
+        }),
         Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
     );
     let saved = |id: &str, params: ConnectionParams| crate::models::SavedConnection {
@@ -604,7 +742,13 @@ fn self_copy_request(schema: &str, table: &str) -> TableTransferRequest {
 async fn alias_copy_fixture(schema: &str) -> Option<tokio::sync::MutexGuard<'static, ()>> {
     let guard = FIXTURE_LOCK.lock().await;
     crate::pool_manager::close_pool(&pg_params()).await;
-    if get_postgres_pool(&pg_params()).await.ok()?.get().await.is_err() {
+    if get_postgres_pool(&pg_params())
+        .await
+        .ok()?
+        .get()
+        .await
+        .is_err()
+    {
         eprintln!("SKIPPING: PostgreSQL not available on port 54320");
         return None;
     }
@@ -627,7 +771,8 @@ async fn assert_self_copy_is_rejected(host_a: &str, host_b: &str, schema: &str) 
     a.host = Some(host_a.into());
     let mut b = pg_params();
     b.host = Some(host_b.into());
-    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new()).await;
+    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new())
+        .await;
     let reachable = match get_postgres_pool(&a).await {
         Ok(pool) => pool.get().await.is_ok(),
         Err(_) => false,
@@ -648,7 +793,10 @@ async fn assert_self_copy_is_rejected(host_a: &str, host_b: &str, schema: &str) 
     let error = run(&pair.runtime, &state, None, request).await.unwrap_err();
     assert!(error.contains("blocking issues"), "{error}");
     assert_eq!(
-        pg_scalar(&format!("SELECT count(*)::text FROM {schema}.alias_copy_test")).await,
+        pg_scalar(&format!(
+            "SELECT count(*)::text FROM {schema}.alias_copy_test"
+        ))
+        .await,
         "2",
         "nothing is written back into the source"
     );
@@ -691,9 +839,15 @@ fn copy_request(schema: &str, target_schema: Option<&str>) -> TableTransferReque
 async fn assert_read_only_target_is_rejected(pair: &SavedPair, request: TableTransferRequest) {
     let plan = plan(&pair.runtime, None, request.clone()).await.unwrap();
     assert!(plan.blocking);
-    assert!(plan.issues.iter().any(|i| i.code == "targetReadOnly"), "{:?}", plan.issues);
+    assert!(
+        plan.issues.iter().any(|i| i.code == "targetReadOnly"),
+        "{:?}",
+        plan.issues
+    );
 
-    let error = run(&pair.runtime, &state(), None, request).await.unwrap_err();
+    let error = run(&pair.runtime, &state(), None, request)
+        .await
+        .unwrap_err();
     assert!(error.contains("blocking issues"), "{error}");
 }
 
@@ -708,10 +862,14 @@ async fn a_saved_read_only_postgres_target_is_rejected_by_plan_and_run() {
             payload bytea, note text, created timestamptz, flag boolean, meta jsonb, uid uuid);"
     ))
     .await;
-    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new()).await;
+    crate::drivers::registry::register_driver(crate::drivers::postgres::PostgresDriver::new())
+        .await;
     let pair = runtime_with(pg_params(), read_only(pg_params()));
     assert_read_only_target_is_rejected(&pair, copy_request(schema, Some(schema))).await;
-    assert_eq!(pg_scalar(&format!("SELECT count(*)::text FROM {schema}.dst")).await, "0");
+    assert_eq!(
+        pg_scalar(&format!("SELECT count(*)::text FROM {schema}.dst")).await,
+        "0"
+    );
     pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
 }
 
@@ -742,7 +900,9 @@ async fn a_saved_read_only_source_stays_usable() {
     let path = dir.path().join("target.db");
     sqlite_target(&path, SQLITE_DDL).await;
     let pair = runtime_with(read_only(pg_params()), sqlite_params(&path));
-    let plan = plan(&pair.runtime, None, copy_request(schema, None)).await.unwrap();
+    let plan = plan(&pair.runtime, None, copy_request(schema, None))
+        .await
+        .unwrap();
     assert!(!plan.blocking, "{:?}", plan.issues);
     pg_exec(&format!("DROP SCHEMA {schema} CASCADE")).await;
 }

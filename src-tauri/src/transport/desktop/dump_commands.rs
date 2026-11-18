@@ -1,10 +1,10 @@
 use crate::application::connection_files::GeneratedFile;
 use crate::application::database_transfers::{self, DumpDestination, ImportSource, JobKind};
 use crate::application::table_row_transfers::{self, TableTransferPlan, TableTransferResult};
-use crate::table_transfer::{TableTransferCapabilities, TableTransferRequest};
 use crate::application::table_transfers;
 use crate::dump_commands::*;
 use crate::runtime::RuntimeContext;
+use crate::table_transfer::{TableTransferCapabilities, TableTransferRequest};
 use std::path::PathBuf;
 use tauri::State;
 

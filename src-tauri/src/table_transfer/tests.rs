@@ -55,15 +55,30 @@ fn only_postgres_sources_and_builtin_targets_are_supported() {
 #[test]
 fn numeric_must_fit_target_precision_and_scale() {
     let target = || numeric(5, 2);
-    assert_eq!(run(SourceKind::Decimal, target(), text("123.45")), Ok(text("123.45")));
-    assert_eq!(run(SourceKind::Decimal, target(), text("123.450")), Ok(text("123.450")));
-    assert_eq!(run(SourceKind::Decimal, target(), text("1.234")), Err(ConvertError::Lossy));
-    assert_eq!(run(SourceKind::Decimal, target(), text("1234.5")), Err(ConvertError::OutOfRange));
+    assert_eq!(
+        run(SourceKind::Decimal, target(), text("123.45")),
+        Ok(text("123.45"))
+    );
+    assert_eq!(
+        run(SourceKind::Decimal, target(), text("123.450")),
+        Ok(text("123.450"))
+    );
+    assert_eq!(
+        run(SourceKind::Decimal, target(), text("1.234")),
+        Err(ConvertError::Lossy)
+    );
+    assert_eq!(
+        run(SourceKind::Decimal, target(), text("1234.5")),
+        Err(ConvertError::OutOfRange)
+    );
     assert_eq!(
         run(SourceKind::Decimal, target(), TransferValue::Null),
         Ok(TransferValue::Null)
     );
-    assert_eq!(run(SourceKind::Int, target(), TransferValue::Int(999)), Ok(text("999")));
+    assert_eq!(
+        run(SourceKind::Int, target(), TransferValue::Int(999)),
+        Ok(text("999"))
+    );
     assert_eq!(
         run(SourceKind::Int, target(), TransferValue::Int(1000)),
         Err(ConvertError::OutOfRange)
@@ -79,12 +94,18 @@ fn integer_targets_check_range() {
         Err(ConvertError::OutOfRange)
     );
     let int = TargetType::Pg(PgTarget::Int(32));
-    assert_eq!(run(SourceKind::Decimal, int.clone(), text("10.5")), Err(ConvertError::Lossy));
+    assert_eq!(
+        run(SourceKind::Decimal, int.clone(), text("10.5")),
+        Err(ConvertError::Lossy)
+    );
     assert_eq!(
         run(SourceKind::Decimal, int.clone(), text("2147483648")),
         Err(ConvertError::OutOfRange)
     );
-    assert_eq!(run(SourceKind::Decimal, int, text("-5.00")), Ok(TransferValue::Int(-5)));
+    assert_eq!(
+        run(SourceKind::Decimal, int, text("-5.00")),
+        Ok(TransferValue::Int(-5))
+    );
 }
 
 #[test]
@@ -95,7 +116,11 @@ fn sqlite_numeric_values_must_round_trip() {
         Ok(TransferValue::Float(0.1))
     );
     assert_eq!(
-        run(SourceKind::Decimal, real.clone(), text("0.12345678901234567890123")),
+        run(
+            SourceKind::Decimal,
+            real.clone(),
+            text("0.12345678901234567890123")
+        ),
         Err(ConvertError::Lossy)
     );
     assert_eq!(
@@ -123,7 +148,11 @@ fn float32_targets_reject_double_precision_values() {
     let real = TargetType::Pg(PgTarget::Float(32));
     assert!(run(SourceKind::Float, real.clone(), TransferValue::Float(0.1)).is_ok());
     assert_eq!(
-        run(SourceKind::Float, real, TransferValue::Float(0.123456789012345)),
+        run(
+            SourceKind::Float,
+            real,
+            TransferValue::Float(0.123456789012345)
+        ),
         Err(ConvertError::Lossy)
     );
     let sqlite = TargetType::Sqlite(SqliteTarget::Real);
@@ -142,7 +171,10 @@ fn float32_targets_reject_double_precision_values() {
 #[test]
 fn text_length_is_counted_in_characters() {
     let target = TargetType::Pg(PgTarget::Text { max_len: Some(3) });
-    assert_eq!(run(SourceKind::Text, target.clone(), text("héé")), Ok(text("héé")));
+    assert_eq!(
+        run(SourceKind::Text, target.clone(), text("héé")),
+        Ok(text("héé"))
+    );
     assert_eq!(
         run(SourceKind::Text, target, text("日本語子")),
         Err(ConvertError::TooLong)
@@ -152,7 +184,12 @@ fn text_length_is_counted_in_characters() {
 #[test]
 fn temporal_precision_is_not_rounded() {
     let target = TargetType::Pg(PgTarget::Timestamp { precision: Some(0) });
-    assert!(run(SourceKind::Timestamp, target.clone(), text("2024-01-02 03:04:05")).is_ok());
+    assert!(run(
+        SourceKind::Timestamp,
+        target.clone(),
+        text("2024-01-02 03:04:05")
+    )
+    .is_ok());
     assert_eq!(
         run(SourceKind::Timestamp, target, text("2024-01-02 03:04:05.5")),
         Err(ConvertError::Lossy)
@@ -163,7 +200,10 @@ fn temporal_precision_is_not_rounded() {
 fn sqlite_json_columns_refuse_bare_numbers() {
     let target = TargetType::Sqlite(SqliteTarget::Json);
     assert!(run(SourceKind::Json, target.clone(), text("{\"a\":1}")).is_ok());
-    assert_eq!(run(SourceKind::Json, target, text("123")), Err(ConvertError::Lossy));
+    assert_eq!(
+        run(SourceKind::Json, target, text("123")),
+        Err(ConvertError::Lossy)
+    );
 }
 
 #[test]
@@ -196,25 +236,46 @@ fn implicit_coercions_are_refused() {
 
 #[test]
 fn sqlite_declared_types_follow_affinity_rules() {
-    assert_eq!(classify_sqlite_target("BIGINT", false), SqliteTarget::Integer);
-    assert_eq!(classify_sqlite_target("VARCHAR(20)", false), SqliteTarget::Text);
-    assert_eq!(classify_sqlite_target("DOUBLE PRECISION", false), SqliteTarget::Real);
-    assert_eq!(classify_sqlite_target("DECIMAL(10,2)", false), SqliteTarget::Numeric);
+    assert_eq!(
+        classify_sqlite_target("BIGINT", false),
+        SqliteTarget::Integer
+    );
+    assert_eq!(
+        classify_sqlite_target("VARCHAR(20)", false),
+        SqliteTarget::Text
+    );
+    assert_eq!(
+        classify_sqlite_target("DOUBLE PRECISION", false),
+        SqliteTarget::Real
+    );
+    assert_eq!(
+        classify_sqlite_target("DECIMAL(10,2)", false),
+        SqliteTarget::Numeric
+    );
     assert_eq!(classify_sqlite_target("", false), SqliteTarget::Untyped);
     assert_eq!(classify_sqlite_target("BLOB", false), SqliteTarget::Blob);
-    assert_eq!(classify_sqlite_target("DATETIME", false), SqliteTarget::Temporal);
+    assert_eq!(
+        classify_sqlite_target("DATETIME", false),
+        SqliteTarget::Temporal
+    );
     assert_eq!(classify_sqlite_target("BOOLEAN", false), SqliteTarget::Bool);
 }
 
 #[test]
 fn any_is_untyped_only_on_strict_tables() {
     assert_eq!(classify_sqlite_target("ANY", false), SqliteTarget::Numeric);
-    assert_eq!(classify_sqlite_target(" any ", false), SqliteTarget::Numeric);
+    assert_eq!(
+        classify_sqlite_target(" any ", false),
+        SqliteTarget::Numeric
+    );
     assert_eq!(classify_sqlite_target("ANY", true), SqliteTarget::Untyped);
     assert_eq!(classify_sqlite_target("", false), SqliteTarget::Untyped);
     assert_eq!(classify_sqlite_target("", true), SqliteTarget::Untyped);
     assert_eq!(classify_sqlite_target("TEXT", true), SqliteTarget::Text);
-    assert_eq!(classify_sqlite_target("DECIMAL(10,2)", true), SqliteTarget::Numeric);
+    assert_eq!(
+        classify_sqlite_target("DECIMAL(10,2)", true),
+        SqliteTarget::Numeric
+    );
 }
 
 fn plan_into_any(source_type: &str, strict: bool) -> PlannedTable {
@@ -236,7 +297,10 @@ fn decimal_into_ordinary_any_is_checked_not_exact() {
     let ordinary = plan_into_any("numeric", false);
     assert!(!ordinary.plan.blocking, "{:?}", ordinary.plan.issues);
     assert_eq!(ordinary.bindings[0].conversion.op, Op::DecimalToNumeric);
-    assert_eq!(ordinary.bindings[0].conversion.rule, ConversionRule::Checked);
+    assert_eq!(
+        ordinary.bindings[0].conversion.rule,
+        ConversionRule::Checked
+    );
 
     let strict = plan_into_any("numeric", true);
     assert_eq!(strict.bindings[0].conversion.op, Op::Copy);
@@ -290,7 +354,12 @@ fn codes(planned: &PlannedTable) -> Vec<String> {
 fn plan_maps_by_name_and_is_clean_for_compatible_columns() {
     let source = [column("id", "integer"), column("Name", "text")];
     let target = [column("id", "INTEGER"), column("name", "TEXT")];
-    let planned = plan(&selection(vec![]), &source, &target, TransferDialect::Sqlite);
+    let planned = plan(
+        &selection(vec![]),
+        &source,
+        &target,
+        TransferDialect::Sqlite,
+    );
     assert!(!planned.plan.blocking, "{:?}", planned.plan.issues);
     assert_eq!(planned.bindings.len(), 2);
     assert_eq!(planned.bindings[1].target_column, "name");
@@ -306,7 +375,12 @@ fn plan_blocks_unmapped_missing_and_incompatible_columns() {
     let mut required = column("must", "text");
     required.is_nullable = false;
     let target = [column("id", "TEXT"), required];
-    let planned = plan(&selection(vec![]), &source, &target, TransferDialect::Sqlite);
+    let planned = plan(
+        &selection(vec![]),
+        &source,
+        &target,
+        TransferDialect::Sqlite,
+    );
     let found = codes(&planned);
     assert!(found.contains(&"incompatibleTypes".to_string()));
     assert!(found.contains(&"noTargetColumn".to_string()));
@@ -318,7 +392,12 @@ fn plan_blocks_unmapped_missing_and_incompatible_columns() {
 fn explicit_skip_is_not_an_issue_but_duplicates_and_unknowns_are() {
     let source = [column("id", "integer"), column("note", "text")];
     let target = [column("id", "INTEGER")];
-    let ok = plan(&selection(vec![("note", None)]), &source, &target, TransferDialect::Sqlite);
+    let ok = plan(
+        &selection(vec![("note", None)]),
+        &source,
+        &target,
+        TransferDialect::Sqlite,
+    );
     assert!(!ok.plan.blocking);
     assert!(ok.plan.columns[1].skipped);
     let duplicate = plan(
@@ -361,15 +440,21 @@ fn generated_and_unsupported_target_columns_block() {
     let source = [column("id", "integer")];
     let mut generated = column("id", "integer");
     generated.is_generated = true;
-    assert!(
-        codes(&plan(&selection(vec![]), &source, &[generated], TransferDialect::Postgres))
-            .contains(&"targetColumnGenerated".to_string())
-    );
+    assert!(codes(&plan(
+        &selection(vec![]),
+        &source,
+        &[generated],
+        TransferDialect::Postgres
+    ))
+    .contains(&"targetColumnGenerated".to_string()));
     let target = [column("id", "inet")];
-    assert!(
-        codes(&plan(&selection(vec![]), &source, &target, TransferDialect::Postgres))
-            .contains(&"unsupportedTargetType".to_string())
-    );
+    assert!(codes(&plan(
+        &selection(vec![]),
+        &source,
+        &target,
+        TransferDialect::Postgres
+    ))
+    .contains(&"unsupportedTargetType".to_string()));
 }
 
 #[test]
@@ -377,6 +462,11 @@ fn pg_target_reads_precision_from_declared_type() {
     let mut ts = column("at", "timestamp without time zone");
     ts.full_type = Some("timestamp(3) without time zone".into());
     let source = [column("at", "timestamp without time zone")];
-    let planned = plan(&selection(vec![]), &source, &[ts], TransferDialect::Postgres);
+    let planned = plan(
+        &selection(vec![]),
+        &source,
+        &[ts],
+        TransferDialect::Postgres,
+    );
     assert_eq!(planned.bindings[0].conversion.rule, ConversionRule::Checked);
 }

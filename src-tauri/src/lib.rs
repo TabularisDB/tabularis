@@ -4,7 +4,6 @@
 #![cfg_attr(not(feature = "desktop"), allow(unused_imports, dead_code))]
 
 pub mod ai;
-pub mod ai_assistants;
 pub mod ai_activity;
 #[cfg(test)]
 pub mod ai_activity_lexer_tests;
@@ -14,6 +13,7 @@ pub mod ai_approval;
 #[cfg(test)]
 pub mod ai_approval_tests;
 pub mod ai_approval_watcher;
+pub mod ai_assistants;
 
 pub mod ai_notebook_export;
 #[cfg(test)]
@@ -118,9 +118,9 @@ pub mod ssh_socks5;
 pub mod ssh_tunnel;
 pub mod ssm_tunnel;
 pub mod storage_location;
-pub mod table_transfer;
 #[cfg(test)]
 pub mod storage_location_tests;
+pub mod table_transfer;
 
 pub mod table_sql;
 pub mod team_share;

@@ -318,7 +318,10 @@ pub fn save_groups(path: &Path, groups: &[ConnectionGroup]) -> Result<(), String
 /// reached disk. A failed write must leave the previous snapshot readable.
 fn atomic_private_write(path: &Path, contents: &[u8]) -> Result<(), String> {
     use std::io::Write;
-    let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
     let mut file = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
     file.write_all(contents).map_err(|e| e.to_string())?;
     file.as_file().sync_all().map_err(|e| e.to_string())?;

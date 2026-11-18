@@ -160,7 +160,10 @@ const INCOMPATIBLE: &str = "incompatibleTypes";
 
 /// Decides whether `source` may be written into `target`, and how. Anything
 /// that would need an implicit, information-losing coercion is refused.
-pub fn plan_conversion(source: SourceKind, target: &TargetType) -> Result<Conversion, &'static str> {
+pub fn plan_conversion(
+    source: SourceKind,
+    target: &TargetType,
+) -> Result<Conversion, &'static str> {
     use ConversionRule::{Checked, Exact};
     use SourceKind as S;
     match target {
@@ -176,26 +179,46 @@ pub fn plan_conversion(source: SourceKind, target: &TargetType) -> Result<Conver
                 conv(Op::IntToFloat { max_exact }, OutKind::Float, Checked)
             }
             (S::Int, PgTarget::Decimal { precision, scale }) => conv(
-                Op::IntToDecimal { precision: *precision, scale: *scale },
+                Op::IntToDecimal {
+                    precision: *precision,
+                    scale: *scale,
+                },
                 OutKind::Text,
                 Checked,
             ),
             (S::Float, PgTarget::Float(bits)) => conv(
-                Op::FloatCheck { bits: *bits, allow_non_finite: true },
+                Op::FloatCheck {
+                    bits: *bits,
+                    allow_non_finite: true,
+                },
                 OutKind::Float,
                 if *bits == 64 { Exact } else { Checked },
             ),
             (S::Decimal, PgTarget::Decimal { precision, scale }) => conv(
-                Op::DecimalFit { precision: *precision, scale: *scale },
+                Op::DecimalFit {
+                    precision: *precision,
+                    scale: *scale,
+                },
                 OutKind::Text,
                 if precision.is_none() { Exact } else { Checked },
             ),
             (S::Decimal, PgTarget::Int(bits)) => {
-                let max = if *bits == 64 { i64::MAX } else { (1i64 << (bits - 1)) - 1 };
-                conv(Op::DecimalToInt { min: -max - 1, max }, OutKind::Int, Checked)
+                let max = if *bits == 64 {
+                    i64::MAX
+                } else {
+                    (1i64 << (bits - 1)) - 1
+                };
+                conv(
+                    Op::DecimalToInt { min: -max - 1, max },
+                    OutKind::Int,
+                    Checked,
+                )
             }
             (S::Decimal, PgTarget::Float(bits)) => conv(
-                Op::DecimalToFloat { bits: *bits, allow_non_finite: true },
+                Op::DecimalToFloat {
+                    bits: *bits,
+                    allow_non_finite: true,
+                },
                 OutKind::Float,
                 Checked,
             ),
@@ -232,18 +255,27 @@ pub fn plan_conversion(source: SourceKind, target: &TargetType) -> Result<Conver
                     Checked,
                 ),
                 (S::Float, T::Real | T::Numeric | T::Untyped) => conv(
-                    Op::FloatCheck { bits: 64, allow_non_finite: false },
+                    Op::FloatCheck {
+                        bits: 64,
+                        allow_non_finite: false,
+                    },
                     OutKind::Float,
                     Checked,
                 ),
                 (S::Decimal, T::Text | T::Untyped) => conv(Op::Copy, OutKind::Text, Exact),
                 (S::Decimal, T::Integer) => conv(
-                    Op::DecimalToInt { min: i64::MIN, max: i64::MAX },
+                    Op::DecimalToInt {
+                        min: i64::MIN,
+                        max: i64::MAX,
+                    },
                     OutKind::Int,
                     Checked,
                 ),
                 (S::Decimal, T::Real) => conv(
-                    Op::DecimalToFloat { bits: 64, allow_non_finite: false },
+                    Op::DecimalToFloat {
+                        bits: 64,
+                        allow_non_finite: false,
+                    },
                     OutKind::Float,
                     Checked,
                 ),
@@ -253,7 +285,9 @@ pub fn plan_conversion(source: SourceKind, target: &TargetType) -> Result<Conver
                     conv(Op::Copy, OutKind::Text, Exact)
                 }
                 (S::Bytes, T::Blob | T::Untyped) => conv(Op::Copy, OutKind::Bytes, Exact),
-                (_, T::Text) if text && source != S::Decimal => conv(Op::Copy, OutKind::Text, Exact),
+                (_, T::Text) if text && source != S::Decimal => {
+                    conv(Op::Copy, OutKind::Text, Exact)
+                }
                 (_, _) if any && text => conv(Op::Copy, OutKind::Text, Exact),
                 _ => Err(INCOMPATIBLE),
             }
