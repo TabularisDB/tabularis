@@ -308,10 +308,17 @@ describe('TriggerEditorModal save ordering', () => {
             'FOR EACH STATEMENT EXECUTE FUNCTION store.audit_fn()',
             'FOR EACH STATEMENT\nEXECUTE FUNCTION store.audit_fn();',
         ],
-    ])('keeps %s when it saves an edit', async (_label, clause, expected) => {
+        [
+            'the UPDATE OF column list',
+            'FOR EACH ROW EXECUTE FUNCTION store.audit_fn()',
+            'AFTER UPDATE OF status, total\n',
+            'UPDATE OF status, total',
+        ],
+    ])('keeps %s when it saves an edit', async (_label, clause, expected, updateOf = '') => {
         invokeMock.mockImplementation(async (cmd: string) => {
             if (cmd === 'get_trigger_definition') {
-                return `CREATE TRIGGER audit AFTER UPDATE ON store.products ${clause}`;
+                const event = updateOf || 'UPDATE';
+                return `CREATE TRIGGER audit AFTER ${event} ON store.products ${clause}`;
             }
             if (cmd === 'get_routine_definition') {
                 return [

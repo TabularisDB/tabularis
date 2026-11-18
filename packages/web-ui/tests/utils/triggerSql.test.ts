@@ -14,6 +14,7 @@ import {
     usesCompleteTriggerSqlEditor,
     normalizeSelection,
     splitSqlStatements,
+    type TriggerEvent,
     type TriggerSqlInput,
 } from '@/utils/triggerSql';
 
@@ -542,6 +543,51 @@ $function$`;
             parseTriggerDefinition('CREATE TRIGGER x BEFORE INSERT OR UPDATE OR DELETE ON t')
                 .events,
         ).toEqual(['INSERT', 'UPDATE', 'DELETE']);
+    });
+
+    it.each([
+        ['AFTER UPDATE OF status ON t', ['UPDATE'], 'status'],
+        ['AFTER INSERT OR UPDATE OF status, total ON t', ['INSERT', 'UPDATE'], 'status, total'],
+        [
+            'AFTER UPDATE OF "Status", amount OR DELETE ON t',
+            ['UPDATE', 'DELETE'],
+            '"Status", amount',
+        ],
+        ['BEFORE UPDATE OF `a b` ON t', ['UPDATE'], '`a b`'],
+    ])('parses the UPDATE OF column list of %s', (header, events, updateOf) => {
+        const parsed = parseTriggerDefinition(`CREATE TRIGGER x ${header}`);
+        expect(parsed.events).toEqual(events);
+        expect(parsed.updateOf).toBe(updateOf);
+    });
+
+    it('has no UPDATE OF list for a plain UPDATE', () => {
+        expect(
+            parseTriggerDefinition('CREATE TRIGGER x AFTER UPDATE ON t').updateOf,
+        ).toBeUndefined();
+    });
+
+    it('writes the UPDATE OF list back while UPDATE is an event, except for mysql', () => {
+        const args = {
+            name: 'trg',
+            table: 't',
+            timing: 'AFTER' as const,
+            events: ['INSERT', 'UPDATE'] as TriggerEvent[],
+            updateOf: 'status, total',
+            body: 'BEGIN END',
+            existingTail: 'EXECUTE FUNCTION f()',
+        };
+        expect(buildCreateTriggerStatements({...args, dialect: 'postgres'})[0]).toContain(
+            'AFTER INSERT OR UPDATE OF status, total ON',
+        );
+        expect(
+            buildCreateTriggerStatements({...args, dialect: 'sqlite', events: ['UPDATE']})[0],
+        ).toContain('AFTER UPDATE OF status, total ON');
+        expect(
+            buildCreateTriggerStatements({...args, dialect: 'postgres', events: ['DELETE']})[0],
+        ).toContain('AFTER DELETE ON');
+        expect(
+            buildCreateTriggerStatements({...args, dialect: 'mysql', events: ['UPDATE']})[0],
+        ).not.toContain(' OF ');
     });
 
     it('splits statements without breaking $$ bodies', () => {

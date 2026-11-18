@@ -53,6 +53,7 @@ export interface TriggerEditorModalProps {
 interface ParsedTrigger {
     timing: TriggerTiming | null;
     events: TriggerEvent[];
+    updateOf?: string;
     /** mysql/sqlite: text after FOR EACH ROW */
     body: string | null;
     /** postgres: text after FOR EACH ROW|STATEMENT (WHEN ... EXECUTE FUNCTION fn()) */
@@ -66,12 +67,12 @@ function parseTriggerSql(sql: string, dialect: TriggerDialect): ParsedTrigger {
     const hasSplit = m?.index !== undefined;
     const header = hasSplit ? sql.slice(0, m!.index) : sql;
     const rest = hasSplit ? sql.slice(m!.index! + m![0].length).trim() : null;
-    const {timing, events} = parseTriggerDefinition(header);
+    const {timing, events, updateOf} = parseTriggerDefinition(header);
     const forEach = m && m[1].toUpperCase() === 'STATEMENT' ? 'STATEMENT' : 'ROW';
 
     return dialect === 'postgres'
-        ? {timing, events, body: null, tail: rest, forEach}
-        : {timing, events, body: rest, tail: null, forEach};
+        ? {timing, events, updateOf, body: null, tail: rest, forEach}
+        : {timing, events, updateOf, body: rest, tail: null, forEach};
 }
 
 const DialectTriggerEditor = ({
@@ -104,6 +105,8 @@ const DialectTriggerEditor = ({
     const [tableName, setTableName] = useState(initialTableName ?? '');
     const [timing, setTiming] = useState<TriggerTiming>('BEFORE');
     const [events, setEvents] = useState<TriggerEvent[]>(['INSERT']);
+    // `UPDATE OF a, b` of the trigger being edited, kept as written on save.
+    const [updateOf, setUpdateOf] = useState<string | undefined>(undefined);
     // The real function an EXISTING trigger's EXECUTE FUNCTION|PROCEDURE clause
     // references, as parsed on load — distinct from the generated
     // <table>_<name>_fn convention. When set, save updates THIS function
@@ -154,6 +157,7 @@ const DialectTriggerEditor = ({
                 );
                 setTiming(norm.timing);
                 setEvents(norm.events);
+                setUpdateOf(parsed.updateOf);
                 setPgExisting(parsed.tail ? {tail: parsed.tail, forEach: parsed.forEach} : null);
                 if (parsed.body) setBody(parsed.body);
                 // PostgreSQL: the trigger definition's body is `EXECUTE FUNCTION fn()`
@@ -229,6 +233,7 @@ const DialectTriggerEditor = ({
             setTableName(initialTableName ?? '');
             setTiming('BEFORE');
             setEvents(['INSERT']);
+            setUpdateOf(undefined);
             setBody(defaultTriggerBody(dialect));
             setRawSql('');
             setOriginalSql('');
@@ -260,6 +265,7 @@ const DialectTriggerEditor = ({
         schema: resolvedSchema,
         timing,
         events,
+        updateOf,
         body,
         driver,
         capabilities,
@@ -282,6 +288,7 @@ const DialectTriggerEditor = ({
             table: tableName,
             timing,
             events,
+            updateOf,
             forEach: pgExisting?.forEach ?? 'ROW',
             body,
             quote: q,
@@ -496,6 +503,7 @@ const DialectTriggerEditor = ({
             schema: resolvedSchema,
             timing,
             events,
+            updateOf,
             body,
             driver,
             capabilities,

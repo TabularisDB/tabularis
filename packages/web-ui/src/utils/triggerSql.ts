@@ -96,6 +96,8 @@ export interface TriggerSqlInput {
      * `WHEN` condition.
      */
     existingTail?: {forEach: 'ROW' | 'STATEMENT'; tail: string};
+    /** The `UPDATE OF` column list of an existing trigger, as written (see `eventsSql`). */
+    updateOf?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +141,8 @@ export interface BuildTriggerArgs {
     table: string;
     timing: TriggerTiming;
     events: TriggerEvent[];
+    /** pg/sqlite: the `UPDATE OF` column list of an existing trigger (see `eventsSql`). */
+    updateOf?: string;
     forEach?: 'ROW' | 'STATEMENT';
     /** pg: statements inside the function; mysql/sqlite: full BEGIN ... END block */
     body: string;
@@ -149,6 +153,17 @@ export interface BuildTriggerArgs {
      * `FOR EACH ROW`, e.g. `EXECUTE FUNCTION public.fn()`. No function is created.
      */
     existingTail?: string;
+}
+
+/**
+ * The events of a trigger as SQL, joined with `OR`. While UPDATE is one of
+ * them, an `UPDATE OF` column list loaded from the existing trigger is kept,
+ * so saving an edit does not make the trigger fire on every column.
+ */
+export function eventsSql(events: readonly string[], updateOf?: string): string {
+    return events
+        .map((event) => (event === 'UPDATE' && updateOf ? `UPDATE OF ${updateOf}` : event))
+        .join(' OR ');
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +357,7 @@ export function buildTriggerSql(input: TriggerSqlInput): string {
     // MySQL handles schema via the connection — including it in the ON clause causes error 1435
     const isMysql = input.driver === 'mysql';
     const schemaPrefix = !isMysql && input.schema ? `${q(input.schema)}.` : '';
-    const eventStr = input.events.join(' OR ');
+    const eventStr = eventsSql(input.events, isMysql ? undefined : input.updateOf);
     const header = [
         `CREATE TRIGGER ${q(input.name)}`,
         `${input.timing} ${eventStr}`,
@@ -374,7 +389,8 @@ export function buildTriggerSql(input: TriggerSqlInput): string {
 export function buildCreateTriggerStatements(a: BuildTriggerArgs): string[] {
     const q = a.quote ?? ((s: string) => quoteIdent(a.dialect, s));
     const {timing, events} = normalizeSelection(a.dialect, a.timing, a.events);
-    const eventSql = events.join(' OR ');
+    // MySQL triggers have no UPDATE OF.
+    const eventSql = eventsSql(events, a.dialect === 'mysql' ? undefined : a.updateOf);
     const forEach = a.forEach ?? 'ROW';
 
     if (a.dialect === 'postgres') {
@@ -440,17 +456,28 @@ export const buildCreateTriggerSql = (a: BuildTriggerArgs): string =>
 export function parseTriggerDefinition(def: string): {
     timing: TriggerTiming | null;
     events: TriggerEvent[];
+    /** The column list of `UPDATE OF a, b`, as written, if there is one. */
+    updateOf?: string;
 } {
-    const ev = 'INSERT|UPDATE|DELETE';
+    // A column name as PostgreSQL or SQLite may print it: quoted or bare.
+    const ident = String.raw`(?:"(?:[^"]|"")*"|` + '`[^`]*`' + String.raw`|\[[^\]]*\]|[\w$]+)`;
+    const event = String.raw`(?:INSERT|DELETE|UPDATE(?:\s+OF\s+${ident}(?:\s*,\s*${ident})*)?)`;
     const re = new RegExp(
-        `\\b(BEFORE|AFTER|INSTEAD\\s+OF)\\s+((?:${ev})(?:\\s+OR\\s+(?:${ev}))*)`,
+        String.raw`\b(BEFORE|AFTER|INSTEAD\s+OF)\s+(${event}(?:\s+OR\s+${event})*)`,
         'i',
     );
     const m = re.exec(def);
     if (!m) return {timing: null, events: []};
+    let updateOf: string | undefined;
+    const events = m[2].split(/\s+OR\s+/i).map((part) => {
+        const of = /^UPDATE\s+OF\s+([\s\S]+)$/i.exec(part);
+        if (of) updateOf = of[1].trim();
+        return part.split(/\s/)[0].toUpperCase() as TriggerEvent;
+    });
     return {
         timing: m[1].toUpperCase().replace(/\s+/g, ' ') as TriggerTiming,
-        events: m[2].split(/\s+OR\s+/i).map((e) => e.toUpperCase() as TriggerEvent),
+        events,
+        ...(updateOf ? {updateOf} : {}),
     };
 }
 
