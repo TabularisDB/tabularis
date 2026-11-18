@@ -37,7 +37,7 @@ const MainLayoutContent = () => {
     });
 
     return (
-        <div className="flex h-screen bg-base text-primary overflow-hidden">
+        <div className="flex h-dvh safe-area-padding bg-base text-primary overflow-hidden">
             {location.pathname !== '/editor' && (
                 <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
             )}
