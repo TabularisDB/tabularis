@@ -3835,5 +3835,71 @@
     "saveBeforeExport": "Save your changes before exporting.",
     "discardTitle": "Discard unsaved notes?",
     "discardMessage": "Your changes to the notes have not been saved. Closing now discards them."
+  },
+  "saveHistory": {
+    "title": "Saved changes",
+    "subtitle": "Review and restore the grid edits you saved",
+    "openAction": "Saved changes history",
+    "close": "Close",
+    "recording": {
+      "label": "Record saved grid edits",
+      "description": "Keeps the values before and after each saved edit so you can review and restore them. Only updates to a single PostgreSQL table with a primary key are recorded.",
+      "storage": "Recorded values are stored unencrypted on this device, in a file only you can read, for this connection only. Old records are removed automatically.",
+      "unsupported": "This connection's driver cannot record saved edits."
+    },
+    "empty": "No saved changes have been recorded for this table.",
+    "emptyDisabled": "Recording is off. Turn it on to keep a record of saved edits.",
+    "loading": "Loading…",
+    "list": {
+      "row": "Row",
+      "columns": "Columns: {{columns}}",
+      "restoredAt": "Restored {{date}}",
+      "reviewOnly": "Review only"
+    },
+    "plan": {
+      "title": "Restore plan",
+      "intro": "Restoring writes the earlier values back to this row as a new change. It is not a rollback: it does not undo triggers, external effects or other SQL that ran after the save.",
+      "column": "Column",
+      "saved": "Written by the save",
+      "current": "Current value",
+      "restoreTo": "Restore to",
+      "nullValue": "NULL",
+      "notCaptured": "not captured",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "The row still holds the saved values. Review the plan, then restore.",
+      "conflict": "The row changed after this save. Nothing was restored.",
+      "rowMissing": "The row no longer exists or its key changed. Nothing was restored.",
+      "notRestorable": "This save is kept for review only and cannot be restored.",
+      "alreadyRestored": "This save was already restored.",
+      "restored": "The values were restored."
+    },
+    "reason": {
+      "keyChanged": "A key column was changed, so the row moved.",
+      "tableHasTriggers": "The table has triggers that may have changed other data.",
+      "generatedColumn": "A generated column cannot be written.",
+      "valueNotCaptured": "A value was too large to keep or could not be read.",
+      "unknown": "This save cannot be restored."
+    },
+    "actions": {
+      "restore": "Restore values",
+      "restoring": "Restoring…",
+      "compare": "Compare again",
+      "delete": "Delete record",
+      "clearAll": "Clear all"
+    },
+    "clear": {
+      "title": "Clear saved changes?",
+      "message": "This deletes every recorded save for this connection. Rows in the database are not touched.",
+      "confirm": "Clear all"
+    },
+    "errors": {
+      "load": "Could not load the saved changes: ",
+      "plan": "Could not compare with the current row: ",
+      "restore": "Could not restore the values: ",
+      "toggle": "Could not change the recording setting: ",
+      "recordingFailed": "The changes were saved, but they could not be recorded because the history file could not be written."
+    }
   }
 }

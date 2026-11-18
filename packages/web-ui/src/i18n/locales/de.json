@@ -3603,5 +3603,71 @@
     "saveBeforeExport": "Speichere deine Änderungen vor dem Export.",
     "discardTitle": "Ungespeicherte Notizen verwerfen?",
     "discardMessage": "Deine Änderungen an den Notizen wurden nicht gespeichert. Wenn du jetzt schließt, gehen sie verloren."
+  },
+  "saveHistory": {
+    "title": "Gespeicherte Änderungen",
+    "subtitle": "Gespeicherte Grid-Änderungen prüfen und wiederherstellen",
+    "openAction": "Verlauf gespeicherter Änderungen",
+    "close": "Schließen",
+    "recording": {
+      "label": "Gespeicherte Grid-Änderungen aufzeichnen",
+      "description": "Speichert die Werte vor und nach jeder gespeicherten Änderung, damit du sie prüfen und wiederherstellen kannst. Aufgezeichnet werden nur Updates einer einzelnen PostgreSQL-Tabelle mit Primärschlüssel.",
+      "storage": "Aufgezeichnete Werte werden unverschlüsselt auf diesem Gerät gespeichert, in einer Datei, die nur du lesen kannst, und nur für diese Verbindung. Alte Einträge werden automatisch entfernt.",
+      "unsupported": "Der Treiber dieser Verbindung kann gespeicherte Änderungen nicht aufzeichnen."
+    },
+    "empty": "Für diese Tabelle wurden keine gespeicherten Änderungen aufgezeichnet.",
+    "emptyDisabled": "Die Aufzeichnung ist aus. Schalte sie ein, um gespeicherte Änderungen festzuhalten.",
+    "loading": "Wird geladen…",
+    "list": {
+      "row": "Zeile",
+      "columns": "Spalten: {{columns}}",
+      "restoredAt": "Wiederhergestellt {{date}}",
+      "reviewOnly": "Nur zur Ansicht"
+    },
+    "plan": {
+      "title": "Wiederherstellungsplan",
+      "intro": "Beim Wiederherstellen werden die früheren Werte als neue Änderung in diese Zeile zurückgeschrieben. Das ist kein Rollback: Trigger, externe Effekte oder anderes SQL, das nach dem Speichern lief, werden nicht rückgängig gemacht.",
+      "column": "Spalte",
+      "saved": "Vom Speichern geschrieben",
+      "current": "Aktueller Wert",
+      "restoreTo": "Wiederherstellen auf",
+      "nullValue": "NULL",
+      "notCaptured": "nicht erfasst",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "Die Zeile enthält noch die gespeicherten Werte. Prüfe den Plan und stelle sie dann wieder her.",
+      "conflict": "Die Zeile hat sich nach diesem Speichern geändert. Es wurde nichts wiederhergestellt.",
+      "rowMissing": "Die Zeile existiert nicht mehr oder ihr Schlüssel hat sich geändert. Es wurde nichts wiederhergestellt.",
+      "notRestorable": "Dieses Speichern wird nur zur Ansicht aufbewahrt und kann nicht wiederhergestellt werden.",
+      "alreadyRestored": "Dieses Speichern wurde bereits wiederhergestellt.",
+      "restored": "Die Werte wurden wiederhergestellt."
+    },
+    "reason": {
+      "keyChanged": "Eine Schlüsselspalte wurde geändert, die Zeile wurde also verschoben.",
+      "tableHasTriggers": "Die Tabelle hat Trigger, die andere Daten verändert haben könnten.",
+      "generatedColumn": "Eine generierte Spalte kann nicht geschrieben werden.",
+      "valueNotCaptured": "Ein Wert war zu groß zum Speichern oder konnte nicht gelesen werden.",
+      "unknown": "Dieses Speichern kann nicht wiederhergestellt werden."
+    },
+    "actions": {
+      "restore": "Werte wiederherstellen",
+      "restoring": "Wird wiederhergestellt…",
+      "compare": "Erneut vergleichen",
+      "delete": "Eintrag löschen",
+      "clearAll": "Alle löschen"
+    },
+    "clear": {
+      "title": "Gespeicherte Änderungen löschen?",
+      "message": "Dadurch werden alle aufgezeichneten Speichervorgänge dieser Verbindung gelöscht. Zeilen in der Datenbank bleiben unberührt.",
+      "confirm": "Alle löschen"
+    },
+    "errors": {
+      "load": "Die gespeicherten Änderungen konnten nicht geladen werden: ",
+      "plan": "Der Vergleich mit der aktuellen Zeile ist fehlgeschlagen: ",
+      "restore": "Die Werte konnten nicht wiederhergestellt werden: ",
+      "toggle": "Die Aufzeichnungseinstellung konnte nicht geändert werden: ",
+      "recordingFailed": "Die Änderungen wurden gespeichert, konnten aber nicht aufgezeichnet werden, weil die Verlaufsdatei nicht geschrieben werden konnte."
+    }
   }
 }

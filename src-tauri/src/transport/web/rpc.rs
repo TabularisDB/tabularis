@@ -14,6 +14,7 @@ use crate::application::{
     productivity::ProductivityCommand,
     queries::QueryCommand,
     records::RecordCommand,
+    save_history::SaveHistoryCommand,
     secret_redaction::SecretRedactor,
     tunnels::TunnelCommand,
     ApplicationApi, ApplicationError, ApplicationRequestContext, AuthorizationLevel,
@@ -396,6 +397,13 @@ enum RecordRpcCommand {
     FetchBlob,
     DetectBlobMime,
     DetectMimeType,
+    SaveRecordedRow,
+    GetSaveHistoryStatus,
+    SetSaveHistoryEnabled,
+    ListSaveHistory,
+    PlanSaveRestore,
+    ApplySaveRestore,
+    DeleteSaveHistory,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1290,6 +1298,47 @@ struct UpdateRecordRequest {
     new_val: Value,
     schema: Option<String>,
     database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SaveRecordedRowRequest {
+    connection_id: String,
+    table: String,
+    pk_map: std::collections::HashMap<String, Value>,
+    changes: std::collections::HashMap<String, Value>,
+    schema: Option<String>,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetSaveHistoryEnabledRequest {
+    connection_id: String,
+    enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ListSaveHistoryRequest {
+    connection_id: String,
+    table: Option<String>,
+    schema: Option<String>,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SaveHistoryRecordRequest {
+    connection_id: String,
+    record_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DeleteSaveHistoryRequest {
+    connection_id: String,
+    record_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2647,6 +2696,13 @@ impl RecordRpcCommand {
             "fetch_blob" => Self::FetchBlob,
             "detect_blob_mime" => Self::DetectBlobMime,
             "detect_mime_type" => Self::DetectMimeType,
+            "save_recorded_row" => Self::SaveRecordedRow,
+            "get_save_history_status" => Self::GetSaveHistoryStatus,
+            "set_save_history_enabled" => Self::SetSaveHistoryEnabled,
+            "list_save_history" => Self::ListSaveHistory,
+            "plan_save_restore" => Self::PlanSaveRestore,
+            "apply_save_restore" => Self::ApplySaveRestore,
+            "delete_save_history" => Self::DeleteSaveHistory,
             _ => return None,
         })
     }
@@ -3762,6 +3818,60 @@ fn decode_record_command(command: RecordRpcCommand, body: &[u8]) -> Result<Recor
             RecordCommand::DetectMimeType {
                 header_base64: request.header_base64,
             }
+        }
+        RecordRpcCommand::SaveRecordedRow => {
+            let request: SaveRecordedRowRequest = decode_payload(body)?;
+            RecordCommand::SaveHistory(SaveHistoryCommand::SaveRow {
+                connection_id: request.connection_id,
+                table: request.table,
+                pk_map: request.pk_map,
+                changes: request.changes,
+                schema: request.schema,
+                database: request.database,
+            })
+        }
+        RecordRpcCommand::GetSaveHistoryStatus => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            RecordCommand::SaveHistory(SaveHistoryCommand::Status {
+                connection_id: request.connection_id,
+            })
+        }
+        RecordRpcCommand::SetSaveHistoryEnabled => {
+            let request: SetSaveHistoryEnabledRequest = decode_payload(body)?;
+            RecordCommand::SaveHistory(SaveHistoryCommand::SetEnabled {
+                connection_id: request.connection_id,
+                enabled: request.enabled,
+            })
+        }
+        RecordRpcCommand::ListSaveHistory => {
+            let request: ListSaveHistoryRequest = decode_payload(body)?;
+            RecordCommand::SaveHistory(SaveHistoryCommand::List {
+                connection_id: request.connection_id,
+                table: request.table,
+                schema: request.schema,
+                database: request.database,
+            })
+        }
+        RecordRpcCommand::PlanSaveRestore => {
+            let request: SaveHistoryRecordRequest = decode_payload(body)?;
+            RecordCommand::SaveHistory(SaveHistoryCommand::PlanRestore {
+                connection_id: request.connection_id,
+                record_id: request.record_id,
+            })
+        }
+        RecordRpcCommand::ApplySaveRestore => {
+            let request: SaveHistoryRecordRequest = decode_payload(body)?;
+            RecordCommand::SaveHistory(SaveHistoryCommand::ApplyRestore {
+                connection_id: request.connection_id,
+                record_id: request.record_id,
+            })
+        }
+        RecordRpcCommand::DeleteSaveHistory => {
+            let request: DeleteSaveHistoryRequest = decode_payload(body)?;
+            RecordCommand::SaveHistory(SaveHistoryCommand::Delete {
+                connection_id: request.connection_id,
+                record_id: request.record_id,
+            })
         }
     })
 }

@@ -3768,5 +3768,71 @@
     "saveBeforeExport": "Hãy lưu thay đổi trước khi xuất.",
     "discardTitle": "Bỏ các ghi chú chưa lưu?",
     "discardMessage": "Các thay đổi trong ghi chú chưa được lưu. Đóng bây giờ sẽ mất các thay đổi đó."
+  },
+  "saveHistory": {
+    "title": "Thay đổi đã lưu",
+    "subtitle": "Xem lại và khôi phục các chỉnh sửa lưới bạn đã lưu",
+    "openAction": "Lịch sử thay đổi đã lưu",
+    "close": "Đóng",
+    "recording": {
+      "label": "Ghi lại các chỉnh sửa lưới đã lưu",
+      "description": "Giữ các giá trị trước và sau mỗi chỉnh sửa đã lưu để bạn xem lại và khôi phục. Chỉ ghi lại các cập nhật trên một bảng PostgreSQL duy nhất có khóa chính.",
+      "storage": "Các giá trị được ghi lại lưu không mã hóa trên thiết bị này, trong một tệp chỉ bạn đọc được, chỉ cho kết nối này. Bản ghi cũ được xóa tự động.",
+      "unsupported": "Trình điều khiển của kết nối này không thể ghi lại các chỉnh sửa đã lưu."
+    },
+    "empty": "Chưa có thay đổi đã lưu nào được ghi lại cho bảng này.",
+    "emptyDisabled": "Tính năng ghi lại đang tắt. Hãy bật để lưu lại các chỉnh sửa đã lưu.",
+    "loading": "Đang tải…",
+    "list": {
+      "row": "Dòng",
+      "columns": "Cột: {{columns}}",
+      "restoredAt": "Đã khôi phục {{date}}",
+      "reviewOnly": "Chỉ để xem"
+    },
+    "plan": {
+      "title": "Kế hoạch khôi phục",
+      "intro": "Khôi phục sẽ ghi các giá trị trước đó trở lại dòng này như một thay đổi mới. Đây không phải là rollback: nó không hoàn tác trigger, tác động bên ngoài hay SQL khác đã chạy sau khi lưu.",
+      "column": "Cột",
+      "saved": "Giá trị do lần lưu ghi",
+      "current": "Giá trị hiện tại",
+      "restoreTo": "Khôi phục về",
+      "nullValue": "NULL",
+      "notCaptured": "chưa ghi lại",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "Dòng vẫn giữ các giá trị đã lưu. Hãy xem kế hoạch rồi khôi phục.",
+      "conflict": "Dòng đã thay đổi sau lần lưu này. Không có gì được khôi phục.",
+      "rowMissing": "Dòng không còn tồn tại hoặc khóa của nó đã thay đổi. Không có gì được khôi phục.",
+      "notRestorable": "Lần lưu này chỉ được giữ để xem và không thể khôi phục.",
+      "alreadyRestored": "Lần lưu này đã được khôi phục.",
+      "restored": "Các giá trị đã được khôi phục."
+    },
+    "reason": {
+      "keyChanged": "Một cột khóa đã bị thay đổi nên dòng đã di chuyển.",
+      "tableHasTriggers": "Bảng có trigger có thể đã thay đổi dữ liệu khác.",
+      "generatedColumn": "Không thể ghi vào cột được tạo tự động.",
+      "valueNotCaptured": "Một giá trị quá lớn để giữ hoặc không đọc được.",
+      "unknown": "Lần lưu này không thể khôi phục."
+    },
+    "actions": {
+      "restore": "Khôi phục giá trị",
+      "restoring": "Đang khôi phục…",
+      "compare": "So sánh lại",
+      "delete": "Xóa bản ghi",
+      "clearAll": "Xóa tất cả"
+    },
+    "clear": {
+      "title": "Xóa các thay đổi đã lưu?",
+      "message": "Thao tác này xóa mọi lần lưu đã ghi của kết nối này. Các dòng trong cơ sở dữ liệu không bị ảnh hưởng.",
+      "confirm": "Xóa tất cả"
+    },
+    "errors": {
+      "load": "Không thể tải các thay đổi đã lưu: ",
+      "plan": "Không thể so sánh với dòng hiện tại: ",
+      "restore": "Không thể khôi phục các giá trị: ",
+      "toggle": "Không thể đổi cài đặt ghi lại: ",
+      "recordingFailed": "Các thay đổi đã được lưu nhưng không thể ghi lại vì không ghi được tệp lịch sử."
+    }
   }
 }

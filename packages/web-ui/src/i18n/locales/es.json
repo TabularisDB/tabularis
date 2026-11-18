@@ -3532,5 +3532,71 @@
     "saveBeforeExport": "Guarda tus cambios antes de exportar.",
     "discardTitle": "¿Descartar las notas sin guardar?",
     "discardMessage": "Los cambios en las notas no se han guardado. Si cierras ahora, se perderán."
+  },
+  "saveHistory": {
+    "title": "Cambios guardados",
+    "subtitle": "Revisa y restaura las ediciones de la cuadrícula que guardaste",
+    "openAction": "Historial de cambios guardados",
+    "close": "Cerrar",
+    "recording": {
+      "label": "Registrar las ediciones guardadas de la cuadrícula",
+      "description": "Conserva los valores anteriores y posteriores de cada edición guardada para que puedas revisarlos y restaurarlos. Solo se registran las actualizaciones de una única tabla de PostgreSQL con clave primaria.",
+      "storage": "Los valores registrados se almacenan sin cifrar en este dispositivo, en un archivo que solo tú puedes leer y solo para esta conexión. Los registros antiguos se eliminan automáticamente.",
+      "unsupported": "El controlador de esta conexión no puede registrar las ediciones guardadas."
+    },
+    "empty": "No se ha registrado ningún cambio guardado para esta tabla.",
+    "emptyDisabled": "El registro está desactivado. Actívalo para conservar un historial de las ediciones guardadas.",
+    "loading": "Cargando…",
+    "list": {
+      "row": "Fila",
+      "columns": "Columnas: {{columns}}",
+      "restoredAt": "Restaurado {{date}}",
+      "reviewOnly": "Solo revisión"
+    },
+    "plan": {
+      "title": "Plan de restauración",
+      "intro": "Restaurar escribe los valores anteriores de nuevo en esta fila como un cambio nuevo. No es una reversión: no deshace triggers, efectos externos ni otro SQL que se ejecutó después del guardado.",
+      "column": "Columna",
+      "saved": "Escrito por el guardado",
+      "current": "Valor actual",
+      "restoreTo": "Restaurar a",
+      "nullValue": "NULL",
+      "notCaptured": "no capturado",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "La fila todavía contiene los valores guardados. Revisa el plan y luego restaura.",
+      "conflict": "La fila cambió después de este guardado. No se restauró nada.",
+      "rowMissing": "La fila ya no existe o su clave cambió. No se restauró nada.",
+      "notRestorable": "Este guardado se conserva solo para revisión y no se puede restaurar.",
+      "alreadyRestored": "Este guardado ya se restauró.",
+      "restored": "Los valores se restauraron."
+    },
+    "reason": {
+      "keyChanged": "Se cambió una columna de la clave, por lo que la fila se movió.",
+      "tableHasTriggers": "La tabla tiene triggers que pueden haber cambiado otros datos.",
+      "generatedColumn": "No se puede escribir una columna generada.",
+      "valueNotCaptured": "Un valor era demasiado grande para conservarlo o no se pudo leer.",
+      "unknown": "Este guardado no se puede restaurar."
+    },
+    "actions": {
+      "restore": "Restaurar valores",
+      "restoring": "Restaurando…",
+      "compare": "Comparar de nuevo",
+      "delete": "Eliminar registro",
+      "clearAll": "Borrar todo"
+    },
+    "clear": {
+      "title": "¿Borrar los cambios guardados?",
+      "message": "Esto elimina todos los guardados registrados de esta conexión. Las filas de la base de datos no se modifican.",
+      "confirm": "Borrar todo"
+    },
+    "errors": {
+      "load": "No se pudieron cargar los cambios guardados: ",
+      "plan": "No se pudo comparar con la fila actual: ",
+      "restore": "No se pudieron restaurar los valores: ",
+      "toggle": "No se pudo cambiar el ajuste de registro: ",
+      "recordingFailed": "Los cambios se guardaron, pero no se pudieron registrar porque no se pudo escribir el archivo de historial."
+    }
   }
 }

@@ -39,7 +39,7 @@ impl tabularis_lib::runtime::secrets::RuntimeSecrets for NoSecrets {
 }
 
 /// A runtime whose only saved connection, `pg`, is the test server.
-fn runtime(dir: &Path) -> RuntimeContext {
+pub(crate) fn runtime(dir: &Path) -> RuntimeContext {
     let runtime = RuntimeContext::new(
         Arc::new(FixedRuntimePaths::new(dir.to_path_buf(), dir.to_path_buf())),
         Arc::new(NoopRuntimeEvents),

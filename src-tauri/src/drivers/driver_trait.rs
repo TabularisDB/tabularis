@@ -1103,6 +1103,57 @@ pub trait DatabaseDriver: Send + Sync {
         schema: Option<&str>,
     ) -> Result<u64, String>;
 
+    // --- Recorded saves (optional, built-in drivers only) --------------------
+
+    /// Whether this driver can apply a grid save with verified before/after
+    /// images and later restore it. Drivers that keep the default report no
+    /// support, so recorded saves are never offered for them.
+    fn supports_recorded_saves(&self) -> bool {
+        false
+    }
+
+    /// Applies every change to one row in a single transaction and reports
+    /// the values read before and after. Targets that cannot be recorded are
+    /// still written and come back as `RecordedCapture::Skipped`.
+    async fn update_row_recorded(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _pk_map: &HashMap<String, serde_json::Value>,
+        _changes: Vec<(String, serde_json::Value)>,
+        _schema: Option<&str>,
+        _max_blob_size: u64,
+    ) -> Result<crate::drivers::recorded_save::RecordedUpdate, String> {
+        Err("Recorded saves are not supported by this driver".into())
+    }
+
+    /// Reads the current text image of `columns` for one row, or `None` when
+    /// the row no longer exists.
+    async fn read_row_images(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _pk_map: &HashMap<String, serde_json::Value>,
+        _columns: &[String],
+        _schema: Option<&str>,
+    ) -> Result<Option<Vec<crate::drivers::recorded_save::CellImage>>, String> {
+        Err("Recorded saves are not supported by this driver".into())
+    }
+
+    /// Locks the row, refuses with `Conflict` unless every column still holds
+    /// its `expected` image, and otherwise writes the `target` images in the
+    /// same transaction.
+    async fn restore_row_images(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _pk_map: &HashMap<String, serde_json::Value>,
+        _columns: &[crate::drivers::recorded_save::RestoreColumn],
+        _schema: Option<&str>,
+    ) -> Result<crate::drivers::recorded_save::RestoreOutcome, String> {
+        Err("Recorded saves are not supported by this driver".into())
+    }
+
     // --- BLOB helpers (optional, built-in drivers only) ---------------------
 
     async fn save_blob_to_file(
