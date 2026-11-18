@@ -195,7 +195,7 @@ async fn recover_connection(app: &tauri::AppHandle, connection_id: &str) {
 }
 
 fn is_builtin_driver(driver: &str) -> bool {
-    matches!(driver, "mysql" | "postgres" | "sqlite")
+    matches!(driver, "mysql" | "sqlite")
 }
 
 /// Open a fresh pool for a built-in driver and ping through it. Plugin drivers
@@ -206,7 +206,6 @@ async fn reconnect(
 ) -> Result<(), String> {
     let id = Some(connection_id);
     match params.driver.as_str() {
-        "postgres" => drop(crate::pool_manager::get_postgres_pool_with_id(params, id).await?),
         "mysql" => drop(crate::pool_manager::get_mysql_pool_with_id(params, id).await?),
         "sqlite" => drop(crate::pool_manager::get_sqlite_pool_with_id(params, id).await?),
         _ => {}

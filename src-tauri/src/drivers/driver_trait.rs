@@ -428,13 +428,8 @@ pub struct DeprecationInfo {
 /// (see the design doc's "Measuring adoption" section).
 pub fn deprecation_for_builtin(builtin_id: &str) -> Option<DeprecationInfo> {
     match builtin_id {
-        "postgres" => Some(DeprecationInfo {
-            replacement_id: Some("postgresql".to_string()),
-            removal_date: Some("2026-10-05".to_string()),
-            removal_version: None,
-        }),
-        // mysql and sqlite are expected to follow the same path later; not
-        // deprecated yet, so they return `None` and get no badge.
+        // mysql and sqlite are expected to follow the same deprecation path
+        // later; not deprecated yet, so they return `None` and get no badge.
         _ => None,
     }
 }

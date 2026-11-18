@@ -141,7 +141,6 @@ async fn a_failed_classify_query_is_an_error_and_never_a_verdict() {
 async fn built_in_drivers_do_not_classify() {
     let drivers: Vec<Box<dyn DatabaseDriver>> = vec![
         Box::new(crate::drivers::mysql::MysqlDriver::new()),
-        Box::new(crate::drivers::postgres::PostgresDriver::new()),
         Box::new(crate::drivers::sqlite::SqliteDriver::new()),
     ];
     for driver in drivers {

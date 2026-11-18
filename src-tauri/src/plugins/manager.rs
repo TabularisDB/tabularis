@@ -106,7 +106,7 @@ pub struct ConfigManifest {
 /// refusal (never silently skipped by the registered-plugin fast path below)
 /// so the collision is still surfaced as a logged `PluginLoadError`, not
 /// swallowed because the built-in of the same id is already registered.
-const BUILTIN_DRIVER_IDS: [&str; 3] = ["mysql", "postgres", "sqlite"];
+const BUILTIN_DRIVER_IDS: [&str; 2] = ["mysql", "sqlite"];
 
 /// Re-scans installed plugins against the latest on-disk config and registers
 /// any that are missing from the driver registry. Idempotent — plugins

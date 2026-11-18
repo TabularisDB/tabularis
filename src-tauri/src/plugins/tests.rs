@@ -421,7 +421,6 @@ fn should_skip_rescan_does_not_skip_a_plugin_not_yet_registered() {
 #[test]
 fn should_skip_rescan_never_skips_a_builtin_id_even_when_registered() {
     assert!(!should_skip_rescan("mysql", true));
-    assert!(!should_skip_rescan("postgres", true));
     assert!(!should_skip_rescan("sqlite", true));
 }
 

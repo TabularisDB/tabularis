@@ -4,14 +4,17 @@ use crate::plugins::{installer, tabularium};
 use crate::transport::desktop::config;
 use tauri::{AppHandle, Emitter};
 
-/// Ensure the plugin for `builtin_id` is installed, but only when at least one
-/// saved connection is still on the built-in driver. A user with no such
-/// connection is left untouched — no plugin they don't need.
+/// Ensure the plugin for `plugin_id` is installed, but only when at least one
+/// saved connection uses that plugin driver. A user with no such connection
+/// is left untouched — no plugin they don't need.
 ///
 /// Public entry point spawned from `setup()`.
 pub async fn ensure_plugin_installed_if_needed(app: &AppHandle, builtin_id: &str, plugin_id: &str) {
-    match connections_use_driver(app, builtin_id) {
-        Ok(false) => return, // nothing on this built-in driver, nothing to do
+    let _ = builtin_id; // kept for the MIGRATABLE_DRIVERS loop signature; the
+                        // check is on the plugin id because the bootstrap
+                        // migration already flipped built-in connections to it.
+    match connections_use_driver(app, plugin_id) {
+        Ok(false) => return, // nothing on this plugin driver, nothing to do
         Ok(true) => {}
         Err(e) => {
             log::warn!("{LOG_PREFIX} could not read connections: {e}");

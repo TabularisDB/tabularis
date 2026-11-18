@@ -20,7 +20,6 @@ async fn driver_for(
 }
 
 const DEFAULT_MYSQL_PORT: u16 = 3306;
-const DEFAULT_POSTGRES_PORT: u16 = 5432;
 
 /// Per-slot collection of abort handles for in-flight cancellable tasks.
 /// Used by `QueryCancellationState`, `ExportCancellationState`, and
@@ -439,20 +438,6 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_postgres_url_basic() {
-            let params = create_params(
-                "postgres",
-                "localhost",
-                Some(5432),
-                "postgres",
-                Some("secret"),
-                "testdb",
-            );
-            let url = build_connection_url(&params).await.unwrap();
-            assert_eq!(url, "postgres://postgres:secret@localhost:5432/testdb");
-        }
-
-        #[tokio::test]
         async fn test_sqlite_url() {
             let params = create_params("sqlite", "", None, "", None, "/path/to/db.sqlite");
             let url = build_connection_url(&params).await.unwrap();
@@ -477,14 +462,8 @@ mod tests {
         #[tokio::test]
         async fn test_default_ports() {
             let mysql_params = create_params("mysql", "localhost", None, "root", None, "testdb");
-            let pg_params =
-                create_params("postgres", "localhost", None, "postgres", None, "testdb");
-
             let mysql_url = build_connection_url(&mysql_params).await.unwrap();
-            let pg_url = build_connection_url(&pg_params).await.unwrap();
-
             assert!(mysql_url.contains(":3306/"));
-            assert!(pg_url.contains(":5432/"));
         }
 
         #[tokio::test]
@@ -505,9 +484,9 @@ mod tests {
         #[tokio::test]
         async fn test_remote_host() {
             let params = create_params(
-                "postgres",
+                "mysql",
                 "db.example.com",
-                Some(5432),
+                Some(3306),
                 "admin",
                 Some("pass"),
                 "production",
@@ -1610,13 +1589,6 @@ pub async fn build_connection_url(params: &ConnectionParams) -> Result<String, S
 
     match params.driver.as_str() {
         "sqlite" => Ok(format!("sqlite://{}", params.database)),
-        "postgres" => Ok(format!(
-            "postgres://{}@{}:{}/{}",
-            credentials,
-            host,
-            params.port.unwrap_or(DEFAULT_POSTGRES_PORT),
-            params.database
-        )),
         "mysql" => Ok(format!(
             "mysql://{}@{}:{}/{}",
             credentials,

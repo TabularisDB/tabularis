@@ -212,7 +212,6 @@ async fn column_stats_coerce_a_multi_database_selection_before_the_rpc() {
 async fn built_in_drivers_keep_the_generic_sql_column_stats() {
     let drivers: Vec<Box<dyn DatabaseDriver>> = vec![
         Box::new(crate::drivers::mysql::MysqlDriver::new()),
-        Box::new(crate::drivers::postgres::PostgresDriver::new()),
         Box::new(crate::drivers::sqlite::SqliteDriver::new()),
     ];
     for driver in drivers {

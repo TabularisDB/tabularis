@@ -147,7 +147,6 @@ pub mod drivers {
     #[cfg(test)]
     pub mod driver_trait_tests;
     pub mod mysql;
-    pub mod postgres;
     pub mod registry;
     pub mod sql_dialect;
     #[cfg(test)]

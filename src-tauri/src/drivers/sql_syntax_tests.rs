@@ -149,8 +149,7 @@ fn without_sql_syntax_every_preset_resolves_unchanged() {
 #[test]
 fn builtin_drivers_declare_no_sql_syntax() {
     for driver in [
-        Box::new(crate::drivers::postgres::PostgresDriver::new()) as Box<dyn DatabaseDriver>,
-        Box::new(crate::drivers::mysql::MysqlDriver::new()),
+        Box::new(crate::drivers::mysql::MysqlDriver::new()) as Box<dyn DatabaseDriver>,
         Box::new(crate::drivers::sqlite::SqliteDriver::new()),
     ] {
         let caps = &driver.manifest().capabilities;

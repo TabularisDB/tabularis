@@ -151,7 +151,6 @@ async fn table_query_template_coerces_a_multi_database_selection_before_the_rpc(
 async fn built_in_drivers_keep_the_default_table_query_template_behavior() {
     let drivers: Vec<Box<dyn DatabaseDriver>> = vec![
         Box::new(crate::drivers::mysql::MysqlDriver::new()),
-        Box::new(crate::drivers::postgres::PostgresDriver::new()),
         Box::new(crate::drivers::sqlite::SqliteDriver::new()),
     ];
     for driver in drivers {

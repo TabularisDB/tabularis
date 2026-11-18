@@ -40,23 +40,18 @@ pub(crate) fn stale_postgres_ssl_mode_replacement(value: &str) -> Option<&'stati
 
 /// Rewrites `conn.params.ssl_mode` in place if `conn`'s driver resolves (via
 /// `dialects`) to the postgres SQL dialect and its stored value is a stale
-/// MySQL-style spelling. Builtin `"postgres"` connections are excluded —
-/// their own dropdown was always correct, so nothing there needs migrating.
-/// A driver whose manifest doesn't declare `sql_dialect` (`None`, or absent
-/// from the map because it never resolved) is treated as NOT postgres —
-/// deliberately not defaulted, unlike the splitter's own historical
-/// postgres-default, because this migration must distinguish "explicitly
-/// postgres" from "unspecified" to avoid rewriting a driver's SSL value
-/// based on a guess.
+/// MySQL-style spelling. A driver whose manifest doesn't declare
+/// `sql_dialect` (`None`, or absent from the map because it never resolved)
+/// is treated as NOT postgres — deliberately not defaulted, unlike the
+/// splitter's own historical postgres-default, because this migration must
+/// distinguish "explicitly postgres" from "unspecified" to avoid rewriting a
+/// driver's SSL value based on a guess.
 /// Pure and synchronous so it can be exercised directly in tests without a
 /// live driver registry. Returns whether a rewrite happened.
 pub(crate) fn migrate_connection_ssl_mode_in_place(
     conn: &mut SavedConnection,
     dialects: &HashMap<String, Option<SqlDialect>>,
 ) -> bool {
-    if conn.params.driver == "postgres" {
-        return false;
-    }
     let is_postgres_dialect = dialects
         .get(&conn.params.driver)
         .copied()
@@ -138,8 +133,8 @@ pub async fn migrate_postgres_ssl_mode_spelling_at_path(conn_path: &Path) -> Res
     let mut dialects: HashMap<String, Option<SqlDialect>> = HashMap::new();
     for conn in &conn_file.connections {
         let driver_id = &conn.params.driver;
-        if driver_id == "postgres" || dialects.contains_key(driver_id) {
-            continue; // builtin driver's own dropdown was always correct
+        if dialects.contains_key(driver_id) {
+            continue;
         }
         if let Some(driver) = driver_registry::get_driver(driver_id).await {
             dialects.insert(

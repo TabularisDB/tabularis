@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::Value;
 
 use crate::commands::AbortHandleMap;
-use crate::drivers::{mysql, postgres, sqlite};
+use crate::drivers::{mysql, sqlite};
 use crate::models::ConnectionParams;
 
 pub struct ExportCancellationState {
@@ -112,7 +112,6 @@ where
     // Only PostgreSQL connections pin, so only they receive a session.
     match driver {
         "mysql" => mysql::export::stream_query(params, query, &mut on_row).await,
-        "postgres" => postgres::export::stream_query(params, query, session_id, &mut on_row).await,
         "sqlite" => sqlite::export::stream_query(params, query, &mut on_row).await,
         other => stream_query_via_plugin(other, params, query, session_id, &mut on_row).await,
     }
