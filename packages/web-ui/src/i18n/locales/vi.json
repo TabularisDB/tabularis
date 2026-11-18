@@ -1236,12 +1236,6 @@
               "label": "Múi giờ",
               "description": "Múi giờ của phiên được gửi tới MySQL sau khi kết nối."
             }
-          },
-          "postgres": {
-            "poolMaxSize": {
-              "label": "Kích thước pool tối đa",
-              "description": "Số kết nối PostgreSQL tối đa được giữ trong pool."
-            }
           }
         }
       },
@@ -3367,55 +3361,6 @@
     "mismatchBody": "Registry bạn đã cấu hình là {{configured}}. Liên kết này trỏ tới nơi khác; hãy xem kỹ trước khi tiếp tục.",
     "updateConfirm": "Cập nhật lên v{{version}}",
     "alreadyInstalled": "Phiên bản {{version}} đã được cài."
-  },
-  "migration": {
-    "banner": {
-      "nudge": "Hãy thử plugin PostgreSQL mới — driver PostgreSQL tích hợp sẵn sắp bị ngừng. Plugin có đầy đủ tính năng tương tự và được cập nhật nhanh hơn.",
-      "nudgeWithDate": "Hãy thử plugin PostgreSQL mới — driver PostgreSQL tích hợp sẵn sắp bị ngừng (dự kiến {{date}}). Plugin có đầy đủ tính năng tương tự và được cập nhật nhanh hơn.",
-      "offline": "Không tải được plugin PostgreSQL — sẽ thử lại ở lần khởi động sau. Nếu lỗi này cứ lặp lại, hãy kiểm tra kết nối mạng.",
-      "reviewConnections": "Xem lại các kết nối"
-    },
-    "switchToPlugin": "Chuyển sang plugin",
-    "switchToBuiltin": "Quay lại driver tích hợp sẵn",
-    "confirm": {
-      "title": "Chuyển sang plugin?",
-      "message": "Chuyển {{name}} sang plugin PostgreSQL? Nếu kết nối đang mở, nó sẽ bị ngắt và mở lại bằng plugin.",
-      "uriMessage": "Chuyển {{name}} sang plugin PostgreSQL? Connection string của kết nối này đang lưu trong keychain và sẽ không được chuyển sang plugin — bạn sẽ phải nhập lại để kết nối.",
-      "confirmLabel": "Chuyển",
-      "confirmLabelUri": "Chuyển và nhập lại sau",
-      "undoTitle": "Quay lại driver tích hợp sẵn?",
-      "undoMessage": "Chuyển {{name}} về driver PostgreSQL tích hợp sẵn? Nếu kết nối đang mở, nó sẽ bị ngắt và mở lại bằng driver tích hợp sẵn.",
-      "undoConfirmLabel": "Quay lại"
-    },
-    "toast": {
-      "success": "Đã chuyển {{name}} sang plugin PostgreSQL.",
-      "connectionFailure": "Không kết nối được tới {{name}} bằng plugin: {{error}}",
-      "connectionFailurePreexisting": "Không kết nối được tới {{name}} bằng cả hai driver: {{error}}. Đây không phải lỗi của plugin — kết nối vẫn được giữ ở plugin.",
-      "processFailureWithError": "Plugin PostgreSQL không khởi động được: {{error}}. Lỗi này không riêng gì {{name}} — chưa có kết nối nào được thử.",
-      "processFailure": "Plugin PostgreSQL không khởi động được. Lỗi này không riêng gì {{name}} — chưa có kết nối nào được thử.",
-      "failed": "Không chuyển được {{name}} sang plugin: {{error}}",
-      "undo": "Hoàn tác",
-      "undoFailed": "Không chuyển được {{name}} về driver tích hợp sẵn: {{error}}",
-      "reportIssue": "Báo lỗi"
-    },
-    "checklist": {
-      "title": "Xem lại các kết nối",
-      "subtitle_one": "{{count}} kết nối vẫn đang dùng driver tích hợp sẵn",
-      "subtitle_other": "{{count}} kết nối vẫn đang dùng driver tích hợp sẵn",
-      "migrateSelected_one": "Chuyển {{count}} kết nối đã chọn",
-      "migrateSelected_other": "Chuyển {{count}} kết nối đã chọn",
-      "reportThisGap": "Báo thiếu sót này",
-      "alreadyReported": "Đã báo",
-      "testing": "Đang kiểm tra kết nối…",
-      "uriWarning": "Connection string đang lưu trong keychain và sẽ không được chuyển theo — bạn sẽ phải nhập lại sau khi chuyển.",
-      "noGaps": "Không có kết nối nào cần xem lại.",
-      "close": "Đóng",
-      "migratingNotice": "Quá trình chuyển vẫn tiếp tục kể cả khi bạn đóng cửa sổ này.",
-      "gap": {
-        "ssl": "Dùng SSL/TLS, plugin chưa hỗ trợ",
-        "connection_uri": "Dùng connection string, plugin chưa hỗ trợ"
-      }
-    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Tìm cơ sở dữ liệu…",

@@ -212,30 +212,14 @@ export async function openMultiDbConnection(
     // 1. Open the catalogue.
     await clickAddConnection();
 
-    // 2. Pick the PostgreSQL card. Locally there are two (builtin "Deprecated" at
-    // [0] and plugin "Relational" at [1]); in CI the plugin may not be installed
-    // (only the builtin at [0]). Pick the non-deprecated one, or the only one.
+    // 2. Pick the PostgreSQL card. With the built-in driver removed, only the
+    // plugin card remains.
     await browser.waitUntil(
         async () => (await $$('button[aria-label="Connect to PostgreSQL"]')).length > 0,
         {timeout: 20000, timeoutMsg: 'PostgreSQL catalogue card never rendered'},
     );
     const pgCards = await $$('button[aria-label="Connect to PostgreSQL"]');
-    // Pick the PLUGIN PostgreSQL card (not the builtin "Deprecated" one). The
-    // plugin supports list_databases for the multi-db nested feature. Both cards
-    // exist in CI (builtin "postgres" + plugin "postgresql"). Use WDIO's
-    // element.click() which reliably triggers React's onClick.
-    let targetIndex = 0;
-    if (pgCards.length > 1) {
-        // The plugin card is the one NOT containing "Deprecated" text.
-        const isDeprecated = await browser.execute(() =>
-            Array.from(document.querySelectorAll('button[aria-label="Connect to PostgreSQL"]')).map(
-                (c) => c.textContent?.includes('Deprecated') ?? false,
-            ),
-        );
-        const idx = isDeprecated.findIndex((d: boolean) => !d);
-        targetIndex = idx >= 0 ? idx : 0;
-    }
-    await pgCards[targetIndex].click();
+    await pgCards[0].click();
     await browser.pause(2000); // wait for the form to render
 
     // 3. Fill the form via native input event dispatch (React controlled inputs).
