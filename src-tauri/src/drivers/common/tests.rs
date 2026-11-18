@@ -128,6 +128,32 @@ fn test_returns_result_set_for_hash_comments() {
 }
 
 #[test]
+fn test_returns_result_set_for_dml_with_returning() {
+    for q in [
+        "INSERT INTO t (a) VALUES (1) RETURNING id",
+        "insert into t values (1) returning *",
+        "UPDATE t SET a = 1 WHERE id = 2 RETURNING a, id",
+        "DELETE FROM t WHERE id = 1 RETURNING *;",
+        "-- header\nDELETE FROM t RETURNING id",
+        "MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE RETURNING t.id",
+        "REPLACE INTO t VALUES (1) RETURNING id",
+        "INSERT INTO t SELECT * FROM s RETURNING\n  id",
+    ] {
+        assert!(returns_result_set(q), "{q}");
+    }
+    for q in [
+        "INSERT INTO t (a) VALUES (1)",
+        "INSERT INTO t (note) VALUES ('RETURNING soon')",
+        "INSERT INTO t (\"returning\") VALUES (1)",
+        "INSERT INTO t SELECT * FROM (SELECT 1 AS returning) s",
+        "UPDATE t SET a = 1",
+        "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql",
+    ] {
+        assert!(!returns_result_set(q), "{q}");
+    }
+}
+
+#[test]
 fn test_strip_leading_sql_comments_unterminated() {
     assert_eq!(strip_leading_sql_comments("-- only comment"), "");
     assert_eq!(strip_leading_sql_comments("/* never closed"), "");
