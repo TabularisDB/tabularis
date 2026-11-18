@@ -17,7 +17,10 @@ test('environment selection persists and an open menu does not consume Save', as
     });
     try {
         await page.reload();
-        await page.getByTitle('Edit', {exact: true}).click();
+        const edit = page
+            .locator(`[data-connection-id="${connection.id}"]`)
+            .getByTitle('Edit', {exact: true});
+        await edit.click();
         const dialog = page
             .getByRole('group')
             .filter({has: page.getByRole('button', {name: 'Environment', exact: true})});
@@ -34,7 +37,7 @@ test('environment selection persists and an open menu does not consume Save', as
                     ).find((c) => c.id === connection.id)?.environment,
             )
             .toBe('staging');
-        await page.getByTitle('Edit', {exact: true}).click();
+        await edit.click();
         await environment.click();
         await page.keyboard.press('Escape');
         await expect(dialog).toBeVisible();
