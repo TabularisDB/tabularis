@@ -7,6 +7,7 @@ import {
     buildTriggerSql,
     extractFunctionBody,
     parseTriggerFunctionName,
+    parseTriggerFunctionRef,
     buildCreateTriggerSql,
     buildCreateTriggerStatements,
     parseTriggerDefinition,
@@ -390,6 +391,46 @@ $function$`;
         it('returns null for an empty or malformed clause', () => {
             expect(parseTriggerFunctionName('EXECUTE FUNCTION ();')).toBeNull();
             expect(parseTriggerFunctionName('')).toBeNull();
+        });
+
+        it('reads a name whose parts are quoted separately, as pg_get_triggerdef prints it', () => {
+            expect(parseTriggerFunctionName('EXECUTE FUNCTION app."AuditLog"();')).toBe(
+                'app.AuditLog',
+            );
+            expect(parseTriggerFunctionName('EXECUTE FUNCTION "Sales".audit_fn();')).toBe(
+                'Sales.audit_fn',
+            );
+        });
+    });
+
+    describe('parseTriggerFunctionRef', () => {
+        it('splits the schema from the name', () => {
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION my_audit();')).toEqual({
+                name: 'my_audit',
+            });
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION "store" . "trg_fn" ( );')).toEqual({
+                schema: 'store',
+                name: 'trg_fn',
+            });
+            expect(parseTriggerFunctionRef('EXECUTE PROCEDURE app."AuditLog"();')).toEqual({
+                schema: 'app',
+                name: 'AuditLog',
+            });
+        });
+
+        it('keeps dots and doubled quotes inside a quoted part', () => {
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION "my.app"."log.v2"();')).toEqual({
+                schema: 'my.app',
+                name: 'log.v2',
+            });
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION "say""hi"();')).toEqual({
+                name: 'say"hi',
+            });
+        });
+
+        it('returns null without an EXECUTE FUNCTION|PROCEDURE clause', () => {
+            expect(parseTriggerFunctionRef('CREATE TRIGGER t AFTER INSERT ON x')).toBeNull();
+            expect(parseTriggerFunctionRef('EXECUTE FUNCTION ();')).toBeNull();
         });
     });
 

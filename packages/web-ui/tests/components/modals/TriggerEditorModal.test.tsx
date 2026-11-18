@@ -367,4 +367,60 @@ vi.mock('@/hooks/usePlatformCapabilities', () => {
         confirm: (...args: unknown[]) => askMock(...args),
     };
     return {usePlatformCapabilities: () => platform};
+
+    it('loads and updates a function whose name is quoted apart from its schema', async () => {
+        // pg_get_triggerdef quotes each part only when needed: app."AuditLog"().
+        invokeMock.mockImplementation(async (cmd: string) => {
+            if (cmd === 'get_trigger_definition') {
+                return [
+                    'CREATE TRIGGER audit AFTER INSERT ON app.products',
+                    'FOR EACH ROW EXECUTE FUNCTION app."AuditLog"();',
+                ].join(' ');
+            }
+            if (cmd === 'get_routine_definition') {
+                return [
+                    'CREATE OR REPLACE FUNCTION app."AuditLog"() RETURNS trigger LANGUAGE plpgsql AS $function$',
+                    'BEGIN',
+                    '  RETURN NEW;',
+                    'END;',
+                    '$function$',
+                ].join('\n');
+            }
+            return '';
+        });
+
+        render(
+            <TriggerEditorModal
+                isOpen
+                onClose={vi.fn()}
+                connectionId="conn-1"
+                triggerName="audit"
+                tableName="products"
+                schema="app"
+                database="analytics"
+                driver="postgres"
+                isNewTrigger={false}
+                onSuccess={vi.fn()}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(invokeMock).toHaveBeenCalledWith(
+                'get_routine_definition',
+                expect.objectContaining({routineName: 'AuditLog', schema: 'app'}),
+            );
+        });
+
+        fireEvent.click(screen.getByText('triggers.save'));
+
+        await waitFor(() => {
+            const executeQueryCalls = invokeMock.mock.calls.filter(
+                ([cmd]) => cmd === 'execute_query',
+            );
+            expect(executeQueryCalls.length).toBeGreaterThan(0);
+            const query: string = (executeQueryCalls[0][1] as {query: string}).query;
+            expect(query).toContain('CREATE OR REPLACE FUNCTION "app"."AuditLog"()');
+            expect(query).not.toContain('products_audit_fn');
+        });
+    });
 });

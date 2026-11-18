@@ -175,20 +175,42 @@ export function triggerFunctionName(name: string, tableName?: string): string {
  * the invalid `EXECUTE FUNCTION ...` string.
  *
  * Returns the name with quotes stripped and schema qualification preserved
- * (`schema.name`), or `null` when the clause is absent or malformed. Handles
- * both quoted (`"schema"."name"`) and unqualified (`name`) forms.
+ * (`schema.name`), or `null` when the clause is absent or malformed. Use
+ * {@link parseTriggerFunctionRef} to get the schema and name apart: a quoted
+ * name can itself contain a dot.
  */
 export function parseTriggerFunctionName(triggerSql: string): string | null {
-    const match = triggerSql.match(
-        /\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\s+((?:"[^"]+"\s*\.\s*)*"[^"]+"|(?:[A-Za-z_][\w$]*\s*\.\s*)*[A-Za-z_][\w$]*)\s*\(\s*\)/i,
-    );
+    const ref = parseTriggerFunctionRef(triggerSql);
+    if (!ref) return null;
+    return ref.schema === undefined ? ref.name : `${ref.schema}.${ref.name}`;
+}
+
+// One identifier as PostgreSQL prints it: quoted (with `""` for a quote) or bare.
+const PG_IDENTIFIER = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
+const EXECUTE_FUNCTION_RE = new RegExp(
+    String.raw`\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\s+(${PG_IDENTIFIER})(?:\s*\.\s*(${PG_IDENTIFIER}))?\s*\(\s*\)`,
+    'i',
+);
+
+function unquotePgIdentifier(identifier: string): string {
+    return identifier.startsWith('"') ? identifier.slice(1, -1).replace(/""/g, '"') : identifier;
+}
+
+/**
+ * The function a PostgreSQL trigger's `EXECUTE FUNCTION|PROCEDURE` clause
+ * calls, as a schema and a name with their quotes removed. Each part may be
+ * quoted or not on its own, as `pg_get_triggerdef` prints it
+ * (`app."AuditLog"()`), and a quoted part may contain dots or `""`.
+ */
+export function parseTriggerFunctionRef(
+    triggerSql: string,
+): {name: string; schema?: string} | null {
+    const match = EXECUTE_FUNCTION_RE.exec(triggerSql);
     if (!match) return null;
-    // Strip double-quotes and the spaces around the dot, collapsing
-    // `"store"."trg_fn"` → `store.trg_fn` and `my_audit` → `my_audit`.
-    return match[1]
-        .replace(/"\s*\.\s*"/g, '.')
-        .replace(/"/g, '')
-        .trim();
+    const [, first, second] = match;
+    return second === undefined
+        ? {name: unquotePgIdentifier(first)}
+        : {schema: unquotePgIdentifier(first), name: unquotePgIdentifier(second)};
 }
 
 /**
