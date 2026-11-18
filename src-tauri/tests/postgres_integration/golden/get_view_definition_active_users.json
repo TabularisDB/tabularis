@@ -1,1 +1,0 @@
-"CREATE OR REPLACE VIEW \"test_schema\".\"active_users\" AS\n SELECT id,\n    col_text AS name,\n    col_bool AS is_active\n   FROM test_schema.all_types\n  WHERE col_bool = true;"
