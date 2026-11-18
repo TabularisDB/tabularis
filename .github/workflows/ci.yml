@@ -166,7 +166,7 @@ jobs:
         run: |
           mkdir -p "$HOME/.local/share/tabularis/plugins/drivers/postgresql"
           curl -sL "https://github.com/TabularisDB/tabularis-postgresql-plugin/releases/download/v1.0.0-rc.14/default.tabularium" -o "$HOME/.local/share/tabularis/plugins/drivers/postgresql/.tabularium"
-          curl -sL "https://github.com/TabularisDB/tabularis-postgresql-plugin/releases/download/v1.0.0-rc.14/postgresql-plugin-linux-x86_64.zip" -o /tmp/pg-plugin.zip
+          curl -sL "https://github.com/TabularisDB/tabularis-postgresql-plugin/releases/download/v1.0.0-rc.14/postgresql-plugin-linux-x64.zip" -o /tmp/pg-plugin.zip
           unzip -o /tmp/pg-plugin.zip -d "$HOME/.local/share/tabularis/plugins/drivers/postgresql/"
           chmod +x "$HOME/.local/share/tabularis/plugins/drivers/postgresql/postgresql-plugin"
 
