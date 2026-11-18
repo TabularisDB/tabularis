@@ -700,7 +700,6 @@ export const Connections = () => {
         dropAxis: connectionDrop?.axis ?? 'y',
         selectionActive: selectedIds.size > 0,
         onToggleSelect: canSelect ? () => toggleSelect(conn.id) : undefined,
-        onMigrate: undefined,
     });
 
     const handleConnectionMouseDown = (

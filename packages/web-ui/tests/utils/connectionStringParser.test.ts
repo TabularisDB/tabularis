@@ -181,7 +181,10 @@ describe('connectionStringParser', () => {
             // was removed), so the fallback path can't resolve postgres/postgresql.
             // Pass CAPABILITY_DRIVERS explicitly — this mirrors how NewConnectionModal
             // calls parseConnectionString in production (always passes drivers).
-            const postgresql = parseConnectionString('postgresql://user@host/db', CAPABILITY_DRIVERS);
+            const postgresql = parseConnectionString(
+                'postgresql://user@host/db',
+                CAPABILITY_DRIVERS,
+            );
             expect(postgresql.success).toBe(true);
             if (postgresql.success) {
                 expect(postgresql.params.driver).toBe('postgres');
