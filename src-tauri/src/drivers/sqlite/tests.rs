@@ -608,7 +608,7 @@ async fn read_only_query_does_not_leak_into_the_pool() {
 }
 
 #[tokio::test]
-async fn bundled_sqlite_is_at_least_3_49() {
+async fn bundled_sqlite_is_at_least_3_54() {
     let (params, _file) = setup_test_db().await;
     let result = super::execute_query(&params, "SELECT sqlite_version()", None, 1)
         .await
@@ -622,9 +622,29 @@ async fn bundled_sqlite_is_at_least_3_49() {
         .map(|part| part.parse().expect("numeric version part"))
         .collect();
     assert!(
-        parts[..] >= [3, 49, 0][..],
-        "bundled SQLite {version} predates if() and multi-argument iif() (3.49.0)"
+        parts[..] >= [3, 54, 0][..],
+        "bundled SQLite {version} predates the date \"end of\" modifier (3.54.0)"
     );
+}
+
+#[tokio::test]
+async fn date_end_of_modifier() {
+    let (params, _file) = setup_test_db().await;
+    for (sql, expected) in [
+        (
+            "SELECT date('2026-06-15', 'end of year')",
+            serde_json::json!("2026-12-31"),
+        ),
+        (
+            "SELECT date('2026-06-15', 'end of month')",
+            serde_json::json!("2026-06-30"),
+        ),
+    ] {
+        let result = super::execute_query(&params, sql, None, 1)
+            .await
+            .unwrap_or_else(|e| panic!("{sql} failed: {e}"));
+        assert_eq!(result.rows[0][0], expected, "{sql}");
+    }
 }
 
 #[tokio::test]
