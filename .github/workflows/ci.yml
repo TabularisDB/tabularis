@@ -169,6 +169,10 @@ jobs:
           curl -sL "https://github.com/TabularisDB/tabularis-postgresql-plugin/releases/download/v1.0.0-rc.14/postgresql-plugin-linux-x64.zip" -o /tmp/pg-plugin.zip
           unzip -o /tmp/pg-plugin.zip -d "$HOME/.local/share/tabularis/plugins/drivers/postgresql/"
           chmod +x "$HOME/.local/share/tabularis/plugins/drivers/postgresql/postgresql-plugin"
+          echo "Installed plugin files:"
+          ls -la "$HOME/.local/share/tabularis/plugins/drivers/postgresql/"
+          echo "Plugin manifest:"
+          cat "$HOME/.local/share/tabularis/plugins/drivers/postgresql/.tabularium" | head -5
 
       - name: Install browser engines
         run: pnpm exec playwright install --with-deps chromium firefox webkit
