@@ -57,7 +57,7 @@ toon-format = { version = "0.5.0", default-features = false }
 log = { version = "0.4", features = ["std"] }
 tauri = { version = "2.10.2", features = ["protocol-asset", "devtools"], optional = true }
 tauri-plugin-log = { version = "2", optional = true }
-sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "mysql", "postgres", "tls-rustls-ring-native-roots", "chrono", "uuid", "rust_decimal", "json"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "mysql", "tls-rustls-ring-native-roots", "chrono", "uuid", "rust_decimal", "json"] }
 tokio = { version = "1.49.0", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io"] }
 axum = { version = "0.7.9", features = ["ws"] }
@@ -66,7 +66,7 @@ tower-http = { version = "0.6.8", features = ["fs", "limit"] }
 open = "5.3.3"
 openssl = { version = "0.10", features = ["vendored"] }
 uuid = { version = "1.20.0", features = ["v4", "serde"] }
-rust_decimal = { version = "1.36", features = ["db-tokio-postgres", "serde"] }
+rust_decimal = { version = "1.36", features = ["serde"] }
 chrono = { version = "0.4.43", features = ["serde"] }
 chrono-tz = "0.10"
 tauri-plugin-dialog = { version = "2.6.0", optional = true }
@@ -114,8 +114,6 @@ semver = "1"
 tauri-plugin-clipboard-manager = { version = "2", optional = true }
 tauri-plugin-deep-link = { version = "2", optional = true }
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"], optional = true }
-tokio-postgres = { version = "0.7.13", features = ["with-chrono-0_4", "with-uuid-1", "with-serde_json-1", "array-impls"] }
-deadpool-postgres = "0.14.1"
 # sqlx uses `tls-rustls-ring-native-roots` for both the MySQL pool and the
 # SQLite/embedded paths. `tls-native-tls` is intentionally NOT enabled:
 # macOS Secure Transport (the native-tls backend on Darwin) is deprecated
@@ -126,9 +124,7 @@ deadpool-postgres = "0.14.1"
 # no such restriction. The `ring-native-roots` flavour keeps the OS trust
 # store active (so non-IAM users who rely on a corporate CA in the macOS
 # keychain still work) instead of falling back to the bundled `webpki-roots`
-# (which would silently ignore those CAs). The PostgreSQL deadpool path
-# uses rustls + `rustls-platform-verifier` for the same reason.
-tokio-postgres-rustls = "0.13"
+# (which would silently ignore those CAs).
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 rustls-pemfile = "2"
 rustls-platform-verifier = "0.6"
