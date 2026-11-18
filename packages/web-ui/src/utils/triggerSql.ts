@@ -89,6 +89,13 @@ export interface TriggerSqlInput {
      * trigger, which has no existing function to preserve the identity of.
      */
     existingFunctionName?: {name: string; schema?: string};
+    /**
+     * PostgreSQL edit: the existing trigger's `FOR EACH` level and the text
+     * after it (`WHEN (…) EXECUTE FUNCTION …`), kept verbatim so a save does
+     * not turn a statement-level trigger into a row-level one or drop its
+     * `WHEN` condition.
+     */
+    existingTail?: {forEach: 'ROW' | 'STATEMENT'; tail: string};
 }
 
 // ---------------------------------------------------------------------------
@@ -340,12 +347,23 @@ export function buildTriggerSql(input: TriggerSqlInput): string {
         `CREATE TRIGGER ${q(input.name)}`,
         `${input.timing} ${eventStr}`,
         `ON ${schemaPrefix}${q(input.tableName)}`,
-        `FOR EACH ROW`,
     ];
     if (isPostgresDriver(input.driver)) {
-        return [...header, `EXECUTE FUNCTION ${qualifiedFunctionName(input)}();`].join('\n');
+        if (input.existingTail) {
+            const tail = input.existingTail.tail.trim();
+            return [
+                ...header,
+                `FOR EACH ${input.existingTail.forEach}`,
+                tail.endsWith(';') ? tail : `${tail};`,
+            ].join('\n');
+        }
+        return [
+            ...header,
+            `FOR EACH ROW`,
+            `EXECUTE FUNCTION ${qualifiedFunctionName(input)}();`,
+        ].join('\n');
     }
-    return [...header, input.body].join('\n');
+    return [...header, `FOR EACH ROW`, input.body].join('\n');
 }
 
 // ---------------------------------------------------------------------------
