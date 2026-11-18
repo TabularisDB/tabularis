@@ -262,6 +262,7 @@ fn provisioning_token_validation_and_reference_contract() {
 async fn provisioning_validation_and_body_limits_preserve_error_statuses() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+    crate::drivers::registry::register_driver(crate::drivers::mysql::MysqlDriver::new()).await;
     let temp = tempfile::tempdir().unwrap();
     let runtime = RuntimeContext::new(
         Arc::new(FixedRuntimePaths::new(
@@ -385,6 +386,7 @@ async fn provisioning_delete_waits_for_in_flight_saved_connection_open() {
     };
     use std::time::{Duration, Instant};
 
+    crate::drivers::registry::register_driver(crate::drivers::mysql::MysqlDriver::new()).await;
     let temp = tempfile::tempdir().unwrap();
     let runtime = RuntimeContext::new(
         Arc::new(FixedRuntimePaths::new(
