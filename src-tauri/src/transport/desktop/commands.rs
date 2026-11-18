@@ -53,6 +53,7 @@ async fn execute_connection_command<R: Runtime>(
 pub async fn get_connections<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
     migrate_ssh_connections(&app).await.ok();
     migrate_postgres_ssl_mode_spelling(&app).await.ok();
+    migrate_builtin_driver_ids(&app).await.ok();
     execute_connection_command(
         &app,
         crate::application::connections::ConnectionCommand::GetConnections,
@@ -66,6 +67,7 @@ pub async fn get_connections_with_groups<R: Runtime>(
 ) -> Result<serde_json::Value, String> {
     migrate_ssh_connections(&app).await.ok();
     migrate_postgres_ssl_mode_spelling(&app).await.ok();
+    migrate_builtin_driver_ids(&app).await.ok();
     execute_connection_command(
         &app,
         crate::application::connections::ConnectionCommand::GetConnectionsWithGroups,
@@ -1041,6 +1043,23 @@ async fn migrate_postgres_ssl_mode_spelling<R: Runtime>(app: &AppHandle<R>) -> R
     let migrated =
         crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(&conn_path)
             .await?;
+    if migrated {
+        app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
+            .invalidate();
+    }
+    Ok(())
+}
+
+/// Force-migrates saved connections still on the built-in `"postgres"` driver
+/// to the `"postgresql"` plugin, now that the built-in driver is being
+/// removed. Runs automatically at launch (no dismissible nudge, no undo) so
+/// no saved connection is left pointing at a driver id that no longer
+/// resolves. See `connection_migrations::migrate_builtin_driver_ids_at_path`
+/// for the full rationale, including the concurrency guard.
+async fn migrate_builtin_driver_ids<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let conn_path = get_config_path(app)?;
+    let migrated =
+        crate::connection_migrations::migrate_builtin_driver_ids_at_path(&conn_path).await?;
     if migrated {
         app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
             .invalidate();

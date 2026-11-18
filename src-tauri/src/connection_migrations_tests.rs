@@ -5,7 +5,8 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::connection_migrations::{
-        connections_file_changed_concurrently, migrate_connection_ssl_mode_in_place,
+        connections_file_changed_concurrently, migrate_builtin_driver_ids_at_path,
+        migrate_connection_driver_id_in_place, migrate_connection_ssl_mode_in_place,
         migrate_postgres_ssl_mode_spelling_at_path, stale_postgres_ssl_mode_replacement,
     };
     use crate::drivers::driver_trait::SqlDialect;
@@ -240,5 +241,142 @@ mod tests {
             content_before, content_after,
             "a no-op run must not rewrite the file at all"
         );
+    }
+
+    #[test]
+    fn migrate_connection_driver_id_flips_postgres_to_postgresql() {
+        let mut conn = saved_connection("postgres", None);
+        assert!(migrate_connection_driver_id_in_place(
+            &mut conn,
+            &[("postgres", "postgresql")]
+        ));
+        assert_eq!(conn.params.driver, "postgresql");
+    }
+
+    #[test]
+    fn migrate_connection_driver_id_leaves_non_migratable_drivers_alone() {
+        let mut conn = saved_connection("mysql", None);
+        assert!(!migrate_connection_driver_id_in_place(
+            &mut conn,
+            &[("postgres", "postgresql")]
+        ));
+        assert_eq!(conn.params.driver, "mysql");
+    }
+
+    #[test]
+    fn migrate_connection_driver_id_leaves_already_migrated_connections_alone() {
+        let mut conn = saved_connection("postgresql", None);
+        assert!(!migrate_connection_driver_id_in_place(
+            &mut conn,
+            &[("postgres", "postgresql")]
+        ));
+        assert_eq!(conn.params.driver, "postgresql");
+    }
+
+    #[test]
+    fn migrate_connection_driver_id_is_idempotent() {
+        let mut conn = saved_connection("postgres", None);
+        assert!(migrate_connection_driver_id_in_place(
+            &mut conn,
+            &[("postgres", "postgresql")]
+        ));
+        // A second pass finds no `"postgres"` connection to flip.
+        assert!(!migrate_connection_driver_id_in_place(
+            &mut conn,
+            &[("postgres", "postgresql")]
+        ));
+        assert_eq!(conn.params.driver, "postgresql");
+    }
+
+    #[tokio::test]
+    async fn migrate_builtin_driver_ids_at_path_is_a_noop_for_a_missing_file() {
+        let dir = TempDir::new().expect("create temp dir");
+        let path = dir.path().join("connections.json");
+
+        let migrated = migrate_builtin_driver_ids_at_path(&path)
+            .await
+            .expect("missing file is not an error");
+
+        assert!(!migrated);
+    }
+
+    #[tokio::test]
+    async fn migrate_builtin_driver_ids_at_path_flips_postgres_to_postgresql() {
+        let dir = TempDir::new().expect("create temp dir");
+        let path = dir.path().join("connections.json");
+        let file = ConnectionsFile {
+            groups: Vec::new(),
+            connections: vec![
+                saved_connection("postgres", None),
+                saved_connection("mysql", None),
+            ],
+            tags: Vec::new(),
+        };
+        persistence::save_connections_file(&path, &file).expect("seed fixture");
+
+        let migrated = migrate_builtin_driver_ids_at_path(&path)
+            .await
+            .expect("a successful migration is not an error");
+
+        assert!(migrated);
+        let after = persistence::parse_connections_file(
+            &std::fs::read_to_string(&path).expect("read after"),
+        )
+        .expect("parse after");
+        let drivers: Vec<&str> = after
+            .connections
+            .iter()
+            .map(|c| c.params.driver.as_str())
+            .collect();
+        assert_eq!(drivers, vec!["postgresql", "mysql"]);
+    }
+
+    #[tokio::test]
+    async fn migrate_builtin_driver_ids_at_path_is_a_noop_when_nothing_needs_migrating() {
+        let dir = TempDir::new().expect("create temp dir");
+        let path = dir.path().join("connections.json");
+        let file = ConnectionsFile {
+            groups: Vec::new(),
+            connections: vec![
+                saved_connection("postgresql", None),
+                saved_connection("mysql", None),
+            ],
+            tags: Vec::new(),
+        };
+        persistence::save_connections_file(&path, &file).expect("seed fixture");
+        let content_before = std::fs::read_to_string(&path).expect("read fixture");
+
+        let migrated = migrate_builtin_driver_ids_at_path(&path)
+            .await
+            .expect("no migration needed is not an error");
+
+        assert!(!migrated);
+        let content_after = std::fs::read_to_string(&path).expect("read after");
+        assert_eq!(
+            content_before, content_after,
+            "a no-op run must not rewrite the file at all"
+        );
+    }
+
+    #[tokio::test]
+    async fn migrate_builtin_driver_ids_at_path_is_idempotent() {
+        let dir = TempDir::new().expect("create temp dir");
+        let path = dir.path().join("connections.json");
+        let file = ConnectionsFile {
+            groups: Vec::new(),
+            connections: vec![saved_connection("postgres", None)],
+            tags: Vec::new(),
+        };
+        persistence::save_connections_file(&path, &file).expect("seed fixture");
+
+        let first = migrate_builtin_driver_ids_at_path(&path)
+            .await
+            .expect("first run");
+        assert!(first, "first run should flip the connection");
+
+        let second = migrate_builtin_driver_ids_at_path(&path)
+            .await
+            .expect("second run");
+        assert!(!second, "second run is a no-op — nothing left to flip");
     }
 }
