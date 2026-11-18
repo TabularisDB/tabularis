@@ -10,7 +10,7 @@ use crate::credential_cache;
 use crate::drivers::driver_trait::{DatabaseDriver, SqlDialect};
 use crate::drivers::registry as driver_registry;
 #[cfg(test)]
-use crate::drivers::{mysql, postgres, sqlite};
+use crate::drivers::{mysql, sqlite};
 use crate::heartbeat;
 use crate::keychain_utils;
 use crate::models::{ConnectionParams, K8sConnection, SshConnection};

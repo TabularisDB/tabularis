@@ -122,21 +122,6 @@ mod tests {
     }
 
     #[test]
-    fn migrate_connection_ssl_mode_leaves_the_builtin_postgres_driver_alone() {
-        // The builtin driver's own dropdown was always correct — even if it
-        // somehow ended up with a stale value, this migration is scoped to
-        // plugin-driven connections only (driver id != "postgres").
-        let mut dialects = HashMap::new();
-        dialects.insert("postgres".to_string(), Some(SqlDialect::Postgres));
-        let mut conn = saved_connection("postgres", Some("required"));
-
-        let rewrote = migrate_connection_ssl_mode_in_place(&mut conn, &dialects);
-
-        assert!(!rewrote);
-        assert_eq!(conn.params.ssl_mode.as_deref(), Some("required"));
-    }
-
-    #[test]
     fn migrate_connection_ssl_mode_leaves_an_unresolved_driver_alone() {
         // No entry in `dialects` (e.g. the driver failed to resolve from the
         // registry) must not be treated as postgres-dialect by default.

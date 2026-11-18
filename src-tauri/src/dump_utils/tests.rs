@@ -5,7 +5,6 @@ use serde_json::json;
 fn builtin_drivers() -> Vec<Box<dyn DatabaseDriver>> {
     vec![
         Box::new(crate::drivers::mysql::MysqlDriver::new()),
-        Box::new(crate::drivers::postgres::PostgresDriver::new()),
         Box::new(crate::drivers::sqlite::SqliteDriver::new()),
     ]
 }
@@ -20,6 +19,18 @@ fn dialect_for(id: &str) -> DumpDialect {
         .find(|d| d.manifest().id == id)
         .map(|d| dialect_of(d.as_ref()))
         .unwrap_or_else(|| panic!("no builtin driver {id}"))
+}
+
+/// Dialect for the `postgresql` plugin, which declares `sql_dialect: Postgres`
+/// the same way the removed built-in driver did.
+fn postgres_dialect() -> DumpDialect {
+    DumpDialect::from_capabilities(
+        "postgresql",
+        &DriverCapabilities {
+            sql_dialect: Some(SqlDialect::Postgres),
+            ..Default::default()
+        },
+    )
 }
 
 /// Capabilities of a plugin driver that quotes with backticks and exposes
@@ -314,7 +325,7 @@ fn postgresql_plugin_without_dialect_or_schemas_matches_the_legacy_output() {
 #[test]
 fn builtin_statements() {
     let mysql = dialect_for("mysql");
-    let postgres = dialect_for("postgres");
+    let postgres = postgres_dialect();
     let sqlite = dialect_for("sqlite");
     assert_eq!(
         mysql.drop_table_if_exists(None, "users"),
@@ -341,7 +352,7 @@ fn flat_drivers_ignore_a_schema_and_postgres_defaults_to_public() {
     assert_eq!(mysql.scoped_schema(Some("mydb")), None);
     assert_eq!(mysql.table_ref(Some("mydb"), "users"), "`users`");
 
-    let postgres = dialect_for("postgres");
+    let postgres = postgres_dialect();
     assert_eq!(postgres.resolve_schema(None).as_deref(), Some("public"));
     assert_eq!(postgres.resolve_schema(Some("")).as_deref(), Some("public"));
     assert_eq!(postgres.resolve_schema(Some("app")).as_deref(), Some("app"));
@@ -351,7 +362,7 @@ fn flat_drivers_ignore_a_schema_and_postgres_defaults_to_public() {
 fn embedded_quote_characters_are_doubled() {
     assert_eq!(dialect_for("mysql").table_ref(None, "we`ird"), "`we``ird`");
     assert_eq!(
-        dialect_for("postgres").table_ref(Some("s\"x"), "t"),
+        postgres_dialect().table_ref(Some("s\"x"), "t"),
         r#""s""x"."t""#
     );
 }
@@ -500,8 +511,11 @@ fn googlesql_dump_writes_boolean_keywords() {
 
 #[test]
 fn escape_value_common_cases() {
-    for id in ["mysql", "postgres", "sqlite"] {
-        let d = dialect_for(id);
+    for d in [
+        dialect_for("mysql"),
+        dialect_for("sqlite"),
+        postgres_dialect(),
+    ] {
         assert_eq!(d.escape_value(json!(null)), "NULL");
         assert_eq!(d.escape_value(json!(123)), "123");
         assert_eq!(d.escape_value(json!(12.34)), "12.34");
@@ -510,8 +524,8 @@ fn escape_value_common_cases() {
         assert_eq!(d.escape_value(json!("Multi\nLine")), "'Multi\nLine'");
     }
     // Postgres boolean columns reject integer literals (SQLSTATE 42804).
-    assert_eq!(dialect_for("postgres").escape_value(json!(true)), "TRUE");
-    assert_eq!(dialect_for("postgres").escape_value(json!(false)), "FALSE");
+    assert_eq!(postgres_dialect().escape_value(json!(true)), "TRUE");
+    assert_eq!(postgres_dialect().escape_value(json!(false)), "FALSE");
     for id in ["mysql", "sqlite"] {
         assert_eq!(dialect_for(id).escape_value(json!(true)), "1");
         assert_eq!(dialect_for(id).escape_value(json!(false)), "0");
@@ -529,11 +543,8 @@ fn mysql_doubles_backslashes_and_escapes_nul() {
 
 #[test]
 fn postgres_and_sqlite_keep_backslashes_literal() {
-    for id in ["postgres", "sqlite"] {
-        assert_eq!(
-            dialect_for(id).escape_value(json!("Back\\slash")),
-            "'Back\\slash'"
-        );
+    for d in [postgres_dialect(), dialect_for("sqlite")] {
+        assert_eq!(d.escape_value(json!("Back\\slash")), "'Back\\slash'");
     }
 }
 
@@ -544,7 +555,7 @@ fn nested_values_are_escaped_like_text() {
         r#"'{"path":"a\\\\b"}'"#
     );
     assert_eq!(
-        dialect_for("postgres").escape_value(json!({"path": "a\\b"})),
+        postgres_dialect().escape_value(json!({"path": "a\\b"})),
         r#"'{"path":"a\\b"}'"#
     );
 }
@@ -577,7 +588,7 @@ fn json_column_values_mysql() {
 
 #[test]
 fn json_column_values_postgres() {
-    let d = dialect_for("postgres");
+    let d = postgres_dialect();
     assert_eq!(
         d.escape_json_value(json!({"html": "<a target=\"_blank\">"})),
         r#"'{"html":"<a target=\"_blank\">"}'"#

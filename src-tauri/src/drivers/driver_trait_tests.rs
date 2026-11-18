@@ -37,14 +37,6 @@ fn manifest_accepts_both_connection_string_example_spellings() {
 }
 
 #[test]
-fn postgres_is_deprecated_in_favour_of_the_postgresql_plugin() {
-    let info = deprecation_for_builtin("postgres").expect("postgres is deprecated");
-    assert_eq!(info.replacement_id, Some("postgresql".to_string()));
-    assert_eq!(info.removal_date, Some("2026-10-05".to_string()));
-    assert_eq!(info.removal_version, None);
-}
-
-#[test]
 fn drivers_without_a_wired_deprecation_return_none() {
     // mysql/sqlite are expected to follow the same path later, but aren't
     // deprecated yet — and an unknown id must not panic or default to some

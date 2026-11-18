@@ -3,10 +3,10 @@ use super::file_transfers::{ClaimedUpload, FileTransferStore};
 use super::table_row_transfers;
 use crate::commands::{register_abort_handle, unregister_abort_handle, AbortHandleMap};
 use crate::drivers::driver_trait::{DatabaseDriver, DatabaseSqlCapabilities};
-use crate::drivers::{mysql, postgres, sqlite};
+use crate::drivers::{mysql, sqlite};
 use crate::dump_utils::DumpDialect;
 use crate::models::{ConnectionParams, Pagination, TableColumn};
-use crate::pool_manager::{get_mysql_pool, get_postgres_pool, get_sqlite_pool};
+use crate::pool_manager::{get_mysql_pool, get_sqlite_pool};
 use crate::runtime::RuntimeContext;
 use crate::table_transfer::TableTransferRequest;
 use futures::TryStreamExt;
@@ -931,34 +931,6 @@ where
                 yield_every_rows(&mut streamed).await;
             }
         }
-        "postgres" => {
-            let pool = get_postgres_pool(params).await?;
-            let client = pool.get().await.map_err(|error| error.to_string())?;
-            let query_params: Vec<i32> = Vec::new();
-            let mut rows = std::pin::pin!(client
-                .query_raw(query, &query_params)
-                .await
-                .map_err(|error| error.to_string())?);
-            let mut columns: Option<Vec<String>> = None;
-            let mut streamed = 0u64;
-            while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
-                let names = columns.get_or_insert_with(|| {
-                    row.columns().iter().map(|c| c.name().to_string()).collect()
-                });
-                let cells = (0..row.columns().len())
-                    .map(|index| {
-                        let column_type = row.columns()[index].type_();
-                        SqlCell {
-                            value: postgres::extract::extract_value(&row, index, None),
-                            is_json: *column_type == tokio_postgres::types::Type::JSON
-                                || *column_type == tokio_postgres::types::Type::JSONB,
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                on_row(names, cells)?;
-                yield_every_rows(&mut streamed).await;
-            }
-        }
         "sqlite" => {
             use sqlx::Column;
             let pool = get_sqlite_pool(params).await?;
@@ -1205,39 +1177,6 @@ async fn execute_import(
                     .execute(&mut *tx)
                     .await
                     .map_err(|error| error.to_string())?;
-            }
-            tx.commit().await.map_err(|error| error.to_string())?;
-            emit_import_complete(runtime, session_id, connection_id, executed);
-        }
-        "postgres" => {
-            let pool = get_postgres_pool(params).await?;
-            let mut client = pool.get().await.map_err(|error| error.to_string())?;
-            let tx = client
-                .transaction()
-                .await
-                .map_err(|error| error.to_string())?;
-            tx.execute(
-                &format!(
-                    "SET search_path TO \"{}\"",
-                    schema.unwrap_or("public").replace('"', "\"\"")
-                ),
-                &[],
-            )
-            .await
-            .map_err(|error| error.to_string())?;
-            tx.execute("SET CONSTRAINTS ALL DEFERRED", &[])
-                .await
-                .map_err(|error| error.to_string())?;
-            tx.execute("SET LOCAL synchronous_commit=OFF", &[])
-                .await
-                .map_err(|error| error.to_string())?;
-            let mut executed = 0;
-            while let Some(statement) = stream.next_statement()? {
-                tx.execute(&statement, &[])
-                    .await
-                    .map_err(|error| statement_error(executed, error, &statement))?;
-                executed += 1;
-                emit_import_interval(runtime, session_id, connection_id, executed);
             }
             tx.commit().await.map_err(|error| error.to_string())?;
             emit_import_complete(runtime, session_id, connection_id, executed);

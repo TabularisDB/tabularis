@@ -1,6 +1,6 @@
 use super::RuntimeContext;
 use crate::config::AppConfig;
-use crate::drivers::{mysql, postgres, registry, sqlite};
+use crate::drivers::{mysql, registry, sqlite};
 use crate::logger::{create_log_buffer, init_logger, SharedLogBuffer};
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -138,6 +138,5 @@ fn load_config(config_dir: &std::path::Path) -> AppConfig {
 
 async fn register_builtin_drivers() {
     registry::register_driver(mysql::MysqlDriver::new()).await;
-    registry::register_driver(postgres::PostgresDriver::new()).await;
     registry::register_driver(sqlite::SqliteDriver::new()).await;
 }

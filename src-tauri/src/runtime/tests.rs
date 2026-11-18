@@ -95,7 +95,7 @@ async fn bootstraps_application_services_without_a_webview() {
         .filter(|manifest| manifest.is_builtin)
         .map(|manifest| manifest.id)
         .collect();
-    assert_eq!(driver_ids, vec!["mysql", "postgres", "sqlite"]);
+    assert_eq!(driver_ids, vec!["mysql", "sqlite"]);
     assert!(bootstrapped.context.paths.data_dir().ends_with("data"));
 }
 

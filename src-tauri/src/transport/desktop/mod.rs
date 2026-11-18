@@ -748,7 +748,6 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
                 // Back up the freshest state before the process ends (no-op
                 // unless backups are enabled and due).
                 backup::run_exit_backup(app_handle);
-                tauri::async_runtime::block_on(crate::runtime::lifecycle::release_pinned_sessions());
                 run_shutdown_hooks.run();
             }
         });

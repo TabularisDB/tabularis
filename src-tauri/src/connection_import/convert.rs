@@ -294,7 +294,7 @@ mod tests {
         assert_eq!(payload.connections.len(), 1);
         assert_eq!(payload.groups.len(), 1);
         let c = &payload.connections[0];
-        assert_eq!(c.params.driver, "postgres");
+        assert_eq!(c.params.driver, "postgresql");
         assert_eq!(c.group_id.as_deref(), Some(payload.groups[0].id.as_str()));
         assert_eq!(c.params.save_in_keychain, Some(false));
     }
