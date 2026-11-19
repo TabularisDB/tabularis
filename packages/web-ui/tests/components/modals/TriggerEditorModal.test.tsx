@@ -314,6 +314,12 @@ describe('TriggerEditorModal save ordering', () => {
             'AFTER UPDATE OF status, total\n',
             'UPDATE OF status, total',
         ],
+        [
+            'a quoted UPDATE OF column with OR in its name',
+            'FOR EACH ROW EXECUTE FUNCTION store.audit_fn()',
+            'AFTER UPDATE OF "ship OR pickup"\n',
+            'UPDATE OF "ship OR pickup"',
+        ],
     ])('keeps %s when it saves an edit', async (_label, clause, expected, updateOf = '') => {
         invokeMock.mockImplementation(async (cmd: string) => {
             if (cmd === 'get_trigger_definition') {

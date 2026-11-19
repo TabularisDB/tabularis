@@ -468,12 +468,19 @@ export function parseTriggerDefinition(def: string): {
     );
     const m = re.exec(def);
     if (!m) return {timing: null, events: []};
+    // Read the events one by one rather than splitting on OR, which may also
+    // appear inside a quoted column name (`"ship OR pickup"`).
+    const one = new RegExp(
+        String.raw`(INSERT|DELETE|UPDATE)(?:\s+OF\s+(${ident}(?:\s*,\s*${ident})*))?(?:\s+OR\s+)?`,
+        'iy',
+    );
     let updateOf: string | undefined;
-    const events = m[2].split(/\s+OR\s+/i).map((part) => {
-        const of = /^UPDATE\s+OF\s+([\s\S]+)$/i.exec(part);
-        if (of) updateOf = of[1].trim();
-        return part.split(/\s/)[0].toUpperCase() as TriggerEvent;
-    });
+    const events: TriggerEvent[] = [];
+    for (let e = one.exec(m[2]); e; e = one.exec(m[2])) {
+        events.push(e[1].toUpperCase() as TriggerEvent);
+        if (e[2]) updateOf = e[2];
+        if (one.lastIndex >= m[2].length) break;
+    }
     return {
         timing: m[1].toUpperCase().replace(/\s+/g, ' ') as TriggerTiming,
         events,

@@ -560,6 +560,25 @@ $function$`;
         expect(parsed.updateOf).toBe(updateOf);
     });
 
+    it('keeps OR inside a quoted column name, and writes the name back exactly', () => {
+        const parsed = parseTriggerDefinition(
+            'CREATE TRIGGER x AFTER UPDATE OF "ship OR pickup" OR DELETE ON orders',
+        );
+        expect(parsed.events).toEqual(['UPDATE', 'DELETE']);
+        expect(parsed.updateOf).toBe('"ship OR pickup"');
+        const [sql] = buildCreateTriggerStatements({
+            dialect: 'postgres',
+            name: 'x',
+            table: 'orders',
+            timing: 'AFTER',
+            events: parsed.events,
+            updateOf: parsed.updateOf,
+            body: '',
+            existingTail: 'EXECUTE FUNCTION f()',
+        });
+        expect(sql).toContain('AFTER UPDATE OF "ship OR pickup" OR DELETE ON');
+    });
+
     it('has no UPDATE OF list for a plain UPDATE', () => {
         expect(
             parseTriggerDefinition('CREATE TRIGGER x AFTER UPDATE ON t').updateOf,
