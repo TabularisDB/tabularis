@@ -164,8 +164,8 @@ default width (256 px) take 320 px, so below 768 px the main area would be narro
 320 px at 1024 px and gets squeezed below that.
 
 `md` and `lg` are pinned in the `@theme` block of `packages/web-ui/src/index.css`;
-`BREAKPOINTS` in `packages/web-ui/src/utils/responsive.ts` holds the same numbers for
-code. Change them together.
+`BREAKPOINTS` in `packages/web-ui/src/utils/responsive.ts` holds the same values (in
+rem, so media queries scale with the browser's default font size) for code. Change them together.
 
 Existing screens are written for wide windows with unprefixed classes. When migrating
 one, add the compact and intermediate rules with `max-md:` and `max-lg:` so the desktop

@@ -5,13 +5,16 @@ import {BREAKPOINTS, MEDIA_QUERIES} from '@/utils/responsive';
 
 const original = window.matchMedia;
 
-/** Fakes matchMedia for `min-width` queries against a mutable viewport width. */
-function stubViewport(initialWidth: number) {
+/** Browser default font size; `rem` in a media query always resolves against it. */
+const DEFAULT_FONT_PX = 16;
+
+/** Fakes matchMedia for `min-width` queries against a mutable viewport width (CSS px). */
+function stubViewport(initialWidth: number, fontPx = DEFAULT_FONT_PX) {
     let width = initialWidth;
     const listeners = new Map<string, Set<() => void>>();
     const matches = (query: string) => {
-        const min = /min-width:\s*(\d+)px/.exec(query);
-        return min ? width >= Number(min[1]) : false;
+        const min = /min-width:\s*(\d+(?:\.\d+)?)rem/.exec(query);
+        return min ? width >= Number(min[1]) * fontPx : false;
     };
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
         get matches() {
@@ -84,14 +87,30 @@ describe('useViewportLayout', () => {
 
     it.each([
         [320, 'compact'],
-        [BREAKPOINTS.intermediate - 1, 'compact'],
-        [BREAKPOINTS.intermediate, 'intermediate'],
-        [BREAKPOINTS.wide - 1, 'intermediate'],
-        [BREAKPOINTS.wide, 'wide'],
+        [BREAKPOINTS.intermediate * DEFAULT_FONT_PX - 1, 'compact'],
+        [BREAKPOINTS.intermediate * DEFAULT_FONT_PX, 'intermediate'],
+        [BREAKPOINTS.wide * DEFAULT_FONT_PX - 1, 'intermediate'],
+        [BREAKPOINTS.wide * DEFAULT_FONT_PX, 'wide'],
     ])('maps %ipx to %s', (width, layout) => {
         stubViewport(width);
         const {result} = renderHook(() => useViewportLayout());
         expect(result.current).toBe(layout);
+    });
+
+    it.each([
+        [BREAKPOINTS.intermediate * 20 - 1, 'compact'],
+        [BREAKPOINTS.intermediate * 20, 'intermediate'],
+        [BREAKPOINTS.wide * 20 - 1, 'intermediate'],
+        [BREAKPOINTS.wide * 20, 'wide'],
+    ])('scales with a 20px default font size: %ipx is %s', (width, layout) => {
+        stubViewport(width, 20);
+        const {result} = renderHook(() => useViewportLayout());
+        expect(result.current).toBe(layout);
+    });
+
+    it('uses rem units so the queries match the Tailwind tokens', () => {
+        expect(MEDIA_QUERIES.intermediate).toBe('(min-width: 48rem)');
+        expect(MEDIA_QUERIES.wide).toBe('(min-width: 64rem)');
     });
 
     it('updates across breakpoints and cleans up both subscriptions', () => {
