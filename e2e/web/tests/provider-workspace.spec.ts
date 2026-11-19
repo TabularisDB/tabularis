@@ -12,10 +12,25 @@ test('styles provider selectors and scrolls long account setup inside the host m
     await expect(legacy).toHaveText('E2E UI extension loaded');
     await page.getByRole('button', {name: 'Add Connection', exact: true}).first().click();
     await page.getByRole('button', {name: 'Connect to E2e Provider', exact: true}).click();
-    const setup = page.frameLocator(
+    const setupFrame = page.locator(
         'iframe[title="Plugin e2e-provider"][data-plugin-slot="connection-modal.setup"]',
     );
+    const setup = setupFrame.contentFrame();
+    // A short first state fits the modal: the frame is as tall as its content and has no scrollbar.
+    await expect(setup.getByTestId('provider-account-loading')).toBeVisible();
+    const scrolls = () =>
+        setup.locator('html').evaluate((html) => html.scrollHeight > html.clientHeight);
+    await expect.poll(scrolls).toBe(false);
+    const shortHeight = (await setupFrame.boundingBox())?.height ?? 0;
+    expect(shortHeight).toBeGreaterThan(0);
+    expect(shortHeight).toBeLessThan(200);
+    // The long form then takes the whole modal body instead of staying at the first height.
+    await setup.getByTestId('provider-load-account').click();
     await expect(setup.getByTestId('provider-long-setup')).toBeVisible();
+    await expect
+        .poll(async () => (await setupFrame.boundingBox())?.height ?? 0)
+        .toBeGreaterThan(400);
+    await expect.poll(scrolls).toBe(true);
     const select = setup.getByRole('combobox', {name: 'Provider database'});
     await expect(select).toHaveCSS('width', /[3-9]\d\d(?:\.\d+)?px/);
     await select.click();

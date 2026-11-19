@@ -16,11 +16,11 @@ body {
     user-select: auto;
 }
 
-/* The host clips to its modal/scrollport. Scroll long forms inside that visible area. */
+/* The host caps the frame to one page of the scrollport around it, so a longer form scrolls in
+   the frame's own viewport. #root keeps its natural height: capping it here would stop the
+   host from ever hearing that the content grew. */
 #root {
-    max-height: var(--tabularis-plugin-visible-bottom, none);
-    overflow: auto;
-    overscroll-behavior: contain;
+    display: flow-root;
 }
 
 /* Editor workspaces receive a definite canvas from the host, independent of content. */
