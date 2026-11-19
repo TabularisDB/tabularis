@@ -199,6 +199,7 @@ vi.mock('lucide-react', () => ({
     Braces: () => null,
     Sparkles: () => null,
     Ban: () => null,
+    PowerOff: () => null,
     Eraser: () => null,
     FileDigit: () => null,
     HelpCircle: () => null,
