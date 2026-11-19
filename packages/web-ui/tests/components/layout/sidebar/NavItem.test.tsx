@@ -16,6 +16,26 @@ describe('NavItem', () => {
         // Icon rendering is harder to test directly without checking SVG internals, but we assume it renders if component mounts
     });
 
+    it('is active on its own page only, not inside a page nested under it', () => {
+        const renderAt = (path: string) =>
+            render(
+                <MemoryRouter initialEntries={[path]}>
+                    <NavItem to="/connections" icon={Database} label="Connections" />
+                </MemoryRouter>,
+            );
+        const onPage = renderAt('/connections');
+        expect(screen.getByRole('link', {name: 'Connections'})).toHaveAttribute(
+            'aria-current',
+            'page',
+        );
+        expect(screen.getByTestId('rail-indicator')).toHaveClass('opacity-100');
+        onPage.unmount();
+        // The editor of an open connection has its own entry on the rail.
+        renderAt('/connections/3f2a/editor');
+        expect(screen.getByRole('link', {name: 'Connections'})).not.toHaveAttribute('aria-current');
+        expect(screen.getByTestId('rail-indicator')).not.toHaveClass('opacity-100');
+    });
+
     it('shows connection indicator when isConnected is true', () => {
         const {container} = render(
             <MemoryRouter>
