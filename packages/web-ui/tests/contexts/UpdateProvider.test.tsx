@@ -16,6 +16,11 @@ vi.mock('@/hooks/useTabularisClient', () => ({
     useTabularisClient: () => mockClient,
 }));
 
+const mockPlatform = vi.hoisted(() => ({currentWindowLabel: vi.fn(() => 'main')}));
+vi.mock('@/hooks/usePlatformCapabilities', () => ({
+    usePlatformCapabilities: () => mockPlatform,
+}));
+
 const WEB_SESSION: SessionNegotiation = {
     apiVersion: 'v1',
     serverVersion: '1.4.2',
@@ -429,6 +434,32 @@ describe('UpdateProvider', () => {
         });
         expect(result.current.updateInfo).toBeNull();
         expect(result.current.availableUpdate?.latestVersion).toBe('1.1.0');
+    });
+
+    it.each([
+        ['main', true],
+        ['json-viewer-123', false],
+    ] as const)('checks for updates on startup in %s: %s', async (label, shouldCheck) => {
+        vi.useFakeTimers();
+        mockPlatform.currentWindowLabel.mockReturnValue(label);
+        mockClient.call.mockImplementation(async (command) =>
+            command === 'get_config' ? {autoCheckUpdatesOnStartup: true} : null,
+        );
+        vi.mocked(invoke).mockResolvedValue({
+            hasUpdate: true,
+            latestVersion: '1.1.0',
+        });
+
+        const wrapper = ({children}: {children: React.ReactNode}) => (
+            <UpdateProvider>{children}</UpdateProvider>
+        );
+        const {result} = renderHook(() => useUpdate(), {wrapper});
+        await act(() => vi.runAllTimersAsync());
+
+        expect(vi.mocked(invoke).mock.calls).toEqual(
+            shouldCheck ? [['check_for_updates', {force: false}]] : [],
+        );
+        expect(result.current.updateInfo?.latestVersion).toBe(shouldCheck ? '1.1.0' : undefined);
     });
 
     it('should not check for updates on startup if disabled in config', async () => {

@@ -4,6 +4,7 @@ import {listen} from '@tauri-apps/api/event';
 import {UpdateContext, type UpdateCheckResult} from './UpdateContext';
 import {toErrorMessage} from '@/utils/errors';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
+import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import type {SessionNegotiation} from '@/api/session';
 
 interface UpdateProviderProps {
@@ -13,6 +14,7 @@ interface UpdateProviderProps {
 
 export const UpdateProvider = ({children, session = null}: UpdateProviderProps) => {
     const client = useTabularisClient();
+    const platform = usePlatformCapabilities();
     const nativeUpdater = session?.capabilities.nativeUpdater ?? true;
     const updaterMode = nativeUpdater ? 'native' : 'server-managed';
     const serverInfo = session
@@ -125,7 +127,7 @@ export const UpdateProvider = ({children, session = null}: UpdateProviderProps) 
                 // Detect installation source first; managed packages skip built-in updates
                 const source = await client.call('get_installation_source', undefined);
                 setInstallationSource(source ?? null);
-                if (source) return;
+                if (source || platform.currentWindowLabel() !== 'main') return;
 
                 const config = await client.call('get_config', undefined);
                 if (config.autoCheckUpdatesOnStartup !== false) {
@@ -140,7 +142,7 @@ export const UpdateProvider = ({children, session = null}: UpdateProviderProps) 
         // Delay startup checks so they do not block application initialization.
         const timer = setTimeout(performStartupCheck, 2000);
         return () => clearTimeout(timer);
-    }, [checkForUpdates, client, nativeUpdater]);
+    }, [checkForUpdates, client, nativeUpdater, platform]);
 
     return (
         <UpdateContext.Provider
