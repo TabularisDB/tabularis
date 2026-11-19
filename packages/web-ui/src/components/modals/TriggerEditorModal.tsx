@@ -62,8 +62,10 @@ interface ParsedTrigger {
 
 // A table name as SQLite may print it: quoted or bare, optionally qualified.
 const SQLITE_NAME = String.raw`(?:"(?:[^"]|"")*"|` + '`[^`]*`' + String.raw`|\[[^\]]*\]|[\w$]+)`;
+// The event, with its `UPDATE OF` columns: a quoted column may contain ` ON `.
+const SQLITE_EVENT = String.raw`(?:INSERT|DELETE|UPDATE(?:\s+OF\s+${SQLITE_NAME}(?:\s*,\s*${SQLITE_NAME})*)?)`;
 const SQLITE_ON_TABLE = new RegExp(
-    String.raw`\b(?:BEFORE|AFTER|INSTEAD\s+OF)\b[\s\S]*?\bON\s+${SQLITE_NAME}(?:\s*\.\s*${SQLITE_NAME})?`,
+    String.raw`\b(?:BEFORE|AFTER|INSTEAD\s+OF)\s+${SQLITE_EVENT}\s+ON\s+${SQLITE_NAME}(?:\s*\.\s*${SQLITE_NAME})?`,
     'i',
 );
 
