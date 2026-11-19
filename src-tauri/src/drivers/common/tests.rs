@@ -148,9 +148,26 @@ fn test_returns_result_set_for_dml_with_returning() {
         "INSERT INTO t SELECT * FROM (SELECT 1 AS returning) s",
         "UPDATE t SET a = 1",
         "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql",
+        // A RETURNING in a comment is not a clause.
+        "UPDATE orders SET status = 'closed' WHERE id = 1 -- RETURNING is not needed here",
+        "UPDATE orders SET status = 'closed' --RETURNING id",
+        "DELETE FROM t /* RETURNING id */ WHERE id = 1",
     ] {
         assert!(!returns_result_set(q), "{q}");
     }
+    // MySQL/MariaDB: `#` starts a comment, and `--` needs a space after it.
+    assert!(!returns_result_set_for(
+        "DELETE FROM t WHERE id = 1 # RETURNING id",
+        true
+    ));
+    assert!(!returns_result_set_for(
+        "DELETE FROM t WHERE id = 1 -- RETURNING id",
+        true
+    ));
+    assert!(returns_result_set_for(
+        "DELETE FROM t WHERE id = 1 RETURNING id",
+        true
+    ));
 }
 
 #[test]

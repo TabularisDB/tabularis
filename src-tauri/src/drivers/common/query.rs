@@ -81,15 +81,26 @@ pub fn returns_result_set_for(query: &str, hash_comments: bool) -> bool {
         | "PRAGMA" | "CALL" => true,
         // `INSERT … RETURNING id` (PostgreSQL, SQLite, MariaDB) sends rows back
         // like a SELECT; executing it for a row count would drop them.
-        "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "REPLACE" => has_returning_clause(body),
+        "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "REPLACE" => {
+            // `hash_comments` is set for MySQL/MariaDB only, which is also the
+            // one dialect whose `--` comments need a space after them.
+            has_returning_clause(
+                body,
+                CommentRules {
+                    hash_comments,
+                    line_comment_requires_space: hash_comments,
+                },
+            )
+        }
         _ => false,
     }
 }
 
 /// Whether the statement has a `RETURNING` clause of its own: a top-level
-/// token, not one inside a string, a quoted name or a parenthesized subquery.
-fn has_returning_clause(statement: &str) -> bool {
-    tokenize_sql_with_pos(statement)
+/// token, not one inside a comment, a string, a quoted name or a
+/// parenthesized subquery.
+fn has_returning_clause(statement: &str, rules: CommentRules) -> bool {
+    tokenize_sql_with_pos(statement, rules)
         .iter()
         .any(|(token, _)| token.eq_ignore_ascii_case("RETURNING"))
 }
