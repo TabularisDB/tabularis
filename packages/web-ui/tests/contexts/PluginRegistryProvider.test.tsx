@@ -57,8 +57,32 @@ describe('PluginRegistryProvider', () => {
         vi.mocked(invoke).mockResolvedValue([
             {...plugin, installed_version: '2.0.0', update_available: false},
         ]);
-        act(() => result.current.tab.refresh());
-        await waitFor(() => expect(result.current.sidebar.updates).toHaveLength(0));
+        await act(async () => result.current.tab.refresh());
+        expect(result.current.sidebar.updates).toHaveLength(0);
+    });
+
+    it('resolves a refresh once its result is in, and a replaced one with its replacement', async () => {
+        const {result} = renderHook(() => usePluginRegistry(), {wrapper});
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        const pending: Array<(plugins: RegistryPluginWithStatus[]) => void> = [];
+        vi.mocked(invoke).mockImplementation(() => new Promise((resolve) => pending.push(resolve)));
+        const settled: string[] = [];
+        let first!: Promise<void>;
+        let second!: Promise<void>;
+        await act(async () => {
+            first = result.current.refresh().then(() => void settled.push('first'));
+        });
+        await act(async () => {
+            second = result.current.refresh().then(() => void settled.push('second'));
+        });
+        expect(pending).toHaveLength(2);
+        // The replaced request answers first: nobody is told the registry is current yet.
+        await act(async () => pending[0]([plugin]));
+        expect(settled).toEqual([]);
+        await act(async () => pending[1]([]));
+        await act(async () => Promise.all([first, second]));
+        expect(settled.sort()).toEqual(['first', 'second']);
+        expect(result.current.plugins).toEqual([]);
     });
 
     it('ignores stale responses when refreshes overlap', async () => {
@@ -71,7 +95,8 @@ describe('PluginRegistryProvider', () => {
                     resolveOld = resolve;
                 }),
         );
-        await act(async () => result.current.refresh());
+        // The old request stays open, so its refresh must not be awaited here.
+        await act(async () => void result.current.refresh());
         vi.mocked(invoke).mockResolvedValue([]);
         await act(async () => result.current.refresh());
         await act(async () => resolveOld([plugin]));
@@ -111,8 +136,8 @@ describe('PluginRegistryProvider', () => {
         rerender();
         await waitFor(() => expect(result.current.error).toBe('Offline'));
         expect(result.current.updates).toEqual([]);
-        act(() => result.current.refresh());
-        await waitFor(() => expect(result.current.updates).toHaveLength(1));
+        await act(async () => result.current.refresh());
+        expect(result.current.updates).toHaveLength(1);
         expect(result.current.error).toBeNull();
     });
 
