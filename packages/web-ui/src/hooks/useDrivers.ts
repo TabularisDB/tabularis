@@ -168,7 +168,7 @@ export function useDrivers(): {
     installedPlugins: InstalledPluginInfo[];
     loading: boolean;
     error: string | null;
-    refresh: () => void;
+    refresh: () => Promise<void>;
 } {
     const client = useTabularisClient();
     const driverStore = getDriverStore(client);

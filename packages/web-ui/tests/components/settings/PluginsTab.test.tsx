@@ -215,6 +215,39 @@ describe('PluginsTab filters and version controls', () => {
         await waitFor(() => expect(mocks.refreshCatalogue).toHaveBeenCalled());
     });
 
+    it('keeps the install button busy until the plugin lists are reloaded', async () => {
+        let finishInstall!: () => void;
+        let finishRegistry!: () => void;
+        vi.mocked(invoke).mockImplementation(async (command) => {
+            if (command === 'get_plugin_startup_errors') return [];
+            if (command === 'install_plugin')
+                return new Promise<void>((resolve) => {
+                    finishInstall = resolve;
+                });
+        });
+        mocks.refreshRegistry.mockReturnValueOnce(
+            new Promise<void>((resolve) => {
+                finishRegistry = resolve;
+            }),
+        );
+        renderTab('all');
+        fireEvent.click(card('MongoDB').getByRole('button', {name: 'Install v2.0.0'}));
+        expect(card('MongoDB').getByRole('button', {name: 'Cancel'})).toBeEnabled();
+        await act(async () => finishInstall());
+        // Installed, but the registry has not answered: busy, and nothing left to cancel.
+        const busy = card('MongoDB').getByRole('button', {name: 'Install v2.0.0'});
+        expect(busy).toBeDisabled();
+        expect(busy).toHaveAttribute('aria-busy', 'true');
+        expect(card('MongoDB').queryByRole('button', {name: 'Cancel'})).not.toBeInTheDocument();
+        expect(card('Redis').getByRole('button', {name: 'Update v2.0.0'})).toBeDisabled();
+        expect(mocks.refreshDrivers).toHaveBeenCalled();
+        await act(async () => finishRegistry());
+        const idle = card('MongoDB').getByRole('button', {name: 'Install v2.0.0'});
+        expect(idle).toBeEnabled();
+        expect(idle).not.toHaveAttribute('aria-busy');
+        expect(card('Redis').getByRole('button', {name: 'Update v2.0.0'})).toBeEnabled();
+    });
+
     it.each(['installed', 'all'])(
         'shows manually copied themes offline in %s and refreshes disk discovery',
         (filter) => {
@@ -756,6 +789,31 @@ describe('PluginsTab theme package removal', () => {
             expect(invoke).not.toHaveBeenCalledWith('uninstall_plugin', expect.anything());
         },
     );
+
+    it('drops a removed package from Installed before the registry catches up', async () => {
+        // The registry is a network round trip behind and still reports the package.
+        setRegistry([{...dracula, id: 'ember-theme', name: 'Ember'}]);
+        mocks.refreshCatalog.mockImplementationOnce(async () => {
+            mocks.catalog = {themes: [], issues: []};
+        });
+        renderTab('installed', 'theme');
+        const installedTab = () => screen.getByRole('button', {name: /^Installed/});
+        expect(installedTab()).toHaveTextContent('Installed1');
+        fireEvent.click(card('Ember').getByRole('button', {name: 'Uninstall package'}));
+        fireEvent.click(
+            within(screen.getByRole('dialog', {name: 'Remove Plugin'})).getByRole('button', {
+                name: 'Remove',
+            }),
+        );
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(screen.queryByText('Ember')).not.toBeInTheDocument();
+        // The count badge hides at zero.
+        expect(installedTab()).toHaveTextContent(/^Installed$/);
+        // It is still offered for install, with nothing left to update.
+        fireEvent.click(screen.getByRole('button', {name: /^All ?\d/}));
+        expect(card('Ember').getByRole('button', {name: 'Install v1.2.0'})).toBeEnabled();
+        expect(card('Ember').queryByText(/^Installed v/)).not.toBeInTheDocument();
+    });
 
     it('cancels without uninstalling the package', () => {
         renderTab('installed', 'theme');
