@@ -15,6 +15,9 @@ interface NavItemProps {
 export const NavItem = ({to, icon: Icon, label, isConnected, badge, tooltip}: NavItemProps) => (
     <NavLink
         to={to}
+        // Each rail entry is one page. Without `end`, Connections would also light up
+        // inside /connections/:id/editor, next to the connection that is open there.
+        end
         aria-label={tooltip ? `${label}: ${tooltip}` : label}
         className={({isActive}) =>
             clsx(

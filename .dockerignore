@@ -1,5 +1,5 @@
 # Allowlist: the image only needs the workspace manifests, the packages, the
-# Rust crate and the docker helpers.
+# Rust crate, the docker helpers and the one script the Web UI build imports.
 *
 !package.json
 !roadmap.json
@@ -10,6 +10,7 @@
 !plugins/manifest.schema.json
 !plugins/ai-assistants/manifest.schema.json
 !plugins/ai-assistants/packages/
+!scripts/generate-theme-schema-validators.ts
 !src-tauri/
 !docker/
 
