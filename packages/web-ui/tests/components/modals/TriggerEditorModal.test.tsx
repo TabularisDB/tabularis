@@ -354,19 +354,6 @@ describe('TriggerEditorModal save ordering', () => {
             expect((created[0][1] as {triggerSql: string}).triggerSql).toContain(expected);
         });
     });
-});
-
-vi.mock('@/hooks/useTabularisClient', () => {
-    const client = {call: (...args: unknown[]) => invokeMock(...args)};
-    return {useTabularisClient: () => client};
-});
-
-vi.mock('@/hooks/usePlatformCapabilities', () => {
-    const platform = {
-        negotiation: {environment: 'tauri'},
-        confirm: (...args: unknown[]) => askMock(...args),
-    };
-    return {usePlatformCapabilities: () => platform};
 
     it('loads and updates a function whose name is quoted apart from its schema', async () => {
         // pg_get_triggerdef quotes each part only when needed: app."AuditLog"().
@@ -423,4 +410,17 @@ vi.mock('@/hooks/usePlatformCapabilities', () => {
             expect(query).not.toContain('products_audit_fn');
         });
     });
+});
+
+vi.mock('@/hooks/useTabularisClient', () => {
+    const client = {call: (...args: unknown[]) => invokeMock(...args)};
+    return {useTabularisClient: () => client};
+});
+
+vi.mock('@/hooks/usePlatformCapabilities', () => {
+    const platform = {
+        negotiation: {environment: 'tauri'},
+        confirm: (...args: unknown[]) => askMock(...args),
+    };
+    return {usePlatformCapabilities: () => platform};
 });
