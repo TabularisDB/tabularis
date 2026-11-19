@@ -769,6 +769,55 @@ mod query_timeout {
         assert_eq!(names.rows[0][0], serde_json::json!(0));
     }
 
+    /// A read stopped after a write inside the batch's transaction leaves
+    /// the transaction open, and the batch never reaches its COMMIT. The
+    /// connection must not go back to the pool holding the write lock.
+    #[tokio::test]
+    async fn a_stopped_read_after_a_write_rolls_back_the_open_transaction() {
+        use sqlx::Connection as _;
+        let (mut params, _file) = setup_test_db().await;
+        params.query_timeout_secs = Some(1);
+        let queries = [
+            "BEGIN".to_string(),
+            "INSERT INTO users (name) VALUES ('A')".to_string(),
+            SLOW_COUNT.to_string(),
+            "COMMIT".to_string(),
+        ];
+
+        let results = super::super::execute_batch(&params, &queries, None, 1, None)
+            .await
+            .expect("batch runs");
+        assert_eq!(results[2].error.as_deref(), Some(STOPPED));
+        assert_eq!(results[3].error.as_deref(), Some(NOT_RUN));
+
+        let path = match &params.database {
+            super::DatabaseSelection::Single(path) => path.clone(),
+            other => panic!("unexpected database selection: {other:?}"),
+        };
+        let mut fresh = sqlx::SqliteConnection::connect_with(
+            &super::SqliteConnectOptions::new()
+                .filename(&path)
+                .busy_timeout(Duration::from_secs(1)),
+        )
+        .await
+        .expect("open a fresh connection");
+        sqlx::query("INSERT INTO users (name) VALUES ('Carol')")
+            .execute(&mut fresh)
+            .await
+            .expect("a fresh connection can write");
+        fresh.close().await.expect("close the fresh connection");
+
+        let rows = super::super::execute_query(
+            &params,
+            "SELECT COUNT(*) FROM users WHERE name = 'A'",
+            None,
+            1,
+        )
+        .await
+        .expect("count");
+        assert_eq!(rows.rows[0][0], serde_json::json!(0));
+    }
+
     #[tokio::test]
     async fn stops_a_read_only_query_and_keeps_the_pool_writable() {
         let (mut params, _file) = setup_test_db().await;

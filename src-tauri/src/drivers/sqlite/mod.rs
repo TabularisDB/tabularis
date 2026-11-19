@@ -847,12 +847,13 @@ pub async fn execute_batch(
 ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
     let mut run = acquire_sqlite_run(params).await?;
     let mut results = Vec::with_capacity(queries.len());
+    let mut stopped = false;
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
         let outcome = run
             .exec_within_query_timeout(params, q, limit, page)
             .await?;
-        let stopped = matches!(&outcome, Err(e) if cancel::is_stopped(e));
+        stopped = matches!(&outcome, Err(e) if cancel::is_stopped(e));
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
         if let Some(cb) = on_progress {
             cb(idx, &res);
@@ -872,6 +873,20 @@ pub async fn execute_batch(
                 results.push(res);
             }
             break;
+        }
+    }
+    if stopped {
+        // A stopped read can leave the batch's transaction open, and its
+        // COMMIT never ran. Roll it back rather than pool a connection that
+        // holds the write lock; close the connection if that fails.
+        use sqlx::Executor as _;
+        match run.conn().execute(sqlx::raw_sql("ROLLBACK")).await {
+            Ok(_) => {}
+            Err(e) if e.to_string().contains("no transaction is active") => {}
+            Err(e) => {
+                log::warn!("SQLite: rolling back after a stopped batch failed: {e}");
+                return Ok(results);
+            }
         }
     }
     run.release().await;
