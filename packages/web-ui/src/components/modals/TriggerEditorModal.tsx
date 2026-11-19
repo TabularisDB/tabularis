@@ -60,12 +60,36 @@ interface ParsedTrigger {
     forEach: 'ROW' | 'STATEMENT';
 }
 
+// A table name as SQLite may print it: quoted or bare, optionally qualified.
+const SQLITE_NAME = String.raw`(?:"(?:[^"]|"")*"|` + '`[^`]*`' + String.raw`|\[[^\]]*\]|[\w$]+)`;
+// The event, with its `UPDATE OF` columns: a quoted column may contain ` ON `.
+const SQLITE_EVENT = String.raw`(?:INSERT|DELETE|UPDATE(?:\s+OF\s+${SQLITE_NAME}(?:\s*,\s*${SQLITE_NAME})*)?)`;
+const SQLITE_ON_TABLE = new RegExp(
+    String.raw`\b(?:BEFORE|AFTER|INSTEAD\s+OF)\s+${SQLITE_EVENT}\s+ON\s+${SQLITE_NAME}(?:\s*\.\s*${SQLITE_NAME})?`,
+    'i',
+);
+
+/**
+ * SQLite lets a trigger leave out `FOR EACH ROW`
+ * (`CREATE TRIGGER t AFTER INSERT ON x BEGIN … END`): its body then starts
+ * right after the `ON <table>` clause, with an optional `WHEN` before `BEGIN`.
+ */
+function splitAfterOnTable(sql: string): {header: string; rest: string} | null {
+    const m = SQLITE_ON_TABLE.exec(sql);
+    if (!m) return null;
+    const end = m.index + m[0].length;
+    return {header: sql.slice(0, end), rest: sql.slice(end).trim()};
+}
+
 function parseTriggerSql(sql: string, dialect: TriggerDialect): ParsedTrigger {
     // Restrict header to the part before FOR EACH to avoid matching keywords in the body
     const m = sql.match(/\bFOR\s+EACH\s+(ROW|STATEMENT)\b/i);
     const hasSplit = m?.index !== undefined;
-    const header = hasSplit ? sql.slice(0, m!.index) : sql;
-    const rest = hasSplit ? sql.slice(m!.index! + m![0].length).trim() : null;
+    const sqliteSplit = !hasSplit && dialect === 'sqlite' ? splitAfterOnTable(sql) : null;
+    const header = hasSplit ? sql.slice(0, m!.index) : (sqliteSplit?.header ?? sql);
+    const rest = hasSplit
+        ? sql.slice(m!.index! + m![0].length).trim()
+        : (sqliteSplit?.rest ?? null);
     const {timing, events} = parseTriggerDefinition(header);
     const forEach = m && m[1].toUpperCase() === 'STATEMENT' ? 'STATEMENT' : 'ROW';
 
