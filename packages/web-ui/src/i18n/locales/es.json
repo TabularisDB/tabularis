@@ -2349,9 +2349,20 @@
           "collapse": "Celdas contraídas/expandidas",
           "params": "Parámetros cambiados",
           "stopOnError": "Detener en error alternado",
-          "other": "Notebook editado"
+          "other": "Notebook editado",
+          "reportInclusion": "Inclusión en el informe cambiada (celda {{n}})"
         }
-      }
+      },
+      "viewMode": "Modo de vista",
+      "editMode": "Editar",
+      "reportMode": "Informe",
+      "includeInReport": "Incluir en el informe",
+      "excludeFromReport": "Excluir del informe",
+      "includedInReport": "Incluido en el informe",
+      "excludedFromReport": "Excluido del informe",
+      "reportOutdated": "Desactualizado",
+      "reportNoOutput": "Sin resultados aún. Ejecuta el cuaderno para cargarlos.",
+      "reportEmpty": "No hay celdas incluidas en este informe."
     },
     "querySelection": {
       "title": "Seleccionar consulta a ejecutar",
@@ -3478,6 +3489,7 @@
     "fkIncoming": "Referenciada por {{object}}.{{column}}",
     "viewTitle": "Vista {{view}}",
     "historyTitle": "Consulta ejecutada {{date}}",
+    "failedRun": "Ejecución fallida",
     "matchCount": "Referencias en este SQL: {{count}}",
     "open": "Abrir",
     "openHistory": "Abrir en el editor",

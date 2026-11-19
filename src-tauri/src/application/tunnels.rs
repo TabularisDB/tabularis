@@ -5,8 +5,10 @@ use crate::models::{
 use crate::runtime::RuntimeContext;
 use serde::Serialize;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -611,15 +613,59 @@ fn resolve_ssh_params(
     params: &ConnectionParams,
     askpass_server: Option<crate::askpass::AskpassServer>,
 ) -> Result<ConnectionParams, String> {
+    let (target, proxy, key) = ssh_tunnel_route(params)?;
+    let tunnel = open_shared_tunnel(&key, || {
+        open_ssh_tunnel(params, &target, proxy, askpass_server)
+    })?;
+    Ok(point_at_tunnel(params, &tunnel, &target))
+}
+
+/// The live cached tunnel for `key`, or one opened with `open` and cached.
+/// Callers for the same key take turns, and each re-checks the cache once it
+/// has the key's lock, so concurrent callers share one SSH login. Callers for
+/// other keys do not wait.
+pub(crate) fn open_shared_tunnel(
+    key: &str,
+    open: impl FnOnce() -> Result<crate::ssh_tunnel::SshTunnel, String>,
+) -> Result<crate::ssh_tunnel::SshTunnel, String> {
+    if let Some(tunnel) = live_tunnel(key) {
+        log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
+        return Ok(tunnel);
+    }
+    let lock = tunnel_open_lock(key);
+    let _opening = lock.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(tunnel) = live_tunnel(key) {
+        log::debug!(
+            "Reusing SSH tunnel on port {} opened by another caller",
+            tunnel.local_port
+        );
+        return Ok(tunnel);
+    }
+    Ok(cache_tunnel(key.to_string(), open()?))
+}
+
+/// The lock held while the tunnel for `key` is being opened. Entries are
+/// kept: there is one per tunnel key, and those come from saved connections.
+fn tunnel_open_lock(key: &str) -> Arc<Mutex<()>> {
+    static LOCKS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
+    LOCKS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .entry(key.to_string())
+        .or_default()
+        .clone()
+}
+
+fn open_ssh_tunnel(
+    params: &ConnectionParams,
+    target: &crate::ssh_tunnel::ForwardTarget,
+    proxy: Option<crate::proxy::ProxyEndpoint>,
+    askpass_server: Option<crate::askpass::AskpassServer>,
+) -> Result<crate::ssh_tunnel::SshTunnel, String> {
     let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
     let ssh_port = params.ssh_port.unwrap_or(22);
     let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
-    let (target, proxy, key) = ssh_tunnel_route(params)?;
-    if let Some(tunnel) = live_tunnel(&key) {
-        log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
-        return Ok(point_at_tunnel(params, &tunnel, &target));
-    }
-
     let (tcp_host, tcp_port) = if let Some(proxy) = proxy {
         let fwd_port = crate::proxy::ensure_forward(&proxy, ssh_host, ssh_port)?;
         log::info!(
@@ -661,8 +707,7 @@ fn resolve_ssh_params(
         "SSH tunnel created successfully on port {}",
         tunnel.local_port
     );
-    let tunnel = cache_tunnel(key, tunnel);
-    Ok(point_at_tunnel(params, &tunnel, &target))
+    Ok(tunnel)
 }
 
 /// How `params` reach their SSH tunnel: the forward target, the SSH-scope

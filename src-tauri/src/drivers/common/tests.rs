@@ -1,11 +1,11 @@
 use super::{
-    build_paginated_query, calculate_query_timing, calculate_query_timing_from_start,
-    decode_blob_wire_format, encode_blob, encode_blob_full, full_type_if_distinct, i64_to_json,
-    is_explainable_query, is_explainable_query_for, is_select_query, is_select_query_for,
-    parse_unsafe_bigint_string, returns_result_set, returns_result_set_for,
-    strip_leading_sql_comments, strip_leading_sql_comments_for, strip_limit_offset,
-    transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER,
-    JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
+    build_paginated_query, build_paginated_query_for, calculate_query_timing,
+    calculate_query_timing_from_start, decode_blob_wire_format, encode_blob, encode_blob_full,
+    full_type_if_distinct, i64_to_json, is_explainable_query, is_explainable_query_for,
+    is_select_query, is_select_query_for, parse_unsafe_bigint_string, returns_result_set,
+    returns_result_set_for, strip_leading_sql_comments, strip_leading_sql_comments_for,
+    strip_limit_offset, transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE,
+    JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
 };
 
 #[test]
@@ -526,6 +526,53 @@ fn test_build_paginated_query_ignores_comma_limit_in_subquery() {
 }
 
 #[test]
+fn test_build_paginated_query_honors_postgres_row_limit_forms() {
+    // PostgreSQL accepts OFFSET before LIMIT, `LIMIT ALL`, `OFFSET <n> ROWS`
+    // and the standard `FETCH FIRST`; leaving any of them in place next to
+    // the appended LIMIT is a syntax error.
+    for (q, page_1, page_2) in [
+        (
+            "SELECT * FROM t OFFSET 10 LIMIT 5",
+            "SELECT * FROM t LIMIT 5 OFFSET 10",
+            "SELECT * FROM t LIMIT 3 OFFSET 12",
+        ),
+        (
+            "SELECT * FROM t LIMIT ALL",
+            "SELECT * FROM t LIMIT 101 OFFSET 0",
+            "SELECT * FROM t LIMIT 3 OFFSET 2",
+        ),
+        (
+            "SELECT * FROM t LIMIT ALL OFFSET 10",
+            "SELECT * FROM t LIMIT 101 OFFSET 10",
+            "SELECT * FROM t LIMIT 3 OFFSET 12",
+        ),
+        (
+            "SELECT * FROM t OFFSET 10 ROWS",
+            "SELECT * FROM t LIMIT 101 OFFSET 10",
+            "SELECT * FROM t LIMIT 3 OFFSET 12",
+        ),
+        (
+            "SELECT * FROM t ORDER BY id FETCH FIRST 5 ROWS ONLY",
+            "SELECT * FROM t ORDER BY id LIMIT 5 OFFSET 0",
+            "SELECT * FROM t ORDER BY id LIMIT 3 OFFSET 2",
+        ),
+        (
+            "SELECT * FROM t OFFSET 10 ROWS FETCH NEXT 5 ROWS ONLY;",
+            "SELECT * FROM t LIMIT 5 OFFSET 10",
+            "SELECT * FROM t LIMIT 3 OFFSET 12",
+        ),
+        (
+            "select * from t fetch first row only",
+            "select * from t LIMIT 1 OFFSET 0",
+            "select * from t LIMIT 0 OFFSET 2",
+        ),
+    ] {
+        assert_eq!(build_paginated_query(q, 100, 1), page_1, "{q}");
+        assert_eq!(build_paginated_query(q, 2, 2), page_2, "{q}");
+    }
+}
+
+#[test]
 fn test_build_paginated_query_replaces_user_limit() {
     let q = "SELECT * FROM t ORDER BY id LIMIT 50";
     let result = build_paginated_query(q, 100, 1);
@@ -647,6 +694,54 @@ fn test_build_paginated_query_multiline_comments_with_user_limit() {
     assert_eq!(
         result,
         "-- ============\n-- title\n-- ============\n\nSELECT * FROM t ORDER BY id LIMIT 50 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_for_postgres_keeps_hash_operators_and_strips_semicolon() {
+    let with_limit = "SELECT data #>> '{a}' FROM t LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(with_limit, 100, 1, false, false),
+        "SELECT data #>> '{a}' FROM t LIMIT 5 OFFSET 0"
+    );
+
+    let with_semicolon = "SELECT data #>> '{a}' FROM t;";
+    assert_eq!(
+        build_paginated_query_for(with_semicolon, 100, 1, false, false),
+        "SELECT data #>> '{a}' FROM t LIMIT 101 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_for_postgres_sqlite_handles_unspaced_dash_comments() {
+    let trailing_comment = "SELECT * FROM t --note";
+    assert_eq!(
+        build_paginated_query_for(trailing_comment, 100, 1, false, false),
+        "SELECT * FROM t --note\nLIMIT 101 OFFSET 0"
+    );
+
+    let with_limit = "SELECT * FROM t LIMIT 5 --note";
+    assert_eq!(
+        build_paginated_query_for(with_limit, 100, 1, false, false),
+        "SELECT * FROM t LIMIT 5 OFFSET 0"
+    );
+
+    let with_semicolon = "SELECT * FROM t; --note";
+    assert_eq!(
+        build_paginated_query_for(with_semicolon, 100, 1, false, false),
+        "SELECT * FROM t LIMIT 101 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_for_mysql_preserves_hash_and_spaced_dash_comments() {
+    assert_eq!(
+        build_paginated_query_for("SELECT * FROM t # note", 100, 1, true, true),
+        "SELECT * FROM t # note\nLIMIT 101 OFFSET 0"
+    );
+    assert_eq!(
+        build_paginated_query_for("SELECT 1--2;", 1, 1, true, true),
+        "SELECT 1--2 LIMIT 2 OFFSET 0"
     );
 }
 

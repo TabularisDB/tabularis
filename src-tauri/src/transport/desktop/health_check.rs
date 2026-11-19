@@ -1,6 +1,7 @@
 use crate::application::connection_lifecycle::{
-    tunnel_discards, ConnectionLifecycle, ConnectionLifecycleEvent, HealthTracker, PingOutcome,
-    PingVerdict, TickPing, CONNECTION_LIFECYCLE_EVENT, POOL_CLOSE_TIMEOUT, RECONNECT_TIMEOUT,
+    auto_reconnect_for_tick, tunnel_discards, ConnectionLifecycle, ConnectionLifecycleEvent,
+    HealthTracker, PingOutcome, PingVerdict, TickPing, CONNECTION_LIFECYCLE_EVENT,
+    POOL_CLOSE_TIMEOUT, RECONNECT_TIMEOUT,
 };
 use crate::application::tunnels::{discard_ssh_tunnel, ssh_tunnel_lease, TunnelLease};
 pub(crate) use crate::health_check::*;
@@ -106,9 +107,11 @@ async fn ping_all_connections(app: &tauri::AppHandle, tracker: &mut HealthTracke
         })
         .collect();
 
-    let auto_reconnect = crate::transport::desktop::config::load_config_internal(app)
-        .auto_reconnect
-        .unwrap_or(false);
+    let auto_reconnect = auto_reconnect_for_tick(&tick, || {
+        crate::transport::desktop::config::load_config_internal(app)
+            .auto_reconnect
+            .unwrap_or(false)
+    });
     let mut on_discarded_tunnel = std::collections::HashSet::new();
     for discard in tunnel_discards(&tick, auto_reconnect) {
         if discard_ssh_tunnel(&discard.lease) {

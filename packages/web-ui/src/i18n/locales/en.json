@@ -2448,9 +2448,20 @@
           "collapse": "Collapsed/expanded cells",
           "params": "Changed parameters",
           "stopOnError": "Toggled stop on error",
-          "other": "Edited notebook"
+          "other": "Edited notebook",
+          "reportInclusion": "Toggled report inclusion (cell {{n}})"
         }
-      }
+      },
+      "viewMode": "View mode",
+      "editMode": "Edit",
+      "reportMode": "Report",
+      "includeInReport": "Include in Report",
+      "excludeFromReport": "Exclude from Report",
+      "includedInReport": "Included in Report",
+      "excludedFromReport": "Excluded from Report",
+      "reportOutdated": "Outdated",
+      "reportNoOutput": "No output yet. Run the notebook to load results.",
+      "reportEmpty": "No cells are included in this report."
     },
     "querySelection": {
       "title": "Select Query to Execute",
@@ -3781,6 +3792,7 @@
     "fkIncoming": "Referenced by {{object}}.{{column}}",
     "viewTitle": "View {{view}}",
     "historyTitle": "Query run {{date}}",
+    "failedRun": "Failed run",
     "matchCount": "References in this SQL: {{count}}",
     "open": "Open",
     "openHistory": "Open in editor",

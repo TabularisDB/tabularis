@@ -264,6 +264,8 @@ const DialectTriggerEditor = ({
         driver,
         capabilities,
         ...(existingFunctionName ? {existingFunctionName} : {}),
+        // Editing keeps the trigger's FOR EACH level and WHEN condition as loaded.
+        ...(!isNewTrigger && existingFunctionName && pgExisting ? {existingTail: pgExisting} : {}),
     };
     const buildTriggerFunctionSql = () => buildTriggerFunctionSqlUtil(sqlInput);
     const buildTriggerSqlUtilFn = (): string => buildTriggerSqlUtil(sqlInput);
@@ -498,6 +500,9 @@ const DialectTriggerEditor = ({
             driver,
             capabilities,
             ...(existingFunctionName ? {existingFunctionName} : {}),
+            ...(!isNewTrigger && existingFunctionName && pgExisting
+                ? {existingTail: pgExisting}
+                : {}),
         };
         // Mirror handleSave's edit-path flow: create/replace function → drop_trigger
         // → create_trigger. The function is created BEFORE the drop so a failure in

@@ -306,6 +306,25 @@ describe('notebookUndo', () => {
                 describeChange(ns([cell('a')]), ns([cell('a')], {stopOnError: true} as never)),
             ).toMatchObject({kind: 'stopOnError'});
         });
+        it('tracks includeInReport changes in undo/redo and describeChange', () => {
+            const c1 = {...cell('c1'), includeInReport: undefined};
+            const s1: NotebookState = {cells: [c1]};
+            const s2: NotebookState = {cells: [{...c1, includeInReport: false}]};
+            const s3: NotebookState = {cells: [{...c1, includeInReport: true}]};
+
+            expect(documentSignature(s1)).not.toBe(documentSignature(s2));
+            // undefined and true both mean included
+            expect(documentSignature(s1)).toBe(documentSignature(s3));
+
+            expect(describeChange(s1, s2)).toEqual({kind: 'reportInclusion', n: 1});
+
+            const h = recordEdit(createHistory(), s1, s2, 1000);
+            expect(h.past).toHaveLength(1);
+            const undone = undo(h, s2);
+            expect(undone?.state.cells[0].includeInReport).toBeUndefined();
+            const redone = redo(undone!.history, undone!.state);
+            expect(redone?.state.cells[0].includeInReport).toBe(false);
+        });
     });
 });
 
