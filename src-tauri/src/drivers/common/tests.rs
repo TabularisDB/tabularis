@@ -128,6 +128,49 @@ fn test_returns_result_set_for_hash_comments() {
 }
 
 #[test]
+fn test_returns_result_set_for_dml_with_returning() {
+    for q in [
+        "INSERT INTO t (a) VALUES (1) RETURNING id",
+        "insert into t values (1) returning *",
+        "UPDATE t SET a = 1 WHERE id = 2 RETURNING a, id",
+        "DELETE FROM t WHERE id = 1 RETURNING *;",
+        "-- header\nDELETE FROM t RETURNING id",
+        "MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE RETURNING t.id",
+        "REPLACE INTO t VALUES (1) RETURNING id",
+        "INSERT INTO t SELECT * FROM s RETURNING\n  id",
+    ] {
+        assert!(returns_result_set(q), "{q}");
+    }
+    for q in [
+        "INSERT INTO t (a) VALUES (1)",
+        "INSERT INTO t (note) VALUES ('RETURNING soon')",
+        "INSERT INTO t (\"returning\") VALUES (1)",
+        "INSERT INTO t SELECT * FROM (SELECT 1 AS returning) s",
+        "UPDATE t SET a = 1",
+        "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql",
+        // A RETURNING in a comment is not a clause.
+        "UPDATE orders SET status = 'closed' WHERE id = 1 -- RETURNING is not needed here",
+        "UPDATE orders SET status = 'closed' --RETURNING id",
+        "DELETE FROM t /* RETURNING id */ WHERE id = 1",
+    ] {
+        assert!(!returns_result_set(q), "{q}");
+    }
+    // MySQL/MariaDB: `#` starts a comment, and `--` needs a space after it.
+    assert!(!returns_result_set_for(
+        "DELETE FROM t WHERE id = 1 # RETURNING id",
+        true
+    ));
+    assert!(!returns_result_set_for(
+        "DELETE FROM t WHERE id = 1 -- RETURNING id",
+        true
+    ));
+    assert!(returns_result_set_for(
+        "DELETE FROM t WHERE id = 1 RETURNING id",
+        true
+    ));
+}
+
+#[test]
 fn test_strip_leading_sql_comments_unterminated() {
     assert_eq!(strip_leading_sql_comments("-- only comment"), "");
     assert_eq!(strip_leading_sql_comments("/* never closed"), "");
@@ -570,6 +613,68 @@ fn test_build_paginated_query_honors_postgres_row_limit_forms() {
         assert_eq!(build_paginated_query(q, 100, 1), page_1, "{q}");
         assert_eq!(build_paginated_query(q, 2, 2), page_2, "{q}");
     }
+}
+
+#[test]
+fn test_build_paginated_query_ignores_quotes_in_comments() {
+    // An apostrophe or parenthesis in a comment must not hide the user's
+    // LIMIT, or a second LIMIT is appended after it.
+    for (q, expected) in [
+        (
+            "SELECT * FROM t -- don't page\nLIMIT 5",
+            "SELECT * FROM t -- don't page\nLIMIT 5 OFFSET 0",
+        ),
+        (
+            "SELECT * FROM t /* it's here */ LIMIT 5 OFFSET 2",
+            "SELECT * FROM t /* it's here */\nLIMIT 5 OFFSET 2",
+        ),
+        (
+            "SELECT * FROM t WHERE id IN (1, 2 /* (3? it's gone */) LIMIT 5",
+            "SELECT * FROM t WHERE id IN (1, 2 /* (3? it's gone */) LIMIT 5 OFFSET 0",
+        ),
+        (
+            "SELECT * FROM (\n  SELECT * FROM t -- user's rows\n) s LIMIT 5",
+            "SELECT * FROM (\n  SELECT * FROM t -- user's rows\n) s LIMIT 5 OFFSET 0",
+        ),
+        (
+            "SELECT 1 AS x-- it's\nLIMIT 5",
+            "SELECT 1 AS x-- it's\nLIMIT 5 OFFSET 0",
+        ),
+    ] {
+        assert_eq!(build_paginated_query(q, 100, 1), expected, "{q}");
+    }
+    // `--` followed by text is not a comment in MySQL, and a quote in a
+    // string is still a string.
+    assert_eq!(
+        build_paginated_query("SELECT '-- x' FROM t LIMIT 5", 100, 1),
+        "SELECT '-- x' FROM t LIMIT 5 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_for_skips_comments_by_dialect() {
+    // PostgreSQL and SQLite: `--` needs no space after it.
+    let q = "SELECT * FROM orders --don't page\nLIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, false, false),
+        "SELECT * FROM orders --don't page\nLIMIT 5 OFFSET 0"
+    );
+    let q = "SELECT data #>> '{a}' FROM t -- it's\nLIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, false, false),
+        "SELECT data #>> '{a}' FROM t -- it's\nLIMIT 5 OFFSET 0"
+    );
+    // MySQL: `5--3` is arithmetic, and `#` starts a comment.
+    let q = "SELECT 5--3 AS x FROM t LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, true, true),
+        "SELECT 5--3 AS x FROM t LIMIT 5 OFFSET 0"
+    );
+    let q = "SELECT * FROM t # don't page\nLIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, true, true),
+        "SELECT * FROM t # don't page\nLIMIT 5 OFFSET 0"
+    );
 }
 
 #[test]
