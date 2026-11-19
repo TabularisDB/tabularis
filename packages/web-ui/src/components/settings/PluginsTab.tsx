@@ -348,6 +348,7 @@ function PluginVersionActions({
     plugin,
     selectedVersion,
     installingPluginId,
+    finishingPluginId,
     cancellingPluginId,
     onSelectVersion,
     onInstall,
@@ -356,6 +357,8 @@ function PluginVersionActions({
     plugin: RegistryPluginWithStatus;
     selectedVersion?: string;
     installingPluginId: string | null;
+    /** Installed, with the plugin lists still reloading: busy, no longer cancellable. */
+    finishingPluginId: string | null;
     cancellingPluginId: string | null;
     onSelectVersion: (version: string) => void;
     onInstall: (pluginId: string, version: string) => void;
@@ -363,7 +366,8 @@ function PluginVersionActions({
 }) {
     const {t} = useTranslation();
     const version = getPluginVersionState(plugin, selectedVersion, APP_VERSION);
-    const isInstalling = installingPluginId === plugin.id;
+    const isFinishing = finishingPluginId === plugin.id;
+    const isInstalling = installingPluginId === plugin.id && !isFinishing;
     const isCancelling = cancellingPluginId === plugin.id;
     const hasPicker = version.options.length > 1;
     const pickerLabel = version.isDefaultSelection
@@ -431,7 +435,10 @@ function PluginVersionActions({
             ? 'border-accent-warning/30 bg-accent-warning/12 text-accent-warning hover:bg-accent-warning/20'
             : 'border-accent-primary/30 bg-accent-primary/12 text-accent hover:bg-accent-primary/20';
     const disabled =
-        !version.isCompatible || (installingPluginId !== null && !isInstalling) || isCancelling;
+        !version.isCompatible ||
+        (installingPluginId !== null && !isInstalling) ||
+        isCancelling ||
+        isFinishing;
 
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -443,6 +450,7 @@ function PluginVersionActions({
                             : onInstall(plugin.id, version.selectedVersion)
                     }
                     disabled={disabled}
+                    aria-busy={isFinishing || undefined}
                     title={
                         !version.isCompatible
                             ? t('settings.plugins.requiresVersion', {version: version.minVersion})
@@ -450,11 +458,11 @@ function PluginVersionActions({
                     }
                     className={clsx(
                         'flex h-7 min-w-0 items-center justify-center gap-1.5 border px-2.5 text-[11px] font-semibold transition-colors disabled:opacity-50',
-                        hasPicker && !isInstalling ? 'rounded-l-md' : 'rounded-md',
+                        hasPicker && !isInstalling && !isFinishing ? 'rounded-l-md' : 'rounded-md',
                         toneClass,
                     )}
                 >
-                    {isCancelling ? (
+                    {isCancelling || isFinishing ? (
                         <Loader2 size={11} className="animate-spin" />
                     ) : isInstalling ? (
                         <CircleStop size={11} />
@@ -467,7 +475,7 @@ function PluginVersionActions({
                     )}
                     {isInstalling ? t('common.cancel') : actionLabel}
                 </button>
-                {hasPicker && !isInstalling && (
+                {hasPicker && !isInstalling && !isFinishing && (
                     // Split button: the arrow opens the release list, so the version
                     // choice lives on the action itself instead of a second control.
                     <VersionDropdown
@@ -658,6 +666,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
     const {openConnectionIds, connectionDataMap, disconnect, connections} = useDatabase();
 
     const [installingPluginId, setInstallingPluginId] = useState<string | null>(null);
+    const [finishingPluginId, setFinishingPluginId] = useState<string | null>(null);
     const [cancellingPluginId, setCancellingPluginId] = useState<string | null>(null);
     const [pluginInstallError, setPluginInstallError] = useState<{
         pluginId: string;
@@ -884,6 +893,17 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                     delete next[pluginId];
                     return next;
                 });
+            // The card only shows the new state once the lists that feed it are back,
+            // and the registry is a network round trip: stay busy until then, or the
+            // button reads "Install" again in between.
+            const reload = async (...lists: Array<Promise<unknown> | void>) => {
+                setFinishingPluginId(pluginId);
+                try {
+                    await Promise.all(lists);
+                } finally {
+                    forgetSelection();
+                }
+            };
             const registryPlugin = registryPlugins.find((plugin) => plugin.id === pluginId);
             try {
                 if (registryPlugin && pluginKind(registryPlugin) === 'theme') {
@@ -898,9 +918,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                         expectedRegistryKey: snapshot.registryKey,
                         version,
                     });
-                    forgetSelection();
-                    await refreshCatalog();
-                    refreshRegistry();
+                    await reload(refreshCatalog(), refreshRegistry());
                     return;
                 }
                 await client.call(
@@ -908,10 +926,8 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                     {pluginId, version},
                     {deadlineMs: PLUGIN_INSTALL_DEADLINE_MS},
                 );
-                forgetSelection();
                 if (registryPlugin?.kind === 'ai-assistant') {
-                    await refreshAiProviders();
-                    await refreshRegistry();
+                    await reload(refreshAiProviders(), refreshRegistry());
                     return;
                 }
                 await updateSettingRef.current(
@@ -924,8 +940,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                         ]),
                     ),
                 );
-                refreshRegistry();
-                refreshDrivers();
+                await reload(refreshRegistry(), refreshDrivers());
                 const pluginName =
                     registryPlugins.find((plugin) => plugin.id === pluginId)?.name ?? pluginId;
                 onPluginsChanged?.({type: 'install', pluginId, pluginName});
@@ -940,6 +955,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
             } finally {
                 themeRegistryKeys.current.delete(pluginId);
                 setInstallingPluginId(null);
+                setFinishingPluginId(null);
                 setCancellingPluginId(null);
             }
         },
@@ -1126,6 +1142,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
             plugin={plugin}
             selectedVersion={selectedVersions[plugin.id]}
             installingPluginId={installingPluginId}
+            finishingPluginId={finishingPluginId}
             cancellingPluginId={cancellingPluginId}
             onSelectVersion={(version) =>
                 setSelectedVersions((previous) => ({
