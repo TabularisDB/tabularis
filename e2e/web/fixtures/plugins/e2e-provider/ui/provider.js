@@ -8,6 +8,7 @@ var __tabularis_plugin__ = function ProviderFixture({context}) {
     const [source, setSource] = React.useState('const revision = 1;');
     const [database, setDatabase] = React.useState('main');
     const [language, setLanguage] = React.useState('javascript');
+    const [accountLoaded, setAccountLoaded] = React.useState(false);
     api.usePluginEvent(
         'e2e-provider',
         'resource-changed',
@@ -16,6 +17,21 @@ var __tabularis_plugin__ = function ProviderFixture({context}) {
         }, []),
     );
     if (context.__tabularisSlot === 'connection-modal.setup') {
+        // A short first state, like a provider still loading its account, then the long form.
+        if (!accountLoaded)
+            return React.createElement(
+                'div',
+                {'data-testid': 'provider-account-loading', className: 'p-4 text-primary'},
+                React.createElement(
+                    'button',
+                    {
+                        'data-testid': 'provider-load-account',
+                        className: 'rounded-lg bg-accent-primary px-3 py-2 text-inverse',
+                        onClick: () => setAccountLoaded(true),
+                    },
+                    'Load provider account',
+                ),
+            );
         return React.createElement(
             'div',
             {'data-testid': 'provider-long-setup', className: 'p-4 text-primary'},
