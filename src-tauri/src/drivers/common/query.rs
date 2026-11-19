@@ -155,20 +155,43 @@ fn read_quoted(chars: &[(usize, char)], i: &mut usize, quote: char) -> String {
     token
 }
 
+/// A driver's line-comment rules, as in [`build_paginated_query_for`].
+#[derive(Clone, Copy)]
+struct CommentRules {
+    /// `# …` is a line comment (MySQL/MariaDB).
+    hash_comments: bool,
+    /// `--` starts a comment only before whitespace or the end (MySQL/MariaDB).
+    line_comment_requires_space: bool,
+}
+
+/// The rules [`build_paginated_query`] and the public helpers use when no
+/// driver is given: MySQL's, the most restrictive.
+const DEFAULT_COMMENT_RULES: CommentRules = CommentRules {
+    hash_comments: true,
+    line_comment_requires_space: true,
+};
+
 /// If a comment starts at `chars[i]`, returns the index just past it: past
-/// the end of the line for `-- `, past `*/` for `/* */` (or the end of the
-/// input when either is not closed). `--` must be followed by whitespace,
-/// as in [`trailing_comment_start`].
-fn comment_end(chars: &[(usize, char)], i: usize) -> Option<usize> {
+/// the end of the line for `--` and `#`, past `*/` for `/* */` (or the end of
+/// the input when either is not closed), following `rules` as
+/// [`trailing_comment_start`] does.
+fn comment_end(chars: &[(usize, char)], i: usize, rules: CommentRules) -> Option<usize> {
     let at = |index: usize| chars.get(index).map(|&(_, ch)| ch);
-    match (at(i), at(i + 1)) {
-        (Some('-'), Some('-')) if !matches!(at(i + 2), Some(ch) if !ch.is_whitespace()) => {
-            let mut end = i + 2;
-            while end < chars.len() && chars[end].1 != '\n' {
-                end += 1;
-            }
-            Some(end)
+    let line_end = |from: usize| {
+        let mut end = from;
+        while end < chars.len() && chars[end].1 != '\n' {
+            end += 1;
         }
+        end
+    };
+    match (at(i), at(i + 1)) {
+        (Some('-'), Some('-'))
+            if !rules.line_comment_requires_space
+                || !matches!(at(i + 2), Some(ch) if !ch.is_whitespace()) =>
+        {
+            Some(line_end(i + 2))
+        }
+        (Some('#'), _) if rules.hash_comments => Some(line_end(i + 1)),
         (Some('/'), Some('*')) => {
             let mut end = i + 2;
             while end < chars.len() && !(chars[end].1 == '*' && at(end + 1) == Some('/')) {
@@ -192,7 +215,7 @@ fn comment_end(chars: &[(usize, char)], i: usize) -> Option<usize> {
 /// `tapp_appointment_message_event_limit`. Each token is returned with
 /// its starting byte offset so callers can slice the original input
 /// instead of rebuilding it from tokens.
-fn tokenize_sql_with_pos(sql: &str) -> Vec<(String, usize)> {
+fn tokenize_sql_with_pos(sql: &str, rules: CommentRules) -> Vec<(String, usize)> {
     let mut tokens: Vec<(String, usize)> = Vec::new();
     let chars: Vec<(usize, char)> = sql.char_indices().collect();
     let len = chars.len();
@@ -207,7 +230,7 @@ fn tokenize_sql_with_pos(sql: &str) -> Vec<(String, usize)> {
         }
 
         // A quote or parenthesis inside a comment must not open a token.
-        if let Some(end) = comment_end(&chars, i) {
+        if let Some(end) = comment_end(&chars, i, rules) {
             i = end;
             continue;
         }
@@ -222,7 +245,7 @@ fn tokenize_sql_with_pos(sql: &str) -> Vec<(String, usize)> {
             let mut token = String::new();
             let mut depth = 0;
             while i < len {
-                if let Some(end) = comment_end(&chars, i) {
+                if let Some(end) = comment_end(&chars, i, rules) {
                     token.extend(chars[i..end].iter().map(|&(_, ch)| ch));
                     i = end;
                     continue;
@@ -267,7 +290,7 @@ fn tokenize_sql_with_pos(sql: &str) -> Vec<(String, usize)> {
                 || ch == '\''
                 || ch == '"'
                 || ch == '`'
-                || comment_end(&chars, i).is_some()
+                || comment_end(&chars, i, rules).is_some()
             {
                 break;
             }
@@ -403,8 +426,12 @@ fn trailing_row_limit(tokens: &[(String, usize)]) -> Option<TrailingRowLimit> {
 /// begin with `--` headers — the appended pagination clause would land
 /// on the same line as the `--` and be parsed as part of the comment.
 pub fn strip_limit_offset(query: &str) -> String {
+    strip_limit_offset_with(query, DEFAULT_COMMENT_RULES)
+}
+
+fn strip_limit_offset_with(query: &str, rules: CommentRules) -> String {
     let trimmed = query.trim_end();
-    let tokens = tokenize_sql_with_pos(trimmed);
+    let tokens = tokenize_sql_with_pos(trimmed, rules);
     match trailing_row_limit(&tokens) {
         Some(row_limit) => trimmed[..tokens[row_limit.start].1].trim_end().to_string(),
         None => trimmed.to_string(),
@@ -417,8 +444,10 @@ pub fn strip_limit_offset(query: &str) -> String {
 /// Uses a token-aware scan so that `LIMIT` as a substring of a table name
 /// (e.g. `tapp_appointment_message_event_limit`) is never misidentified.
 pub fn extract_user_limit(query: &str) -> Option<u32> {
-    let tokens = tokenize_sql_with_pos(query.trim());
-    trailing_row_limit(&tokens)?.limit?.try_into().ok()
+    trailing_row_limit_of(query, DEFAULT_COMMENT_RULES)?
+        .limit?
+        .try_into()
+        .ok()
 }
 
 /// Extract the numeric value from a trailing OFFSET clause, if present.
@@ -427,8 +456,14 @@ pub fn extract_user_limit(query: &str) -> Option<u32> {
 /// [`strip_limit_offset`] removes. Uses a token-aware scan so `OFFSET` inside
 /// an identifier or string literal is never misidentified.
 pub fn extract_user_offset(query: &str) -> Option<u32> {
-    let tokens = tokenize_sql_with_pos(query.trim());
-    trailing_row_limit(&tokens)?.offset?.try_into().ok()
+    trailing_row_limit_of(query, DEFAULT_COMMENT_RULES)?
+        .offset?
+        .try_into()
+        .ok()
+}
+
+fn trailing_row_limit_of(query: &str, rules: CommentRules) -> Option<TrailingRowLimit> {
+    trailing_row_limit(&tokenize_sql_with_pos(query.trim(), rules))
 }
 
 /// Build a paginated query by stripping any user-supplied LIMIT/OFFSET and
@@ -466,16 +501,28 @@ pub fn build_paginated_query_for(
             Some(comment_start) => normalized[..comment_start].trim_end(),
             None => normalized,
         };
-    let user_limit = extract_user_limit(clause_source);
-    let user_offset = extract_user_offset(clause_source).unwrap_or(0);
+    let rules = CommentRules {
+        hash_comments,
+        line_comment_requires_space,
+    };
+    let row_limit = trailing_row_limit_of(clause_source, rules);
+    let user_limit: Option<u32> = row_limit
+        .as_ref()
+        .and_then(|r| r.limit)
+        .and_then(|l| l.try_into().ok());
+    let user_offset: u32 = row_limit
+        .as_ref()
+        .and_then(|r| r.offset)
+        .and_then(|o| o.try_into().ok())
+        .unwrap_or(0);
     // Cut at the clauses even when they set nothing (`LIMIT ALL`, `OFFSET 0`).
-    let has_row_limit = trailing_row_limit(&tokenize_sql_with_pos(clause_source)).is_some();
+    let has_row_limit = row_limit.is_some();
     let base_source = if has_row_limit {
         clause_source
     } else {
         normalized
     };
-    let base = strip_limit_offset(base_source);
+    let base = strip_limit_offset_with(base_source, rules);
 
     let fetch_count = match user_limit {
         Some(ul) => {

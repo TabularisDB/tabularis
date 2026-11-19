@@ -609,6 +609,32 @@ fn test_build_paginated_query_ignores_quotes_in_comments() {
 }
 
 #[test]
+fn test_build_paginated_query_for_skips_comments_by_dialect() {
+    // PostgreSQL and SQLite: `--` needs no space after it.
+    let q = "SELECT * FROM orders --don't page\nLIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, false, false),
+        "SELECT * FROM orders --don't page\nLIMIT 5 OFFSET 0"
+    );
+    let q = "SELECT data #>> '{a}' FROM t -- it's\nLIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, false, false),
+        "SELECT data #>> '{a}' FROM t -- it's\nLIMIT 5 OFFSET 0"
+    );
+    // MySQL: `5--3` is arithmetic, and `#` starts a comment.
+    let q = "SELECT 5--3 AS x FROM t LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, true, true),
+        "SELECT 5--3 AS x FROM t LIMIT 5 OFFSET 0"
+    );
+    let q = "SELECT * FROM t # don't page\nLIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(q, 100, 1, true, true),
+        "SELECT * FROM t # don't page\nLIMIT 5 OFFSET 0"
+    );
+}
+
+#[test]
 fn test_build_paginated_query_replaces_user_limit() {
     let q = "SELECT * FROM t ORDER BY id LIMIT 50";
     let result = build_paginated_query(q, 100, 1);
