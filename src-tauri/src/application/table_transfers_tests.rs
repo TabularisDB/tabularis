@@ -237,22 +237,7 @@ mod select {
     }
 
     #[test]
-    fn reads_postgres_columns_as_text_and_binary_columns_as_hex() {
-        let columns = [
-            typed("id", "integer"),
-            typed("raw", "bytea"),
-            TableColumn {
-                is_generated: true,
-                ..typed("doubled", "integer")
-            },
-        ];
-        let reads = column_reads("postgres", &columns);
-        assert_eq!(reads, [ColumnRead::Text, ColumnRead::Text]);
-        assert_eq!(
-            export_select(&dialect("\"", true), Some("public"), "t", &columns, &reads),
-            "SELECT \"id\"::text AS \"id\", \"raw\"::text AS \"raw\" FROM \"public\".\"t\""
-        );
-
+    fn reads_mysql_binary_columns_as_hex_and_text_columns_as_text() {
         let columns = [
             typed("id", "int"),
             typed("raw", "BLOB"),

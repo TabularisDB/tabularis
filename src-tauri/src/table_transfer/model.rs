@@ -44,62 +44,7 @@ impl TransferValue {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TransferDialect {
-    Postgres,
     Sqlite,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PgTarget {
-    Bool,
-    Int(u8),
-    Float(u8),
-    Decimal {
-        precision: Option<u32>,
-        scale: Option<u32>,
-    },
-    Text {
-        max_len: Option<u64>,
-    },
-    Uuid,
-    Json,
-    Jsonb,
-    Date,
-    Time {
-        precision: Option<u32>,
-    },
-    Timestamp {
-        precision: Option<u32>,
-    },
-    TimestampTz {
-        precision: Option<u32>,
-    },
-    Bytea,
-}
-
-impl PgTarget {
-    /// Unconstrained type a bound parameter is cast to. Length, precision
-    /// and scale are enforced by the column itself on assignment, after the
-    /// converter has already verified that the value fits.
-    pub fn cast_type(&self) -> &'static str {
-        match self {
-            Self::Bool => "boolean",
-            Self::Int(16) => "smallint",
-            Self::Int(32) => "integer",
-            Self::Int(_) => "bigint",
-            Self::Float(32) => "real",
-            Self::Float(_) => "double precision",
-            Self::Decimal { .. } => "numeric",
-            Self::Text { .. } => "text",
-            Self::Uuid => "uuid",
-            Self::Json => "json",
-            Self::Jsonb => "jsonb",
-            Self::Date => "date",
-            Self::Time { .. } => "time",
-            Self::Timestamp { .. } => "timestamp",
-            Self::TimestampTz { .. } => "timestamptz",
-            Self::Bytea => "bytea",
-        }
-    }
 }
 
 /// SQLite columns by declared type, using the rules of the type-affinity
@@ -119,7 +64,6 @@ pub enum SqliteTarget {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TargetType {
-    Pg(PgTarget),
     Sqlite(SqliteTarget),
 }
 
@@ -147,16 +91,40 @@ pub enum ConversionRule {
 pub enum Op {
     Copy,
     BoolToInt,
-    IntRange { min: i64, max: i64 },
-    IntToFloat { max_exact: i64 },
-    IntToDecimal { precision: Option<u32>, scale: Option<u32> },
-    FloatCheck { bits: u8, allow_non_finite: bool },
-    DecimalFit { precision: Option<u32>, scale: Option<u32> },
-    DecimalToInt { min: i64, max: i64 },
-    DecimalToFloat { bits: u8, allow_non_finite: bool },
+    IntRange {
+        min: i64,
+        max: i64,
+    },
+    IntToFloat {
+        max_exact: i64,
+    },
+    IntToDecimal {
+        precision: Option<u32>,
+        scale: Option<u32>,
+    },
+    FloatCheck {
+        bits: u8,
+        allow_non_finite: bool,
+    },
+    DecimalFit {
+        precision: Option<u32>,
+        scale: Option<u32>,
+    },
+    DecimalToInt {
+        min: i64,
+        max: i64,
+    },
+    DecimalToFloat {
+        bits: u8,
+        allow_non_finite: bool,
+    },
     DecimalToNumeric,
-    TextMaxLen { max: u64 },
-    Temporal { precision: u32 },
+    TextMaxLen {
+        max: u64,
+    },
+    Temporal {
+        precision: u32,
+    },
     JsonNotNumeric,
 }
 

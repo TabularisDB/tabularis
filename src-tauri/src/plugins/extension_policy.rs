@@ -14,7 +14,7 @@ fn valid_id(value: &str) -> bool {
 }
 
 pub fn validate_target(plugin_id: &str, driver: &str) -> Result<(), String> {
-    if !valid_id(plugin_id) || ["postgres", "mysql", "sqlite"].contains(&plugin_id) {
+    if !valid_id(plugin_id) || ["mysql", "sqlite"].contains(&plugin_id) {
         return Err("An external plugin identifier is required".into());
     }
     if plugin_id != driver {

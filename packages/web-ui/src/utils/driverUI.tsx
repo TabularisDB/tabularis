@@ -4,7 +4,7 @@ import {lazy, Suspense} from 'react';
 import type {ReactNode} from 'react';
 import type {PluginManifest} from '@/types/plugins';
 import type {SavedConnection} from '@/contexts/DatabaseContext';
-import {PostgreSQLIcon, MySQLIcon, SQLiteIcon} from './driverIcons';
+import {MySQLIcon, SQLiteIcon} from './driverIcons';
 import {RegistryDriverIcon} from '@/components/RegistryDriverIcon';
 
 const FALLBACK_COLOR = '#64748b'; // slate-500
@@ -52,8 +52,6 @@ export function getDriverIcon(manifest: PluginManifest | undefined | null, size 
 
     // Brand icons for built-in drivers
     switch (iconName) {
-        case 'postgres':
-            return <PostgreSQLIcon size={size} />;
         case 'mysql':
             return <MySQLIcon size={size} />;
         case 'sqlite':

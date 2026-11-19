@@ -190,18 +190,6 @@ export interface Settings {
     columnMaskingPatterns?: string[];
     /** Per-connection `table.column` include/exclude overrides, keyed by connection id. */
     columnMaskingOverrides?: Record<string, {include?: string[]; exclude?: string[]}>;
-    // Built-in driver migration
-    /** Whether the user has dismissed the PostgreSQL-plugin migration banner.
-     * Absent/undefined → banner is eligible to show. Resurfaces automatically
-     * if a builtin-postgres connection appears that wasn't in
-     * `postgresPluginMigrationBannerDismissedFor` at dismissal time — the same
-     * "did-the-condition-change" gating `WhatsNewModal` uses for its own
-     * version comparison. */
-    postgresPluginMigrationBannerDismissed?: boolean;
-    /** Connection ids that existed (on the builtin driver) at the moment the
-     * banner was dismissed. A builtin connection id not in this list means the
-     * trigger condition changed since the dismissal, so the banner shows again. */
-    postgresPluginMigrationBannerDismissedFor?: string[];
     /** Append-only record of every connection migrated between built-in and
      * plugin drivers. Kept even after an undo. */
     driverMigrationHistory?: DriverMigrationRecord[];

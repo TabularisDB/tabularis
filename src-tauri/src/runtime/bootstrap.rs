@@ -1,6 +1,6 @@
 use super::RuntimeContext;
 use crate::config::AppConfig;
-use crate::drivers::{mysql, postgres, registry, sqlite};
+use crate::drivers::{mysql, registry, sqlite};
 use crate::logger::{create_log_buffer, init_logger, SharedLogBuffer};
 use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -110,6 +110,15 @@ pub async fn bootstrap_application(
     }
 
     if options.run_connection_migrations {
+        // Driver-id migration runs first so connections are on the plugin id
+        // ("postgresql") before the ssl-mode migration tries to resolve their
+        // dialect — otherwise the removed "postgres" driver can't resolve and
+        // stale ssl_mode spellings are skipped for one launch cycle.
+        crate::connection_migrations::migrate_builtin_driver_ids_at_path(
+            &context.paths.connections_file(),
+        )
+        .await
+        .ok();
         crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(
             &context.paths.connections_file(),
         )
@@ -133,6 +142,5 @@ fn load_config(config_dir: &std::path::Path) -> AppConfig {
 
 async fn register_builtin_drivers() {
     registry::register_driver(mysql::MysqlDriver::new()).await;
-    registry::register_driver(postgres::PostgresDriver::new()).await;
     registry::register_driver(sqlite::SqliteDriver::new()).await;
 }

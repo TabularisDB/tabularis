@@ -244,7 +244,7 @@ mod tests {
     fn marks_duplicates() {
         let env = envelope(vec![conn("A", "Host", 5432, "DB", "User", "PostgreSQL")]);
         let existing = vec![saved("x", "Existing", "host", 5432, "db", "user")];
-        let preview = analyze(&env, &existing, &["postgres".into()], &|_| true);
+        let preview = analyze(&env, &existing, &["postgresql".into()], &|_| true);
         assert!(matches!(
             preview.items[0].status,
             ImportItemStatus::Duplicate { .. }
@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn warns_on_uninstalled_driver() {
         let env = envelope(vec![conn("A", "h", 27017, "db", "u", "MongoDB")]);
-        let preview = analyze(&env, &[], &["postgres".into()], &|_| true);
+        let preview = analyze(&env, &[], &["postgresql".into()], &|_| true);
         match &preview.items[0].status {
             ImportItemStatus::Warnings { warnings } => {
                 assert!(warnings.iter().any(|w| w.contains("not installed")));
@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn ready_when_known_and_unique() {
         let env = envelope(vec![conn("A", "h", 5432, "db", "u", "PostgreSQL")]);
-        let preview = analyze(&env, &[], &["postgres".into()], &|_| true);
+        let preview = analyze(&env, &[], &["postgresql".into()], &|_| true);
         assert!(matches!(preview.items[0].status, ImportItemStatus::Ready));
     }
 
@@ -278,7 +278,7 @@ mod tests {
         // here surfaces as `Duplicate of ""` in the UI (see analyzer note).
         let env = envelope(vec![conn("A", "Host", 5432, "DB", "User", "PostgreSQL")]);
         let existing = vec![saved("x", "Existing Name", "host", 5432, "db", "user")];
-        let preview = analyze(&env, &existing, &["postgres".into()], &|_| true);
+        let preview = analyze(&env, &existing, &["postgresql".into()], &|_| true);
         let json = serde_json::to_value(&preview.items[0].status).unwrap();
         assert_eq!(json["kind"], "duplicate");
         assert_eq!(json["existingId"], "x");

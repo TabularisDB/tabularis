@@ -2976,15 +2976,21 @@ fn decode_database_transfer_command(
         }
         DatabaseTransferRpcCommand::PlanTableTransfer => {
             let request: TableTransferRpcRequest = decode_payload(body)?;
-            DatabaseTransferCommand::PlanTableTransfer { request: request.request }
+            DatabaseTransferCommand::PlanTableTransfer {
+                request: request.request,
+            }
         }
         DatabaseTransferRpcCommand::RunTableTransfer => {
             let request: TableTransferRpcRequest = decode_payload(body)?;
-            DatabaseTransferCommand::RunTableTransfer { request: request.request }
+            DatabaseTransferCommand::RunTableTransfer {
+                request: request.request,
+            }
         }
         DatabaseTransferRpcCommand::CancelTableTransfer => {
             let request: CancelTableTransferRequest = decode_payload(body)?;
-            DatabaseTransferCommand::CancelTableTransfer { transfer_id: request.transfer_id }
+            DatabaseTransferCommand::CancelTableTransfer {
+                transfer_id: request.transfer_id,
+            }
         }
         DatabaseTransferRpcCommand::PreviewTableImport => {
             let request: ReadTableSqlHeaderRequest = decode_payload(body)?;

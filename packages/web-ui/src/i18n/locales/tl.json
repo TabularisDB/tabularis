@@ -1218,12 +1218,6 @@
               "label": "Timezone",
               "description": "Session timezone na ipinapadala sa MySQL pagkatapos kumonekta."
             }
-          },
-          "postgres": {
-            "poolMaxSize": {
-              "label": "Pool Max Size",
-              "description": "Maximum na bilang ng PostgreSQL connections na pinapanatili sa pool."
-            }
           }
         }
       },
@@ -3433,55 +3427,6 @@
     },
     "title": "Log ng pagsubok ng koneksyon",
     "showLog": "Ipakita ang log"
-  },
-  "migration": {
-    "banner": {
-      "nudge": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired. The plugin has the same features and gets updates faster.",
-      "nudgeWithDate": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired (tentatively {{date}}). The plugin has the same features and gets updates faster.",
-      "offline": "The PostgreSQL plugin couldn't be downloaded — we'll retry on the next launch. Check your connection or network if this keeps happening.",
-      "reviewConnections": "Review connections"
-    },
-    "switchToPlugin": "Switch to plugin",
-    "switchToBuiltin": "Switch back to built-in",
-    "confirm": {
-      "title": "Lumipat sa plugin?",
-      "message": "Lumipat ang {{name}} sa PostgreSQL plugin? Kung kasalukuyang konektado, ito ay magdiskonekta at mabubuksan muli gamit ang plugin.",
-      "uriMessage": "Lumipat ang {{name}} sa PostgreSQL plugin? Ang connection string na naka-imbak sa keychain ay hindi madadala — kakailanganin mong ilagay ulit ito para makakonekta.",
-      "confirmLabel": "Lumipat",
-      "confirmLabelUri": "Lumipat at ilagay ulit mamaya",
-      "undoTitle": "Bumalik sa built-in driver?",
-      "undoMessage": "Ibalik ang {{name}} sa built-in na PostgreSQL driver? Kung kasalukuyang konektado, ito ay magdiskonekta at mabubuksan muli gamit ang built-in driver.",
-      "undoConfirmLabel": "Ibalik"
-    },
-    "toast": {
-      "success": "Na-switch ang {{name}} sa PostgreSQL plugin.",
-      "connectionFailure": "Hindi makakonekta sa {{name}} gamit ang plugin: {{error}}",
-      "connectionFailurePreexisting": "Hindi makakonekta sa {{name}} gamit ang alinman sa dalawang driver: {{error}}. Hindi ito problema ng plugin — nanatili ang paglipat sa plugin.",
-      "processFailureWithError": "Hindi nag-start ang PostgreSQL plugin: {{error}}. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
-      "processFailure": "Hindi nag-start ang PostgreSQL plugin. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
-      "failed": "Hindi ma-switch ang {{name}} sa plugin: {{error}}",
-      "undo": "I-undo",
-      "undoFailed": "Hindi maibalik ang {{name}} sa built-in driver: {{error}}",
-      "reportIssue": "I-report ang isyu"
-    },
-    "checklist": {
-      "title": "Suriin ang mga koneksyon",
-      "subtitle_one": "{{count}} koneksyon na nasa built-in driver pa rin",
-      "subtitle_other": "{{count}} koneksyon na nasa built-in driver pa rin",
-      "migrateSelected_one": "Ilipat ang {{count}} napili",
-      "migrateSelected_other": "Ilipat ang {{count}} napili",
-      "reportThisGap": "I-report ang isyung ito",
-      "alreadyReported": "Na-report",
-      "testing": "Sinusubukan ang koneksyon…",
-      "uriWarning": "Ang connection string na naka-imbak sa keychain ay hindi madadala — kakailanganin mong ilagay ulit ito pagkatapos lumipat.",
-      "noGaps": "Walang koneksyon na susuriin.",
-      "close": "Isara",
-      "migratingNotice": "Magpapatuloy ang migration kahit isara mo ang window na ito.",
-      "gap": {
-        "ssl": "Gumagamit ng SSL/TLS, hindi pa suportado ng plugin",
-        "connection_uri": "Gumagamit ng connection string, hindi pa suportado ng plugin"
-      }
-    }
   },
   "themePackages": {
     "import": "Mag-import ng tema",

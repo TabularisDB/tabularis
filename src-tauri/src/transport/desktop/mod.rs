@@ -13,9 +13,9 @@ pub mod config;
 pub mod connection_appearance;
 pub mod connection_import_commands;
 pub mod connection_window;
-pub mod data_files;
 #[cfg(test)]
 mod connection_window_tests;
+pub mod data_files;
 pub mod database_backup;
 pub mod dump_commands;
 #[cfg(feature = "e2e-testing")]
@@ -748,7 +748,6 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
                 // Back up the freshest state before the process ends (no-op
                 // unless backups are enabled and due).
                 backup::run_exit_backup(app_handle);
-                tauri::async_runtime::block_on(crate::runtime::lifecycle::release_pinned_sessions());
                 run_shutdown_hooks.run();
             }
         });

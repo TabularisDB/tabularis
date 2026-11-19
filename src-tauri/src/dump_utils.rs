@@ -30,12 +30,10 @@ impl DumpDialect {
     /// Builds the dump dialect for a driver from its manifest capabilities.
     ///
     /// `driver_id` is only consulted to keep the historical Postgres handling
-    /// for the builtin `postgres` driver and the `postgresql` plugin when a
-    /// manifest predates `sql_dialect`; every other decision comes from the
-    /// capabilities.
+    /// for the `postgresql` plugin when a manifest predates `sql_dialect`;
+    /// every other decision comes from the capabilities.
     pub fn from_capabilities(driver_id: &str, caps: &DriverCapabilities) -> Self {
-        let postgres = caps.sql_dialect == Some(SqlDialect::Postgres)
-            || matches!(driver_id, "postgres" | "postgresql");
+        let postgres = caps.sql_dialect == Some(SqlDialect::Postgres) || driver_id == "postgresql";
         let identifier_quote = if caps.identifier_quote.is_empty() {
             "\"".to_string()
         } else {

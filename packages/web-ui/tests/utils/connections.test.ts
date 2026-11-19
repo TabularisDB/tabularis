@@ -144,10 +144,6 @@ describe('connections', () => {
     });
 
     describe('getDefaultPort', () => {
-        it('should return correct default port for PostgreSQL', () => {
-            expect(getDefaultPort('postgres')).toBe(5432);
-        });
-
         it('should return correct default port for MySQL', () => {
             expect(getDefaultPort('mysql')).toBe(3306);
         });
@@ -157,7 +153,7 @@ describe('connections', () => {
         });
 
         it('should return 0 for an unrecognized bare driver id (e.g. a plugin id with no manifest resolved)', () => {
-            expect(getDefaultPort('postgresql')).toBe(0);
+            expect(getDefaultPort('unknown-driver')).toBe(0);
         });
 
         it('should read default_port off a PluginManifest for a non-"postgres" plugin id (issue #614)', () => {
@@ -380,10 +376,6 @@ describe('connections', () => {
     });
 
     describe('getDriverLabel', () => {
-        it('should return human-readable label for PostgreSQL', () => {
-            expect(getDriverLabel('postgres')).toBe('PostgreSQL');
-        });
-
         it('should return human-readable label for MySQL', () => {
             expect(getDriverLabel('mysql')).toBe('MySQL');
         });
@@ -393,7 +385,7 @@ describe('connections', () => {
         });
 
         it('should return an all-caps fallback for an unrecognized bare driver id', () => {
-            expect(getDriverLabel('postgresql')).toBe('POSTGRESQL');
+            expect(getDriverLabel('unknown-driver')).toBe('UNKNOWN-DRIVER');
         });
 
         it('should read name off a PluginManifest for a non-"postgres" plugin id (issue #614), not the all-caps fallback', () => {
@@ -935,27 +927,9 @@ describe('connections', () => {
             ...overrides,
         });
 
-        it('returns "to-plugin" when the current driver is deprecated', () => {
-            const drivers = [
-                baseManifest('postgres', {
-                    deprecated: {replacement_id: 'postgresql', removal_date: '2026-10-05'},
-                }),
-                baseManifest('postgresql'),
-            ];
-            expect(migrationDirectionForDriver('postgres', drivers)).toBe('to-plugin');
-        });
-
-        it('returns "to-builtin" when the current driver is the replacement of a deprecated built-in', () => {
-            const drivers = [
-                baseManifest('postgres', {
-                    deprecated: {replacement_id: 'postgresql', removal_date: '2026-10-05'},
-                }),
-                baseManifest('postgresql'),
-            ];
-            expect(migrationDirectionForDriver('postgresql', drivers)).toBe('to-builtin');
-        });
-
-        it('returns null for a driver unrelated to any deprecation', () => {
+        it('returns null when no migration pairs are wired', () => {
+            // The postgres:postgresql pair was removed when the built-in driver
+            // was deleted. With an empty pairs set, no driver triggers migration.
             const drivers = [
                 baseManifest('postgres', {
                     deprecated: {replacement_id: 'postgresql', removal_date: '2026-10-05'},
@@ -964,38 +938,10 @@ describe('connections', () => {
                 baseManifest('mysql'),
                 baseManifest('sqlite'),
             ];
-            expect(migrationDirectionForDriver('mysql', drivers)).toBeNull();
-            expect(migrationDirectionForDriver('sqlite', drivers)).toBeNull();
-        });
-
-        it('returns null when no driver is deprecated at all', () => {
-            const drivers = [baseManifest('postgres'), baseManifest('mysql')];
             expect(migrationDirectionForDriver('postgres', drivers)).toBeNull();
-        });
-
-        it('returns null for an unknown driver id', () => {
-            const drivers = [
-                baseManifest('postgres', {
-                    deprecated: {replacement_id: 'postgresql', removal_date: '2026-10-05'},
-                }),
-            ];
-            expect(migrationDirectionForDriver('sqlite', drivers)).toBeNull();
-        });
-
-        it('returns null for a deprecated driver with no wired migration hook yet', () => {
-            // A manifest can carry `deprecated` before its migration hook exists
-            // (e.g. a future mysql deprecation, wired incrementally). The action
-            // must stay hidden until the UI actually supports that pair — otherwise
-            // clicking it would fall through to whatever hook happens to be
-            // instantiated (postgres today), flipping the driver to the wrong plugin.
-            const drivers = [
-                baseManifest('mysql', {
-                    deprecated: {replacement_id: 'mysql-plugin', removal_date: '2027-01-01'},
-                }),
-                baseManifest('mysql-plugin'),
-            ];
+            expect(migrationDirectionForDriver('postgresql', drivers)).toBeNull();
             expect(migrationDirectionForDriver('mysql', drivers)).toBeNull();
-            expect(migrationDirectionForDriver('mysql-plugin', drivers)).toBeNull();
+            expect(migrationDirectionForDriver('sqlite', drivers)).toBeNull();
         });
     });
 

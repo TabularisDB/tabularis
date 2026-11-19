@@ -1,9 +1,0 @@
-{
-  "kind": "raw",
-  "raw": {
-    "engine": "postgres",
-    "format": "postgres-json",
-    "payload": "[{\"Execution Time\":0.012,\"Plan\":{\"Actual Loops\":1,\"Actual Rows\":1,\"Actual Startup Time\":0.004,\"Actual Total Time\":0.005,\"Alias\":\"all_types\",\"Async Capable\":false,\"Filter\":\"(id = 1)\",\"Local Dirtied Blocks\":0,\"Local Hit Blocks\":0,\"Local Read Blocks\":0,\"Local Written Blocks\":0,\"Node Type\":\"Seq Scan\",\"Parallel Aware\":false,\"Plan Rows\":1,\"Plan Width\":961,\"Relation Name\":\"all_types\",\"Rows Removed by Filter\":1,\"Shared Dirtied Blocks\":0,\"Shared Hit Blocks\":1,\"Shared Read Blocks\":0,\"Shared Written Blocks\":0,\"Startup Cost\":0.0,\"Temp Read Blocks\":0,\"Temp Written Blocks\":0,\"Total Cost\":1.02},\"Planning\":{\"Local Dirtied Blocks\":0,\"Local Hit Blocks\":0,\"Local Read Blocks\":0,\"Local Written Blocks\":0,\"Shared Dirtied Blocks\":0,\"Shared Hit Blocks\":122,\"Shared Read Blocks\":0,\"Shared Written Blocks\":0,\"Temp Read Blocks\":0,\"Temp Written Blocks\":0},\"Planning Time\":0.125,\"Triggers\":[]}]",
-    "original_query": "SELECT * FROM test_schema.all_types WHERE id = 1"
-  }
-}

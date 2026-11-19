@@ -62,7 +62,7 @@ const databaseFixtures: DatabaseFixture[] = [
     {
         name: 'postgres',
         params: {
-            driver: 'postgres',
+            driver: 'postgresql',
             host: process.env.TABULARIS_E2E_POSTGRES_HOST ?? '127.0.0.1',
             port: Number.parseInt(process.env.TABULARIS_E2E_POSTGRES_PORT ?? '45432', 10),
             username: process.env.TABULARIS_E2E_POSTGRES_USER ?? 'postgres',

@@ -3719,12 +3719,6 @@
       color: color-mix(in oklab, var(--color-accent-warning) 90%, transparent);
     }
   }
-  .text-accent\/50 {
-    color: var(--color-accent);
-    @supports (color: color-mix(in lab, red, red)) {
-      color: color-mix(in oklab, var(--color-accent) 50%, transparent);
-    }
-  }
   .text-accent\/70 {
     color: var(--color-accent);
     @supports (color: color-mix(in lab, red, red)) {
@@ -3735,12 +3729,6 @@
     color: var(--color-accent);
     @supports (color: color-mix(in lab, red, red)) {
       color: color-mix(in oklab, var(--color-accent) 80%, transparent);
-    }
-  }
-  .text-accent\/90 {
-    color: var(--color-accent);
-    @supports (color: color-mix(in lab, red, red)) {
-      color: color-mix(in oklab, var(--color-accent) 90%, transparent);
     }
   }
   .text-base {

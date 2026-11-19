@@ -28,7 +28,12 @@ pub(super) async fn is_strict_table(pool: &Pool<Sqlite>, table: &str) -> bool {
     .is_some_and(|strict| strict != 0)
 }
 
-fn insert_sql(table: &str, bindings: &[ColumnBinding], rows: usize, conflict: ConflictMode) -> String {
+fn insert_sql(
+    table: &str,
+    bindings: &[ColumnBinding],
+    rows: usize,
+    conflict: ConflictMode,
+) -> String {
     let columns: Vec<String> = bindings.iter().map(|b| quote(&b.target_column)).collect();
     let tuple = format!("({})", vec!["?"; bindings.len()].join(", "));
     let mut sql = format!(
@@ -67,7 +72,11 @@ pub(super) async fn write_batch(
                 TransferValue::Bytes(v) => query.bind(v.clone()),
             };
         }
-        written += query.execute(&mut *tx).await.map_err(describe_error)?.rows_affected();
+        written += query
+            .execute(&mut *tx)
+            .await
+            .map_err(describe_error)?
+            .rows_affected();
     }
     tx.commit().await.map_err(describe_error)?;
     Ok((written, rows.len() as u64 - written))
