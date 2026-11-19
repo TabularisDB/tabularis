@@ -12,6 +12,8 @@ import {
     hasCellOutputs,
     moveCellInCells,
     extractSqlFromCells,
+    isCellIncludedInReport,
+    isCellOutputOutdated,
 } from '@/utils/notebook';
 import type {NotebookCell} from '@/types/notebook';
 import type {QueryResult} from '@/types/editor';
@@ -481,6 +483,65 @@ describe('notebook utils', () => {
 
         it('should return empty string for empty array', () => {
             expect(extractSqlFromCells([])).toBe('');
+        });
+    });
+
+    describe('isCellIncludedInReport', () => {
+        it('defaults to true when includeInReport is undefined or true', () => {
+            expect(isCellIncludedInReport(makeCell({id: 'a'}))).toBe(true);
+            expect(isCellIncludedInReport(makeCell({id: 'b', includeInReport: true}))).toBe(true);
+        });
+
+        it('returns false only when includeInReport is explicitly false', () => {
+            expect(isCellIncludedInReport(makeCell({id: 'a', includeInReport: false}))).toBe(false);
+        });
+    });
+
+    describe('isCellOutputOutdated', () => {
+        const result: QueryResult = {columns: ['id'], rows: [[1]], affected_rows: 0};
+        const historyEntry = {query: 'SELECT 1', result: null, executionTime: 1, timestamp: 1};
+
+        it('returns false while loading or when the cell has no result or error', () => {
+            expect(
+                isCellOutputOutdated(
+                    makeCell({id: 'a', content: 'SELECT 2', history: [historyEntry]}),
+                ),
+            ).toBe(false);
+            expect(
+                isCellOutputOutdated(
+                    makeCell({
+                        id: 'b',
+                        content: 'SELECT 2',
+                        result,
+                        isLoading: true,
+                        history: [historyEntry],
+                    }),
+                ),
+            ).toBe(false);
+        });
+
+        it('returns true when paramsOutdated is true or query changed since last execution', () => {
+            expect(
+                isCellOutputOutdated(
+                    makeCell({id: 'a', content: 'SELECT 1', result, history: [historyEntry]}),
+                    true,
+                ),
+            ).toBe(true);
+            expect(
+                isCellOutputOutdated(
+                    makeCell({id: 'b', content: 'SELECT 2', result, history: [historyEntry]}),
+                ),
+            ).toBe(true);
+            expect(
+                isCellOutputOutdated(
+                    makeCell({
+                        id: 'c',
+                        content: '  SELECT 1  ',
+                        error: 'err',
+                        history: [historyEntry],
+                    }),
+                ),
+            ).toBe(false);
         });
     });
 });

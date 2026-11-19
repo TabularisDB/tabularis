@@ -2340,9 +2340,20 @@
           "collapse": "折叠/展开单元格",
           "params": "更改了参数",
           "stopOnError": "切换了出错时停止",
-          "other": "编辑了笔记本"
+          "other": "编辑了笔记本",
+          "reportInclusion": "已切换报告包含状态（单元格 {{n}}）"
         }
-      }
+      },
+      "viewMode": "视图模式",
+      "editMode": "编辑",
+      "reportMode": "报告",
+      "includeInReport": "包含在报告中",
+      "excludeFromReport": "从报告中排除",
+      "includedInReport": "已包含在报告中",
+      "excludedFromReport": "已从报告中排除",
+      "reportOutdated": "已过时",
+      "reportNoOutput": "尚无输出。请运行笔记本以加载结果。",
+      "reportEmpty": "此报告中未包含任何单元格。"
     },
     "querySelection": {
       "title": "选择要执行的查询",

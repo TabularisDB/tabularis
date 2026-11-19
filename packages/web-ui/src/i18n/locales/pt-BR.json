@@ -2379,9 +2379,20 @@
           "collapse": "Células recolhidas/expandidas",
           "params": "Parâmetros alterados",
           "stopOnError": "Parar em caso de erro alternado",
-          "other": "Notebook editado"
+          "other": "Notebook editado",
+          "reportInclusion": "Inclusão no relatório alternada (célula {{n}})"
         }
-      }
+      },
+      "viewMode": "Modo de visualização",
+      "editMode": "Editar",
+      "reportMode": "Relatório",
+      "includeInReport": "Incluir no relatório",
+      "excludeFromReport": "Excluir do relatório",
+      "includedInReport": "Incluído no relatório",
+      "excludedFromReport": "Excluído do relatório",
+      "reportOutdated": "Desatualizado",
+      "reportNoOutput": "Sem resultados ainda. Execute o notebook para carregar.",
+      "reportEmpty": "Nenhuma célula está incluída neste relatório."
     },
     "querySelection": {
       "title": "Selecionar Consulta para Executar",

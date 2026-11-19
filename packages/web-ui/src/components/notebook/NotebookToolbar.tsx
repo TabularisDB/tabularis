@@ -18,7 +18,10 @@ import {
     Redo2,
     History,
     Eraser,
+    Pencil,
+    Presentation,
 } from 'lucide-react';
+import type {NotebookViewMode} from '@/types/notebook';
 import {ContextMenu, type ContextMenuItem} from '@/components/ui/ContextMenu';
 
 interface NotebookToolbarProps {
@@ -43,6 +46,8 @@ interface NotebookToolbarProps {
     canRedo: boolean;
     onToggleHistory: () => void;
     historyOpen: boolean;
+    viewMode?: NotebookViewMode;
+    onViewModeChange?: (mode: NotebookViewMode) => void;
 }
 
 function ToolbarButton({
@@ -99,8 +104,11 @@ export function NotebookToolbar({
     canRedo,
     onToggleHistory,
     historyOpen,
+    viewMode = 'edit',
+    onViewModeChange,
 }: NotebookToolbarProps) {
     const {t} = useTranslation();
+    const isReportMode = viewMode === 'report';
     const [menu, setMenu] = useState<{
         x: number;
         y: number;
@@ -142,49 +150,55 @@ export function NotebookToolbar({
 
     return (
         <div className="@container h-10 bg-elevated border-b border-default flex items-center px-2 gap-0.5 shrink-0 overflow-x-auto">
-            <button
-                type="button"
-                onClick={(e) => openMenu(e, addItems)}
-                title={t('editor.notebook.addCell')}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-primary hover:bg-surface-secondary rounded transition-colors shrink-0"
-            >
-                <Plus size={14} />
-                <span className="hidden @[440px]:inline">{t('editor.notebook.addCell')}</span>
-                <ChevronDown size={12} className="text-muted" />
-            </button>
+            {!isReportMode && (
+                <>
+                    <button
+                        type="button"
+                        onClick={(e) => openMenu(e, addItems)}
+                        title={t('editor.notebook.addCell')}
+                        className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-primary hover:bg-surface-secondary rounded transition-colors shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                    >
+                        <Plus size={14} />
+                        <span className="hidden @[440px]:inline">
+                            {t('editor.notebook.addCell')}
+                        </span>
+                        <ChevronDown size={12} className="text-muted" />
+                    </button>
 
-            <Separator />
+                    <Separator />
 
-            <ToolbarGroup>
-                <ToolbarButton
-                    onClick={onUndo}
-                    disabled={!canUndo}
-                    title={t('editor.notebook.undo')}
-                >
-                    <Undo2 size={14} />
-                </ToolbarButton>
-                <ToolbarButton
-                    onClick={onRedo}
-                    disabled={!canRedo}
-                    title={t('editor.notebook.redo')}
-                >
-                    <Redo2 size={14} />
-                </ToolbarButton>
-                <button
-                    type="button"
-                    onClick={onToggleHistory}
-                    title={t('editor.notebook.history.title')}
-                    className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors shrink-0 ${
-                        historyOpen
-                            ? 'bg-surface-secondary text-primary'
-                            : 'text-secondary hover:text-primary hover:bg-surface-secondary'
-                    }`}
-                >
-                    <History size={14} />
-                </button>
-            </ToolbarGroup>
+                    <ToolbarGroup>
+                        <ToolbarButton
+                            onClick={onUndo}
+                            disabled={!canUndo}
+                            title={t('editor.notebook.undo')}
+                        >
+                            <Undo2 size={14} />
+                        </ToolbarButton>
+                        <ToolbarButton
+                            onClick={onRedo}
+                            disabled={!canRedo}
+                            title={t('editor.notebook.redo')}
+                        >
+                            <Redo2 size={14} />
+                        </ToolbarButton>
+                        <button
+                            type="button"
+                            onClick={onToggleHistory}
+                            title={t('editor.notebook.history.title')}
+                            className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                                historyOpen
+                                    ? 'bg-surface-secondary text-primary'
+                                    : 'text-secondary hover:text-primary hover:bg-surface-secondary'
+                            }`}
+                        >
+                            <History size={14} />
+                        </button>
+                    </ToolbarGroup>
 
-            <Separator />
+                    <Separator />
+                </>
+            )}
 
             <ToolbarGroup>
                 <ToolbarButton
@@ -200,49 +214,98 @@ export function NotebookToolbar({
                     <span className="hidden @[440px]:inline">{t('editor.notebook.runAll')}</span>
                 </ToolbarButton>
 
-                <button
-                    type="button"
-                    onClick={onToggleStopOnError}
-                    title={t('editor.notebook.stopOnErrorTooltip')}
-                    className={`flex items-center gap-1 px-1.5 py-1 text-[10px] rounded transition-colors shrink-0 ${
-                        stopOnError
-                            ? 'bg-accent-error/15 text-accent-error font-semibold'
-                            : 'text-muted hover:text-secondary hover:bg-surface-secondary'
-                    }`}
-                >
-                    <OctagonX size={12} />
-                    <span className="hidden @[540px]:inline">
-                        {t('editor.notebook.stopOnError')}
-                    </span>
-                </button>
+                {!isReportMode && (
+                    <button
+                        type="button"
+                        onClick={onToggleStopOnError}
+                        title={t('editor.notebook.stopOnErrorTooltip')}
+                        className={`flex items-center gap-1 px-1.5 py-1 text-[10px] rounded transition-colors shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                            stopOnError
+                                ? 'bg-accent-error/15 text-accent-error font-semibold'
+                                : 'text-muted hover:text-secondary hover:bg-surface-secondary'
+                        }`}
+                    >
+                        <OctagonX size={12} />
+                        <span className="hidden @[540px]:inline">
+                            {t('editor.notebook.stopOnError')}
+                        </span>
+                    </button>
+                )}
             </ToolbarGroup>
 
-            <Separator />
+            {!isReportMode && (
+                <>
+                    <Separator />
 
-            <ToolbarGroup>
-                <ToolbarButton onClick={onCollapseAll} title={t('editor.notebook.collapseAll')}>
-                    <ChevronsDownUp size={14} />
-                    <span className="hidden @[720px]:inline">
-                        {t('editor.notebook.collapseAll')}
-                    </span>
-                </ToolbarButton>
-                <ToolbarButton onClick={onExpandAll} title={t('editor.notebook.expandAll')}>
-                    <ChevronsUpDown size={14} />
-                    <span className="hidden @[720px]:inline">{t('editor.notebook.expandAll')}</span>
-                </ToolbarButton>
-                <ToolbarButton
-                    onClick={onClearOutputs}
-                    disabled={!canClearOutputs}
-                    title={t('editor.notebook.clearOutputs')}
-                >
-                    <Eraser size={14} />
-                    <span className="hidden @[720px]:inline">
-                        {t('editor.notebook.clearOutputs')}
-                    </span>
-                </ToolbarButton>
-            </ToolbarGroup>
+                    <ToolbarGroup>
+                        <ToolbarButton
+                            onClick={onCollapseAll}
+                            title={t('editor.notebook.collapseAll')}
+                        >
+                            <ChevronsDownUp size={14} />
+                            <span className="hidden @[720px]:inline">
+                                {t('editor.notebook.collapseAll')}
+                            </span>
+                        </ToolbarButton>
+                        <ToolbarButton onClick={onExpandAll} title={t('editor.notebook.expandAll')}>
+                            <ChevronsUpDown size={14} />
+                            <span className="hidden @[720px]:inline">
+                                {t('editor.notebook.expandAll')}
+                            </span>
+                        </ToolbarButton>
+                        <ToolbarButton
+                            onClick={onClearOutputs}
+                            disabled={!canClearOutputs}
+                            title={t('editor.notebook.clearOutputs')}
+                        >
+                            <Eraser size={14} />
+                            <span className="hidden @[720px]:inline">
+                                {t('editor.notebook.clearOutputs')}
+                            </span>
+                        </ToolbarButton>
+                    </ToolbarGroup>
+                </>
+            )}
 
             <div className="flex-1 min-w-2" />
+
+            {onViewModeChange && (
+                <>
+                    <div
+                        role="group"
+                        aria-label={t('editor.notebook.viewMode')}
+                        className="flex items-center bg-base border border-default rounded p-0.5 gap-0.5 shrink-0"
+                    >
+                        <button
+                            type="button"
+                            onClick={() => onViewModeChange('edit')}
+                            aria-pressed={viewMode === 'edit'}
+                            className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                                viewMode === 'edit'
+                                    ? 'bg-surface-secondary text-primary font-semibold'
+                                    : 'text-muted hover:text-secondary'
+                            }`}
+                        >
+                            <Pencil size={12} />
+                            <span>{t('editor.notebook.editMode')}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onViewModeChange('report')}
+                            aria-pressed={viewMode === 'report'}
+                            className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                                viewMode === 'report'
+                                    ? 'bg-accent-primary text-inverse font-semibold'
+                                    : 'text-muted hover:text-secondary'
+                            }`}
+                        >
+                            <Presentation size={12} />
+                            <span>{t('editor.notebook.reportMode')}</span>
+                        </button>
+                    </div>
+                    <Separator />
+                </>
+            )}
 
             <ToolbarGroup>
                 <ToolbarButton
@@ -254,10 +317,14 @@ export function NotebookToolbar({
                     <ChevronDown size={12} className="text-muted" />
                 </ToolbarButton>
 
-                <ToolbarButton onClick={onImport} title={t('editor.notebook.import')}>
-                    <Upload size={14} />
-                    <span className="hidden @[640px]:inline">{t('editor.notebook.import')}</span>
-                </ToolbarButton>
+                {!isReportMode && (
+                    <ToolbarButton onClick={onImport} title={t('editor.notebook.import')}>
+                        <Upload size={14} />
+                        <span className="hidden @[640px]:inline">
+                            {t('editor.notebook.import')}
+                        </span>
+                    </ToolbarButton>
+                )}
             </ToolbarGroup>
 
             {menu && (

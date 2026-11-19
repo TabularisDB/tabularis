@@ -17,6 +17,7 @@ import {
     Network,
     Copy,
     CopyPlus,
+    Presentation,
     Power,
     PowerOff,
 } from 'lucide-react';
@@ -60,6 +61,8 @@ interface NotebookCellHeaderProps {
     cellName?: string;
     onNameChange: (name: string) => void;
     cellContent?: string;
+    includeInReport?: boolean;
+    onToggleIncludeInReport?: () => void;
 }
 
 function CellTypeBadge({cellType}: {cellType: NotebookCellType}) {
@@ -137,6 +140,8 @@ export function NotebookCellHeader({
     cellName,
     onNameChange,
     cellContent,
+    includeInReport,
+    onToggleIncludeInReport,
 }: NotebookCellHeaderProps) {
     const {t} = useTranslation();
     const [isDbOpen, setIsDbOpen] = useState(false);
@@ -421,6 +426,27 @@ export function NotebookCellHeader({
                     >
                         {isPreview ? <Pencil size={14} /> : <Eye size={14} />}
                     </ActionButton>
+                )}
+
+                {onToggleIncludeInReport && (
+                    <button
+                        type="button"
+                        onClick={onToggleIncludeInReport}
+                        title={t(
+                            includeInReport !== false
+                                ? 'editor.notebook.excludeFromReport'
+                                : 'editor.notebook.includeInReport',
+                        )}
+                        aria-label={t('editor.notebook.includeInReport')}
+                        aria-pressed={includeInReport !== false}
+                        className={`p-1 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                            includeInReport !== false
+                                ? 'text-muted hover:text-primary hover:bg-surface-secondary'
+                                : 'text-accent-warning bg-accent-warning/15'
+                        }`}
+                    >
+                        <Presentation size={14} />
+                    </button>
                 )}
 
                 <ActionButton

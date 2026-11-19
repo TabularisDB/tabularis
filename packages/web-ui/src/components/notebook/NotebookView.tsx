@@ -8,6 +8,7 @@ import type {
     NotebookCellType,
     NotebookParam,
     NotebookState,
+    NotebookViewMode,
     RunAllResult,
 } from '@/types/notebook';
 import {
@@ -83,6 +84,7 @@ import {AddCellButton} from './AddCellButton';
 import {RunAllSummary} from './RunAllSummary';
 import {ParamsPanel} from './ParamsPanel';
 import {NotebookOutline} from './NotebookOutline';
+import {NotebookReportView} from './NotebookReportView';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 
@@ -133,6 +135,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const [isRunningAll, setIsRunningAll] = useState(false);
     const [runAllResult, setRunAllResult] = useState<RunAllResult | null>(null);
     const [isClearOutputsConfirmOpen, setIsClearOutputsConfirmOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<NotebookViewMode>('edit');
+    const [executedParamsByCell, setExecutedParamsByCell] = useState<Record<string, string>>({});
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     // Gap-based insertion point in [0, cells.length]; `null` while not dragging.
     const [dropPos, setDropPos] = useState<number | null>(null);
@@ -207,6 +211,16 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
     const cells = notebook?.cells ?? [];
     const stopOnError = notebook?.stopOnError ?? false;
     const params = useMemo(() => notebook?.params ?? [], [notebook?.params]);
+    const currentParamsSignature = useMemo(() => JSON.stringify(params), [params]);
+    const outdatedCellIds = useMemo(() => {
+        const set = new Set<string>();
+        for (const [cellId, ranParams] of Object.entries(executedParamsByCell)) {
+            if (ranParams !== currentParamsSignature) {
+                set.add(cellId);
+            }
+        }
+        return set;
+    }, [executedParamsByCell, currentParamsSignature]);
 
     const updateNotebook = useCallback(
         (
@@ -484,6 +498,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     error: undefined,
                     history: newHistory,
                 });
+                setExecutedParamsByCell((prev) => ({...prev, [cellId]: currentParamsSignature}));
             } catch (e: unknown) {
                 const elapsed = performance.now() - start;
                 const errorMsg = e instanceof Error ? e.message : String(e);
@@ -503,6 +518,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                     result: null,
                     history: newHistory,
                 });
+                setExecutedParamsByCell((prev) => ({...prev, [cellId]: currentParamsSignature}));
             }
         },
         [
@@ -512,6 +528,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
             settings.resultPageSize,
             updateCell,
             params,
+            currentParamsSignature,
             sqlDialect,
             variableOptions,
             guardQueryExecution,
@@ -908,6 +925,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 return;
             }
 
+            if (viewMode === 'report') return;
+
             const mod = e.metaKey || e.ctrlKey;
             if (!mod) return;
             const key = e.key.toLowerCase();
@@ -929,7 +948,7 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [matchesShortcut, runAll, handleUndo, handleRedo]);
+    }, [matchesShortcut, runAll, handleUndo, handleRedo, viewMode]);
 
     const collapseAll = useCallback(() => {
         updateNotebook(cellsRef.current.map((c) => ({...c, isCollapsed: true})));
@@ -959,8 +978,16 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         setIsClearOutputsConfirmOpen(false);
         if (isExecuting) return;
         updateNotebook(clearCellOutputs(cellsRef.current));
+        setExecutedParamsByCell({});
         setRunAllResult(null);
     }, [isExecuting, updateNotebook]);
+
+    const handleViewModeChange = useCallback((mode: NotebookViewMode) => {
+        setViewMode(mode);
+        if (mode === 'report') {
+            setShowHistory(false);
+        }
+    }, []);
 
     const toolbarProps = {
         onAddSqlCell: () => addCell('sql'),
@@ -984,6 +1011,8 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
         canRedo,
         onToggleHistory: () => setShowHistory((v) => !v),
         historyOpen: showHistory,
+        viewMode,
+        onViewModeChange: handleViewModeChange,
     };
 
     // Loading state
@@ -1058,104 +1087,125 @@ export function NotebookView({tab, updateTab, connectionId, isActive}: NotebookV
                 variant="warning"
             />
             <NotebookToolbar {...toolbarProps} />
-            {showHistory && (
-                <NotebookHistoryPanel
-                    states={historyView.states}
-                    currentIndex={historyView.currentIndex}
-                    onJump={handleJump}
-                    onClose={() => setShowHistory(false)}
-                />
-            )}
-            <div
-                ref={scrollContainerRef}
-                onDragOver={handleContainerDragOver}
-                className="flex-1 overflow-auto p-4 space-y-0"
-            >
-                <ParamsPanel params={params} onParamsChange={handleParamsChange} />
-                <NotebookOutline
+            {viewMode === 'report' ? (
+                <NotebookReportView
                     cells={cells}
-                    onScrollToCell={scrollToCell}
-                    onCellNameGenerated={(cellId, name) => updateCell(cellId, {name})}
+                    params={params}
+                    onParamsChange={handleParamsChange}
+                    runAllResult={runAllResult}
+                    onDismissRunAllResult={() => setRunAllResult(null)}
+                    onSwitchToEdit={() => handleViewModeChange('edit')}
+                    outdatedCellIds={outdatedCellIds}
                 />
-
-                {runAllResult && (
-                    <RunAllSummary
-                        result={runAllResult}
-                        onDismiss={() => setRunAllResult(null)}
-                        onScrollToCell={scrollToCell}
-                    />
-                )}
-
-                <AddCellButton
-                    onAddSql={() => addCell('sql', -1)}
-                    onAddMarkdown={() => addCell('markdown', -1)}
-                />
-                {cells.map((cell, index) => (
+            ) : (
+                <>
+                    {showHistory && (
+                        <NotebookHistoryPanel
+                            states={historyView.states}
+                            currentIndex={historyView.currentIndex}
+                            onJump={handleJump}
+                            onClose={() => setShowHistory(false)}
+                        />
+                    )}
                     <div
-                        key={cell.id}
-                        ref={(el) => {
-                            if (el) cellRefsMap.current.set(cell.id, el);
-                            else cellRefsMap.current.delete(cell.id);
-                        }}
-                        onDragOver={handleDragOver(index)}
-                        onDrop={handleDrop(index)}
-                        className="relative scroll-mt-4"
+                        ref={scrollContainerRef}
+                        onDragOver={handleContainerDragOver}
+                        className="flex-1 overflow-auto p-4 space-y-0"
                     >
-                        {showLineAt(index) && renderDropLine('top')}
-                        <NotebookCellWrapper
-                            cell={cell}
-                            index={index}
-                            totalCells={cells.length}
-                            onUpdate={(partial) => updateCell(cell.id, partial)}
-                            onDelete={() => deleteCell(cell.id)}
-                            onMoveUp={() => {
-                                if (index > 0)
-                                    updateNotebook(
-                                        reorderCells(cellsRef.current, index, index - 1),
-                                    );
-                            }}
-                            onMoveDown={() => {
-                                if (index < cells.length - 1)
-                                    updateNotebook(
-                                        reorderCells(cellsRef.current, index, index + 1),
-                                    );
-                            }}
-                            onRun={() => runCell(cell.id)}
-                            onDuplicate={() => duplicateCell(cell.id)}
-                            canDuplicate={!isExecuting}
-                            connectionId={connectionId}
-                            explainQuery={
-                                cell.type === 'sql' && cell.isQueryPlanVisible && !cell.isDisabled
-                                    ? resolveQueryVariables(
-                                          resolveParams(cell.content.trim(), params, sqlDialect)
-                                              .sql,
-                                          cells,
-                                          variableOptions,
-                                      )
-                                    : undefined
-                            }
-                            activeSchema={cell.schema || effectiveSchema || undefined}
-                            selectedDatabases={isMultiDb ? selectedDatabases : undefined}
-                            onSchemaChange={
-                                isMultiDb ? (schema) => updateCell(cell.id, {schema}) : undefined
-                            }
-                            isDragging={dragIndex === index}
-                            dragHandleProps={{
-                                draggable: true,
-                                onDragStart: handleDragStart(index),
-                                onDragEnd: handleDragEnd,
-                            }}
+                        <ParamsPanel params={params} onParamsChange={handleParamsChange} />
+                        <NotebookOutline
+                            cells={cells}
+                            onScrollToCell={scrollToCell}
+                            onCellNameGenerated={(cellId, name) => updateCell(cellId, {name})}
                         />
+
+                        {runAllResult && (
+                            <RunAllSummary
+                                result={runAllResult}
+                                onDismiss={() => setRunAllResult(null)}
+                                onScrollToCell={scrollToCell}
+                            />
+                        )}
+
                         <AddCellButton
-                            onAddSql={() => addCell('sql', index)}
-                            onAddMarkdown={() => addCell('markdown', index)}
+                            onAddSql={() => addCell('sql', -1)}
+                            onAddMarkdown={() => addCell('markdown', -1)}
                         />
-                        {index === cells.length - 1 &&
-                            showLineAt(cells.length) &&
-                            renderDropLine('bottom')}
+                        {cells.map((cell, index) => (
+                            <div
+                                key={cell.id}
+                                ref={(el) => {
+                                    if (el) cellRefsMap.current.set(cell.id, el);
+                                    else cellRefsMap.current.delete(cell.id);
+                                }}
+                                onDragOver={handleDragOver(index)}
+                                onDrop={handleDrop(index)}
+                                className="relative scroll-mt-4"
+                            >
+                                {showLineAt(index) && renderDropLine('top')}
+                                <NotebookCellWrapper
+                                    cell={cell}
+                                    index={index}
+                                    totalCells={cells.length}
+                                    onUpdate={(partial) => updateCell(cell.id, partial)}
+                                    onDelete={() => deleteCell(cell.id)}
+                                    onMoveUp={() => {
+                                        if (index > 0)
+                                            updateNotebook(
+                                                reorderCells(cellsRef.current, index, index - 1),
+                                            );
+                                    }}
+                                    onMoveDown={() => {
+                                        if (index < cells.length - 1)
+                                            updateNotebook(
+                                                reorderCells(cellsRef.current, index, index + 1),
+                                            );
+                                    }}
+                                    onRun={() => runCell(cell.id)}
+                                    onDuplicate={() => duplicateCell(cell.id)}
+                                    canDuplicate={!isExecuting}
+                                    connectionId={connectionId}
+                                    explainQuery={
+                                        cell.type === 'sql' &&
+                                        cell.isQueryPlanVisible &&
+                                        !cell.isDisabled
+                                            ? resolveQueryVariables(
+                                                  resolveParams(
+                                                      cell.content.trim(),
+                                                      params,
+                                                      sqlDialect,
+                                                  ).sql,
+                                                  cells,
+                                                  variableOptions,
+                                              )
+                                            : undefined
+                                    }
+                                    activeSchema={cell.schema || effectiveSchema || undefined}
+                                    selectedDatabases={isMultiDb ? selectedDatabases : undefined}
+                                    onSchemaChange={
+                                        isMultiDb
+                                            ? (schema) => updateCell(cell.id, {schema})
+                                            : undefined
+                                    }
+                                    isDragging={dragIndex === index}
+                                    dragHandleProps={{
+                                        draggable: true,
+                                        onDragStart: handleDragStart(index),
+                                        onDragEnd: handleDragEnd,
+                                    }}
+                                />
+                                <AddCellButton
+                                    onAddSql={() => addCell('sql', index)}
+                                    onAddMarkdown={() => addCell('markdown', index)}
+                                />
+                                {index === cells.length - 1 &&
+                                    showLineAt(cells.length) &&
+                                    renderDropLine('bottom')}
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
+                </>
+            )}
         </div>
     );
 }

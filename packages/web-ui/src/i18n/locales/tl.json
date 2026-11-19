@@ -2402,9 +2402,20 @@
           "collapse": "Na-collapse/expand ang mga cell",
           "params": "Binago ang mga parameter",
           "stopOnError": "Tina-toggle ang stop on error",
-          "other": "In-edit ang notebook"
+          "other": "In-edit ang notebook",
+          "reportInclusion": "Pinagpalit ang pagsasama sa ulat (cell {{n}})"
         }
-      }
+      },
+      "viewMode": "Mode ng pagtingin",
+      "editMode": "I-edit",
+      "reportMode": "Ulat",
+      "includeInReport": "Isama sa ulat",
+      "excludeFromReport": "Ibukod sa ulat",
+      "includedInReport": "Kasama sa ulat",
+      "excludedFromReport": "Nakabukod sa ulat",
+      "reportOutdated": "Luma na",
+      "reportNoOutput": "Wala pang output. Patakbuhin ang notebook upang mag-load ng mga resulta.",
+      "reportEmpty": "Walang mga cell na kasama sa ulat na ito."
     },
     "querySelection": {
       "title": "Pumili ng Query na Isasakatuparan",

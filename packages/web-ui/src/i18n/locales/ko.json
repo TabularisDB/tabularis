@@ -2335,9 +2335,20 @@
           "collapse": "셀 접기/펼치기",
           "params": "매개변수 변경",
           "stopOnError": "오류 시 중지 토글",
-          "other": "노트북 편집"
+          "other": "노트북 편집",
+          "reportInclusion": "보고서 포함 여부 전환 (셀 {{n}})"
         }
-      }
+      },
+      "viewMode": "보기 모드",
+      "editMode": "편집",
+      "reportMode": "보고서",
+      "includeInReport": "보고서에 포함",
+      "excludeFromReport": "보고서에서 제외",
+      "includedInReport": "보고서에 포함됨",
+      "excludedFromReport": "보고서에서 제외됨",
+      "reportOutdated": "만료됨",
+      "reportNoOutput": "아직 출력이 없습니다. 노트북을 실행하여 결과를 불러오세요.",
+      "reportEmpty": "이 보고서에 포함된 셀이 없습니다."
     },
     "querySelection": {
       "title": "실행할 쿼리 선택",
