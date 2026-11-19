@@ -1170,48 +1170,53 @@ async fn exec_on_pg_client(
     let start_instant = std::time::Instant::now();
     let mut server_time_ms: Option<f64> = None;
 
-    let pg_params: Vec<i32> = vec![];
-    let mut rows_stream = std::pin::pin!(client
-        .query_raw(&final_query, &pg_params)
-        .await
-        .map_err(|e| format_pg_error(&e))?);
-
     let mut columns: Vec<String> = Vec::new();
     let mut column_origins: Vec<column_origins::ColumnOrigin> = Vec::new();
     let mut json_rows = Vec::new();
 
-    use futures::stream::StreamExt;
+    // The row stream lives only in this block. When the manual row cap breaks
+    // out early the stream still has unread rows; dropping it before the origin
+    // lookup below keeps that lookup from queueing behind them on the same client.
+    {
+        use futures::stream::StreamExt;
 
-    while let Some(result) = rows_stream.next().await {
-        if server_time_ms.is_none() {
-            server_time_ms = Some(start_instant.elapsed().as_secs_f64() * 1000.0);
-        }
-        match result {
-            Ok(row) => {
-                if columns.is_empty() {
-                    columns = row.columns().iter().map(|c| c.name().to_string()).collect();
-                    column_origins = row
-                        .columns()
-                        .iter()
-                        .map(|c| (c.table_oid(), c.column_id()))
-                        .collect();
-                }
+        let pg_params: Vec<i32> = vec![];
+        let mut rows_stream = std::pin::pin!(client
+            .query_raw(&final_query, &pg_params)
+            .await
+            .map_err(|e| format_pg_error(&e))?);
 
-                if let Some(l) = manual_limit {
-                    if json_rows.len() >= l as usize {
-                        truncated = true;
-                        break;
-                    }
-                }
-
-                let mut json_row = Vec::new();
-                for (i, _) in row.columns().iter().enumerate() {
-                    let val = extract_value(&row, i, None);
-                    json_row.push(val);
-                }
-                json_rows.push(json_row);
+        while let Some(result) = rows_stream.next().await {
+            if server_time_ms.is_none() {
+                server_time_ms = Some(start_instant.elapsed().as_secs_f64() * 1000.0);
             }
-            Err(e) => return Err(format_pg_error(&e)),
+            match result {
+                Ok(row) => {
+                    if columns.is_empty() {
+                        columns = row.columns().iter().map(|c| c.name().to_string()).collect();
+                        column_origins = row
+                            .columns()
+                            .iter()
+                            .map(|c| (c.table_oid(), c.column_id()))
+                            .collect();
+                    }
+
+                    if let Some(l) = manual_limit {
+                        if json_rows.len() >= l as usize {
+                            truncated = true;
+                            break;
+                        }
+                    }
+
+                    let mut json_row = Vec::new();
+                    for (i, _) in row.columns().iter().enumerate() {
+                        let val = extract_value(&row, i, None);
+                        json_row.push(val);
+                    }
+                    json_rows.push(json_row);
+                }
+                Err(e) => return Err(format_pg_error(&e)),
+            }
         }
     }
 

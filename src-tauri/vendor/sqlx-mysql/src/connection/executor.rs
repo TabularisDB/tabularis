@@ -14,8 +14,8 @@ use crate::protocol::text::{ColumnDefinition, ColumnFlags, Query, TextRow};
 use crate::statement::{MySqlStatement, MySqlStatementMetadata};
 use crate::HashMap;
 use crate::{
-    MySql, MySqlArguments, MySqlColumn, MySqlColumnSource, MySqlConnection, MySqlQueryResult, MySqlRow, MySqlTypeInfo,
-    MySqlValueFormat,
+    MySql, MySqlArguments, MySqlColumn, MySqlColumnSource, MySqlConnection, MySqlQueryResult,
+    MySqlRow, MySqlTypeInfo, MySqlValueFormat,
 };
 use either::Either;
 use futures_core::future::BoxFuture;

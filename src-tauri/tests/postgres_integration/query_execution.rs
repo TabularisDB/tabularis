@@ -273,3 +273,38 @@ async fn test_execute_query_reports_column_sources() {
     assert_eq!(label.column, "col_text");
     assert!(sources[2].is_none(), "a computed column has no origin");
 }
+
+#[tokio::test]
+#[ignore]
+async fn test_execute_query_capped_cte_reports_column_sources_promptly() {
+    require_pg!();
+    let params = pg_params();
+
+    // `WITH ...` is not a plain SELECT, so the driver applies the row cap itself
+    // and stops reading with unread rows left. The origin lookup that follows
+    // must not wait behind them.
+    let run = postgres::execute_query(
+        &params,
+        "WITH t AS (SELECT a.id, a.col_text FROM test_schema.all_types a \
+                    CROSS JOIN generate_series(1, 20000) g) \
+         SELECT id, col_text FROM t",
+        Some(3),
+        1,
+        None,
+    );
+    let result = tokio::time::timeout(std::time::Duration::from_secs(20), run)
+        .await
+        .expect("a capped CTE must not stall on the origin lookup")
+        .expect("execute_query should succeed");
+
+    assert_eq!(result.rows.len(), 3);
+    assert!(result.truncated);
+    assert_eq!(result.columns, vec!["id", "col_text"]);
+    let sources = result.column_sources.expect("column_sources reported");
+    assert_eq!(sources.len(), 2);
+    let id = sources[0].as_ref().expect("id has an origin");
+    assert_eq!(id.schema.as_deref(), Some("test_schema"));
+    assert_eq!(id.table, "all_types");
+    assert_eq!(id.column, "id");
+    assert_eq!(sources[1].as_ref().expect("col_text origin").column, "col_text");
+}

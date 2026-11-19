@@ -62,6 +62,10 @@ pub fn build_column_sources(
 
 /// Looks the keys up in the catalog. Any failure yields an empty map, so the
 /// result simply has no origins (read-only) instead of the query failing.
+///
+/// The caller must have finished reading (or dropped) the statement's row
+/// stream first: the lookup runs on the same client and would otherwise queue
+/// behind the unread rows.
 pub async fn resolve_origins(
     client: &tokio_postgres::Client,
     keys: &[(u32, i16)],
