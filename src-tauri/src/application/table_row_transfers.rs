@@ -592,8 +592,11 @@ fn sqlite_read_cell(
     let wrong = || "A source column returned an unexpected type".to_string();
     match kind {
         SourceKind::Bool => {
+            // SQLite stores booleans as integers (0, 1, 2, …). Preserve the
+            // raw integer instead of coercing to bool — coercing via `v != 0`
+            // would turn 2 into 1, a lossy change in a transfer marked "Exact."
             let v: Option<i64> = row.try_get(index).map_err(|_| wrong())?;
-            Ok(v.map_or(TransferValue::Null, |v| TransferValue::Bool(v != 0)))
+            Ok(v.map_or(TransferValue::Null, TransferValue::Int))
         }
         SourceKind::Int => {
             let v: Option<i64> = row.try_get(index).map_err(|_| wrong())?;

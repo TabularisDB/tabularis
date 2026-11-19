@@ -13,4 +13,4 @@ mod tests;
 pub use convert::apply as apply_conversion;
 pub use mapping::{build_table_plan, PlanInputs};
 pub use model::*;
-pub use types::{capabilities, dialect_for_driver, ensure_supported_pair};
+pub use types::{capabilities, classify_source, dialect_for_driver, ensure_supported_pair};

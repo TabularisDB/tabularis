@@ -39,19 +39,30 @@ pub fn ensure_supported_pair(source: &str, target: &str) -> Result<(), String> {
 }
 
 pub fn classify_source(column: &TableColumn) -> Option<SourceKind> {
-    Some(match column.data_type.to_ascii_lowercase().as_str() {
+    // Strip a length/precision suffix (e.g. "varchar(20)" → "varchar") so
+    // SQLite's type-with-length declarations match the arms below.
+    let base = column
+        .data_type
+        .split_once('(')
+        .map(|(base, _)| base)
+        .unwrap_or(&column.data_type)
+        .trim()
+        .to_ascii_lowercase();
+    Some(match base.as_str() {
         "boolean" => SourceKind::Bool,
-        "smallint" | "integer" | "bigint" => SourceKind::Int,
-        "real" | "double precision" => SourceKind::Float,
+        "smallint" | "integer" | "bigint" | "int" | "int2" | "int8" => SourceKind::Int,
+        "real" | "double precision" | "double" | "float" => SourceKind::Float,
         "numeric" => SourceKind::Decimal,
-        "text" | "character varying" | "character" => SourceKind::Text,
+        "text" | "character varying" | "character" | "varchar" | "char" | "clob" => {
+            SourceKind::Text
+        }
         "uuid" => SourceKind::Uuid,
         "json" | "jsonb" => SourceKind::Json,
         "date" => SourceKind::Date,
         "time without time zone" => SourceKind::Time,
-        "timestamp without time zone" => SourceKind::Timestamp,
+        "timestamp without time zone" | "datetime" => SourceKind::Timestamp,
         "timestamp with time zone" => SourceKind::TimestampTz,
-        "bytea" => SourceKind::Bytes,
+        "bytea" | "blob" => SourceKind::Bytes,
         _ => return None,
     })
 }
