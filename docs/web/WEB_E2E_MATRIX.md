@@ -30,13 +30,13 @@ Mobile coverage for [#1593](https://github.com/TabularisDB/tabularis/issues/1593
 
 Layouts follow the breakpoints proposed in [#1610](https://github.com/TabularisDB/tabularis/pull/1610): compact below 768 px, intermediate from 768 px, wide from 1024 px. The desktop projects are wide.
 
-The spec checks that the connections page fits the screen without sideways scrolling, and that a SQLite query runs from the SQL editor: the editor is at least half the screen wide, Run and the result cell are fully on screen, and Run is tapped on touch projects. Being partly visible is not enough, since a panel squeezed into a strip is on screen but unusable.
+The spec checks that the connections page fits the screen without sideways scrolling, and that a SQLite query runs from the SQL editor, with Run tapped on touch projects. The query test has no expected failures, so a broken connection setup or query fails it at every size. Separate layout tests check that the editor is at least half the screen wide and that Run and the result cell are fully on screen. Being partly visible is not enough, since a panel squeezed into a strip is on screen but unusable.
 
-Layout gaps the mobile implementation issues have not fixed yet are marked with `test.fail` and the issue number, so they are tracked without breaking CI and report as unexpected passes once fixed:
+Layout gaps the mobile implementation issues have not fixed yet are marked with `test.fail` and the issue number on the layout tests only, so they are tracked without breaking CI and report as unexpected passes once fixed:
 
 | Gap | Projects | Issue |
 |---|---|---|
-| The explorer keeps its desktop width and squeezes the SQL editor | Compact layout (under 768 px wide) | [#1582](https://github.com/TabularisDB/tabularis/issues/1582) |
+| The explorer keeps its desktop width, squeezes the SQL editor and pushes Run and the result past the right edge | Compact layout (under 768 px wide) | [#1582](https://github.com/TabularisDB/tabularis/issues/1582) |
 | The result grid is cut off below the editor | Short landscape (under 400 px tall) | [#1586](https://github.com/TabularisDB/tabularis/issues/1586) |
 
 These are emulated devices. Software keyboard, text selection, clipboard and browser chrome behavior need real iOS Safari and Android Chrome checks, which these projects do not replace.

@@ -50,29 +50,55 @@ test('the connections page fits the screen', async ({page}) => {
     await expectNoSidewaysScroll(page);
 });
 
-test('runs a query from the SQL editor', async ({page, hasTouch}) => {
-    const viewport = page.viewportSize() ?? {width: Infinity, height: Infinity};
-    test.fail(
-        viewport.width < BREAKPOINTS.intermediate,
-        'In the compact layout the explorer keeps its desktop width and squeezes the SQL editor (#1582)',
-    );
-    test.fail(viewport.height < 400, 'The result grid is cut off below the editor (#1586)');
-    await page.goto('/connections');
-    const connection = await rpc<{id: string}>(page, 'save_connection', {
-        name: 'Responsive SQLite smoke',
-        params: {
-            driver: 'sqlite',
-            database: path.join(runtimeDir, 'tabularis-e2e.sqlite'),
-            save_in_keychain: false,
-        },
-        environment: 'development',
-    });
-    try {
+test.describe('SQL editor', () => {
+    let connectionId: string | undefined;
+
+    test.beforeEach(async ({page}) => {
+        await page.goto('/connections');
+        const connection = await rpc<{id: string}>(page, 'save_connection', {
+            name: 'Responsive SQLite smoke',
+            params: {
+                driver: 'sqlite',
+                database: path.join(runtimeDir, 'tabularis-e2e.sqlite'),
+                save_in_keychain: false,
+            },
+            environment: 'development',
+        });
+        connectionId = connection.id;
         await page.goto(`/connections/${connection.id}/editor`);
         await expect.poll(() => page.evaluate(() => Boolean(window.__e2e_editor))).toBe(true);
         await page.evaluate(() => window.__e2e_editor.setValue('SELECT 42 AS responsive_value;'));
+    });
 
+    test.afterEach(async ({page}) => {
+        if (!connectionId) return;
+        await rpc(page, 'disconnect_connection', {connectionId}).catch(() => undefined);
+        await rpc(page, 'delete_connection', {id: connectionId}).catch(() => undefined);
+        connectionId = undefined;
+    });
+
+    // Setup and query execution must work at every size, so this test has no expected failures.
+    test('runs a query', async ({page, hasTouch}) => {
+        await press(page.getByRole('button', {name: /^Run \(/}), hasTouch);
+        await expect(page.getByRole('cell', {name: '42', exact: true})).toBeVisible();
+    });
+
+    test('the SQL editor is at least half the screen wide', async ({page}) => {
+        const viewport = page.viewportSize() ?? {width: Infinity, height: Infinity};
+        test.fail(
+            viewport.width < BREAKPOINTS.intermediate,
+            'In the compact layout the explorer keeps its desktop width and squeezes the SQL editor (#1582)',
+        );
         await expectUsableWidth(page, page.locator('.monaco-editor').first(), 'SQL editor');
+    });
+
+    test('Run and the result are fully on screen', async ({page, hasTouch}) => {
+        const viewport = page.viewportSize() ?? {width: Infinity, height: Infinity};
+        test.fail(
+            viewport.width < BREAKPOINTS.intermediate,
+            'In the compact layout the explorer pushes Run and the result past the right edge (#1582)',
+        );
+        test.fail(viewport.height < 400, 'The result grid is cut off below the editor (#1586)');
         const run = page.getByRole('button', {name: /^Run \(/});
         await expect(run).toBeInViewport({ratio: 1});
         await press(run, hasTouch);
@@ -84,10 +110,5 @@ test('runs a query from the SQL editor', async ({page, hasTouch}) => {
             ratio: 1,
         });
         await expectNoSidewaysScroll(page);
-    } finally {
-        await rpc(page, 'disconnect_connection', {connectionId: connection.id}).catch(
-            () => undefined,
-        );
-        await rpc(page, 'delete_connection', {id: connection.id}).catch(() => undefined);
-    }
+    });
 });
