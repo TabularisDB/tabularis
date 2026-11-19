@@ -22,6 +22,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 COPY roadmap.json ./
 COPY packages ./packages
 COPY plugins/manifest.schema.json ./plugins/manifest.schema.json
+# vite.config.ts generates the theme schema validators with this script.
+COPY scripts/generate-theme-schema-validators.ts ./scripts/generate-theme-schema-validators.ts
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --offline \
     && pnpm build
