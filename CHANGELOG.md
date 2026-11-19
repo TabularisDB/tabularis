@@ -2,6 +2,12 @@
 
 ### Bug Fixes
 
+* **docker:** build the container image with the theme validator script and the built-in AI assistant manifests ([#1634](https://github.com/TabularisDB/tabularis/pull/1634))
+* **mysql:** cast CONNECTION_ID() to unsigned for MySQL 5.5 ([#1603](https://github.com/TabularisDB/tabularis/pull/1603))
+* **plugins:** drop a removed plugin from Installed right away ([#1630](https://github.com/TabularisDB/tabularis/pull/1630))
+* **plugins:** keep Install busy until the plugin lists are reloaded ([#1629](https://github.com/TabularisDB/tabularis/pull/1629))
+* **plugins:** let inline plugin frames grow with their content ([#1628](https://github.com/TabularisDB/tabularis/pull/1628))
+* **sidebar:** stop highlighting Connections inside an open connection ([#1632](https://github.com/TabularisDB/tabularis/pull/1632))
 * **themes:** show installed themes under the desktop WebView's Content Security Policy ([#1627](https://github.com/TabularisDB/tabularis/pull/1627))
 
 # [0.33.0](https://github.com/TabularisDB/tabularis/compare/v0.32.0...v0.33.0) (2026-11-16)
