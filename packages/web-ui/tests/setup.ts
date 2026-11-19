@@ -212,6 +212,7 @@ vi.mock('lucide-react', () => ({
     ZoomIn: () => null,
     ZoomOut: () => null,
     RotateCcw: () => null,
+    RotateCw: () => null,
     Hash: () => null,
     Columns: () => null,
     Key: () => null,
