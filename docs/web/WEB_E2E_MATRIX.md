@@ -16,6 +16,31 @@ The workflows in this matrix do not depend on browser-specific clipboard, notifi
 
 SSH and Kubernetes tunnel fixtures remain optional because they require deployment-specific credentials and infrastructure. Their tunnel services and event paths retain focused Rust and frontend coverage; they are not silently simulated in this real-database gate.
 
+## Compact and touch projects
+
+Mobile coverage for [#1593](https://github.com/TabularisDB/tabularis/issues/1593). These projects emulate touch devices and run only `e2e/web/tests/responsive.spec.ts`, which the desktop projects also run, so every flow in it is checked at desktop and compact sizes.
+
+| Project | Device | Viewport (CSS px) | Layout |
+|---|---|---|---|
+| `phone-chromium` | Pixel 7 | 412 x 839 | Compact |
+| `phone-webkit` | iPhone 13 | 390 x 664 | Compact |
+| `phone-narrow-webkit` | iPhone SE | 320 x 568 | Compact |
+| `phone-landscape-chromium` | Pixel 7, landscape | 863 x 360 | Intermediate |
+| `tablet-chromium` | Touch tablet | 768 x 1024 | Intermediate |
+
+Layouts follow the breakpoints proposed in [#1610](https://github.com/TabularisDB/tabularis/pull/1610): compact below 768 px, intermediate from 768 px, wide from 1024 px. The desktop projects are wide.
+
+The spec checks that the connections page fits the screen without sideways scrolling, and that a SQLite query runs from the SQL editor, with Run tapped on touch projects. The query test has no expected failures, so a broken connection setup or query fails it at every size. Separate layout tests check that the editor is at least half the screen wide and that Run and the result cell are fully on screen. Being partly visible is not enough, since a panel squeezed into a strip is on screen but unusable.
+
+Layout gaps the mobile implementation issues have not fixed yet are marked with `test.fail` and the issue number on the layout tests only, so they are tracked without breaking CI and report as unexpected passes once fixed:
+
+| Gap | Projects | Issue |
+|---|---|---|
+| The explorer keeps its desktop width, squeezes the SQL editor and pushes Run and the result past the right edge | Compact layout (under 768 px wide) | [#1582](https://github.com/TabularisDB/tabularis/issues/1582) |
+| The result grid is cut off below the editor | Short landscape (under 400 px tall) | [#1586](https://github.com/TabularisDB/tabularis/issues/1586) |
+
+These are emulated devices. Software keyboard, text selection, clipboard and browser chrome behavior need real iOS Safari and Android Chrome checks, which these projects do not replace.
+
 ## Commands
 
 Run the required local Chromium gate. The script starts isolated PostgreSQL and MySQL containers, builds the shared UI and Rust binary, and removes the containers and volumes when done:
@@ -29,6 +54,13 @@ Install Playwright's browser binaries, then run the full release-browser gate:
 ```bash
 pnpm exec playwright install chromium firefox webkit
 pnpm test:web-e2e:browsers
+```
+
+The full gate includes the compact and touch projects. To run only the responsive spec, or one device:
+
+```bash
+pnpm test:web-e2e:browsers e2e/web/tests/responsive.spec.ts
+bash e2e/web/run.sh --project=phone-webkit
 ```
 
 CI provides database service containers and sets `TABULARIS_E2E_MANAGED_DATABASES=1`. External fixtures can use the `TABULARIS_E2E_POSTGRES_*`, `TABULARIS_E2E_MYSQL_*`, `TABULARIS_E2E_DATABASE_PASSWORD`, and `TABULARIS_E2E_SQLITE_PATH` environment variables.
