@@ -377,8 +377,17 @@ function maskNonCode(sql: string): string {
             i = j;
         } else if (sql[i] === "'" || sql[i] === '"') {
             const quote = sql[i];
+            // In an escape string (E'…'), a backslash escapes the next character.
+            const escapes =
+                quote === "'" &&
+                (sql[i - 1] === 'e' || sql[i - 1] === 'E') &&
+                !(i >= 2 && /[\w$]/.test(sql[i - 2]));
             let j = i + 1;
             while (j < sql.length) {
+                if (escapes && sql[j] === '\\') {
+                    j += 2;
+                    continue;
+                }
                 if (sql[j] === quote) {
                     if (sql[j + 1] === quote) {
                         j += 2;

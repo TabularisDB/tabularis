@@ -368,6 +368,24 @@ $function$`;
             expect(extractFunctionBody(fnDef)).toBe(statements.trim());
         });
 
+        it('keeps an E-string with a backslash-escaped quote whole, and a plain string ending in a backslash', () => {
+            const statements = String.raw`RAISE NOTICE E'it\'s END of batch';
+  NEW.path := 'C:\';
+  RETURN NEW;`;
+            const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+BEGIN
+  ${statements}
+END;
+$function$`;
+            const body = extractFunctionBody(fnDef);
+            expect(body).toBe(statements);
+            // The body saves back unchanged.
+            expect(buildTriggerFunctionSql({...base, body: body!})).toContain(statements);
+        });
+
         it('reads lowercase keywords', () => {
             const fnDef = `CREATE OR REPLACE FUNCTION public.trg_fn()
  RETURNS trigger
