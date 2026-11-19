@@ -1505,12 +1505,26 @@ Execute a SQL query and return results.
   "affected_rows": 0,
   "truncated": false,
   "pagination": { "page": 1, "page_size": 100, "total_rows": 1, "has_more": false },
+  "column_sources": [
+    { "schema": "public", "table": "users", "column": "id", "table_alias": "u" },
+    { "schema": "public", "table": "users", "column": "name" },
+    null
+  ],
   "server_time_ms": 10.5,
   "fetch_time_ms": 1.2
 }
 ```
 
-`columns`, `rows` and `affected_rows` are required. `truncated` defaults to `false`, and `pagination` and the timing fields are optional. Report `truncated: true` when the query produced more rows than you returned, so the caller sees the cut-off instead of a complete-looking result.
+`columns`, `rows` and `affected_rows` are required. `truncated` defaults to `false`, and `pagination`, `column_sources` and the timing fields are optional. Report `truncated: true` when the query produced more rows than you returned, so the caller sees the cut-off instead of a complete-looking result.
+
+**`column_sources` (optional)** tells the host where each result column comes from, so it can make columns of a join editable per table. It is an array aligned with `columns` (same length, same order):
+
+| Entry | Meaning |
+|-------|---------|
+| `{ "schema"?, "table", "column", "table_alias"? }` | The column is read straight from `table.column`. `column` is the original column name, not the output label (`SELECT id AS order_id` reports `id`). `schema` is omitted for engines without schemas; `table_alias` is only set if the driver knows the alias the table has in the query, which lets the host tell the two sides of a self-join apart. Non-SQL plugins can use `table` for a collection and `column` for a field. |
+| `null` | An expression or computed column (`a + b`, `COUNT(*)`, a literal). It stays read-only. |
+
+If the field is missing the origin of every column is unknown and the result stays read-only, exactly as before, so existing plugins keep working without changes. You only report origins. The host decides what is editable: it fetches the primary keys itself, checks that each reported column exists in that table, and writes through the normal `update_record` RPC. Report only what the engine tells you; a wrong origin would let the host write to the wrong table, so use `null` or omit the field when unsure.
 
 ---
 

@@ -20,5 +20,17 @@
     "page_size": 2,
     "total_rows": null,
     "has_more": false
-  }
+  },
+  "column_sources": [
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "id"
+    },
+    {
+      "schema": "test_schema",
+      "table": "all_types",
+      "column": "col_text"
+    }
+  ]
 }

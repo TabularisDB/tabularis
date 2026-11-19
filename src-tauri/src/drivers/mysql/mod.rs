@@ -1475,6 +1475,7 @@ async fn exec_on_mysql_conn(
             truncated: false,
             pagination: None,
             additional_results: None,
+            column_sources: None,
             server_time_ms: None,
             fetch_time_ms: None,
         });
@@ -1498,6 +1499,7 @@ async fn exec_on_mysql_conn(
             truncated: false,
             pagination: None,
             additional_results: None,
+            column_sources: None,
             server_time_ms: None,
             fetch_time_ms: None,
         });
@@ -1558,6 +1560,12 @@ async fn exec_on_mysql_conn(
                         collector.set_columns(
                             row.columns().iter().map(|c| c.name().to_string()).collect(),
                         );
+                        collector.set_column_sources(
+                            row.columns()
+                                .iter()
+                                .map(|c| c.source().map(multi_result::column_source_from_mysql))
+                                .collect(),
+                        );
                     }
 
                     // Past the row cap the row is still consumed (the stream
@@ -1590,6 +1598,7 @@ async fn exec_on_mysql_conn(
         result_sets.remove(0)
     };
     let columns = primary.columns;
+    let column_sources = Some(primary.column_sources).filter(|s| !s.is_empty());
     let mut json_rows = primary.rows;
     if primary.truncated {
         truncated = true;
@@ -1607,6 +1616,7 @@ async fn exec_on_mysql_conn(
                     truncated: set.truncated,
                     pagination: None,
                     additional_results: None,
+                    column_sources: Some(set.column_sources).filter(|s| !s.is_empty()),
                     server_time_ms: None,
                     fetch_time_ms: None,
                 })
@@ -1631,6 +1641,7 @@ async fn exec_on_mysql_conn(
         truncated,
         pagination,
         additional_results,
+        column_sources,
         server_time_ms: server_time,
         fetch_time_ms: fetch_time,
     })

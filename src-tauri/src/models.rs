@@ -624,6 +624,23 @@ pub struct Pagination {
     pub has_more: bool,
 }
 
+/// Where one result column comes from, as reported by the driver.
+///
+/// Drivers only report origins; whether a column is editable is decided by
+/// the host. `schema` is `None` for engines without schemas. `table_alias` is
+/// set only when the driver can report it (MySQL), so the host can tell the
+/// two sides of a self-join apart. Non-SQL plugins can fill `table` with a
+/// collection name and `column` with a field name.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ColumnSource {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+    pub table: String,
+    pub column: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table_alias: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QueryResult {
     pub columns: Vec<String>,
@@ -638,6 +655,12 @@ pub struct QueryResult {
     /// of multi-result statements keep working unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub additional_results: Option<Vec<QueryResult>>,
+    /// Origin of each column, aligned with `columns`. An entry is `null` for
+    /// an expression or computed column. When the whole field is absent the
+    /// driver does not report origins, so every column is treated as of
+    /// unknown origin (read-only). Plugins that omit it keep working.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub column_sources: Option<Vec<Option<ColumnSource>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_time_ms: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -917,6 +940,7 @@ mod appearance_tests {
             truncated: false,
             pagination: None,
             additional_results: None,
+            column_sources: None,
             server_time_ms: Some(12.5),
             fetch_time_ms: Some(3.2),
         };
@@ -926,5 +950,67 @@ mod appearance_tests {
         let back: QueryResult = serde_json::from_str(&s).unwrap();
         assert_eq!(back.server_time_ms, Some(12.5));
         assert_eq!(back.fetch_time_ms, Some(3.2));
+    }
+
+    #[test]
+    fn query_result_without_column_sources_omits_the_field() {
+        let qr = QueryResult {
+            columns: vec!["id".into()],
+            rows: vec![],
+            affected_rows: 0,
+            truncated: false,
+            pagination: None,
+            additional_results: None,
+            column_sources: None,
+            server_time_ms: None,
+            fetch_time_ms: None,
+        };
+        let v = serde_json::to_value(&qr).unwrap();
+        assert!(v.get("column_sources").is_none());
+    }
+
+    #[test]
+    fn query_result_from_a_plugin_without_column_sources_still_parses() {
+        let json = r#"{"columns":["id"],"rows":[[1]],"affected_rows":0}"#;
+        let qr: QueryResult = serde_json::from_str(json).unwrap();
+        assert!(qr.column_sources.is_none());
+    }
+
+    #[test]
+    fn query_result_column_sources_roundtrip_with_nulls_for_expressions() {
+        let json = r#"{
+            "columns": ["id", "name", "total"],
+            "rows": [],
+            "affected_rows": 0,
+            "column_sources": [
+                {"schema": "public", "table": "orders", "column": "id", "table_alias": "o"},
+                {"table": "customers", "column": "name"},
+                null
+            ]
+        }"#;
+        let qr: QueryResult = serde_json::from_str(json).unwrap();
+        let sources = qr.column_sources.as_ref().unwrap();
+        assert_eq!(sources.len(), 3);
+        assert_eq!(
+            sources[0],
+            Some(ColumnSource {
+                schema: Some("public".into()),
+                table: "orders".into(),
+                column: "id".into(),
+                table_alias: Some("o".into()),
+            })
+        );
+        assert_eq!(sources[1].as_ref().unwrap().schema, None);
+        assert_eq!(sources[2], None);
+
+        let back = serde_json::to_value(&qr).unwrap();
+        assert_eq!(
+            back["column_sources"],
+            serde_json::json!([
+                {"schema": "public", "table": "orders", "column": "id", "table_alias": "o"},
+                {"table": "customers", "column": "name"},
+                null
+            ])
+        );
     }
 }

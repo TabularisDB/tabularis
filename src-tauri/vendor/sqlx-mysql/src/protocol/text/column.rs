@@ -104,11 +104,8 @@ pub enum ColumnType {
 pub(crate) struct ColumnDefinition {
     #[allow(unused)]
     catalog: Bytes,
-    #[allow(unused)]
     schema: Bytes,
-    #[allow(unused)]
     table_alias: Bytes,
-    #[allow(unused)]
     table: Bytes,
     alias: Bytes,
     name: Bytes,
@@ -131,6 +128,19 @@ impl ColumnDefinition {
 
     pub(crate) fn alias(&self) -> Result<&str, Error> {
         from_utf8(&self.alias).map_err(Error::protocol)
+    }
+
+    pub(crate) fn schema(&self) -> Result<&str, Error> {
+        from_utf8(&self.schema).map_err(Error::protocol)
+    }
+
+    pub(crate) fn table_alias(&self) -> Result<&str, Error> {
+        from_utf8(&self.table_alias).map_err(Error::protocol)
+    }
+
+    /// The original table name (`org_table`), empty for expressions.
+    pub(crate) fn table(&self) -> Result<&str, Error> {
+        from_utf8(&self.table).map_err(Error::protocol)
     }
 }
 
