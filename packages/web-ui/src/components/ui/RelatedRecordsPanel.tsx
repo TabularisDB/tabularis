@@ -82,6 +82,10 @@ export function RelatedRecordsPanel({
 
     // Format value for display in the header
     const formattedValue = value === null ? 'NULL' : String(value);
+    const tableLabel =
+        fk.ref_schema && fk.ref_schema !== schema
+            ? `${fk.ref_schema}.${fk.ref_table}`
+            : fk.ref_table;
 
     return (
         <div
@@ -114,9 +118,9 @@ export function RelatedRecordsPanel({
                     </span>
                     <span
                         className="text-xs px-2 py-0.5 rounded bg-surface-tertiary/40 border border-strong font-mono truncate text-accent-info max-w-[200px]"
-                        title={fk.ref_table}
+                        title={tableLabel}
                     >
-                        {fk.ref_table}
+                        {tableLabel}
                     </span>
                     <span className="text-xs text-muted font-medium select-none shrink-0">
                         ({fk.ref_column} = {formattedValue})
