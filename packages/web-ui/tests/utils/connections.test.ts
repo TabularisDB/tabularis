@@ -153,7 +153,7 @@ describe('connections', () => {
         });
 
         it('should return 0 for an unrecognized bare driver id (e.g. a plugin id with no manifest resolved)', () => {
-            expect(getDefaultPort('postgresql')).toBe(0);
+            expect(getDefaultPort('unknown-driver')).toBe(0);
         });
 
         it('should read default_port off a PluginManifest for a non-"postgres" plugin id (issue #614)', () => {
@@ -385,7 +385,7 @@ describe('connections', () => {
         });
 
         it('should return an all-caps fallback for an unrecognized bare driver id', () => {
-            expect(getDriverLabel('postgresql')).toBe('POSTGRESQL');
+            expect(getDriverLabel('unknown-driver')).toBe('UNKNOWN-DRIVER');
         });
 
         it('should read name off a PluginManifest for a non-"postgres" plugin id (issue #614), not the all-caps fallback', () => {
