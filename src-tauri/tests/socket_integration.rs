@@ -3,6 +3,7 @@
 
 use tabularis_lib::drivers::driver_trait::DatabaseDriver;
 use tabularis_lib::drivers::mysql::MysqlDriver;
+use tabularis_lib::drivers::registry;
 use tabularis_lib::models::{ConnectionParams, DatabaseSelection};
 use tabularis_lib::pool_manager::{close_pool_with_id, get_mysql_pool_with_id};
 
@@ -91,4 +92,73 @@ async fn mysql_socket_auth_and_tcp_regression() {
         .await
         .expect("TCP still works after socket use");
     close_pool_with_id(&tcp, Some("socket-regression-admin")).await;
+}
+
+/// Verifies the `postgresql` plugin honors `unix_socket_path`: when a socket
+/// path is set, the plugin must dial the socket (not TCP) and ignore the
+/// `host`/`port` fields. The built-in postgres driver did this in
+/// `pool_manager.rs` (`split_postgres_socket_path` + `build_postgres_configurations`);
+/// the plugin must mirror that logic.
+///
+/// This test **will fail** against plugin rc.14, which does not honor
+/// `unix_socket_path` — it dials TCP from `host`/`port` instead. The test
+/// documents the expected behavior and will pass once the plugin adds
+/// socket support. See the issue filed on tabularis-postgresql-plugin.
+///
+/// Run with:
+///   PG_UNIX_SOCKET=/var/run/postgresql cargo test --test socket_integration \
+///     postgresql_plugin_honors_unix_socket -- --ignored --nocapture
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL on port 54320, PG_UNIX_SOCKET, and the postgresql plugin installed"]
+async fn postgresql_plugin_honors_unix_socket_path() {
+    // Bootstrap with external plugins so the postgresql plugin registers.
+    tabularis_lib::runtime::bootstrap::install_process_prerequisites();
+    let _ = tabularis_lib::runtime::bootstrap::bootstrap_application(
+        tabularis_lib::runtime::RuntimeContext::system(),
+        tabularis_lib::runtime::bootstrap::BootstrapOptions {
+            load_external_plugins: true,
+            run_connection_migrations: false,
+        },
+    )
+    .await;
+
+    let drv = registry::get_driver("postgresql")
+        .await
+        .expect("postgresql plugin must be registered");
+
+    // TCP works (sanity check).
+    let tcp = ConnectionParams {
+        driver: "postgresql".to_string(),
+        host: Some("127.0.0.1".to_string()),
+        port: Some(54320),
+        username: Some("postgres".to_string()),
+        password: Some("password".to_string()),
+        database: DatabaseSelection::Single("testdb".to_string()),
+        ssl_mode: Some("disable".to_string()),
+        ..Default::default()
+    };
+    drv.test_connection(&tcp)
+        .await
+        .expect("TCP authentication via postgresql plugin");
+
+    // Socket: set unix_socket_path + bogus host:port. If the plugin honors
+    // the socket, test_connection succeeds despite the unreachable host.
+    // If it dials TCP, it fails to connect to ignored.invalid:1.
+    let socket_path = std::env::var("PG_UNIX_SOCKET")
+        .expect("PG_UNIX_SOCKET env var must point at the socket dir");
+    let mut socket = tcp.clone();
+    socket.unix_socket_path = Some(socket_path);
+    socket.host = Some("ignored.invalid".to_string());
+    socket.port = Some(1);
+    socket.ssl_mode = Some("disable".to_string());
+
+    drv.test_connection(&socket).await.expect(
+        "postgresql plugin must dial the Unix socket, not TCP — \
+                 if this fails, the plugin is ignoring unix_socket_path",
+    );
+
+    // TCP still works after the socket test (no state corruption).
+    drv.test_connection(&tcp)
+        .await
+        .expect("TCP still works after socket use");
 }
