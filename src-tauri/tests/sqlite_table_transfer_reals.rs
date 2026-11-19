@@ -1,9 +1,13 @@
-//! "Export table to SQL" (#709) keeps every SQLite real bit for bit,
-//! whichever decimal parser the SQLite build uses. SQLite reads decimals
-//! with `long double` where it is wider than `double` (Linux x86-64) and
-//! with double-double arithmetic elsewhere (macOS on Apple Silicon); the
-//! two disagree on some values, and neither is exact for all of them. This
-//! test switches between the two in-process, so every platform runs both.
+//! "Export table to SQL" (#709) keeps every SQLite real bit for bit through
+//! the decimal parser bundled with this SQLite.
+//!
+//! SQLite 3.50 and earlier could switch, in-process, between a `long double`
+//! parser and a double parser via `sqlite3_test_control` opcode 34
+//! (`SQLITE_TESTCTRL_USELONGDOUBLE`). SQLite 3.54.0 removed that parser and
+//! reused opcode 34 as `SQLITE_TESTCTRL_ATOF`, which expects a string and a
+//! `double` pointer. Calling it with the old integer argument reads that
+//! integer as a pointer and segfaults. One round trip now covers the only
+//! parser this build has.
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Row, SqlitePool};
@@ -22,18 +26,6 @@ use tabularis_lib::runtime::events::NoopRuntimeEvents;
 use tabularis_lib::runtime::paths::FixedRuntimePaths;
 use tabularis_lib::runtime::RuntimeContext;
 use tabularis_lib::table_sql::TableSqlContent;
-
-extern "C" {
-    // Part of the SQLite bundled through `libsqlite3-sys`.
-    fn sqlite3_test_control(op: std::os::raw::c_int, ...) -> std::os::raw::c_int;
-}
-
-/// `SQLITE_TESTCTRL_USELONGDOUBLE`: 1 or 0 picks the parser, -1 reads it.
-const USE_LONG_DOUBLE: std::os::raw::c_int = 34;
-
-fn use_long_double(setting: i32) -> i32 {
-    unsafe { sqlite3_test_control(USE_LONG_DOUBLE, setting as std::os::raw::c_int) }
-}
 
 struct NoSecrets;
 
@@ -242,25 +234,14 @@ async fn round_trip(dir: &Path, values: &[f64]) -> (usize, usize) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn every_real_comes_back_with_either_decimal_parser() {
+async fn every_real_comes_back_through_the_bundled_decimal_parser() {
     tabularis_lib::drivers::registry::register_driver(
         tabularis_lib::drivers::sqlite::SqliteDriver::new(),
     )
     .await;
     let values = sample();
-    let original = use_long_double(-1);
-    let mut differing = Vec::new();
-    for parser in [1, 0] {
-        use_long_double(parser);
-        let dir = tempfile::tempdir().unwrap();
-        let (rows, wrong) = round_trip(dir.path(), &values).await;
-        assert_eq!(rows, values.len());
-        differing.push((parser, wrong));
-    }
-    use_long_double(original);
-    assert_eq!(
-        differing,
-        [(1, 0), (0, 0)],
-        "(long double parser, rows that changed)"
-    );
+    let dir = tempfile::tempdir().unwrap();
+    let (rows, wrong) = round_trip(dir.path(), &values).await;
+    assert_eq!(rows, values.len());
+    assert_eq!(wrong, 0, "reals whose bits changed on the round trip");
 }

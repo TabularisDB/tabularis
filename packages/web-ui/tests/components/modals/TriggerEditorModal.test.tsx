@@ -296,6 +296,64 @@ describe('TriggerEditorModal save ordering', () => {
             expect(routineLookups).toHaveLength(1);
         },
     );
+
+    it.each([
+        [
+            'a WHEN condition',
+            'FOR EACH ROW WHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION store.audit_fn()',
+            'FOR EACH ROW\nWHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION store.audit_fn();',
+        ],
+        [
+            'a statement-level trigger',
+            'FOR EACH STATEMENT EXECUTE FUNCTION store.audit_fn()',
+            'FOR EACH STATEMENT\nEXECUTE FUNCTION store.audit_fn();',
+        ],
+    ])('keeps %s when it saves an edit', async (_label, clause, expected) => {
+        invokeMock.mockImplementation(async (cmd: string) => {
+            if (cmd === 'get_trigger_definition') {
+                return `CREATE TRIGGER audit AFTER UPDATE ON store.products ${clause}`;
+            }
+            if (cmd === 'get_routine_definition') {
+                return [
+                    'CREATE OR REPLACE FUNCTION store.audit_fn() RETURNS trigger LANGUAGE plpgsql AS $function$',
+                    'BEGIN',
+                    '  RETURN NULL;',
+                    'END;',
+                    '$function$',
+                ].join('\n');
+            }
+            return '';
+        });
+
+        render(
+            <TriggerEditorModal
+                isOpen
+                onClose={vi.fn()}
+                connectionId="conn-1"
+                triggerName="audit"
+                tableName="products"
+                schema="store"
+                driver="postgres"
+                isNewTrigger={false}
+                onSuccess={vi.fn()}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(invokeMock).toHaveBeenCalledWith(
+                'get_routine_definition',
+                expect.objectContaining({routineName: 'audit_fn'}),
+            );
+        });
+
+        fireEvent.click(screen.getByText('triggers.save'));
+
+        await waitFor(() => {
+            const created = invokeMock.mock.calls.filter(([cmd]) => cmd === 'create_trigger');
+            expect(created).toHaveLength(1);
+            expect((created[0][1] as {triggerSql: string}).triggerSql).toContain(expected);
+        });
+    });
 });
 
 vi.mock('@/hooks/useTabularisClient', () => {

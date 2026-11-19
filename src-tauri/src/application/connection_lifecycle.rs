@@ -186,6 +186,12 @@ pub fn tunnel_discards(tick: &[TickPing], auto_reconnect: bool) -> Vec<TunnelDis
         .collect()
 }
 
+/// The auto-reconnect setting for a tick, read with `load` only when a ping
+/// failed. A tick where every ping is Ok acts on nothing, so it skips the read.
+pub fn auto_reconnect_for_tick(tick: &[TickPing], load: impl FnOnce() -> bool) -> bool {
+    tick.iter().any(|ping| ping.outcome != PingOutcome::Ok) && load()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,6 +383,44 @@ mod tests {
         tracker.record("a", false);
         tracker.forget("a");
         assert_eq!(tracker.record("a", false), PingVerdict::Suspect);
+    }
+
+    #[test]
+    fn a_healthy_tick_does_not_read_the_config() {
+        let tick = [
+            ping("a", lease(1), PingOutcome::Ok, PingVerdict::Healthy),
+            ping("b", None, PingOutcome::Ok, PingVerdict::Healthy),
+        ];
+        let mut reads = 0;
+        let auto_reconnect = auto_reconnect_for_tick(&tick, || {
+            reads += 1;
+            true
+        });
+        assert_eq!(reads, 0);
+        assert!(!auto_reconnect);
+    }
+
+    #[test]
+    fn a_failed_ping_reads_the_config_once() {
+        let tick = [
+            ping("a", lease(1), PingOutcome::Ok, PingVerdict::Healthy),
+            ping("b", lease(1), PingOutcome::TimedOut, PingVerdict::Suspect),
+            ping(
+                "c",
+                None,
+                PingOutcome::Error("eof".into()),
+                PingVerdict::Failed,
+            ),
+        ];
+        for setting in [true, false] {
+            let mut reads = 0;
+            let auto_reconnect = auto_reconnect_for_tick(&tick, || {
+                reads += 1;
+                setting
+            });
+            assert_eq!(reads, 1);
+            assert_eq!(auto_reconnect, setting);
+        }
     }
 
     #[test]

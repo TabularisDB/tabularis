@@ -45,6 +45,7 @@ export function serializeNotebook(
             ...(c.kpiConfig ? {kpiConfig: c.kpiConfig} : {}),
             ...(c.isKpiVisible != null ? {isKpiVisible: c.isKpiVisible} : {}),
             ...(c.isQueryPlanVisible != null ? {isQueryPlanVisible: c.isQueryPlanVisible} : {}),
+            ...(c.includeInReport === false ? {includeInReport: false} : {}),
         })),
         ...(params && params.length > 0 ? {params} : {}),
         ...(stopOnError ? {stopOnError} : {}),
@@ -108,6 +109,10 @@ export function deserializeNotebook(json: string): {
                 isKpiVisible:
                     typeof cellRaw.isKpiVisible === 'boolean' ? cellRaw.isKpiVisible : undefined,
                 isQueryPlanVisible: cellRaw.isQueryPlanVisible as boolean | undefined,
+                includeInReport:
+                    typeof cellRaw.includeInReport === 'boolean'
+                        ? cellRaw.includeInReport
+                        : undefined,
                 result: null,
                 error: undefined,
                 executionTime: null,

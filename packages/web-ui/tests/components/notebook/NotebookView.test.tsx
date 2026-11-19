@@ -109,6 +109,13 @@ vi.mock('@/components/notebook/RunAllSummary', () => ({
 }));
 vi.mock('@/components/notebook/ParamsPanel', () => ({ParamsPanel: () => null}));
 vi.mock('@/components/notebook/NotebookOutline', () => ({NotebookOutline: () => null}));
+vi.mock('@/components/ui/DataGrid', () => ({
+    DataGrid: ({columns, data}: {columns: string[]; data: unknown[][]}) => (
+        <div data-testid="report-grid" data-rows={data.length}>
+            {columns.join(',')}
+        </div>
+    ),
+}));
 vi.mock('@/components/notebook/NotebookToolbar', () => ({
     NotebookToolbar: ({
         onRunAll,
@@ -119,6 +126,8 @@ vi.mock('@/components/notebook/NotebookToolbar', () => ({
         canUndo,
         onRedo,
         canRedo,
+        viewMode,
+        onViewModeChange,
         onExportMarkdown,
     }: ComponentProps<typeof NotebookToolbar>) => (
         <>
@@ -135,6 +144,22 @@ vi.mock('@/components/notebook/NotebookToolbar', () => ({
             <button onClick={onRedo} disabled={!canRedo}>
                 Redo
             </button>
+            {onViewModeChange && (
+                <>
+                    <button
+                        onClick={() => onViewModeChange('edit')}
+                        aria-pressed={viewMode === 'edit'}
+                    >
+                        Edit mode
+                    </button>
+                    <button
+                        onClick={() => onViewModeChange('report')}
+                        aria-pressed={viewMode === 'report'}
+                    >
+                        Report mode
+                    </button>
+                </>
+            )}
         </>
     ),
 }));
@@ -1039,6 +1064,90 @@ describe('NotebookView', () => {
             await waitFor(() => expect(duplicateButton('base')).toBeEnabled());
         });
     });
+    describe('Report view', () => {
+        it('switches Edit -> Report -> Edit without executing cells, losing output, or changing collapse preferences', async () => {
+            renderNotebook({
+                cells: [
+                    {
+                        ...sqlCell('setup', 'SELECT 1'),
+                        includeInReport: false,
+                        isCollapsed: true,
+                        isQueryCollapsed: true,
+                        isResultCollapsed: true,
+                    },
+                    {
+                        ...sqlCell('report_cell', 'SELECT 2'),
+                        name: 'Summary',
+                        result: queryResult,
+                        isCollapsed: true,
+                        isQueryCollapsed: true,
+                        isResultCollapsed: false,
+                    },
+                ],
+            });
+            await settle();
+
+            expect(screen.getByTestId('cell-setup')).toBeInTheDocument();
+            expect(screen.getByTestId('cell-report_cell')).toBeInTheDocument();
+
+            // Switch to Report mode
+            fireEvent.click(screen.getByRole('button', {name: 'Report mode'}));
+            expect(mockInvoke).not.toHaveBeenCalled();
+
+            // Setup cell is omitted; report_cell is rendered
+            expect(screen.queryByTestId('cell-setup')).not.toBeInTheDocument();
+            expect(screen.getByRole('region', {name: 'Summary'})).toBeInTheDocument();
+
+            // Switch back to Edit mode
+            fireEvent.click(screen.getByRole('button', {name: 'Edit mode'}));
+            expect(mockInvoke).not.toHaveBeenCalled();
+
+            // Outputs and collapse preferences are preserved
+            expect(savedCell('setup')).toMatchObject({
+                includeInReport: false,
+                isCollapsed: true,
+                isQueryCollapsed: true,
+                isResultCollapsed: true,
+            });
+            expect(savedCell('report_cell')).toMatchObject({
+                result: queryResult,
+                isCollapsed: true,
+                isQueryCollapsed: true,
+                isResultCollapsed: false,
+            });
+        });
+
+        it('executes Run All in Report view through the guarded execution path', async () => {
+            renderNotebook({
+                cells: [
+                    {
+                        ...sqlCell('q1', 'SELECT 1'),
+                        name: 'Metric',
+                        result: null,
+                    },
+                ],
+            });
+            await settle();
+
+            fireEvent.click(screen.getByRole('button', {name: 'Report mode'}));
+            expect(screen.getByText('editor.notebook.reportNoOutput')).toBeInTheDocument();
+            expect(mockInvoke).not.toHaveBeenCalled();
+
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name: 'Run All'}));
+            });
+
+            await waitFor(() => expect(fixtures.guardQuery).toHaveBeenCalledWith('SELECT 1'));
+            await waitFor(() =>
+                expect(mockInvoke).toHaveBeenCalledWith(
+                    'execute_query',
+                    expect.objectContaining({query: 'SELECT 1'}),
+                ),
+            );
+            await waitFor(() => expect(savedCell('q1').result).toEqual(queryResult));
+        });
+    });
+
     describe('Export Markdown', () => {
         const exportButton = () => screen.getByRole('button', {name: 'Export Markdown'});
 

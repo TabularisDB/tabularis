@@ -201,4 +201,21 @@ describe('NotebookOutline', () => {
         });
         expect(outputIndicators).toHaveLength(1);
     });
+
+    it('names the disabled and blocked indicators once, without hidden duplicate text', () => {
+        const cells: NotebookCell[] = [
+            makeCell({id: 'c1', content: 'SELECT 1', name: 'Source', isDisabled: true}),
+            makeCell({id: 'c2', content: 'SELECT * FROM {{cell_1}}', name: 'Consumer'}),
+        ];
+
+        render(<NotebookOutline cells={cells} onScrollToCell={vi.fn()} />);
+
+        const disabledIndicator = screen.getByRole('img', {name: 'editor.notebook.statusDisabled'});
+        expect(disabledIndicator).toHaveClass('text-muted');
+        expect(disabledIndicator).toHaveTextContent(/^$/);
+
+        const blockedIndicator = screen.getByRole('img', {name: 'editor.notebook.statusBlocked'});
+        expect(blockedIndicator).toHaveClass('text-accent-warning');
+        expect(blockedIndicator).toHaveTextContent(/^$/);
+    });
 });

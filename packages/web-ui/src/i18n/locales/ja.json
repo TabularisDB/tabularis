@@ -2376,9 +2376,20 @@
           "collapse": "セルを折りたたみ/展開",
           "params": "パラメータを変更",
           "stopOnError": "エラー時に停止を切り替え",
-          "other": "ノートブックを編集"
+          "other": "ノートブックを編集",
+          "reportInclusion": "レポートへの含有を切り替え (セル {{n}})"
         }
-      }
+      },
+      "viewMode": "表示モード",
+      "editMode": "編集",
+      "reportMode": "レポート",
+      "includeInReport": "レポートに含める",
+      "excludeFromReport": "レポートから除外",
+      "includedInReport": "レポートに含まれています",
+      "excludedFromReport": "レポートから除外されています",
+      "reportOutdated": "古い結果",
+      "reportNoOutput": "まだ出力がありません。ノートブックを実行して結果を読み込んでください。",
+      "reportEmpty": "このレポートに含まれるセルがありません。"
     },
     "querySelection": {
       "title": "実行するクエリを選択",
@@ -3609,6 +3620,7 @@
     "fkIncoming": "{{object}}.{{column}} から参照",
     "viewTitle": "ビュー {{view}}",
     "historyTitle": "{{date}} に実行したクエリ",
+    "failedRun": "失敗した実行",
     "matchCount": "この SQL 内の参照数: {{count}}",
     "open": "開く",
     "openHistory": "エディターで開く",

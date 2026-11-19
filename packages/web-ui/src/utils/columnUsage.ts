@@ -415,6 +415,18 @@ const SELECT_MODIFIERS = new Set([
 
 const SET_OPERATORS = new Set(['UNION', 'INTERSECT', 'EXCEPT', 'MINUS']);
 
+// UNION / INTERSECT / EXCEPT / MINUS at `index` joins two queries only when a
+// query follows it (after ALL / DISTINCT and any parentheses). Otherwise it is
+// a name (`minus` is an ordinary column outside Oracle) or BigQuery's
+// `* EXCEPT (col)`, and must not end the query it is in.
+function isSetOperatorAt(tokens: LexToken[], index: number): boolean {
+    if (!SET_OPERATORS.has(keyword(tokens[index]))) return false;
+    let j = index + 1;
+    if (['ALL', 'DISTINCT'].includes(keyword(tokens[j]))) j++;
+    while (tokens[j]?.kind === 'punct' && tokens[j].value === '(') j++;
+    return ['SELECT', 'WITH', 'VALUES', 'TABLE'].includes(keyword(tokens[j]));
+}
+
 const DYNAMIC_SQL_WORDS = new Set(['EXECUTE', 'EXEC', 'PREPARE', 'SP_EXECUTESQL']);
 
 interface Binding {
@@ -518,6 +530,8 @@ function isCteAt(ctes: CteDefinition[], name: string, index: number): boolean {
 
 // A parenthesis that opens with SELECT or WITH starts a new query level;
 // any other (function arguments, IN lists, column lists) stays in its level.
+// A UNION / INTERSECT / EXCEPT of a level starts a sibling level for the
+// query after it, with the same parent, so each side has its own tables.
 function computeScopes(tokens: LexToken[]): {
     scopes: number[];
     parents: Map<number, number>;
@@ -526,23 +540,32 @@ function computeScopes(tokens: LexToken[]): {
     const scopes: number[] = [];
     const parents = new Map<number, number>();
     const opens = new Map<number, number>();
-    const stack: number[] = [0];
+    // Each frame: its query level, and whether it is that level's own
+    // frame (the statement or a SELECT/WITH parenthesis).
+    const stack: {level: number; own: boolean}[] = [{level: 0, own: true}];
     let next = 1;
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
         if (token.kind === 'punct' && token.value === ')' && stack.length > 1) {
             stack.pop();
         }
-        scopes.push(stack[stack.length - 1]);
+        const top = stack[stack.length - 1];
+        scopes.push(top.level);
         if (token.kind === 'punct' && token.value === '(') {
             const first = keyword(tokens[i + 1]);
             if (first === 'SELECT' || first === 'WITH') {
-                parents.set(next, stack[stack.length - 1]);
+                parents.set(next, top.level);
                 opens.set(next, i);
-                stack.push(next++);
+                stack.push({level: next++, own: true});
             } else {
-                stack.push(stack[stack.length - 1]);
+                stack.push({level: top.level, own: false});
             }
+        } else if (top.own && isSetOperatorAt(tokens, i)) {
+            const parent = parents.get(top.level);
+            if (parent !== undefined) parents.set(next, parent);
+            const open = opens.get(top.level);
+            if (open !== undefined) opens.set(next, open);
+            stack[stack.length - 1] = {level: next++, own: true};
         }
     }
     return {scopes, parents, opens};
@@ -583,7 +606,11 @@ function buildModel(tokens: LexToken[], rule: IdentifierRules): StatementModel {
         const aliasToken = tokens[i];
         if (
             isIdent(aliasToken) &&
-            !(aliasToken.kind === 'word' && NOT_ALIAS.has(keyword(aliasToken)))
+            !(
+                aliasToken.kind === 'word' &&
+                NOT_ALIAS.has(keyword(aliasToken)) &&
+                !(SET_OPERATORS.has(keyword(aliasToken)) && !isSetOperatorAt(tokens, i))
+            )
         ) {
             model.nameTokens.add(i);
             bind(aliasToken.value, binding);
@@ -610,13 +637,15 @@ function buildModel(tokens: LexToken[], rule: IdentifierRules): StatementModel {
         if (tokens[i]?.value === '(') {
             const first = tokens[i + 1];
             const close = skipParens(tokens, i);
-            // `((SELECT ...)) d` is one derived table in extra parentheses.
-            const wrapsOneParen =
-                tokens[i + 1]?.value === '(' &&
+            // `((SELECT ...)) d` is one derived table in extra parentheses, and
+            // `((SELECT ...) UNION (SELECT ...)) d` one made of a set operation.
+            const innerClose = tokens[i + 1]?.value === '(' ? skipParens(tokens, i + 1) : undefined;
+            const wrapsQuery =
+                innerClose !== undefined &&
                 ['SELECT', 'WITH', 'VALUES'].includes(keyword(tokens[i + 2])) &&
-                skipParens(tokens, i + 1) === close - 1;
+                (innerClose === close - 1 || isSetOperatorAt(tokens, innerClose + 1));
             if (
-                (isIdent(first) || (tokens[i + 1]?.value === '(' && !wrapsOneParen)) &&
+                (isIdent(first) || (tokens[i + 1]?.value === '(' && !wrapsQuery)) &&
                 !['SELECT', 'WITH', 'VALUES', 'TABLE'].includes(keyword(first))
             ) {
                 joinGroups.add(i);
@@ -694,7 +723,8 @@ function buildModel(tokens: LexToken[], rule: IdentifierRules): StatementModel {
         }
         const word = keyword(token);
         if (!word) continue;
-        if (LIST_END.has(word)) listDepths.delete(depth);
+        if (LIST_END.has(word) && (!SET_OPERATORS.has(word) || isSetOperatorAt(tokens, i)))
+            listDepths.delete(depth);
         // `ON DUPLICATE KEY UPDATE a = 1, b = 2` / `ON CONFLICT ... DO UPDATE`.
         if (word === 'ON' && ['DUPLICATE', 'CONFLICT'].includes(keyword(tokens[i + 1])))
             listDepths.delete(depth);
@@ -851,6 +881,7 @@ function analyseStatement(
                     continue;
                 }
                 if (word === 'SELECT' || word === 'RETURNING') return k;
+                if (SET_OPERATORS.has(word) && !isSetOperatorAt(tokens, k)) continue;
                 if (LIST_END.has(word) || RELATION_KEYWORDS.has(word)) return undefined;
             }
             return undefined;
@@ -883,7 +914,7 @@ function analyseStatement(
         if (keyword(tokens[listStart]) === 'SELECT') {
             from = listStart;
             for (let k = listStart + 1; k < tokens.length; k++) {
-                if (model.scopes[k] === scope && SET_OPERATORS.has(keyword(tokens[k]))) {
+                if (model.scopes[k] === scope && isSetOperatorAt(tokens, k)) {
                     until = k;
                     break;
                 }

@@ -405,6 +405,28 @@ describe('NotebookCellWrapper duplicate action', () => {
     });
 });
 
+describe('NotebookCellWrapper report inclusion toggle', () => {
+    it('defaults to included and toggles includeInReport via onUpdate', () => {
+        const props = makeProps();
+        const {rerender} = render(<NotebookCellWrapper {...props} />);
+
+        const toggle = screen.getByRole('button', {name: 'editor.notebook.includeInReport'});
+        expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+        fireEvent.click(toggle);
+        expect(props.onUpdate).toHaveBeenCalledWith({includeInReport: false});
+
+        rerender(<NotebookCellWrapper {...props} cell={{...props.cell, includeInReport: false}} />);
+        const excludedToggle = screen.getByRole('button', {
+            name: 'editor.notebook.includeInReport',
+        });
+        expect(excludedToggle).toHaveAttribute('aria-pressed', 'false');
+
+        fireEvent.click(excludedToggle);
+        expect(props.onUpdate).toHaveBeenCalledWith({includeInReport: true});
+    });
+});
+
 describe('NotebookCellWrapper enable/disable toggle', () => {
     const disableLabel = 'editor.notebook.disableCell';
     const enableLabel = 'editor.notebook.enableCell';
