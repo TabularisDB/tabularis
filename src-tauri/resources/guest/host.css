@@ -6492,12 +6492,14 @@
       align-self: auto;
     }
   }
-  .md\:max-h-none {
-    @media (width >= 48rem) {
-      max-height: none;
   .sm\:p-6 {
     @media (width >= 40rem) {
       padding: calc(var(--spacing) * 6);
+    }
+  }
+  .md\:max-h-none {
+    @media (width >= 48rem) {
+      max-height: none;
     }
   }
   .md\:grid-cols-2 {
