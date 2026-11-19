@@ -790,6 +790,31 @@ describe('PluginsTab theme package removal', () => {
         },
     );
 
+    it('drops a removed package from Installed before the registry catches up', async () => {
+        // The registry is a network round trip behind and still reports the package.
+        setRegistry([{...dracula, id: 'ember-theme', name: 'Ember'}]);
+        mocks.refreshCatalog.mockImplementationOnce(async () => {
+            mocks.catalog = {themes: [], issues: []};
+        });
+        renderTab('installed', 'theme');
+        const installedTab = () => screen.getByRole('button', {name: /^Installed/});
+        expect(installedTab()).toHaveTextContent('Installed1');
+        fireEvent.click(card('Ember').getByRole('button', {name: 'Uninstall package'}));
+        fireEvent.click(
+            within(screen.getByRole('dialog', {name: 'Remove Plugin'})).getByRole('button', {
+                name: 'Remove',
+            }),
+        );
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(screen.queryByText('Ember')).not.toBeInTheDocument();
+        // The count badge hides at zero.
+        expect(installedTab()).toHaveTextContent(/^Installed$/);
+        // It is still offered for install, with nothing left to update.
+        fireEvent.click(screen.getByRole('button', {name: /^All ?\d/}));
+        expect(card('Ember').getByRole('button', {name: 'Install v1.2.0'})).toBeEnabled();
+        expect(card('Ember').queryByText(/^Installed v/)).not.toBeInTheDocument();
+    });
+
     it('cancels without uninstalling the package', () => {
         renderTab('installed', 'theme');
         fireEvent.click(card('ember-theme').getByRole('button', {name: 'Uninstall package'}));
