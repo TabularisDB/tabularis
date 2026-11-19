@@ -1590,6 +1590,43 @@ describe('NotebookView', () => {
             );
         });
 
+        it('confirms each write when two databases are scheduled together', async () => {
+            const confirmations = new Map<string, (allowed: boolean) => void>();
+            fixtures.guardQuery.mockImplementation(
+                (sql: string) =>
+                    new Promise<boolean>((resolve) => {
+                        confirmations.set(sql, resolve);
+                    }),
+            );
+            renderNotebook({
+                cells: [
+                    sqlCell('a', 'DELETE FROM a', {schema: 'billing'}),
+                    sqlCell('b', 'DELETE FROM b', {schema: 'orders'}),
+                ],
+            });
+            await click('Run All');
+            await waitFor(() => expect(fixtures.guardQuery).toHaveBeenCalledTimes(2));
+            expect(mockInvoke).not.toHaveBeenCalled();
+
+            await act(async () => {
+                confirmations.get('DELETE FROM a')?.(true);
+            });
+            await waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(1));
+            expect(mockInvoke.mock.calls[0][1]).toEqual(
+                expect.objectContaining({query: 'DELETE FROM a', schema: 'billing'}),
+            );
+
+            await act(async () => {
+                confirmations.get('DELETE FROM b')?.(true);
+            });
+            await waitFor(() => expect(screen.getByTestId('run-all-summary')).toBeInTheDocument());
+            expect(mockInvoke.mock.calls.map((call) => call[1]?.query)).toEqual([
+                'DELETE FROM a',
+                'DELETE FROM b',
+            ]);
+            expect(summary()).toMatchObject({total: 2, succeeded: 2, failed: 0, skipped: 0});
+        });
+
         it('stop on error skips the rest of the failed database and still runs the others', async () => {
             mockInvoke.mockImplementation((_command, args: {query?: string}) => {
                 if (args?.query === 'SELECT a') return Promise.reject(new Error('boom'));

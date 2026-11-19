@@ -116,27 +116,47 @@ describe('useDangerousQueryGuard', () => {
         expect(await guardPromise).toBe(true);
     });
 
-    it('declines a second concurrent request instead of orphaning the first one', async () => {
+    it('asks for a second confirmation after the first one is answered', async () => {
         const {result} = renderHook(() => useDangerousQueryGuard());
 
         let firstPromise!: Promise<boolean>;
         let secondPromise!: Promise<boolean>;
+        let secondAnswer: boolean | undefined;
         act(() => {
             firstPromise = result.current.guardQuery('DELETE FROM users');
         });
         act(() => {
             secondPromise = result.current.guardQuery('DELETE FROM sessions');
+            void secondPromise.then((answer) => {
+                secondAnswer = answer;
+            });
         });
 
-        // The second request is declined right away — it must not replace the
-        // first request's resolver and leave it hanging forever.
-        expect(await secondPromise).toBe(false);
-        expect(result.current.isPending).toBe(true);
+        // The second write waits. It must not replace the first resolver, and
+        // it must not be declined before the user sees it.
+        expect(secondAnswer).toBeUndefined();
+        expect(result.current.pending).toEqual({
+            kind: 'no-where',
+            sql: 'DELETE FROM users',
+            count: 1,
+        });
 
         act(() => {
             result.current.resolve(true);
         });
         expect(await firstPromise).toBe(true);
+        expect(secondAnswer).toBeUndefined();
+        expect(result.current.pending).toEqual({
+            kind: 'no-where',
+            sql: 'DELETE FROM sessions',
+            count: 1,
+        });
+
+        act(() => {
+            result.current.resolve(false);
+        });
+        expect(await secondPromise).toBe(false);
+        expect(result.current.pending).toBeNull();
     });
 
     // Editor guards each statement of a T-SQL batch, not the batch as one string.
