@@ -6,7 +6,8 @@ export interface PluginRegistryState {
     updates: RegistryPluginWithStatus[];
     loading: boolean;
     error: string | null;
-    refresh: () => void;
+    /** Resolves once the registry state reflects this refresh, or the newer one that replaced it. */
+    refresh: () => Promise<void>;
 }
 
 export const PluginRegistryContext = createContext<PluginRegistryState | undefined>(undefined);
