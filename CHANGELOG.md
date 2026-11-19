@@ -1,3 +1,9 @@
+# [0.33.1](https://github.com/TabularisDB/tabularis/compare/v0.33.0...v0.33.1) (2026-11-19)
+
+### Bug Fixes
+
+* **themes:** show installed themes under the desktop WebView's Content Security Policy ([#1627](https://github.com/TabularisDB/tabularis/pull/1627))
+
 # [0.33.0](https://github.com/TabularisDB/tabularis/compare/v0.32.0...v0.33.0) (2026-11-16)
 
 
