@@ -157,6 +157,9 @@ pub fn apply(conversion: &Conversion, value: TransferValue) -> Result<TransferVa
         Op::Copy => Ok(value),
         Op::BoolToInt => match value {
             TransferValue::Bool(b) => Ok(TransferValue::Int(i64::from(b))),
+            // SQLite sources produce Int for boolean columns (storing the
+            // raw integer 0/1/2/…). Pass through unchanged — no lossy coercion.
+            TransferValue::Int(v) => Ok(TransferValue::Int(v)),
             _ => Err(ConvertError::Malformed),
         },
         Op::IntRange { min, max } => {

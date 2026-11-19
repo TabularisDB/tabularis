@@ -230,3 +230,70 @@ fn explicit_skip_is_not_an_issue_but_duplicates_and_unknowns_are() {
     assert!(found.contains(&"unknownSourceColumn".to_string()));
     assert!(found.contains(&"unknownTargetColumn".to_string()));
 }
+
+// --- Regression tests for SQLite source type classification (#631 review #3) ---
+
+#[test]
+fn classify_source_recognizes_sqlite_blob() {
+    assert_eq!(
+        classify_source(&column("data", "BLOB")),
+        Some(SourceKind::Bytes)
+    );
+}
+
+#[test]
+fn classify_source_recognizes_sqlite_float_and_double() {
+    assert_eq!(
+        classify_source(&column("price", "FLOAT")),
+        Some(SourceKind::Float)
+    );
+    assert_eq!(
+        classify_source(&column("price", "DOUBLE")),
+        Some(SourceKind::Float)
+    );
+}
+
+#[test]
+fn classify_source_recognizes_sqlite_varchar_and_char() {
+    assert_eq!(
+        classify_source(&column("name", "VARCHAR(20)")),
+        Some(SourceKind::Text)
+    );
+    assert_eq!(
+        classify_source(&column("code", "CHAR(2)")),
+        Some(SourceKind::Text)
+    );
+}
+
+#[test]
+fn classify_source_recognizes_sqlite_datetime() {
+    assert_eq!(
+        classify_source(&column("created", "DATETIME")),
+        Some(SourceKind::Timestamp)
+    );
+}
+
+#[test]
+fn bool_to_int_preserves_integer_value_from_sqlite_source() {
+    // SQLite stores booleans as integers. When sqlite_read_cell returns
+    // Int(2) for a Bool source, Op::BoolToInt must pass it through as Int(2),
+    // not coerce to 1.
+    let conversion = Conversion {
+        op: Op::BoolToInt,
+        out: OutKind::Int,
+        rule: ConversionRule::Exact,
+    };
+    assert_eq!(
+        apply(&conversion, TransferValue::Int(2)),
+        Ok(TransferValue::Int(2))
+    );
+    assert_eq!(
+        apply(&conversion, TransferValue::Int(0)),
+        Ok(TransferValue::Int(0))
+    );
+    // Bool input still works (postgres path)
+    assert_eq!(
+        apply(&conversion, TransferValue::Bool(true)),
+        Ok(TransferValue::Int(1))
+    );
+}
