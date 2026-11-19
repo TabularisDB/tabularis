@@ -99,6 +99,22 @@ describe('MainLayout', () => {
         expect(screen.getAllByTestId('data-file-gate')).toHaveLength(1);
     });
 
+    it('should size the shell to the visible viewport and pad it for safe areas', () => {
+        render(
+            <MemoryRouter>
+                <Routes>
+                    <Route element={<MainLayout />}>
+                        <Route index element={<div>Content</div>} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        const shell = screen.getByRole('main').parentElement;
+        expect(shell).toHaveClass('h-dvh', 'safe-area-padding');
+        expect(shell).not.toHaveClass('h-screen');
+    });
+
     it('should show the production banner only on the connection editor route', () => {
         const {unmount} = render(
             <MemoryRouter initialEntries={['/connections/prod-id/editor']}>

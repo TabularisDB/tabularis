@@ -5,7 +5,13 @@
     <head>
         <meta charset="UTF-8" />
         <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <!-- viewport-fit=cover hands the notch/home-indicator areas to the safe-area insets the
+             root shell pads with; resizes-content lets Chromium shrink the layout (and dvh)
+             when the software keyboard opens. Zoom stays enabled. -->
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+        />
         <title>tabularis</title>
         <style>
             html,

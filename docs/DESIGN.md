@@ -145,6 +145,85 @@ prints the nearest color with the same hue that passes; prefer adjusting lightne
 changing hue so ported palettes stay recognizable. Painting a new combination (say
 `text-muted` on `bg-surface-tertiary`) means adding it to `CONTRAST_PAIRS` first.
 
+## Responsive layout
+
+One frontend serves desktop windows, tablets and phones (tracking issue #1580). These
+conventions keep every screen on the same breakpoints instead of each inventing its own.
+
+### Breakpoints
+
+| Layout       | Width (CSS px) | Tailwind                     | Typical use                                        |
+| ------------ | -------------- | ---------------------------- | -------------------------------------------------- |
+| Compact      | below 768      | `max-md:`                    | Phones, narrow windows: one work surface at a time |
+| Intermediate | 768 to 1023    | `md:max-lg:`                 | Tablets, half-screen windows                       |
+| Wide         | 1024 and up    | unprefixed (today's layout)  | Desktop                                            |
+
+The thresholds come from the shell itself: the icon rail (64 px) and the explorer at its
+default width (256 px) take 320 px, so below 768 px the main area would be narrower than
+448 px next to them. With the row editor open (384 px by default) the main area keeps
+320 px at 1024 px and gets squeezed below that.
+
+`md` and `lg` are pinned in the `@theme` block of `packages/web-ui/src/index.css`;
+`BREAKPOINTS` in `packages/web-ui/src/utils/responsive.ts` holds the same values (in
+rem, so media queries scale with the browser's default font size) for code. Change them together.
+
+Existing screens are written for wide windows with unprefixed classes. When migrating
+one, add the compact and intermediate rules with `max-md:` and `max-lg:` so the desktop
+layout stays exactly as it is.
+
+### Container queries
+
+When a component's room depends on the panel it sits in (split panes, sidebars, plugin
+hosts, dialogs) rather than on the window, mark the parent `@container` and use `@sm:`,
+`@md:` ... on the children. Unlike media queries, container query `rem` follows the root
+font size (14 px, scaled by the interface scale setting), so use an explicit size such as
+`@min-[480px]:` when an exact width matters.
+
+### Input capability
+
+Width and input are independent: a narrow desktop window gets the compact layout with a
+mouse, and a touch laptop keeps the wide layout with a finger.
+
+- Use `pointer-coarse:` / `pointer-fine:` for touch-specific sizing, never a width
+  breakpoint.
+- Primary touch controls aim for 44×44 CSS px: `pointer-coarse:min-h-touch
+  pointer-coarse:min-w-touch` (the `touch` spacing token is 44 px), or extend the hit area
+  with padding.
+- Anything reachable only on hover or through a context menu needs a visible entry point
+  on touch; long press must not be the only route.
+
+### Viewport and safe areas
+
+- The viewport meta in `packages/web-ui/index.html` sets `viewport-fit=cover` and
+  `interactive-widget=resizes-content`. Never add `maximum-scale` or `user-scalable=no`:
+  browser zoom must keep working.
+- The root shell (`MainLayout`) uses `h-dvh`, which follows mobile browser chrome as it
+  expands and collapses, and `safe-area-padding` (`env(safe-area-inset-*)`, 0 on desktop).
+  Do not use `h-screen` or `100vh` for full-height surfaces: `100vh` is the height with the
+  toolbar collapsed, so the bottom of the page is clipped while it shows. Use `h-full`
+  inside the shell and `h-dvh` for a standalone page root. Overlays cap their height with `100dvh`, as
+  `PluginModalProvider` does with `max-h-[calc(100dvh-2rem)]`.
+- The software keyboard is not handled by `dvh` alone. Chromium on Android resizes the
+  layout (thanks to `interactive-widget`), iOS Safari does not; forms must keep their
+  fields and actions inside a scroll region so a focused field can be scrolled into view,
+  and use `window.visualViewport` only where that is not enough. Check on real devices.
+
+### Scrolling ownership
+
+`html`, `body` and `#root` never scroll. Each surface owns exactly one scroll region
+(`flex-1 min-h-0 overflow-auto`, with `min-w-0` on flex children so they can shrink).
+Tables, code editors and canvases keep their own deliberate horizontal scroll; nothing
+else may widen the document, from 320 CSS px up.
+
+### Behavior
+
+Presentation belongs in CSS. Use `useViewportLayout()` or `useMediaQuery()` from
+`packages/web-ui/src/hooks/useMediaQuery.ts` (with `MEDIA_QUERIES`) only when behavior
+changes, for example rendering a drawer instead of a resizable panel. Responsive changes
+must never write preferences: do not save panel widths or collapsed state in reaction to
+a resize; derive the rendered value instead, so returning to a wide window restores the
+saved desktop layout.
+
 ## Checking your work
 
 ```sh
