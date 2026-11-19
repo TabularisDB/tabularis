@@ -3786,6 +3786,7 @@
       "rowMissing": "A linha não existe mais ou sua chave mudou. Nada foi restaurado.",
       "notRestorable": "Este salvamento é mantido apenas para revisão e não pode ser restaurado.",
       "alreadyRestored": "Este salvamento já foi restaurado.",
+      "targetChanged": "A conexão salva agora aponta para um servidor diferente daquele em que este salvamento foi feito. Nada foi restaurado.",
       "restored": "Os valores foram restaurados."
     },
     "reason": {

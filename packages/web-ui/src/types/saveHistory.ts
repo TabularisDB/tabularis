@@ -37,7 +37,13 @@ export interface RecordedSaveResponse {
 }
 
 export type RestorePlanStatus =
-    'ready' | 'conflict' | 'row_missing' | 'not_restorable' | 'already_restored' | 'restored';
+    | 'ready'
+    | 'conflict'
+    | 'row_missing'
+    | 'not_restorable'
+    | 'already_restored'
+    | 'target_changed'
+    | 'restored';
 
 export interface RestorePlanColumn {
     name: string;

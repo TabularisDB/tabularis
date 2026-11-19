@@ -3794,6 +3794,7 @@
       "rowMissing": "該列已不存在或其鍵已變更。未還原任何內容。",
       "notRestorable": "此次儲存僅供檢視,無法還原。",
       "alreadyRestored": "此次儲存已經還原過。",
+      "targetChanged": "已儲存的連線現在指向與此次儲存不同的伺服器。未還原任何內容。",
       "restored": "值已還原。"
     },
     "reason": {

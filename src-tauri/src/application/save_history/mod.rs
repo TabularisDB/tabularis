@@ -10,18 +10,24 @@
 mod model;
 mod plan;
 mod store;
+mod target;
 
 #[cfg(test)]
 mod plan_tests;
 #[cfg(test)]
 mod store_tests;
+#[cfg(test)]
+mod target_tests;
 
 pub use model::{
     NonRestorableReason, PlanStatus, RecordedColumn, RecordedSaveResponse, RestorePlan,
     RestorePlanColumn, SaveHistoryFile, SaveHistoryStatus, SaveRecord,
 };
-pub use plan::{build_record, evaluate_plan, prune, restore_columns};
+pub use plan::{
+    build_record, evaluate_plan, evaluate_target_mismatch, prune, restore_columns, target_matches,
+};
 pub use store::remove_for_connection;
+pub use target::target_fingerprint;
 
 use crate::application::records;
 use crate::drivers::driver_trait::DatabaseDriver;
@@ -129,6 +135,17 @@ pub async fn execute(
         } => serde_json::to_value(delete(runtime, &connection_id, record_id.as_deref())?),
     };
     value.map_err(|error| error.to_string())
+}
+
+/// Fingerprint of the server the saved connection points at right now.
+fn current_target(runtime: &RuntimeContext, connection_id: &str) -> Result<String, String> {
+    let saved =
+        crate::application::connections::load_connections(&runtime.paths.connections_file())?
+            .into_iter()
+            .find(|connection| connection.id == connection_id)
+            .ok_or_else(|| "Connection not found".to_string())?;
+    let expanded = target::expand_target(runtime, &saved.params)?;
+    Ok(target_fingerprint(&expanded))
 }
 
 async fn connect(
@@ -246,15 +263,32 @@ pub async fn save_row(
         }
     };
     let key: BTreeMap<String, Value> = pk_map.into_iter().collect();
-    let record = build_record(
-        Uuid::new_v4().to_string(),
-        Utc::now().to_rfc3339(),
-        database,
-        schema,
-        table,
-        key,
-        capture,
-    );
+    // Pin the database the write went to, so a later change of the
+    // connection's selected database cannot redirect a restore.
+    let database = match &params.database {
+        DatabaseSelection::Single(name) if !name.is_empty() => Some(name.clone()),
+        _ => database,
+    };
+    let record = match current_target(runtime, connection_id) {
+        Ok(target) => build_record(
+            Uuid::new_v4().to_string(),
+            Utc::now().to_rfc3339(),
+            database,
+            schema,
+            table,
+            target,
+            key,
+            capture,
+        ),
+        Err(error) => {
+            log::warn!("The save on connection {connection_id} was not recorded: {error}");
+            return Ok(RecordedSaveResponse {
+                affected: recorded.affected,
+                record_id: None,
+                skipped_reason: Some(SKIPPED_STORAGE_ERROR.to_string()),
+            });
+        }
+    };
     let Some(record) = record else {
         return Ok(RecordedSaveResponse {
             affected: recorded.affected,
@@ -333,6 +367,9 @@ pub async fn plan_restore(
     if !record.restorable || record.restored_at.is_some() {
         return Ok(evaluate_plan(&record, None));
     }
+    if !target_matches(&record, &current_target(runtime, connection_id)?) {
+        return Ok(evaluate_target_mismatch(&record));
+    }
     let (driver, params) = connect(
         runtime,
         session_id,
@@ -366,6 +403,9 @@ pub async fn apply_restore(
     let record = find_record(runtime, connection_id, record_id)?;
     if !record.restorable || record.restored_at.is_some() {
         return Ok(evaluate_plan(&record, None));
+    }
+    if !target_matches(&record, &current_target(runtime, connection_id)?) {
+        return Ok(evaluate_target_mismatch(&record));
     }
     log::info!(
         "Restoring a recorded save on connection {} in table {}",

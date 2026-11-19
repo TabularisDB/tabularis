@@ -45,6 +45,10 @@ pub struct SaveRecord {
     pub database: Option<String>,
     pub schema: Option<String>,
     pub table: String,
+    /// Fingerprint of the server the save was written to. A record without
+    /// one cannot be tied to a server and is never restored.
+    #[serde(default)]
+    pub target: Option<String>,
     pub key: BTreeMap<String, Value>,
     pub columns: Vec<RecordedColumn>,
     pub restorable: bool,
@@ -95,6 +99,8 @@ pub enum PlanStatus {
     RowMissing,
     NotRestorable,
     AlreadyRestored,
+    /// The saved connection no longer points at the server of the save.
+    TargetChanged,
     /// Returned by an applied restore.
     Restored,
 }

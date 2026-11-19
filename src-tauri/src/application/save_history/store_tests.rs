@@ -12,6 +12,7 @@ fn record(id: &str) -> SaveRecord {
         database: None,
         schema: Some("public".to_string()),
         table: "orders".to_string(),
+        target: Some("target-a".to_string()),
         key: BTreeMap::from([("id".to_string(), json!(1))]),
         columns: vec![super::model::RecordedColumn {
             name: "status".to_string(),

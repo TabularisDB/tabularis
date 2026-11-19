@@ -204,6 +204,7 @@ describe('SaveHistoryModal', () => {
     it.each([
         ['row_missing', 'saveHistory.status.rowMissing'],
         ['already_restored', 'saveHistory.status.alreadyRestored'],
+        ['target_changed', 'saveHistory.status.targetChanged'],
     ] as const)('blocks the restore for a %s save', async (status, message) => {
         backend({planResult: plan({status})});
         renderModal();

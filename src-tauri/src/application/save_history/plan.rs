@@ -15,12 +15,14 @@ use std::collections::BTreeMap;
 
 /// Builds the record of a verified save. Columns whose value did not change
 /// are left out, and `None` means there is nothing worth keeping.
+#[allow(clippy::too_many_arguments)]
 pub fn build_record(
     id: String,
     saved_at: String,
     database: Option<String>,
     schema: Option<String>,
     table: String,
+    target: String,
     key: BTreeMap<String, Value>,
     capture: RowCapture,
 ) -> Option<SaveRecord> {
@@ -50,6 +52,7 @@ pub fn build_record(
         database,
         schema,
         table,
+        target: Some(target),
         key,
         columns,
         restorable: reason.is_none(),
@@ -182,4 +185,18 @@ fn serialized_size(file: &SaveHistoryFile) -> usize {
     serde_json::to_vec(file)
         .map(|bytes| bytes.len())
         .unwrap_or(usize::MAX)
+}
+
+/// The plan for a record whose server cannot be confirmed. Records that are
+/// already restored or not restorable keep that status.
+pub fn evaluate_target_mismatch(record: &SaveRecord) -> RestorePlan {
+    let mut plan = evaluate_plan(record, None);
+    if plan.status == PlanStatus::RowMissing {
+        plan.status = PlanStatus::TargetChanged;
+    }
+    plan
+}
+
+pub fn target_matches(record: &SaveRecord, current_target: &str) -> bool {
+    record.target.as_deref() == Some(current_target)
 }

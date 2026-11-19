@@ -3572,6 +3572,7 @@
       "rowMissing": "该行已不存在或其键已更改。未恢复任何内容。",
       "notRestorable": "此次保存仅供查看,无法恢复。",
       "alreadyRestored": "此次保存已经恢复过。",
+      "targetChanged": "已保存的连接现在指向与此次保存不同的服务器。未恢复任何内容。",
       "restored": "值已恢复。"
     },
     "reason": {

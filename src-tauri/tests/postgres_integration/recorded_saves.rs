@@ -832,4 +832,175 @@ mod application_flow {
         );
         sql("DROP TABLE rec_flow_move").await;
     }
+
+    async fn secondary_sql(statement: &str) {
+        postgres::execute_query(
+            &crate::helpers::pg_params_secondary(),
+            statement,
+            None,
+            1,
+            None,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{statement}: {error}"));
+    }
+
+    async fn secondary_status() -> Value {
+        postgres::execute_query(
+            &crate::helpers::pg_params_secondary(),
+            "SELECT status FROM rec_repoint WHERE id = 1",
+            None,
+            1,
+            None,
+        )
+        .await
+        .unwrap()
+        .rows[0][0]
+            .clone()
+    }
+
+    fn repoint(
+        runtime: &tabularis_lib::runtime::RuntimeContext,
+        change: impl FnOnce(&mut tabularis_lib::models::ConnectionParams),
+    ) {
+        let path = runtime.paths.connections_file();
+        let mut file = tabularis_lib::persistence::load_connections_file(&path).unwrap();
+        change(&mut file.connections[0].params);
+        tabularis_lib::persistence::save_connections_file(&path, &file).unwrap();
+    }
+
+    /// An identical table, key and post-save value on another server or
+    /// database must never receive a restore from the original's history.
+    #[tokio::test]
+    #[ignore]
+    async fn test_a_repointed_connection_cannot_restore_another_servers_save() {
+        require_pg!();
+        tabularis_lib::drivers::registry::register_driver(PostgresDriver::new()).await;
+        fresh_orders("rec_repoint").await;
+        secondary_sql("DROP TABLE IF EXISTS rec_repoint").await;
+        secondary_sql("CREATE TABLE rec_repoint (id integer PRIMARY KEY, status text, note text)")
+            .await;
+        secondary_sql("INSERT INTO rec_repoint VALUES (1, 'closed', 'done')").await;
+
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = runtime(temp.path());
+        set_enabled(&runtime, None, "pg", true).await.unwrap();
+        let saved = change(
+            &runtime,
+            "rec_repoint",
+            1,
+            vec![("status", json!("closed")), ("note", json!("done"))],
+        )
+        .await
+        .unwrap();
+        let record_id = saved.record_id.unwrap();
+        assert_eq!(
+            plan_restore(&runtime, None, "pg", &record_id)
+                .await
+                .unwrap()
+                .status,
+            PlanStatus::Ready
+        );
+
+        // The same connection id now points at a different host.
+        repoint(&runtime, |params| {
+            params.host = Some("localhost".to_string())
+        });
+        for _ in 0..2 {
+            let plan = plan_restore(&runtime, None, "pg", &record_id)
+                .await
+                .unwrap();
+            assert_eq!(plan.status, PlanStatus::TargetChanged);
+            assert!(plan.columns.iter().all(|c| c.current.is_none()));
+        }
+        let refused = apply_restore(&runtime, None, "pg", &record_id)
+            .await
+            .unwrap();
+        assert_eq!(refused.status, PlanStatus::TargetChanged);
+
+        // ... and at a different port.
+        repoint(&runtime, |params| {
+            params.host = Some("127.0.0.1".to_string());
+            params.port = Some(54321);
+        });
+        assert_eq!(
+            apply_restore(&runtime, None, "pg", &record_id)
+                .await
+                .unwrap()
+                .status,
+            PlanStatus::TargetChanged
+        );
+        assert_eq!(secondary_status().await, json!("closed"));
+        assert_eq!(
+            scalar("SELECT status FROM rec_repoint WHERE id = 1").await,
+            json!("closed")
+        );
+        assert!(list(&runtime, "pg", None, None, None).unwrap()[0]
+            .restored_at
+            .is_none());
+
+        // Rotating the password leaves the target, and so the history, valid.
+        repoint(&runtime, |params| {
+            params.port = Some(54320);
+            params.password = Some("rotated".to_string());
+        });
+        assert_eq!(
+            plan_restore(&runtime, None, "pg", &record_id)
+                .await
+                .unwrap()
+                .status,
+            PlanStatus::Ready
+        );
+        secondary_sql("DROP TABLE rec_repoint").await;
+        sql("DROP TABLE rec_repoint").await;
+    }
+
+    /// Changing the connection's selected database must not redirect a
+    /// restore: the save is pinned to the database it was written to.
+    #[tokio::test]
+    #[ignore]
+    async fn test_a_restore_goes_to_the_database_the_save_was_written_to() {
+        require_pg!();
+        tabularis_lib::drivers::registry::register_driver(PostgresDriver::new()).await;
+        fresh_orders("rec_repoint").await;
+        secondary_sql("DROP TABLE IF EXISTS rec_repoint").await;
+        secondary_sql("CREATE TABLE rec_repoint (id integer PRIMARY KEY, status text, note text)")
+            .await;
+        secondary_sql("INSERT INTO rec_repoint VALUES (1, 'closed', 'done')").await;
+
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = runtime(temp.path());
+        set_enabled(&runtime, None, "pg", true).await.unwrap();
+        let saved = change(
+            &runtime,
+            "rec_repoint",
+            1,
+            vec![("status", json!("closed"))],
+        )
+        .await
+        .unwrap();
+        let record_id = saved.record_id.unwrap();
+        assert_eq!(
+            list(&runtime, "pg", None, None, None).unwrap()[0]
+                .database
+                .as_deref(),
+            Some("testdb")
+        );
+
+        repoint(&runtime, |params| {
+            params.database =
+                tabularis_lib::models::DatabaseSelection::Single("tabularis_test_secondary".into());
+        });
+        let restored = apply_restore(&runtime, None, "pg", &record_id)
+            .await
+            .unwrap();
+        assert_eq!(restored.status, PlanStatus::Restored);
+        assert_eq!(
+            scalar("SELECT status FROM rec_repoint WHERE id = 1").await,
+            json!("open")
+        );
+        assert_eq!(secondary_status().await, json!("closed"));
+        secondary_sql("DROP TABLE rec_repoint").await;
+        sql("DROP TABLE rec_repoint").await;
+    }
 }

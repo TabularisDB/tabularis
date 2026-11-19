@@ -3754,6 +3754,7 @@
       "rowMissing": "Wala na ang row o nagbago ang key nito. Walang naibalik.",
       "notRestorable": "Pang-review lang ang pag-save na ito at hindi maibabalik.",
       "alreadyRestored": "Naibalik na ang pag-save na ito.",
+      "targetChanged": "Ang na-save na koneksyon ay nakaturo na ngayon sa ibang server kaysa sa pinagsulatan ng pag-save na ito. Walang naibalik.",
       "restored": "Naibalik ang mga halaga."
     },
     "reason": {

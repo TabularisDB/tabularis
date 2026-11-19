@@ -3806,6 +3806,7 @@
       "rowMissing": "Dòng không còn tồn tại hoặc khóa của nó đã thay đổi. Không có gì được khôi phục.",
       "notRestorable": "Lần lưu này chỉ được giữ để xem và không thể khôi phục.",
       "alreadyRestored": "Lần lưu này đã được khôi phục.",
+      "targetChanged": "Kết nối đã lưu hiện trỏ tới một máy chủ khác với máy chủ của lần lưu này. Không có gì được khôi phục.",
       "restored": "Các giá trị đã được khôi phục."
     },
     "reason": {

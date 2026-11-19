@@ -3812,6 +3812,7 @@
       "rowMissing": "La ligne n'existe plus ou sa clé a changé. Rien n'a été restauré.",
       "notRestorable": "Cet enregistrement est conservé pour consultation seulement et ne peut pas être restauré.",
       "alreadyRestored": "Cet enregistrement a déjà été restauré.",
+      "targetChanged": "La connexion enregistrée pointe maintenant vers un autre serveur que celui de cet enregistrement. Rien n'a été restauré.",
       "restored": "Les valeurs ont été restaurées."
     },
     "reason": {

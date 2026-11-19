@@ -3641,6 +3641,7 @@
       "rowMissing": "Die Zeile existiert nicht mehr oder ihr Schlüssel hat sich geändert. Es wurde nichts wiederhergestellt.",
       "notRestorable": "Dieses Speichern wird nur zur Ansicht aufbewahrt und kann nicht wiederhergestellt werden.",
       "alreadyRestored": "Dieses Speichern wurde bereits wiederhergestellt.",
+      "targetChanged": "Die gespeicherte Verbindung zeigt jetzt auf einen anderen Server als den, auf den gespeichert wurde. Es wurde nichts wiederhergestellt.",
       "restored": "Die Werte wurden wiederhergestellt."
     },
     "reason": {

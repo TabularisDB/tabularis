@@ -3570,6 +3570,7 @@
       "rowMissing": "La fila ya no existe o su clave cambió. No se restauró nada.",
       "notRestorable": "Este guardado se conserva solo para revisión y no se puede restaurar.",
       "alreadyRestored": "Este guardado ya se restauró.",
+      "targetChanged": "La conexión guardada ahora apunta a un servidor distinto de aquel en el que se hizo este guardado. No se restauró nada.",
       "restored": "Los valores se restauraron."
     },
     "reason": {

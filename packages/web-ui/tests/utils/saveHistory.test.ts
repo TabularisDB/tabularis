@@ -91,6 +91,7 @@ describe('saveHistory', () => {
                 'row_missing',
                 'not_restorable',
                 'already_restored',
+                'target_changed',
                 'restored',
             ];
             const keys = statuses.map(planStatusKey);
@@ -120,6 +121,7 @@ describe('saveHistory', () => {
                 'row_missing',
                 'not_restorable',
                 'already_restored',
+                'target_changed',
                 'restored',
             ] as const)
                 expect(canApplyRestore(status)).toBe(false);

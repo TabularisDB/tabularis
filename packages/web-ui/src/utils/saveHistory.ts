@@ -106,6 +106,8 @@ export function planStatusKey(status: RestorePlanStatus): string {
             return 'saveHistory.status.notRestorable';
         case 'already_restored':
             return 'saveHistory.status.alreadyRestored';
+        case 'target_changed':
+            return 'saveHistory.status.targetChanged';
         case 'restored':
             return 'saveHistory.status.restored';
     }

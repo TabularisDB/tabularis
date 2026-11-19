@@ -3873,6 +3873,7 @@
       "rowMissing": "The row no longer exists or its key changed. Nothing was restored.",
       "notRestorable": "This save is kept for review only and cannot be restored.",
       "alreadyRestored": "This save was already restored.",
+      "targetChanged": "The saved connection now points at a different server than this save was written to. Nothing was restored.",
       "restored": "The values were restored."
     },
     "reason": {

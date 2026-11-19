@@ -48,6 +48,7 @@ const BANNER_CLASS: Record<RestorePlanStatus, string> = {
     row_missing: 'text-accent-warning bg-accent-warning/10 border-accent-warning/30',
     not_restorable: 'text-secondary bg-surface-secondary border-default',
     already_restored: 'text-secondary bg-surface-secondary border-default',
+    target_changed: 'text-accent-warning bg-accent-warning/10 border-accent-warning/30',
 };
 
 const CellValue = ({image, conflict = false}: {image: CellImage | null; conflict?: boolean}) => {

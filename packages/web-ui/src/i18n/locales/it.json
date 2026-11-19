@@ -3669,6 +3669,7 @@
       "rowMissing": "La riga non esiste più o la sua chiave è cambiata. Non è stato ripristinato nulla.",
       "notRestorable": "Questo salvataggio è conservato solo per consultazione e non può essere ripristinato.",
       "alreadyRestored": "Questo salvataggio è già stato ripristinato.",
+      "targetChanged": "La connessione salvata ora punta a un server diverso da quello su cui è stato eseguito questo salvataggio. Non è stato ripristinato nulla.",
       "restored": "I valori sono stati ripristinati."
     },
     "reason": {

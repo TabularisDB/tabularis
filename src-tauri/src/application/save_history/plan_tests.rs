@@ -2,7 +2,9 @@ use super::model::{
     NonRestorableReason, PlanStatus, SaveHistoryFile, SaveRecord, MAX_RECORDS_PER_CONNECTION,
     MAX_RECORD_VALUE_BYTES, RETENTION_DAYS,
 };
-use super::plan::{build_record, evaluate_plan, prune, restore_columns};
+use super::plan::{
+    build_record, evaluate_plan, evaluate_target_mismatch, prune, restore_columns, target_matches,
+};
 use crate::drivers::recorded_save::{CellImage, ColumnCapture, RowCapture};
 use chrono::{Duration, Utc};
 use serde_json::json;
@@ -46,6 +48,7 @@ fn record_of(capture: RowCapture) -> Option<SaveRecord> {
         Some("app".to_string()),
         Some("public".to_string()),
         "orders".to_string(),
+        "target-a".to_string(),
         key,
         capture,
     )
@@ -237,6 +240,56 @@ mod evaluate_plan_tests {
     fn a_withheld_current_value_is_a_conflict() {
         let plan = evaluate_plan(&restorable_record(), Some(&[omitted(), text("done")]));
         assert_eq!(plan.status, PlanStatus::Conflict);
+    }
+}
+
+mod target_tests {
+    use super::*;
+
+    #[test]
+    fn a_record_remembers_the_server_it_was_written_to() {
+        let record = restorable_record();
+        assert!(target_matches(&record, "target-a"));
+        assert!(!target_matches(&record, "target-b"));
+    }
+
+    #[test]
+    fn a_record_without_a_target_matches_nothing() {
+        let mut record = restorable_record();
+        record.target = None;
+        assert!(!target_matches(&record, "target-a"));
+        assert!(!target_matches(&record, ""));
+    }
+
+    #[test]
+    fn a_restorable_record_on_another_server_is_blocked() {
+        let plan = evaluate_target_mismatch(&restorable_record());
+        assert_eq!(plan.status, PlanStatus::TargetChanged);
+        assert!(plan.columns.iter().all(|c| c.current.is_none()));
+    }
+
+    #[test]
+    fn restored_and_review_only_records_keep_their_status() {
+        let mut restored = restorable_record();
+        restored.restored_at = Some(Utc::now().to_rfc3339());
+        assert_eq!(
+            evaluate_target_mismatch(&restored).status,
+            PlanStatus::AlreadyRestored
+        );
+        let mut review = restorable_record();
+        review.restorable = false;
+        assert_eq!(
+            evaluate_target_mismatch(&review).status,
+            PlanStatus::NotRestorable
+        );
+    }
+
+    #[test]
+    fn an_old_record_without_a_target_field_still_loads() {
+        let mut value = serde_json::to_value(restorable_record()).unwrap();
+        value.as_object_mut().unwrap().remove("target");
+        let record: SaveRecord = serde_json::from_value(value).unwrap();
+        assert_eq!(record.target, None);
     }
 }
 
