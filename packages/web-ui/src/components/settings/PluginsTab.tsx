@@ -49,11 +49,13 @@ import {useDatabase} from '@/hooks/useDatabase';
 import {PluginCard, PLUGIN_ICON_BUTTON_CLASS} from '@/components/plugins/PluginCard';
 import {getPluginVersionState} from '@/utils/pluginVersions';
 import {mergeLocalThemePlugins} from '@/utils/localThemePlugins';
+import {removedPluginKey, withoutRemovedPlugins} from '@/utils/pluginRemoval';
 import {getPluginUpdates} from '@/utils/pluginUpdates';
 import {
     matchesPluginKind,
     parsePluginKindFilter,
     pluginKind,
+    type PluginKind,
     type PluginKindFilter,
 } from '@/utils/plugins';
 import {removePluginConfig} from '@/utils/pluginConfig';
@@ -640,16 +642,21 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
         void refreshConnectionCatalogue();
         return refreshPluginRegistry();
     }, [refreshPluginRegistry, refreshConnectionCatalogue]);
+    // Removed here, while the registry snapshot may still say "installed".
+    const [removedPlugins, setRemovedPlugins] = useState<ReadonlySet<string>>(() => new Set());
+    const markRemoved = useCallback((kind: PluginKind, pluginId: string) => {
+        setRemovedPlugins((previous) => new Set(previous).add(removedPluginKey(kind, pluginId)));
+    }, []);
     const registryPlugins = useMemo(
         () =>
             mergeLocalAiProviders(
                 mergeLocalThemePlugins(
-                    remotePlugins,
+                    withoutRemovedPlugins(remotePlugins, removedPlugins, installedPlugins),
                     catalog.themes.map(({entry}) => entry),
                 ),
                 aiProviders,
             ),
-        [remotePlugins, catalog.themes, aiProviders],
+        [remotePlugins, removedPlugins, installedPlugins, catalog.themes, aiProviders],
     );
     const pluginUpdates = useMemo(
         () => getPluginUpdates(registryPlugins, APP_VERSION),
@@ -992,6 +999,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                         );
                         await Promise.all(toDisconnect.map((id) => disconnect(id)));
                         await client.call('uninstall_plugin', {pluginId});
+                        markRemoved('driver', pluginId);
                         const currentSettings = settingsRef.current;
                         await updateSettingRef.current(
                             'plugins',
@@ -1028,6 +1036,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
             refreshRegistry,
             onPluginsChanged,
             client,
+            markRemoved,
         ],
     );
 
@@ -1096,6 +1105,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                 registryKey,
                 packageName,
             });
+            markRemoved('theme', packageName);
             setThemeRemoveConfirm(
                 (current) => current && {...current, committed: true, warnings: result.warnings},
             );
@@ -1267,6 +1277,7 @@ export function PluginsTab({onOpenPluginSettings, onPluginsChanged}: PluginsTabP
                                             await client.call('uninstall_plugin', {
                                                 pluginId: plugin.id,
                                             });
+                                            markRemoved('ai-assistant', plugin.id);
                                             await refreshAiProviders();
                                             await refreshRegistry();
                                         } catch (error) {
