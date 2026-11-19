@@ -5,23 +5,40 @@ use crate::transport::desktop::config;
 use tauri::{AppHandle, Emitter};
 
 /// Ensure the replacement plugin is installed when at least one saved
-/// connection is still on the built-in driver. A user with no such
-/// connection is left untouched — no plugin they don't need.
+/// connection uses the built-in driver id (pre-migration) or the
+/// replacement plugin id (post-migration). Checking both ids ensures the
+/// force-install retries on subsequent launches even when the first-launch
+/// download failed and the migration already flipped the connections to
+/// the plugin id.
 ///
-/// Public entry point spawned from `setup()`. The check uses the built-in
-/// id (not the plugin id) because the driver-id migration runs lazily on
-/// the first `get_connections` call, after this spawn — so at this point
-/// connections are still on the built-in driver id.
+/// Public entry point spawned from `setup()`.
 pub async fn ensure_plugin_installed_if_needed(app: &AppHandle, builtin_id: &str, plugin_id: &str) {
-    match connections_use_driver(app, builtin_id) {
-        Ok(false) => return, // nothing on this built-in driver, nothing to do
-        Ok(true) => {}
+    let path = match crate::transport::desktop::commands::get_config_path(app) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!("{LOG_PREFIX} could not read config path: {e}");
+            return;
+        }
+    };
+    let drivers: Vec<String> = match crate::persistence::load_connections(&path) {
+        Ok(conns) => conns.iter().map(|c| c.params.driver.clone()).collect(),
         Err(e) => {
             log::warn!("{LOG_PREFIX} could not read connections: {e}");
             return;
         }
+    };
+    let driver_refs: Vec<&str> = drivers.iter().map(|s| s.as_str()).collect();
+    if !needs_plugin_for(builtin_id, plugin_id, &driver_refs) {
+        return;
     }
     ensure_plugin_installed(app, plugin_id).await;
+}
+
+/// True when at least one saved connection uses the built-in driver id
+/// (pre-migration) or the replacement plugin id (post-migration). Pure so
+/// it can be unit-tested without a Tauri `AppHandle`.
+fn needs_plugin_for(builtin_id: &str, plugin_id: &str, drivers: &[&str]) -> bool {
+    drivers.iter().any(|d| *d == builtin_id || *d == plugin_id)
 }
 
 /// Install (and activate) `plugin_id` if it isn't already installed and the
@@ -108,17 +125,6 @@ fn persist_activation(app: &AppHandle, plugin_id: &str) -> Result<(), String> {
     )
 }
 
-/// True when at least one saved connection has `params.driver == driver_id`.
-/// Reads the connections file directly via `persistence::load_connections`
-/// (the same path `get_connections` uses internally) rather than invoking the
-/// Tauri command — the command wrapper runs per-call SSH/SSL migrations we
-/// don't want firing on every launch just to detect a trigger.
-fn connections_use_driver(app: &AppHandle, driver_id: &str) -> Result<bool, String> {
-    let path = crate::transport::desktop::commands::get_config_path(app)?;
-    let connections = crate::persistence::load_connections(&path)?;
-    Ok(connections.iter().any(|c| c.params.driver == driver_id))
-}
-
 /// Check the latest release's `min_tabularis_version` against the running
 /// app's own version. `install_plugin` doesn't gate on this itself, so without
 /// this check an unattended install could silently install a release that
@@ -155,4 +161,42 @@ async fn plugin_compatible_with_this_app(app: &AppHandle, plugin_id: &str) -> bo
         return true; // no minimum declared → compatible with any version
     };
     is_version_compatible(min, env!("CARGO_PKG_VERSION"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::needs_plugin_for;
+
+    #[test]
+    fn triggers_when_connections_are_on_the_builtin_id_only() {
+        // First launch: connections are still "postgres" (pre-migration).
+        let drivers = vec!["postgres", "mysql"];
+        assert!(needs_plugin_for("postgres", "postgresql", &drivers));
+    }
+
+    #[test]
+    fn triggers_when_connections_are_on_the_plugin_id_only() {
+        // Second launch after a failed download: migration flipped to
+        // "postgresql" but the plugin was never installed.
+        let drivers = vec!["postgresql", "mysql"];
+        assert!(needs_plugin_for("postgres", "postgresql", &drivers));
+    }
+
+    #[test]
+    fn triggers_when_connections_are_mixed() {
+        let drivers = vec!["postgres", "postgresql", "mysql"];
+        assert!(needs_plugin_for("postgres", "postgresql", &drivers));
+    }
+
+    #[test]
+    fn does_not_trigger_when_neither_id_is_present() {
+        let drivers = vec!["mysql", "sqlite", "redis"];
+        assert!(!needs_plugin_for("postgres", "postgresql", &drivers));
+    }
+
+    #[test]
+    fn does_not_trigger_for_empty_connections() {
+        let drivers: Vec<&str> = vec![];
+        assert!(!needs_plugin_for("postgres", "postgresql", &drivers));
+    }
 }
