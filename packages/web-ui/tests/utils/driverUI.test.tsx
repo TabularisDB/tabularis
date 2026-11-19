@@ -69,9 +69,9 @@ describe('getDriverIcon', () => {
         expect(img?.getAttribute('src')).toBe(dataUri);
     });
 
-    it("still renders the built-in Postgres brand icon for the literal string 'postgres'", () => {
+    it("returns no built-in icon for the literal string 'postgres' (built-in driver removed)", () => {
         const {getByTestId} = renderIcon('postgres');
-        expect(getByTestId('wrap').querySelector('svg')).not.toBeNull();
+        expect(getByTestId('wrap').querySelector('svg')).toBeNull();
         expect(getByTestId('wrap').querySelector('img')).toBeNull();
     });
 
@@ -144,9 +144,9 @@ describe('getConnectionIcon', () => {
         expect(img?.getAttribute('src')).toBe('https://example.com/icon.svg');
     });
 
-    it('falls back to the Plugin Icon (built-in brand icon) when there is neither a connection override nor a manifest icon URL', () => {
+    it('returns no built-in icon for the removed postgres driver id when there is neither a connection override nor a manifest icon URL', () => {
         const {getByTestId} = renderConnectionIcon(connection(undefined), 'postgres');
-        expect(getByTestId('wrap').querySelector('svg')).not.toBeNull();
+        expect(getByTestId('wrap').querySelector('svg')).toBeNull();
         expect(getByTestId('wrap').querySelector('img')).toBeNull();
     });
 
