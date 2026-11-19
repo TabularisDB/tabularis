@@ -428,6 +428,16 @@ $function$`;
             });
         });
 
+        it('reads the EXECUTE clause that ends the definition, not one inside WHEN', () => {
+            const def = [
+                'CREATE TRIGGER audit AFTER UPDATE ON app.notes FOR EACH ROW',
+                `WHEN ((new.note = 'EXECUTE FUNCTION app."Wrong"()'::text))`,
+                'EXECUTE FUNCTION app.correct()',
+            ].join(' ');
+            expect(parseTriggerFunctionRef(def)).toEqual({schema: 'app', name: 'correct'});
+            expect(parseTriggerFunctionRef(`${def};\n`)).toEqual({schema: 'app', name: 'correct'});
+        });
+
         it('returns null without an EXECUTE FUNCTION|PROCEDURE clause', () => {
             expect(parseTriggerFunctionRef('CREATE TRIGGER t AFTER INSERT ON x')).toBeNull();
             expect(parseTriggerFunctionRef('EXECUTE FUNCTION ();')).toBeNull();

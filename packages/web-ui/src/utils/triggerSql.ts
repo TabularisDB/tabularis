@@ -187,8 +187,10 @@ export function parseTriggerFunctionName(triggerSql: string): string | null {
 
 // One identifier as PostgreSQL prints it: quoted (with `""` for a quote) or bare.
 const PG_IDENTIFIER = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
+// The clause ends the definition, so it is matched at the end: text that only
+// looks like one, such as a string in the WHEN condition before it, is skipped.
 const EXECUTE_FUNCTION_RE = new RegExp(
-    String.raw`\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\s+(${PG_IDENTIFIER})(?:\s*\.\s*(${PG_IDENTIFIER}))?\s*\(\s*\)`,
+    String.raw`\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\s+(${PG_IDENTIFIER})(?:\s*\.\s*(${PG_IDENTIFIER}))?\s*\(\s*\)\s*;?\s*$`,
     'i',
 );
 
