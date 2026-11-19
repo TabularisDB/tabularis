@@ -33,6 +33,7 @@ interface UpdateContextType {
     downloadProgress: number;
     checkForUpdates: (force?: boolean) => Promise<void>;
     downloadAndInstall: () => Promise<void>;
+    showAvailableUpdate: () => void;
     dismissUpdate: () => void;
     error: string | null;
     isUpToDate: boolean;

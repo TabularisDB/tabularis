@@ -22,6 +22,7 @@ import {SlotAnchor} from '@/components/ui/SlotAnchor';
 
 // Sub-components
 import {NavItem} from './sidebar/NavItem';
+import {AvailableUpdateButton} from './sidebar/AvailableUpdateButton';
 import {RailIndicator} from './sidebar/RailIndicator';
 import {OpenConnectionItem} from './sidebar/OpenConnectionItem';
 import {ConnectionGroupItem} from './sidebar/ConnectionGroupItem';
@@ -422,6 +423,8 @@ export const Sidebar = () => {
                         </button>
                         <DiscordCommunityCallout />
                     </div>
+
+                    <AvailableUpdateButton />
 
                     <NavItem to="/mcp" icon={Cpu} label={t('sidebar.mcpServer')} />
 

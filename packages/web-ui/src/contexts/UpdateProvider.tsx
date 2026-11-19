@@ -154,6 +154,7 @@ export const UpdateProvider = ({children, session = null}: UpdateProviderProps) 
                 downloadProgress,
                 checkForUpdates,
                 downloadAndInstall,
+                showAvailableUpdate: () => setUpdateInfo(availableUpdate),
                 dismissUpdate,
                 error,
                 isUpToDate,

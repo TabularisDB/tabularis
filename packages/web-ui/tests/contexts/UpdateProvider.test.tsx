@@ -1,5 +1,6 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
-import {renderHook, waitFor, act} from '@testing-library/react';
+import {renderHook, waitFor, act, render, screen, fireEvent} from '@testing-library/react';
+import {AvailableUpdateButton} from '@/components/layout/sidebar/AvailableUpdateButton';
 import {UpdateProvider} from '@/contexts/UpdateProvider';
 import {useUpdate} from '@/hooks/useUpdate';
 import {invoke} from '@tauri-apps/api/core';
@@ -460,6 +461,36 @@ describe('UpdateProvider', () => {
             shouldCheck ? [['check_for_updates', {force: false}]] : [],
         );
         expect(result.current.updateInfo?.latestVersion).toBe(shouldCheck ? '1.1.0' : undefined);
+    });
+
+    it('reopens the dismissed release from the sidebar without checking again', async () => {
+        vi.useFakeTimers();
+        mockClient.call.mockImplementation(async (command) =>
+            command === 'get_config' ? {autoCheckUpdatesOnStartup: true} : null,
+        );
+        vi.mocked(invoke).mockResolvedValue({hasUpdate: true, latestVersion: '1.1.0'});
+
+        function Dialog() {
+            const {updateInfo, dismissUpdate} = useUpdate();
+            return (
+                updateInfo && <button onClick={dismissUpdate}>{updateInfo.latestVersion}</button>
+            );
+        }
+        render(
+            <UpdateProvider>
+                <AvailableUpdateButton />
+                <Dialog />
+            </UpdateProvider>,
+        );
+        expect(screen.queryByRole('button')).toBeNull();
+        await act(() => vi.runAllTimersAsync());
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: '1.1.0'}));
+        });
+        expect(screen.queryByText('1.1.0')).toBeNull();
+        fireEvent.click(screen.getByRole('button'));
+        expect(screen.getByRole('button', {name: '1.1.0'})).toBeInTheDocument();
+        expect(invoke).toHaveBeenCalledTimes(1);
     });
 
     it('should not check for updates on startup if disabled in config', async () => {
