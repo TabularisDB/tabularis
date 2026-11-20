@@ -1,4 +1,4 @@
-import {createContext, useContext, useId, useRef, useState, type ReactNode} from 'react';
+import {createContext, useContext, useEffect, useId, useRef, useState, type ReactNode} from 'react';
 import clsx from 'clsx';
 
 /* ── Section ── */
@@ -186,37 +186,52 @@ export function SettingSlider({
     onDraftChange,
 }: SettingSliderProps) {
     const [draft, setDraft] = useState<number | null>(null);
-    const dragging = useRef(false);
+    const [dragging, setDragging] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const latest = useRef({value, onChange, onDraftChange});
+    latest.current = {value, onChange, onDraftChange};
     const shown = draft ?? value;
     const display = formatValue ? formatValue(shown) : String(shown);
     const parse = (raw: string) => (step < 1 ? parseFloat(raw) : parseInt(raw));
 
-    const endDrag = (raw: string) => {
-        if (!dragging.current) return;
-        dragging.current = false;
-        const next = parse(raw);
-        setDraft(null);
-        onDraftChange?.(null);
-        if (!Number.isNaN(next) && next !== value) onChange(next);
-    };
+    // The pointer can be released anywhere, not just over the slider, so the end
+    // of a drag is listened for on the window.
+    useEffect(() => {
+        if (!dragging) return;
+        const endDrag = () => {
+            setDragging(false);
+            const next = parse(inputRef.current?.value ?? '');
+            const {value: current, onChange: commit, onDraftChange: reportDraft} = latest.current;
+            setDraft(null);
+            reportDraft?.(null);
+            if (!Number.isNaN(next) && next !== current) commit(next);
+        };
+        window.addEventListener('pointerup', endDrag);
+        window.addEventListener('pointercancel', endDrag);
+        window.addEventListener('blur', endDrag);
+        return () => {
+            window.removeEventListener('pointerup', endDrag);
+            window.removeEventListener('pointercancel', endDrag);
+            window.removeEventListener('blur', endDrag);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dragging, step]);
 
     return (
         <div className="flex items-center gap-4 min-w-[200px]">
             <input
+                ref={inputRef}
                 type="range"
                 min={min}
                 max={max}
                 step={step}
                 value={shown}
                 onPointerDown={() => {
-                    if (onDraftChange) dragging.current = true;
+                    if (onDraftChange) setDragging(true);
                 }}
-                onPointerUp={(e) => endDrag(e.currentTarget.value)}
-                onPointerCancel={(e) => endDrag(e.currentTarget.value)}
-                onBlur={(e) => endDrag(e.currentTarget.value)}
                 onChange={(e) => {
                     const next = parse(e.target.value);
-                    if (dragging.current) {
+                    if (dragging) {
                         setDraft(next);
                         onDraftChange?.(next);
                     } else {
