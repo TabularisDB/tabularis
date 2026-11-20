@@ -2,6 +2,7 @@ import type {NotebookCell} from '@/types/notebook';
 import type {QueryResult} from '@/types/editor';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {getQuoteChar, quoteIdentifierWith} from './identifiers';
+import {stripLeadingComments} from './sqlSplitter';
 import type {BooleanLiteralStyle} from '@/types/plugins';
 import {
     booleanLiteralWithStyle,
@@ -118,6 +119,7 @@ export interface ResolvedQuery {
 /**
  * Find cell indices that need to be executed before the given SQL can run.
  * Returns indices of referenced cells that have no result (or have errors).
+ * Disabled cells are left out: they must not run until re-enabled.
  * Returns them in sorted order (lowest index first) for sequential execution.
  */
 export function findUnresolvedDependencies(sql: string, cells: NotebookCell[]): number[] {
@@ -126,7 +128,8 @@ export function findUnresolvedDependencies(sql: string, cells: NotebookCell[]): 
     for (const ref of refs) {
         const targetCell = cells[ref.cellIndex];
         if (!targetCell || targetCell.type !== 'sql' || !targetCell.result || targetCell.error) {
-            if (targetCell && targetCell.type === 'sql') {
+            // A disabled cell is never executed on behalf of a consumer.
+            if (targetCell && targetCell.type === 'sql' && !targetCell.isDisabled) {
                 indices.add(ref.cellIndex);
             }
         }
@@ -197,9 +200,11 @@ export function resolveQueryVariables(
         (match: string, number: string) => {
             const cellIndex = Number(number) - 1;
             const targetCell = cells[cellIndex];
+            // A disabled cell's cached output is not current: never substitute it.
             if (
                 !targetCell ||
                 targetCell.type !== 'sql' ||
+                targetCell.isDisabled ||
                 !targetCell.result ||
                 targetCell.error
             ) {
@@ -226,7 +231,16 @@ export function resolveQueryVariables(
     );
 
     if (ctes.length > 0) {
-        resolvedSql = `WITH ${ctes.join(',\n')}\n${resolvedSql}`;
+        // A query with its own WITH clause gets the cell CTEs added to the front of
+        // that clause: a second WITH before it would be a syntax error.
+        const body = stripLeadingComments(resolvedSql);
+        const ownWith = /^with(?:\s+recursive)?\s+/i.exec(body);
+        if (ownWith) {
+            const insertAt = resolvedSql.length - body.length + ownWith[0].length;
+            resolvedSql = `${resolvedSql.slice(0, insertAt)}${ctes.join(',\n')},\n${resolvedSql.slice(insertAt)}`;
+        } else {
+            resolvedSql = `WITH ${ctes.join(',\n')}\n${resolvedSql}`;
+        }
     }
 
     return {sql: resolvedSql, unresolvedRefs};

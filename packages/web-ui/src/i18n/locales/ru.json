@@ -2390,9 +2390,20 @@
           "collapse": "Ячейки свёрнуты/развёрнуты",
           "params": "Изменены параметры",
           "stopOnError": "Переключён останов при ошибке",
-          "other": "Блокнот изменён"
+          "other": "Блокнот изменён",
+          "reportInclusion": "Изменено включение в отчёт (ячейка {{n}})"
         }
       },
+      "viewMode": "Режим просмотра",
+      "editMode": "Редактирование",
+      "reportMode": "Отчёт",
+      "includeInReport": "Включить в отчёт",
+      "excludeFromReport": "Исключить из отчёта",
+      "includedInReport": "Включено в отчёт",
+      "excludedFromReport": "Исключено из отчёта",
+      "reportOutdated": "Устарело",
+      "reportNoOutput": "Пока нет результатов. Запустите блокнот для загрузки данных.",
+      "reportEmpty": "В этот отчёт не включено ни одной ячейки.",
       "scalarRef": {
           "syntaxHint": "Введите {{ для вставки скалярного значения SQL: {{value:cell_1.column}} или {{value:alias.column}}",
           "helpLabel": "Справка",
@@ -3705,6 +3716,7 @@
     "fkIncoming": "На него ссылается {{object}}.{{column}}",
     "viewTitle": "Представление {{view}}",
     "historyTitle": "Запрос выполнен {{date}}",
+    "failedRun": "Неудачный запуск",
     "matchCount": "Ссылок в этом SQL: {{count}}",
     "open": "Открыть",
     "openHistory": "Открыть в редакторе",

@@ -2436,9 +2436,20 @@
           "collapse": "Celle compresse/espanse",
           "params": "Parametri modificati",
           "stopOnError": "Stop on error commutato",
-          "other": "Notebook modificato"
+          "other": "Notebook modificato",
+          "reportInclusion": "Inclusione nel report modificata (cella {{n}})"
         }
       },
+      "viewMode": "Modalità di visualizzazione",
+      "editMode": "Modifica",
+      "reportMode": "Report",
+      "includeInReport": "Includi nel report",
+      "excludeFromReport": "Escludi dal report",
+      "includedInReport": "Incluso nel report",
+      "excludedFromReport": "Escluso dal report",
+      "reportOutdated": "Obsoleto",
+      "reportNoOutput": "Nessun risultato ancora. Esegui il notebook per caricare i dati.",
+      "reportEmpty": "Nessuna cella è inclusa in questo report.",
       "scalarRef": {
           "syntaxHint": "Digita {{ per inserire uno scalare SQL: {{value:cell_1.column}} o {{value:alias.column}}",
           "helpLabel": "Aiuto",
@@ -3599,6 +3610,7 @@
     "fkIncoming": "Referenziata da {{object}}.{{column}}",
     "viewTitle": "Vista {{view}}",
     "historyTitle": "Query eseguita {{date}}",
+    "failedRun": "Esecuzione non riuscita",
     "matchCount": "Riferimenti in questo SQL: {{count}}",
     "open": "Apri",
     "openHistory": "Apri nell'editor",

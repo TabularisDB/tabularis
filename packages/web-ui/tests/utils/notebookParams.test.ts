@@ -121,6 +121,42 @@ describe('notebookParams', () => {
             },
         );
 
+        it('should leave a server variable such as @@version alone', () => {
+            const result = resolveParams('SELECT @@version, @version', [
+                {name: 'version', value: '3'},
+            ]);
+            expect(result.sql).toBe('SELECT @@version, 3');
+            expect(result.unresolvedParams).toEqual([]);
+        });
+
+        it('should not replace @name inside string literals or comments', () => {
+            const result = resolveParams(
+                "SELECT * FROM t WHERE email = 'bob@example.com' AND id = @example -- @example",
+                [{name: 'example', value: '7'}],
+                'postgres',
+            );
+            expect(result.sql).toBe(
+                "SELECT * FROM t WHERE email = 'bob@example.com' AND id = 7 -- @example",
+            );
+        });
+
+        it('should still resolve ${name} inside a string literal', () => {
+            const result = resolveParams(
+                "SELECT * FROM t WHERE city = '${city}'",
+                [{name: 'city', value: 'Rome'}],
+                'postgres',
+            );
+            expect(result.sql).toBe("SELECT * FROM t WHERE city = 'Rome'");
+        });
+
+        it('should insert a value that contains another reference as is', () => {
+            const result = resolveParams('SELECT @a, @b', [
+                {name: 'a', value: "'@b'"},
+                {name: 'b', value: '2'},
+            ]);
+            expect(result.sql).toBe("SELECT '@b', 2");
+        });
+
         it('should resolve ${name} template syntax', () => {
             const result = resolveParams('SELECT * FROM t WHERE id = ${email}', [
                 {name: 'email', value: "'user@example.com'"},

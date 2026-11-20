@@ -2,6 +2,8 @@ import type {QueryResult} from './editor';
 
 export type NotebookCellType = 'sql' | 'markdown';
 
+export type NotebookViewMode = 'edit' | 'report';
+
 export type ChartType = 'bar' | 'line' | 'pie';
 
 export interface CellChartConfig {
@@ -25,7 +27,15 @@ export interface RunAllResult {
     succeeded: number;
     failed: number;
     skipped: number;
+    /** Cells not run because a prerequisite they reference is disabled. */
+    blocked: number;
     errors: Array<{cellId: string; cellIndex: number; error: string}>;
+    /** Each blocked cell with the disabled cells it waits on. */
+    blockedCells: Array<{
+        cellId: string;
+        cellIndex: number;
+        disabledCells: Array<{cellId: string; cellIndex: number}>;
+    }>;
 }
 
 export interface NotebookParam {
@@ -55,6 +65,7 @@ export interface NotebookCell {
     chartConfig?: CellChartConfig | null; // SQL only: inline chart configuration
     resultHeight?: number; // SQL only: custom result panel height in pixels
     isParallel?: boolean; // SQL only: can run in parallel during Run All
+    isDisabled?: boolean; // SQL only: excluded from every execution path until re-enabled (absent = enabled)
     isCollapsed?: boolean; // Whole cell body hidden when collapsed
     isQueryCollapsed?: boolean; // SQL only: query editor section hidden when collapsed
     isResultCollapsed?: boolean; // SQL only: result grid section hidden when collapsed
@@ -62,6 +73,7 @@ export interface NotebookCell {
     kpiConfig?: CellKpiConfig | null; // SQL only: KPI card configuration
     isKpiVisible?: boolean; // SQL only: KPI section visible (defaults to whether kpiConfig is set)
     isQueryPlanVisible?: boolean; // SQL only: query plan (EXPLAIN) section visible, off by default
+    includeInReport?: boolean; // Whether cell participates in Report view (defaults to true)
     history?: CellExecutionEntry[]; // Last N executions
 }
 
@@ -84,6 +96,7 @@ export interface NotebookFile {
         schema?: string;
         chartConfig?: CellChartConfig | null;
         isParallel?: boolean;
+        isDisabled?: boolean;
         isCollapsed?: boolean;
         isQueryCollapsed?: boolean;
         isResultCollapsed?: boolean;
@@ -91,6 +104,7 @@ export interface NotebookFile {
         kpiConfig?: CellKpiConfig | null;
         isKpiVisible?: boolean;
         isQueryPlanVisible?: boolean;
+        includeInReport?: boolean;
     }>;
     params?: NotebookParam[];
     stopOnError?: boolean;

@@ -1,4 +1,5 @@
 import type {NotebookCell} from '@/types/notebook';
+import {formatCellValue} from './dataGrid';
 import {escapeHtml} from './escape';
 import {
     formatScalarResolutionText,
@@ -23,28 +24,78 @@ function renderScalarResolutionHtml(resolution: ScalarResolution): string {
     return `<span class="scalar-placeholder">${escapeHtml(formatScalarResolutionText(resolution))}</span>`;
 }
 
+function collectExcludedCodeRanges(content: string): Array<{start: number; end: number}> {
+    const ranges: Array<{start: number; end: number}> = [];
+    const lines = content.split('\n');
+    let offset = 0;
+    let activeFence: {char: '`' | '~'; length: number; start: number} | null = null;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineStart = offset;
+        const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
+
+        if (activeFence === null) {
+            const openMatch = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+            if (openMatch) {
+                const fence = openMatch[1];
+                const fenceChar = fence[0] as '`' | '~';
+                const info = openMatch[2];
+                // CommonMark: backtick fence info strings cannot contain backticks
+                if (fenceChar === '~' || !info.includes('`')) {
+                    activeFence = {char: fenceChar, length: fence.length, start: lineStart};
+                }
+            }
+        } else {
+            const closeMatch = /^ {0,3}(`{3,}|~{3,})[ \t]*\r?$/.exec(line);
+            if (
+                closeMatch &&
+                closeMatch[1][0] === activeFence.char &&
+                closeMatch[1].length >= activeFence.length
+            ) {
+                ranges.push({start: activeFence.start, end: lineEnd});
+                activeFence = null;
+            }
+        }
+
+        offset = lineEnd;
+    }
+
+    if (activeFence !== null) {
+        ranges.push({start: activeFence.start, end: content.length});
+    }
+
+    const isInsideFenced = (pos: number) => ranges.some((r) => pos >= r.start && pos < r.end);
+
+    // Match inline code spans (1+ backticks) outside fenced code blocks
+    const inlineCodeRegex = /(`+)([\s\S]*?)\1/g;
+    let codeMatch: RegExpExecArray | null;
+    while ((codeMatch = inlineCodeRegex.exec(content)) !== null) {
+        if (!isInsideFenced(codeMatch.index)) {
+            ranges.push({
+                start: codeMatch.index,
+                end: codeMatch.index + codeMatch[0].length,
+            });
+        }
+    }
+
+    return ranges;
+}
+
 function interpolateMarkdownForExport(
     content: string,
     cells: NotebookCell[],
 ): {text: string; replacements: string[]} {
     const replacements: string[] = [];
-    const inlineCodeRanges: Array<{start: number; end: number}> = [];
-    const codeRegex = /`[^`]+`/g;
-    let codeMatch: RegExpExecArray | null;
-    while ((codeMatch = codeRegex.exec(content)) !== null) {
-        inlineCodeRanges.push({
-            start: codeMatch.index,
-            end: codeMatch.index + codeMatch[0].length,
-        });
-    }
+    const excludedCodeRanges = collectExcludedCodeRanges(content);
 
-    const isInsideInlineCode = (pos: number) =>
-        inlineCodeRanges.some((r) => pos >= r.start && pos < r.end);
+    const isInsideCode = (pos: number) =>
+        excludedCodeRanges.some((r) => pos >= r.start && pos < r.end);
 
     const text = content.replace(
         new RegExp(SCALAR_REF_PATTERN.source, 'g'),
         (raw: string, inner: string, offset: number) => {
-            if (isInsideInlineCode(offset)) return raw;
+            if (isInsideCode(offset)) return raw;
             const resolution = resolveScalarReference(raw, inner, cells);
             const idx = replacements.length;
             replacements.push(renderScalarResolutionHtml(resolution));
@@ -120,7 +171,7 @@ function renderSqlCell(cell: NotebookCell, index: number): string {
         html += `<thead><tr>${cell.result.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>`;
         html += `<tbody>`;
         for (const row of cell.result.rows) {
-            html += `<tr>${row.map((v) => `<td>${v === null ? '<em>NULL</em>' : escapeHtml(String(v))}</td>`).join('')}</tr>`;
+            html += `<tr>${row.map((v) => `<td>${v === null || v === undefined ? '<em>NULL</em>' : escapeHtml(formatCellValue(v))}</td>`).join('')}</tr>`;
         }
         html += `</tbody></table>`;
     }

@@ -13,8 +13,9 @@ import {remarkScalarReferences} from '@/utils/remarkScalarReferences';
 interface MarkdownCellProps {
     cell: NotebookCell;
     cells?: NotebookCell[];
-    onContentChange: (content: string) => void;
-    onTogglePreview: () => void;
+    onContentChange?: (content: string) => void;
+    onTogglePreview?: () => void;
+    readOnly?: boolean;
 }
 
 const TRIGGER_PATTERN = /\{\{(?:value:([^\n}]*)|v(?:a(?:l(?:u(?:e)?)?)?)?)?$/;
@@ -352,8 +353,14 @@ export function MarkdownCell({
     cells = [],
     onContentChange,
     onTogglePreview,
+    readOnly = false,
 }: MarkdownCellProps) {
     const {t} = useTranslation();
+
+    if (readOnly) {
+        if (!cell.content.trim()) return null;
+        return <MarkdownPreview content={cell.content} cells={cells} />;
+    }
 
     if (cell.isPreview) {
         if (!cell.content.trim()) {
@@ -378,7 +385,7 @@ export function MarkdownCell({
         <MarkdownEditor
             content={cell.content}
             cells={cells}
-            onContentChange={onContentChange}
+            onContentChange={(content) => onContentChange?.(content)}
             placeholder={t('editor.notebook.markdownPlaceholder')}
         />
     );

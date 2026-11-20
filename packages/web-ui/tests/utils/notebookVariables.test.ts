@@ -140,6 +140,26 @@ describe('notebookVariables', () => {
             expect(result.unresolvedRefs).toEqual([]);
         });
 
+        it.each([
+            ['WITH x AS (SELECT * FROM {{cell_1}}) SELECT * FROM x', 'WITH '],
+            [
+                '-- totals\nwith recursive x AS (SELECT * FROM {{cell_1}}) SELECT * FROM x',
+                '-- totals\nwith recursive ',
+            ],
+        ])('should add the cell CTE to a query that has its own WITH: %j', (sql, head) => {
+            const cells = [
+                makeCell({
+                    result: {columns: ['id'], rows: [[1]], affected_rows: 0},
+                }),
+            ];
+            const result = resolveQueryVariables(sql, cells);
+
+            expect(result.sql).toBe(
+                `${head}cell_1 AS (\n  SELECT 1 AS "id"\n),\n` +
+                    'x AS (SELECT * FROM cell_1) SELECT * FROM x',
+            );
+        });
+
         it('should replace every identical reference with a single CTE', () => {
             const cells = [
                 makeCell({
@@ -701,5 +721,24 @@ describe('notebookVariables', () => {
             );
             expect(result).toEqual([0]);
         });
+    });
+});
+
+describe('notebookVariables with disabled cells', () => {
+    const cached = {columns: ['id'], rows: [[1]], affected_rows: 0};
+
+    it('never substitutes the cached output of a disabled cell', () => {
+        const cells = [makeCell({id: 'a', content: 'SELECT 1', result: cached, isDisabled: true})];
+        const resolved = resolveQueryVariables('SELECT * FROM {{cell_1}}', cells);
+        expect(resolved.sql).toBe('SELECT * FROM {{cell_1}}');
+        expect(resolved.unresolvedRefs).toEqual([{match: '{{cell_1}}', cellIndex: 0}]);
+    });
+
+    it('does not schedule a disabled cell as a dependency to run', () => {
+        const cells = [
+            makeCell({id: 'a', content: 'SELECT 1', isDisabled: true}),
+            makeCell({id: 'b', content: 'SELECT 2'}),
+        ];
+        expect(findUnresolvedDependencies('SELECT {{cell_1}}, {{cell_2}}', cells)).toEqual([1]);
     });
 });

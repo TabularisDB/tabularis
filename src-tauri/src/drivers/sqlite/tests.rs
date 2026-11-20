@@ -606,3 +606,59 @@ async fn read_only_query_does_not_leak_into_the_pool() {
         .expect("writes still work after a read-only query");
     }
 }
+
+#[tokio::test]
+async fn bundled_sqlite_is_at_least_3_54() {
+    let (params, _file) = setup_test_db().await;
+    let result = super::execute_query(&params, "SELECT sqlite_version()", None, 1)
+        .await
+        .expect("read sqlite_version()");
+    let version = result.rows[0][0]
+        .as_str()
+        .expect("sqlite_version() returns text")
+        .to_string();
+    let parts: Vec<u32> = version
+        .split('.')
+        .map(|part| part.parse().expect("numeric version part"))
+        .collect();
+    assert!(
+        parts[..] >= [3, 54, 0][..],
+        "bundled SQLite {version} predates the date \"end of\" modifier (3.54.0)"
+    );
+}
+
+#[tokio::test]
+async fn date_end_of_modifier() {
+    let (params, _file) = setup_test_db().await;
+    for (sql, expected) in [
+        (
+            "SELECT date('2026-06-15', 'end of year')",
+            serde_json::json!("2026-12-31"),
+        ),
+        (
+            "SELECT date('2026-06-15', 'end of month')",
+            serde_json::json!("2026-06-30"),
+        ),
+    ] {
+        let result = super::execute_query(&params, sql, None, 1)
+            .await
+            .unwrap_or_else(|e| panic!("{sql} failed: {e}"));
+        assert_eq!(result.rows[0][0], expected, "{sql}");
+    }
+}
+
+#[tokio::test]
+async fn if_function_accepts_multiple_branches() {
+    let (params, _file) = setup_test_db().await;
+    for (sql, expected) in [
+        ("SELECT if(1, 1, 0, 1, 0)", serde_json::json!(1)),
+        ("SELECT if(0, 1, 0, 2, 9)", serde_json::json!(9)),
+        ("SELECT iif(0, 'a')", serde_json::Value::Null),
+        ("SELECT iif(1, 'a', 'b')", serde_json::json!("a")),
+    ] {
+        let result = super::execute_query(&params, sql, None, 1)
+            .await
+            .unwrap_or_else(|e| panic!("{sql} failed: {e}"));
+        assert_eq!(result.rows[0][0], expected, "{sql}");
+    }
+}

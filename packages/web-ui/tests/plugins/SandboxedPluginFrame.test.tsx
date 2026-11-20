@@ -231,6 +231,31 @@ describe('SandboxedPluginFrame lifecycle', () => {
         expect(projectedFrame.style.clipPath).toBe('');
         expect(screen.getByTitle('Plugin google-sheets')).toBe(iframe);
     });
+    it('lets an inline frame grow with its content and caps it to one page of its scrollport', async () => {
+        const {container} = render(
+            <div data-testid="scrollport" style={{overflowY: 'auto', padding: 20}}>
+                {frame()}
+            </div>,
+        );
+        Object.defineProperty(screen.getByTestId('scrollport'), 'clientHeight', {
+            configurable: true,
+            value: 620,
+        });
+        const anchor = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+        await waitFor(() => expect(mocks.connect).toHaveBeenCalled());
+        const canvas = screen.getByTitle('Plugin google-sheets').parentElement as HTMLElement;
+        // A short loading state must not pin the frame once the real form renders.
+        act(() => handlers['ui.resize'](150));
+        expect(canvas.style.height).toBe('150px');
+        act(() => handlers['ui.resize'](420));
+        expect(canvas.style.height).toBe('420px');
+        expect(anchor.style.height).toBe('420px');
+        act(() => handlers['ui.resize'](900));
+        expect(canvas.style.height).toBe('580px');
+        expect(anchor.style.height).toBe('580px');
+        act(() => handlers['ui.resize'](300));
+        expect(canvas.style.height).toBe('300px');
+    });
     it('allocates a definite workspace canvas independent of guest content sizing', async () => {
         const {container} = render(
             <div style={{height: 720, display: 'flex', flexDirection: 'column'}}>

@@ -98,6 +98,25 @@ describe('notebookHtmlExport', () => {
         expect(html).toContain('<em>NULL</em>');
     });
 
+    it('should write JSON values as JSON instead of [object Object]', () => {
+        const cells = [
+            makeCell({
+                type: 'sql',
+                content: 'SELECT data, tags FROM t',
+                result: {
+                    columns: ['data', 'tags', 'missing'],
+                    rows: [[{a: 1, b: '<x>'}, ['red', 'blue'], undefined]],
+                    affected_rows: 0,
+                },
+            }),
+        ];
+        const html = exportNotebookToHtml('Test', cells);
+        expect(html).not.toContain('[object Object]');
+        expect(html).toContain('<td>{&quot;a&quot;:1,&quot;b&quot;:&quot;&lt;x&gt;&quot;}</td>');
+        expect(html).toContain('<td>[&quot;red&quot;,&quot;blue&quot;]</td>');
+        expect(html).toContain('<td><em>NULL</em></td>');
+    });
+
     it('should render cell schema/database in SQL cell header', () => {
         const cells = [
             makeCell({
@@ -197,5 +216,48 @@ describe('notebookHtmlExport', () => {
         expect(html).toContain(
             '<span class="scalar-placeholder">[invalid reference: {{value:bad}}]</span>',
         );
+    });
+
+    it('should keep scalar references literal inside tilde and backtick fenced code blocks while interpolating prose', () => {
+        const cells = [
+            makeCell({
+                id: 's1',
+                type: 'sql',
+                content: 'SELECT 42 AS total',
+                result: {columns: ['total'], rows: [[42]], affected_rows: 0},
+                history: [
+                    {
+                        query: 'SELECT 42 AS total',
+                        result: {columns: ['total'], rows: [[42]], affected_rows: 0},
+                        executionTime: 5,
+                        timestamp: 1000,
+                    },
+                ],
+            }),
+            makeCell({
+                id: 'm1',
+                type: 'markdown',
+                content: [
+                    'Prose total: {{value:cell_1.total}}',
+                    '',
+                    '~~~markdown',
+                    '{{value:cell_1.total}}',
+                    '~~~',
+                    '',
+                    '```',
+                    '{{value:cell_1.total}}',
+                    '```',
+                    '',
+                    'After fence: {{value:cell_1.total}}',
+                ].join('\n'),
+            }),
+        ];
+
+        const html = exportNotebookToHtml('Test', cells);
+        expect(html).toContain('Prose total: 42');
+        expect(html).toContain('After fence: 42');
+        // Two literal fenced occurrences remain untouched
+        const literalMatches = html.match(/\{\{value:cell_1\.total\}\}/g) ?? [];
+        expect(literalMatches).toHaveLength(2);
     });
 });

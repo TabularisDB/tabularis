@@ -445,6 +445,31 @@ describe('notebookFile utils', () => {
             expect(result.cells[0].schema).toBe('production_db');
         });
 
+        it('should persist includeInReport when false and default existing cells to included', () => {
+            const cells = makeCells();
+            cells[0].includeInReport = false;
+            cells[1].includeInReport = true;
+
+            const serialized = serializeNotebook('Report', cells);
+            expect(serialized.cells[0].includeInReport).toBe(false);
+            expect(serialized.cells[1]).not.toHaveProperty('includeInReport');
+
+            const restored = deserializeNotebook(JSON.stringify(serialized));
+            expect(restored.cells[0].includeInReport).toBe(false);
+            expect(restored.cells[1].includeInReport).toBeUndefined();
+
+            // Legacy cells without includeInReport default to included
+            const legacy = deserializeNotebook(
+                JSON.stringify({
+                    version: 1,
+                    title: 'Legacy',
+                    createdAt: '2025-01-01',
+                    cells: [{type: 'sql', content: 'SELECT 1'}],
+                }),
+            );
+            expect(legacy.cells[0].includeInReport).toBeUndefined();
+        });
+
         it('should handle notebook without params', () => {
             const serialized = serializeNotebook('Bare', makeCells());
             const json = JSON.stringify(serialized);
@@ -558,5 +583,74 @@ describe('notebookFile utils', () => {
             expect(restored.cells[0].isKpiVisible).toBeUndefined();
             expect(restored.cells[1].kpiConfig).toEqual({column: 'n', decimals: 0});
         });
+    });
+});
+
+describe('notebookFile disabled SQL cells', () => {
+    it('keeps the disabled flag through serialize and deserialize', () => {
+        const cells: NotebookCell[] = [
+            {id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: true, isParallel: true},
+            {id: 'b', type: 'sql', content: 'SELECT 2'},
+        ];
+        const file = serializeNotebook('Disabled', cells);
+        expect(file.cells[0].isDisabled).toBe(true);
+        expect(file.cells[1]).not.toHaveProperty('isDisabled');
+        const restored = deserializeNotebook(JSON.stringify(file));
+        expect(restored.cells[0]).toMatchObject({
+            content: 'SELECT 1',
+            isDisabled: true,
+            isParallel: true,
+        });
+        expect(restored.cells[1].isDisabled).toBeUndefined();
+    });
+
+    it('does not write an enabled flag, so enabled cells stay byte-compatible', () => {
+        const file = serializeNotebook('x', [
+            {id: 'a', type: 'sql', content: 'SELECT 1', isDisabled: false},
+        ]);
+        expect(file.cells[0]).not.toHaveProperty('isDisabled');
+    });
+
+    it('loads legacy files without the flag as enabled', () => {
+        const restored = deserializeNotebook(
+            JSON.stringify({
+                version: 1,
+                title: 'Old',
+                createdAt: '2024-01-01',
+                cells: [{type: 'sql', content: 'SELECT 1'}],
+            }),
+        );
+        expect(restored.cells[0].isDisabled).toBeUndefined();
+    });
+
+    it.each([['true'], [1], [null], [{}]])(
+        'ignores a malformed disabled value %j from an untrusted file',
+        (value) => {
+            const restored = deserializeNotebook(
+                JSON.stringify({
+                    version: 2,
+                    title: 'x',
+                    createdAt: '2024-01-01',
+                    cells: [{type: 'sql', content: 'SELECT 1', isDisabled: value}],
+                }),
+            );
+            expect(restored.cells[0].isDisabled).toBeUndefined();
+        },
+    );
+
+    it('never marks a Markdown cell disabled', () => {
+        const file = serializeNotebook('x', [
+            {id: 'a', type: 'markdown', content: '# x', isDisabled: true},
+        ]);
+        expect(file.cells[0]).not.toHaveProperty('isDisabled');
+        const restored = deserializeNotebook(
+            JSON.stringify({
+                version: 2,
+                title: 'x',
+                createdAt: '2024-01-01',
+                cells: [{type: 'markdown', content: '# x', isDisabled: true}],
+            }),
+        );
+        expect(restored.cells[0].isDisabled).toBeUndefined();
     });
 });

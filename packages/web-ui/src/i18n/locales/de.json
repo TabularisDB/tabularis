@@ -2374,9 +2374,20 @@
           "collapse": "Zellen ein-/ausgeklappt",
           "params": "Parameter geändert",
           "stopOnError": "Bei Fehler stoppen umgeschaltet",
-          "other": "Notebook bearbeitet"
+          "other": "Notebook bearbeitet",
+          "reportInclusion": "Berichtsaufnahme umgeschaltet (Zelle {{n}})"
         }
       },
+      "viewMode": "Ansichtsmodus",
+      "editMode": "Bearbeiten",
+      "reportMode": "Bericht",
+      "includeInReport": "In Bericht aufnehmen",
+      "excludeFromReport": "Aus Bericht ausschließen",
+      "includedInReport": "Im Bericht enthalten",
+      "excludedFromReport": "Vom Bericht ausgeschlossen",
+      "reportOutdated": "Veraltet",
+      "reportNoOutput": "Noch keine Ausgabe. Führen Sie das Notebook aus, um Ergebnisse zu laden.",
+      "reportEmpty": "Keine Zellen sind in diesem Bericht enthalten.",
       "scalarRef": {
           "syntaxHint": "Tippe {{ um einen SQL-Skalar einzufügen: {{value:cell_1.column}} oder {{value:alias.column}}",
           "helpLabel": "Hilfe",
@@ -3571,6 +3582,7 @@
     "fkIncoming": "Referenziert von {{object}}.{{column}}",
     "viewTitle": "View {{view}}",
     "historyTitle": "Abfrage ausgeführt {{date}}",
+    "failedRun": "Fehlgeschlagene Ausführung",
     "matchCount": "Verweise in diesem SQL: {{count}}",
     "open": "Öffnen",
     "openHistory": "Im Editor öffnen",

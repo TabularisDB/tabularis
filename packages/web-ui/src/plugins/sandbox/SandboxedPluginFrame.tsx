@@ -15,6 +15,7 @@ import {
 } from '@/utils/providerSandbox';
 import {parsePluginNativeComponent, parsePluginNativeRect} from '@/utils/pluginNative';
 import {publishPluginEvent, subscribePluginEvent} from '@/utils/pluginEvents';
+import {fitFrameHeight, frameScrollports} from '@/utils/pluginFrameFit';
 import type {PluginNativeComponent} from '@/types/pluginNative';
 import {NativePluginComponent} from './NativePluginComponent';
 import {isReadOnlyQuery} from '@/utils/sqlAnalysis';
@@ -116,6 +117,8 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
         servicesRef.current = {client, updateSetting, showToast, t, database, editor, navigate};
     }, [client, updateSetting, showToast, t, database, editor, navigate]);
     const [nativeComponents, setNativeComponents] = useState<PluginNativeComponent[]>([]);
+    // What the guest's content measures, and the canvas the host gives it.
+    const [contentHeight, setContentHeight] = useState(0);
     const [height, setHeight] = useState(0);
     const [intrinsicWidth, setIntrinsicWidth] = useState(0);
     const [modalOpen, setModalOpen] = useState(false);
@@ -171,6 +174,21 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
         (parent ?? document.body).appendChild(portalRoot);
         return () => portalRoot.remove();
     }, [portalRoot]);
+
+    useLayoutEffect(() => {
+        const anchor = anchorRef.current;
+        if (!anchor || workspace) return;
+        const fit = () => setHeight(fitFrameHeight(anchor, contentHeight));
+        fit();
+        // The room changes with the host layout, not only with the guest's content.
+        const resizeObserver = new ResizeObserver(fit);
+        for (const scrollport of frameScrollports(anchor)) resizeObserver.observe(scrollport);
+        window.addEventListener('resize', fit);
+        return () => {
+            resizeObserver.disconnect();
+            window.removeEventListener('resize', fit);
+        };
+    }, [contentHeight, workspace]);
 
     useLayoutEffect(() => {
         const anchor = anchorRef.current;
@@ -419,7 +437,7 @@ export function SandboxedPluginFrame({pluginId, module, context}: Props) {
             'ui.resize': (value: unknown, width: unknown) => {
                 if (contextRef.current.__tabularisSlot === 'editor.workspace.content') return;
                 const requested = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-                setHeight(Math.min(MAX_HEIGHT, Math.max(0, requested)));
+                setContentHeight(Math.min(MAX_HEIGHT, Math.max(0, requested)));
                 if (
                     [
                         'connections.actions',

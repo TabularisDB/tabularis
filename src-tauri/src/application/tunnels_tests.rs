@@ -532,6 +532,113 @@ fn cache_tunnel_keeps_a_live_tunnel_opened_concurrently() {
 }
 
 #[test]
+fn concurrent_opens_of_one_tunnel_log_in_once() {
+    let key = "test-open-shared-tunnel-once-key";
+    let callers = 8;
+    let opens = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let start = Arc::new(std::sync::Barrier::new(callers));
+    let handles: Vec<_> = (0..callers)
+        .map(|_| {
+            let opens = opens.clone();
+            let start = start.clone();
+            std::thread::spawn(move || {
+                start.wait();
+                open_shared_tunnel(key, || {
+                    opens.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    // A login takes a while; the other callers arrive meanwhile.
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    Ok(crate::ssh_tunnel::SshTunnel::russh_for_test(
+                        41020, true, None,
+                    ))
+                })
+                .map(|tunnel| tunnel.generation)
+            })
+        })
+        .collect();
+    let generations: Vec<u64> = handles
+        .into_iter()
+        .map(|handle| handle.join().unwrap().unwrap())
+        .collect();
+    forget(key);
+
+    assert_eq!(opens.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(
+        generations.iter().all(|g| *g == generations[0]),
+        "every caller gets the one opened tunnel"
+    );
+}
+
+#[test]
+fn opening_one_tunnel_does_not_hold_up_another_key() {
+    let slow_key = "test-open-shared-tunnel-slow-key";
+    let fast_key = "test-open-shared-tunnel-fast-key";
+    let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+    let slow = std::thread::spawn(move || {
+        open_shared_tunnel(slow_key, || {
+            entered_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+            Ok(crate::ssh_tunnel::SshTunnel::russh_for_test(
+                41021, true, None,
+            ))
+        })
+        .map(|tunnel| tunnel.local_port)
+    });
+    entered_rx.recv().unwrap();
+
+    let (done_tx, done_rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let port = open_shared_tunnel(fast_key, || {
+            Ok(crate::ssh_tunnel::SshTunnel::russh_for_test(
+                41022, true, None,
+            ))
+        })
+        .map(|tunnel| tunnel.local_port);
+        let _ = done_tx.send(port);
+    });
+    let fast = done_rx.recv_timeout(std::time::Duration::from_secs(5));
+    release_tx.send(()).unwrap();
+    let slow = slow.join().unwrap();
+    forget(slow_key);
+    forget(fast_key);
+
+    assert_eq!(
+        fast,
+        Ok(Ok(41022)),
+        "the other key opened while one was opening"
+    );
+    assert_eq!(slow, Ok(41021));
+}
+
+#[test]
+fn a_failed_open_lets_the_next_caller_try_again() {
+    let key = "test-open-shared-tunnel-failed-key";
+    let mut opens = 0;
+
+    let failed = open_shared_tunnel(key, || {
+        opens += 1;
+        Err("Permission denied (publickey)".to_string())
+    });
+    let retried = open_shared_tunnel(key, || {
+        opens += 1;
+        Ok(crate::ssh_tunnel::SshTunnel::russh_for_test(
+            41023, true, None,
+        ))
+    })
+    .map(|tunnel| tunnel.local_port);
+    let cached = cached_port(key);
+    forget(key);
+
+    assert_eq!(
+        failed.map(|t| t.local_port),
+        Err("Permission denied (publickey)".to_string())
+    );
+    assert_eq!(retried, Ok(41023));
+    assert_eq!(cached, Some(41023));
+    assert_eq!(opens, 2);
+}
+
+#[test]
 fn cache_tunnel_replaces_a_dead_entry() {
     let key = "test-cache-tunnel-dead-key";
     let dead = crate::ssh_tunnel::SshTunnel::russh_for_test(41008, false, None);
@@ -592,6 +699,25 @@ fn forward_destination_uses_trimmed_socket_path() {
 }
 
 #[test]
+fn ssh_tunnel_route_keeps_the_existing_keys() {
+    let fixed = ConnectionParams {
+        host: Some("db.internal".to_string()),
+        port: Some(5432),
+        ..ssh_params("postgres", "route-bastion", "postgres://db")
+    };
+    let (target, proxy, key) = ssh_tunnel_route(&fixed).unwrap();
+    assert_eq!(
+        target,
+        crate::ssh_tunnel::ForwardTarget::Fixed {
+            host: "db.internal".to_string(),
+            port: 5432,
+        }
+    );
+    assert!(proxy.is_none());
+    assert_eq!(key, "user@route-bastion:22:db.internal->5432");
+}
+
+#[test]
 fn tunnel_params_keep_ssl_mode_for_tcp_destination() {
     let params = ConnectionParams {
         ssl_mode: Some("require".to_string()),
@@ -632,4 +758,50 @@ fn tunnel_params_clear_local_socket_path() {
     let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(15000, true, None);
     let resolved = point_at_tunnel(&params, &tunnel, &target);
     assert_eq!(resolved.unix_socket_path, None);
+}
+
+#[test]
+fn ssh_tunnel_lease_names_the_cached_generation() {
+    let params = ssh_params("postgres", "lease-bastion", "postgres://db");
+    assert_eq!(ssh_tunnel_lease(&params), None);
+
+    let (_, _, key) = ssh_tunnel_route(&params).unwrap();
+    let tunnel = crate::ssh_tunnel::SshTunnel::russh_for_test(41010, true, None);
+    let generation = tunnel.generation;
+    cache(&key, tunnel);
+    let lease = ssh_tunnel_lease(&params);
+    forget(&key);
+
+    assert_eq!(lease, Some(TunnelLease { key, generation }));
+    let direct = ConnectionParams {
+        ssh_enabled: Some(false),
+        ..params
+    };
+    assert_eq!(ssh_tunnel_lease(&direct), None);
+}
+
+#[test]
+fn discard_stops_only_the_leased_generation() {
+    let key = "test-discard-tunnel-key";
+    let old = crate::ssh_tunnel::SshTunnel::russh_for_test(41011, true, None);
+    let stale = TunnelLease {
+        key: key.to_string(),
+        generation: old.generation,
+    };
+    cache(key, old.clone());
+
+    assert!(discard_ssh_tunnel(&stale));
+    assert!(!old.is_alive());
+    assert_eq!(cached_port(key), None);
+    assert!(!discard_ssh_tunnel(&stale), "a second discard is a no-op");
+
+    let fresh = crate::ssh_tunnel::SshTunnel::russh_for_test(41012, true, None);
+    assert!(fresh.generation > stale.generation);
+    cache(key, fresh.clone());
+    let replaced = discard_ssh_tunnel(&stale);
+    let cached = cached_port(key);
+    forget(key);
+    assert!(!replaced);
+    assert!(fresh.is_alive());
+    assert_eq!(cached, Some(41012));
 }

@@ -5,6 +5,7 @@ import {useDatabase} from '@/hooks/useDatabase';
 import {supportsExplain} from '@/utils/driverCapabilities';
 import type {ResolvedQuery} from '@/utils/notebookVariables';
 import {restoreFromHistory, getHistorySize} from '@/utils/notebookHistory';
+import {isCellIncludedInReport} from '@/utils/notebook';
 import {NotebookCellHeader} from './NotebookCellHeader';
 import {SqlCell} from './SqlCell';
 import {MarkdownCell} from './MarkdownCell';
@@ -106,6 +107,12 @@ export function NotebookCellWrapper({
                 onToggleParallel={
                     cell.type === 'sql' ? () => onUpdate({isParallel: !cell.isParallel}) : undefined
                 }
+                isDisabled={cell.type === 'sql' && !!cell.isDisabled}
+                onToggleDisabled={
+                    cell.type === 'sql'
+                        ? () => onUpdate({isDisabled: cell.isDisabled ? undefined : true})
+                        : undefined
+                }
                 historyCount={cell.type === 'sql' ? getHistorySize(cell) : undefined}
                 onToggleHistory={cell.type === 'sql' ? () => setShowHistory((v) => !v) : undefined}
                 isQueryPlanVisible={cell.isQueryPlanVisible}
@@ -120,6 +127,10 @@ export function NotebookCellWrapper({
                 cellName={cell.name}
                 onNameChange={(name) => onUpdate({name: name || undefined})}
                 cellContent={cell.content}
+                includeInReport={isCellIncludedInReport(cell)}
+                onToggleIncludeInReport={() =>
+                    onUpdate({includeInReport: !isCellIncludedInReport(cell)})
+                }
             />
 
             {showHistory && cell.type === 'sql' && (

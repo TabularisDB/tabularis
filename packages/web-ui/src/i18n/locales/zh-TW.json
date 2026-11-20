@@ -2418,9 +2418,20 @@
                     "collapse": "摺疊/展開儲存格",
                     "params": "更改了引數",
                     "stopOnError": "切換了出錯時停止",
-                    "other": "編輯了筆記本"
+                    "other": "編輯了筆記本",
+                    "reportInclusion": "已切換報告包含狀態（儲存格 {{n}}）"
                 }
             },
+            "viewMode": "檢視模式",
+            "editMode": "編輯",
+            "reportMode": "報告",
+            "includeInReport": "包含在報告中",
+            "excludeFromReport": "從報告中排除",
+            "includedInReport": "已包含在報告中",
+            "excludedFromReport": "已從報告中排除",
+            "reportOutdated": "已過時",
+            "reportNoOutput": "尚無輸出。請執行筆記本以載入結果。",
+            "reportEmpty": "此報告中未包含任何儲存格。",
             "scalarRef": {
                 "syntaxHint": "輸入 {{ 插入 SQL 純量值：{{value:cell_1.column}} 或 {{value:alias.column}}",
                 "helpLabel": "說明",
@@ -3727,6 +3738,7 @@
         "fkIncoming": "被 {{object}}.{{column}} 參照",
         "viewTitle": "檢視 {{view}}",
         "historyTitle": "{{date}} 執行的查詢",
+        "failedRun": "執行失敗",
         "matchCount": "此 SQL 中的參照數：{{count}}",
         "open": "開啟",
         "openHistory": "在編輯器中開啟",

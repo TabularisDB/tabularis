@@ -306,5 +306,51 @@ describe('notebookUndo', () => {
                 describeChange(ns([cell('a')]), ns([cell('a')], {stopOnError: true} as never)),
             ).toMatchObject({kind: 'stopOnError'});
         });
+        it('tracks includeInReport changes in undo/redo and describeChange', () => {
+            const c1 = {...cell('c1'), includeInReport: undefined};
+            const s1: NotebookState = {cells: [c1]};
+            const s2: NotebookState = {cells: [{...c1, includeInReport: false}]};
+            const s3: NotebookState = {cells: [{...c1, includeInReport: true}]};
+
+            expect(documentSignature(s1)).not.toBe(documentSignature(s2));
+            // undefined and true both mean included
+            expect(documentSignature(s1)).toBe(documentSignature(s3));
+
+            expect(describeChange(s1, s2)).toEqual({kind: 'reportInclusion', n: 1});
+
+            const h = recordEdit(createHistory(), s1, s2, 1000);
+            expect(h.past).toHaveLength(1);
+            const undone = undo(h, s2);
+            expect(undone?.state.cells[0].includeInReport).toBeUndefined();
+            const redone = redo(undone!.history, undone!.state);
+            expect(redone?.state.cells[0].includeInReport).toBe(false);
+        });
+    });
+});
+
+describe('notebookUndo disabled cells', () => {
+    const on: NotebookState = {cells: [{id: 'c1', type: 'sql', content: 'SELECT 1'}]};
+    const off: NotebookState = {
+        cells: [{id: 'c1', type: 'sql', content: 'SELECT 1', isDisabled: true}],
+    };
+
+    it('makes disabling a document change and treats a missing flag as enabled', () => {
+        expect(documentSignature(on)).not.toBe(documentSignature(off));
+        expect(documentSignature(on)).toBe(
+            documentSignature({cells: [{...on.cells[0], isDisabled: false}]}),
+        );
+    });
+
+    it('describes disabling and enabling a cell', () => {
+        expect(describeChange(on, off)).toEqual({kind: 'disableCell', n: 1});
+        expect(describeChange(off, on)).toEqual({kind: 'enableCell', n: 1});
+    });
+
+    it('undoes and redoes a disable', () => {
+        const history = recordEdit(createHistory(), on, off, 10_000);
+        const back = undo(history, off);
+        expect(back?.state.cells[0].isDisabled).toBeUndefined();
+        const forward = back && redo(back.history, back.state);
+        expect(forward?.state.cells[0].isDisabled).toBe(true);
     });
 });

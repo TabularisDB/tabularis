@@ -43,6 +43,8 @@ import {useConnectionCapabilities} from '@/hooks/useConnectionCapabilities';
 import {useAvailableUpdates} from '@/hooks/useAvailableUpdates';
 import {UpdateBadge} from '@/components/ui/UpdateBadge';
 import {UpdateTooltip} from '@/components/ui/UpdateTooltip';
+import {Chip} from '@/components/ui/Chip';
+import type {DeprecationInfo} from '@/types/plugins';
 
 type SettingsTab =
     | 'general'
@@ -159,7 +161,10 @@ export const Settings = () => {
         [refreshDrivers],
     );
 
-    const pluginSettingItems = new Map<string, {id: string; name: string}>();
+    const pluginSettingItems = new Map<
+        string,
+        {id: string; name: string; deprecated?: DeprecationInfo}
+    >();
 
     for (const driver of allDrivers) {
         const hasSettings = (driver.settings?.length ?? 0) > 0;
@@ -168,6 +173,7 @@ export const Settings = () => {
         pluginSettingItems.set(driver.id, {
             id: driver.id,
             name: driver.name,
+            deprecated: driver.deprecated,
         });
     }
 
@@ -259,19 +265,44 @@ export const Settings = () => {
                                 <div className="pl-4 space-y-0.5">
                                     {pluginTabs.map((plugin) => {
                                         const pluginTabId = `plugin:${plugin.id}` as const;
+                                        const deprecation = plugin.deprecated;
+                                        const deprecatedTitle = deprecation
+                                            ? deprecation.removal_date
+                                                ? t('settings.plugins.deprecatedTooltipDate', {
+                                                      replacement: deprecation.replacement_id ?? '',
+                                                      date: deprecation.removal_date,
+                                                  })
+                                                : t('settings.plugins.deprecatedTooltip', {
+                                                      replacement: deprecation.replacement_id ?? '',
+                                                  })
+                                            : undefined;
                                         return (
                                             <button
                                                 key={plugin.id}
                                                 onClick={() => setRequestedTab(pluginTabId)}
                                                 className={clsx(
-                                                    'w-full px-3 py-1.5 rounded-lg text-xs text-left transition-colors truncate',
+                                                    'w-full px-3 py-1.5 rounded-lg text-xs text-left transition-colors',
+                                                    deprecation
+                                                        ? 'flex items-center gap-1.5'
+                                                        : 'truncate',
                                                     activeTab === pluginTabId
                                                         ? 'bg-surface-secondary text-primary'
                                                         : 'text-muted hover:text-primary hover:bg-surface-secondary/50',
                                                 )}
-                                                title={plugin.name}
+                                                title={deprecatedTitle ?? plugin.name}
                                             >
-                                                {plugin.name}
+                                                {deprecation ? (
+                                                    <>
+                                                        <span className="truncate">
+                                                            {plugin.name}
+                                                        </span>
+                                                        <Chip tone="warning" size="sm">
+                                                            {t('settings.plugins.deprecated')}
+                                                        </Chip>
+                                                    </>
+                                                ) : (
+                                                    plugin.name
+                                                )}
                                             </button>
                                         );
                                     })}

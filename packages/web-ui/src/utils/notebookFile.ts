@@ -37,6 +37,7 @@ export function serializeNotebook(
             ...(c.schema ? {schema: c.schema} : {}),
             ...(c.chartConfig ? {chartConfig: c.chartConfig} : {}),
             ...(c.isParallel ? {isParallel: c.isParallel} : {}),
+            ...(c.type === 'sql' && c.isDisabled ? {isDisabled: true} : {}),
             ...(c.isCollapsed ? {isCollapsed: c.isCollapsed} : {}),
             ...(c.isQueryCollapsed ? {isQueryCollapsed: c.isQueryCollapsed} : {}),
             ...(c.isResultCollapsed ? {isResultCollapsed: c.isResultCollapsed} : {}),
@@ -44,6 +45,7 @@ export function serializeNotebook(
             ...(c.kpiConfig ? {kpiConfig: c.kpiConfig} : {}),
             ...(c.isKpiVisible != null ? {isKpiVisible: c.isKpiVisible} : {}),
             ...(c.isQueryPlanVisible != null ? {isQueryPlanVisible: c.isQueryPlanVisible} : {}),
+            ...(c.includeInReport === false ? {includeInReport: false} : {}),
         })),
         ...(params && params.length > 0 ? {params} : {}),
         ...(stopOnError ? {stopOnError} : {}),
@@ -97,6 +99,8 @@ export function deserializeNotebook(json: string): {
                 schema: c.schema,
                 chartConfig: (cellRaw.chartConfig as NotebookCell['chartConfig']) ?? null,
                 isParallel: cellRaw.isParallel as boolean | undefined,
+                // Files written before cells could be disabled have no flag: enabled.
+                isDisabled: c.type === 'sql' && cellRaw.isDisabled === true ? true : undefined,
                 isCollapsed: cellRaw.isCollapsed as boolean | undefined,
                 isQueryCollapsed: cellRaw.isQueryCollapsed as boolean | undefined,
                 isResultCollapsed: cellRaw.isResultCollapsed as boolean | undefined,
@@ -105,6 +109,10 @@ export function deserializeNotebook(json: string): {
                 isKpiVisible:
                     typeof cellRaw.isKpiVisible === 'boolean' ? cellRaw.isKpiVisible : undefined,
                 isQueryPlanVisible: cellRaw.isQueryPlanVisible as boolean | undefined,
+                includeInReport:
+                    typeof cellRaw.includeInReport === 'boolean'
+                        ? cellRaw.includeInReport
+                        : undefined,
                 result: null,
                 error: undefined,
                 executionTime: null,

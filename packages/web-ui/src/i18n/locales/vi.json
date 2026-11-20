@@ -2413,9 +2413,20 @@
           "collapse": "Đã thu gọn/mở rộng các ô",
           "params": "Đã đổi tham số",
           "stopOnError": "Đã bật/tắt dừng khi gặp lỗi",
-          "other": "Đã sửa notebook"
+          "other": "Đã sửa notebook",
+          "reportInclusion": "Đã chuyển đổi bao gồm trong báo cáo (ô {{n}})"
         }
       },
+      "viewMode": "Chế độ xem",
+      "editMode": "Chỉnh sửa",
+      "reportMode": "Báo cáo",
+      "includeInReport": "Bao gồm trong báo cáo",
+      "excludeFromReport": "Loại khỏi báo cáo",
+      "includedInReport": "Đã bao gồm trong báo cáo",
+      "excludedFromReport": "Đã loại khỏi báo cáo",
+      "reportOutdated": "Đã cũ",
+      "reportNoOutput": "Chưa có kết quả. Chạy notebook để tải dữ liệu.",
+      "reportEmpty": "Không có ô nào được bao gồm trong báo cáo này.",
       "scalarRef": {
           "syntaxHint": "Nhập {{ để chèn giá trị vô hướng SQL: {{value:cell_1.column}} hoặc {{value:alias.column}}",
           "helpLabel": "Trợ giúp",
@@ -3736,6 +3747,7 @@
     "fkIncoming": "Được tham chiếu bởi {{object}}.{{column}}",
     "viewTitle": "View {{view}}",
     "historyTitle": "Truy vấn chạy lúc {{date}}",
+    "failedRun": "Lần chạy thất bại",
     "matchCount": "Số tham chiếu trong SQL này: {{count}}",
     "open": "Mở",
     "openHistory": "Mở trong trình soạn thảo",
