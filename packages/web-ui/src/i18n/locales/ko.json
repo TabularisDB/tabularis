@@ -3658,5 +3658,19 @@
     "saveBeforeExport": "내보내기 전에 변경 사항을 저장하세요.",
     "discardTitle": "저장하지 않은 메모를 버릴까요?",
     "discardMessage": "메모 변경 사항이 저장되지 않았습니다. 지금 닫으면 변경 사항이 사라집니다."
+  },
+  "appMenu": {
+    "checkForUpdates": "업데이트 확인…",
+    "settings": "설정…",
+    "website": "Tabularis 웹사이트",
+    "reportIssue": "문제 신고…",
+    "discord": "Discord 커뮤니티",
+    "newConnection": "새 연결…",
+    "openConnections": "연결 열기",
+    "commandPalette": "명령 팔레트",
+    "quickNavigator": "빠른 탐색기",
+    "searchActions": "작업 검색",
+    "toggleSidebar": "사이드바 토글",
+    "toggleRightSidebar": "오른쪽 사이드바 전환"
   }
 }

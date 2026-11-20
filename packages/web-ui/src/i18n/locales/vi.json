@@ -3780,5 +3780,19 @@
     "saveBeforeExport": "Hãy lưu thay đổi trước khi xuất.",
     "discardTitle": "Bỏ các ghi chú chưa lưu?",
     "discardMessage": "Các thay đổi trong ghi chú chưa được lưu. Đóng bây giờ sẽ mất các thay đổi đó."
+  },
+  "appMenu": {
+    "checkForUpdates": "Kiểm tra cập nhật…",
+    "settings": "Cài đặt…",
+    "website": "Trang web Tabularis",
+    "reportIssue": "Báo cáo sự cố…",
+    "discord": "Cộng đồng Discord",
+    "newConnection": "Kết nối mới…",
+    "openConnections": "Mở danh sách kết nối",
+    "commandPalette": "Bảng lệnh",
+    "quickNavigator": "Điều hướng nhanh",
+    "searchActions": "Tìm thao tác",
+    "toggleSidebar": "Bật/tắt thanh bên",
+    "toggleRightSidebar": "Bật/tắt thanh bên phải"
   }
 }

@@ -3546,5 +3546,19 @@
     "saveBeforeExport": "导出前请先保存更改。",
     "discardTitle": "放弃未保存的备注？",
     "discardMessage": "备注的更改尚未保存。现在关闭将丢失这些更改。"
+  },
+  "appMenu": {
+    "checkForUpdates": "检查更新…",
+    "settings": "设置…",
+    "website": "Tabularis 官网",
+    "reportIssue": "报告问题…",
+    "discord": "Discord 社区",
+    "newConnection": "新建连接…",
+    "openConnections": "打开连接",
+    "commandPalette": "命令面板",
+    "quickNavigator": "快速导航",
+    "searchActions": "搜索操作",
+    "toggleSidebar": "切换侧边栏",
+    "toggleRightSidebar": "切换右侧边栏"
   }
 }

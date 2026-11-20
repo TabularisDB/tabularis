@@ -3847,5 +3847,19 @@
     "saveBeforeExport": "Save your changes before exporting.",
     "discardTitle": "Discard unsaved notes?",
     "discardMessage": "Your changes to the notes have not been saved. Closing now discards them."
+  },
+  "appMenu": {
+    "checkForUpdates": "Check for Updates…",
+    "settings": "Settings…",
+    "website": "Tabularis Website",
+    "reportIssue": "Report an Issue…",
+    "discord": "Discord Community",
+    "newConnection": "New Connection…",
+    "openConnections": "Show Connections",
+    "commandPalette": "Command Palette",
+    "quickNavigator": "Quick Navigator",
+    "searchActions": "Search Actions",
+    "toggleSidebar": "Toggle Sidebar",
+    "toggleRightSidebar": "Toggle Right Sidebar"
   }
 }
