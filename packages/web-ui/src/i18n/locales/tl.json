@@ -860,6 +860,13 @@
       "confirm": "Kumpirmahin",
       "cancel": "Kanselahin"
     },
+    "tabLayout": {
+      "title": "Mga tab ng editor",
+      "label": "Layout ng tab",
+      "description": "Ipakita ang mga bukas na tab sa itaas ng editor o bilang listahan sa kaliwang bahagi.",
+      "horizontal": "Pahalang",
+      "vertical": "Patayo"
+    },
     "dataGrid": {
       "zebraStripes": "Magkakahaliling background ng row",
       "zebraStripesDesc": "I-shade bawat ikalawang row para mas madaling sundan ang isang row sa mga malapad na table.",

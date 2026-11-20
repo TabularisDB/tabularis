@@ -854,6 +854,13 @@
             "confirm": "確認",
             "cancel": "取消"
         },
+        "tabLayout": {
+            "title": "編輯器分頁",
+            "label": "分頁配置",
+            "description": "將開啟的分頁顯示在編輯器上方，或以清單形式顯示在左側。",
+            "horizontal": "水平",
+            "vertical": "垂直"
+        },
         "dataGrid": {
             "title": "資料表格",
             "stickyHeaders": "固定欄標題",

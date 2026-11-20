@@ -11,6 +11,7 @@ import {
     EDITOR_FONT_SIZE_MIN,
 } from '@/utils/editorFontSize';
 import {useTheme} from '@/hooks/useTheme';
+import {resolveTabLayout} from '@/utils/tabLayout';
 import {DEFAULT_RESULT_FONT_FAMILY, RESULT_FONT_INHERIT, getFontCSS} from '@/utils/settings';
 import {
     SettingSection,
@@ -134,6 +135,25 @@ export function AppearanceTab() {
                                 Aa Bb Cc 123 - {t('settings.fontPreviewText')}
                             </p>
                         </div>
+                    </SettingSection>
+
+                    <SettingSection title={t('settings.tabLayout.title')}>
+                        <SettingRow
+                            label={t('settings.tabLayout.label')}
+                            description={t('settings.tabLayout.description')}
+                        >
+                            <SettingButtonGroup
+                                value={resolveTabLayout(settings.tabLayout)}
+                                onChange={(v) => updateSetting('tabLayout', v)}
+                                options={[
+                                    {
+                                        value: 'horizontal',
+                                        label: t('settings.tabLayout.horizontal'),
+                                    },
+                                    {value: 'vertical', label: t('settings.tabLayout.vertical')},
+                                ]}
+                            />
+                        </SettingRow>
                     </SettingSection>
 
                     <SettingSection title={t('settings.dataGrid.title')}>

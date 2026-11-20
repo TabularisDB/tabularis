@@ -163,6 +163,27 @@ describe('AppearanceTab theme mode', () => {
         expect(updateSettings).toHaveBeenCalledWith({followSystemTheme: true});
     });
 
+    it.each([
+        [undefined, 'horizontal'],
+        ['horizontal', 'horizontal'],
+        ['vertical', 'vertical'],
+    ] as const)('shows the %s tab layout as %s and lets you change it', async (stored, shown) => {
+        appearanceSettings = {tabLayout: stored};
+        const user = userEvent.setup();
+        render(
+            <MemoryRouter>
+                <AppearanceTab />
+            </MemoryRouter>,
+        );
+        const other = shown === 'vertical' ? 'horizontal' : 'vertical';
+        expect(screen.getByRole('button', {name: `settings.tabLayout.${shown}`})).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+        await user.click(screen.getByRole('button', {name: `settings.tabLayout.${other}`}));
+        expect(updateSetting).toHaveBeenCalledWith('tabLayout', other);
+    });
+
     it.each([undefined, true, false])(
         'exposes a keyboard-accessible minimap toggle for value %s',
         async (editorMinimap) => {
