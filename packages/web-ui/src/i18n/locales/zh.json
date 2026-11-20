@@ -828,6 +828,13 @@
     "fontSizeDesc": "调整整个应用使用的基础字体大小（10-20px）。",
     "preview": "预览",
     "fontPreviewText": "The quick brown fox jumps over the lazy dog",
+    "tabLayout": {
+      "title": "编辑器标签页",
+      "label": "标签页布局",
+      "description": "将已打开的标签页显示在编辑器顶部，或以列表形式显示在左侧。",
+      "horizontal": "水平",
+      "vertical": "垂直"
+    },
     "dataGrid": {
       "zebraStripes": "交替行背景",
       "zebraStripesDesc": "为每隔一行添加底色，便于在宽表中横向追踪某一行。",

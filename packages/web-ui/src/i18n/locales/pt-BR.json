@@ -853,6 +853,13 @@
       "confirm": "Confirmar",
       "cancel": "Cancelar"
     },
+    "tabLayout": {
+      "title": "Abas do editor",
+      "label": "Layout das abas",
+      "description": "Mostra as abas abertas na parte superior do editor ou como uma lista no lado esquerdo.",
+      "horizontal": "Horizontal",
+      "vertical": "Vertical"
+    },
     "dataGrid": {
       "title": "Grade de Dados",
       "stickyHeaders": "Cabeçalhos de coluna fixos",
