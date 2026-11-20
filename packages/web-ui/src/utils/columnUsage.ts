@@ -528,10 +528,20 @@ function isCteAt(ctes: CteDefinition[], name: string, index: number): boolean {
     );
 }
 
+// ORDER BY, LIMIT, OFFSET or FETCH at `index`: a clause on a query's result.
+function startsResultClause(tokens: LexToken[], index: number): boolean {
+    const word = keyword(tokens[index]);
+    if (word === 'ORDER') return keyword(tokens[index + 1]) === 'BY';
+    return word === 'LIMIT' || word === 'OFFSET' || word === 'FETCH';
+}
+
 // A parenthesis that opens with SELECT or WITH starts a new query level;
 // any other (function arguments, IN lists, column lists) stays in its level.
 // A UNION / INTERSECT / EXCEPT of a level starts a sibling level for the
 // query after it, with the same parent, so each side has its own tables.
+// The ORDER BY / LIMIT / OFFSET / FETCH after the last side applies to the
+// combined result and names its output columns: it gets a level of its own,
+// with no tables and no parent, so it reads no table column.
 function computeScopes(tokens: LexToken[]): {
     scopes: number[];
     parents: Map<number, number>;
@@ -540,9 +550,15 @@ function computeScopes(tokens: LexToken[]): {
     const scopes: number[] = [];
     const parents = new Map<number, number>();
     const opens = new Map<number, number>();
-    // Each frame: its query level, and whether it is that level's own
-    // frame (the statement or a SELECT/WITH parenthesis).
-    const stack: {level: number; own: boolean}[] = [{level: 0, own: true}];
+    // Each frame: its query level, whether it is that level's own frame (the
+    // statement or a SELECT/WITH parenthesis), and whether a set operator
+    // has split it (so a trailing ORDER BY belongs to the combined result).
+    interface Frame {
+        level: number;
+        own: boolean;
+        setOperation?: boolean;
+    }
+    const stack: Frame[] = [{level: 0, own: true}];
     let next = 1;
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
@@ -565,7 +581,12 @@ function computeScopes(tokens: LexToken[]): {
             if (parent !== undefined) parents.set(next, parent);
             const open = opens.get(top.level);
             if (open !== undefined) opens.set(next, open);
-            stack[stack.length - 1] = {level: next++, own: true};
+            stack[stack.length - 1] = {level: next++, own: true, setOperation: true};
+        } else if (top.setOperation && startsResultClause(tokens, i)) {
+            const open = opens.get(top.level);
+            if (open !== undefined) opens.set(next, open);
+            stack[stack.length - 1] = {level: next, own: true};
+            scopes[i] = next++;
         }
     }
     return {scopes, parents, opens};
