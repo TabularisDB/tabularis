@@ -15,6 +15,7 @@ import {ROOT_COMMAND_SCOPE_ID} from '@/utils/commandScopeStore';
 import {CommandPaletteModal} from '@/components/modals/CommandPaletteModal';
 import {DataFileGate} from '@/components/modals/DataFileGate';
 import {CommandPaletteScopeBridge} from './CommandPaletteScopeBridge';
+import {ConnectionColorBar} from './ConnectionColorBar';
 import {ProductionBanner} from './ProductionBanner';
 import {ReadOnlyBanner} from './ReadOnlyBanner';
 import {RightSidebar} from './RightSidebar';
@@ -37,36 +38,41 @@ const MainLayoutContent = () => {
     });
 
     return (
-        <div className="flex h-screen bg-base text-primary overflow-hidden">
-            {location.pathname !== '/editor' && (
-                <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
-            )}
-            <Sidebar />
-            <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                {isEditorRoute(location.pathname) && <ProductionBanner />}
-                {isEditorRoute(location.pathname) && <ReadOnlyBanner />}
-                {/* Routed pages size themselves with h-full, which resolves against
+        <div className="flex flex-col h-screen bg-base text-primary overflow-hidden">
+            <div className="flex flex-1 min-h-0">
+                {location.pathname !== '/editor' && (
+                    <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
+                )}
+                <Sidebar />
+                <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                    {isEditorRoute(location.pathname) && <ProductionBanner />}
+                    {isEditorRoute(location.pathname) && <ReadOnlyBanner />}
+                    {/* Routed pages size themselves with h-full, which resolves against
             this wrapper — not against <main>. Without it the production banner
             would push the page down without shrinking it, clipping the bottom
             row of the results grid. */}
-                <div className="flex-1 min-h-0 min-w-0">
-                    <Suspense
-                        fallback={
-                            <>
-                                {location.pathname === '/editor' && (
-                                    <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
-                                )}
-                                <LoadingState />
-                            </>
-                        }
-                    >
-                        {renderedSplit ? <SplitPaneLayout {...renderedSplit} /> : <Outlet />}
-                    </Suspense>
-                </div>
-            </main>
-            <RightSidebar />
-            <CommandPaletteModal />
-            <DataFileGate />
+                    <div className="flex-1 min-h-0 min-w-0">
+                        <Suspense
+                            fallback={
+                                <>
+                                    {location.pathname === '/editor' && (
+                                        <CommandPaletteScopeBridge
+                                            scopeId={ROOT_COMMAND_SCOPE_ID}
+                                        />
+                                    )}
+                                    <LoadingState />
+                                </>
+                            }
+                        >
+                            {renderedSplit ? <SplitPaneLayout {...renderedSplit} /> : <Outlet />}
+                        </Suspense>
+                    </div>
+                </main>
+                <RightSidebar />
+                <CommandPaletteModal />
+                <DataFileGate />
+            </div>
+            <ConnectionColorBar />
         </div>
     );
 };
