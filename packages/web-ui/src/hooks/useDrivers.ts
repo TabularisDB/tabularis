@@ -83,8 +83,8 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
                 key: 'timezone',
                 label: 'Timezone',
                 type: 'string',
-                default: 'SYSTEM',
-                description: 'Session timezone sent to MySQL after connect.',
+                description:
+                    "Session timezone sent to MySQL after connect. Leave empty to use the server's default.",
             },
         ],
         capabilities: {
