@@ -223,6 +223,7 @@ import {useKeybindings} from '@/hooks/useKeybindings';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {openSqlFile, saveSqlFile} from '@/utils/sqlFileTransfer';
 import {
+    charColumnToUtf16Column,
     getLinkedFileConflict,
     getLinkedFolderErrorKey,
     readLinkedSqlFile,
@@ -4781,9 +4782,13 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             if (!model) return;
             const {lineNumber, columnNumber} = location;
             if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
+                const utf16Column = charColumnToUtf16Column(
+                    model.getLineContent(lineNumber),
+                    columnNumber,
+                );
                 const column = Math.max(
                     1,
-                    Math.min(columnNumber, model.getLineMaxColumn(lineNumber)),
+                    Math.min(utf16Column, model.getLineMaxColumn(lineNumber)),
                 );
                 editor.setPosition({lineNumber, column});
                 editor.revealPositionInCenter({lineNumber, column});

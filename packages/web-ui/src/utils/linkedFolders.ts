@@ -267,3 +267,20 @@ export function buildOpenLinkedFileIndex(
     }
     return index;
 }
+
+/**
+ * Converts a 1-based Unicode scalar (character) column from the backend into a
+ * 1-based UTF-16 code-unit column for Monaco, accounting for non-BMP characters.
+ */
+export function charColumnToUtf16Column(lineContent: string, charColumn: number): number {
+    if (charColumn <= 1) return 1;
+    const targetChars = charColumn - 1;
+    let utf16Offset = 0;
+    let charIndex = 0;
+    while (charIndex < targetChars && utf16Offset < lineContent.length) {
+        const cp = lineContent.codePointAt(utf16Offset)!;
+        utf16Offset += cp > 0xffff ? 2 : 1;
+        charIndex += 1;
+    }
+    return utf16Offset + 1;
+}
