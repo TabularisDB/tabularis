@@ -1,4 +1,4 @@
-import {createContext, useContext, useId, type ReactNode} from 'react';
+import {createContext, useContext, useEffect, useId, useRef, useState, type ReactNode} from 'react';
 import clsx from 'clsx';
 
 /* ── Section ── */
@@ -167,21 +167,77 @@ interface SettingSliderProps {
     max: number;
     step: number;
     formatValue?: (value: number) => string;
+    /**
+     * Reports the in-progress value while the thumb is being dragged, and `null`
+     * once the drag ends. When provided, `onChange` is only called when the drag
+     * is released, so settings that reflow the layout (e.g. font size) do not move
+     * the slider out from under the pointer mid-drag.
+     */
+    onDraftChange?: (value: number | null) => void;
 }
 
-export function SettingSlider({value, onChange, min, max, step, formatValue}: SettingSliderProps) {
-    const display = formatValue ? formatValue(value) : String(value);
+export function SettingSlider({
+    value,
+    onChange,
+    min,
+    max,
+    step,
+    formatValue,
+    onDraftChange,
+}: SettingSliderProps) {
+    const [draft, setDraft] = useState<number | null>(null);
+    const [dragging, setDragging] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const latest = useRef({value, onChange, onDraftChange});
+    latest.current = {value, onChange, onDraftChange};
+    const shown = draft ?? value;
+    const display = formatValue ? formatValue(shown) : String(shown);
+    const parse = (raw: string) => (step < 1 ? parseFloat(raw) : parseInt(raw));
+
+    // The pointer can be released anywhere, not just over the slider, so the end
+    // of a drag is listened for on the window.
+    useEffect(() => {
+        if (!dragging) return;
+        const endDrag = () => {
+            setDragging(false);
+            const next = parse(inputRef.current?.value ?? '');
+            const {value: current, onChange: commit, onDraftChange: reportDraft} = latest.current;
+            setDraft(null);
+            reportDraft?.(null);
+            if (!Number.isNaN(next) && next !== current) commit(next);
+        };
+        window.addEventListener('pointerup', endDrag);
+        window.addEventListener('pointercancel', endDrag);
+        window.addEventListener('blur', endDrag);
+        return () => {
+            window.removeEventListener('pointerup', endDrag);
+            window.removeEventListener('pointercancel', endDrag);
+            window.removeEventListener('blur', endDrag);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dragging, step]);
+
     return (
         <div className="flex items-center gap-4 min-w-[200px]">
             <input
+                ref={inputRef}
                 type="range"
                 min={min}
                 max={max}
                 step={step}
-                value={value}
-                onChange={(e) =>
-                    onChange(step < 1 ? parseFloat(e.target.value) : parseInt(e.target.value))
-                }
+                value={shown}
+                onPointerDown={() => {
+                    if (onDraftChange) setDragging(true);
+                }}
+                onChange={(e) => {
+                    const next = parse(e.target.value);
+                    if (dragging) {
+                        setDraft(next);
+                        onDraftChange?.(next);
+                    } else {
+                        onChange(next);
+                    }
+                }}
                 className="flex-1 h-2 bg-surface-tertiary rounded-lg appearance-none cursor-pointer accent-accent-primary"
             />
             <span className="text-sm font-mono text-primary w-16 text-right">{display}</span>
