@@ -5,7 +5,7 @@ use std::path::PathBuf;
 fn web_args(args: &Args) -> &WebArgs {
     match args.command.as_ref() {
         Some(Command::Web(web_args)) => web_args,
-        None => panic!("expected the web subcommand"),
+        _ => panic!("expected the web subcommand"),
     }
 }
 
