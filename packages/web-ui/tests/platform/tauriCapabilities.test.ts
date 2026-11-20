@@ -30,6 +30,7 @@ const createOperations = (): TauriPlatformOperations => ({
     openStorageLocation: vi.fn(),
     setNativeWindowTheme: vi.fn(),
     setInterfaceScale: vi.fn().mockResolvedValue(undefined),
+    setAppMenu: vi.fn().mockResolvedValue(undefined),
     getSystemIsDark: vi.fn().mockResolvedValue(false),
     listenForSystemThemeChanges: vi.fn().mockResolvedValue(vi.fn()),
     currentWindowLabel: vi.fn(() => 'main'),
