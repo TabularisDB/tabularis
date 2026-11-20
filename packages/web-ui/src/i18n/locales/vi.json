@@ -848,6 +848,11 @@
       "confirm": "Xác nhận",
       "cancel": "Hủy"
     },
+    "connectionColor": {
+      "title": "Màu kết nối",
+      "bottomBar": "Thanh màu ở dưới cùng",
+      "bottomBarDesc": "Hiển thị một thanh dày theo màu của kết nối ở cạnh dưới cửa sổ để dễ phân biệt các kết nối. Màu xanh nhạt khi chưa chọn kết nối nào."
+    },
     "dataGrid": {
       "title": "Lưới dữ liệu",
       "stickyHeaders": "Ghim tiêu đề cột",

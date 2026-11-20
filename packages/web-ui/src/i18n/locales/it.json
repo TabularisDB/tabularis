@@ -865,6 +865,11 @@
     "fontSizeDesc": "Regola la dimensione base del font usata nell'applicazione (10-20px).",
     "preview": "Anteprima",
     "fontPreviewText": "La volpe marrone salta sopra il cane pigro",
+    "connectionColor": {
+      "title": "Colore della connessione",
+      "bottomBar": "Barra colorata in basso",
+      "bottomBarDesc": "Mostra una barra spessa con il colore della connessione lungo il bordo inferiore della finestra, per distinguere più facilmente le connessioni. Azzurro quando nessuna connessione è selezionata."
+    },
     "dataGrid": {
       "title": "Griglia dati",
       "stickyHeaders": "Intestazioni colonne fisse",
