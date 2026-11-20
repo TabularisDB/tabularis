@@ -69,6 +69,8 @@ export interface Settings {
     stickyColumnHeaders?: boolean;
     /** Shade every other result grid row for easier scanning. Default: false. */
     resultZebraStripes?: boolean;
+    /** Show a thick bar in the active connection's color along the bottom of the window. Default: false. */
+    connectionColorBar?: boolean;
     /** Default sort direction on the first column header click in the data grid: "asc" (default) or "desc". */
     defaultSortDirection?: DefaultSortDirection;
     /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
@@ -255,6 +257,7 @@ export const DEFAULT_SETTINGS: Settings = {
     resultTypeColors: {},
     stickyColumnHeaders: true,
     resultZebraStripes: false,
+    connectionColorBar: false,
     defaultSortDirection: 'asc',
     resultFontFamily: 'JetBrains Mono',
     aiEnabled: false,
