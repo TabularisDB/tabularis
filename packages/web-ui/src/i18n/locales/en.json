@@ -2461,7 +2461,29 @@
       "excludedFromReport": "Excluded from Report",
       "reportOutdated": "Outdated",
       "reportNoOutput": "No output yet. Run the notebook to load results.",
-      "reportEmpty": "No cells are included in this report."
+      "reportEmpty": "No cells are included in this report.",
+      "scalarRef": {
+          "syntaxHint": "Type {{ to insert a SQL scalar: {{value:cell_1.column}} or {{value:alias.column}}",
+          "helpLabel": "Help",
+          "helpToggle": "Toggle scalar reference syntax help",
+          "helpDescription": "Reference a single-row SQL cell value in Markdown. Use cell_N.column or a unique cell alias.",
+          "helpExample": "Example: {{value:cell_1.total}} or {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "Scalar reference suggestions",
+          "outdatedShort": "outdated",
+          "outdatedTooltip": "Referenced SQL cell query changed since its last run",
+          "notRun": "[{{target}}: not run]",
+          "loading": "[{{target}}: running…]",
+          "error": "[{{target}}: error]",
+          "noRows": "[{{target}}: no rows]",
+          "multipleRows": "[{{target}}: {{count}} rows (expected 1)]",
+          "missingColumn": "[{{target}}: missing column \"{{column}}\"]",
+          "ambiguousColumn": "[{{target}}: ambiguous column \"{{column}}\"]",
+          "missingCell": "[{{target}}: not found]",
+          "ambiguousCell": "[{{target}}: ambiguous cell name]",
+          "notSqlCell": "[{{target}}: not a SQL cell]",
+          "invalid": "[invalid reference: {{raw}}]",
+          "cellLabel": "Cell {{number}}"
+      }
     },
     "querySelection": {
       "title": "Select Query to Execute",

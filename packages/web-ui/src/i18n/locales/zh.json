@@ -2353,7 +2353,29 @@
       "excludedFromReport": "已从报告中排除",
       "reportOutdated": "已过时",
       "reportNoOutput": "尚无输出。请运行笔记本以加载结果。",
-      "reportEmpty": "此报告中未包含任何单元格。"
+      "reportEmpty": "此报告中未包含任何单元格。",
+      "scalarRef": {
+          "syntaxHint": "输入 {{ 插入 SQL 标量值：{{value:cell_1.column}} 或 {{value:alias.column}}",
+          "helpLabel": "帮助",
+          "helpToggle": "切换标量引用语法帮助",
+          "helpDescription": "在 Markdown 中引用单行 SQL 单元格结果。使用 cell_N.column 或唯一单元格别名。",
+          "helpExample": "示例：{{value:cell_1.total}} 或 {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "标量引用建议",
+          "outdatedShort": "已过期",
+          "outdatedTooltip": "引用的 SQL 单元格查询自上次运行后已更改",
+          "notRun": "[{{target}}: 未运行]",
+          "loading": "[{{target}}: 运行中…]",
+          "error": "[{{target}}: 错误]",
+          "noRows": "[{{target}}: 无行]",
+          "multipleRows": "[{{target}}: {{count}} 行（预期 1 行）]",
+          "missingColumn": "[{{target}}: 缺少列 \"{{column}}\"]",
+          "ambiguousColumn": "[{{target}}: 列 \"{{column}}\" 存在歧义]",
+          "missingCell": "[{{target}}: 未找到]",
+          "ambiguousCell": "[{{target}}: 单元格名称存在歧义]",
+          "notSqlCell": "[{{target}}: 不是 SQL 单元格]",
+          "invalid": "[无效引用: {{raw}}]",
+          "cellLabel": "单元格 {{number}}"
+      }
     },
     "querySelection": {
       "title": "选择要执行的查询",

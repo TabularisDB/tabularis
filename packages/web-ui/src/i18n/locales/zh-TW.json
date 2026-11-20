@@ -2431,7 +2431,29 @@
             "excludedFromReport": "已從報告中排除",
             "reportOutdated": "已過時",
             "reportNoOutput": "尚無輸出。請執行筆記本以載入結果。",
-            "reportEmpty": "此報告中未包含任何儲存格。"
+            "reportEmpty": "此報告中未包含任何儲存格。",
+            "scalarRef": {
+                "syntaxHint": "輸入 {{ 插入 SQL 純量值：{{value:cell_1.column}} 或 {{value:alias.column}}",
+                "helpLabel": "說明",
+                "helpToggle": "切換純量參照語法說明",
+                "helpDescription": "在 Markdown 中參照單列 SQL 儲存格結果。使用 cell_N.column 或唯一儲存格別名。",
+                "helpExample": "範例：{{value:cell_1.total}} 或 {{value:revenue_summary.\"total revenue\"}}",
+                "suggestionsLabel": "純量參照建議",
+                "outdatedShort": "已過期",
+                "outdatedTooltip": "參照的 SQL 儲存格查詢自上次執行後已變更",
+                "notRun": "[{{target}}: 尚未執行]",
+                "loading": "[{{target}}: 執行中…]",
+                "error": "[{{target}}: 錯誤]",
+                "noRows": "[{{target}}: 無資料列]",
+                "multipleRows": "[{{target}}: {{count}} 列（預期 1 列）]",
+                "missingColumn": "[{{target}}: 缺少欄位 \"{{column}}\"]",
+                "ambiguousColumn": "[{{target}}: 欄位 \"{{column}}\" 存在歧義]",
+                "missingCell": "[{{target}}: 找不到]",
+                "ambiguousCell": "[{{target}}: 儲存格名稱存在歧義]",
+                "notSqlCell": "[{{target}}: 不是 SQL 儲存格]",
+                "invalid": "[無效參照: {{raw}}]",
+                "cellLabel": "儲存格 {{number}}"
+            }
         },
         "querySelection": {
             "title": "選擇要執行的查詢",

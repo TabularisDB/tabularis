@@ -2458,7 +2458,29 @@
       "excludedFromReport": "Excluído do relatório",
       "reportOutdated": "Desatualizado",
       "reportNoOutput": "Sem resultados ainda. Execute o notebook para carregar.",
-      "reportEmpty": "Nenhuma célula está incluída neste relatório."
+      "reportEmpty": "Nenhuma célula está incluída neste relatório.",
+      "scalarRef": {
+          "syntaxHint": "Digite {{ para inserir um escalar SQL: {{value:cell_1.column}} ou {{value:alias.column}}",
+          "helpLabel": "Ajuda",
+          "helpToggle": "Alternar ajuda de sintaxe de referência escalar",
+          "helpDescription": "Referencie um valor SQL de linha única no Markdown. Use cell_N.coluna ou um alias único.",
+          "helpExample": "Exemplo: {{value:cell_1.total}} ou {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "Sugestões de referência escalar",
+          "outdatedShort": "desatualizado",
+          "outdatedTooltip": "A consulta da célula SQL mudou desde a última execução",
+          "notRun": "[{{target}}: não executada]",
+          "loading": "[{{target}}: executando…]",
+          "error": "[{{target}}: erro]",
+          "noRows": "[{{target}}: sem linhas]",
+          "multipleRows": "[{{target}}: {{count}} linhas (esperado 1)]",
+          "missingColumn": "[{{target}}: coluna \"{{column}}\" ausente]",
+          "ambiguousColumn": "[{{target}}: coluna ambígua \"{{column}}\"]",
+          "missingCell": "[{{target}}: não encontrada]",
+          "ambiguousCell": "[{{target}}: nome de célula ambíguo]",
+          "notSqlCell": "[{{target}}: não é uma célula SQL]",
+          "invalid": "[referência inválida: {{raw}}]",
+          "cellLabel": "Célula {{number}}"
+      }
     },
     "querySelection": {
       "title": "Selecionar Consulta para Executar",

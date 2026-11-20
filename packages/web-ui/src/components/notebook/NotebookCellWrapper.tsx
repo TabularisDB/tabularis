@@ -13,6 +13,7 @@ import {CellHistoryPanel} from './CellHistoryPanel';
 
 interface NotebookCellWrapperProps {
     cell: NotebookCell;
+    cells?: NotebookCell[];
     index: number;
     totalCells: number;
     onUpdate: (partial: Partial<NotebookCell>) => void;
@@ -37,6 +38,7 @@ interface NotebookCellWrapperProps {
 
 export function NotebookCellWrapper({
     cell,
+    cells,
     index,
     totalCells,
     onUpdate,
@@ -163,6 +165,7 @@ export function NotebookCellWrapper({
             ) : !cell.isCollapsed ? (
                 <MarkdownCell
                     cell={cell}
+                    cells={cells}
                     onContentChange={(content) => onUpdate({content})}
                     onTogglePreview={() => onUpdate({isPreview: !cell.isPreview})}
                 />

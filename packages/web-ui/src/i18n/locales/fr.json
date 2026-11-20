@@ -2425,7 +2425,29 @@
       "excludedFromReport": "Exclu du rapport",
       "reportOutdated": "Obsolète",
       "reportNoOutput": "Aucune sortie pour le moment. Exécutez le notebook pour charger les résultats.",
-      "reportEmpty": "Aucune cellule n’est incluse dans ce rapport."
+      "reportEmpty": "Aucune cellule n’est incluse dans ce rapport.",
+      "scalarRef": {
+          "syntaxHint": "Tapez {{ pour insérer un scalaire SQL : {{value:cell_1.column}} ou {{value:alias.column}}",
+          "helpLabel": "Aide",
+          "helpToggle": "Afficher ou masquer l’aide de syntaxe des références scalaires",
+          "helpDescription": "Référencez une valeur SQL sur une seule ligne dans Markdown. Utilisez cell_N.colonne ou un alias unique.",
+          "helpExample": "Exemple : {{value:cell_1.total}} ou {{value:revenue_summary.\"total revenue\"}}",
+          "suggestionsLabel": "Suggestions de références scalaires",
+          "outdatedShort": "obsolète",
+          "outdatedTooltip": "La requête de la cellule SQL a changé depuis sa dernière exécution",
+          "notRun": "[{{target}} : non exécutée]",
+          "loading": "[{{target}} : exécution…]",
+          "error": "[{{target}} : erreur]",
+          "noRows": "[{{target}} : aucune ligne]",
+          "multipleRows": "[{{target}} : {{count}} lignes (1 attendue)]",
+          "missingColumn": "[{{target}} : colonne \"{{column}}\" manquante]",
+          "ambiguousColumn": "[{{target}} : colonne \"{{column}}\" ambiguë]",
+          "missingCell": "[{{target}} : introuvable]",
+          "ambiguousCell": "[{{target}} : nom de cellule ambigu]",
+          "notSqlCell": "[{{target}} : n’est pas une cellule SQL]",
+          "invalid": "[référence invalide : {{raw}}]",
+          "cellLabel": "Cellule {{number}}"
+      }
     },
     "querySelection": {
       "title": "Sélectionner la requête à exécuter",
