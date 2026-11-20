@@ -862,6 +862,11 @@
       "horizontal": "Horizontal",
       "vertical": "Vertical"
     },
+    "connectionColor": {
+      "title": "Cor da conexão",
+      "bottomBar": "Barra de cor na parte inferior",
+      "bottomBarDesc": "Mostra uma barra grossa com a cor da conexão na parte inferior da janela, para facilitar a distinção entre conexões. Azul-claro quando nenhuma conexão está selecionada."
+    },
     "dataGrid": {
       "title": "Grade de Dados",
       "stickyHeaders": "Cabeçalhos de coluna fixos",

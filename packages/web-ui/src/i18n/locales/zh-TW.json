@@ -862,6 +862,11 @@
             "description": "將開啟的分頁顯示在編輯器上方，或以清單形式顯示在左側。",
             "horizontal": "水平",
             "vertical": "垂直"
+    },
+        "connectionColor": {
+            "title": "連線顏色",
+            "bottomBar": "底部色彩列",
+            "bottomBarDesc": "在視窗底部顯示一條以連線顏色呈現的粗色彩列，讓連線更容易區分。未選取任何連線時為淺藍色。"
         },
         "dataGrid": {
             "title": "資料表格",
