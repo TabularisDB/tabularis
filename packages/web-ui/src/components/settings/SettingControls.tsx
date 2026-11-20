@@ -1,4 +1,4 @@
-import {createContext, useContext, useId, type ReactNode} from 'react';
+import {createContext, useContext, useId, useRef, useState, type ReactNode} from 'react';
 import clsx from 'clsx';
 
 /* ── Section ── */
@@ -167,10 +167,39 @@ interface SettingSliderProps {
     max: number;
     step: number;
     formatValue?: (value: number) => string;
+    /**
+     * Reports the in-progress value while the thumb is being dragged, and `null`
+     * once the drag ends. When provided, `onChange` is only called when the drag
+     * is released, so settings that reflow the layout (e.g. font size) do not move
+     * the slider out from under the pointer mid-drag.
+     */
+    onDraftChange?: (value: number | null) => void;
 }
 
-export function SettingSlider({value, onChange, min, max, step, formatValue}: SettingSliderProps) {
-    const display = formatValue ? formatValue(value) : String(value);
+export function SettingSlider({
+    value,
+    onChange,
+    min,
+    max,
+    step,
+    formatValue,
+    onDraftChange,
+}: SettingSliderProps) {
+    const [draft, setDraft] = useState<number | null>(null);
+    const dragging = useRef(false);
+    const shown = draft ?? value;
+    const display = formatValue ? formatValue(shown) : String(shown);
+    const parse = (raw: string) => (step < 1 ? parseFloat(raw) : parseInt(raw));
+
+    const endDrag = (raw: string) => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        const next = parse(raw);
+        setDraft(null);
+        onDraftChange?.(null);
+        if (!Number.isNaN(next) && next !== value) onChange(next);
+    };
+
     return (
         <div className="flex items-center gap-4 min-w-[200px]">
             <input
@@ -178,10 +207,22 @@ export function SettingSlider({value, onChange, min, max, step, formatValue}: Se
                 min={min}
                 max={max}
                 step={step}
-                value={value}
-                onChange={(e) =>
-                    onChange(step < 1 ? parseFloat(e.target.value) : parseInt(e.target.value))
-                }
+                value={shown}
+                onPointerDown={() => {
+                    if (onDraftChange) dragging.current = true;
+                }}
+                onPointerUp={(e) => endDrag(e.currentTarget.value)}
+                onPointerCancel={(e) => endDrag(e.currentTarget.value)}
+                onBlur={(e) => endDrag(e.currentTarget.value)}
+                onChange={(e) => {
+                    const next = parse(e.target.value);
+                    if (dragging.current) {
+                        setDraft(next);
+                        onDraftChange?.(next);
+                    } else {
+                        onChange(next);
+                    }
+                }}
                 className="flex-1 h-2 bg-surface-tertiary rounded-lg appearance-none cursor-pointer accent-accent-primary"
             />
             <span className="text-sm font-mono text-primary w-16 text-right">{display}</span>
