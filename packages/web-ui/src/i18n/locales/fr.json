@@ -860,6 +860,11 @@
       "confirm": "Confirmer",
       "cancel": "Annuler"
     },
+    "connectionColor": {
+      "title": "Couleur de la connexion",
+      "bottomBar": "Barre de couleur en bas",
+      "bottomBarDesc": "Affiche une barre épaisse de la couleur de la connexion en bas de la fenêtre pour mieux distinguer les connexions. Bleu clair lorsqu'aucune connexion n'est sélectionnée."
+    },
     "dataGrid": {
       "zebraStripes": "Arrière-plan alterné des lignes",
       "zebraStripesDesc": "Ombrage une ligne sur deux pour suivre plus facilement une ligne dans les tableaux larges.",

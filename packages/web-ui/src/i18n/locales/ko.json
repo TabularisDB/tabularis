@@ -794,6 +794,11 @@
       "confirm": "확인",
       "cancel": "취소"
     },
+    "connectionColor": {
+      "title": "연결 색상",
+      "bottomBar": "하단 색상 막대",
+      "bottomBarDesc": "창 하단에 연결 색상의 굵은 막대를 표시하여 연결을 더 쉽게 구분할 수 있습니다. 선택된 연결이 없으면 하늘색으로 표시됩니다."
+    },
     "dataGrid": {
       "zebraStripes": "줄무늬 행 배경",
       "zebraStripesDesc": "넓은 테이블에서 행을 더 쉽게 추적할 수 있도록 한 행 건너 음영을 적용합니다.",

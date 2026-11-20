@@ -854,6 +854,11 @@
             "confirm": "確認",
             "cancel": "取消"
         },
+        "connectionColor": {
+            "title": "連線顏色",
+            "bottomBar": "底部色彩列",
+            "bottomBarDesc": "在視窗底部顯示一條以連線顏色呈現的粗色彩列，讓連線更容易區分。未選取任何連線時為淺藍色。"
+        },
         "dataGrid": {
             "title": "資料表格",
             "stickyHeaders": "固定欄標題",

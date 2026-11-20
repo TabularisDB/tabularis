@@ -860,6 +860,11 @@
       "confirm": "Kumpirmahin",
       "cancel": "Kanselahin"
     },
+    "connectionColor": {
+      "title": "Kulay ng koneksyon",
+      "bottomBar": "Color bar sa ibaba",
+      "bottomBarDesc": "Nagpapakita ng makapal na bar sa kulay ng koneksyon sa ibabang bahagi ng window para mas madaling mapag-iba ang mga koneksyon. Light blue kapag walang napiling koneksyon."
+    },
     "dataGrid": {
       "zebraStripes": "Magkakahaliling background ng row",
       "zebraStripesDesc": "I-shade bawat ikalawang row para mas madaling sundan ang isang row sa mga malapad na table.",

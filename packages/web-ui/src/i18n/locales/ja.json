@@ -841,6 +841,11 @@
     "fontSizeDesc": "アプリケーション全体で使用される基本フォントサイズを調整します (10〜20px)。",
     "preview": "プレビュー",
     "fontPreviewText": "いろはにほへと ちりぬるを わかよたれそ つねならむ",
+    "connectionColor": {
+      "title": "接続の色",
+      "bottomBar": "下部のカラーバー",
+      "bottomBarDesc": "ウィンドウの下端に接続の色の太いバーを表示し、接続を見分けやすくします。接続が選択されていない場合は水色になります。"
+    },
     "dataGrid": {
       "zebraStripes": "交互の行背景",
       "zebraStripesDesc": "1行おきに背景を網掛けし、横幅の広いテーブルでも行を追いやすくします。",

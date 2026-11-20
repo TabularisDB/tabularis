@@ -826,6 +826,11 @@
     "fontSizeDesc": "Passt die in der gesamten Anwendung verwendete Grundschriftgröße an (10-20 px).",
     "preview": "Vorschau",
     "fontPreviewText": "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern",
+    "connectionColor": {
+      "title": "Verbindungsfarbe",
+      "bottomBar": "Farbleiste am unteren Rand",
+      "bottomBarDesc": "Zeigt am unteren Fensterrand eine dicke Leiste in der Farbe der Verbindung an, damit sich Verbindungen leichter unterscheiden lassen. Hellblau, wenn keine Verbindung ausgewählt ist."
+    },
     "dataGrid": {
       "zebraStripes": "Abwechselnder Zeilenhintergrund",
       "zebraStripesDesc": "Hebt jede zweite Zeile hervor, damit Sie eine Zeile auch in breiten Tabellen leichter verfolgen können.",
