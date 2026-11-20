@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 import {
     buildOpenLinkedFileIndex,
+    charColumnToUtf16Column,
     createLinkedFileTab,
     findOpenLinkedFileTab,
     flattenLinkedTree,
@@ -230,6 +231,22 @@ describe('linkedFolders', () => {
             );
             const keys = rows.map((r) => r.key);
             expect(new Set(keys).size).toBe(keys.length);
+        });
+    });
+
+    describe('charColumnToUtf16Column', () => {
+        it('maps non-BMP characters before the match to UTF-16 code-unit columns', () => {
+            // `-- 😀 SELECT 42`: '😀' is 1 Unicode scalar but 2 UTF-16 code units;
+            // backend reports SELECT at char column 6, Monaco expects column 7.
+            expect(charColumnToUtf16Column('-- 😀 SELECT 42', 6)).toBe(7);
+            expect(charColumnToUtf16Column('🚀🔥 SELECT 1', 4)).toBe(6);
+        });
+
+        it('keeps BMP and boundary columns accurate', () => {
+            expect(charColumnToUtf16Column('SELECT 1', 1)).toBe(1);
+            expect(charColumnToUtf16Column('SELECT 1', 0)).toBe(1);
+            expect(charColumnToUtf16Column('-- café SELECT', 9)).toBe(9);
+            expect(charColumnToUtf16Column('😀', 99)).toBe(3);
         });
     });
 });

@@ -142,6 +142,7 @@
       "charactersHint": "依 Unicode 碼位計數,而非字素簇"
     },
     "common": {
+        "clear": "清除",
         "save": "儲存",
         "close": "關閉",
         "resizeColumn": "調整欄寬",
@@ -3646,6 +3647,28 @@
         "diff": "已檢視檔案的差異",
         "choose": "選取指令碼並檢視差異後，才能將其包含在提交中。",
         "message": "提交訊息"
+  },
+  "linkedFolderSearch": {
+    "title": "在 {{name}} 中搜尋",
+    "buttonLabel": "搜尋資料夾",
+    "inputPlaceholder": "搜尋 SQL 檔案…",
+    "clearInput": "清除搜尋",
+    "matchCase": "區分大小寫",
+    "matchesSummary": "在 {{files}} 中找到 {{matches}}",
+    "matchesCount_one": "{{count}} 處相符",
+    "matchesCount_other": "{{count}} 處相符",
+    "filesCount_one": "{{count}} 個檔案",
+    "filesCount_other": "{{count}} 個檔案",
+    "skippedFiles": "略過 {{count}} 個檔案",
+    "truncatedWarning": "結果已截斷（達到上限）",
+    "typeToSearch": "輸入文字以在此資料夾的 SQL 檔案中搜尋",
+    "noMatchesTitle": "找不到相符項目",
+    "noMatchesMessage": "在此資料夾中找不到「{{query}}」。",
+    "resultsListLabel": "搜尋結果",
+    "openInEditor": "在編輯器中開啟",
+    "selectToPreview": "從清單中選取一項以預覽",
+
+    "linesOmitted": "... 已省略 {{count}} 行 ..."
   },
     "aiInline": {
         "title": "AI 行內補全",

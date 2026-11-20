@@ -958,6 +958,9 @@
   .h-\[320px\] {
     height: 320px;
   }
+  .h-\[650px\] {
+    height: 650px;
+  }
   .h-\[min\(760px\,90vh\)\] {
     height: min(760px, 90vh);
   }
@@ -1011,6 +1014,9 @@
   }
   .max-h-\[60vh\] {
     max-height: 60vh;
+  }
+  .max-h-\[75vh\] {
+    max-height: 75vh;
   }
   .max-h-\[80px\] {
     max-height: 80px;
@@ -1296,6 +1302,9 @@
   }
   .w-\[340px\] {
     width: 340px;
+  }
+  .w-\[380px\] {
+    width: 380px;
   }
   .w-\[420px\] {
     width: 420px;
@@ -2153,6 +2162,9 @@
   .border-\(--accent-secondary\) {
     border-color: var(--accent-secondary);
   }
+  .border-accent {
+    border-color: var(--color-accent);
+  }
   .border-accent-error {
     border-color: var(--color-accent-error);
   }
@@ -2388,6 +2400,12 @@
     border-color: var(--color-default);
     @supports (color: color-mix(in lab, red, red)) {
       border-color: color-mix(in oklab, var(--color-default) 30%, transparent);
+    }
+  }
+  .border-default\/40 {
+    border-color: var(--color-default);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-default) 40%, transparent);
     }
   }
   .border-default\/50 {
@@ -5181,6 +5199,16 @@
       }
     }
   }
+  .hover\:border-default\/50 {
+    &:hover {
+      @media (hover: hover) {
+        border-color: var(--color-default);
+        @supports (color: color-mix(in lab, red, red)) {
+          border-color: color-mix(in oklab, var(--color-default) 50%, transparent);
+        }
+      }
+    }
+  }
   .hover\:border-default\/80 {
     &:hover {
       @media (hover: hover) {
@@ -5926,6 +5954,11 @@
       }
     }
   }
+  .focus\:border-transparent {
+    &:focus {
+      border-color: transparent;
+    }
+  }
   .focus\:bg-base {
     &:focus {
       background-color: var(--color-base);
@@ -5945,6 +5978,12 @@
   .focus\:ring-1 {
     &:focus {
       --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    }
+  }
+  .focus\:ring-2 {
+    &:focus {
+      --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
       box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
     }
   }

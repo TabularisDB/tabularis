@@ -142,6 +142,7 @@
     "charactersHint": "Кодовые точки Unicode, а не кластеры графем"
   },
   "common": {
+    "clear": "Очистить",
     "save": "Сохранить",
     "close": "Закрыть",
     "resizeColumn": "Изменить ширину столбца",
@@ -3624,6 +3625,32 @@
     "diff": "Различия проверенного файла",
     "choose": "Выберите скрипт и проверьте различия перед включением в коммит.",
     "message": "Сообщение коммита"
+  },
+  "linkedFolderSearch": {
+    "title": "Поиск в {{name}}",
+    "buttonLabel": "Поиск по папке",
+    "inputPlaceholder": "Поиск по SQL-файлам…",
+    "clearInput": "Очистить поиск",
+    "matchCase": "Учитывать регистр",
+    "matchesSummary": "{{matches}} в {{files}}",
+    "matchesCount_one": "{{count}} совпадение",
+    "matchesCount_few": "{{count}} совпадения",
+    "matchesCount_many": "{{count}} совпадений",
+    "matchesCount_other": "{{count}} совпадений",
+    "filesCount_one": "{{count}} файле",
+    "filesCount_few": "{{count}} файлах",
+    "filesCount_many": "{{count}} файлах",
+    "filesCount_other": "{{count}} файлах",
+    "skippedFiles": "Пропущено: {{count}}",
+    "truncatedWarning": "Результаты обрезаны (достигнут лимит)",
+    "typeToSearch": "Введите запрос для поиска по SQL-файлам этой папки",
+    "noMatchesTitle": "Совпадений не найдено",
+    "noMatchesMessage": "По запросу «{{query}}» ничего не найдено в этой папке.",
+    "resultsListLabel": "Результаты поиска",
+    "openInEditor": "Открыть в редакторе",
+    "selectToPreview": "Выберите совпадение из списка для предпросмотра",
+
+    "linesOmitted": "... {{count}} строк пропущено ..."
   },
   "aiInline": {
     "title": "Встроенное ИИ-дополнение",

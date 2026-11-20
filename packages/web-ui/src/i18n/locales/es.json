@@ -138,6 +138,7 @@
     "charactersHint": "Puntos de código Unicode, no clústeres de grafemas"
   },
   "common": {
+    "clear": "Limpiar",
     "save": "Guardar",
     "close": "Cerrar",
     "resizeColumn": "Redimensionar columna",
@@ -3419,6 +3420,28 @@
     "diff": "Diferencias del archivo revisado",
     "choose": "Selecciona un script para revisar sus diferencias antes de incluirlo.",
     "message": "Mensaje del commit"
+  },
+  "linkedFolderSearch": {
+    "title": "Buscar en {{name}}",
+    "buttonLabel": "Buscar en carpeta",
+    "inputPlaceholder": "Buscar en archivos SQL…",
+    "clearInput": "Borrar búsqueda",
+    "matchCase": "Coincidir mayúsculas y minúsculas",
+    "matchesSummary": "{{matches}} en {{files}}",
+    "matchesCount_one": "{{count}} coincidencia",
+    "matchesCount_other": "{{count}} coincidencias",
+    "filesCount_one": "{{count}} archivo",
+    "filesCount_other": "{{count}} archivos",
+    "skippedFiles": "{{count}} omitidos",
+    "truncatedWarning": "Resultados truncados (límite alcanzado)",
+    "typeToSearch": "Escribe para buscar en los archivos SQL de esta carpeta",
+    "noMatchesTitle": "No se encontraron coincidencias",
+    "noMatchesMessage": "No se encontraron apariciones de \"{{query}}\" en esta carpeta.",
+    "resultsListLabel": "Resultados de búsqueda",
+    "openInEditor": "Abrir en el editor",
+    "selectToPreview": "Selecciona una coincidencia para previsualizar",
+
+    "linesOmitted": "... {{count}} líneas omitidas ..."
   },
   "aiInline": {
     "title": "Completado de IA en línea",

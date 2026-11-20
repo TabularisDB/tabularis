@@ -649,7 +649,11 @@ export const ExplorerSidebar = ({
 
     // A linked file already open (same canonical path) is focused, never re-read
     // over its tab, so unsaved edits survive a second click.
-    const handleOpenLinkedFile = async (folderId: string, relativePath: string) => {
+    const handleOpenLinkedFile = async (
+        folderId: string,
+        relativePath: string,
+        location?: {lineNumber: number; columnNumber: number},
+    ) => {
         if (!activeConnectionId) {
             showAlert(t('linkedFolders.needsConnection'), {kind: 'info'});
             return;
@@ -659,8 +663,14 @@ export const ExplorerSidebar = ({
             const existing = findOpenLinkedFileTab(tabs, file.path);
             if (existing) {
                 setActiveTabId(existing.id);
+                if (location) {
+                    updateTab(existing.id, {pendingLocation: location});
+                }
             } else {
-                addTab(createLinkedFileTab(folderId, relativePath, file));
+                addTab({
+                    ...createLinkedFileTab(folderId, relativePath, file),
+                    ...(location ? {pendingLocation: location} : {}),
+                });
             }
             navigate('/editor');
         } catch (error) {

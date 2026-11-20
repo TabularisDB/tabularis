@@ -138,6 +138,7 @@
     "charactersHint": "Unicode-Codepoints, keine Graphem-Cluster"
   },
   "common": {
+    "clear": "Leeren",
     "save": "Speichern",
     "close": "Schließen",
     "resizeColumn": "Spaltenbreite ändern",
@@ -3490,6 +3491,28 @@
     "diff": "Geprüfter Datei-Diff",
     "choose": "Wähle ein Skript und prüfe den Diff, bevor du es aufnimmst.",
     "message": "Commit-Nachricht"
+  },
+  "linkedFolderSearch": {
+    "title": "In {{name}} suchen",
+    "buttonLabel": "Ordner durchsuchen",
+    "inputPlaceholder": "SQL-Dateien durchsuchen…",
+    "clearInput": "Suche löschen",
+    "matchCase": "Groß-/Kleinschreibung",
+    "matchesSummary": "{{matches}} in {{files}}",
+    "matchesCount_one": "{{count}} Treffer",
+    "matchesCount_other": "{{count}} Treffer",
+    "filesCount_one": "{{count}} Datei",
+    "filesCount_other": "{{count}} Dateien",
+    "skippedFiles": "{{count}} übersprungen",
+    "truncatedWarning": "Ergebnisse gekürzt (Limit erreicht)",
+    "typeToSearch": "Suchbegriff für SQL-Dateien in diesem Ordner eingeben",
+    "noMatchesTitle": "Keine Treffer gefunden",
+    "noMatchesMessage": "Keine Vorkommen von „{{query}}“ in diesem Ordner gefunden.",
+    "resultsListLabel": "Suchergebnisse",
+    "openInEditor": "Im Editor öffnen",
+    "selectToPreview": "Wählen Sie einen Treffer für die Vorschau aus",
+
+    "linesOmitted": "... {{count}} Zeilen ausgelassen ..."
   },
   "aiInline": {
     "title": "KI-Inline-Vervollständigung",

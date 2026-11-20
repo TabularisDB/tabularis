@@ -132,7 +132,7 @@ fn path_text(path: &Path) -> Result<String, String> {
         .ok_or_else(|| LINKED_PATH_OUTSIDE_ROOT.to_string())
 }
 
-fn is_sql_file_name(name: &str) -> bool {
+pub fn is_sql_file_name(name: &str) -> bool {
     Path::new(name)
         .extension()
         .and_then(|extension| extension.to_str())

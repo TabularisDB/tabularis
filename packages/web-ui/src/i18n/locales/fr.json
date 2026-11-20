@@ -142,6 +142,7 @@
     "charactersHint": "Points de code Unicode, pas des clusters de graphèmes"
   },
   "common": {
+    "clear": "Effacer",
     "save": "Enregistrer",
     "close": "Fermer",
     "resizeColumn": "Redimensionner la colonne",
@@ -3661,6 +3662,28 @@
     "diff": "Différences du fichier examiné",
     "choose": "Sélectionnez un script pour examiner ses différences avant de l’inclure.",
     "message": "Message du commit"
+  },
+  "linkedFolderSearch": {
+    "title": "Rechercher dans {{name}}",
+    "buttonLabel": "Rechercher dans le dossier",
+    "inputPlaceholder": "Rechercher dans les fichiers SQL…",
+    "clearInput": "Effacer la recherche",
+    "matchCase": "Respecter la casse",
+    "matchesSummary": "{{matches}} dans {{files}}",
+    "matchesCount_one": "{{count}} correspondance",
+    "matchesCount_other": "{{count}} correspondances",
+    "filesCount_one": "{{count}} fichier",
+    "filesCount_other": "{{count}} fichiers",
+    "skippedFiles": "{{count}} ignorés",
+    "truncatedWarning": "Résultats tronqués (limite atteinte)",
+    "typeToSearch": "Tapez pour rechercher dans les fichiers SQL de ce dossier",
+    "noMatchesTitle": "Aucune correspondance trouvée",
+    "noMatchesMessage": "Aucune occurrence de « {{query}} » trouvée dans ce dossier.",
+    "resultsListLabel": "Résultats de recherche",
+    "openInEditor": "Ouvrir dans l'éditeur",
+    "selectToPreview": "Sélectionnez une correspondance pour prévisualiser",
+
+    "linesOmitted": "... {{count}} lignes omises ..."
   },
   "aiInline": {
     "title": "Complétion IA en ligne",
