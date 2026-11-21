@@ -1,18 +1,21 @@
-import Ajv, {type ValidateFunction} from 'ajv';
+import type {ValidateFunction} from 'ajv';
 import {getNodeValue, parseTree, visit, printParseErrorCode} from 'jsonc-parser';
 import {valid, gte} from 'semver';
-import definitionSchema from '@/schemas/theme-definition-v1.json';
 import manifestSchema from '@/schemas/theme-package-v1.json';
 import limits from '@/schemas/theme-limits-v1.json';
 import type {ThemeDefinitionV1, ThemePackageManifestV1} from '@/types/themePackage';
 import {isThemePackagePath, isThemePackageSlug, themePackageId} from './themePackageIdentity';
+import {validateDefinition, validateManifest} from './themeSchemaValidators.mjs';
 
 export const THEME_INPUT_LIMITS = Object.freeze(limits);
 
-const ajv = new Ajv({allErrors: false, strict: true, ownProperties: true});
 const versionPattern = new RegExp(manifestSchema.properties.version.pattern);
-let definitionValidator: ValidateFunction<ThemeDefinitionV1> | undefined;
-let manifestValidator: ValidateFunction<ThemePackageManifestV1> | undefined;
+function schemaErrors(errors: ValidateFunction['errors']): string {
+    return (
+        errors?.map(({instancePath, message}) => `data${instancePath} ${message}`).join(', ') ||
+        'No errors'
+    );
+}
 
 function assertUnicode(value: string): void {
     for (const character of value) {
@@ -85,18 +88,16 @@ function parseBoundedSource(source: string, maxBytes: number, jsonc: boolean): u
 /** New-format-only validation; legacy personal themes must use their adapter. */
 export function parseThemeDefinition(source: string): ThemeDefinitionV1 {
     const value = parseBoundedThemeJson(source, limits.definitionBytes);
-    definitionValidator ??= ajv.compile<ThemeDefinitionV1>(definitionSchema);
-    if (!definitionValidator(value)) {
-        throw new Error(`Invalid theme definition: ${ajv.errorsText(definitionValidator.errors)}`);
+    if (!validateDefinition(value)) {
+        throw new Error(`Invalid theme definition: ${schemaErrors(validateDefinition.errors)}`);
     }
     return value;
 }
 
 export function parseThemePackageManifest(source: string): ThemePackageManifestV1 {
     const value = parseBoundedThemeJson(source, limits.manifestBytes);
-    manifestValidator ??= ajv.compile<ThemePackageManifestV1>(manifestSchema);
-    if (!manifestValidator(value)) {
-        throw new Error(`Invalid theme package: ${ajv.errorsText(manifestValidator.errors)}`);
+    if (!validateManifest(value)) {
+        throw new Error(`Invalid theme package: ${schemaErrors(validateManifest.errors)}`);
     }
     if (!valid(value.version) || !valid(value.min_runtime_version)) {
         throw new Error('Theme package versions must be canonical exact SemVer');

@@ -4,8 +4,10 @@ import {defineConfig} from 'vite';
 import react from '@vitejs/plugin-react';
 
 import {normalizeWebBasePath} from './src/utils/webBasePath';
+import {generateThemeSchemaValidators} from '../../scripts/generate-theme-schema-validators';
 
 const webUiRoot = fileURLToPath(new URL('.', import.meta.url));
+generateThemeSchemaValidators(fileURLToPath(new URL('./src', import.meta.url)));
 
 const buildBasePath = normalizeWebBasePath(process.env.TABULARIS_BASE_PATH);
 

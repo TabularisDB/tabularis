@@ -3,9 +3,11 @@ import {fileURLToPath} from 'node:url';
 
 import react from '@vitejs/plugin-react';
 import {configDefaults, defineConfig} from 'vitest/config';
+import {generateThemeSchemaValidators} from '../../scripts/generate-theme-schema-validators';
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 const sourceRoot = fileURLToPath(new URL('./src', import.meta.url));
+generateThemeSchemaValidators(sourceRoot);
 
 export default defineConfig({
     root: repositoryRoot,
