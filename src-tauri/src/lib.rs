@@ -221,6 +221,10 @@ pub fn run() {
                 application.context.clone(),
                 application_state.dump_cancellation.clone(),
             );
+            let connection_health = application::connection_health::spawn_headless(
+                application.context.clone(),
+                application_state.clone(),
+            );
             let approval_heartbeat =
                 runtime::lifecycle::start_approval_heartbeat(&application.context);
             let approval_watcher = ai_approval_watcher::spawn_headless(
@@ -254,6 +258,7 @@ pub fn run() {
                 .await;
 
             database_backup_scheduler.abort();
+            connection_health.abort();
             approval_watcher.abort();
             drop(approval_heartbeat);
             runtime::lifecycle::shutdown_headless_runtime(&application_state).await;

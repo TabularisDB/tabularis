@@ -1583,7 +1583,7 @@ pub async fn register_active_connection(
     emit_active_connections(runtime, state, session_id).await;
 }
 
-async fn emit_active_connections(
+pub(crate) async fn emit_active_connections(
     runtime: &RuntimeContext,
     state: Option<&ApplicationState>,
     session_id: Option<Uuid>,
