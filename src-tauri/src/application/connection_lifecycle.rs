@@ -192,6 +192,60 @@ pub fn auto_reconnect_for_tick(tick: &[TickPing], load: impl FnOnce() -> bool) -
     tick.iter().any(|ping| ping.outcome != PingOutcome::Ok) && load()
 }
 
+/// A connection a tick gave up on, and what the transport does with it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FailedConnection {
+    pub connection_id: String,
+    pub error: String,
+    /// Try one reconnect; otherwise drop the connection.
+    pub recover: bool,
+}
+
+/// What a transport does after a tick: stop the half-open SSH tunnels first,
+/// then recover or drop each failed connection.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TickPlan {
+    pub discards: Vec<TunnelDiscard>,
+    pub failed: Vec<FailedConnection>,
+}
+
+/// Decide a tick. A connection on a discarded tunnel is handled as failed even
+/// before it reaches the threshold, and its failure count is dropped.
+pub fn plan_tick(
+    tick: Vec<TickPing>,
+    auto_reconnect: bool,
+    tracker: &mut HealthTracker,
+) -> TickPlan {
+    let discards = tunnel_discards(&tick, auto_reconnect);
+    let on_discarded_tunnel: std::collections::HashSet<&str> = discards
+        .iter()
+        .flat_map(|discard| discard.recover.iter().map(String::as_str))
+        .collect();
+    let mut failed = Vec::new();
+    for ping in &tick {
+        let Some(err) = ping.outcome.error() else {
+            continue;
+        };
+        log::warn!(
+            "Health check: ping failed for {}: {}",
+            ping.connection_id,
+            err
+        );
+        if ping.verdict != PingVerdict::Failed {
+            if !on_discarded_tunnel.contains(ping.connection_id.as_str()) {
+                continue;
+            }
+            tracker.forget(&ping.connection_id);
+        }
+        failed.push(FailedConnection {
+            connection_id: ping.connection_id.clone(),
+            error: err.to_string(),
+            recover: auto_reconnect,
+        });
+    }
+    TickPlan { discards, failed }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -421,6 +475,59 @@ mod tests {
             assert_eq!(reads, 1);
             assert_eq!(auto_reconnect, setting);
         }
+    }
+
+    fn plan_ids(plan: &TickPlan) -> Vec<(&str, bool)> {
+        plan.failed
+            .iter()
+            .map(|f| (f.connection_id.as_str(), f.recover))
+            .collect()
+    }
+
+    #[test]
+    fn plan_skips_healthy_and_suspect_pings() {
+        let mut tracker = HealthTracker::new(INTERVAL);
+        let tick = vec![
+            ping("ok", None, PingOutcome::Ok, PingVerdict::Healthy),
+            ping(
+                "suspect",
+                None,
+                PingOutcome::Error("refused".into()),
+                PingVerdict::Suspect,
+            ),
+        ];
+        assert_eq!(plan_tick(tick, true, &mut tracker), TickPlan::default());
+    }
+
+    #[test]
+    fn plan_drops_or_recovers_failed_pings_by_setting() {
+        for auto_reconnect in [false, true] {
+            let mut tracker = HealthTracker::new(INTERVAL);
+            let tick = vec![ping(
+                "dead",
+                None,
+                PingOutcome::Error("eof".into()),
+                PingVerdict::Failed,
+            )];
+            let plan = plan_tick(tick, auto_reconnect, &mut tracker);
+            assert_eq!(plan_ids(&plan), vec![("dead", auto_reconnect)]);
+            assert_eq!(plan.failed[0].error, "eof");
+            assert!(plan.discards.is_empty());
+        }
+    }
+
+    #[test]
+    fn plan_handles_a_suspect_on_a_discarded_tunnel_as_failed() {
+        let mut tracker = HealthTracker::new(INTERVAL);
+        tracker.record("b", false);
+        let tick = vec![
+            ping("a", lease(1), PingOutcome::TimedOut, PingVerdict::Failed),
+            ping("b", lease(1), PingOutcome::TimedOut, PingVerdict::Suspect),
+        ];
+        let plan = plan_tick(tick, true, &mut tracker);
+        assert_eq!(recovered(&plan.discards), vec![vec!["a", "b"]]);
+        assert_eq!(plan_ids(&plan), vec![("a", true), ("b", true)]);
+        assert_eq!(tracker.failures("b"), 0);
     }
 
     #[test]
