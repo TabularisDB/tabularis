@@ -34,6 +34,9 @@ pub(crate) struct MySqlConnectionInner {
     // wrapped in a buffered stream
     pub(crate) stream: MySqlStream,
 
+    // the connection id the server announced in its handshake
+    handshake_connection_id: u32,
+
     // transaction status
     pub(crate) transaction_depth: usize,
     status_flags: Status,
@@ -45,6 +48,43 @@ pub(crate) struct MySqlConnectionInner {
 }
 
 impl MySqlConnection {
+    /// The connection id the server announced in its handshake: what
+    /// `CONNECTION_ID()` answers, read without a round trip.
+    ///
+    /// The handshake carries 32 bits. A server whose ids are wider (MariaDB,
+    /// MySQL before 5.7) sends the low 32 bits of a larger id.
+    pub fn handshake_connection_id(&self) -> u32 {
+        self.inner.handshake_connection_id
+    }
+
+    /// Whether the server has hung up on this idle connection, read off the
+    /// socket without waiting and without a round trip.
+    ///
+    /// `true` when the socket has reached its end or failed, or when bytes
+    /// arrived while no statement was running (the error some servers write
+    /// before they close an idle connection). `false` means nothing has
+    /// arrived: a connection the network dropped silently still reads as
+    /// open, and only a ping finds that out.
+    pub fn server_hung_up(&mut self) -> bool {
+        let stream = &mut self.inner.stream;
+        // A statement left half read is not an idle connection: its answer
+        // is still due, and the next use drains it.
+        if !stream.waiting.is_empty() || !stream.socket.write_buffer().is_empty() {
+            return false;
+        }
+        stream
+            .socket
+            .try_read(|buf| {
+                Ok(if buf.is_empty() {
+                    std::ops::ControlFlow::Continue(1)
+                } else {
+                    std::ops::ControlFlow::Break(())
+                })
+            })
+            .now_or_never()
+            .is_some()
+    }
+
     pub(crate) fn in_transaction(&self) -> bool {
         self.inner
             .status_flags

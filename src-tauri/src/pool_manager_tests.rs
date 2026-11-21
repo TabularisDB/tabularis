@@ -4,8 +4,9 @@ mod tests {
     use crate::pool_manager::{
         build_connection_key, build_mysql_options, connect_timeout, connection_pool_prefix,
         format_error_chain, is_pipes_as_concat_unsupported, mysql_connect_timeout,
-        postgres_pool_max_size_from_value, postgres_startup_script_timeout, query_timeout,
-        remove_pools_with_prefix, with_connect_timeout, DEFAULT_POSTGRES_POOL_MAX_SIZE,
+        mysql_idle_needs_ping, postgres_pool_max_size_from_value, postgres_startup_script_timeout,
+        query_timeout, remove_pools_with_prefix, with_connect_timeout,
+        DEFAULT_POSTGRES_POOL_MAX_SIZE, MYSQL_PING_AFTER_IDLE,
     };
     use sqlx::mysql::MySqlSslMode;
     use std::collections::HashMap;
@@ -43,6 +44,20 @@ mod tests {
 
     fn mysql_params(ssl_mode: &str) -> ConnectionParams {
         connection_params("mysql", Some(ssl_mode))
+    }
+
+    #[test]
+    fn mysql_connection_used_a_moment_ago_goes_out_without_a_ping() {
+        assert!(!mysql_idle_needs_ping(Duration::ZERO));
+        assert!(!mysql_idle_needs_ping(
+            MYSQL_PING_AFTER_IDLE - Duration::from_millis(1)
+        ));
+    }
+
+    #[test]
+    fn mysql_connection_left_idle_is_pinged_before_use() {
+        assert!(mysql_idle_needs_ping(MYSQL_PING_AFTER_IDLE));
+        assert!(mysql_idle_needs_ping(Duration::from_secs(3600)));
     }
 
     #[test]

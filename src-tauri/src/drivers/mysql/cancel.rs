@@ -27,22 +27,17 @@ pub(super) struct InFlight {
 }
 
 impl InFlight {
-    pub(super) async fn new(
-        mut conn: PoolConnection<MySql>,
-        pool: &Pool<MySql>,
-    ) -> Result<Self, String> {
-        let id: u64 = conn
-            .fetch_one(sqlx::raw_sql("SELECT CAST(CONNECTION_ID() AS UNSIGNED)"))
-            .await
-            .and_then(|row| row.try_get(0))
-            .map_err(|e| e.to_string())?;
-        Ok(Self {
+    /// Takes the connection's id from the handshake the server opened it
+    /// with, so a run starts without asking for it.
+    pub(super) fn new(conn: PoolConnection<MySql>, pool: &Pool<MySql>) -> Self {
+        let announced_id = conn.handshake_connection_id();
+        Self {
             conn: Some(conn),
             killer: Killer {
                 pool: pool.clone(),
-                id,
+                announced_id,
             },
-        })
+        }
     }
 
     pub(super) fn conn(&mut self) -> &mut MySqlConnection {
@@ -117,7 +112,9 @@ impl Drop for InFlight {
 #[derive(Clone)]
 struct Killer {
     pool: Pool<MySql>,
-    id: u64,
+    /// The connection id from the handshake: 32 bits, which is the low half
+    /// of the id on a server whose ids are wider. See [`full_connection_id`].
+    announced_id: u32,
 }
 
 impl Killer {
@@ -126,10 +123,13 @@ impl Killer {
     /// the connection either way.
     async fn kill_query(self) {
         let options = self.pool.connect_options();
+        let announced_id = self.announced_id;
         let kill = async {
             let mut conn = MySqlConnection::connect_with(&options).await?;
-            conn.execute(sqlx::raw_sql(&format!("KILL QUERY {}", self.id)))
-                .await?;
+            if let Some(id) = full_connection_id(&mut conn, announced_id).await {
+                conn.execute(sqlx::raw_sql(&format!("KILL QUERY {id}")))
+                    .await?;
+            }
             conn.close().await
         };
         let sent = match tokio::time::timeout(CANCEL_GRACE, kill).await {
@@ -137,7 +137,51 @@ impl Killer {
             Err(_) => Err(format!("no answer within {} s", CANCEL_GRACE.as_secs())),
         };
         if let Err(e) = sent {
-            log::warn!("MySQL: KILL QUERY {} failed: {e}", self.id);
+            log::warn!("MySQL: KILL QUERY {announced_id} failed: {e}");
+        }
+    }
+}
+
+/// The id to `KILL` for the connection whose handshake announced
+/// `announced_id`, or `None` when no single connection can be told apart.
+///
+/// The handshake carries 32 bits. MariaDB, and MySQL before 5.7, count
+/// connections in 64, so past 2^32 connections the announced id is the low
+/// half of the real one and may equal the whole id of an older connection.
+/// The process list names the real one: it always shows the user's own
+/// connections, and this one is the user's.
+///
+/// A list that cannot be read, or that shows no match (a proxy answers it
+/// from a backend, with other ids), leaves the announced id, which is what
+/// the server then goes by.
+async fn full_connection_id(conn: &mut MySqlConnection, announced_id: u32) -> Option<u64> {
+    let lookup = format!(
+        "SELECT CAST(ID AS UNSIGNED) FROM information_schema.PROCESSLIST \
+         WHERE ID & 4294967295 = {announced_id}"
+    );
+    let ids: Vec<u64> = match conn.fetch_all(sqlx::raw_sql(&lookup)).await {
+        Ok(rows) => rows.iter().filter_map(|row| row.try_get(0).ok()).collect(),
+        Err(e) => {
+            log::debug!("MySQL: process list unreadable, using the announced id: {e}");
+            return Some(u64::from(announced_id));
+        }
+    };
+    pick_connection_id(&ids, announced_id)
+}
+
+/// Chooses among the process list's matches for `announced_id`. Two matches
+/// cannot be told apart, and killing the wrong one would stop someone else's
+/// statement.
+pub(super) fn pick_connection_id(matches: &[u64], announced_id: u32) -> Option<u64> {
+    match matches {
+        [] => Some(u64::from(announced_id)),
+        [id] => Some(*id),
+        _ => {
+            log::warn!(
+                "MySQL: {} connections share the announced id {announced_id}; not sending KILL QUERY",
+                matches.len()
+            );
+            None
         }
     }
 }
