@@ -46,8 +46,9 @@ impl AuthPlugin {
         match self {
             AuthPlugin::CachingSha2Password if packet[0] == 0x01 => {
                 match packet[1] {
-                    // AUTH_OK
-                    0x03 => Ok(true),
+                    // Fast authentication succeeded. The server's OK packet
+                    // follows: the caller reads it as the next packet.
+                    0x03 => Ok(false),
 
                     // AUTH_CONTINUE
                     0x04 => {
@@ -106,8 +107,8 @@ fn scramble_sha256(
     password: &str,
     nonce: &Chain<Bytes, Bytes>,
 ) -> GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize> {
-    // XOR(SHA256(password), SHA256(seed, SHA256(SHA256(password))))
-    // https://mariadb.com/kb/en/caching_sha2_password-authentication-plugin/#sha-2-encrypted-password
+    // XOR(SHA256(password), SHA256(SHA256(SHA256(password)), seed))
+    // https://dev.mysql.com/doc/dev/mysql-server/latest/page_caching_sha2_authentication_exchanges.html
     let mut ctx = Sha256::new();
 
     ctx.update(password);
@@ -118,9 +119,9 @@ fn scramble_sha256(
 
     let pw_hash_hash = ctx.finalize_reset();
 
+    ctx.update(pw_hash_hash);
     ctx.update(nonce.first_ref());
     ctx.update(nonce.last_ref());
-    ctx.update(pw_hash_hash);
 
     let pw_seed_hash_hash = ctx.finalize();
 

@@ -21,11 +21,12 @@ impl MySqlConnection {
             None => crate::net::connect_tcp(&options.host, options.port, do_handshake).await?,
         };
 
-        let stream = handshake?;
+        let (stream, handshake_connection_id) = handshake?;
 
         Ok(Self {
             inner: Box::new(MySqlConnectionInner {
                 stream,
+                handshake_connection_id,
                 transaction_depth: 0,
                 status_flags: Default::default(),
                 cache_statement: StatementCache::new(options.statement_cache_capacity),
@@ -67,7 +68,7 @@ impl<'a> DoHandshake<'a> {
         })
     }
 
-    async fn do_handshake<S: Socket>(self, socket: S) -> Result<MySqlStream, Error> {
+    async fn do_handshake<S: Socket>(self, socket: S) -> Result<(MySqlStream, u32), Error> {
         let DoHandshake {
             options,
             charset,
@@ -83,6 +84,7 @@ impl<'a> DoHandshake<'a> {
 
         let mut plugin = handshake.auth_plugin;
         let nonce = handshake.auth_plugin_data;
+        let connection_id = handshake.connection_id;
 
         // FIXME: server version parse is a bit ugly
         // expecting MAJOR.MINOR.PATCH
@@ -182,12 +184,12 @@ impl<'a> DoHandshake<'a> {
             }
         }
 
-        Ok(stream)
+        Ok((stream, connection_id))
     }
 }
 
 impl<'a> WithSocket for DoHandshake<'a> {
-    type Output = Result<MySqlStream, Error>;
+    type Output = Result<(MySqlStream, u32), Error>;
 
     async fn with_socket<S: Socket>(self, socket: S) -> Self::Output {
         self.do_handshake(socket).await

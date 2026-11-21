@@ -622,7 +622,13 @@ async fn build_and_connect_mysql_pool(
             })??;
     }
 
-    let mut pool_options = sqlx::mysql::MySqlPoolOptions::new().max_connections(10);
+    let mut pool_options = sqlx::mysql::MySqlPoolOptions::new()
+        .max_connections(10)
+        // The pool's own test pings every connection it hands out: a round
+        // trip in front of every statement. `mysql_connection_usable` asks
+        // the socket instead, and pings only a connection that sat idle.
+        .test_before_acquire(false)
+        .before_acquire(|conn, meta| Box::pin(mysql_connection_usable(conn, meta.idle_for)));
     if params.read_only || script.is_some() {
         let read_only = params.read_only;
         let script = script.map(str::to_owned);
@@ -649,6 +655,37 @@ async fn build_and_connect_mysql_pool(
             )
         })?
         .map_err(|e| e.to_string())
+}
+
+/// How long a pooled MySQL connection may sit idle and still be handed out
+/// without a ping. A connection the server closed is found without one (see
+/// [`mysql_connection_usable`]); the ping is for the connection that a
+/// firewall or a network change dropped without a word, which takes idle time.
+pub(crate) const MYSQL_PING_AFTER_IDLE: Duration = Duration::from_secs(30);
+
+/// Whether an idle time calls for a ping before the connection is used.
+pub(crate) fn mysql_idle_needs_ping(idle_for: Duration) -> bool {
+    idle_for >= MYSQL_PING_AFTER_IDLE
+}
+
+/// Decides whether the pool may hand out an idle MySQL connection. `false`
+/// has it closed and another one tried; so does a failed ping.
+///
+/// A server that hung up shows on the socket at once, with no round trip.
+/// A connection used in the last [`MYSQL_PING_AFTER_IDLE`] goes out as it
+/// is: the pool pinged it when it came back.
+async fn mysql_connection_usable(
+    conn: &mut sqlx::MySqlConnection,
+    idle_for: Duration,
+) -> Result<bool, sqlx::Error> {
+    use sqlx::Connection as _;
+    if conn.server_hung_up() {
+        return Ok(false);
+    }
+    if mysql_idle_needs_ping(idle_for) {
+        conn.ping().await?;
+    }
+    Ok(true)
 }
 
 /// Whether a connection error means the server refuses sqlx's forced sql_mode

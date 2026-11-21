@@ -16,7 +16,6 @@ pub(crate) struct Handshake {
     #[allow(unused)]
     pub(crate) protocol_version: u8,
     pub(crate) server_version: String,
-    #[allow(unused)]
     pub(crate) connection_id: u32,
     pub(crate) server_capabilities: Capabilities,
     #[allow(unused)]

@@ -38,6 +38,12 @@ pub(super) fn extract_fallback_value(
         }
     }
 
+    if effective_type == "TIME" {
+        if let Some(value) = super::temporal::extract_out_of_day_time(row, index) {
+            return Some(value);
+        }
+    }
+
     if let Ok(value) = row.try_get::<NaiveDateTime, _>(index) {
         return Some(serde_json::Value::String(format_mysql_datetime(&value)));
     }
