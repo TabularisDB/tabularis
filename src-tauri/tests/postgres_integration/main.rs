@@ -71,6 +71,7 @@ mod parity_views_extra;
 mod parity_views_full;
 mod query_execution;
 mod read_only;
+mod recorded_saves;
 mod routines;
 mod schema_discovery;
 mod table_transfer;

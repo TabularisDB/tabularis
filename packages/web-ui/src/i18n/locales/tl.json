@@ -3728,5 +3728,72 @@
     "saveBeforeExport": "I-save muna ang mga pagbabago bago mag-export.",
     "discardTitle": "Itapon ang mga talang hindi pa naka-save?",
     "discardMessage": "Hindi pa naka-save ang mga pagbabago sa mga tala. Mawawala ang mga ito kapag isinara ngayon."
+  },
+  "saveHistory": {
+    "title": "Mga na-save na pagbabago",
+    "subtitle": "Suriin at ibalik ang mga pag-edit sa grid na na-save mo",
+    "openAction": "Kasaysayan ng mga na-save na pagbabago",
+    "close": "Isara",
+    "recording": {
+      "label": "I-record ang mga na-save na pag-edit sa grid",
+      "description": "Iniingatan ang mga halaga bago at pagkatapos ng bawat na-save na pag-edit para masuri at maibalik mo ang mga ito. Mga update lang sa iisang PostgreSQL table na may primary key ang nire-record.",
+      "storage": "Ang mga naka-record na halaga ay iniimbak nang walang encryption sa device na ito, sa file na ikaw lang ang makakabasa, para sa koneksyong ito lang. Awtomatikong inaalis ang mga lumang record.",
+      "unsupported": "Hindi kayang i-record ng driver ng koneksyong ito ang mga na-save na pag-edit."
+    },
+    "empty": "Walang naka-record na na-save na pagbabago para sa table na ito.",
+    "emptyDisabled": "Naka-off ang pagre-record. I-on ito para magkaroon ng talaan ng mga na-save na pag-edit.",
+    "loading": "Naglo-load…",
+    "list": {
+      "row": "Row",
+      "columns": "Mga column: {{columns}}",
+      "restoredAt": "Naibalik noong {{date}}",
+      "reviewOnly": "Pang-review lang"
+    },
+    "plan": {
+      "title": "Plano sa pagbabalik",
+      "intro": "Isinusulat ng pagbabalik ang mga naunang halaga pabalik sa row na ito bilang bagong pagbabago. Hindi ito rollback: hindi nito binabawi ang mga trigger, panlabas na epekto, o ibang SQL na tumakbo pagkatapos ng pag-save.",
+      "column": "Column",
+      "saved": "Isinulat ng pag-save",
+      "current": "Kasalukuyang halaga",
+      "restoreTo": "Ibalik sa",
+      "nullValue": "NULL",
+      "notCaptured": "hindi nakuha",
+      "unavailable": "—"
+    },
+    "status": {
+      "ready": "Nasa row pa rin ang mga na-save na halaga. Suriin ang plano, saka ibalik.",
+      "conflict": "Nagbago ang row pagkatapos ng pag-save na ito. Walang naibalik.",
+      "rowMissing": "Wala na ang row o nagbago ang key nito. Walang naibalik.",
+      "notRestorable": "Pang-review lang ang pag-save na ito at hindi maibabalik.",
+      "alreadyRestored": "Naibalik na ang pag-save na ito.",
+      "targetChanged": "Ang na-save na koneksyon ay nakaturo na ngayon sa ibang server kaysa sa pinagsulatan ng pag-save na ito. Walang naibalik.",
+      "restored": "Naibalik ang mga halaga."
+    },
+    "reason": {
+      "keyChanged": "May binago sa isang key column, kaya nailipat ang row.",
+      "tableHasTriggers": "May mga trigger ang table na maaaring nagbago ng ibang data.",
+      "generatedColumn": "Hindi maisusulat ang isang generated column.",
+      "valueNotCaptured": "Masyadong malaki ang isang halaga para itago o hindi ito nabasa.",
+      "unknown": "Hindi maibabalik ang pag-save na ito."
+    },
+    "actions": {
+      "restore": "Ibalik ang mga halaga",
+      "restoring": "Ibinabalik…",
+      "compare": "Ihambing muli",
+      "delete": "Burahin ang record",
+      "clearAll": "Burahin lahat"
+    },
+    "clear": {
+      "title": "Burahin ang mga na-save na pagbabago?",
+      "message": "Buburahin nito ang bawat naka-record na pag-save para sa koneksyong ito. Hindi magagalaw ang mga row sa database.",
+      "confirm": "Burahin lahat"
+    },
+    "errors": {
+      "load": "Hindi ma-load ang mga na-save na pagbabago: ",
+      "plan": "Hindi maihambing sa kasalukuyang row: ",
+      "restore": "Hindi maibalik ang mga halaga: ",
+      "toggle": "Hindi mabago ang setting ng pagre-record: ",
+      "recordingFailed": "Na-save ang mga pagbabago, pero hindi na-record dahil hindi maisulat ang history file."
+    }
   }
 }

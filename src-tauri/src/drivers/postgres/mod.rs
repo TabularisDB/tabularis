@@ -8,11 +8,14 @@ mod client;
 mod column_comments;
 mod explain;
 mod helpers;
+mod recorded_save;
 mod routines;
 pub mod session;
 
 #[cfg(test)]
 mod column_ddl_tests;
+#[cfg(test)]
+mod recorded_save_tests;
 #[cfg(test)]
 mod tests;
 
@@ -830,17 +833,52 @@ pub async fn delete_record(
     execute_typed(&pool, &query, &params_ref).await
 }
 
-pub async fn update_record(
-    params: &ConnectionParams,
+/// One `UPDATE` of a single column, ready to execute on any connection.
+struct PreparedUpdate {
+    query: String,
+    bound_params: Vec<(Box<dyn tokio_postgres::types::ToSql + Send + Sync>, Type)>,
+    schema: String,
+    table: String,
+    col_name: String,
+    new_val: serde_json::Value,
+    column_data_type: Option<String>,
+    first_pk_col: String,
+    first_pk_val: serde_json::Value,
+}
+
+impl PreparedUpdate {
+    fn params_ref(&self) -> Vec<(&(dyn ToSql + Sync), Type)> {
+        self.bound_params
+            .iter()
+            .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
+            .collect()
+    }
+
+    fn describe_error(&self, err: String) -> String {
+        update_record_error_context(
+            err,
+            &self.schema,
+            &self.table,
+            &self.first_pk_col,
+            &self.first_pk_val,
+            &self.col_name,
+            &self.new_val,
+            self.column_data_type.as_deref(),
+            &self.query,
+        )
+    }
+}
+
+async fn prepare_update(
+    pool: &deadpool_postgres::Pool,
     table: &str,
     pk_map: &HashMap<String, serde_json::Value>,
     col_name: &str,
     new_val: serde_json::Value,
     schema: &str,
     max_blob_size: u64,
-) -> Result<u64, String> {
-    let pool = get_postgres_pool(params).await?;
-    let column_data_type = match get_column_data_type(&pool, schema, table, col_name).await {
+) -> Result<PreparedUpdate, String> {
+    let column_data_type = match get_column_data_type(pool, schema, table, col_name).await {
         Ok(data_type) => data_type,
         Err(err) => {
             log::debug!(
@@ -856,16 +894,15 @@ pub async fn update_record(
     // get_column_data_type already unfolds 'USER-DEFINED' to the real udt_name,
     // so hstore columns report as plain "hstore" here.
     let hstore_oid = if column_data_type.as_deref() == Some("hstore") {
-        get_hstore_oid_for_column(&pool, schema, table, col_name)
+        get_hstore_oid_for_column(pool, schema, table, col_name)
             .await
             .unwrap_or(None)
     } else {
         None
     };
 
-    let enum_types = get_enum_column_types(&pool, schema, table).await;
+    let enum_types = get_enum_column_types(pool, schema, table).await;
     let new_val_for_context = new_val.clone();
-    let pk_map_for_context = pk_map.clone();
 
     let mut query = format!(
         "UPDATE \"{}\".\"{}\" SET \"{}\" = ",
@@ -893,42 +930,59 @@ pub async fn update_record(
         bound_params.push(param);
     }
 
-    let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
+    let pk_types = get_pk_column_types(pool, schema, table, pk_map).await;
     let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
     query.push_str(" WHERE ");
     query.push_str(&predicate);
     bound_params.extend(pk_params);
 
-    let params_ref: Vec<(&(dyn ToSql + Sync), Type)> = bound_params
-        .iter()
-        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
-        .collect();
-
     let first_pk_col = {
-        let mut keys: Vec<&String> = pk_map_for_context.keys().collect();
+        let mut keys: Vec<&String> = pk_map.keys().collect();
         keys.sort();
-        keys.first().map(|k| k.as_str()).unwrap_or("")
+        keys.first().map(|k| k.to_string()).unwrap_or_default()
     };
-    let first_pk_val = pk_map_for_context
-        .get(first_pk_col)
+    let first_pk_val = pk_map
+        .get(&first_pk_col)
         .cloned()
         .unwrap_or(serde_json::Value::Null);
 
-    execute_typed(&pool, &query, &params_ref)
+    Ok(PreparedUpdate {
+        query,
+        bound_params,
+        schema: schema.to_string(),
+        table: table.to_string(),
+        col_name: col_name.to_string(),
+        new_val: new_val_for_context,
+        column_data_type,
+        first_pk_col,
+        first_pk_val,
+    })
+}
+
+pub async fn update_record(
+    params: &ConnectionParams,
+    table: &str,
+    pk_map: &HashMap<String, serde_json::Value>,
+    col_name: &str,
+    new_val: serde_json::Value,
+    schema: &str,
+    max_blob_size: u64,
+) -> Result<u64, String> {
+    let pool = get_postgres_pool(params).await?;
+    let prepared = prepare_update(
+        &pool,
+        table,
+        pk_map,
+        col_name,
+        new_val,
+        schema,
+        max_blob_size,
+    )
+    .await?;
+
+    execute_typed(&pool, &prepared.query, &prepared.params_ref())
         .await
-        .map_err(|err| {
-            update_record_error_context(
-                err,
-                schema,
-                table,
-                first_pk_col,
-                &first_pk_val,
-                col_name,
-                &new_val_for_context,
-                column_data_type.as_deref(),
-                &query,
-            )
-        })
+        .map_err(|err| prepared.describe_error(err))
 }
 
 pub async fn insert_record(
@@ -2887,6 +2941,60 @@ impl DatabaseDriver for PostgresDriver {
             new_val,
             self.resolve_schema(schema),
             max_blob_size,
+        )
+        .await
+    }
+
+    fn supports_recorded_saves(&self) -> bool {
+        true
+    }
+
+    async fn update_row_recorded(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
+        changes: Vec<(String, serde_json::Value)>,
+        schema: Option<&str>,
+        max_blob_size: u64,
+    ) -> Result<crate::drivers::recorded_save::RecordedUpdate, String> {
+        recorded_save::update_row_recorded(
+            params,
+            table,
+            pk_map,
+            changes,
+            self.resolve_schema(schema),
+            max_blob_size,
+        )
+        .await
+    }
+
+    async fn read_row_images(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
+        columns: &[String],
+        schema: Option<&str>,
+    ) -> Result<Option<Vec<crate::drivers::recorded_save::CellImage>>, String> {
+        recorded_save::read_row_images(params, table, pk_map, columns, self.resolve_schema(schema))
+            .await
+    }
+
+    async fn restore_row_images(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
+        columns: &[crate::drivers::recorded_save::RestoreColumn],
+        schema: Option<&str>,
+    ) -> Result<crate::drivers::recorded_save::RestoreOutcome, String> {
+        recorded_save::restore_row_images(
+            params,
+            table,
+            pk_map,
+            columns,
+            self.resolve_schema(schema),
         )
         .await
     }
