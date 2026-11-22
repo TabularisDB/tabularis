@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useCallback} from 'react';
+import {useEffect, useMemo, useCallback, useRef} from 'react';
 import {
     ReactFlow,
     Background,
@@ -50,8 +50,21 @@ function ExplainGraphInner({
         setEdges(initialEdges);
     }, [initialNodes, initialEdges, setNodes, setEdges]);
 
+    const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (fitTimerRef.current) {
+                clearTimeout(fitTimerRef.current);
+            }
+        };
+    }, []);
+
     const handleInit = useCallback(() => {
-        setTimeout(() => fitView({padding: 0.2}), 50);
+        if (fitTimerRef.current) {
+            clearTimeout(fitTimerRef.current);
+        }
+        fitTimerRef.current = setTimeout(() => fitView({padding: 0.2}), 50);
     }, [fitView]);
 
     return (
