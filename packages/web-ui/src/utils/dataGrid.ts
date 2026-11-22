@@ -27,6 +27,151 @@ export const TRANSPOSED_RECORD_WIDTH = 220;
 /** Transposed layout (#561): width of the sticky field-name column. */
 export const TRANSPOSED_FIELD_LABEL_WIDTH = 220;
 
+export interface SelectionSummary {
+    count: number;
+    sum: string | null;
+    average: string | null;
+    minimum: string | null;
+    maximum: string | null;
+}
+
+interface ExactDecimal {
+    coefficient: bigint;
+    scale: number;
+}
+
+const NUMERIC_SELECTION_STRING = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+const MAX_SELECTION_EXPONENT_ABSOLUTE = 10_000;
+const MAX_SELECTION_DECIMAL_PLACES = 10_000;
+
+function parseExactDecimal(value: unknown): ExactDecimal | null {
+    let text: string;
+    if (typeof value === 'bigint') {
+        text = value.toString();
+    } else if (typeof value === 'number') {
+        if (!Number.isFinite(value)) return null;
+        text = String(value);
+    } else if (typeof value === 'string') {
+        text = value.trim();
+        if (!text || !NUMERIC_SELECTION_STRING.test(text)) return null;
+    } else {
+        return null;
+    }
+
+    const exponentMatch = text.match(/^(.*?)[eE]([+-]?\d+)$/);
+    let mantissa = exponentMatch?.[1] ?? text;
+    const exponent = exponentMatch ? Number(exponentMatch[2]) : 0;
+    if (!Number.isSafeInteger(exponent)) return null;
+    if (Math.abs(exponent) > MAX_SELECTION_EXPONENT_ABSOLUTE) return null;
+
+    let sign = '';
+    if (mantissa.startsWith('+') || mantissa.startsWith('-')) {
+        sign = mantissa[0] === '-' ? '-' : '';
+        mantissa = mantissa.slice(1);
+    }
+
+    const parts = mantissa.split('.');
+    const whole = parts[0] || '0';
+    const fraction = parts[1] ?? '';
+    const digits = `${whole}${fraction}`.replace(/^0+(?=\d)/, '') || '0';
+    let coefficient = BigInt(`${sign}${digits}`);
+    const scale = fraction.length - exponent;
+    if (scale > MAX_SELECTION_DECIMAL_PLACES || -scale > MAX_SELECTION_EXPONENT_ABSOLUTE) {
+        return null;
+    }
+
+    if (scale < 0) {
+        coefficient *= 10n ** BigInt(-scale);
+        return {coefficient, scale: 0};
+    }
+
+    return {coefficient, scale};
+}
+
+function alignDecimals(values: ExactDecimal[]): ExactDecimal[] {
+    const scale = values.reduce((maximum, value) => Math.max(maximum, value.scale), 0);
+    return values.map((value) => ({
+        coefficient: value.coefficient * 10n ** BigInt(scale - value.scale),
+        scale,
+    }));
+}
+
+function formatExactDecimal(coefficient: bigint, scale: number): string {
+    if (scale === 0) return coefficient.toString();
+
+    const negative = coefficient < 0n;
+    const digits = (negative ? -coefficient : coefficient).toString().padStart(scale + 1, '0');
+    const split = digits.length - scale;
+    let text = `${digits.slice(0, split)}.${digits.slice(split)}`;
+    text = text.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+    return `${negative ? '-' : ''}${text}`;
+}
+
+function compareDecimals(a: ExactDecimal, b: ExactDecimal): number {
+    const aligned = alignDecimals([a, b]);
+    if (aligned[0].coefficient < aligned[1].coefficient) return -1;
+    if (aligned[0].coefficient > aligned[1].coefficient) return 1;
+    return 0;
+}
+
+function formatAverage(sum: ExactDecimal, count: number): string {
+    const scaleFactor = 10n ** BigInt(sum.scale);
+    const denominator = BigInt(count) * scaleFactor;
+    const negative = sum.coefficient < 0n;
+    const absoluteNumerator = negative ? -sum.coefficient : sum.coefficient;
+    const twelveDecimalPlaces = 10n ** 12n;
+    let scaled = (absoluteNumerator * twelveDecimalPlaces) / denominator;
+    const remainder = (absoluteNumerator * twelveDecimalPlaces) % denominator;
+    if (remainder * 2n >= denominator) {
+        scaled += 1n;
+    }
+    if (scaled === 0n) return '0';
+
+    const integerPart = scaled / twelveDecimalPlaces;
+    let fraction = (scaled % twelveDecimalPlaces).toString().padStart(12, '0');
+    fraction = fraction.replace(/0+$/, '');
+    const integerText = integerPart.toString();
+    const result = fraction ? `${integerText}.${fraction}` : integerText;
+    return `${negative ? '-' : ''}${result}`;
+}
+
+export function summarizeSelection(values: readonly unknown[]): SelectionSummary {
+    const numericValues = values
+        .map(parseExactDecimal)
+        .filter((value): value is ExactDecimal => value !== null);
+
+    if (numericValues.length === 0) {
+        return {
+            count: values.length,
+            sum: null,
+            average: null,
+            minimum: null,
+            maximum: null,
+        };
+    }
+
+    const aligned = alignDecimals(numericValues);
+    const scale = aligned.reduce((maximum, value) => Math.max(maximum, value.scale), 0);
+    let sumCoefficient = 0n;
+    let minimum = aligned[0];
+    let maximum = aligned[0];
+
+    for (const value of aligned) {
+        sumCoefficient += value.coefficient;
+        if (compareDecimals(value, minimum) < 0) minimum = value;
+        if (compareDecimals(value, maximum) > 0) maximum = value;
+    }
+
+    const sum = {coefficient: sumCoefficient, scale};
+    return {
+        count: values.length,
+        sum: formatExactDecimal(sumCoefficient, scale),
+        average: formatAverage(sum, numericValues.length),
+        minimum: formatExactDecimal(minimum.coefficient, minimum.scale),
+        maximum: formatExactDecimal(maximum.coefficient, maximum.scale),
+    };
+}
+
 /** Whether a database column stores UUID values supported by the grid. */
 export function isUuidColumnType(dataType: string): boolean {
     const normalizedType = dataType.trim().toLowerCase();
