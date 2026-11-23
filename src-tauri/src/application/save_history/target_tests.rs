@@ -18,12 +18,29 @@ fn is_stable_for_the_same_target() {
 }
 
 #[test]
-fn ignores_credentials_and_host_case() {
+fn ignores_password_and_host_case() {
     let mut other = base();
-    other.username = Some("someone-else".to_string());
     other.password = None;
     other.host = Some(" DB1.example.com ".to_string());
     assert_eq!(target_fingerprint(&base()), target_fingerprint(&other));
+}
+
+#[test]
+fn changes_when_the_username_changes() {
+    let mut other = base();
+    other.username = Some("postgres.staging".to_string());
+    assert_ne!(target_fingerprint(&base()), target_fingerprint(&other));
+}
+
+#[test]
+fn changes_when_the_kubeconfig_path_changes() {
+    let mut first = base();
+    first.k8s_enabled = Some(true);
+    first.k8s_context = Some("kubernetes-admin@kubernetes".to_string());
+    first.k8s_kubeconfig_path = Some("/home/me/prod.yaml".to_string());
+    let mut second = first.clone();
+    second.k8s_kubeconfig_path = Some("/home/me/staging.yaml".to_string());
+    assert_ne!(target_fingerprint(&first), target_fingerprint(&second));
 }
 
 #[test]

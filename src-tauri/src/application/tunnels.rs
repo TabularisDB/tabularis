@@ -201,6 +201,18 @@ async fn run_blocking<T: Send + 'static>(
         .map_err(|error| error.to_string())?
 }
 
+/// SSH profiles as stored on disk, without touching the keychain. Secrets are
+/// always `None`.
+pub fn get_ssh_connection_targets(runtime: &RuntimeContext) -> Result<Vec<SshConnection>, String> {
+    let mut connections: Vec<SshConnection> = load_json(&ssh_path(runtime))?;
+    for connection in &mut connections {
+        normalize_ssh_auth_type(connection);
+        connection.password = None;
+        connection.key_passphrase = None;
+    }
+    Ok(connections)
+}
+
 pub fn get_ssh_connections(
     runtime: &RuntimeContext,
     reveal_secrets: bool,
