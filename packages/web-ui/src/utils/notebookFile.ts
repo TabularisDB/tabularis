@@ -1,20 +1,46 @@
 import type {NotebookCell, NotebookFile, NotebookParam} from '@/types/notebook';
 import {generateCellId} from './notebook';
-import {validateParamName} from './notebookParams';
+import {isParamType, normalizeParam, validateParamName} from './notebookParams';
 import {sanitizeKpiConfig} from './notebookKpi';
 
 /**
- * Keep only well-formed params from an untrusted notebook file: name must be
- * a valid identifier (`\w+`) and value must be a string. Malformed entries
- * are dropped instead of failing the whole import.
+ * A well-formed param from an untrusted notebook file, or null. The name must
+ * be a valid identifier (`\w+`) and the value a string. An entry without a
+ * `type` is a raw parameter, as every parameter was before types existed, and
+ * is kept as found. A typed entry must name a known type and carry booleans
+ * and string options where it has them; it is stored in normalized form. Its
+ * value is not validated here: a typed parameter with an invalid value is kept,
+ * so the panel can show what is wrong and the cell does not run with it.
+ */
+function sanitizeParam(raw: unknown): NotebookParam | null {
+    if (typeof raw !== 'object' || raw === null) return null;
+    const {name, value, type, isNull, required, options} = raw as Record<string, unknown>;
+    if (typeof name !== 'string' || !validateParamName(name) || typeof value !== 'string') {
+        return null;
+    }
+    if (type === undefined) return raw as NotebookParam;
+    if (!isParamType(type)) return null;
+    if (isNull !== undefined && typeof isNull !== 'boolean') return null;
+    if (required !== undefined && typeof required !== 'boolean') return null;
+    const optionList = options ?? [];
+    if (!Array.isArray(optionList) || !optionList.every((o) => typeof o === 'string')) return null;
+    return normalizeParam({
+        name,
+        value,
+        type,
+        isNull: isNull === true,
+        required: required === true,
+        options: optionList,
+    });
+}
+
+/**
+ * Keep only well-formed params from an untrusted notebook file. Malformed
+ * entries are dropped instead of failing the whole import.
  */
 function sanitizeParams(raw: unknown): NotebookParam[] | undefined {
     if (!Array.isArray(raw)) return undefined;
-    const params = raw.filter((p): p is NotebookParam => {
-        if (typeof p !== 'object' || p === null) return false;
-        const {name, value} = p as Record<string, unknown>;
-        return typeof name === 'string' && validateParamName(name) && typeof value === 'string';
-    });
+    const params = raw.map(sanitizeParam).filter((p): p is NotebookParam => p !== null);
     return params.length > 0 ? params : undefined;
 }
 

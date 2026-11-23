@@ -103,6 +103,34 @@ describe('notebookTransfer', () => {
         });
     });
 
+    it('carries typed parameters through export and import', async () => {
+        const typed: NotebookState = {
+            cells: [{id: 'q', type: 'sql', content: 'SELECT @start, @country, @tbl'}],
+            params: [
+                {name: 'start', value: '2026-01-01', type: 'date', required: true},
+                {
+                    name: 'country',
+                    value: "Côte d'Ivoire",
+                    type: 'select',
+                    options: ["Côte d'Ivoire"],
+                },
+                {name: 'limit', value: '', type: 'number', isNull: true},
+                {name: 'tbl', value: 'orders'},
+            ],
+        };
+        const downloadFile = vi.fn().mockResolvedValue(true);
+        await downloadNotebook(platformFixture({downloadFile}), 'Typed', typed);
+        const exported: Uint8Array = downloadFile.mock.calls[0][0].contents;
+        expect(JSON.parse(new TextDecoder().decode(exported)).params).toEqual(typed.params);
+
+        const chooseInputFile = vi.fn().mockResolvedValue({name: 'typed', reference: 'ref'});
+        const readInputFile = vi.fn().mockResolvedValue(exported);
+        const imported = await chooseNotebookImport(
+            platformFixture({chooseInputFile, readInputFile}),
+        );
+        expect(imported?.state.params).toEqual(typed.params);
+    });
+
     it('preserves HTML export through the same browser-safe download adapter', async () => {
         const downloadFile = vi.fn().mockResolvedValue(true);
 
