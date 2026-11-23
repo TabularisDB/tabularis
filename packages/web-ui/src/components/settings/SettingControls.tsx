@@ -1,4 +1,13 @@
-import {createContext, useContext, useEffect, useId, useRef, useState, type ReactNode} from 'react';
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useEffectEvent,
+    useId,
+    useRef,
+    useState,
+    type ReactNode,
+} from 'react';
 import clsx from 'clsx';
 
 /* ── Section ── */
@@ -176,6 +185,11 @@ interface SettingSliderProps {
     onDraftChange?: (value: number | null) => void;
 }
 
+/** Reads a range input's value as a float for fractional steps, an integer otherwise. */
+function parseSliderValue(raw: string, step: number): number {
+    return step < 1 ? parseFloat(raw) : parseInt(raw);
+}
+
 export function SettingSlider({
     value,
     onChange,
@@ -188,34 +202,31 @@ export function SettingSlider({
     const [draft, setDraft] = useState<number | null>(null);
     const [dragging, setDragging] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
-    const latest = useRef({value, onChange, onDraftChange});
-    latest.current = {value, onChange, onDraftChange};
     const shown = draft ?? value;
     const display = formatValue ? formatValue(shown) : String(shown);
-    const parse = (raw: string) => (step < 1 ? parseFloat(raw) : parseInt(raw));
+
+    const endDrag = useEffectEvent(() => {
+        setDragging(false);
+        const next = parseSliderValue(inputRef.current?.value ?? '', step);
+        setDraft(null);
+        onDraftChange?.(null);
+        if (!Number.isNaN(next) && next !== value) onChange(next);
+    });
 
     // The pointer can be released anywhere, not just over the slider, so the end
     // of a drag is listened for on the window.
     useEffect(() => {
         if (!dragging) return;
-        const endDrag = () => {
-            setDragging(false);
-            const next = parse(inputRef.current?.value ?? '');
-            const {value: current, onChange: commit, onDraftChange: reportDraft} = latest.current;
-            setDraft(null);
-            reportDraft?.(null);
-            if (!Number.isNaN(next) && next !== current) commit(next);
-        };
-        window.addEventListener('pointerup', endDrag);
-        window.addEventListener('pointercancel', endDrag);
-        window.addEventListener('blur', endDrag);
+        const handleEnd = () => endDrag();
+        window.addEventListener('pointerup', handleEnd);
+        window.addEventListener('pointercancel', handleEnd);
+        window.addEventListener('blur', handleEnd);
         return () => {
-            window.removeEventListener('pointerup', endDrag);
-            window.removeEventListener('pointercancel', endDrag);
-            window.removeEventListener('blur', endDrag);
+            window.removeEventListener('pointerup', handleEnd);
+            window.removeEventListener('pointercancel', handleEnd);
+            window.removeEventListener('blur', handleEnd);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dragging, step]);
+    }, [dragging]);
 
     return (
         <div className="flex items-center gap-4 min-w-[200px]">
@@ -230,7 +241,7 @@ export function SettingSlider({
                     if (onDraftChange) setDragging(true);
                 }}
                 onChange={(e) => {
-                    const next = parse(e.target.value);
+                    const next = parseSliderValue(e.target.value, step);
                     if (dragging) {
                         setDraft(next);
                         onDraftChange?.(next);
