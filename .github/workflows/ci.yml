@@ -177,3 +177,4 @@ jobs:
           name: web-e2e-artifacts
           path: e2e/web/.runtime
           if-no-files-found: ignore
+          include-hidden-files: true
