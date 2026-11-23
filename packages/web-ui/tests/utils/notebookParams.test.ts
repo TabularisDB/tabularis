@@ -10,6 +10,8 @@ import {
     addParam,
 } from '@/utils/notebookParams';
 import type {NotebookParam} from '@/types/notebook';
+import type {DriverCapabilities} from '@/types/plugins';
+import {resolveSqlSyntax} from '@/utils/sqlSyntax';
 
 describe('notebookParams', () => {
     describe('extractParamReferences', () => {
@@ -190,6 +192,47 @@ describe('notebookParams', () => {
         it('should detect ${name} with hasParamReferences', () => {
             expect(hasParamReferences('SELECT ${foo}')).toBe(true);
             expect(hasParamReferences('SELECT 1')).toBe(false);
+        });
+    });
+
+    describe('typed parameters', () => {
+        const sqlite = {sql_dialect: 'sqlite'} as DriverCapabilities;
+        const typed = (name: string, value: string, type: string): NotebookParam =>
+            ({name, value, type}) as NotebookParam;
+        const resolve = (sql: string, param: NotebookParam) =>
+            resolveParams(sql, [param], resolveSqlSyntax(sqlite)).sql;
+
+        it('should write a date parameter as a quoted date', () => {
+            expect(
+                resolve(
+                    'SELECT id FROM orders WHERE order_date >= @start',
+                    typed('start', '2026-01-01', 'date'),
+                ),
+            ).toBe("SELECT id FROM orders WHERE order_date >= '2026-01-01'");
+        });
+
+        it('should quote a text parameter and escape its apostrophe', () => {
+            expect(
+                resolve(
+                    'SELECT id FROM orders WHERE customer = @name',
+                    typed('name', "O'Brien", 'text'),
+                ),
+            ).toBe("SELECT id FROM orders WHERE customer = 'O''Brien'");
+        });
+
+        it('should keep a text parameter that holds SQL as one string', () => {
+            expect(
+                resolve(
+                    'SELECT id FROM orders WHERE customer = @name',
+                    typed('name', '1 OR 1=1', 'text'),
+                ),
+            ).toBe("SELECT id FROM orders WHERE customer = '1 OR 1=1'");
+        });
+
+        it('should write an empty text parameter as the empty string', () => {
+            expect(
+                resolve('SELECT id FROM orders WHERE customer = @name', typed('name', '', 'text')),
+            ).toBe("SELECT id FROM orders WHERE customer = ''");
         });
     });
 
