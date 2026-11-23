@@ -97,6 +97,15 @@
     --radius-2xl: var(--radius-xl);
     --radius-3xl: var(--radius-xl);
     --radius-4xl: var(--radius-xl);
+
+    /* Responsive layout (docs/DESIGN.md, "Responsive layout"): compact below `md`,
+     intermediate from `md`, wide from `lg`. Pinned here so a Tailwind default cannot
+     move them; keep in sync with BREAKPOINTS in src/utils/responsive.ts. */
+    --breakpoint-md: 48rem;
+    --breakpoint-lg: 64rem;
+
+    /* Minimum size of a primary touch control: `min-h-touch`, `min-w-touch`, `size-touch`. */
+    --spacing-touch: 44px;
 }
 
 :root {
@@ -217,7 +226,9 @@ body,
 body {
     margin: 0;
     min-width: 320px;
-    min-height: 100vh;
+    /* dvh follows mobile browser chrome as it expands and collapses; 100vh would size
+     the page for the collapsed toolbar and clip its bottom edge. */
+    min-height: 100dvh;
     background-color: var(--bg-base);
     color: var(--text-primary);
     /* Prevent text selection globally */
@@ -240,6 +251,13 @@ code {
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
     -ms-user-select: text !important;
+}
+
+/* Keeps content out of notches, rounded corners and the home indicator. The insets are
+   0 on desktop and in the Tauri window, so this only pads where the device needs it. */
+@utility safe-area-padding {
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+        env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
 @layer utilities {

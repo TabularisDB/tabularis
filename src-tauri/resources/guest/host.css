@@ -105,6 +105,7 @@
     --color-on-accent-success: var(--text-on-accent-success);
     --color-on-accent-warning: var(--text-on-accent-warning);
     --color-on-accent-error: var(--text-on-accent-error);
+    --spacing-touch: 44px;
   }
 }
 @layer base {
@@ -961,6 +962,9 @@
   .h-\[min\(760px\,90vh\)\] {
     height: min(760px, 90vh);
   }
+  .h-dvh {
+    height: 100dvh;
+  }
   .h-full {
     height: 100%;
   }
@@ -1146,6 +1150,9 @@
   }
   .min-h-\[600px\] {
     min-height: 600px;
+  }
+  .min-h-touch {
+    min-height: var(--spacing-touch);
   }
   .\!w-1 {
     width: calc(var(--spacing) * 1) !important;
@@ -3256,6 +3263,10 @@
   }
   .p-8 {
     padding: calc(var(--spacing) * 8);
+  }
+  .safe-area-padding {
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+        env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   }
   .px-0 {
     padding-inline: calc(var(--spacing) * 0);
@@ -7472,7 +7483,7 @@ body,
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100dvh;
   background-color: var(--bg-base);
   color: var(--text-primary);
   user-select: none;
