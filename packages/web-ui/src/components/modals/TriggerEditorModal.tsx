@@ -12,7 +12,7 @@ import {
     buildTriggerSql as buildTriggerSqlUtil,
     triggerFunctionName,
     extractFunctionBody,
-    parseTriggerFunctionName,
+    parseTriggerFunctionRef,
     TRIGGER_CAPS,
     buildCreateTriggerStatements,
     defaultTriggerBody,
@@ -173,20 +173,11 @@ const DialectTriggerEditor = ({
                     /\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\b/i.test(parsed.tail)
                 ) {
                     try {
-                        const parsedFnName = parseTriggerFunctionName(def);
-                        // A schema-qualified name ("schema.fn") must be split for the RPC,
-                        // which takes routineName + schema separately; fall back to the
+                        const parsedFnName = parseTriggerFunctionRef(def);
+                        // The RPC takes routineName + schema separately; fall back to the
                         // trigger's own schema for an unqualified function name.
-                        let fnName: string;
-                        let fnSchema: string | undefined;
-                        if (parsedFnName && parsedFnName.includes('.')) {
-                            const [s, ...rest] = parsedFnName.split('.');
-                            fnSchema = s;
-                            fnName = rest.join('.');
-                        } else {
-                            fnName = parsedFnName ?? triggerFunctionName(tName, tTable);
-                            fnSchema = resolvedSchema;
-                        }
+                        const fnName = parsedFnName?.name ?? triggerFunctionName(tName, tTable);
+                        const fnSchema = parsedFnName?.schema ?? resolvedSchema;
                         const fnDef = await client.call('get_routine_definition', {
                             connectionId,
                             routineName: fnName,
