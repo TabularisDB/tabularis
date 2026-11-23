@@ -465,7 +465,13 @@ pub fn expand_connection_params(
             let ssh = get_ssh_connection(runtime, id, true)?;
             expanded.ssh_host = Some(ssh.host);
             expanded.ssh_port = Some(ssh.port);
-            expanded.ssh_user = Some(ssh.user);
+            let user_override = expanded
+                .ssh_user
+                .as_deref()
+                .map(str::trim)
+                .filter(|user| !user.is_empty())
+                .map(str::to_string);
+            expanded.ssh_user = Some(user_override.unwrap_or(ssh.user));
             expanded.ssh_password = ssh.password;
             expanded.ssh_key_file = ssh.key_file;
             expanded.ssh_key_passphrase = ssh.key_passphrase;

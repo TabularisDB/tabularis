@@ -1484,6 +1484,8 @@
     "save": "저장",
     "failSave": "연결 저장에 실패했습니다",
     "selectSshConnection": "SSH 연결 선택",
+    "sshUserOverride": "SSH 사용자 재정의 (선택 사항)",
+    "sshUserOverrideHint": "비워 두면 선택한 SSH 연결의 기본 사용자를 사용합니다.",
     "useSshConnection": "기존 SSH 연결 사용",
     "createInlineSsh": "SSH 인라인 설정",
     "manageSshConnections": "SSH 연결 관리",

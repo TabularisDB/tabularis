@@ -1491,6 +1491,8 @@
     "save": "保存",
     "failSave": "保存连接失败",
     "selectSshConnection": "选择 SSH 连接",
+    "sshUserOverride": "覆盖 SSH 用户名（可选）",
+    "sshUserOverrideHint": "留空则使用所选 SSH 连接的默认用户。",
     "useSshConnection": "使用现有 SSH 连接",
     "createInlineSsh": "配置内联 SSH",
     "manageSshConnections": "管理 SSH 连接",

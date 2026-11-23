@@ -1519,6 +1519,8 @@
     "save": "Speichern",
     "failSave": "Speichern der Verbindung fehlgeschlagen",
     "selectSshConnection": "SSH-Verbindung auswählen",
+    "sshUserOverride": "SSH-Benutzer überschreiben (optional)",
+    "sshUserOverrideHint": "Leer lassen, um den Standardbenutzer der ausgewählten SSH-Verbindung zu verwenden.",
     "useSshConnection": "Vorhandene SSH-Verbindung verwenden",
     "createInlineSsh": "SSH inline konfigurieren",
     "manageSshConnections": "SSH-Verbindungen verwalten",

@@ -1573,6 +1573,8 @@
     "save": "Lưu",
     "failSave": "Không lưu được kết nối",
     "selectSshConnection": "Chọn kết nối SSH",
+    "sshUserOverride": "Ghi đè người dùng SSH (tùy chọn)",
+    "sshUserOverrideHint": "Để trống để dùng người dùng mặc định của kết nối SSH đã chọn.",
     "useSshConnection": "Dùng kết nối SSH có sẵn",
     "createInlineSsh": "Cấu hình SSH tại đây",
     "manageSshConnections": "Quản lý kết nối SSH",

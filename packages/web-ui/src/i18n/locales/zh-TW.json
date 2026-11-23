@@ -1579,6 +1579,8 @@
         "save": "儲存",
         "failSave": "儲存連線失敗",
         "selectSshConnection": "選擇 SSH 連線",
+        "sshUserOverride": "覆寫 SSH 使用者（選填）",
+        "sshUserOverrideHint": "留空以使用所選 SSH 連線的預設使用者。",
         "useSshConnection": "使用現有 SSH 連線",
         "createInlineSsh": "設定內嵌 SSH",
         "manageSshConnections": "管理 SSH 連線",
