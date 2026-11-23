@@ -130,9 +130,13 @@ pub fn calculate_offset(page: u32, page_size: u32) -> u32 {
 /// On return `*i` points past the closing quote (or past end-of-input
 /// for an unterminated literal — kept as-is for parity with the rest
 /// of the tokenizer's lenient behaviour).
-fn read_quoted(chars: &[(usize, char)], i: &mut usize, quote: char, rules: ScanRules) -> String {
+fn read_quoted(
+    chars: &[(usize, char)],
+    i: &mut usize,
+    quote: char,
+    backslash_escapes: bool,
+) -> String {
     let len = chars.len();
-    let backslash_escapes = rules.backslash_escapes || is_e_string(chars, *i);
     let mut token = String::new();
     token.push(quote);
     *i += 1;
@@ -165,6 +169,26 @@ pub(super) fn is_e_string(chars: &[(usize, char)], i: usize) -> bool {
         && (i < 2 || !(chars[i - 2].1.is_alphanumeric() || chars[i - 2].1 == '_'))
 }
 
+/// Whether a backslash escapes inside the quoted string opening at
+/// `chars[i]`. `escape_string_end` is the index just past the last
+/// single-quoted string that used backslash escapes: PostgreSQL continues a
+/// string across whitespace that holds a newline, and only the first part of
+/// a continued `E'...'` string carries the `E`.
+fn string_escapes(
+    chars: &[(usize, char)],
+    i: usize,
+    rules: ScanRules,
+    escape_string_end: Option<usize>,
+) -> bool {
+    let continues = |end: usize| {
+        chars[i].1 == '\''
+            && end <= i
+            && chars[end..i].iter().all(|&(_, ch)| ch.is_whitespace())
+            && chars[end..i].iter().any(|&(_, ch)| ch == '\n')
+    };
+    rules.backslash_escapes || is_e_string(chars, i) || escape_string_end.is_some_and(continues)
+}
+
 /// A driver's comment and string rules for [`build_paginated_query_for`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ScanRules {
@@ -175,11 +199,9 @@ pub struct ScanRules {
     /// PostgreSQL and SQLite accept `--note`).
     pub line_comment_requires_space: bool,
     /// A backslash escapes the next character in a quoted string
-    /// (MySQL/MariaDB). In SQLite and PostgreSQL standard strings it is an
-    /// ordinary character; PostgreSQL `E'...'` strings still escape. A
-    /// PostgreSQL server with `standard_conforming_strings = off` escapes in
-    /// plain strings too, which these rules do not model: a query relying on
-    /// it may get a second LIMIT appended.
+    /// (MySQL/MariaDB, and PostgreSQL with `standard_conforming_strings =
+    /// off`). In SQLite and PostgreSQL standard strings it is an ordinary
+    /// character; PostgreSQL `E'...'` strings still escape.
     pub backslash_escapes: bool,
 }
 
@@ -239,6 +261,7 @@ fn tokenize_sql_with_pos(sql: &str, rules: ScanRules) -> Vec<(String, usize)> {
     let mut tokens: Vec<(String, usize)> = Vec::new();
     let chars: Vec<(usize, char)> = sql.char_indices().collect();
     let len = chars.len();
+    let mut escape_string_end = None;
     let mut i = 0;
 
     while i < len {
@@ -256,7 +279,9 @@ fn tokenize_sql_with_pos(sql: &str, rules: ScanRules) -> Vec<(String, usize)> {
         }
 
         if c == '\'' || c == '"' || c == '`' {
-            let token = read_quoted(&chars, &mut i, c, rules);
+            let escapes = string_escapes(&chars, i, rules, escape_string_end);
+            let token = read_quoted(&chars, &mut i, c, escapes);
+            escape_string_end = (c == '\'' && escapes).then_some(i);
             tokens.push((token, start_byte));
             continue;
         }
@@ -595,6 +620,7 @@ fn trailing_comment_start(sql: &str, rules: ScanRules) -> Option<usize> {
     let mut state = State::Normal;
     let mut candidate = None;
     let mut escapes = rules.backslash_escapes;
+    let mut escape_string_end = None;
     let mut i = 0;
 
     while i < chars.len() {
@@ -634,7 +660,7 @@ fn trailing_comment_start(sql: &str, rules: ScanRules) -> Option<usize> {
                 }
 
                 candidate = None;
-                escapes = rules.backslash_escapes || is_e_string(&chars, i);
+                escapes = string_escapes(&chars, i, rules, escape_string_end);
                 state = match ch {
                     '\'' => State::SingleQuote,
                     '"' => State::DoubleQuote,
@@ -657,6 +683,9 @@ fn trailing_comment_start(sql: &str, rules: ScanRules) -> Option<usize> {
                     if i + 1 < chars.len() && chars[i + 1].1 == quote {
                         i += 2;
                     } else {
+                        if matches!(state, State::SingleQuote) && escapes {
+                            escape_string_end = Some(i + 1);
+                        }
                         state = State::Normal;
                         i += 1;
                     }

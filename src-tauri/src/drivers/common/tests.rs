@@ -838,6 +838,30 @@ fn test_build_paginated_query_for_postgres_sqlite_string_ending_in_backslash() {
         build_paginated_query_for(comment_after_backslash, 100, 1, POSTGRES_SQLITE),
         "SELECT id FROM files WHERE dir = 'C:\\' -- don't page\nLIMIT 4 OFFSET 0"
     );
+
+    let continued_e_string = "SELECT E'a'\n'it\\'s' LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(continued_e_string, 100, 1, POSTGRES_SQLITE),
+        "SELECT E'a'\n'it\\'s' LIMIT 5 OFFSET 0"
+    );
+
+    let continued_e_string_comment = "SELECT E'a'\n'b\\'' -- it's\nLIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(continued_e_string_comment, 100, 1, POSTGRES_SQLITE),
+        "SELECT E'a'\n'b\\'' -- it's\nLIMIT 5 OFFSET 0"
+    );
+
+    let same_line_is_not_continued = r"SELECT E'a', 'C:\' FROM t LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(same_line_is_not_continued, 100, 1, POSTGRES_SQLITE),
+        r"SELECT E'a', 'C:\' FROM t LIMIT 5 OFFSET 0"
+    );
+
+    let plain_then_plain = "SELECT 'a'\n'C:\\' FROM t LIMIT 5";
+    assert_eq!(
+        build_paginated_query_for(plain_then_plain, 100, 1, POSTGRES_SQLITE),
+        "SELECT 'a'\n'C:\\' FROM t LIMIT 5 OFFSET 0"
+    );
 }
 
 #[test]

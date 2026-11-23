@@ -1157,6 +1157,13 @@ async fn exec_on_pg_client(
 
     let (final_query, pagination_meta) = if is_select && limit.is_some() {
         let l = limit.unwrap();
+        let backslash_escapes = query.contains('\\')
+            && client
+                .query_one("SHOW standard_conforming_strings", &[])
+                .await
+                .ok()
+                .and_then(|row| row.try_get::<_, String>(0).ok())
+                .is_some_and(|value| value.eq_ignore_ascii_case("off"));
         let data_query = crate::drivers::common::build_paginated_query_for(
             query,
             l,
@@ -1164,7 +1171,7 @@ async fn exec_on_pg_client(
             crate::drivers::common::ScanRules {
                 hash_comments: false,
                 line_comment_requires_space: false,
-                backslash_escapes: false,
+                backslash_escapes,
             },
         );
         manual_limit = None;
